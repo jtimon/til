@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e302196</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-a132b29</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -78,7 +78,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </ul>
 <h2>Compiler tools</h2><ul>
 <li><a href="../../src/self/eval_heap.html">src/self/eval_heap.til</a></li>
-<li><a class="current" href="../../src/self/interpreter.html">src/self/interpreter.til</a><ul><li><a href="#til.src.self.interpreter.CALLABLE_BOX_MAGIC">CALLABLE_BOX_MAGIC</a></li><li><a href="#til.src.self.interpreter.InterpCallableBox">InterpCallableBox</a></li><li><a href="#til.src.self.interpreter.hb_type">hb_type</a></li><li><a href="#til.src.self.interpreter.HeapBinding">HeapBinding</a></li><li><a href="#til.src.self.interpreter.Scope">Scope</a></li><li><a href="#til.src.self.interpreter.InterpSession">InterpSession</a></li><li><a href="#til.src.self.interpreter.TilVmDiagnostic">TilVmDiagnostic</a></li><li><a href="#til.src.self.interpreter.TilVmError">TilVmError</a></li><li><a href="#til.src.self.interpreter.TilVmCallback">TilVmCallback</a></li><li><a href="#til.src.self.interpreter.TilVmCallback.call">TilVmCallback.call</a></li><li><a href="#til.src.self.interpreter.TilVmCallback.invoke_throwing">TilVmCallback.invoke_throwing</a></li><li><a href="#til.src.self.interpreter.call_throwing">call_throwing</a></li><li><a href="#til.src.self.interpreter.InterpRunResult">InterpRunResult</a></li><li><a href="#til.src.self.interpreter.lookup_interp_type_def">lookup_interp_type_def</a></li><li><a href="#til.src.self.interpreter.enum_data_tag_key">enum_data_tag_key</a></li><li><a href="#til.src.self.interpreter.raw_type_is_prim">raw_type_is_prim</a></li><li><a href="#til.src.self.interpreter.scalar_word_load">scalar_word_load</a></li><li><a href="#til.src.self.interpreter.field_word_type">field_word_type</a></li><li><a href="#til.src.self.interpreter.scalar_block_from_word">scalar_block_from_word</a></li><li><a href="#til.src.self.interpreter.DISPATCH_SCRATCH_SLOTS">DISPATCH_SCRATCH_SLOTS</a></li><li><a href="#til.src.self.interpreter.WORD_RING_SLOTS">WORD_RING_SLOTS</a></li><li><a href="#til.src.self.interpreter.raw_result_drop">raw_result_drop</a></li><li><a href="#til.src.self.interpreter.scope_set_raw_owned">scope_set_raw_owned</a></li><li><a href="#til.src.self.interpreter.eval_expr_raw">eval_expr_raw</a></li><li><a href="#til.src.self.interpreter.eval_body">eval_body</a></li><li><a href="#til.src.self.interpreter.container_elem_type">container_elem_type</a></li><li><a href="#til.src.self.interpreter.container_elem_size">container_elem_size</a></li><li><a href="#til.src.self.interpreter.container_live_count">container_live_count</a></li><li><a href="#til.src.self.interpreter.container_capacity">container_capacity</a></li><li><a href="#til.src.self.interpreter.scope_get">scope_get</a></li><li><a href="#til.src.self.interpreter.scope_pool_drain">scope_pool_drain</a></li><li><a href="#til.src.self.interpreter.scope_new">scope_new</a></li><li><a href="#til.src.self.interpreter.scope_lookup_heap_binding">scope_lookup_heap_binding</a></li><li><a href="#til.src.self.interpreter.hb_func_def">hb_func_def</a></li><li><a href="#til.src.self.interpreter.ns_func_def">ns_func_def</a></li><li><a href="#til.src.self.interpreter.ns_func_def_sym">ns_func_def_sym</a></li><li><a href="#til.src.self.interpreter.scope_read_bound_raw">scope_read_bound_raw</a></li><li><a href="#til.src.self.interpreter.interp_intern_type">interp_intern_type</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_owned">scope_set_heap_owned</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_moved">scope_set_heap_moved</a></li><li><a href="#til.src.self.interpreter.scope_new_owned">scope_new_owned</a></li><li><a href="#til.src.self.interpreter.scope_new_boxed">scope_new_boxed</a></li><li><a href="#til.src.self.interpreter.scope_drop_owned_bindings">scope_drop_owned_bindings</a></li><li><a href="#til.src.self.interpreter.scope_free">scope_free</a></li><li><a href="#til.src.self.interpreter.populate_cached_aggregate_defs">populate_cached_aggregate_defs</a></li><li><a href="#til.src.self.interpreter.interpreter_init_ns">interpreter_init_ns</a></li><li><a href="#til.src.self.interpreter.ns_get">ns_get</a></li><li><a href="#til.src.self.interpreter.interpreter_free_ns">interpreter_free_ns</a></li><li><a href="#til.src.self.interpreter.str_cap_at">str_cap_at</a></li><li><a href="#til.src.self.interpreter.str_count_at">str_count_at</a></li><li><a href="#til.src.self.interpreter.read_field">read_field</a></li><li><a href="#til.src.self.interpreter.interp_session_lookup_function">interp_session_lookup_function</a></li><li><a href="#til.src.self.interpreter.interp_session_call_function">interp_session_call_function</a></li><li><a href="#til.src.self.interpreter.interp_session_start">interp_session_start</a></li><li><a href="#til.src.self.interpreter.interp_session_free">interp_session_free</a></li><li><a href="#til.src.self.interpreter.interp_program_to_heap">interp_program_to_heap</a></li><li><a href="#til.src.self.interpreter.interp_program_free">interp_program_free</a></li><li><a href="#til.src.self.interpreter.interp_session_retain_program">interp_session_retain_program</a></li><li><a href="#til.src.self.interpreter.interp_session_result">interp_session_result</a></li><li><a href="#til.src.self.interpreter.interp_session_prepare_context">interp_session_prepare_context</a></li><li><a href="#til.src.self.interpreter.interp_session_finish_context">interp_session_finish_context</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_core_once">interp_session_eval_core_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_user_units">interp_session_eval_user_units</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_imported_once">interp_session_eval_imported_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_root">interp_session_eval_current_root</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_tail">interp_session_eval_current_tail</a></li><li><a href="#til.src.self.interpreter.cmd_interpret">cmd_interpret</a></li><li><a href="#til.src.self.interpreter.FFIEntry">FFIEntry</a></li><li><a href="#til.src.self.interpreter.ExprPtrBox">ExprPtrBox</a></li><li><a href="#til.src.self.interpreter.FFITypePtrBox">FFITypePtrBox</a></li><li><a href="#til.src.self.interpreter.ffi_reset">ffi_reset</a></li><li><a href="#til.src.self.interpreter.ffi_load_global_lib">ffi_load_global_lib</a></li><li><a href="#til.src.self.interpreter.ffi_open_user_so">ffi_open_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_close_user_so">ffi_close_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_user_symbol">ffi_user_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_global_symbol">ffi_global_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_last_error">ffi_last_error</a></li><li><a href="#til.src.self.interpreter.get_exe_path">get_exe_path</a></li><li><a href="#til.src.self.interpreter.til_built_with_asan">til_built_with_asan</a></li><li><a href="#til.src.self.interpreter.til_built_with_cptr32">til_built_with_cptr32</a></li><li><a href="#til.src.self.interpreter.ffi_init_struct_defs_append">ffi_init_struct_defs_append</a></li><li><a href="#til.src.self.interpreter.dispatch_result_alloc">dispatch_result_alloc</a></li><li><a href="#til.src.self.interpreter.str_copy_into">str_copy_into</a></li><li><a href="#til.src.self.interpreter.ffi_init_scan_program">ffi_init_scan_program</a></li><li><a href="#til.src.self.interpreter.ffi_cleanup">ffi_cleanup</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias">Vec__InterpAlias</a></li><li><a href="#til.src.self.interpreter.Option__ref_InterpSession">Option__ref_InterpSession</a></li><li><a href="#til.src.self.interpreter.Option__ref_InterpSession.unwrap">Option__ref_InterpSession.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_InterpSession.take">Option__ref_InterpSession.take</a></li><li><a href="#til.src.self.interpreter.Option__ref_U8">Option__ref_U8</a></li><li><a href="#til.src.self.interpreter.Option__ref_U8.unwrap">Option__ref_U8.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_U8.take">Option__ref_U8.take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox">Vec__priv___src_self_interpreter_til__InterfaceCallBox</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.new">Vec__priv___src_self_interpreter_til__InterfaceCallBox.new</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.with_capacity">Vec__priv___src_self_interpreter_til__InterfaceCallBox.with_capacity</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.clear">Vec__priv___src_self_interpreter_til__InterfaceCallBox.clear</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.delete_marked">Vec__priv___src_self_interpreter_til__InterfaceCallBox.delete_marked</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.push">Vec__priv___src_self_interpreter_til__InterfaceCallBox.push</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.append">Vec__priv___src_self_interpreter_til__InterfaceCallBox.append</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.take">Vec__priv___src_self_interpreter_til__InterfaceCallBox.take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.move_to">Vec__priv___src_self_interpreter_til__InterfaceCallBox.move_to</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.move_from">Vec__priv___src_self_interpreter_til__InterfaceCallBox.move_from</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.unsafe_get">Vec__priv___src_self_interpreter_til__InterfaceCallBox.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.get">Vec__priv___src_self_interpreter_til__InterfaceCallBox.get</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.pop">Vec__priv___src_self_interpreter_til__InterfaceCallBox.pop</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.remove_at">Vec__priv___src_self_interpreter_til__InterfaceCallBox.remove_at</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.take_prefix">Vec__priv___src_self_interpreter_til__InterfaceCallBox.take_prefix</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.truncate">Vec__priv___src_self_interpreter_til__InterfaceCallBox.truncate</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.unsafe_set">Vec__priv___src_self_interpreter_til__InterfaceCallBox.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.set">Vec__priv___src_self_interpreter_til__InterfaceCallBox.set</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.push_take">Vec__priv___src_self_interpreter_til__InterfaceCallBox.push_take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.delete">Vec__priv___src_self_interpreter_til__InterfaceCallBox.delete</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.clone">Vec__priv___src_self_interpreter_til__InterfaceCallBox.clone</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding">Map__Str_HeapBinding</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.new">Map__Str_HeapBinding.new</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.with_capacity">Map__Str_HeapBinding.with_capacity</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.clear">Map__Str_HeapBinding.clear</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.has">Map__Str_HeapBinding.has</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.get">Map__Str_HeapBinding.get</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.set">Map__Str_HeapBinding.set</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.remove">Map__Str_HeapBinding.remove</a></li><li><a href="#til.src.self.interpreter.Option__ref_Dynamic">Option__ref_Dynamic</a></li><li><a href="#til.src.self.interpreter.Option__ref_Dynamic.unwrap">Option__ref_Dynamic.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_Dynamic.take">Option__ref_Dynamic.take</a></li><li><a href="#til.src.self.interpreter.Option__FuncSig">Option__FuncSig</a></li><li><a href="#til.src.self.interpreter.Option__FuncSig.unwrap">Option__FuncSig.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__FuncSig.take">Option__FuncSig.take</a></li><li><a href="#til.src.self.interpreter.Option__ref_HeapBinding">Option__ref_HeapBinding</a></li><li><a href="#til.src.self.interpreter.Option__ref_HeapBinding.unwrap">Option__ref_HeapBinding.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_HeapBinding.take">Option__ref_HeapBinding.take</a></li><li><a href="#til.src.self.interpreter.Option__Tuple">Option__Tuple</a></li><li><a href="#til.src.self.interpreter.Option__Tuple.unwrap">Option__Tuple.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__Tuple.take">Option__Tuple.take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox">Vec__priv___src_self_interpreter_til__DynPtrBox</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.new">Vec__priv___src_self_interpreter_til__DynPtrBox.new</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.with_capacity">Vec__priv___src_self_interpreter_til__DynPtrBox.with_capacity</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.clear">Vec__priv___src_self_interpreter_til__DynPtrBox.clear</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.delete_marked">Vec__priv___src_self_interpreter_til__DynPtrBox.delete_marked</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.push">Vec__priv___src_self_interpreter_til__DynPtrBox.push</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.append">Vec__priv___src_self_interpreter_til__DynPtrBox.append</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.take">Vec__priv___src_self_interpreter_til__DynPtrBox.take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.move_to">Vec__priv___src_self_interpreter_til__DynPtrBox.move_to</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.move_from">Vec__priv___src_self_interpreter_til__DynPtrBox.move_from</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_get">Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.get">Vec__priv___src_self_interpreter_til__DynPtrBox.get</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.pop">Vec__priv___src_self_interpreter_til__DynPtrBox.pop</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.remove_at">Vec__priv___src_self_interpreter_til__DynPtrBox.remove_at</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.take_prefix">Vec__priv___src_self_interpreter_til__DynPtrBox.take_prefix</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.truncate">Vec__priv___src_self_interpreter_til__DynPtrBox.truncate</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_set">Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.set">Vec__priv___src_self_interpreter_til__DynPtrBox.set</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.push_take">Vec__priv___src_self_interpreter_til__DynPtrBox.push_take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.delete">Vec__priv___src_self_interpreter_til__DynPtrBox.delete</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.clone">Vec__priv___src_self_interpreter_til__DynPtrBox.clone</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias">Vec__priv___src_self_interpreter_til__InterpAlias</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.new">Vec__priv___src_self_interpreter_til__InterpAlias.new</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.with_capacity">Vec__priv___src_self_interpreter_til__InterpAlias.with_capacity</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.clear">Vec__priv___src_self_interpreter_til__InterpAlias.clear</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.delete_marked">Vec__priv___src_self_interpreter_til__InterpAlias.delete_marked</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.push">Vec__priv___src_self_interpreter_til__InterpAlias.push</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.append">Vec__priv___src_self_interpreter_til__InterpAlias.append</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.take">Vec__priv___src_self_interpreter_til__InterpAlias.take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.move_to">Vec__priv___src_self_interpreter_til__InterpAlias.move_to</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.move_from">Vec__priv___src_self_interpreter_til__InterpAlias.move_from</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_get">Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.get">Vec__priv___src_self_interpreter_til__InterpAlias.get</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.pop">Vec__priv___src_self_interpreter_til__InterpAlias.pop</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.remove_at">Vec__priv___src_self_interpreter_til__InterpAlias.remove_at</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.take_prefix">Vec__priv___src_self_interpreter_til__InterpAlias.take_prefix</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.truncate">Vec__priv___src_self_interpreter_til__InterpAlias.truncate</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_set">Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.set">Vec__priv___src_self_interpreter_til__InterpAlias.set</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.push_take">Vec__priv___src_self_interpreter_til__InterpAlias.push_take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.delete">Vec__priv___src_self_interpreter_til__InterpAlias.delete</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.clone">Vec__priv___src_self_interpreter_til__InterpAlias.clone</a></li><li><a href="#til.src.self.interpreter.Option__ref_ffi_type">Option__ref_ffi_type</a></li><li><a href="#til.src.self.interpreter.Option__ref_ffi_type.unwrap">Option__ref_ffi_type.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_ffi_type.take">Option__ref_ffi_type.take</a></li><li><a href="#til.src.self.interpreter.Array__U64">Array__U64</a></li><li><a href="#til.src.self.interpreter.Array__U64.new">Array__U64.new</a></li><li><a href="#til.src.self.interpreter.Array__U64.unsafe_get">Array__U64.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Array__U64.get">Array__U64.get</a></li><li><a href="#til.src.self.interpreter.Array__U64.unsafe_set">Array__U64.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Array__U64.set">Array__U64.set</a></li><li><a href="#til.src.self.interpreter.Array__U64.concat">Array__U64.concat</a></li><li><a href="#til.src.self.interpreter.Array__U64.to_vec">Array__U64.to_vec</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding">Vec__HeapBinding</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.new">Vec__HeapBinding.new</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.with_capacity">Vec__HeapBinding.with_capacity</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.clear">Vec__HeapBinding.clear</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.delete_marked">Vec__HeapBinding.delete_marked</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.push">Vec__HeapBinding.push</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.append">Vec__HeapBinding.append</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.take">Vec__HeapBinding.take</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.move_to">Vec__HeapBinding.move_to</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.move_from">Vec__HeapBinding.move_from</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.unsafe_get">Vec__HeapBinding.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.get">Vec__HeapBinding.get</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.pop">Vec__HeapBinding.pop</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.remove_at">Vec__HeapBinding.remove_at</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.take_prefix">Vec__HeapBinding.take_prefix</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.truncate">Vec__HeapBinding.truncate</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.unsafe_set">Vec__HeapBinding.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.set">Vec__HeapBinding.set</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.push_take">Vec__HeapBinding.push_take</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.delete">Vec__HeapBinding.delete</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.clone">Vec__HeapBinding.clone</a></li><li><a href="#til.src.self.interpreter.safe_ref__InterpSession">safe_ref__InterpSession</a></li><li><a href="#til.src.self.interpreter.safe_ref__Dynamic">safe_ref__Dynamic</a></li><li><a href="#til.src.self.interpreter.safe_ref__Expr">safe_ref__Expr</a></li><li><a href="#til.src.self.interpreter.adopt__KwargsMap">adopt__KwargsMap</a></li><li><a href="#til.src.self.interpreter.adopt__LoadedProgram">adopt__LoadedProgram</a></li><li><a href="#til.src.self.interpreter.swap__Vec__InterpOutputEvent">swap__Vec__InterpOutputEvent</a></li><li><a href="#til.src.self.interpreter.adopt__priv___src_self_interpreter_til__InterfaceCallBox">adopt__priv___src_self_interpreter_til__InterfaceCallBox</a></li><li><a href="#til.src.self.interpreter.adopt__HeapBinding">adopt__HeapBinding</a></li><li><a href="#til.src.self.interpreter.adopt__priv___src_self_interpreter_til__DynPtrBox">adopt__priv___src_self_interpreter_til__DynPtrBox</a></li><li><a href="#til.src.self.interpreter.adopt__priv___src_self_interpreter_til__InterpAlias">adopt__priv___src_self_interpreter_til__InterpAlias</a></li><li><a href="#til.src.self.interpreter.safe_ref__HeapBinding">safe_ref__HeapBinding</a></li><li><a href="#til.src.self.interpreter.safe_ref__ffi_type">safe_ref__ffi_type</a></li></ul></li>
+<li><a class="current" href="../../src/self/interpreter.html">src/self/interpreter.til</a><ul><li><a href="#til.src.self.interpreter.CALLABLE_BOX_MAGIC">CALLABLE_BOX_MAGIC</a></li><li><a href="#til.src.self.interpreter.InterpCallableBox">InterpCallableBox</a></li><li><a href="#til.src.self.interpreter.hb_type">hb_type</a></li><li><a href="#til.src.self.interpreter.HeapBinding">HeapBinding</a></li><li><a href="#til.src.self.interpreter.Scope">Scope</a></li><li><a href="#til.src.self.interpreter.InterpSession">InterpSession</a></li><li><a href="#til.src.self.interpreter.TilVmDiagnostic">TilVmDiagnostic</a></li><li><a href="#til.src.self.interpreter.TilVmError">TilVmError</a></li><li><a href="#til.src.self.interpreter.TilVmCallback">TilVmCallback</a></li><li><a href="#til.src.self.interpreter.TilVmCallback.call">TilVmCallback.call</a></li><li><a href="#til.src.self.interpreter.TilVmCallback.invoke_throwing">TilVmCallback.invoke_throwing</a></li><li><a href="#til.src.self.interpreter.call_throwing">call_throwing</a></li><li><a href="#til.src.self.interpreter.InterpRunResult">InterpRunResult</a></li><li><a href="#til.src.self.interpreter.lookup_interp_type_def">lookup_interp_type_def</a></li><li><a href="#til.src.self.interpreter.enum_data_tag_key">enum_data_tag_key</a></li><li><a href="#til.src.self.interpreter.raw_type_is_prim">raw_type_is_prim</a></li><li><a href="#til.src.self.interpreter.scalar_word_load">scalar_word_load</a></li><li><a href="#til.src.self.interpreter.field_word_type">field_word_type</a></li><li><a href="#til.src.self.interpreter.scalar_block_from_word">scalar_block_from_word</a></li><li><a href="#til.src.self.interpreter.DISPATCH_SCRATCH_SLOTS">DISPATCH_SCRATCH_SLOTS</a></li><li><a href="#til.src.self.interpreter.WORD_RING_SLOTS">WORD_RING_SLOTS</a></li><li><a href="#til.src.self.interpreter.raw_result_drop">raw_result_drop</a></li><li><a href="#til.src.self.interpreter.scope_set_raw_owned">scope_set_raw_owned</a></li><li><a href="#til.src.self.interpreter.eval_expr_raw">eval_expr_raw</a></li><li><a href="#til.src.self.interpreter.eval_body">eval_body</a></li><li><a href="#til.src.self.interpreter.container_elem_type">container_elem_type</a></li><li><a href="#til.src.self.interpreter.container_elem_size">container_elem_size</a></li><li><a href="#til.src.self.interpreter.container_live_count">container_live_count</a></li><li><a href="#til.src.self.interpreter.container_capacity">container_capacity</a></li><li><a href="#til.src.self.interpreter.scope_get">scope_get</a></li><li><a href="#til.src.self.interpreter.scope_pool_drain">scope_pool_drain</a></li><li><a href="#til.src.self.interpreter.scope_new">scope_new</a></li><li><a href="#til.src.self.interpreter.scope_lookup_heap_binding">scope_lookup_heap_binding</a></li><li><a href="#til.src.self.interpreter.hb_func_def">hb_func_def</a></li><li><a href="#til.src.self.interpreter.ns_func_def">ns_func_def</a></li><li><a href="#til.src.self.interpreter.ns_func_def_sym">ns_func_def_sym</a></li><li><a href="#til.src.self.interpreter.scope_read_bound_raw">scope_read_bound_raw</a></li><li><a href="#til.src.self.interpreter.interp_intern_type">interp_intern_type</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_owned">scope_set_heap_owned</a></li><li><a href="#til.src.self.interpreter.scope_set_heap_moved">scope_set_heap_moved</a></li><li><a href="#til.src.self.interpreter.scope_new_owned">scope_new_owned</a></li><li><a href="#til.src.self.interpreter.scope_new_boxed">scope_new_boxed</a></li><li><a href="#til.src.self.interpreter.scope_drop_owned_bindings">scope_drop_owned_bindings</a></li><li><a href="#til.src.self.interpreter.scope_free">scope_free</a></li><li><a href="#til.src.self.interpreter.populate_cached_aggregate_defs">populate_cached_aggregate_defs</a></li><li><a href="#til.src.self.interpreter.interpreter_init_ns">interpreter_init_ns</a></li><li><a href="#til.src.self.interpreter.ns_get">ns_get</a></li><li><a href="#til.src.self.interpreter.interpreter_free_ns">interpreter_free_ns</a></li><li><a href="#til.src.self.interpreter.str_cap_at">str_cap_at</a></li><li><a href="#til.src.self.interpreter.str_count_at">str_count_at</a></li><li><a href="#til.src.self.interpreter.read_field">read_field</a></li><li><a href="#til.src.self.interpreter.interp_session_lookup_function">interp_session_lookup_function</a></li><li><a href="#til.src.self.interpreter.interp_session_call_function">interp_session_call_function</a></li><li><a href="#til.src.self.interpreter.interp_session_start">interp_session_start</a></li><li><a href="#til.src.self.interpreter.interp_session_free">interp_session_free</a></li><li><a href="#til.src.self.interpreter.interp_program_to_heap">interp_program_to_heap</a></li><li><a href="#til.src.self.interpreter.interp_program_free">interp_program_free</a></li><li><a href="#til.src.self.interpreter.interp_session_retain_program">interp_session_retain_program</a></li><li><a href="#til.src.self.interpreter.interp_session_result">interp_session_result</a></li><li><a href="#til.src.self.interpreter.interp_session_prepare_context">interp_session_prepare_context</a></li><li><a href="#til.src.self.interpreter.interp_session_finish_context">interp_session_finish_context</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_core_once">interp_session_eval_core_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_user_units">interp_session_eval_user_units</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_imported_once">interp_session_eval_imported_once</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_root">interp_session_eval_current_root</a></li><li><a href="#til.src.self.interpreter.interp_session_eval_current_tail">interp_session_eval_current_tail</a></li><li><a href="#til.src.self.interpreter.cmd_interpret">cmd_interpret</a></li><li><a href="#til.src.self.interpreter.FFIEntry">FFIEntry</a></li><li><a href="#til.src.self.interpreter.ExprPtrBox">ExprPtrBox</a></li><li><a href="#til.src.self.interpreter.FFITypePtrBox">FFITypePtrBox</a></li><li><a href="#til.src.self.interpreter.ffi_reset">ffi_reset</a></li><li><a href="#til.src.self.interpreter.ffi_load_global_lib">ffi_load_global_lib</a></li><li><a href="#til.src.self.interpreter.ffi_open_user_so">ffi_open_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_close_user_so">ffi_close_user_so</a></li><li><a href="#til.src.self.interpreter.ffi_user_symbol">ffi_user_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_global_symbol">ffi_global_symbol</a></li><li><a href="#til.src.self.interpreter.ffi_last_error">ffi_last_error</a></li><li><a href="#til.src.self.interpreter.get_exe_path">get_exe_path</a></li><li><a href="#til.src.self.interpreter.til_built_with_asan">til_built_with_asan</a></li><li><a href="#til.src.self.interpreter.ffi_init_struct_defs_append">ffi_init_struct_defs_append</a></li><li><a href="#til.src.self.interpreter.dispatch_result_alloc">dispatch_result_alloc</a></li><li><a href="#til.src.self.interpreter.str_copy_into">str_copy_into</a></li><li><a href="#til.src.self.interpreter.ffi_init_scan_program">ffi_init_scan_program</a></li><li><a href="#til.src.self.interpreter.ffi_cleanup">ffi_cleanup</a></li><li><a href="#til.src.self.interpreter.Vec__InterpAlias">Vec__InterpAlias</a></li><li><a href="#til.src.self.interpreter.Option__priv___src_self_interpreter_til__InterpSharedI64">Option__priv___src_self_interpreter_til__InterpSharedI64</a></li><li><a href="#til.src.self.interpreter.Option__priv___src_self_interpreter_til__InterpSharedI64.unwrap">Option__priv___src_self_interpreter_til__InterpSharedI64.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__priv___src_self_interpreter_til__InterpSharedI64.take">Option__priv___src_self_interpreter_til__InterpSharedI64.take</a></li><li><a href="#til.src.self.interpreter.Option__ref_InterpSession">Option__ref_InterpSession</a></li><li><a href="#til.src.self.interpreter.Option__ref_InterpSession.unwrap">Option__ref_InterpSession.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_InterpSession.take">Option__ref_InterpSession.take</a></li><li><a href="#til.src.self.interpreter.Option__ref_U8">Option__ref_U8</a></li><li><a href="#til.src.self.interpreter.Option__ref_U8.unwrap">Option__ref_U8.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_U8.take">Option__ref_U8.take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox">Vec__priv___src_self_interpreter_til__InterfaceCallBox</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.new">Vec__priv___src_self_interpreter_til__InterfaceCallBox.new</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.with_capacity">Vec__priv___src_self_interpreter_til__InterfaceCallBox.with_capacity</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.clear">Vec__priv___src_self_interpreter_til__InterfaceCallBox.clear</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.delete_marked">Vec__priv___src_self_interpreter_til__InterfaceCallBox.delete_marked</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.push">Vec__priv___src_self_interpreter_til__InterfaceCallBox.push</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.append">Vec__priv___src_self_interpreter_til__InterfaceCallBox.append</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.take">Vec__priv___src_self_interpreter_til__InterfaceCallBox.take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.move_to">Vec__priv___src_self_interpreter_til__InterfaceCallBox.move_to</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.move_from">Vec__priv___src_self_interpreter_til__InterfaceCallBox.move_from</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.unsafe_get">Vec__priv___src_self_interpreter_til__InterfaceCallBox.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.get">Vec__priv___src_self_interpreter_til__InterfaceCallBox.get</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.pop">Vec__priv___src_self_interpreter_til__InterfaceCallBox.pop</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.remove_at">Vec__priv___src_self_interpreter_til__InterfaceCallBox.remove_at</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.take_prefix">Vec__priv___src_self_interpreter_til__InterfaceCallBox.take_prefix</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.truncate">Vec__priv___src_self_interpreter_til__InterfaceCallBox.truncate</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.unsafe_set">Vec__priv___src_self_interpreter_til__InterfaceCallBox.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.set">Vec__priv___src_self_interpreter_til__InterfaceCallBox.set</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.push_take">Vec__priv___src_self_interpreter_til__InterfaceCallBox.push_take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.delete">Vec__priv___src_self_interpreter_til__InterfaceCallBox.delete</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.clone">Vec__priv___src_self_interpreter_til__InterfaceCallBox.clone</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding">Map__Str_HeapBinding</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.new">Map__Str_HeapBinding.new</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.with_capacity">Map__Str_HeapBinding.with_capacity</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.clear">Map__Str_HeapBinding.clear</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.has">Map__Str_HeapBinding.has</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.get">Map__Str_HeapBinding.get</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.set">Map__Str_HeapBinding.set</a></li><li><a href="#til.src.self.interpreter.Map__Str_HeapBinding.remove">Map__Str_HeapBinding.remove</a></li><li><a href="#til.src.self.interpreter.Option__ref_Dynamic">Option__ref_Dynamic</a></li><li><a href="#til.src.self.interpreter.Option__ref_Dynamic.unwrap">Option__ref_Dynamic.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_Dynamic.take">Option__ref_Dynamic.take</a></li><li><a href="#til.src.self.interpreter.Option__FuncSig">Option__FuncSig</a></li><li><a href="#til.src.self.interpreter.Option__FuncSig.unwrap">Option__FuncSig.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__FuncSig.take">Option__FuncSig.take</a></li><li><a href="#til.src.self.interpreter.Option__ref_HeapBinding">Option__ref_HeapBinding</a></li><li><a href="#til.src.self.interpreter.Option__ref_HeapBinding.unwrap">Option__ref_HeapBinding.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_HeapBinding.take">Option__ref_HeapBinding.take</a></li><li><a href="#til.src.self.interpreter.Option__Tuple">Option__Tuple</a></li><li><a href="#til.src.self.interpreter.Option__Tuple.unwrap">Option__Tuple.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__Tuple.take">Option__Tuple.take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox">Vec__priv___src_self_interpreter_til__DynPtrBox</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.new">Vec__priv___src_self_interpreter_til__DynPtrBox.new</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.with_capacity">Vec__priv___src_self_interpreter_til__DynPtrBox.with_capacity</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.clear">Vec__priv___src_self_interpreter_til__DynPtrBox.clear</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.delete_marked">Vec__priv___src_self_interpreter_til__DynPtrBox.delete_marked</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.push">Vec__priv___src_self_interpreter_til__DynPtrBox.push</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.append">Vec__priv___src_self_interpreter_til__DynPtrBox.append</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.take">Vec__priv___src_self_interpreter_til__DynPtrBox.take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.move_to">Vec__priv___src_self_interpreter_til__DynPtrBox.move_to</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.move_from">Vec__priv___src_self_interpreter_til__DynPtrBox.move_from</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_get">Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.get">Vec__priv___src_self_interpreter_til__DynPtrBox.get</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.pop">Vec__priv___src_self_interpreter_til__DynPtrBox.pop</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.remove_at">Vec__priv___src_self_interpreter_til__DynPtrBox.remove_at</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.take_prefix">Vec__priv___src_self_interpreter_til__DynPtrBox.take_prefix</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.truncate">Vec__priv___src_self_interpreter_til__DynPtrBox.truncate</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_set">Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.set">Vec__priv___src_self_interpreter_til__DynPtrBox.set</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.push_take">Vec__priv___src_self_interpreter_til__DynPtrBox.push_take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.delete">Vec__priv___src_self_interpreter_til__DynPtrBox.delete</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.clone">Vec__priv___src_self_interpreter_til__DynPtrBox.clone</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias">Vec__priv___src_self_interpreter_til__InterpAlias</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.new">Vec__priv___src_self_interpreter_til__InterpAlias.new</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.with_capacity">Vec__priv___src_self_interpreter_til__InterpAlias.with_capacity</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.clear">Vec__priv___src_self_interpreter_til__InterpAlias.clear</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.delete_marked">Vec__priv___src_self_interpreter_til__InterpAlias.delete_marked</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.push">Vec__priv___src_self_interpreter_til__InterpAlias.push</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.append">Vec__priv___src_self_interpreter_til__InterpAlias.append</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.take">Vec__priv___src_self_interpreter_til__InterpAlias.take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.move_to">Vec__priv___src_self_interpreter_til__InterpAlias.move_to</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.move_from">Vec__priv___src_self_interpreter_til__InterpAlias.move_from</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_get">Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.get">Vec__priv___src_self_interpreter_til__InterpAlias.get</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.pop">Vec__priv___src_self_interpreter_til__InterpAlias.pop</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.remove_at">Vec__priv___src_self_interpreter_til__InterpAlias.remove_at</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.take_prefix">Vec__priv___src_self_interpreter_til__InterpAlias.take_prefix</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.truncate">Vec__priv___src_self_interpreter_til__InterpAlias.truncate</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_set">Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.set">Vec__priv___src_self_interpreter_til__InterpAlias.set</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.push_take">Vec__priv___src_self_interpreter_til__InterpAlias.push_take</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.delete">Vec__priv___src_self_interpreter_til__InterpAlias.delete</a></li><li><a href="#til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.clone">Vec__priv___src_self_interpreter_til__InterpAlias.clone</a></li><li><a href="#til.src.self.interpreter.Option__ref_ffi_type">Option__ref_ffi_type</a></li><li><a href="#til.src.self.interpreter.Option__ref_ffi_type.unwrap">Option__ref_ffi_type.unwrap</a></li><li><a href="#til.src.self.interpreter.Option__ref_ffi_type.take">Option__ref_ffi_type.take</a></li><li><a href="#til.src.self.interpreter.Array__U64">Array__U64</a></li><li><a href="#til.src.self.interpreter.Array__U64.new">Array__U64.new</a></li><li><a href="#til.src.self.interpreter.Array__U64.unsafe_get">Array__U64.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Array__U64.get">Array__U64.get</a></li><li><a href="#til.src.self.interpreter.Array__U64.unsafe_set">Array__U64.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Array__U64.set">Array__U64.set</a></li><li><a href="#til.src.self.interpreter.Array__U64.concat">Array__U64.concat</a></li><li><a href="#til.src.self.interpreter.Array__U64.to_vec">Array__U64.to_vec</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding">Vec__HeapBinding</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.new">Vec__HeapBinding.new</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.with_capacity">Vec__HeapBinding.with_capacity</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.clear">Vec__HeapBinding.clear</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.delete_marked">Vec__HeapBinding.delete_marked</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.push">Vec__HeapBinding.push</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.append">Vec__HeapBinding.append</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.take">Vec__HeapBinding.take</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.move_to">Vec__HeapBinding.move_to</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.move_from">Vec__HeapBinding.move_from</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.unsafe_get">Vec__HeapBinding.unsafe_get</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.get">Vec__HeapBinding.get</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.pop">Vec__HeapBinding.pop</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.remove_at">Vec__HeapBinding.remove_at</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.take_prefix">Vec__HeapBinding.take_prefix</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.truncate">Vec__HeapBinding.truncate</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.unsafe_set">Vec__HeapBinding.unsafe_set</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.set">Vec__HeapBinding.set</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.push_take">Vec__HeapBinding.push_take</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.delete">Vec__HeapBinding.delete</a></li><li><a href="#til.src.self.interpreter.Vec__HeapBinding.clone">Vec__HeapBinding.clone</a></li><li><a href="#til.src.self.interpreter.safe_ref__InterpSession">safe_ref__InterpSession</a></li><li><a href="#til.src.self.interpreter.safe_ref__Dynamic">safe_ref__Dynamic</a></li><li><a href="#til.src.self.interpreter.safe_ref__Expr">safe_ref__Expr</a></li><li><a href="#til.src.self.interpreter.adopt__KwargsMap">adopt__KwargsMap</a></li><li><a href="#til.src.self.interpreter.adopt__LoadedProgram">adopt__LoadedProgram</a></li><li><a href="#til.src.self.interpreter.swap__Vec__InterpOutputEvent">swap__Vec__InterpOutputEvent</a></li><li><a href="#til.src.self.interpreter.adopt__priv___src_self_interpreter_til__InterfaceCallBox">adopt__priv___src_self_interpreter_til__InterfaceCallBox</a></li><li><a href="#til.src.self.interpreter.adopt__HeapBinding">adopt__HeapBinding</a></li><li><a href="#til.src.self.interpreter.adopt__priv___src_self_interpreter_til__DynPtrBox">adopt__priv___src_self_interpreter_til__DynPtrBox</a></li><li><a href="#til.src.self.interpreter.adopt__priv___src_self_interpreter_til__InterpAlias">adopt__priv___src_self_interpreter_til__InterpAlias</a></li><li><a href="#til.src.self.interpreter.safe_ref__HeapBinding">safe_ref__HeapBinding</a></li><li><a href="#til.src.self.interpreter.safe_ref__ffi_type">safe_ref__ffi_type</a></li></ul></li>
 <li><a href="../../src/self/binder.html">src/self/binder.til</a></li>
 </ul>
 <h2>CLI</h2><ul>
@@ -93,7 +93,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/codegen/fasm_codegen.html">src/self/codegen/fasm_codegen.til</a></li>
 <li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
 <li><a href="../../src/self/codegen/holyc_codegen.html">src/self/codegen/holyc_codegen.til</a></li>
-<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/codegen/theme_codegen.html">src/self/codegen/theme_codegen.til</a></li>
 <li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
@@ -119,7 +119,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     ref mut func_def : Expr
     mut env : Option__Scope
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: InterpCallableBox) returns InterpCallableBox
     func delete(own self: InterpCallableBox, call_free: Bool = true)
 }
@@ -151,7 +151,7 @@ namespace:
     mut ext_target_layout : Bool
     mut foreign_root : UPtr
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: HeapBinding) returns HeapBinding
     func delete(own self: HeapBinding, call_free: Bool = true)
 }
@@ -166,7 +166,7 @@ namespace:
     mut parent : Option__ref_Scope
     mut is_call_scope : Bool
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: Scope) returns Scope
     func delete(own self: Scope, call_free: Bool = true)
     func hash(self: Scope, hasher: HashFn) returns U64
@@ -184,8 +184,10 @@ namespace:
     mut is_repl : Bool
     mut capture_output : Bool
     mut evaluated_units : Set__Str
+    mut shared_i64_storage : Option__priv___src_self_interpreter_til__InterpSharedI64
 namespace:
-    func size() returns U64
+    func shared_i64(mut self: InterpSession) returns ref I64
+    func size() returns USize
     func clone(self: InterpSession) returns InterpSession
     func delete(own self: InterpSession, call_free: Bool = true)
     func hash(self: InterpSession, hasher: HashFn) returns U64
@@ -207,7 +209,7 @@ namespace:
     mut exit_status : Option__I64
 namespace:
     func to_str(self: TilVmError) returns Str
-    func size() returns U64
+    func size() returns USize
     func clone(self: TilVmError) returns TilVmError
     func delete(own self: TilVmError, call_free: Bool = true)
     func hash(self: TilVmError, hasher: HashFn) returns U64
@@ -229,7 +231,7 @@ namespace:
     proc invoke_throwing(mut self: TilVmCallback, error_type: Type, mut arguments: Tuple, mut error_payload: Tuple, keywords: KwargsMap = KwargsMap.new()) returns Tuple throws TilVmError
     func clone(self: TilVmCallback) returns TilVmCallback
     func delete(own self: TilVmCallback, call_free: Bool = true)
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -273,7 +275,7 @@ throw arms. Panic/exit/validation remain TilVmError in both forms.</p>
     mut exit_code : Option__I64
     mut output : Vec__InterpOutputEvent
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: InterpRunResult) returns InterpRunResult
     func delete(own self: InterpRunResult, call_free: Bool = true)
     func hash(self: InterpRunResult, hasher: HashFn) returns U64
@@ -307,7 +309,7 @@ namespace:
 <article class="doc-entry" id="til.src.self.interpreter.field_word_type">
 <h2>field_word_type</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func (shallow ft: Type, field_size: U64, ctx: Context) returns Type
+<pre><code class="language-til">func (shallow ft: Type, field_size: USize, ctx: Context) returns Type
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.scalar_block_from_word">
@@ -361,19 +363,19 @@ namespace:
 <article class="doc-entry" id="til.src.self.interpreter.container_elem_size">
 <h2>container_elem_size</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func (elem_type: Str, ctx: Context) returns U64
+<pre><code class="language-til">func (elem_type: Str, ctx: Context) returns USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.container_live_count">
 <h2>container_live_count</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func (struct_name: Str, data: Dynamic, ctx: Context) returns U64
+<pre><code class="language-til">func (struct_name: Str, data: Dynamic, ctx: Context) returns USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.container_capacity">
 <h2>container_capacity</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func (struct_name: Str, data: Dynamic, ctx: Context) returns U64
+<pre><code class="language-til">func (struct_name: Str, data: Dynamic, ctx: Context) returns USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.scope_get">
@@ -493,19 +495,19 @@ namespace:
 <article class="doc-entry" id="til.src.self.interpreter.str_cap_at">
 <h2>str_cap_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func (str_base: Dynamic, ctx: Context) returns U64
+<pre><code class="language-til">func (str_base: Dynamic, ctx: Context) returns USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.str_count_at">
 <h2>str_count_at</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func (str_base: Dynamic, ctx: Context) returns U64
+<pre><code class="language-til">func (str_base: Dynamic, ctx: Context) returns USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.read_field">
 <h2>read_field</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">func (inst_data: Dynamic, dd: Declaration, field_offset: U64, field_size: U64, ctx: Context) returns Dynamic
+<pre><code class="language-til">func (inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, ctx: Context) returns Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.interp_session_lookup_function">
@@ -595,7 +597,7 @@ namespace:
 <article class="doc-entry" id="til.src.self.interpreter.interp_session_eval_current_tail">
 <h2>interp_session_eval_current_tail</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">proc (mut session: InterpSession, mut lp: LoadedProgram, start_idx: U64, count: U64) returns Bool
+<pre><code class="language-til">proc (mut session: InterpSession, mut lp: LoadedProgram, start_idx: USize, count: USize) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.cmd_interpret">
@@ -624,7 +626,7 @@ namespace:
     mut throw_kind_index : I64
 namespace:
     func clone(self: FFIEntry) returns FFIEntry
-    func size() returns U64
+    func size() returns USize
     func delete(own self: FFIEntry, call_free: Bool = true)
 }
 </code></pre>
@@ -635,7 +637,7 @@ namespace:
 <pre><code class="language-til">struct {
     ref mut ptr : Expr
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: ExprPtrBox) returns ExprPtrBox
     func delete(own self: ExprPtrBox, call_free: Bool = true)
 }
@@ -650,7 +652,7 @@ namespace:
     mut layout_status : I32
 namespace:
     func clone(self: FFITypePtrBox) returns FFITypePtrBox
-    func size() returns U64
+    func size() returns USize
     func delete(own self: FFITypePtrBox, call_free: Bool = true)
 }
 </code></pre>
@@ -709,12 +711,6 @@ namespace:
 <pre><code class="language-til">ext_proc () returns shallow Bool
 </code></pre>
 </article>
-<article class="doc-entry" id="til.src.self.interpreter.til_built_with_cptr32">
-<h2>til_built_with_cptr32</h2>
-<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_proc () returns shallow Bool
-</code></pre>
-</article>
 <article class="doc-entry" id="til.src.self.interpreter.ffi_init_struct_defs_append">
 <h2>ffi_init_struct_defs_append</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
@@ -751,6 +747,65 @@ namespace:
 <pre><code class="language-til"> is a None
 </code></pre>
 </article>
+<article class="doc-entry" id="til.src.self.interpreter.Option__priv___src_self_interpreter_til__InterpSharedI64">
+<h2>Option__priv___src_self_interpreter_til__InterpSharedI64</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<pre><code class="language-til">enum {
+    None
+    Some: priv___src_self_interpreter_til__InterpSharedI64
+namespace:
+    func is_some(self: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
+    func is_none(self: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
+    func unwrap_or(self: Option__priv___src_self_interpreter_til__InterpSharedI64, default_v: priv___src_self_interpreter_til__InterpSharedI64) returns priv___src_self_interpreter_til__InterpSharedI64
+    func unwrap(self: Option__priv___src_self_interpreter_til__InterpSharedI64) returns priv___src_self_interpreter_til__InterpSharedI64
+    func take(own self: Option__priv___src_self_interpreter_til__InterpSharedI64) returns priv___src_self_interpreter_til__InterpSharedI64
+    ext_func None() returns Option__priv___src_self_interpreter_til__InterpSharedI64
+    ext_func Some(own val: priv___src_self_interpreter_til__InterpSharedI64) returns Option__priv___src_self_interpreter_til__InterpSharedI64
+    core_func is(self: Option__priv___src_self_interpreter_til__InterpSharedI64, other: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
+    func eq(self: Option__priv___src_self_interpreter_til__InterpSharedI64, other: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
+    func delete(own self: Option__priv___src_self_interpreter_til__InterpSharedI64, call_free: Bool = true)
+    func cmp(a: Option__priv___src_self_interpreter_til__InterpSharedI64, b: Option__priv___src_self_interpreter_til__InterpSharedI64) returns I64
+    func to_str(self: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Str
+    func clone(self: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Option__priv___src_self_interpreter_til__InterpSharedI64
+    func size() returns USize
+    func lt(a: Option__priv___src_self_interpreter_til__InterpSharedI64, b: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
+    func gt(a: Option__priv___src_self_interpreter_til__InterpSharedI64, b: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
+    func neq(a: Option__priv___src_self_interpreter_til__InterpSharedI64, b: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
+    func lte(a: Option__priv___src_self_interpreter_til__InterpSharedI64, b: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
+    func gte(a: Option__priv___src_self_interpreter_til__InterpSharedI64, b: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
+}
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Option__priv___src_self_interpreter_til__InterpSharedI64.unwrap">
+<h2>Option__priv___src_self_interpreter_til__InterpSharedI64.unwrap</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>The contained value; PANICS on None, ala Rust's unwrap. For the
+<code>if o.is_none() { ... }</code> + <code>o.unwrap()</code> idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a <code>switch</code> when both arms do real work, and <code>unwrap_or</code> when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.</p>
+</div>
+<pre><code class="language-til">func (self: Option__priv___src_self_interpreter_til__InterpSharedI64) returns priv___src_self_interpreter_til__InterpSharedI64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.self.interpreter.Option__priv___src_self_interpreter_til__InterpSharedI64.take">
+<h2>Option__priv___src_self_interpreter_til__InterpSharedI64.take</h2>
+<dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
+<div class="doc-body">
+<p>The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an <code>Option(Expr)</code> returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.</p>
+</div>
+<pre><code class="language-til">func (own self: Option__priv___src_self_interpreter_til__InterpSharedI64) returns priv___src_self_interpreter_til__InterpSharedI64
+</code></pre>
+</article>
 <article class="doc-entry" id="til.src.self.interpreter.Option__ref_InterpSession">
 <h2>Option__ref_InterpSession</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
@@ -768,7 +823,7 @@ namespace:
     core_func is(self: Option__ref_InterpSession, other: Option__ref_InterpSession) returns Bool
     func delete(own self: Option__ref_InterpSession, call_free: Bool = true)
     func clone(self: Option__ref_InterpSession) returns Option__ref_InterpSession
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -822,7 +877,7 @@ namespace:
     func cmp(a: Option__ref_U8, b: Option__ref_U8) returns I64
     func to_str(self: Option__ref_U8) returns Str
     func clone(self: Option__ref_U8) returns Option__ref_U8
-    func size() returns U64
+    func size() returns USize
     func lt(a: Option__ref_U8, b: Option__ref_U8) returns Bool
     func gt(a: Option__ref_U8, b: Option__ref_U8) returns Bool
     func neq(a: Option__ref_U8, b: Option__ref_U8) returns Bool
@@ -870,8 +925,8 @@ a clone would copy a whole subtree and break node identity.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
-    func with_capacity(n: U64) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
-    func len(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox) returns U64
+    func with_capacity(n: USize) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
+    func len(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox) returns USize
     func clear(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox)
     func delete_marked(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, own val: priv___src_self_interpreter_til__InterfaceCallBox)
@@ -879,18 +934,18 @@ namespace:
     func take(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
     func move_to(own self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, mut dest: Vec__priv___src_self_interpreter_til__InterfaceCallBox)
     func move_from(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, own other: Vec__priv___src_self_interpreter_til__InterfaceCallBox)
-    func unsafe_get(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64) returns ref priv___src_self_interpreter_til__InterfaceCallBox
-    func get(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: U64) returns ref priv___src_self_interpreter_til__InterfaceCallBox throws OutOfBounds
+    func unsafe_get(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: USize) returns ref priv___src_self_interpreter_til__InterfaceCallBox
+    func get(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: USize) returns ref priv___src_self_interpreter_til__InterfaceCallBox throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox) returns priv___src_self_interpreter_til__InterfaceCallBox
-    func remove_at(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, n: U64) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
-    func truncate(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64, own val: priv___src_self_interpreter_til__InterfaceCallBox)
-    func set(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64, own val: priv___src_self_interpreter_til__InterfaceCallBox) throws OutOfBounds
-    func push_take(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, mut src: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64)
+    func remove_at(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, n: USize) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
+    func truncate(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: USize, own val: priv___src_self_interpreter_til__InterfaceCallBox)
+    func set(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: USize, own val: priv___src_self_interpreter_til__InterfaceCallBox) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, mut src: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: USize)
     func delete(own self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -918,7 +973,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (n: U64) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
+<pre><code class="language-til">func (n: USize) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.clear">
@@ -1019,7 +1074,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64) returns ref priv___src_self_interpreter_til__InterfaceCallBox
+<pre><code class="language-til">func (self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: USize) returns ref priv___src_self_interpreter_til__InterfaceCallBox
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.get">
@@ -1031,7 +1086,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: U64) returns ref priv___src_self_interpreter_til__InterfaceCallBox throws OutOfBounds
+<pre><code class="language-til">func (self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, shallow i: USize) returns ref priv___src_self_interpreter_til__InterfaceCallBox throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.pop">
@@ -1050,7 +1105,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: USize) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.take_prefix">
@@ -1060,7 +1115,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, n: U64) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, n: USize) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.truncate">
@@ -1072,7 +1127,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, n: U64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, n: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.unsafe_set">
@@ -1083,7 +1138,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64, own val: priv___src_self_interpreter_til__InterfaceCallBox)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: USize, own val: priv___src_self_interpreter_til__InterfaceCallBox)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.set">
@@ -1094,7 +1149,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64, own val: priv___src_self_interpreter_til__InterfaceCallBox) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: USize, own val: priv___src_self_interpreter_til__InterfaceCallBox) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.push_take">
@@ -1105,7 +1160,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, mut src: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: U64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, mut src: Vec__priv___src_self_interpreter_til__InterfaceCallBox, i: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterfaceCallBox.delete">
@@ -1135,8 +1190,8 @@ unless <code>call_free</code> is false.</p>
     mut values : Vec__HeapBinding
 namespace:
     func new() returns Map__Str_HeapBinding
-    func with_capacity(n: U64) returns Map__Str_HeapBinding
-    func len(self: Map__Str_HeapBinding) returns U64
+    func with_capacity(n: USize) returns Map__Str_HeapBinding
+    func len(self: Map__Str_HeapBinding) returns USize
     func clear(mut self: Map__Str_HeapBinding)
     func has(self: Map__Str_HeapBinding, key: Str) returns Bool
     func get(self: Map__Str_HeapBinding, key: Str) returns ref HeapBinding throws KeyNotFound
@@ -1144,7 +1199,7 @@ namespace:
     func remove(mut self: Map__Str_HeapBinding, key: Str) returns Bool
     func delete(own self: Map__Str_HeapBinding, call_free: Bool = true)
     func clone(self: Map__Str_HeapBinding) returns Map__Str_HeapBinding
-    func size() returns U64
+    func size() returns USize
     func hash(self: Map__Str_HeapBinding, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -1167,7 +1222,7 @@ The key type must implement <code>cmp</code>.</p>
 <code>n</code> reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 </div>
-<pre><code class="language-til">func (n: U64) returns Map__Str_HeapBinding
+<pre><code class="language-til">func (n: USize) returns Map__Str_HeapBinding
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Map__Str_HeapBinding.clear">
@@ -1235,7 +1290,7 @@ namespace:
     core_func is(self: Option__ref_Dynamic, other: Option__ref_Dynamic) returns Bool
     func delete(own self: Option__ref_Dynamic, call_free: Bool = true)
     func clone(self: Option__ref_Dynamic) returns Option__ref_Dynamic
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -1288,7 +1343,7 @@ namespace:
     func delete(own self: Option__FuncSig, call_free: Bool = true)
     func to_str(self: Option__FuncSig) returns Str
     func clone(self: Option__FuncSig) returns Option__FuncSig
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -1339,7 +1394,7 @@ namespace:
     core_func is(self: Option__ref_HeapBinding, other: Option__ref_HeapBinding) returns Bool
     func delete(own self: Option__ref_HeapBinding, call_free: Bool = true)
     func clone(self: Option__ref_HeapBinding) returns Option__ref_HeapBinding
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -1390,7 +1445,7 @@ namespace:
     core_func is(self: Option__Tuple, other: Option__Tuple) returns Bool
     func delete(own self: Option__Tuple, call_free: Bool = true)
     func clone(self: Option__Tuple) returns Option__Tuple
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -1433,8 +1488,8 @@ a clone would copy a whole subtree and break node identity.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_interpreter_til__DynPtrBox
-    func with_capacity(n: U64) returns Vec__priv___src_self_interpreter_til__DynPtrBox
-    func len(self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns U64
+    func with_capacity(n: USize) returns Vec__priv___src_self_interpreter_til__DynPtrBox
+    func len(self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns USize
     func clear(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox)
     func delete_marked(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, own val: priv___src_self_interpreter_til__DynPtrBox)
@@ -1442,18 +1497,18 @@ namespace:
     func take(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns Vec__priv___src_self_interpreter_til__DynPtrBox
     func move_to(own self: Vec__priv___src_self_interpreter_til__DynPtrBox, mut dest: Vec__priv___src_self_interpreter_til__DynPtrBox)
     func move_from(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, own other: Vec__priv___src_self_interpreter_til__DynPtrBox)
-    func unsafe_get(self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64) returns ref priv___src_self_interpreter_til__DynPtrBox
-    func get(self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: U64) returns ref priv___src_self_interpreter_til__DynPtrBox throws OutOfBounds
+    func unsafe_get(self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: USize) returns ref priv___src_self_interpreter_til__DynPtrBox
+    func get(self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: USize) returns ref priv___src_self_interpreter_til__DynPtrBox throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns priv___src_self_interpreter_til__DynPtrBox
-    func remove_at(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, n: U64) returns Vec__priv___src_self_interpreter_til__DynPtrBox
-    func truncate(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64, own val: priv___src_self_interpreter_til__DynPtrBox)
-    func set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64, own val: priv___src_self_interpreter_til__DynPtrBox) throws OutOfBounds
-    func push_take(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, mut src: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64)
+    func remove_at(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, n: USize) returns Vec__priv___src_self_interpreter_til__DynPtrBox
+    func truncate(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: USize, own val: priv___src_self_interpreter_til__DynPtrBox)
+    func set(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: USize, own val: priv___src_self_interpreter_til__DynPtrBox) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, mut src: Vec__priv___src_self_interpreter_til__DynPtrBox, i: USize)
     func delete(own self: Vec__priv___src_self_interpreter_til__DynPtrBox, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns Vec__priv___src_self_interpreter_til__DynPtrBox
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -1481,7 +1536,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (n: U64) returns Vec__priv___src_self_interpreter_til__DynPtrBox
+<pre><code class="language-til">func (n: USize) returns Vec__priv___src_self_interpreter_til__DynPtrBox
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.clear">
@@ -1582,7 +1637,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64) returns ref priv___src_self_interpreter_til__DynPtrBox
+<pre><code class="language-til">func (self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: USize) returns ref priv___src_self_interpreter_til__DynPtrBox
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.get">
@@ -1594,7 +1649,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: U64) returns ref priv___src_self_interpreter_til__DynPtrBox throws OutOfBounds
+<pre><code class="language-til">func (self: Vec__priv___src_self_interpreter_til__DynPtrBox, shallow i: USize) returns ref priv___src_self_interpreter_til__DynPtrBox throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.pop">
@@ -1613,7 +1668,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: USize) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.take_prefix">
@@ -1623,7 +1678,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, n: U64) returns Vec__priv___src_self_interpreter_til__DynPtrBox
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, n: USize) returns Vec__priv___src_self_interpreter_til__DynPtrBox
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.truncate">
@@ -1635,7 +1690,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, n: U64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, n: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.unsafe_set">
@@ -1646,7 +1701,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64, own val: priv___src_self_interpreter_til__DynPtrBox)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: USize, own val: priv___src_self_interpreter_til__DynPtrBox)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.set">
@@ -1657,7 +1712,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64, own val: priv___src_self_interpreter_til__DynPtrBox) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, i: USize, own val: priv___src_self_interpreter_til__DynPtrBox) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.push_take">
@@ -1668,7 +1723,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, mut src: Vec__priv___src_self_interpreter_til__DynPtrBox, i: U64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__DynPtrBox, mut src: Vec__priv___src_self_interpreter_til__DynPtrBox, i: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__DynPtrBox.delete">
@@ -1699,8 +1754,8 @@ unless <code>call_free</code> is false.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_interpreter_til__InterpAlias
-    func with_capacity(n: U64) returns Vec__priv___src_self_interpreter_til__InterpAlias
-    func len(self: Vec__priv___src_self_interpreter_til__InterpAlias) returns U64
+    func with_capacity(n: USize) returns Vec__priv___src_self_interpreter_til__InterpAlias
+    func len(self: Vec__priv___src_self_interpreter_til__InterpAlias) returns USize
     func clear(mut self: Vec__priv___src_self_interpreter_til__InterpAlias)
     func delete_marked(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, own val: priv___src_self_interpreter_til__InterpAlias)
@@ -1708,18 +1763,18 @@ namespace:
     func take(mut self: Vec__priv___src_self_interpreter_til__InterpAlias) returns Vec__priv___src_self_interpreter_til__InterpAlias
     func move_to(own self: Vec__priv___src_self_interpreter_til__InterpAlias, mut dest: Vec__priv___src_self_interpreter_til__InterpAlias)
     func move_from(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, own other: Vec__priv___src_self_interpreter_til__InterpAlias)
-    func unsafe_get(self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64) returns ref priv___src_self_interpreter_til__InterpAlias
-    func get(self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: U64) returns ref priv___src_self_interpreter_til__InterpAlias throws OutOfBounds
+    func unsafe_get(self: Vec__priv___src_self_interpreter_til__InterpAlias, i: USize) returns ref priv___src_self_interpreter_til__InterpAlias
+    func get(self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: USize) returns ref priv___src_self_interpreter_til__InterpAlias throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_interpreter_til__InterpAlias) returns priv___src_self_interpreter_til__InterpAlias
-    func remove_at(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, n: U64) returns Vec__priv___src_self_interpreter_til__InterpAlias
-    func truncate(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64, own val: priv___src_self_interpreter_til__InterpAlias)
-    func set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64, own val: priv___src_self_interpreter_til__InterpAlias) throws OutOfBounds
-    func push_take(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, mut src: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64)
+    func remove_at(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, n: USize) returns Vec__priv___src_self_interpreter_til__InterpAlias
+    func truncate(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: USize, own val: priv___src_self_interpreter_til__InterpAlias)
+    func set(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: USize, own val: priv___src_self_interpreter_til__InterpAlias) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_interpreter_til__InterpAlias, mut src: Vec__priv___src_self_interpreter_til__InterpAlias, i: USize)
     func delete(own self: Vec__priv___src_self_interpreter_til__InterpAlias, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_interpreter_til__InterpAlias) returns Vec__priv___src_self_interpreter_til__InterpAlias
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -1747,7 +1802,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (n: U64) returns Vec__priv___src_self_interpreter_til__InterpAlias
+<pre><code class="language-til">func (n: USize) returns Vec__priv___src_self_interpreter_til__InterpAlias
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.clear">
@@ -1848,7 +1903,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64) returns ref priv___src_self_interpreter_til__InterpAlias
+<pre><code class="language-til">func (self: Vec__priv___src_self_interpreter_til__InterpAlias, i: USize) returns ref priv___src_self_interpreter_til__InterpAlias
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.get">
@@ -1860,7 +1915,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: U64) returns ref priv___src_self_interpreter_til__InterpAlias throws OutOfBounds
+<pre><code class="language-til">func (self: Vec__priv___src_self_interpreter_til__InterpAlias, shallow i: USize) returns ref priv___src_self_interpreter_til__InterpAlias throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.pop">
@@ -1879,7 +1934,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: USize) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.take_prefix">
@@ -1889,7 +1944,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterpAlias, n: U64) returns Vec__priv___src_self_interpreter_til__InterpAlias
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterpAlias, n: USize) returns Vec__priv___src_self_interpreter_til__InterpAlias
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.truncate">
@@ -1901,7 +1956,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterpAlias, n: U64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterpAlias, n: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.unsafe_set">
@@ -1912,7 +1967,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64, own val: priv___src_self_interpreter_til__InterpAlias)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: USize, own val: priv___src_self_interpreter_til__InterpAlias)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.set">
@@ -1923,7 +1978,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64, own val: priv___src_self_interpreter_til__InterpAlias) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterpAlias, i: USize, own val: priv___src_self_interpreter_til__InterpAlias) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.push_take">
@@ -1934,7 +1989,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterpAlias, mut src: Vec__priv___src_self_interpreter_til__InterpAlias, i: U64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_interpreter_til__InterpAlias, mut src: Vec__priv___src_self_interpreter_til__InterpAlias, i: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__priv___src_self_interpreter_til__InterpAlias.delete">
@@ -1973,7 +2028,7 @@ namespace:
     core_func is(self: Option__ref_ffi_type, other: Option__ref_ffi_type) returns Bool
     func delete(own self: Option__ref_ffi_type, call_free: Bool = true)
     func clone(self: Option__ref_ffi_type) returns Option__ref_ffi_type
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -2014,17 +2069,17 @@ a clone would copy a whole subtree and break node identity.</p>
     own mut data : U8
     cap : USize
 namespace:
-    func new(cap: U64) returns Array__U64
-    func len(self: Array__U64) returns U64
-    func unsafe_get(self: Array__U64, i: U64) returns ref U64
-    func get(self: Array__U64, shallow i: U64) returns ref U64 throws OutOfBounds
-    func unsafe_set(mut self: Array__U64, i: U64, own val: U64)
-    func set(mut self: Array__U64, i: U64, own val: U64) throws OutOfBounds
+    func new(cap: USize) returns Array__U64
+    func len(self: Array__U64) returns USize
+    func unsafe_get(self: Array__U64, i: USize) returns ref U64
+    func get(self: Array__U64, shallow i: USize) returns ref U64 throws OutOfBounds
+    func unsafe_set(mut self: Array__U64, i: USize, own val: U64)
+    func set(mut self: Array__U64, i: USize, own val: U64) throws OutOfBounds
     func delete(own self: Array__U64, call_free: Bool = true)
     func concat(self: Array__U64, other: Array__U64) returns Array__U64
     func to_vec(self: Array__U64) returns Vec__U64
     func clone(self: Array__U64) returns Array__U64
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -2034,7 +2089,7 @@ namespace:
 <div class="doc-body">
 <p>Create a zero-initialized Array with the given capacity.</p>
 </div>
-<pre><code class="language-til">func (cap: U64) returns Array__U64
+<pre><code class="language-til">func (cap: USize) returns Array__U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Array__U64.unsafe_get">
@@ -2047,7 +2102,7 @@ unchecked core that <code>get</code> wraps; for-in uses it directly because
 its <code>_fi &lt; len()</code> termination test already proves the index in
 bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Array__U64, i: U64) returns ref U64
+<pre><code class="language-til">func (self: Array__U64, i: USize) returns ref U64
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Array__U64.get">
@@ -2057,7 +2112,7 @@ bounds (issue #284).</p>
 <p>Ref to the element at index <code>i</code>. Throws OutOfBounds if <code>i</code> is
 past the end; call as <code>arr.get(i)!</code> to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (self: Array__U64, shallow i: U64) returns ref U64 throws OutOfBounds
+<pre><code class="language-til">func (self: Array__U64, shallow i: USize) returns ref U64 throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Array__U64.unsafe_set">
@@ -2068,7 +2123,7 @@ past the end; call as <code>arr.get(i)!</code> to panic on a bad index.</p>
 the old value. Caller guarantees <code>i &lt; self.cap</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Array__U64, i: U64, own val: U64)
+<pre><code class="language-til">func (mut self: Array__U64, i: USize, own val: U64)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Array__U64.set">
@@ -2079,7 +2134,7 @@ mirror of unsafe_get (issue #284).</p>
 owned. Throws OutOfBounds if <code>i</code> is past the end; call as
 <code>arr[i] = val</code> (or <code>arr.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Array__U64, i: U64, own val: U64) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Array__U64, i: USize, own val: U64) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Array__U64.concat">
@@ -2118,8 +2173,8 @@ loop whose nodes no later pass would infer.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__HeapBinding
-    func with_capacity(n: U64) returns Vec__HeapBinding
-    func len(self: Vec__HeapBinding) returns U64
+    func with_capacity(n: USize) returns Vec__HeapBinding
+    func len(self: Vec__HeapBinding) returns USize
     func clear(mut self: Vec__HeapBinding)
     func delete_marked(mut self: Vec__HeapBinding, marks: Dynamic)
     func push(mut self: Vec__HeapBinding, own val: HeapBinding)
@@ -2127,18 +2182,18 @@ namespace:
     func take(mut self: Vec__HeapBinding) returns Vec__HeapBinding
     func move_to(own self: Vec__HeapBinding, mut dest: Vec__HeapBinding)
     func move_from(mut self: Vec__HeapBinding, own other: Vec__HeapBinding)
-    func unsafe_get(self: Vec__HeapBinding, i: U64) returns ref HeapBinding
-    func get(self: Vec__HeapBinding, shallow i: U64) returns ref HeapBinding throws OutOfBounds
+    func unsafe_get(self: Vec__HeapBinding, i: USize) returns ref HeapBinding
+    func get(self: Vec__HeapBinding, shallow i: USize) returns ref HeapBinding throws OutOfBounds
     func pop(mut self: Vec__HeapBinding) returns HeapBinding
-    func remove_at(mut self: Vec__HeapBinding, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__HeapBinding, n: U64) returns Vec__HeapBinding
-    func truncate(mut self: Vec__HeapBinding, n: U64)
-    func unsafe_set(mut self: Vec__HeapBinding, i: U64, own val: HeapBinding)
-    func set(mut self: Vec__HeapBinding, i: U64, own val: HeapBinding) throws OutOfBounds
-    func push_take(mut self: Vec__HeapBinding, mut src: Vec__HeapBinding, i: U64)
+    func remove_at(mut self: Vec__HeapBinding, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__HeapBinding, n: USize) returns Vec__HeapBinding
+    func truncate(mut self: Vec__HeapBinding, n: USize)
+    func unsafe_set(mut self: Vec__HeapBinding, i: USize, own val: HeapBinding)
+    func set(mut self: Vec__HeapBinding, i: USize, own val: HeapBinding) throws OutOfBounds
+    func push_take(mut self: Vec__HeapBinding, mut src: Vec__HeapBinding, i: USize)
     func delete(own self: Vec__HeapBinding, call_free: Bool = true)
     func clone(self: Vec__HeapBinding) returns Vec__HeapBinding
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -2166,7 +2221,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (n: U64) returns Vec__HeapBinding
+<pre><code class="language-til">func (n: USize) returns Vec__HeapBinding
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__HeapBinding.clear">
@@ -2267,7 +2322,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__HeapBinding, i: U64) returns ref HeapBinding
+<pre><code class="language-til">func (self: Vec__HeapBinding, i: USize) returns ref HeapBinding
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__HeapBinding.get">
@@ -2279,7 +2334,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__HeapBinding, shallow i: U64) returns ref HeapBinding throws OutOfBounds
+<pre><code class="language-til">func (self: Vec__HeapBinding, shallow i: USize) returns ref HeapBinding throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__HeapBinding.pop">
@@ -2298,7 +2353,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__HeapBinding, i: U64) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__HeapBinding, i: USize) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__HeapBinding.take_prefix">
@@ -2308,7 +2363,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__HeapBinding, n: U64) returns Vec__HeapBinding
+<pre><code class="language-til">func (mut self: Vec__HeapBinding, n: USize) returns Vec__HeapBinding
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__HeapBinding.truncate">
@@ -2320,7 +2375,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__HeapBinding, n: U64)
+<pre><code class="language-til">func (mut self: Vec__HeapBinding, n: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__HeapBinding.unsafe_set">
@@ -2331,7 +2386,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__HeapBinding, i: U64, own val: HeapBinding)
+<pre><code class="language-til">func (mut self: Vec__HeapBinding, i: USize, own val: HeapBinding)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__HeapBinding.set">
@@ -2342,7 +2397,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__HeapBinding, i: U64, own val: HeapBinding) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__HeapBinding, i: USize, own val: HeapBinding) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__HeapBinding.push_take">
@@ -2353,7 +2408,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__HeapBinding, mut src: Vec__HeapBinding, i: U64)
+<pre><code class="language-til">func (mut self: Vec__HeapBinding, mut src: Vec__HeapBinding, i: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.interpreter.Vec__HeapBinding.delete">

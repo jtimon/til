@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e302196</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-a132b29</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -93,7 +93,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/codegen/fasm_codegen.html">src/self/codegen/fasm_codegen.til</a></li>
 <li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
 <li><a href="../../src/self/codegen/holyc_codegen.html">src/self/codegen/holyc_codegen.til</a></li>
-<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/codegen/theme_codegen.html">src/self/codegen/theme_codegen.til</a></li>
 <li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
@@ -153,7 +153,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 </div>
 <pre><code class="language-til">struct {
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(_self: secp256k1_context) returns secp256k1_context
     func delete(own self: secp256k1_context, call_free: Bool = true)
     func hash(self: secp256k1_context, hasher: HashFn) returns U64
@@ -190,7 +190,7 @@ namespace:
     mut d6 : U64
     mut d7 : U64
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: secp256k1_pubkey) returns secp256k1_pubkey
     func delete(own self: secp256k1_pubkey, call_free: Bool = true)
     func hash(self: secp256k1_pubkey, hasher: HashFn) returns U64
@@ -227,7 +227,7 @@ namespace:
     mut d6 : U64
     mut d7 : U64
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: secp256k1_ecdsa_signature) returns secp256k1_ecdsa_signature
     func delete(own self: secp256k1_ecdsa_signature, call_free: Bool = true)
     func hash(self: secp256k1_ecdsa_signature, hasher: HashFn) returns U64
@@ -556,7 +556,7 @@ In:      fn_compression:  pointer to a function implementing the compression fun
  0x03), uncompressed (65 bytes, header byte 0x04), or hybrid (65 bytes, header
  byte 0x06 or 0x07) format public keys.</p>
 </div>
-<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut pubkey: secp256k1_pubkey, input: Dynamic, shallow inputlen: U64) returns shallow I32
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut pubkey: secp256k1_pubkey, input: Dynamic, shallow inputlen: USize) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.secp256k1.secp256k1_ec_pubkey_serialize">
@@ -577,7 +577,7 @@ In:      fn_compression:  pointer to a function implementing the compression fun
          flags:      SECP256K1_EC_COMPRESSED if serialization should be in
                      compressed format, otherwise SECP256K1_EC_UNCOMPRESSED.</p>
 </div>
-<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut output: Dynamic, mut outputlen: U64, pubkey: secp256k1_pubkey, shallow flags: U32) returns shallow I32
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut output: Dynamic, mut outputlen: USize, pubkey: secp256k1_pubkey, shallow flags: U32) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.secp256k1.secp256k1_ec_pubkey_cmp">
@@ -605,7 +605,7 @@ In:      fn_compression:  pointer to a function implementing the compression fun
  In:   pubkeys: array of pointers to pubkeys to sort
      n_pubkeys: number of elements in the pubkeys array</p>
 </div>
-<pre><code class="language-til">ext_proc (ctx: secp256k1_context, pubkeys: Dynamic, shallow n_pubkeys: U64) returns shallow I32
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, pubkeys: Dynamic, shallow n_pubkeys: USize) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.secp256k1.secp256k1_ecdsa_signature_parse_compact">
@@ -643,7 +643,7 @@ In:      fn_compression:  pointer to a function implementing the compression fun
  encoded numbers are out of range, signature verification with it is
  guaranteed to fail for every message and public key.</p>
 </div>
-<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut sig: secp256k1_ecdsa_signature, input: Dynamic, shallow inputlen: U64) returns shallow I32
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut sig: secp256k1_ecdsa_signature, input: Dynamic, shallow inputlen: USize) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.secp256k1.secp256k1_ecdsa_signature_serialize_der">
@@ -660,7 +660,7 @@ In:      fn_compression:  pointer to a function implementing the compression fun
                     if 0 was returned).
  In:     sig:       pointer to an initialized signature object</p>
 </div>
-<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut output: Dynamic, mut outputlen: U64, sig: secp256k1_ecdsa_signature) returns shallow I32
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut output: Dynamic, mut outputlen: USize, sig: secp256k1_ecdsa_signature) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.secp256k1.secp256k1_ecdsa_signature_serialize_compact">
@@ -957,7 +957,7 @@ enhanced protection against side-channel leakage currently.</p>
  In:     ins:        pointer to array of pointers to public keys.
          n:          the number of public keys to add together (must be at least 1).</p>
 </div>
-<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut out: secp256k1_pubkey, ins: Dynamic, shallow n: U64) returns shallow I32
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut out: secp256k1_pubkey, ins: Dynamic, shallow n: USize) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.secp256k1.secp256k1_tagged_sha256">
@@ -978,7 +978,7 @@ enhanced protection against side-channel leakage currently.</p>
           msg: pointer to an array containing the message
        msglen: length of the message array</p>
 </div>
-<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut hash32: Dynamic, tag: Dynamic, shallow taglen: U64, msg: Dynamic, shallow msglen: U64) returns shallow I32
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut hash32: Dynamic, tag: Dynamic, shallow taglen: USize, msg: Dynamic, shallow msglen: USize) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.secp256k1.secp256k1_xonly_pubkey">
@@ -1006,7 +1006,7 @@ enhanced protection against side-channel leakage currently.</p>
     mut d6 : U64
     mut d7 : U64
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: secp256k1_xonly_pubkey) returns secp256k1_xonly_pubkey
     func delete(own self: secp256k1_xonly_pubkey, call_free: Bool = true)
     func hash(self: secp256k1_xonly_pubkey, hasher: HashFn) returns U64
@@ -1045,7 +1045,7 @@ namespace:
     mut d10 : U64
     mut d11 : U64
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: secp256k1_keypair) returns secp256k1_keypair
     func delete(own self: secp256k1_keypair, call_free: Bool = true)
     func hash(self: secp256k1_keypair, hasher: HashFn) returns U64
@@ -1307,7 +1307,7 @@ Data structure that contains additional arguments for schnorrsig_sign_custom.</p
 </div>
 <pre><code class="language-til">struct {
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(_self: secp256k1_schnorrsig_extraparams) returns secp256k1_schnorrsig_extraparams
     func delete(own self: secp256k1_schnorrsig_extraparams, call_free: Bool = true)
     func hash(self: secp256k1_schnorrsig_extraparams, hasher: HashFn) returns U64
@@ -1372,7 +1372,7 @@ namespace:
      keypair: pointer to an initialized keypair.
  extraparams: pointer to an extraparams object (can be NULL).</p>
 </div>
-<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut sig64: Dynamic, msg: Dynamic, shallow msglen: U64, keypair: secp256k1_keypair, mut extraparams: secp256k1_schnorrsig_extraparams) returns shallow I32
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, mut sig64: Dynamic, msg: Dynamic, shallow msglen: USize, keypair: secp256k1_keypair, mut extraparams: secp256k1_schnorrsig_extraparams) returns shallow I32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.secp256k1.secp256k1_schnorrsig_verify">
@@ -1388,7 +1388,7 @@ namespace:
        msglen: length of the message
        pubkey: pointer to an x-only public key to verify with</p>
 </div>
-<pre><code class="language-til">ext_proc (ctx: secp256k1_context, sig64: Dynamic, msg: Dynamic, shallow msglen: U64, pubkey: secp256k1_xonly_pubkey) returns shallow I32
+<pre><code class="language-til">ext_proc (ctx: secp256k1_context, sig64: Dynamic, msg: Dynamic, shallow msglen: USize, pubkey: secp256k1_xonly_pubkey) returns shallow I32
 </code></pre>
 </article>
 </main></div>

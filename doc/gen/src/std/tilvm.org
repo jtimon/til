@@ -1,5 +1,5 @@
 #+TITLE: src/std/tilvm.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * TilVm
@@ -16,10 +16,11 @@ them: ASAP calls delete after the last use, or use own vm.delete() explicitly.
 struct TilVm {
 namespace:
     func new(support_root: Str) returns TilVm
+    func shared_i64(mut self: TilVm) returns ref I64
     proc load_file(mut self: TilVm, path: Str, prelude_source: Str = "", prelude_name: Str = "", prelude_base: Str = "") throws TilVmError
     proc lookup(mut self: TilVm, name: Str, signature: Type = Type.None) returns TilVmCallback throws TilVmError
     func delete(own self: TilVm, call_free: Bool = true)
-    func size() returns U64
+    func size() returns USize
     func hash(self: TilVm, hasher: HashFn) returns U64
 }
 #+end_src
@@ -35,6 +36,20 @@ executable. It must match the SDK used to compile the host.
 
 #+begin_src til
 func TilVm.new(support_root: Str) returns TilVm
+#+end_src
+
+* TilVm.shared_i64
+:PROPERTIES:
+:CUSTOM_ID: til.src.std.tilvm.TilVm.shared_i64
+:group: Standard library
+:END:
+
+This VM's stable shared scalar, initially zero and allocated lazily.
+Guest callbacks can retain ref I64 enum inputs pointing to this cell.
+Access is serialized with VM operations; the reference borrows the VM.
+
+#+begin_src til
+func TilVm.shared_i64(mut self: TilVm) returns ref I64
 #+end_src
 
 * TilVm.load_file

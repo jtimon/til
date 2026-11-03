@@ -1,5 +1,5 @@
 #+TITLE: src/std/dyn_hashmap.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * DynHashMap
@@ -21,8 +21,8 @@ namespace:
     hasher : HashFn
     func new_type_names(key_type: Str, val_type: Str) returns DynHashMap
     func new(K: Type, V: Type) returns DynHashMap
-    func with_capacity(K: Type, V: Type, n: U64) returns DynHashMap
-    func len(self: DynHashMap) returns U64
+    func with_capacity(K: Type, V: Type, n: USize) returns DynHashMap
+    func len(self: DynHashMap) returns USize
     func clear(mut self: DynHashMap)
     func clone(self: DynHashMap) returns DynHashMap
     func hash_key(self: DynHashMap, key: Dynamic) returns U64
@@ -35,7 +35,7 @@ namespace:
     func rehash(mut self: DynHashMap)
     func delete(own self: DynHashMap, call_free: Bool = true)
     func remove(mut self: DynHashMap, key: Dynamic) returns Bool
-    func size() returns U64
+    func size() returns USize
     func hash(self: DynHashMap, hasher: HashFn) returns U64
 }
 #+end_src
@@ -54,7 +54,7 @@ until ~n~ fits under the 0.75 load factor, so inserting up to ~n~
 never rehashes.
 
 #+begin_src til
-func DynHashMap.with_capacity(K: Type, V: Type, n: U64) returns DynHashMap
+func DynHashMap.with_capacity(K: Type, V: Type, n: USize) returns DynHashMap
 #+end_src
 
 * DynHashMap.clear

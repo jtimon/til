@@ -1,5 +1,5 @@
 #+TITLE: src/std/dyn_vec.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * DynVec
@@ -22,28 +22,28 @@ struct DynVec {
 namespace:
     func new_type_name(elem_type: Str) returns DynVec
     func new(T: Type) returns DynVec
-    func with_capacity(T: Type, n: U64) returns DynVec
-    func new_like(elem_size: U64, elem_kind: U64, elem_clone: CloneFn, elem_delete: DeleteFn, n: U64) returns DynVec
-    func len(self: DynVec) returns U64
+    func with_capacity(T: Type, n: USize) returns DynVec
+    func new_like(elem_size: USize, elem_kind: USize, elem_clone: CloneFn, elem_delete: DeleteFn, n: USize) returns DynVec
+    func len(self: DynVec) returns USize
     func clear(mut self: DynVec)
     func delete_marked(mut self: DynVec, marks: Dynamic)
     func push(mut self: DynVec, own val: Dynamic)
     func append(mut self: DynVec, own other: DynVec)
     func move_from(mut self: DynVec, mut other: DynVec)
     func move_to(mut self: DynVec, mut dest: DynVec)
-    func unsafe_get(self: DynVec, i: U64) returns ref Dynamic
-    func get(self: DynVec, i: U64) returns ref Dynamic throws OutOfBounds
+    func unsafe_get(self: DynVec, i: USize) returns ref Dynamic
+    func get(self: DynVec, i: USize) returns ref Dynamic throws OutOfBounds
     func pop(mut self: DynVec) returns Dynamic
-    func remove_at(mut self: DynVec, i: U64) throws OutOfBounds
-    func truncate(mut self: DynVec, n: U64)
-    func take_prefix(mut self: DynVec, n: U64) returns DynVec
+    func remove_at(mut self: DynVec, i: USize) throws OutOfBounds
+    func truncate(mut self: DynVec, n: USize)
+    func take_prefix(mut self: DynVec, n: USize) returns DynVec
     func take(mut self: DynVec) returns DynVec
-    func unsafe_set(mut self: DynVec, i: U64, own val: Dynamic)
-    func set(mut self: DynVec, i: U64, own val: Dynamic) throws OutOfBounds
-    func push_take(mut self: DynVec, mut src: DynVec, i: U64)
+    func unsafe_set(mut self: DynVec, i: USize, own val: Dynamic)
+    func set(mut self: DynVec, i: USize, own val: Dynamic) throws OutOfBounds
+    func push_take(mut self: DynVec, mut src: DynVec, i: USize)
     func delete(own self: DynVec, call_free: Bool = true)
     func clone(self: DynVec) returns DynVec
-    func size() returns U64
+    func size() returns USize
 }
 #+end_src
 
@@ -70,7 +70,7 @@ with n items reallocs zero times (Vec.with_capacity's counterpart;
 the element type is a runtime argument here, as for ~new~).
 
 #+begin_src til
-func DynVec.with_capacity(T: Type, n: U64) returns DynVec
+func DynVec.with_capacity(T: Type, n: USize) returns DynVec
 #+end_src
 
 * DynVec.new_like
@@ -87,7 +87,7 @@ not the type name ~new_type_name~ wants, and a DynVec record can
 only be built directly inside this file.
 
 #+begin_src til
-func DynVec.new_like(elem_size: U64, elem_kind: U64, elem_clone: CloneFn, elem_delete: DeleteFn, n: U64) returns DynVec
+func DynVec.new_like(elem_size: USize, elem_kind: USize, elem_clone: CloneFn, elem_delete: DeleteFn, n: USize) returns DynVec
 #+end_src
 
 * DynVec.clear
@@ -188,7 +188,7 @@ Unchecked ref to the element at index ~i~. Caller guarantees
 and the DynMap binary search use this directly (issue #284/#287).
 
 #+begin_src til
-func DynVec.unsafe_get(self: DynVec, i: U64) returns ref Dynamic
+func DynVec.unsafe_get(self: DynVec, i: USize) returns ref Dynamic
 #+end_src
 
 * DynVec.get
@@ -203,7 +203,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func DynVec.get(self: DynVec, i: U64) returns ref Dynamic throws OutOfBounds
+func DynVec.get(self: DynVec, i: USize) returns ref Dynamic throws OutOfBounds
 #+end_src
 
 * DynVec.pop
@@ -229,7 +229,7 @@ Remove and drop the element at ~i~, shifting later elements left.
 Vec.remove_at's counterpart.
 
 #+begin_src til
-func DynVec.remove_at(mut self: DynVec, i: U64) throws OutOfBounds
+func DynVec.remove_at(mut self: DynVec, i: USize) throws OutOfBounds
 #+end_src
 
 * DynVec.truncate
@@ -243,7 +243,7 @@ Drop the elements from index ~n~ to the end and set count to ~n~
 len. Vec.truncate's counterpart.
 
 #+begin_src til
-func DynVec.truncate(mut self: DynVec, n: U64)
+func DynVec.truncate(mut self: DynVec, n: USize)
 #+end_src
 
 * DynVec.take_prefix
@@ -256,7 +256,7 @@ Split off the first ~n~ elements into a new DynVec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func DynVec.take_prefix(mut self: DynVec, n: U64) returns DynVec
+func DynVec.take_prefix(mut self: DynVec, n: USize) returns DynVec
 #+end_src
 
 * DynVec.take
@@ -288,7 +288,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func DynVec.unsafe_set(mut self: DynVec, i: U64, own val: Dynamic)
+func DynVec.unsafe_set(mut self: DynVec, i: USize, own val: Dynamic)
 #+end_src
 
 * DynVec.set
@@ -302,7 +302,7 @@ OutOfBounds if ~i~ is past the end; call as ~dynvec[i] = val~
 (or ~dynvec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func DynVec.set(mut self: DynVec, i: U64, own val: Dynamic) throws OutOfBounds
+func DynVec.set(mut self: DynVec, i: USize, own val: Dynamic) throws OutOfBounds
 #+end_src
 
 * DynVec.push_take
@@ -316,7 +316,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and DynVec.delete).
 
 #+begin_src til
-func DynVec.push_take(mut self: DynVec, mut src: DynVec, i: U64)
+func DynVec.push_take(mut self: DynVec, mut src: DynVec, i: USize)
 #+end_src
 
 * DynVec.delete

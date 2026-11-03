@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e302196</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-a132b29</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -93,7 +93,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/codegen/fasm_codegen.html">src/self/codegen/fasm_codegen.til</a></li>
 <li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
 <li><a href="../../src/self/codegen/holyc_codegen.html">src/self/codegen/holyc_codegen.til</a></li>
-<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/codegen/theme_codegen.html">src/self/codegen/theme_codegen.til</a></li>
 <li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
@@ -161,7 +161,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut since : Str
     mut deprecated : Str
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: DocEntry) returns DocEntry
     func delete(own self: DocEntry, call_free: Bool = true)
     func hash(self: DocEntry, hasher: HashFn) returns U64
@@ -182,7 +182,7 @@ namespace:
 <pre><code class="language-til">struct {
     mut entries : Vec__DocEntry
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: DocCatalog) returns DocCatalog
     func delete(own self: DocCatalog, call_free: Bool = true)
     func hash(self: DocCatalog, hasher: HashFn) returns U64
@@ -204,8 +204,8 @@ namespace:
     mut cap : USize
 namespace:
     func new() returns Vec__DocEntry
-    func with_capacity(n: U64) returns Vec__DocEntry
-    func len(self: Vec__DocEntry) returns U64
+    func with_capacity(n: USize) returns Vec__DocEntry
+    func len(self: Vec__DocEntry) returns USize
     func clear(mut self: Vec__DocEntry)
     func delete_marked(mut self: Vec__DocEntry, marks: Dynamic)
     func push(mut self: Vec__DocEntry, own val: DocEntry)
@@ -213,18 +213,18 @@ namespace:
     func take(mut self: Vec__DocEntry) returns Vec__DocEntry
     func move_to(own self: Vec__DocEntry, mut dest: Vec__DocEntry)
     func move_from(mut self: Vec__DocEntry, own other: Vec__DocEntry)
-    func unsafe_get(self: Vec__DocEntry, i: U64) returns ref DocEntry
-    func get(self: Vec__DocEntry, shallow i: U64) returns ref DocEntry throws OutOfBounds
+    func unsafe_get(self: Vec__DocEntry, i: USize) returns ref DocEntry
+    func get(self: Vec__DocEntry, shallow i: USize) returns ref DocEntry throws OutOfBounds
     func pop(mut self: Vec__DocEntry) returns DocEntry
-    func remove_at(mut self: Vec__DocEntry, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__DocEntry, n: U64) returns Vec__DocEntry
-    func truncate(mut self: Vec__DocEntry, n: U64)
-    func unsafe_set(mut self: Vec__DocEntry, i: U64, own val: DocEntry)
-    func set(mut self: Vec__DocEntry, i: U64, own val: DocEntry) throws OutOfBounds
-    func push_take(mut self: Vec__DocEntry, mut src: Vec__DocEntry, i: U64)
+    func remove_at(mut self: Vec__DocEntry, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__DocEntry, n: USize) returns Vec__DocEntry
+    func truncate(mut self: Vec__DocEntry, n: USize)
+    func unsafe_set(mut self: Vec__DocEntry, i: USize, own val: DocEntry)
+    func set(mut self: Vec__DocEntry, i: USize, own val: DocEntry) throws OutOfBounds
+    func push_take(mut self: Vec__DocEntry, mut src: Vec__DocEntry, i: USize)
     func delete(own self: Vec__DocEntry, call_free: Bool = true)
     func clone(self: Vec__DocEntry) returns Vec__DocEntry
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -252,7 +252,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (n: U64) returns Vec__DocEntry
+<pre><code class="language-til">func (n: USize) returns Vec__DocEntry
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.builder.Vec__DocEntry.clear">
@@ -353,7 +353,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__DocEntry, i: U64) returns ref DocEntry
+<pre><code class="language-til">func (self: Vec__DocEntry, i: USize) returns ref DocEntry
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.builder.Vec__DocEntry.get">
@@ -365,7 +365,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__DocEntry, shallow i: U64) returns ref DocEntry throws OutOfBounds
+<pre><code class="language-til">func (self: Vec__DocEntry, shallow i: USize) returns ref DocEntry throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.builder.Vec__DocEntry.pop">
@@ -384,7 +384,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DocEntry, i: U64) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__DocEntry, i: USize) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.builder.Vec__DocEntry.take_prefix">
@@ -394,7 +394,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DocEntry, n: U64) returns Vec__DocEntry
+<pre><code class="language-til">func (mut self: Vec__DocEntry, n: USize) returns Vec__DocEntry
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.builder.Vec__DocEntry.truncate">
@@ -406,7 +406,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DocEntry, n: U64)
+<pre><code class="language-til">func (mut self: Vec__DocEntry, n: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.builder.Vec__DocEntry.unsafe_set">
@@ -417,7 +417,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DocEntry, i: U64, own val: DocEntry)
+<pre><code class="language-til">func (mut self: Vec__DocEntry, i: USize, own val: DocEntry)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.builder.Vec__DocEntry.set">
@@ -428,7 +428,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DocEntry, i: U64, own val: DocEntry) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__DocEntry, i: USize, own val: DocEntry) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.builder.Vec__DocEntry.push_take">
@@ -439,7 +439,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__DocEntry, mut src: Vec__DocEntry, i: U64)
+<pre><code class="language-til">func (mut self: Vec__DocEntry, mut src: Vec__DocEntry, i: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.builder.Vec__DocEntry.delete">

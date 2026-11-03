@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e302196</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-a132b29</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -93,7 +93,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/codegen/fasm_codegen.html">src/self/codegen/fasm_codegen.til</a></li>
 <li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
 <li><a href="../../src/self/codegen/holyc_codegen.html">src/self/codegen/holyc_codegen.til</a></li>
-<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/codegen/theme_codegen.html">src/self/codegen/theme_codegen.til</a></li>
 <li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
@@ -312,7 +312,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut type : U16
     own mut elements : U8
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: ffi_type) returns ffi_type
     func delete(own self: ffi_type, call_free: Bool = true)
 }
@@ -365,7 +365,7 @@ namespace:
     mut extra_cif_fields_5 : U32
     mut extra_cif_fields_6 : U32
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: ffi_cif) returns ffi_cif
     func delete(own self: ffi_cif, call_free: Bool = true)
 }
@@ -410,7 +410,7 @@ namespace:
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_raw_size">
 <h2>ffi_raw_size</h2>
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
-<pre><code class="language-til">ext_proc (mut cif: ffi_cif) returns shallow U64
+<pre><code class="language-til">ext_proc (mut cif: ffi_cif) returns shallow USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_java_raw_call">
@@ -434,7 +434,7 @@ namespace:
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_java_raw_size">
 <h2>ffi_java_raw_size</h2>
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
-<pre><code class="language-til">ext_proc (mut cif: ffi_cif) returns shallow U64
+<pre><code class="language-til">ext_proc (mut cif: ffi_cif) returns shallow USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.libffi.FFI_VERSION_NUMBER">
@@ -464,7 +464,7 @@ namespace:
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_get_closure_size">
 <h2>ffi_get_closure_size</h2>
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
-<pre><code class="language-til">ext_func () returns shallow U64
+<pre><code class="language-til">ext_func () returns shallow USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_closure">
@@ -472,7 +472,7 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
 <pre><code class="language-til">struct {
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(_self: ffi_closure) returns ffi_closure
     func delete(own self: ffi_closure, call_free: Bool = true)
     func hash(self: ffi_closure, hasher: HashFn) returns U64
@@ -490,7 +490,7 @@ namespace:
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_closure_alloc">
 <h2>ffi_closure_alloc</h2>
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
-<pre><code class="language-til">ext_proc (shallow size: U64, mut code: Dynamic) returns Dynamic
+<pre><code class="language-til">ext_proc (shallow size: USize, mut code: Dynamic) returns Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_closure_free">
@@ -510,7 +510,7 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
 <pre><code class="language-til">struct {
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(_self: ffi_raw_closure) returns ffi_raw_closure
     func delete(own self: ffi_raw_closure, call_free: Bool = true)
     func hash(self: ffi_raw_closure, hasher: HashFn) returns U64
@@ -530,7 +530,7 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
 <pre><code class="language-til">struct {
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(_self: ffi_java_raw_closure) returns ffi_java_raw_closure
     func delete(own self: ffi_java_raw_closure, call_free: Bool = true)
     func hash(self: ffi_java_raw_closure, hasher: HashFn) returns U64
@@ -574,7 +574,7 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
 <pre><code class="language-til">struct {
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(_self: ffi_go_closure) returns ffi_go_closure
     func delete(own self: ffi_go_closure, call_free: Bool = true)
     func hash(self: ffi_go_closure, hasher: HashFn) returns U64
@@ -624,7 +624,7 @@ namespace:
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
 <pre><code class="language-til">struct {
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(_self: ffi_call_plan) returns ffi_call_plan
     func delete(own self: ffi_call_plan, call_free: Bool = true)
     func hash(self: ffi_call_plan, hasher: HashFn) returns U64
@@ -660,7 +660,7 @@ namespace:
 <article class="doc-entry" id="til.vendor.bindings.libffi.ffi_get_struct_offsets">
 <h2>ffi_get_struct_offsets</h2>
 <dl class="meta"><dt>Group</dt><dd>Vendor bindings</dd></dl>
-<pre><code class="language-til">ext_proc (shallow abi: I32, mut struct_type: ffi_type, mut offsets: U64) returns shallow I32
+<pre><code class="language-til">ext_proc (shallow abi: I32, mut struct_type: ffi_type, mut offsets: USize) returns shallow I32
 </code></pre>
 </article>
 </main></div>

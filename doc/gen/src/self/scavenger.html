@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e302196</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-a132b29</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -93,7 +93,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/codegen/fasm_codegen.html">src/self/codegen/fasm_codegen.til</a></li>
 <li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
 <li><a href="../../src/self/codegen/holyc_codegen.html">src/self/codegen/holyc_codegen.til</a></li>
-<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/codegen/theme_codegen.html">src/self/codegen/theme_codegen.til</a></li>
 <li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
@@ -168,20 +168,20 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut slots : Vec__U32
 namespace:
     func new() returns SymMap__U8
-    func with_capacity(n: U64) returns SymMap__U8
-    func empty_slots(cap: U64) returns Vec__U32
-    func len(self: SymMap__U8) returns U64
+    func with_capacity(n: USize) returns SymMap__U8
+    func empty_slots(cap: USize) returns Vec__U32
+    func len(self: SymMap__U8) returns USize
     func find(self: SymMap__U8, key: U32) returns I64
     func has(self: SymMap__U8, key: U32) returns Bool
     func get(self: SymMap__U8, key: U32) returns ref U8 throws KeyNotFound
-    func reindex(mut self: SymMap__U8, cap: U64)
+    func reindex(mut self: SymMap__U8, cap: USize)
     func set(mut self: SymMap__U8, key: U32, own val: U8)
     func insert_absent(mut self: SymMap__U8, key: U32, own val: U8)
     func remove(mut self: SymMap__U8, key: U32) returns Bool
     func clear(mut self: SymMap__U8)
     func clone(self: SymMap__U8) returns SymMap__U8
     func delete(own self: SymMap__U8, call_free: Bool = true)
-    func size() returns U64
+    func size() returns USize
     func hash(self: SymMap__U8, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -205,7 +205,7 @@ counterpart): the dense pair reallocs for none of them, and the index
 is seeded wide enough that adding <code>n</code> never reindexes. n=0 behaves
 like new().</p>
 </div>
-<pre><code class="language-til">func (n: U64) returns SymMap__U8
+<pre><code class="language-til">func (n: USize) returns SymMap__U8
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.SymMap__U8.find">
@@ -274,8 +274,8 @@ already present would shadow it: find returns the first match.</p>
     mut values : Vec__priv___src_self_scavenger_til__DeclRef
 namespace:
     func new() returns Map__Str_priv___src_self_scavenger_til__DeclRef
-    func with_capacity(n: U64) returns Map__Str_priv___src_self_scavenger_til__DeclRef
-    func len(self: Map__Str_priv___src_self_scavenger_til__DeclRef) returns U64
+    func with_capacity(n: USize) returns Map__Str_priv___src_self_scavenger_til__DeclRef
+    func len(self: Map__Str_priv___src_self_scavenger_til__DeclRef) returns USize
     func clear(mut self: Map__Str_priv___src_self_scavenger_til__DeclRef)
     func has(self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str) returns Bool
     func get(self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str) returns ref priv___src_self_scavenger_til__DeclRef throws KeyNotFound
@@ -283,7 +283,7 @@ namespace:
     func remove(mut self: Map__Str_priv___src_self_scavenger_til__DeclRef, key: Str) returns Bool
     func delete(own self: Map__Str_priv___src_self_scavenger_til__DeclRef, call_free: Bool = true)
     func clone(self: Map__Str_priv___src_self_scavenger_til__DeclRef) returns Map__Str_priv___src_self_scavenger_til__DeclRef
-    func size() returns U64
+    func size() returns USize
     func hash(self: Map__Str_priv___src_self_scavenger_til__DeclRef, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -306,7 +306,7 @@ The key type must implement <code>cmp</code>.</p>
 <code>n</code> reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 </div>
-<pre><code class="language-til">func (n: U64) returns Map__Str_priv___src_self_scavenger_til__DeclRef
+<pre><code class="language-til">func (n: USize) returns Map__Str_priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.Map__Str_priv___src_self_scavenger_til__DeclRef.clear">
@@ -366,8 +366,8 @@ other keys are cloned and other values are taken by ownership.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_scavenger_til__DeclRef
-    func with_capacity(n: U64) returns Vec__priv___src_self_scavenger_til__DeclRef
-    func len(self: Vec__priv___src_self_scavenger_til__DeclRef) returns U64
+    func with_capacity(n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
+    func len(self: Vec__priv___src_self_scavenger_til__DeclRef) returns USize
     func clear(mut self: Vec__priv___src_self_scavenger_til__DeclRef)
     func delete_marked(mut self: Vec__priv___src_self_scavenger_til__DeclRef, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_scavenger_til__DeclRef, own val: priv___src_self_scavenger_til__DeclRef)
@@ -375,18 +375,18 @@ namespace:
     func take(mut self: Vec__priv___src_self_scavenger_til__DeclRef) returns Vec__priv___src_self_scavenger_til__DeclRef
     func move_to(own self: Vec__priv___src_self_scavenger_til__DeclRef, mut dest: Vec__priv___src_self_scavenger_til__DeclRef)
     func move_from(mut self: Vec__priv___src_self_scavenger_til__DeclRef, own other: Vec__priv___src_self_scavenger_til__DeclRef)
-    func unsafe_get(self: Vec__priv___src_self_scavenger_til__DeclRef, i: U64) returns ref priv___src_self_scavenger_til__DeclRef
-    func get(self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: U64) returns ref priv___src_self_scavenger_til__DeclRef throws OutOfBounds
+    func unsafe_get(self: Vec__priv___src_self_scavenger_til__DeclRef, i: USize) returns ref priv___src_self_scavenger_til__DeclRef
+    func get(self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize) returns ref priv___src_self_scavenger_til__DeclRef throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_scavenger_til__DeclRef) returns priv___src_self_scavenger_til__DeclRef
-    func remove_at(mut self: Vec__priv___src_self_scavenger_til__DeclRef, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__priv___src_self_scavenger_til__DeclRef, n: U64) returns Vec__priv___src_self_scavenger_til__DeclRef
-    func truncate(mut self: Vec__priv___src_self_scavenger_til__DeclRef, n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, i: U64, own val: priv___src_self_scavenger_til__DeclRef)
-    func set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, i: U64, own val: priv___src_self_scavenger_til__DeclRef) throws OutOfBounds
-    func push_take(mut self: Vec__priv___src_self_scavenger_til__DeclRef, mut src: Vec__priv___src_self_scavenger_til__DeclRef, i: U64)
+    func remove_at(mut self: Vec__priv___src_self_scavenger_til__DeclRef, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_scavenger_til__DeclRef, n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
+    func truncate(mut self: Vec__priv___src_self_scavenger_til__DeclRef, n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, i: USize, own val: priv___src_self_scavenger_til__DeclRef)
+    func set(mut self: Vec__priv___src_self_scavenger_til__DeclRef, i: USize, own val: priv___src_self_scavenger_til__DeclRef) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_scavenger_til__DeclRef, mut src: Vec__priv___src_self_scavenger_til__DeclRef, i: USize)
     func delete(own self: Vec__priv___src_self_scavenger_til__DeclRef, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_scavenger_til__DeclRef) returns Vec__priv___src_self_scavenger_til__DeclRef
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -414,7 +414,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (n: U64) returns Vec__priv___src_self_scavenger_til__DeclRef
+<pre><code class="language-til">func (n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.clear">
@@ -515,7 +515,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_scavenger_til__DeclRef, i: U64) returns ref priv___src_self_scavenger_til__DeclRef
+<pre><code class="language-til">func (self: Vec__priv___src_self_scavenger_til__DeclRef, i: USize) returns ref priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.get">
@@ -527,7 +527,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: U64) returns ref priv___src_self_scavenger_til__DeclRef throws OutOfBounds
+<pre><code class="language-til">func (self: Vec__priv___src_self_scavenger_til__DeclRef, shallow i: USize) returns ref priv___src_self_scavenger_til__DeclRef throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.pop">
@@ -546,7 +546,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, i: U64) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, i: USize) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.take_prefix">
@@ -556,7 +556,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, n: U64) returns Vec__priv___src_self_scavenger_til__DeclRef
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, n: USize) returns Vec__priv___src_self_scavenger_til__DeclRef
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.truncate">
@@ -568,7 +568,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, n: U64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, n: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.unsafe_set">
@@ -579,7 +579,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, i: U64, own val: priv___src_self_scavenger_til__DeclRef)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, i: USize, own val: priv___src_self_scavenger_til__DeclRef)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.set">
@@ -590,7 +590,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, i: U64, own val: priv___src_self_scavenger_til__DeclRef) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, i: USize, own val: priv___src_self_scavenger_til__DeclRef) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.push_take">
@@ -601,7 +601,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, mut src: Vec__priv___src_self_scavenger_til__DeclRef, i: U64)
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_scavenger_til__DeclRef, mut src: Vec__priv___src_self_scavenger_til__DeclRef, i: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.scavenger.Vec__priv___src_self_scavenger_til__DeclRef.delete">

@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e302196</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-a132b29</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -93,7 +93,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/codegen/fasm_codegen.html">src/self/codegen/fasm_codegen.til</a></li>
 <li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
 <li><a href="../../src/self/codegen/holyc_codegen.html">src/self/codegen/holyc_codegen.til</a></li>
-<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/codegen/theme_codegen.html">src/self/codegen/theme_codegen.til</a></li>
 <li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
@@ -119,18 +119,18 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     elem_clone : CloneFn
     elem_delete : DeleteFn
 namespace:
-    func new_type_name(elem_type: Str, cap: U64) returns DynArray
-    func new(T: Type, cap: U64) returns DynArray
-    func len(self: DynArray) returns U64
-    func unsafe_get(self: DynArray, i: U64) returns ref Dynamic
-    func get(self: DynArray, i: U64) returns ref Dynamic throws OutOfBounds
-    func unsafe_set(mut self: DynArray, i: U64, own val: Dynamic)
-    func set(mut self: DynArray, i: U64, own val: Dynamic) throws OutOfBounds
+    func new_type_name(elem_type: Str, cap: USize) returns DynArray
+    func new(T: Type, cap: USize) returns DynArray
+    func len(self: DynArray) returns USize
+    func unsafe_get(self: DynArray, i: USize) returns ref Dynamic
+    func get(self: DynArray, i: USize) returns ref Dynamic throws OutOfBounds
+    func unsafe_set(mut self: DynArray, i: USize, own val: Dynamic)
+    func set(mut self: DynArray, i: USize, own val: Dynamic) throws OutOfBounds
     func delete(own self: DynArray, call_free: Bool = true)
     func concat(self: DynArray, other: DynArray) returns DynArray
     func to_vec(self: DynArray) returns DynVec
     func clone(self: DynArray) returns DynArray
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -140,7 +140,7 @@ namespace:
 <div class="doc-body">
 <p>Create a zero-initialized DynArray with the given element type and capacity.</p>
 </div>
-<pre><code class="language-til">func (elem_type: Str, cap: U64) returns DynArray
+<pre><code class="language-til">func (elem_type: Str, cap: USize) returns DynArray
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.std.dyn_array.DynArray.unsafe_get">
@@ -150,7 +150,7 @@ namespace:
 <p>Unchecked ref to the element at index <code>i</code>. Caller guarantees
 <code>i &lt; self.cap</code>; the unchecked core that <code>get</code> wraps (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: DynArray, i: U64) returns ref Dynamic
+<pre><code class="language-til">func (self: DynArray, i: USize) returns ref Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.std.dyn_array.DynArray.get">
@@ -160,7 +160,7 @@ namespace:
 <p>Ref to the element at index <code>i</code>. Throws OutOfBounds if <code>i</code> is
 past the end; call as <code>arr.get(i)!</code> to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (self: DynArray, i: U64) returns ref Dynamic throws OutOfBounds
+<pre><code class="language-til">func (self: DynArray, i: USize) returns ref Dynamic throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.std.dyn_array.DynArray.unsafe_set">
@@ -171,7 +171,7 @@ past the end; call as <code>arr.get(i)!</code> to panic on a bad index.</p>
 the old value. Caller guarantees <code>i &lt; self.cap</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: DynArray, i: U64, own val: Dynamic)
+<pre><code class="language-til">func (mut self: DynArray, i: USize, own val: Dynamic)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.std.dyn_array.DynArray.set">
@@ -182,7 +182,7 @@ mirror of unsafe_get (issue #284).</p>
 owned. Throws OutOfBounds if <code>i</code> is past the end; call as
 <code>dynarr[i] = val</code> (or <code>dynarr.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: DynArray, i: U64, own val: Dynamic) throws OutOfBounds
+<pre><code class="language-til">func (mut self: DynArray, i: USize, own val: Dynamic) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.std.dyn_array.DynArray.concat">

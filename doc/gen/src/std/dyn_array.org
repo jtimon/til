@@ -1,5 +1,5 @@
 #+TITLE: src/std/dyn_array.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * DynArray
@@ -19,18 +19,18 @@ struct DynArray {
     elem_clone : CloneFn
     elem_delete : DeleteFn
 namespace:
-    func new_type_name(elem_type: Str, cap: U64) returns DynArray
-    func new(T: Type, cap: U64) returns DynArray
-    func len(self: DynArray) returns U64
-    func unsafe_get(self: DynArray, i: U64) returns ref Dynamic
-    func get(self: DynArray, i: U64) returns ref Dynamic throws OutOfBounds
-    func unsafe_set(mut self: DynArray, i: U64, own val: Dynamic)
-    func set(mut self: DynArray, i: U64, own val: Dynamic) throws OutOfBounds
+    func new_type_name(elem_type: Str, cap: USize) returns DynArray
+    func new(T: Type, cap: USize) returns DynArray
+    func len(self: DynArray) returns USize
+    func unsafe_get(self: DynArray, i: USize) returns ref Dynamic
+    func get(self: DynArray, i: USize) returns ref Dynamic throws OutOfBounds
+    func unsafe_set(mut self: DynArray, i: USize, own val: Dynamic)
+    func set(mut self: DynArray, i: USize, own val: Dynamic) throws OutOfBounds
     func delete(own self: DynArray, call_free: Bool = true)
     func concat(self: DynArray, other: DynArray) returns DynArray
     func to_vec(self: DynArray) returns DynVec
     func clone(self: DynArray) returns DynArray
-    func size() returns U64
+    func size() returns USize
 }
 #+end_src
 
@@ -43,7 +43,7 @@ namespace:
 Create a zero-initialized DynArray with the given element type and capacity.
 
 #+begin_src til
-func DynArray.new_type_name(elem_type: Str, cap: U64) returns DynArray
+func DynArray.new_type_name(elem_type: Str, cap: USize) returns DynArray
 #+end_src
 
 * DynArray.unsafe_get
@@ -56,7 +56,7 @@ Unchecked ref to the element at index ~i~. Caller guarantees
 ~i < self.cap~; the unchecked core that ~get~ wraps (issue #284).
 
 #+begin_src til
-func DynArray.unsafe_get(self: DynArray, i: U64) returns ref Dynamic
+func DynArray.unsafe_get(self: DynArray, i: USize) returns ref Dynamic
 #+end_src
 
 * DynArray.get
@@ -69,7 +69,7 @@ Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
 past the end; call as ~arr.get(i)!~ to panic on a bad index.
 
 #+begin_src til
-func DynArray.get(self: DynArray, i: U64) returns ref Dynamic throws OutOfBounds
+func DynArray.get(self: DynArray, i: USize) returns ref Dynamic throws OutOfBounds
 #+end_src
 
 * DynArray.unsafe_set
@@ -83,7 +83,7 @@ the old value. Caller guarantees ~i < self.cap~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func DynArray.unsafe_set(mut self: DynArray, i: U64, own val: Dynamic)
+func DynArray.unsafe_set(mut self: DynArray, i: USize, own val: Dynamic)
 #+end_src
 
 * DynArray.set
@@ -97,7 +97,7 @@ owned. Throws OutOfBounds if ~i~ is past the end; call as
 ~dynarr[i] = val~ (or ~dynarr.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func DynArray.set(mut self: DynArray, i: U64, own val: Dynamic) throws OutOfBounds
+func DynArray.set(mut self: DynArray, i: USize, own val: Dynamic) throws OutOfBounds
 #+end_src
 
 * DynArray.concat

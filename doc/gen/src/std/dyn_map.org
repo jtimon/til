@@ -1,5 +1,5 @@
 #+TITLE: src/std/dyn_map.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * DynMap
@@ -17,8 +17,8 @@ struct DynMap {
     mut key_cmp : CmpFn
 namespace:
     func new(K: Type, V: Type) returns DynMap
-    func with_capacity(K: Type, V: Type, n: U64) returns DynMap
-    func len(self: DynMap) returns U64
+    func with_capacity(K: Type, V: Type, n: USize) returns DynMap
+    func len(self: DynMap) returns USize
     func clear(mut self: DynMap)
     func has(self: DynMap, key: Dynamic) returns Bool
     func get(self: DynMap, key: Dynamic) returns ref Dynamic throws KeyNotFound
@@ -26,7 +26,7 @@ namespace:
     func remove(mut self: DynMap, key: Dynamic) returns Bool
     func delete(own self: DynMap, call_free: Bool = true)
     func clone(self: DynMap) returns DynMap
-    func size() returns U64
+    func size() returns USize
     func hash(self: DynMap, hasher: HashFn) returns U64
 }
 #+end_src
@@ -56,7 +56,7 @@ counterpart; the key/value types are runtime arguments here, as
 for ~new~).
 
 #+begin_src til
-func DynMap.with_capacity(K: Type, V: Type, n: U64) returns DynMap
+func DynMap.with_capacity(K: Type, V: Type, n: USize) returns DynMap
 #+end_src
 
 * DynMap.clear

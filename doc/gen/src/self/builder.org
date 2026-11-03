@@ -1,5 +1,5 @@
 #+TITLE: src/self/builder.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * cmd_mlir
@@ -90,7 +90,7 @@ struct DocEntry {
     mut since : Str
     mut deprecated : Str
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: DocEntry) returns DocEntry
     func delete(own self: DocEntry, call_free: Bool = true)
     func hash(self: DocEntry, hasher: HashFn) returns U64
@@ -115,7 +115,7 @@ namespace:
 struct DocCatalog {
     mut entries : Vec__DocEntry
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: DocCatalog) returns DocCatalog
     func delete(own self: DocCatalog, call_free: Bool = true)
     func hash(self: DocCatalog, hasher: HashFn) returns U64
@@ -145,8 +145,8 @@ struct Vec__DocEntry {
     mut cap : USize
 namespace:
     func new() returns Vec__DocEntry
-    func with_capacity(n: U64) returns Vec__DocEntry
-    func len(self: Vec__DocEntry) returns U64
+    func with_capacity(n: USize) returns Vec__DocEntry
+    func len(self: Vec__DocEntry) returns USize
     func clear(mut self: Vec__DocEntry)
     func delete_marked(mut self: Vec__DocEntry, marks: Dynamic)
     func push(mut self: Vec__DocEntry, own val: DocEntry)
@@ -154,18 +154,18 @@ namespace:
     func take(mut self: Vec__DocEntry) returns Vec__DocEntry
     func move_to(own self: Vec__DocEntry, mut dest: Vec__DocEntry)
     func move_from(mut self: Vec__DocEntry, own other: Vec__DocEntry)
-    func unsafe_get(self: Vec__DocEntry, i: U64) returns ref DocEntry
-    func get(self: Vec__DocEntry, shallow i: U64) returns ref DocEntry throws OutOfBounds
+    func unsafe_get(self: Vec__DocEntry, i: USize) returns ref DocEntry
+    func get(self: Vec__DocEntry, shallow i: USize) returns ref DocEntry throws OutOfBounds
     func pop(mut self: Vec__DocEntry) returns DocEntry
-    func remove_at(mut self: Vec__DocEntry, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__DocEntry, n: U64) returns Vec__DocEntry
-    func truncate(mut self: Vec__DocEntry, n: U64)
-    func unsafe_set(mut self: Vec__DocEntry, i: U64, own val: DocEntry)
-    func set(mut self: Vec__DocEntry, i: U64, own val: DocEntry) throws OutOfBounds
-    func push_take(mut self: Vec__DocEntry, mut src: Vec__DocEntry, i: U64)
+    func remove_at(mut self: Vec__DocEntry, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__DocEntry, n: USize) returns Vec__DocEntry
+    func truncate(mut self: Vec__DocEntry, n: USize)
+    func unsafe_set(mut self: Vec__DocEntry, i: USize, own val: DocEntry)
+    func set(mut self: Vec__DocEntry, i: USize, own val: DocEntry) throws OutOfBounds
+    func push_take(mut self: Vec__DocEntry, mut src: Vec__DocEntry, i: USize)
     func delete(own self: Vec__DocEntry, call_free: Bool = true)
     func clone(self: Vec__DocEntry) returns Vec__DocEntry
-    func size() returns U64
+    func size() returns USize
 }
 #+end_src
 
@@ -199,7 +199,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__DocEntry.with_capacity(n: U64) returns Vec__DocEntry
+func Vec__DocEntry.with_capacity(n: USize) returns Vec__DocEntry
 #+end_src
 
 * Vec__DocEntry.clear
@@ -326,7 +326,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__DocEntry.unsafe_get(self: Vec__DocEntry, i: U64) returns ref DocEntry
+func Vec__DocEntry.unsafe_get(self: Vec__DocEntry, i: USize) returns ref DocEntry
 #+end_src
 
 * Vec__DocEntry.get
@@ -341,7 +341,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__DocEntry.get(self: Vec__DocEntry, shallow i: U64) returns ref DocEntry throws OutOfBounds
+func Vec__DocEntry.get(self: Vec__DocEntry, shallow i: USize) returns ref DocEntry throws OutOfBounds
 #+end_src
 
 * Vec__DocEntry.pop
@@ -366,7 +366,7 @@ func Vec__DocEntry.pop(mut self: Vec__DocEntry) returns DocEntry
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__DocEntry.remove_at(mut self: Vec__DocEntry, i: U64) throws OutOfBounds
+func Vec__DocEntry.remove_at(mut self: Vec__DocEntry, i: USize) throws OutOfBounds
 #+end_src
 
 * Vec__DocEntry.take_prefix
@@ -379,7 +379,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__DocEntry.take_prefix(mut self: Vec__DocEntry, n: U64) returns Vec__DocEntry
+func Vec__DocEntry.take_prefix(mut self: Vec__DocEntry, n: USize) returns Vec__DocEntry
 #+end_src
 
 * Vec__DocEntry.truncate
@@ -394,7 +394,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__DocEntry.truncate(mut self: Vec__DocEntry, n: U64)
+func Vec__DocEntry.truncate(mut self: Vec__DocEntry, n: USize)
 #+end_src
 
 * Vec__DocEntry.unsafe_set
@@ -408,7 +408,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__DocEntry.unsafe_set(mut self: Vec__DocEntry, i: U64, own val: DocEntry)
+func Vec__DocEntry.unsafe_set(mut self: Vec__DocEntry, i: USize, own val: DocEntry)
 #+end_src
 
 * Vec__DocEntry.set
@@ -422,7 +422,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__DocEntry.set(mut self: Vec__DocEntry, i: U64, own val: DocEntry) throws OutOfBounds
+func Vec__DocEntry.set(mut self: Vec__DocEntry, i: USize, own val: DocEntry) throws OutOfBounds
 #+end_src
 
 * Vec__DocEntry.push_take
@@ -436,7 +436,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__DocEntry.push_take(mut self: Vec__DocEntry, mut src: Vec__DocEntry, i: U64)
+func Vec__DocEntry.push_take(mut self: Vec__DocEntry, mut src: Vec__DocEntry, i: USize)
 #+end_src
 
 * Vec__DocEntry.delete

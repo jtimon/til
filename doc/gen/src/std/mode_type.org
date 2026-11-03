@@ -1,5 +1,5 @@
 #+TITLE: src/std/mode_type.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * Mode
@@ -20,7 +20,7 @@ struct Mode {
     mut targets : Str
     mut build_hint : Str
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: Mode) returns Mode
     func delete(own self: Mode, call_free: Bool = true)
     func hash(self: Mode, hasher: HashFn) returns U64

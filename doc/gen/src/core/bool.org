@@ -1,5 +1,5 @@
 #+TITLE: src/core/bool.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * and
@@ -48,7 +48,7 @@ namespace:
     func cmp(a: Bool, b: Bool) returns I64
     ext_func clone(val: Bool) returns shallow Bool
     func delete(own self: Bool, call_free: Bool = true)
-    func size() returns U64
+    func size() returns USize
     func hash(self: Bool, hasher: HashFn) returns U64
     func lt(a: Bool, b: Bool) returns Bool
     func gt(a: Bool, b: Bool) returns Bool

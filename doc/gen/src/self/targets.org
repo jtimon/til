@@ -1,5 +1,5 @@
 #+TITLE: src/self/targets.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * Lang
@@ -23,7 +23,7 @@ namespace:
     func cmp(a: Lang, b: Lang) returns I64
     func to_str(self: Lang) returns Str
     func clone(self: Lang) returns Lang
-    func size() returns U64
+    func size() returns USize
     func lt(a: Lang, b: Lang) returns Bool
     func gt(a: Lang, b: Lang) returns Bool
     func neq(a: Lang, b: Lang) returns Bool
@@ -71,7 +71,7 @@ namespace:
     func cmp(a: Target, b: Target) returns I64
     func to_str(self: Target) returns Str
     func clone(self: Target) returns Target
-    func size() returns U64
+    func size() returns USize
     func lt(a: Target, b: Target) returns Bool
     func gt(a: Target, b: Target) returns Bool
     func neq(a: Target, b: Target) returns Bool
@@ -137,7 +137,7 @@ func target_usize_name(target: Target) returns Str
 :END:
 
 #+begin_src til
-func target_simd_bits(target: Target) returns U64
+func target_simd_bits(target: Target) returns USize
 #+end_src
 
 * TargetCpu
@@ -152,7 +152,7 @@ struct TargetCpu {
     mut simd_bits : USize
     mut c_flags : Str
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: TargetCpu) returns TargetCpu
     func delete(own self: TargetCpu, call_free: Bool = true)
     func hash(self: TargetCpu, hasher: HashFn) returns U64

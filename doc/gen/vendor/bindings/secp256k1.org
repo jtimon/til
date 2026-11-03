@@ -1,5 +1,5 @@
 #+TITLE: vendor/bindings/secp256k1.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * secp256k1_context
@@ -49,7 +49,7 @@ Opaque data structure that holds context information
 #+begin_src til
 struct secp256k1_context {
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(_self: secp256k1_context) returns secp256k1_context
     func delete(own self: secp256k1_context, call_free: Bool = true)
     func hash(self: secp256k1_context, hasher: HashFn) returns U64
@@ -90,7 +90,7 @@ struct secp256k1_pubkey {
     mut d6 : U64
     mut d7 : U64
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: secp256k1_pubkey) returns secp256k1_pubkey
     func delete(own self: secp256k1_pubkey, call_free: Bool = true)
     func hash(self: secp256k1_pubkey, hasher: HashFn) returns U64
@@ -131,7 +131,7 @@ struct secp256k1_ecdsa_signature {
     mut d6 : U64
     mut d7 : U64
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: secp256k1_ecdsa_signature) returns secp256k1_ecdsa_signature
     func delete(own self: secp256k1_ecdsa_signature, call_free: Bool = true)
     func hash(self: secp256k1_ecdsa_signature, hasher: HashFn) returns U64
@@ -569,7 +569,7 @@ Parse a variable-length public key into the pubkey object.
  byte 0x06 or 0x07) format public keys.
 
 #+begin_src til
-ext_proc secp256k1_ec_pubkey_parse(ctx: secp256k1_context, mut pubkey: secp256k1_pubkey, input: Dynamic, shallow inputlen: U64) returns shallow I32
+ext_proc secp256k1_ec_pubkey_parse(ctx: secp256k1_context, mut pubkey: secp256k1_pubkey, input: Dynamic, shallow inputlen: USize) returns shallow I32
 #+end_src
 
 * secp256k1_ec_pubkey_serialize
@@ -594,7 +594,7 @@ Serialize a pubkey object into a serialized byte sequence.
                      compressed format, otherwise SECP256K1_EC_UNCOMPRESSED.
 
 #+begin_src til
-ext_proc secp256k1_ec_pubkey_serialize(ctx: secp256k1_context, mut output: Dynamic, mut outputlen: U64, pubkey: secp256k1_pubkey, shallow flags: U32) returns shallow I32
+ext_proc secp256k1_ec_pubkey_serialize(ctx: secp256k1_context, mut output: Dynamic, mut outputlen: USize, pubkey: secp256k1_pubkey, shallow flags: U32) returns shallow I32
 #+end_src
 
 * secp256k1_ec_pubkey_cmp
@@ -631,7 +631,7 @@ Sort public keys using lexicographic (of compressed serialization) order
      n_pubkeys: number of elements in the pubkeys array
 
 #+begin_src til
-ext_proc secp256k1_ec_pubkey_sort(ctx: secp256k1_context, pubkeys: Dynamic, shallow n_pubkeys: U64) returns shallow I32
+ext_proc secp256k1_ec_pubkey_sort(ctx: secp256k1_context, pubkeys: Dynamic, shallow n_pubkeys: USize) returns shallow I32
 #+end_src
 
 * secp256k1_ecdsa_signature_parse_compact
@@ -681,7 +681,7 @@ Parse a DER ECDSA signature.
  guaranteed to fail for every message and public key.
 
 #+begin_src til
-ext_proc secp256k1_ecdsa_signature_parse_der(ctx: secp256k1_context, mut sig: secp256k1_ecdsa_signature, input: Dynamic, shallow inputlen: U64) returns shallow I32
+ext_proc secp256k1_ecdsa_signature_parse_der(ctx: secp256k1_context, mut sig: secp256k1_ecdsa_signature, input: Dynamic, shallow inputlen: USize) returns shallow I32
 #+end_src
 
 * secp256k1_ecdsa_signature_serialize_der
@@ -702,7 +702,7 @@ Serialize an ECDSA signature in DER format.
  In:     sig:       pointer to an initialized signature object
 
 #+begin_src til
-ext_proc secp256k1_ecdsa_signature_serialize_der(ctx: secp256k1_context, mut output: Dynamic, mut outputlen: U64, sig: secp256k1_ecdsa_signature) returns shallow I32
+ext_proc secp256k1_ecdsa_signature_serialize_der(ctx: secp256k1_context, mut output: Dynamic, mut outputlen: USize, sig: secp256k1_ecdsa_signature) returns shallow I32
 #+end_src
 
 * secp256k1_ecdsa_signature_serialize_compact
@@ -1070,7 +1070,7 @@ Add a number of public keys together.
          n:          the number of public keys to add together (must be at least 1).
 
 #+begin_src til
-ext_proc secp256k1_ec_pubkey_combine(ctx: secp256k1_context, mut out: secp256k1_pubkey, ins: Dynamic, shallow n: U64) returns shallow I32
+ext_proc secp256k1_ec_pubkey_combine(ctx: secp256k1_context, mut out: secp256k1_pubkey, ins: Dynamic, shallow n: USize) returns shallow I32
 #+end_src
 
 * secp256k1_tagged_sha256
@@ -1096,7 +1096,7 @@ Compute a tagged hash as defined in BIP-340.
        msglen: length of the message array
 
 #+begin_src til
-ext_proc secp256k1_tagged_sha256(ctx: secp256k1_context, mut hash32: Dynamic, tag: Dynamic, shallow taglen: U64, msg: Dynamic, shallow msglen: U64) returns shallow I32
+ext_proc secp256k1_tagged_sha256(ctx: secp256k1_context, mut hash32: Dynamic, tag: Dynamic, shallow taglen: USize, msg: Dynamic, shallow msglen: USize) returns shallow I32
 #+end_src
 
 * secp256k1_xonly_pubkey
@@ -1128,7 +1128,7 @@ struct secp256k1_xonly_pubkey {
     mut d6 : U64
     mut d7 : U64
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: secp256k1_xonly_pubkey) returns secp256k1_xonly_pubkey
     func delete(own self: secp256k1_xonly_pubkey, call_free: Bool = true)
     func hash(self: secp256k1_xonly_pubkey, hasher: HashFn) returns U64
@@ -1171,7 +1171,7 @@ struct secp256k1_keypair {
     mut d10 : U64
     mut d11 : U64
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: secp256k1_keypair) returns secp256k1_keypair
     func delete(own self: secp256k1_keypair, call_free: Bool = true)
     func hash(self: secp256k1_keypair, hasher: HashFn) returns U64
@@ -1497,7 +1497,7 @@ Data structure that contains additional arguments for schnorrsig_sign_custom.
 #+begin_src til
 struct secp256k1_schnorrsig_extraparams {
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(_self: secp256k1_schnorrsig_extraparams) returns secp256k1_schnorrsig_extraparams
     func delete(own self: secp256k1_schnorrsig_extraparams, call_free: Bool = true)
     func hash(self: secp256k1_schnorrsig_extraparams, hasher: HashFn) returns U64
@@ -1574,7 +1574,7 @@ Create a Schnorr signature with a more flexible API.
  extraparams: pointer to an extraparams object (can be NULL).
 
 #+begin_src til
-ext_proc secp256k1_schnorrsig_sign_custom(ctx: secp256k1_context, mut sig64: Dynamic, msg: Dynamic, shallow msglen: U64, keypair: secp256k1_keypair, mut extraparams: secp256k1_schnorrsig_extraparams) returns shallow I32
+ext_proc secp256k1_schnorrsig_sign_custom(ctx: secp256k1_context, mut sig64: Dynamic, msg: Dynamic, shallow msglen: USize, keypair: secp256k1_keypair, mut extraparams: secp256k1_schnorrsig_extraparams) returns shallow I32
 #+end_src
 
 * secp256k1_schnorrsig_verify
@@ -1594,5 +1594,5 @@ Verify a Schnorr signature.
        pubkey: pointer to an x-only public key to verify with
 
 #+begin_src til
-ext_proc secp256k1_schnorrsig_verify(ctx: secp256k1_context, sig64: Dynamic, msg: Dynamic, shallow msglen: U64, pubkey: secp256k1_xonly_pubkey) returns shallow I32
+ext_proc secp256k1_schnorrsig_verify(ctx: secp256k1_context, sig64: Dynamic, msg: Dynamic, shallow msglen: USize, pubkey: secp256k1_xonly_pubkey) returns shallow I32
 #+end_src

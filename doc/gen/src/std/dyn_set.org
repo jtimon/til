@@ -1,5 +1,5 @@
 #+TITLE: src/std/dyn_set.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * DynSet
@@ -21,15 +21,15 @@ struct DynSet {
     elem_cmp : CmpFn
 namespace:
     func new(T: Type) returns DynSet
-    func with_capacity(T: Type, n: U64) returns DynSet
-    func len(self: DynSet) returns U64
+    func with_capacity(T: Type, n: USize) returns DynSet
+    func len(self: DynSet) returns USize
     func clear(mut self: DynSet)
     func has(self: DynSet, val: Dynamic) returns Bool
     func add(mut self: DynSet, own val: Dynamic)
     func remove(mut self: DynSet, val: Dynamic) returns Bool
     func delete(own self: DynSet, call_free: Bool = true)
     func clone(self: DynSet) returns DynSet
-    func size() returns U64
+    func size() returns USize
 }
 #+end_src
 
@@ -56,7 +56,7 @@ to ~n~ reallocs zero times (Set.with_capacity's counterpart; the
 element type is a runtime argument here, as for ~new~).
 
 #+begin_src til
-func DynSet.with_capacity(T: Type, n: U64) returns DynSet
+func DynSet.with_capacity(T: Type, n: USize) returns DynSet
 #+end_src
 
 * DynSet.clear

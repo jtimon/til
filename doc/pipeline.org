@@ -222,7 +222,7 @@ has its own editor-theme writer.
     translation errors.
 
 - Theme: ~mode theme~ files go to
-  [[file:../src/self/theme_codegen.til][src/self/theme_codegen.til]], which
+  [[file:../src/self/codegen/theme_codegen.til][src/self/codegen/theme_codegen.til]], which
   writes editor theme data instead of code.
   - target/platform selection (the `Target` and `Lang` enums) lives in
     [[file:../src/self/targets.til][src/self/targets.til]]

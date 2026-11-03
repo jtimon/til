@@ -1,5 +1,5 @@
 #+TITLE: src/self/typer.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * fa_is_ns
@@ -379,7 +379,7 @@ func is_compile_directive(e: Expr, symbols: SymbolPool) returns Bool
 :END:
 
 #+begin_src til
-proc infer_body_stmt(mut scope: TypeScope, mut body: Expr, mut i: U64, in_func: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, mut ctx: Context)
+proc infer_body_stmt(mut scope: TypeScope, mut body: Expr, mut i: USize, in_func: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, mut ctx: Context)
 #+end_src
 
 * reregister_repl_scope_defs
@@ -699,7 +699,7 @@ func variadic_carrier_type_name(scope: TypeScope, elem_type: Str, symbols: Symbo
 :END:
 
 #+begin_src til
-func target_value_size_align(type_name: Str, scope: TypeScope, ctx: Context, mut sz: U64, mut al: U64)
+func target_value_size_align(type_name: Str, scope: TypeScope, ctx: Context, mut sz: USize, mut al: USize)
 #+end_src
 
 * target_value_size
@@ -709,7 +709,7 @@ func target_value_size_align(type_name: Str, scope: TypeScope, ctx: Context, mut
 :END:
 
 #+begin_src til
-func target_value_size(type_name: Str, scope: TypeScope, ctx: Context) returns U64
+func target_value_size(type_name: Str, scope: TypeScope, ctx: Context) returns USize
 #+end_src
 
 * str_method_returns_view
@@ -793,7 +793,7 @@ struct FactIndex {
     mut filt : U64
     mut idx : Map__Str_USize
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: FactIndex) returns FactIndex
     func delete(own self: FactIndex, call_free: Bool = true)
     func hash(self: FactIndex, hasher: HashFn) returns U64
@@ -827,7 +827,7 @@ func fact_bit_of(fi: FactIndex, name: Str) returns I64
 :END:
 
 #+begin_src til
-func fact_bit_record(mut mask: Vec__U64, base: U64, bit: U64)
+func fact_bit_record(mut mask: Vec__U64, base: USize, bit: USize)
 #+end_src
 
 * fact_record_name
@@ -837,7 +837,7 @@ func fact_bit_record(mut mask: Vec__U64, base: U64, bit: U64)
 :END:
 
 #+begin_src til
-func fact_record_name(fi: FactIndex, name: Str, base: U64, mut mask: Vec__U64)
+func fact_record_name(fi: FactIndex, name: Str, base: USize, mut mask: Vec__U64)
 #+end_src
 
 * is_raw_ptr_store_name
@@ -857,7 +857,7 @@ func is_raw_ptr_store_name(name: Str) returns Bool
 :END:
 
 #+begin_src til
-func expr_collect_ptr_escapes(e: Expr, fi: FactIndex, base: U64, mut out: Vec__U64, symbols: SymbolPool)
+func expr_collect_ptr_escapes(e: Expr, fi: FactIndex, base: USize, mut out: Vec__U64, symbols: SymbolPool)
 #+end_src
 
 * expr_collect_flow_facts
@@ -867,7 +867,7 @@ func expr_collect_ptr_escapes(e: Expr, fi: FactIndex, base: U64, mut out: Vec__U
 :END:
 
 #+begin_src til
-func expr_collect_flow_facts(e: Expr, scope: TypeScope, fi: FactIndex, base: U64, decls_on: Bool, transfers_on: Bool, mut decls: Vec__U64, mut reassigns: Vec__U64, mut moved: Vec__U64, symbols: SymbolPool)
+func expr_collect_flow_facts(e: Expr, scope: TypeScope, fi: FactIndex, base: USize, decls_on: Bool, transfers_on: Bool, mut decls: Vec__U64, mut reassigns: Vec__U64, mut moved: Vec__U64, symbols: SymbolPool)
 #+end_src
 
 * expr_collect_stmt_facts
@@ -877,7 +877,7 @@ func expr_collect_flow_facts(e: Expr, scope: TypeScope, fi: FactIndex, base: U64
 :END:
 
 #+begin_src til
-func expr_collect_stmt_facts(e: Expr, scope: TypeScope, want_transfers: Bool, transfers_on: Bool, fi: FactIndex, base: U64, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64, symbols: SymbolPool)
+func expr_collect_stmt_facts(e: Expr, scope: TypeScope, want_transfers: Bool, transfers_on: Bool, fi: FactIndex, base: USize, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64, symbols: SymbolPool)
 #+end_src
 
 * summary_param_bit
@@ -887,7 +887,7 @@ func expr_collect_stmt_facts(e: Expr, scope: TypeScope, want_transfers: Bool, tr
 :END:
 
 #+begin_src til
-func summary_param_bit(i: U64) returns U64
+func summary_param_bit(i: USize) returns U64
 #+end_src
 
 * fcall_callee_fdef
@@ -917,7 +917,7 @@ func fcall_returns_dynamic_storage(fcall: Expr, scope: TypeScope, symbols: Symbo
 :END:
 
 #+begin_src til
-func fcall_arg_for_param(fcall: Expr, pi: U64, scope: TypeScope, symbols: SymbolPool) returns Option__ref_Expr
+func fcall_arg_for_param(fcall: Expr, pi: USize, scope: TypeScope, symbols: SymbolPool) returns Option__ref_Expr
 #+end_src
 
 * type_carries_borrow
@@ -977,7 +977,7 @@ namespace:
     func bor(self: RootBits, other: RootBits) returns RootBits
     func all(self: RootBits) returns U64
     func is_zero(self: RootBits) returns Bool
-    func size() returns U64
+    func size() returns USize
     func clone(self: RootBits) returns RootBits
     func delete(own self: RootBits, call_free: Bool = true)
     func hash(self: RootBits, hasher: HashFn) returns U64
@@ -1013,7 +1013,7 @@ struct DepositAcc {
 namespace:
     func eq(a: DepositAcc, b: DepositAcc) returns Bool
     func to_str(self: DepositAcc) returns Str
-    func size() returns U64
+    func size() returns USize
     func clone(self: DepositAcc) returns DepositAcc
     func delete(own self: DepositAcc, call_free: Bool = true)
     func hash(self: DepositAcc, hasher: HashFn) returns U64
@@ -1079,8 +1079,8 @@ struct Vec__priv___src_self_typer_til__CtorArg {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_typer_til__CtorArg
-    func with_capacity(n: U64) returns Vec__priv___src_self_typer_til__CtorArg
-    func len(self: Vec__priv___src_self_typer_til__CtorArg) returns U64
+    func with_capacity(n: USize) returns Vec__priv___src_self_typer_til__CtorArg
+    func len(self: Vec__priv___src_self_typer_til__CtorArg) returns USize
     func clear(mut self: Vec__priv___src_self_typer_til__CtorArg)
     func delete_marked(mut self: Vec__priv___src_self_typer_til__CtorArg, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_typer_til__CtorArg, own val: priv___src_self_typer_til__CtorArg)
@@ -1088,18 +1088,18 @@ namespace:
     func take(mut self: Vec__priv___src_self_typer_til__CtorArg) returns Vec__priv___src_self_typer_til__CtorArg
     func move_to(own self: Vec__priv___src_self_typer_til__CtorArg, mut dest: Vec__priv___src_self_typer_til__CtorArg)
     func move_from(mut self: Vec__priv___src_self_typer_til__CtorArg, own other: Vec__priv___src_self_typer_til__CtorArg)
-    func unsafe_get(self: Vec__priv___src_self_typer_til__CtorArg, i: U64) returns ref priv___src_self_typer_til__CtorArg
-    func get(self: Vec__priv___src_self_typer_til__CtorArg, shallow i: U64) returns ref priv___src_self_typer_til__CtorArg throws OutOfBounds
+    func unsafe_get(self: Vec__priv___src_self_typer_til__CtorArg, i: USize) returns ref priv___src_self_typer_til__CtorArg
+    func get(self: Vec__priv___src_self_typer_til__CtorArg, shallow i: USize) returns ref priv___src_self_typer_til__CtorArg throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_typer_til__CtorArg) returns priv___src_self_typer_til__CtorArg
-    func remove_at(mut self: Vec__priv___src_self_typer_til__CtorArg, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__priv___src_self_typer_til__CtorArg, n: U64) returns Vec__priv___src_self_typer_til__CtorArg
-    func truncate(mut self: Vec__priv___src_self_typer_til__CtorArg, n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_typer_til__CtorArg, i: U64, own val: priv___src_self_typer_til__CtorArg)
-    func set(mut self: Vec__priv___src_self_typer_til__CtorArg, i: U64, own val: priv___src_self_typer_til__CtorArg) throws OutOfBounds
-    func push_take(mut self: Vec__priv___src_self_typer_til__CtorArg, mut src: Vec__priv___src_self_typer_til__CtorArg, i: U64)
+    func remove_at(mut self: Vec__priv___src_self_typer_til__CtorArg, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_typer_til__CtorArg, n: USize) returns Vec__priv___src_self_typer_til__CtorArg
+    func truncate(mut self: Vec__priv___src_self_typer_til__CtorArg, n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_typer_til__CtorArg, i: USize, own val: priv___src_self_typer_til__CtorArg)
+    func set(mut self: Vec__priv___src_self_typer_til__CtorArg, i: USize, own val: priv___src_self_typer_til__CtorArg) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_typer_til__CtorArg, mut src: Vec__priv___src_self_typer_til__CtorArg, i: USize)
     func delete(own self: Vec__priv___src_self_typer_til__CtorArg, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_typer_til__CtorArg) returns Vec__priv___src_self_typer_til__CtorArg
-    func size() returns U64
+    func size() returns USize
 }
 #+end_src
 
@@ -1133,7 +1133,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CtorArg.with_capacity(n: U64) returns Vec__priv___src_self_typer_til__CtorArg
+func Vec__priv___src_self_typer_til__CtorArg.with_capacity(n: USize) returns Vec__priv___src_self_typer_til__CtorArg
 #+end_src
 
 * Vec__priv___src_self_typer_til__CtorArg.clear
@@ -1260,7 +1260,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CtorArg.unsafe_get(self: Vec__priv___src_self_typer_til__CtorArg, i: U64) returns ref priv___src_self_typer_til__CtorArg
+func Vec__priv___src_self_typer_til__CtorArg.unsafe_get(self: Vec__priv___src_self_typer_til__CtorArg, i: USize) returns ref priv___src_self_typer_til__CtorArg
 #+end_src
 
 * Vec__priv___src_self_typer_til__CtorArg.get
@@ -1275,7 +1275,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CtorArg.get(self: Vec__priv___src_self_typer_til__CtorArg, shallow i: U64) returns ref priv___src_self_typer_til__CtorArg throws OutOfBounds
+func Vec__priv___src_self_typer_til__CtorArg.get(self: Vec__priv___src_self_typer_til__CtorArg, shallow i: USize) returns ref priv___src_self_typer_til__CtorArg throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_typer_til__CtorArg.pop
@@ -1300,7 +1300,7 @@ func Vec__priv___src_self_typer_til__CtorArg.pop(mut self: Vec__priv___src_self_
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CtorArg.remove_at(mut self: Vec__priv___src_self_typer_til__CtorArg, i: U64) throws OutOfBounds
+func Vec__priv___src_self_typer_til__CtorArg.remove_at(mut self: Vec__priv___src_self_typer_til__CtorArg, i: USize) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_typer_til__CtorArg.take_prefix
@@ -1313,7 +1313,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CtorArg.take_prefix(mut self: Vec__priv___src_self_typer_til__CtorArg, n: U64) returns Vec__priv___src_self_typer_til__CtorArg
+func Vec__priv___src_self_typer_til__CtorArg.take_prefix(mut self: Vec__priv___src_self_typer_til__CtorArg, n: USize) returns Vec__priv___src_self_typer_til__CtorArg
 #+end_src
 
 * Vec__priv___src_self_typer_til__CtorArg.truncate
@@ -1328,7 +1328,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CtorArg.truncate(mut self: Vec__priv___src_self_typer_til__CtorArg, n: U64)
+func Vec__priv___src_self_typer_til__CtorArg.truncate(mut self: Vec__priv___src_self_typer_til__CtorArg, n: USize)
 #+end_src
 
 * Vec__priv___src_self_typer_til__CtorArg.unsafe_set
@@ -1342,7 +1342,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CtorArg.unsafe_set(mut self: Vec__priv___src_self_typer_til__CtorArg, i: U64, own val: priv___src_self_typer_til__CtorArg)
+func Vec__priv___src_self_typer_til__CtorArg.unsafe_set(mut self: Vec__priv___src_self_typer_til__CtorArg, i: USize, own val: priv___src_self_typer_til__CtorArg)
 #+end_src
 
 * Vec__priv___src_self_typer_til__CtorArg.set
@@ -1356,7 +1356,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CtorArg.set(mut self: Vec__priv___src_self_typer_til__CtorArg, i: U64, own val: priv___src_self_typer_til__CtorArg) throws OutOfBounds
+func Vec__priv___src_self_typer_til__CtorArg.set(mut self: Vec__priv___src_self_typer_til__CtorArg, i: USize, own val: priv___src_self_typer_til__CtorArg) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_typer_til__CtorArg.push_take
@@ -1370,7 +1370,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CtorArg.push_take(mut self: Vec__priv___src_self_typer_til__CtorArg, mut src: Vec__priv___src_self_typer_til__CtorArg, i: U64)
+func Vec__priv___src_self_typer_til__CtorArg.push_take(mut self: Vec__priv___src_self_typer_til__CtorArg, mut src: Vec__priv___src_self_typer_til__CtorArg, i: USize)
 #+end_src
 
 * Vec__priv___src_self_typer_til__CtorArg.delete
@@ -1411,8 +1411,8 @@ struct Vec__priv___src_self_typer_til__ComptimeFunction {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_typer_til__ComptimeFunction
-    func with_capacity(n: U64) returns Vec__priv___src_self_typer_til__ComptimeFunction
-    func len(self: Vec__priv___src_self_typer_til__ComptimeFunction) returns U64
+    func with_capacity(n: USize) returns Vec__priv___src_self_typer_til__ComptimeFunction
+    func len(self: Vec__priv___src_self_typer_til__ComptimeFunction) returns USize
     func clear(mut self: Vec__priv___src_self_typer_til__ComptimeFunction)
     func delete_marked(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, own val: priv___src_self_typer_til__ComptimeFunction)
@@ -1420,18 +1420,18 @@ namespace:
     func take(mut self: Vec__priv___src_self_typer_til__ComptimeFunction) returns Vec__priv___src_self_typer_til__ComptimeFunction
     func move_to(own self: Vec__priv___src_self_typer_til__ComptimeFunction, mut dest: Vec__priv___src_self_typer_til__ComptimeFunction)
     func move_from(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, own other: Vec__priv___src_self_typer_til__ComptimeFunction)
-    func unsafe_get(self: Vec__priv___src_self_typer_til__ComptimeFunction, i: U64) returns ref priv___src_self_typer_til__ComptimeFunction
-    func get(self: Vec__priv___src_self_typer_til__ComptimeFunction, shallow i: U64) returns ref priv___src_self_typer_til__ComptimeFunction throws OutOfBounds
+    func unsafe_get(self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize) returns ref priv___src_self_typer_til__ComptimeFunction
+    func get(self: Vec__priv___src_self_typer_til__ComptimeFunction, shallow i: USize) returns ref priv___src_self_typer_til__ComptimeFunction throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_typer_til__ComptimeFunction) returns priv___src_self_typer_til__ComptimeFunction
-    func remove_at(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, n: U64) returns Vec__priv___src_self_typer_til__ComptimeFunction
-    func truncate(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: U64, own val: priv___src_self_typer_til__ComptimeFunction)
-    func set(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: U64, own val: priv___src_self_typer_til__ComptimeFunction) throws OutOfBounds
-    func push_take(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, mut src: Vec__priv___src_self_typer_til__ComptimeFunction, i: U64)
+    func remove_at(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, n: USize) returns Vec__priv___src_self_typer_til__ComptimeFunction
+    func truncate(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize, own val: priv___src_self_typer_til__ComptimeFunction)
+    func set(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize, own val: priv___src_self_typer_til__ComptimeFunction) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, mut src: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize)
     func delete(own self: Vec__priv___src_self_typer_til__ComptimeFunction, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_typer_til__ComptimeFunction) returns Vec__priv___src_self_typer_til__ComptimeFunction
-    func size() returns U64
+    func size() returns USize
 }
 #+end_src
 
@@ -1465,7 +1465,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__ComptimeFunction.with_capacity(n: U64) returns Vec__priv___src_self_typer_til__ComptimeFunction
+func Vec__priv___src_self_typer_til__ComptimeFunction.with_capacity(n: USize) returns Vec__priv___src_self_typer_til__ComptimeFunction
 #+end_src
 
 * Vec__priv___src_self_typer_til__ComptimeFunction.clear
@@ -1592,7 +1592,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__ComptimeFunction.unsafe_get(self: Vec__priv___src_self_typer_til__ComptimeFunction, i: U64) returns ref priv___src_self_typer_til__ComptimeFunction
+func Vec__priv___src_self_typer_til__ComptimeFunction.unsafe_get(self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize) returns ref priv___src_self_typer_til__ComptimeFunction
 #+end_src
 
 * Vec__priv___src_self_typer_til__ComptimeFunction.get
@@ -1607,7 +1607,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__ComptimeFunction.get(self: Vec__priv___src_self_typer_til__ComptimeFunction, shallow i: U64) returns ref priv___src_self_typer_til__ComptimeFunction throws OutOfBounds
+func Vec__priv___src_self_typer_til__ComptimeFunction.get(self: Vec__priv___src_self_typer_til__ComptimeFunction, shallow i: USize) returns ref priv___src_self_typer_til__ComptimeFunction throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_typer_til__ComptimeFunction.pop
@@ -1632,7 +1632,7 @@ func Vec__priv___src_self_typer_til__ComptimeFunction.pop(mut self: Vec__priv___
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__ComptimeFunction.remove_at(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: U64) throws OutOfBounds
+func Vec__priv___src_self_typer_til__ComptimeFunction.remove_at(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_typer_til__ComptimeFunction.take_prefix
@@ -1645,7 +1645,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__ComptimeFunction.take_prefix(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, n: U64) returns Vec__priv___src_self_typer_til__ComptimeFunction
+func Vec__priv___src_self_typer_til__ComptimeFunction.take_prefix(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, n: USize) returns Vec__priv___src_self_typer_til__ComptimeFunction
 #+end_src
 
 * Vec__priv___src_self_typer_til__ComptimeFunction.truncate
@@ -1660,7 +1660,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__ComptimeFunction.truncate(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, n: U64)
+func Vec__priv___src_self_typer_til__ComptimeFunction.truncate(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, n: USize)
 #+end_src
 
 * Vec__priv___src_self_typer_til__ComptimeFunction.unsafe_set
@@ -1674,7 +1674,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__ComptimeFunction.unsafe_set(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: U64, own val: priv___src_self_typer_til__ComptimeFunction)
+func Vec__priv___src_self_typer_til__ComptimeFunction.unsafe_set(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize, own val: priv___src_self_typer_til__ComptimeFunction)
 #+end_src
 
 * Vec__priv___src_self_typer_til__ComptimeFunction.set
@@ -1688,7 +1688,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__ComptimeFunction.set(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: U64, own val: priv___src_self_typer_til__ComptimeFunction) throws OutOfBounds
+func Vec__priv___src_self_typer_til__ComptimeFunction.set(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize, own val: priv___src_self_typer_til__ComptimeFunction) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_typer_til__ComptimeFunction.push_take
@@ -1702,7 +1702,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__ComptimeFunction.push_take(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, mut src: Vec__priv___src_self_typer_til__ComptimeFunction, i: U64)
+func Vec__priv___src_self_typer_til__ComptimeFunction.push_take(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, mut src: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize)
 #+end_src
 
 * Vec__priv___src_self_typer_til__ComptimeFunction.delete
@@ -1743,16 +1743,16 @@ struct Set__UPtr {
     mut cap : USize
 namespace:
     func new() returns Set__UPtr
-    func with_capacity(n: U64) returns Set__UPtr
-    func len(self: Set__UPtr) returns U64
-    func unsafe_get(self: Set__UPtr, i: U64) returns ref UPtr
+    func with_capacity(n: USize) returns Set__UPtr
+    func len(self: Set__UPtr) returns USize
+    func unsafe_get(self: Set__UPtr, i: USize) returns ref UPtr
     func clear(mut self: Set__UPtr)
     func has(self: Set__UPtr, val: UPtr) returns Bool
     func add(mut self: Set__UPtr, own val: UPtr)
     func remove(mut self: Set__UPtr, val: UPtr) returns Bool
     func delete(own self: Set__UPtr, call_free: Bool = true)
     func clone(self: Set__UPtr) returns Set__UPtr
-    func size() returns U64
+    func size() returns USize
 }
 #+end_src
 
@@ -1785,7 +1785,7 @@ where the final size is known or well predicted; ~new()~ grows
 doubling. n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Set__UPtr.with_capacity(n: U64) returns Set__UPtr
+func Set__UPtr.with_capacity(n: USize) returns Set__UPtr
 #+end_src
 
 * Set__UPtr.unsafe_get
@@ -1801,7 +1801,7 @@ uses ~unsafe_get~ when a type has it, and its ~_fi < len()~
 termination test proves the index in bounds (issue #284).
 
 #+begin_src til
-func Set__UPtr.unsafe_get(self: Set__UPtr, i: U64) returns ref UPtr
+func Set__UPtr.unsafe_get(self: Set__UPtr, i: USize) returns ref UPtr
 #+end_src
 
 * Set__UPtr.clear
@@ -1877,7 +1877,7 @@ namespace:
     core_func is(self: Option__ref_Scope, other: Option__ref_Scope) returns Bool
     func delete(own self: Option__ref_Scope, call_free: Bool = true)
     func clone(self: Option__ref_Scope) returns Option__ref_Scope
-    func size() returns U64
+    func size() returns USize
 }
 #+end_src
 
@@ -1929,8 +1929,8 @@ struct Map__Str_RootBits {
     mut values : Vec__RootBits
 namespace:
     func new() returns Map__Str_RootBits
-    func with_capacity(n: U64) returns Map__Str_RootBits
-    func len(self: Map__Str_RootBits) returns U64
+    func with_capacity(n: USize) returns Map__Str_RootBits
+    func len(self: Map__Str_RootBits) returns USize
     func clear(mut self: Map__Str_RootBits)
     func has(self: Map__Str_RootBits, key: Str) returns Bool
     func get(self: Map__Str_RootBits, key: Str) returns ref RootBits throws KeyNotFound
@@ -1938,7 +1938,7 @@ namespace:
     func remove(mut self: Map__Str_RootBits, key: Str) returns Bool
     func delete(own self: Map__Str_RootBits, call_free: Bool = true)
     func clone(self: Map__Str_RootBits) returns Map__Str_RootBits
-    func size() returns U64
+    func size() returns USize
     func hash(self: Map__Str_RootBits, hasher: HashFn) returns U64
 }
 #+end_src
@@ -1967,7 +1967,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_RootBits.with_capacity(n: U64) returns Map__Str_RootBits
+func Map__Str_RootBits.with_capacity(n: USize) returns Map__Str_RootBits
 #+end_src
 
 * Map__Str_RootBits.clear
@@ -2046,8 +2046,8 @@ struct Vec__priv___src_self_typer_til__CoverageNode {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_typer_til__CoverageNode
-    func with_capacity(n: U64) returns Vec__priv___src_self_typer_til__CoverageNode
-    func len(self: Vec__priv___src_self_typer_til__CoverageNode) returns U64
+    func with_capacity(n: USize) returns Vec__priv___src_self_typer_til__CoverageNode
+    func len(self: Vec__priv___src_self_typer_til__CoverageNode) returns USize
     func clear(mut self: Vec__priv___src_self_typer_til__CoverageNode)
     func delete_marked(mut self: Vec__priv___src_self_typer_til__CoverageNode, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_typer_til__CoverageNode, own val: priv___src_self_typer_til__CoverageNode)
@@ -2055,18 +2055,18 @@ namespace:
     func take(mut self: Vec__priv___src_self_typer_til__CoverageNode) returns Vec__priv___src_self_typer_til__CoverageNode
     func move_to(own self: Vec__priv___src_self_typer_til__CoverageNode, mut dest: Vec__priv___src_self_typer_til__CoverageNode)
     func move_from(mut self: Vec__priv___src_self_typer_til__CoverageNode, own other: Vec__priv___src_self_typer_til__CoverageNode)
-    func unsafe_get(self: Vec__priv___src_self_typer_til__CoverageNode, i: U64) returns ref priv___src_self_typer_til__CoverageNode
-    func get(self: Vec__priv___src_self_typer_til__CoverageNode, shallow i: U64) returns ref priv___src_self_typer_til__CoverageNode throws OutOfBounds
+    func unsafe_get(self: Vec__priv___src_self_typer_til__CoverageNode, i: USize) returns ref priv___src_self_typer_til__CoverageNode
+    func get(self: Vec__priv___src_self_typer_til__CoverageNode, shallow i: USize) returns ref priv___src_self_typer_til__CoverageNode throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_typer_til__CoverageNode) returns priv___src_self_typer_til__CoverageNode
-    func remove_at(mut self: Vec__priv___src_self_typer_til__CoverageNode, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__priv___src_self_typer_til__CoverageNode, n: U64) returns Vec__priv___src_self_typer_til__CoverageNode
-    func truncate(mut self: Vec__priv___src_self_typer_til__CoverageNode, n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_typer_til__CoverageNode, i: U64, own val: priv___src_self_typer_til__CoverageNode)
-    func set(mut self: Vec__priv___src_self_typer_til__CoverageNode, i: U64, own val: priv___src_self_typer_til__CoverageNode) throws OutOfBounds
-    func push_take(mut self: Vec__priv___src_self_typer_til__CoverageNode, mut src: Vec__priv___src_self_typer_til__CoverageNode, i: U64)
+    func remove_at(mut self: Vec__priv___src_self_typer_til__CoverageNode, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_typer_til__CoverageNode, n: USize) returns Vec__priv___src_self_typer_til__CoverageNode
+    func truncate(mut self: Vec__priv___src_self_typer_til__CoverageNode, n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_typer_til__CoverageNode, i: USize, own val: priv___src_self_typer_til__CoverageNode)
+    func set(mut self: Vec__priv___src_self_typer_til__CoverageNode, i: USize, own val: priv___src_self_typer_til__CoverageNode) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_typer_til__CoverageNode, mut src: Vec__priv___src_self_typer_til__CoverageNode, i: USize)
     func delete(own self: Vec__priv___src_self_typer_til__CoverageNode, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_typer_til__CoverageNode) returns Vec__priv___src_self_typer_til__CoverageNode
-    func size() returns U64
+    func size() returns USize
 }
 #+end_src
 
@@ -2100,7 +2100,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CoverageNode.with_capacity(n: U64) returns Vec__priv___src_self_typer_til__CoverageNode
+func Vec__priv___src_self_typer_til__CoverageNode.with_capacity(n: USize) returns Vec__priv___src_self_typer_til__CoverageNode
 #+end_src
 
 * Vec__priv___src_self_typer_til__CoverageNode.clear
@@ -2227,7 +2227,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CoverageNode.unsafe_get(self: Vec__priv___src_self_typer_til__CoverageNode, i: U64) returns ref priv___src_self_typer_til__CoverageNode
+func Vec__priv___src_self_typer_til__CoverageNode.unsafe_get(self: Vec__priv___src_self_typer_til__CoverageNode, i: USize) returns ref priv___src_self_typer_til__CoverageNode
 #+end_src
 
 * Vec__priv___src_self_typer_til__CoverageNode.get
@@ -2242,7 +2242,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CoverageNode.get(self: Vec__priv___src_self_typer_til__CoverageNode, shallow i: U64) returns ref priv___src_self_typer_til__CoverageNode throws OutOfBounds
+func Vec__priv___src_self_typer_til__CoverageNode.get(self: Vec__priv___src_self_typer_til__CoverageNode, shallow i: USize) returns ref priv___src_self_typer_til__CoverageNode throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_typer_til__CoverageNode.pop
@@ -2267,7 +2267,7 @@ func Vec__priv___src_self_typer_til__CoverageNode.pop(mut self: Vec__priv___src_
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CoverageNode.remove_at(mut self: Vec__priv___src_self_typer_til__CoverageNode, i: U64) throws OutOfBounds
+func Vec__priv___src_self_typer_til__CoverageNode.remove_at(mut self: Vec__priv___src_self_typer_til__CoverageNode, i: USize) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_typer_til__CoverageNode.take_prefix
@@ -2280,7 +2280,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CoverageNode.take_prefix(mut self: Vec__priv___src_self_typer_til__CoverageNode, n: U64) returns Vec__priv___src_self_typer_til__CoverageNode
+func Vec__priv___src_self_typer_til__CoverageNode.take_prefix(mut self: Vec__priv___src_self_typer_til__CoverageNode, n: USize) returns Vec__priv___src_self_typer_til__CoverageNode
 #+end_src
 
 * Vec__priv___src_self_typer_til__CoverageNode.truncate
@@ -2295,7 +2295,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CoverageNode.truncate(mut self: Vec__priv___src_self_typer_til__CoverageNode, n: U64)
+func Vec__priv___src_self_typer_til__CoverageNode.truncate(mut self: Vec__priv___src_self_typer_til__CoverageNode, n: USize)
 #+end_src
 
 * Vec__priv___src_self_typer_til__CoverageNode.unsafe_set
@@ -2309,7 +2309,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CoverageNode.unsafe_set(mut self: Vec__priv___src_self_typer_til__CoverageNode, i: U64, own val: priv___src_self_typer_til__CoverageNode)
+func Vec__priv___src_self_typer_til__CoverageNode.unsafe_set(mut self: Vec__priv___src_self_typer_til__CoverageNode, i: USize, own val: priv___src_self_typer_til__CoverageNode)
 #+end_src
 
 * Vec__priv___src_self_typer_til__CoverageNode.set
@@ -2323,7 +2323,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CoverageNode.set(mut self: Vec__priv___src_self_typer_til__CoverageNode, i: U64, own val: priv___src_self_typer_til__CoverageNode) throws OutOfBounds
+func Vec__priv___src_self_typer_til__CoverageNode.set(mut self: Vec__priv___src_self_typer_til__CoverageNode, i: USize, own val: priv___src_self_typer_til__CoverageNode) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_typer_til__CoverageNode.push_take
@@ -2337,7 +2337,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_typer_til__CoverageNode.push_take(mut self: Vec__priv___src_self_typer_til__CoverageNode, mut src: Vec__priv___src_self_typer_til__CoverageNode, i: U64)
+func Vec__priv___src_self_typer_til__CoverageNode.push_take(mut self: Vec__priv___src_self_typer_til__CoverageNode, mut src: Vec__priv___src_self_typer_til__CoverageNode, i: USize)
 #+end_src
 
 * Vec__priv___src_self_typer_til__CoverageNode.delete
@@ -2378,8 +2378,8 @@ struct Vec__RootBits {
     mut cap : USize
 namespace:
     func new() returns Vec__RootBits
-    func with_capacity(n: U64) returns Vec__RootBits
-    func len(self: Vec__RootBits) returns U64
+    func with_capacity(n: USize) returns Vec__RootBits
+    func len(self: Vec__RootBits) returns USize
     func clear(mut self: Vec__RootBits)
     func delete_marked(mut self: Vec__RootBits, marks: Dynamic)
     func push(mut self: Vec__RootBits, own val: RootBits)
@@ -2387,18 +2387,18 @@ namespace:
     func take(mut self: Vec__RootBits) returns Vec__RootBits
     func move_to(own self: Vec__RootBits, mut dest: Vec__RootBits)
     func move_from(mut self: Vec__RootBits, own other: Vec__RootBits)
-    func unsafe_get(self: Vec__RootBits, i: U64) returns ref RootBits
-    func get(self: Vec__RootBits, shallow i: U64) returns ref RootBits throws OutOfBounds
+    func unsafe_get(self: Vec__RootBits, i: USize) returns ref RootBits
+    func get(self: Vec__RootBits, shallow i: USize) returns ref RootBits throws OutOfBounds
     func pop(mut self: Vec__RootBits) returns RootBits
-    func remove_at(mut self: Vec__RootBits, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__RootBits, n: U64) returns Vec__RootBits
-    func truncate(mut self: Vec__RootBits, n: U64)
-    func unsafe_set(mut self: Vec__RootBits, i: U64, own val: RootBits)
-    func set(mut self: Vec__RootBits, i: U64, own val: RootBits) throws OutOfBounds
-    func push_take(mut self: Vec__RootBits, mut src: Vec__RootBits, i: U64)
+    func remove_at(mut self: Vec__RootBits, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__RootBits, n: USize) returns Vec__RootBits
+    func truncate(mut self: Vec__RootBits, n: USize)
+    func unsafe_set(mut self: Vec__RootBits, i: USize, own val: RootBits)
+    func set(mut self: Vec__RootBits, i: USize, own val: RootBits) throws OutOfBounds
+    func push_take(mut self: Vec__RootBits, mut src: Vec__RootBits, i: USize)
     func delete(own self: Vec__RootBits, call_free: Bool = true)
     func clone(self: Vec__RootBits) returns Vec__RootBits
-    func size() returns U64
+    func size() returns USize
 }
 #+end_src
 
@@ -2432,7 +2432,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__RootBits.with_capacity(n: U64) returns Vec__RootBits
+func Vec__RootBits.with_capacity(n: USize) returns Vec__RootBits
 #+end_src
 
 * Vec__RootBits.clear
@@ -2559,7 +2559,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__RootBits.unsafe_get(self: Vec__RootBits, i: U64) returns ref RootBits
+func Vec__RootBits.unsafe_get(self: Vec__RootBits, i: USize) returns ref RootBits
 #+end_src
 
 * Vec__RootBits.get
@@ -2574,7 +2574,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__RootBits.get(self: Vec__RootBits, shallow i: U64) returns ref RootBits throws OutOfBounds
+func Vec__RootBits.get(self: Vec__RootBits, shallow i: USize) returns ref RootBits throws OutOfBounds
 #+end_src
 
 * Vec__RootBits.pop
@@ -2599,7 +2599,7 @@ func Vec__RootBits.pop(mut self: Vec__RootBits) returns RootBits
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__RootBits.remove_at(mut self: Vec__RootBits, i: U64) throws OutOfBounds
+func Vec__RootBits.remove_at(mut self: Vec__RootBits, i: USize) throws OutOfBounds
 #+end_src
 
 * Vec__RootBits.take_prefix
@@ -2612,7 +2612,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__RootBits.take_prefix(mut self: Vec__RootBits, n: U64) returns Vec__RootBits
+func Vec__RootBits.take_prefix(mut self: Vec__RootBits, n: USize) returns Vec__RootBits
 #+end_src
 
 * Vec__RootBits.truncate
@@ -2627,7 +2627,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__RootBits.truncate(mut self: Vec__RootBits, n: U64)
+func Vec__RootBits.truncate(mut self: Vec__RootBits, n: USize)
 #+end_src
 
 * Vec__RootBits.unsafe_set
@@ -2641,7 +2641,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__RootBits.unsafe_set(mut self: Vec__RootBits, i: U64, own val: RootBits)
+func Vec__RootBits.unsafe_set(mut self: Vec__RootBits, i: USize, own val: RootBits)
 #+end_src
 
 * Vec__RootBits.set
@@ -2655,7 +2655,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__RootBits.set(mut self: Vec__RootBits, i: U64, own val: RootBits) throws OutOfBounds
+func Vec__RootBits.set(mut self: Vec__RootBits, i: USize, own val: RootBits) throws OutOfBounds
 #+end_src
 
 * Vec__RootBits.push_take
@@ -2669,7 +2669,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__RootBits.push_take(mut self: Vec__RootBits, mut src: Vec__RootBits, i: U64)
+func Vec__RootBits.push_take(mut self: Vec__RootBits, mut src: Vec__RootBits, i: USize)
 #+end_src
 
 * Vec__RootBits.delete

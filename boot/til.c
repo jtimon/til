@@ -470,9 +470,9 @@ typedef struct Vec__call_Map_Str_Bool Vec__call_Map_Str_Bool;
 typedef struct Vec__FuncSig Vec__FuncSig;
 typedef struct Vec__call_Set_Str Vec__call_Set_Str;
 typedef struct Vec__call_Set_USize Vec__call_Set_USize;
-typedef struct priv___src_self_theme_codegen_til__ThemeColorSpec priv___src_self_theme_codegen_til__ThemeColorSpec;
-typedef struct priv___src_self_theme_codegen_til__ThemeSpec priv___src_self_theme_codegen_til__ThemeSpec;
-typedef struct Vec__priv___src_self_theme_codegen_til__ThemeColorSpec Vec__priv___src_self_theme_codegen_til__ThemeColorSpec;
+typedef struct priv___src_self_codegen_theme_codegen_til__ThemeColorSpec priv___src_self_codegen_theme_codegen_til__ThemeColorSpec;
+typedef struct priv___src_self_codegen_theme_codegen_til__ThemeSpec priv___src_self_codegen_theme_codegen_til__ThemeSpec;
+typedef struct Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec;
 typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
 typedef struct DocEntry DocEntry;
 typedef struct DocCatalog DocCatalog;
@@ -1704,18 +1704,18 @@ typedef struct Vec__call_Set_USize {
 } Vec__call_Set_USize;
 
 
-typedef struct priv___src_self_theme_codegen_til__ThemeColorSpec {
+typedef struct priv___src_self_codegen_theme_codegen_til__ThemeColorSpec {
     Str name;
     Str value;
     Str note;
-} priv___src_self_theme_codegen_til__ThemeColorSpec;
+} priv___src_self_codegen_theme_codegen_til__ThemeColorSpec;
 
 
-typedef struct Vec__priv___src_self_theme_codegen_til__ThemeColorSpec {
+typedef struct Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec {
     TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
-} Vec__priv___src_self_theme_codegen_til__ThemeColorSpec;
+} Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec;
 
 
 typedef struct priv___src_self_builder_til__BuildPaths {
@@ -2371,7 +2371,7 @@ typedef struct Map__Str_call_Set_USize {
 } Map__Str_call_Set_USize;
 
 
-typedef struct priv___src_self_theme_codegen_til__ThemeSpec {
+typedef struct priv___src_self_codegen_theme_codegen_til__ThemeSpec {
     Str name;
     Str header;
     Str description;
@@ -2383,8 +2383,8 @@ typedef struct priv___src_self_theme_codegen_til__ThemeSpec {
     Str palette_footer;
     Str constant_face_note;
     Str type_face_note;
-    Vec__priv___src_self_theme_codegen_til__ThemeColorSpec colors;
-} priv___src_self_theme_codegen_til__ThemeSpec;
+    Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec colors;
+} priv___src_self_codegen_theme_codegen_til__ThemeSpec;
 
 
 typedef struct DocCatalog {
@@ -6230,30 +6230,30 @@ static void adopt__Map__Str_Bool(void * dest, Map__Str_Bool * src);
 static void adopt__FuncSig(void * dest, FuncSig * src);
 static void adopt__Set__Str(void * dest, Set__Str * src);
 static void adopt__Set__USize(void * dest, Set__USize * src);
-static priv___src_self_theme_codegen_til__ThemeColorSpec priv___src_self_theme_codegen_til__ThemeColorSpec_clone(priv___src_self_theme_codegen_til__ThemeColorSpec * self);
-static void priv___src_self_theme_codegen_til__ThemeColorSpec_delete(priv___src_self_theme_codegen_til__ThemeColorSpec * self, Bool call_free);
-static void priv___src_self_theme_codegen_til__ThemeSpec_delete(priv___src_self_theme_codegen_til__ThemeSpec * self, Bool call_free);
-static Str priv___src_self_theme_codegen_til__theme_error_at(Str * path, Expr * e, Str * message);
-static Option__ref_Expr priv___src_self_theme_codegen_til__theme_static_expr(Expr * e, Expr * program, Context * ctx);
-static Bool priv___src_self_theme_codegen_til__theme_call_is(Expr * e, Str * name, Context * ctx);
-static Str priv___src_self_theme_codegen_til__theme_string_arg(Expr * call, USize index, Str * field, Expr * program, Str * path, Context * ctx, Str * error);
-static Bool priv___src_self_theme_codegen_til__theme_is_hex_digit(I8 ch);
-static Bool priv___src_self_theme_codegen_til__theme_valid_color(Str * value);
-static Bool priv___src_self_theme_codegen_til__theme_comment_is_single_line(Str * value);
-static void priv___src_self_theme_codegen_til__theme_add_color(Expr * call, USize index, Str * name, Expr * program, Str * path, Context * ctx, priv___src_self_theme_codegen_til__ThemeSpec * spec, Str * error);
-static Bool priv___src_self_theme_codegen_til__theme_symbol_is_valid(Str * name);
-static void priv___src_self_theme_codegen_til__theme_validate_comment(Str * value, Str * field, Expr * root, Str * path, Str * error);
-static priv___src_self_theme_codegen_til__ThemeSpec priv___src_self_theme_codegen_til__theme_parse(Expr * root, Expr * program, Str * path, Context * ctx, Str * error);
-static Str priv___src_self_theme_codegen_til__theme_elisp_escape(Str * value);
-static Str priv___src_self_theme_codegen_til__theme_spaces(USize count);
-static Str priv___src_self_theme_codegen_til__theme_palette_line(priv___src_self_theme_codegen_til__ThemeColorSpec * color);
-static Str priv___src_self_theme_codegen_til__theme_render_elisp(priv___src_self_theme_codegen_til__ThemeSpec * spec);
+static priv___src_self_codegen_theme_codegen_til__ThemeColorSpec priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_clone(priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * self);
+static void priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_delete(priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * self, Bool call_free);
+static void priv___src_self_codegen_theme_codegen_til__ThemeSpec_delete(priv___src_self_codegen_theme_codegen_til__ThemeSpec * self, Bool call_free);
+static Str priv___src_self_codegen_theme_codegen_til__theme_error_at(Str * path, Expr * e, Str * message);
+static Option__ref_Expr priv___src_self_codegen_theme_codegen_til__theme_static_expr(Expr * e, Expr * program, Context * ctx);
+static Bool priv___src_self_codegen_theme_codegen_til__theme_call_is(Expr * e, Str * name, Context * ctx);
+static Str priv___src_self_codegen_theme_codegen_til__theme_string_arg(Expr * call, USize index, Str * field, Expr * program, Str * path, Context * ctx, Str * error);
+static Bool priv___src_self_codegen_theme_codegen_til__theme_is_hex_digit(I8 ch);
+static Bool priv___src_self_codegen_theme_codegen_til__theme_valid_color(Str * value);
+static Bool priv___src_self_codegen_theme_codegen_til__theme_comment_is_single_line(Str * value);
+static void priv___src_self_codegen_theme_codegen_til__theme_add_color(Expr * call, USize index, Str * name, Expr * program, Str * path, Context * ctx, priv___src_self_codegen_theme_codegen_til__ThemeSpec * spec, Str * error);
+static Bool priv___src_self_codegen_theme_codegen_til__theme_symbol_is_valid(Str * name);
+static void priv___src_self_codegen_theme_codegen_til__theme_validate_comment(Str * value, Str * field, Expr * root, Str * path, Str * error);
+static priv___src_self_codegen_theme_codegen_til__ThemeSpec priv___src_self_codegen_theme_codegen_til__theme_parse(Expr * root, Expr * program, Str * path, Context * ctx, Str * error);
+static Str priv___src_self_codegen_theme_codegen_til__theme_elisp_escape(Str * value);
+static Str priv___src_self_codegen_theme_codegen_til__theme_spaces(USize count);
+static Str priv___src_self_codegen_theme_codegen_til__theme_palette_line(priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * color);
+static Str priv___src_self_codegen_theme_codegen_til__theme_render_elisp(priv___src_self_codegen_theme_codegen_til__ThemeSpec * spec);
 static I32 theme_codegen_translate(LoadedProgram * lp, Str * output_path);
-static void Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_clear(Vec__priv___src_self_theme_codegen_til__ThemeColorSpec * self);
-static void Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_push(Vec__priv___src_self_theme_codegen_til__ThemeColorSpec * self, priv___src_self_theme_codegen_til__ThemeColorSpec * val);
-static void Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_delete(Vec__priv___src_self_theme_codegen_til__ThemeColorSpec * self, Bool call_free);
-static Vec__priv___src_self_theme_codegen_til__ThemeColorSpec Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_clone(Vec__priv___src_self_theme_codegen_til__ThemeColorSpec * self);
-static void adopt__priv___src_self_theme_codegen_til__ThemeColorSpec(void * dest, priv___src_self_theme_codegen_til__ThemeColorSpec * src);
+static void Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_clear(Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * self);
+static void Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_push(Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * self, priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * val);
+static void Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_delete(Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * self, Bool call_free);
+static Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_clone(Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * self);
+static void adopt__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec(void * dest, priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * src);
 static Str default_install_prefix(void);
 static I32 priv___src_self_install_til__check_install_rc(I32 rc, Str * what);
 static Str support_root(Str * prefix);
@@ -13074,6 +13074,12 @@ static struct {
     Str hoisted__Str_self_codegen_mlir_codegen_mlir_unsigned_vector_4;
     Str hoisted__Str_self_codegen_mlir_codegen_mlir_unsigned_vector_7;
     Str hoisted__Str_self_codegen_mlir_codegen_mlir_vector_scalar_14;
+    Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_13;
+    Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_18;
+    Str hoisted__Str_self_codegen_theme_codegen_theme_call_is_14;
+    Str hoisted__Str_self_codegen_theme_codegen_theme_static_expr_14;
+    Str hoisted__Str_self_codegen_theme_codegen_theme_string_arg_14;
+    Str hoisted__Str_self_codegen_theme_codegen_theme_string_arg_19;
     Str hoisted__Str_self_constfolder_collect_mut_targets_16;
     Str hoisted__Str_self_constfolder_collect_mut_targets_27;
     Str hoisted__Str_self_constfolder_collect_mut_targets_38;
@@ -15191,12 +15197,6 @@ static struct {
     Str hoisted__Str_self_scavenger_shared_core_signature_42;
     Str hoisted__Str_self_scavenger_shared_core_signature_61;
     Str hoisted__Str_self_targets_validate_lang_for_target_11;
-    Str hoisted__Str_self_theme_codegen_theme_add_color_13;
-    Str hoisted__Str_self_theme_codegen_theme_add_color_18;
-    Str hoisted__Str_self_theme_codegen_theme_call_is_14;
-    Str hoisted__Str_self_theme_codegen_theme_static_expr_14;
-    Str hoisted__Str_self_theme_codegen_theme_string_arg_14;
-    Str hoisted__Str_self_theme_codegen_theme_string_arg_19;
     Str hoisted__Str_self_typer_aggregate_borrows_type_13;
     Str hoisted__Str_self_typer_aggregate_borrows_type_29;
     Str hoisted__Str_self_typer_aggregate_borrows_type_5;
@@ -18590,6 +18590,12 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_unsigned_vector_4), "./src/self/codegen/mlir_codegen.til:59:62", 41ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_unsigned_vector_7), "./src/self/codegen/mlir_codegen.til:59:31", 41ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_vector_scalar_14), "./src/self/codegen/mlir_codegen.til:54:5", 40ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_theme_codegen_theme_add_color_13), "./src/self/codegen/theme_codegen.til:106:54", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_theme_codegen_theme_add_color_18), "./src/self/codegen/theme_codegen.til:108:55", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_theme_codegen_theme_call_is_14), "./src/self/codegen/theme_codegen.til:54:22", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_theme_codegen_theme_static_expr_14), "./src/self/codegen/theme_codegen.til:41:59", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_theme_codegen_theme_string_arg_14), "./src/self/codegen/theme_codegen.til:66:54", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_theme_codegen_theme_string_arg_19), "./src/self/codegen/theme_codegen.til:68:55", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_constfolder_collect_mut_targets_16), "./src/self/constfolder.til:205:53", 33ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_constfolder_collect_mut_targets_27), "./src/self/constfolder.til:205:82", 33ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_constfolder_collect_mut_targets_38), "./src/self/constfolder.til:207:100", 34ULL},
@@ -20707,12 +20713,6 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_scavenger_shared_core_signature_42), "./src/self/scavenger.til:1976:13", 32ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_scavenger_shared_core_signature_61), "./src/self/scavenger.til:1978:12", 32ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_targets_validate_lang_for_target_11), "./src/self/targets.til:161:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_theme_codegen_theme_add_color_13), "./src/self/theme_codegen.til:106:54", 35ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_theme_codegen_theme_add_color_18), "./src/self/theme_codegen.til:108:55", 35ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_theme_codegen_theme_call_is_14), "./src/self/theme_codegen.til:54:22", 34ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_theme_codegen_theme_static_expr_14), "./src/self/theme_codegen.til:41:59", 34ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_theme_codegen_theme_string_arg_14), "./src/self/theme_codegen.til:66:54", 34ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_theme_codegen_theme_string_arg_19), "./src/self/theme_codegen.til:68:55", 34ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_aggregate_borrows_type_13), "./src/self/typer.til:3211:36", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_aggregate_borrows_type_29), "./src/self/typer.til:3211:36", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_aggregate_borrows_type_5), "./src/self/typer.til:3207:9", 27ULL},
@@ -21656,10 +21656,10 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_synth_symbol_suffix_4), "./src/self/context.til:2065:40", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_target_from_str_103), "./src/self/targets.til:57:5", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_target_value_size_align_71), "./src/self/typer.til:11376:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_theme_codegen_translate_104), "./src/self/theme_codegen.til:338:61", 35ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_theme_codegen_translate_16), "./src/self/theme_codegen.til:309:41", 35ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_theme_codegen_translate_57), "./src/self/theme_codegen.til:318:9", 34ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_theme_codegen_translate_62), "./src/self/theme_codegen.til:319:41", 35ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_theme_codegen_translate_104), "./src/self/codegen/theme_codegen.til:338:61", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_theme_codegen_translate_16), "./src/self/codegen/theme_codegen.til:309:41", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_theme_codegen_translate_57), "./src/self/codegen/theme_codegen.til:318:9", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_theme_codegen_translate_62), "./src/self/codegen/theme_codegen.til:319:41", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_toolchain_extra_args_3), "./src/self/targets.til:241:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_transfer_is_shallow_field_value_copy_12), "./src/self/typer.til:11155:41", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_transfer_is_shallow_field_value_copy_20), "./src/self/typer.til:11172:74", 29ULL},
@@ -24109,6 +24109,12 @@ static void til_loc_lits_init(void) {
 #define hoisted__Str_self_codegen_mlir_codegen_mlir_unsigned_vector_4 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_unsigned_vector_4)
 #define hoisted__Str_self_codegen_mlir_codegen_mlir_unsigned_vector_7 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_unsigned_vector_7)
 #define hoisted__Str_self_codegen_mlir_codegen_mlir_vector_scalar_14 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_vector_scalar_14)
+#define hoisted__Str_self_codegen_theme_codegen_theme_add_color_13 (_til_loc_lits_cage->hoisted__Str_self_codegen_theme_codegen_theme_add_color_13)
+#define hoisted__Str_self_codegen_theme_codegen_theme_add_color_18 (_til_loc_lits_cage->hoisted__Str_self_codegen_theme_codegen_theme_add_color_18)
+#define hoisted__Str_self_codegen_theme_codegen_theme_call_is_14 (_til_loc_lits_cage->hoisted__Str_self_codegen_theme_codegen_theme_call_is_14)
+#define hoisted__Str_self_codegen_theme_codegen_theme_static_expr_14 (_til_loc_lits_cage->hoisted__Str_self_codegen_theme_codegen_theme_static_expr_14)
+#define hoisted__Str_self_codegen_theme_codegen_theme_string_arg_14 (_til_loc_lits_cage->hoisted__Str_self_codegen_theme_codegen_theme_string_arg_14)
+#define hoisted__Str_self_codegen_theme_codegen_theme_string_arg_19 (_til_loc_lits_cage->hoisted__Str_self_codegen_theme_codegen_theme_string_arg_19)
 #define hoisted__Str_self_constfolder_collect_mut_targets_16 (_til_loc_lits_cage->hoisted__Str_self_constfolder_collect_mut_targets_16)
 #define hoisted__Str_self_constfolder_collect_mut_targets_27 (_til_loc_lits_cage->hoisted__Str_self_constfolder_collect_mut_targets_27)
 #define hoisted__Str_self_constfolder_collect_mut_targets_38 (_til_loc_lits_cage->hoisted__Str_self_constfolder_collect_mut_targets_38)
@@ -26226,12 +26232,6 @@ static void til_loc_lits_init(void) {
 #define hoisted__Str_self_scavenger_shared_core_signature_42 (_til_loc_lits_cage->hoisted__Str_self_scavenger_shared_core_signature_42)
 #define hoisted__Str_self_scavenger_shared_core_signature_61 (_til_loc_lits_cage->hoisted__Str_self_scavenger_shared_core_signature_61)
 #define hoisted__Str_self_targets_validate_lang_for_target_11 (_til_loc_lits_cage->hoisted__Str_self_targets_validate_lang_for_target_11)
-#define hoisted__Str_self_theme_codegen_theme_add_color_13 (_til_loc_lits_cage->hoisted__Str_self_theme_codegen_theme_add_color_13)
-#define hoisted__Str_self_theme_codegen_theme_add_color_18 (_til_loc_lits_cage->hoisted__Str_self_theme_codegen_theme_add_color_18)
-#define hoisted__Str_self_theme_codegen_theme_call_is_14 (_til_loc_lits_cage->hoisted__Str_self_theme_codegen_theme_call_is_14)
-#define hoisted__Str_self_theme_codegen_theme_static_expr_14 (_til_loc_lits_cage->hoisted__Str_self_theme_codegen_theme_static_expr_14)
-#define hoisted__Str_self_theme_codegen_theme_string_arg_14 (_til_loc_lits_cage->hoisted__Str_self_theme_codegen_theme_string_arg_14)
-#define hoisted__Str_self_theme_codegen_theme_string_arg_19 (_til_loc_lits_cage->hoisted__Str_self_theme_codegen_theme_string_arg_19)
 #define hoisted__Str_self_typer_aggregate_borrows_type_13 (_til_loc_lits_cage->hoisted__Str_self_typer_aggregate_borrows_type_13)
 #define hoisted__Str_self_typer_aggregate_borrows_type_29 (_til_loc_lits_cage->hoisted__Str_self_typer_aggregate_borrows_type_29)
 #define hoisted__Str_self_typer_aggregate_borrows_type_5 (_til_loc_lits_cage->hoisted__Str_self_typer_aggregate_borrows_type_5)
@@ -34208,11 +34208,11 @@ static Vec__Str *_til_precomputed_sequence_846_get(void) {
     }
     return &t;
 }
-static Vec__priv___src_self_theme_codegen_til__ThemeColorSpec *_til_precomputed_sequence_847_get(void) {
-    static Vec__priv___src_self_theme_codegen_til__ThemeColorSpec t;
+static Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec *_til_precomputed_sequence_847_get(void) {
+    static Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec t;
     static Bool built;
     if (built == 0) {
-        t = (Vec__priv___src_self_theme_codegen_til__ThemeColorSpec){.data = {0}, .count = 0ULL, .cap = 0ULL};
+        t = (Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec){.data = {0}, .count = 0ULL, .cap = 0ULL};
         built = 1;
     }
     return &t;
@@ -357013,15 +357013,15 @@ static void adopt__Set__USize(void * dest, Set__USize * src) {
     ((void)src);
 }
 
-static priv___src_self_theme_codegen_til__ThemeColorSpec priv___src_self_theme_codegen_til__ThemeColorSpec_clone(priv___src_self_theme_codegen_til__ThemeColorSpec * self) {
-    priv___src_self_theme_codegen_til__ThemeColorSpec hoisted__priv___src_self_theme_codegen_til__ThemeColorSpec_0 = {0};
-    hoisted__priv___src_self_theme_codegen_til__ThemeColorSpec_0.name = Str_clone(&self->name);
-    hoisted__priv___src_self_theme_codegen_til__ThemeColorSpec_0.value = Str_clone(&self->value);
-    hoisted__priv___src_self_theme_codegen_til__ThemeColorSpec_0.note = Str_clone(&self->note);
-    return hoisted__priv___src_self_theme_codegen_til__ThemeColorSpec_0;
+static priv___src_self_codegen_theme_codegen_til__ThemeColorSpec priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_clone(priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * self) {
+    priv___src_self_codegen_theme_codegen_til__ThemeColorSpec hoisted__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0 = {0};
+    hoisted__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0.name = Str_clone(&self->name);
+    hoisted__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0.value = Str_clone(&self->value);
+    hoisted__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0.note = Str_clone(&self->note);
+    return hoisted__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0;
 }
 
-static void priv___src_self_theme_codegen_til__ThemeColorSpec_delete(priv___src_self_theme_codegen_til__ThemeColorSpec * self, Bool call_free) {
+static void priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_delete(priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * self, Bool call_free) {
     Str_delete(&self->name, 0);
     Str_delete(&self->value, 0);
     Str_delete(&self->note, 0);
@@ -357030,7 +357030,7 @@ static void priv___src_self_theme_codegen_til__ThemeColorSpec_delete(priv___src_
     }
 }
 
-static void priv___src_self_theme_codegen_til__ThemeSpec_delete(priv___src_self_theme_codegen_til__ThemeSpec * self, Bool call_free) {
+static void priv___src_self_codegen_theme_codegen_til__ThemeSpec_delete(priv___src_self_codegen_theme_codegen_til__ThemeSpec * self, Bool call_free) {
     Str_delete(&self->name, 0);
     Str_delete(&self->header, 0);
     Str_delete(&self->description, 0);
@@ -357042,39 +357042,39 @@ static void priv___src_self_theme_codegen_til__ThemeSpec_delete(priv___src_self_
     Str_delete(&self->palette_footer, 0);
     Str_delete(&self->constant_face_note, 0);
     Str_delete(&self->type_face_note, 0);
-    Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_delete(&self->colors, 0);
+    Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_delete(&self->colors, 0);
     if (call_free) {
         free(self);
     }
 }
 
-static Str priv___src_self_theme_codegen_til__theme_error_at(Str * path, Expr * e, Str * message) {
+static Str priv___src_self_codegen_theme_codegen_til__theme_error_at(Str * path, Expr * e, Str * message) {
     U32 hoisted__U32_0 = 7;
     Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_0);
     I64 _va_Array_0_ek = 0;
     U32 hoisted__U32_1 = 0;
-    Str hoisted__Str_self_theme_codegen_theme_error_at_2 = Str_clone(path);
-    Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_self_theme_codegen_theme_error_at_2, &_va_Array_0_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_error_at_2 = Str_clone(path);
+    Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_self_codegen_theme_codegen_theme_error_at_2, &_va_Array_0_ek);
     U32 hoisted__U32_3 = 1;
     Array__Str_set(&_va_Array_0, hoisted__U32_3, &_til_str_lits.h00000002b5df, &_va_Array_0_ek);
     U32 hoisted__U32_5 = 2;
-    Str hoisted__Str_self_theme_codegen_theme_error_at_6 = U32_to_str(e->line);
-    Array__Str_set(&_va_Array_0, hoisted__U32_5, &hoisted__Str_self_theme_codegen_theme_error_at_6, &_va_Array_0_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_error_at_6 = U32_to_str(e->line);
+    Array__Str_set(&_va_Array_0, hoisted__U32_5, &hoisted__Str_self_codegen_theme_codegen_theme_error_at_6, &_va_Array_0_ek);
     U32 hoisted__U32_7 = 3;
     Array__Str_set(&_va_Array_0, hoisted__U32_7, &_til_str_lits.h00000002b5df, &_va_Array_0_ek);
     U32 hoisted__U32_9 = 4;
-    Str hoisted__Str_self_theme_codegen_theme_error_at_10 = U32_to_str(e->col);
-    Array__Str_set(&_va_Array_0, hoisted__U32_9, &hoisted__Str_self_theme_codegen_theme_error_at_10, &_va_Array_0_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_error_at_10 = U32_to_str(e->col);
+    Array__Str_set(&_va_Array_0, hoisted__U32_9, &hoisted__Str_self_codegen_theme_codegen_theme_error_at_10, &_va_Array_0_ek);
     U32 hoisted__U32_11 = 5;
     Array__Str_set(&_va_Array_0, hoisted__U32_11, &_til_str_lits.h0000005971df, &_va_Array_0_ek);
     U32 hoisted__U32_13 = 6;
-    Str hoisted__Str_self_theme_codegen_theme_error_at_14 = Str_clone(message);
-    Array__Str_set(&_va_Array_0, hoisted__U32_13, &hoisted__Str_self_theme_codegen_theme_error_at_14, &_va_Array_0_ek);
-    Str hoisted__Str_self_theme_codegen_theme_error_at_15 = format(&_va_Array_0);
-    { Str _ret = hoisted__Str_self_theme_codegen_theme_error_at_15; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+    Str hoisted__Str_self_codegen_theme_codegen_theme_error_at_14 = Str_clone(message);
+    Array__Str_set(&_va_Array_0, hoisted__U32_13, &hoisted__Str_self_codegen_theme_codegen_theme_error_at_14, &_va_Array_0_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_error_at_15 = format(&_va_Array_0);
+    { Str _ret = hoisted__Str_self_codegen_theme_codegen_theme_error_at_15; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
 }
 
-static Option__ref_Expr priv___src_self_theme_codegen_til__theme_static_expr(Expr * e, Expr * program, Context * ctx) {
+static Option__ref_Expr priv___src_self_codegen_theme_codegen_til__theme_static_expr(Expr * e, Expr * program, Context * ctx) {
     I64 _err_kind = 0;
     switch ((e->node_type).tag) {
     case NodeType_TAG_Ident: {
@@ -357124,9 +357124,9 @@ static Option__ref_Expr priv___src_self_theme_codegen_til__theme_static_expr(Exp
                             I64 _va_Array_0_ek = 0;
                             U32 hoisted__U32_12 = 0;
                             Array__Str_set(&_va_Array_0, hoisted__U32_12, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
-                            panic(&_va_Array_0, &hoisted__Str_self_theme_codegen_theme_static_expr_14);
+                            panic(&_va_Array_0, &hoisted__Str_self_codegen_theme_codegen_theme_static_expr_14);
                         }
-                        Option__ref_Expr hoisted__Option__ref_Expr_18 = priv___src_self_theme_codegen_til__theme_static_expr(_bang_ret_0, program, ctx);
+                        Option__ref_Expr hoisted__Option__ref_Expr_18 = priv___src_self_codegen_theme_codegen_til__theme_static_expr(_bang_ret_0, program, ctx);
                         return hoisted__Option__ref_Expr_18;
                     }
                     break;
@@ -357147,7 +357147,7 @@ static Option__ref_Expr priv___src_self_theme_codegen_til__theme_static_expr(Exp
     __builtin_unreachable();
 }
 
-static Bool priv___src_self_theme_codegen_til__theme_call_is(Expr * e, Str * name, Context * ctx) {
+static Bool priv___src_self_codegen_theme_codegen_til__theme_call_is(Expr * e, Str * name, Context * ctx) {
     I64 _err_kind = 0;
     Bool _m_Bool_0 = 0;
     {
@@ -357181,13 +357181,13 @@ static Bool priv___src_self_theme_codegen_til__theme_call_is(Expr * e, Str * nam
         I64 _va_Array_0_ek = 0;
         U32 hoisted__U32_12 = 0;
         Array__Str_set(&_va_Array_0, hoisted__U32_12, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
-        panic(&_va_Array_0, &hoisted__Str_self_theme_codegen_theme_call_is_14);
+        panic(&_va_Array_0, &hoisted__Str_self_codegen_theme_codegen_theme_call_is_14);
     }
     switch ((_bang_ret_0->node_type).tag) {
     case NodeType_TAG_Ident: {
         IdentData *id = ((void *)((U8 *)(&_bang_ret_0->node_type) + offsetof(NodeType, data)));
-        Str *hoisted__Str_self_theme_codegen_theme_call_is_15 = IdentData_ident_name(id, &ctx->symbols.names);
-        Bool hoisted__Bool_16 = Str_eq(hoisted__Str_self_theme_codegen_theme_call_is_15, name);
+        Str *hoisted__Str_self_codegen_theme_codegen_theme_call_is_15 = IdentData_ident_name(id, &ctx->symbols.names);
+        Bool hoisted__Bool_16 = Str_eq(hoisted__Str_self_codegen_theme_codegen_theme_call_is_15, name);
         return hoisted__Bool_16;
     }
     default: {
@@ -357198,7 +357198,7 @@ static Bool priv___src_self_theme_codegen_til__theme_call_is(Expr * e, Str * nam
     __builtin_unreachable();
 }
 
-static Str priv___src_self_theme_codegen_til__theme_string_arg(Expr * call, USize index, Str * field, Expr * program, Str * path, Context * ctx, Str * error) {
+static Str priv___src_self_codegen_theme_codegen_til__theme_string_arg(Expr * call, USize index, Str * field, Expr * program, Str * path, Context * ctx, Str * error) {
     I64 _err_kind = 0;
     U32 hoisted__U32_48 = (call->children.count);
     Bool hoisted__Bool_49 = ((Bool)(index >= hoisted__U32_48));
@@ -357207,17 +357207,17 @@ static Str priv___src_self_theme_codegen_til__theme_string_arg(Expr * call, USiz
         Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_0);
         I64 _va_Array_0_ek = 0;
         U32 hoisted__U32_1 = 0;
-        Str hoisted__Str_self_theme_codegen_theme_string_arg_2 = (Str){.c_str = TIL_OWN_LIT("theme is missing field '", 24ULL), .count = 24ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_self_theme_codegen_theme_string_arg_2, &_va_Array_0_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_string_arg_2 = (Str){.c_str = TIL_OWN_LIT("theme is missing field '", 24ULL), .count = 24ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_self_codegen_theme_codegen_theme_string_arg_2, &_va_Array_0_ek);
         U32 hoisted__U32_3 = 1;
-        Str hoisted__Str_self_theme_codegen_theme_string_arg_4 = Str_clone(field);
-        Array__Str_set(&_va_Array_0, hoisted__U32_3, &hoisted__Str_self_theme_codegen_theme_string_arg_4, &_va_Array_0_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_string_arg_4 = Str_clone(field);
+        Array__Str_set(&_va_Array_0, hoisted__U32_3, &hoisted__Str_self_codegen_theme_codegen_theme_string_arg_4, &_va_Array_0_ek);
         U32 hoisted__U32_5 = 2;
         Array__Str_set(&_va_Array_0, hoisted__U32_5, &_til_str_lits.h00000002b5cc, &_va_Array_0_ek);
-        Str hoisted__Str_self_theme_codegen_theme_string_arg_7 = format(&_va_Array_0);
-        Str hoisted__Str_self_theme_codegen_theme_string_arg_8 = priv___src_self_theme_codegen_til__theme_error_at(path, call, &hoisted__Str_self_theme_codegen_theme_string_arg_7);
-        Str_delete(&hoisted__Str_self_theme_codegen_theme_string_arg_7, 0);
-        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_theme_codegen_theme_string_arg_8; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
+        Str hoisted__Str_self_codegen_theme_codegen_theme_string_arg_7 = format(&_va_Array_0);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_string_arg_8 = priv___src_self_codegen_theme_codegen_til__theme_error_at(path, call, &hoisted__Str_self_codegen_theme_codegen_theme_string_arg_7);
+        Str_delete(&hoisted__Str_self_codegen_theme_codegen_theme_string_arg_7, 0);
+        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_codegen_theme_codegen_theme_string_arg_8; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
         { Str _ret = _til_str_lits.h000000001505; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
     }
     Expr *_bang_ret_0 = (((Bool)((U32)(index) < call->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(TIL_OWN_GET(U8, (call->children.data))) + (((U64)((U64)(((U64)((U32)(index)))) * (U64)(176ULL))))))) : (_err_kind = 1, (Expr *)NULL));
@@ -357231,9 +357231,9 @@ static Str priv___src_self_theme_codegen_til__theme_string_arg(Expr * call, USiz
         I64 _va_Array_1_ek = 0;
         U32 hoisted__U32_12 = 0;
         Array__Str_set(&_va_Array_1, hoisted__U32_12, &_til_str_lits.h4d3ab87300de, &_va_Array_1_ek);
-        panic(&_va_Array_1, &hoisted__Str_self_theme_codegen_theme_string_arg_14);
+        panic(&_va_Array_1, &hoisted__Str_self_codegen_theme_codegen_theme_string_arg_14);
     }
-    Option__ref_Expr resolved_o = priv___src_self_theme_codegen_til__theme_static_expr(_bang_ret_0, program, ctx);
+    Option__ref_Expr resolved_o = priv___src_self_codegen_theme_codegen_til__theme_static_expr(_bang_ret_0, program, ctx);
     Bool hoisted__Bool_52 = Option__ref_Expr_is_none(resolved_o);
     if (hoisted__Bool_52) {
         Expr *_bang_ret_1 = (((Bool)((U32)(index) < call->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(TIL_OWN_GET(U8, (call->children.data))) + (((U64)((U64)(((U64)((U32)(index)))) * (U64)(176ULL))))))) : (_err_kind = 1, (Expr *)NULL));
@@ -357247,7 +357247,7 @@ static Str priv___src_self_theme_codegen_til__theme_string_arg(Expr * call, USiz
             I64 _va_Array_2_ek = 0;
             U32 hoisted__U32_17 = 0;
             Array__Str_set(&_va_Array_2, hoisted__U32_17, &_til_str_lits.h4d3ab87300de, &_va_Array_2_ek);
-            panic(&_va_Array_2, &hoisted__Str_self_theme_codegen_theme_string_arg_19);
+            panic(&_va_Array_2, &hoisted__Str_self_codegen_theme_codegen_theme_string_arg_19);
         }
         U32 hoisted__U32_22 = 3;
         Array__Str _va_Array_3 = Array__Str_new(hoisted__U32_22);
@@ -357255,14 +357255,14 @@ static Str priv___src_self_theme_codegen_til__theme_string_arg(Expr * call, USiz
         U32 hoisted__U32_23 = 0;
         Array__Str_set(&_va_Array_3, hoisted__U32_23, &_til_str_lits.ha3d4c25282a3, &_va_Array_3_ek);
         U32 hoisted__U32_25 = 1;
-        Str hoisted__Str_self_theme_codegen_theme_string_arg_26 = Str_clone(field);
-        Array__Str_set(&_va_Array_3, hoisted__U32_25, &hoisted__Str_self_theme_codegen_theme_string_arg_26, &_va_Array_3_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_string_arg_26 = Str_clone(field);
+        Array__Str_set(&_va_Array_3, hoisted__U32_25, &hoisted__Str_self_codegen_theme_codegen_theme_string_arg_26, &_va_Array_3_ek);
         U32 hoisted__U32_27 = 2;
         Array__Str_set(&_va_Array_3, hoisted__U32_27, &_til_str_lits.hb2ee18399021, &_va_Array_3_ek);
-        Str hoisted__Str_self_theme_codegen_theme_string_arg_29 = format(&_va_Array_3);
-        Str hoisted__Str_self_theme_codegen_theme_string_arg_30 = priv___src_self_theme_codegen_til__theme_error_at(path, _bang_ret_1, &hoisted__Str_self_theme_codegen_theme_string_arg_29);
-        Str_delete(&hoisted__Str_self_theme_codegen_theme_string_arg_29, 0);
-        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_theme_codegen_theme_string_arg_30; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
+        Str hoisted__Str_self_codegen_theme_codegen_theme_string_arg_29 = format(&_va_Array_3);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_string_arg_30 = priv___src_self_codegen_theme_codegen_til__theme_error_at(path, _bang_ret_1, &hoisted__Str_self_codegen_theme_codegen_theme_string_arg_29);
+        Str_delete(&hoisted__Str_self_codegen_theme_codegen_theme_string_arg_29, 0);
+        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_codegen_theme_codegen_theme_string_arg_30; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
         { Str _ret = _til_str_lits.h000000001505; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
     }
     Expr *resolved = Option__ref_Expr_unwrap(&resolved_o);
@@ -357274,8 +357274,8 @@ static Str priv___src_self_theme_codegen_til__theme_string_arg(Expr * call, USiz
         if (hoisted__Bool_47) {
             I64 *hoisted__Literal_32 = ((void *)((U8 *)(&resolved->node_type) + offsetof(NodeType, data)));
             Str *value = ((void *)((U8 *)(hoisted__Literal_32) + offsetof(Literal, data)));
-            Str hoisted__Str_self_theme_codegen_theme_string_arg_33 = Str_clone(value);
-            { Str _ret = hoisted__Str_self_theme_codegen_theme_string_arg_33; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+            Str hoisted__Str_self_codegen_theme_codegen_theme_string_arg_33 = Str_clone(value);
+            { Str _ret = hoisted__Str_self_codegen_theme_codegen_theme_string_arg_33; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
         } else {
             U32 hoisted__U32_34 = 3;
             Array__Str _va_Array_4 = Array__Str_new(hoisted__U32_34);
@@ -357283,22 +357283,22 @@ static Str priv___src_self_theme_codegen_til__theme_string_arg(Expr * call, USiz
             U32 hoisted__U32_35 = 0;
             Array__Str_set(&_va_Array_4, hoisted__U32_35, &_til_str_lits.ha3d4c25282a3, &_va_Array_4_ek);
             U32 hoisted__U32_37 = 1;
-            Str hoisted__Str_self_theme_codegen_theme_string_arg_38 = Str_clone(field);
-            Array__Str_set(&_va_Array_4, hoisted__U32_37, &hoisted__Str_self_theme_codegen_theme_string_arg_38, &_va_Array_4_ek);
+            Str hoisted__Str_self_codegen_theme_codegen_theme_string_arg_38 = Str_clone(field);
+            Array__Str_set(&_va_Array_4, hoisted__U32_37, &hoisted__Str_self_codegen_theme_codegen_theme_string_arg_38, &_va_Array_4_ek);
             U32 hoisted__U32_39 = 2;
-            Str hoisted__Str_self_theme_codegen_theme_string_arg_40 = (Str){.c_str = TIL_OWN_LIT("' must be a string literal", 26ULL), .count = 26ULL, .cap = TIL_CAP_LIT};
-            Array__Str_set(&_va_Array_4, hoisted__U32_39, &hoisted__Str_self_theme_codegen_theme_string_arg_40, &_va_Array_4_ek);
-            Str hoisted__Str_self_theme_codegen_theme_string_arg_41 = format(&_va_Array_4);
-            Str hoisted__Str_self_theme_codegen_theme_string_arg_42 = priv___src_self_theme_codegen_til__theme_error_at(path, resolved, &hoisted__Str_self_theme_codegen_theme_string_arg_41);
-            Str_delete(&hoisted__Str_self_theme_codegen_theme_string_arg_41, 0);
-            { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_theme_codegen_theme_string_arg_42; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
+            Str hoisted__Str_self_codegen_theme_codegen_theme_string_arg_40 = (Str){.c_str = TIL_OWN_LIT("' must be a string literal", 26ULL), .count = 26ULL, .cap = TIL_CAP_LIT};
+            Array__Str_set(&_va_Array_4, hoisted__U32_39, &hoisted__Str_self_codegen_theme_codegen_theme_string_arg_40, &_va_Array_4_ek);
+            Str hoisted__Str_self_codegen_theme_codegen_theme_string_arg_41 = format(&_va_Array_4);
+            Str hoisted__Str_self_codegen_theme_codegen_theme_string_arg_42 = priv___src_self_codegen_theme_codegen_til__theme_error_at(path, resolved, &hoisted__Str_self_codegen_theme_codegen_theme_string_arg_41);
+            Str_delete(&hoisted__Str_self_codegen_theme_codegen_theme_string_arg_41, 0);
+            { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_codegen_theme_codegen_theme_string_arg_42; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
             { Str _ret = _til_str_lits.h000000001505; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
         }
     }
     __builtin_unreachable();
 }
 
-static Bool priv___src_self_theme_codegen_til__theme_is_hex_digit(I8 ch) {
+static Bool priv___src_self_codegen_theme_codegen_til__theme_is_hex_digit(I8 ch) {
     Bool _m_Bool_0 = 0;
     {
         {
@@ -357363,7 +357363,7 @@ static Bool priv___src_self_theme_codegen_til__theme_is_hex_digit(I8 ch) {
     return _m_Bool_0;
 }
 
-static Bool priv___src_self_theme_codegen_til__theme_valid_color(Str * value) {
+static Bool priv___src_self_codegen_theme_codegen_til__theme_valid_color(Str * value) {
     Bool _m_Bool_0 = 0;
     {
         U32 hoisted__U32_6 = (value->count);
@@ -357406,7 +357406,7 @@ static Bool priv___src_self_theme_codegen_til__theme_valid_color(Str * value) {
                 U32 i = (_rc_U32_12);
                 ({ __typeof__(&(_rc_U32_12)) til_step_target = &(_rc_U32_12); *til_step_target = (__typeof__(*til_step_target))((U64)*til_step_target + 1ULL); });
                 I8 *hoisted__I8_15 = ((I8 *)((void *)((U8 *)(TIL_OWN_GET(I8, (value->c_str))) + (i))));
-                Bool hoisted__Bool_16 = priv___src_self_theme_codegen_til__theme_is_hex_digit(DEREF(hoisted__I8_15));
+                Bool hoisted__Bool_16 = priv___src_self_codegen_theme_codegen_til__theme_is_hex_digit(DEREF(hoisted__I8_15));
                 Bool hoisted__Bool_17 = ((Bool)(!(hoisted__Bool_16)));
                 if (hoisted__Bool_17) {
                     Bool hoisted__Bool_14 = 0;
@@ -357422,7 +357422,7 @@ static Bool priv___src_self_theme_codegen_til__theme_valid_color(Str * value) {
                 U32 i = (_rc_U32_12);
                 ({ __typeof__(&(_rc_U32_12)) til_step_target = &(_rc_U32_12); *til_step_target = (__typeof__(*til_step_target))((U64)*til_step_target - 1ULL); });
                 I8 *hoisted__I8_20 = ((I8 *)((void *)((U8 *)(TIL_OWN_GET(I8, (value->c_str))) + (i))));
-                Bool hoisted__Bool_21 = priv___src_self_theme_codegen_til__theme_is_hex_digit(DEREF(hoisted__I8_20));
+                Bool hoisted__Bool_21 = priv___src_self_codegen_theme_codegen_til__theme_is_hex_digit(DEREF(hoisted__I8_20));
                 Bool hoisted__Bool_22 = ((Bool)(!(hoisted__Bool_21)));
                 if (hoisted__Bool_22) {
                     Bool hoisted__Bool_19 = 0;
@@ -357435,7 +357435,7 @@ static Bool priv___src_self_theme_codegen_til__theme_valid_color(Str * value) {
     return hoisted__Bool_28;
 }
 
-static Bool priv___src_self_theme_codegen_til__theme_comment_is_single_line(Str * value) {
+static Bool priv___src_self_codegen_theme_codegen_til__theme_comment_is_single_line(Str * value) {
     Bool _m_Bool_0 = 0;
     {
         Bool _sw_Bool_1 = Str_contains(value, &_til_str_lits.h00000059768f);
@@ -357453,7 +357453,7 @@ static Bool priv___src_self_theme_codegen_til__theme_comment_is_single_line(Str 
     return hoisted__Bool_8;
 }
 
-static void priv___src_self_theme_codegen_til__theme_add_color(Expr * call, USize index, Str * name, Expr * program, Str * path, Context * ctx, priv___src_self_theme_codegen_til__ThemeSpec * spec, Str * error) {
+static void priv___src_self_codegen_theme_codegen_til__theme_add_color(Expr * call, USize index, Str * name, Expr * program, Str * path, Context * ctx, priv___src_self_codegen_theme_codegen_til__ThemeSpec * spec, Str * error) {
     I64 _err_kind = 0;
     U32 hoisted__U32_71 = (error->count);
     U32 hoisted__U32_72 = 0;
@@ -357468,17 +357468,17 @@ static void priv___src_self_theme_codegen_til__theme_add_color(Expr * call, USiz
         Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_0);
         I64 _va_Array_0_ek = 0;
         U32 hoisted__U32_1 = 0;
-        Str hoisted__Str_self_theme_codegen_theme_add_color_2 = (Str){.c_str = TIL_OWN_LIT("theme is missing color '", 24ULL), .count = 24ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_self_theme_codegen_theme_add_color_2, &_va_Array_0_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_2 = (Str){.c_str = TIL_OWN_LIT("theme is missing color '", 24ULL), .count = 24ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_2, &_va_Array_0_ek);
         U32 hoisted__U32_3 = 1;
-        Str hoisted__Str_self_theme_codegen_theme_add_color_4 = Str_clone(name);
-        Array__Str_set(&_va_Array_0, hoisted__U32_3, &hoisted__Str_self_theme_codegen_theme_add_color_4, &_va_Array_0_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_4 = Str_clone(name);
+        Array__Str_set(&_va_Array_0, hoisted__U32_3, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_4, &_va_Array_0_ek);
         U32 hoisted__U32_5 = 2;
         Array__Str_set(&_va_Array_0, hoisted__U32_5, &_til_str_lits.h00000002b5cc, &_va_Array_0_ek);
-        Str hoisted__Str_self_theme_codegen_theme_add_color_7 = format(&_va_Array_0);
-        Str hoisted__Str_self_theme_codegen_theme_add_color_8 = priv___src_self_theme_codegen_til__theme_error_at(path, call, &hoisted__Str_self_theme_codegen_theme_add_color_7);
-        Str_delete(&hoisted__Str_self_theme_codegen_theme_add_color_7, 0);
-        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_theme_codegen_theme_add_color_8; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_7 = format(&_va_Array_0);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_8 = priv___src_self_codegen_theme_codegen_til__theme_error_at(path, call, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_7);
+        Str_delete(&hoisted__Str_self_codegen_theme_codegen_theme_add_color_7, 0);
+        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_codegen_theme_codegen_theme_add_color_8; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
         return;
     }
     Expr *_bang_ret_0 = (((Bool)((U32)(index) < call->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(TIL_OWN_GET(U8, (call->children.data))) + (((U64)((U64)(((U64)((U32)(index)))) * (U64)(176ULL))))))) : (_err_kind = 1, (Expr *)NULL));
@@ -357492,9 +357492,9 @@ static void priv___src_self_theme_codegen_til__theme_add_color(Expr * call, USiz
         I64 _va_Array_1_ek = 0;
         U32 hoisted__U32_11 = 0;
         Array__Str_set(&_va_Array_1, hoisted__U32_11, &_til_str_lits.h4d3ab87300de, &_va_Array_1_ek);
-        panic(&_va_Array_1, &hoisted__Str_self_theme_codegen_theme_add_color_13);
+        panic(&_va_Array_1, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_13);
     }
-    Option__ref_Expr resolved_o = priv___src_self_theme_codegen_til__theme_static_expr(_bang_ret_0, program, ctx);
+    Option__ref_Expr resolved_o = priv___src_self_codegen_theme_codegen_til__theme_static_expr(_bang_ret_0, program, ctx);
     Bool hoisted__Bool_78 = Option__ref_Expr_is_none(resolved_o);
     if (hoisted__Bool_78) {
         Expr *_bang_ret_1 = (((Bool)((U32)(index) < call->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(TIL_OWN_GET(U8, (call->children.data))) + (((U64)((U64)(((U64)((U32)(index)))) * (U64)(176ULL))))))) : (_err_kind = 1, (Expr *)NULL));
@@ -357508,7 +357508,7 @@ static void priv___src_self_theme_codegen_til__theme_add_color(Expr * call, USiz
             I64 _va_Array_2_ek = 0;
             U32 hoisted__U32_16 = 0;
             Array__Str_set(&_va_Array_2, hoisted__U32_16, &_til_str_lits.h4d3ab87300de, &_va_Array_2_ek);
-            panic(&_va_Array_2, &hoisted__Str_self_theme_codegen_theme_add_color_18);
+            panic(&_va_Array_2, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_18);
         }
         U32 hoisted__U32_21 = 3;
         Array__Str _va_Array_3 = Array__Str_new(hoisted__U32_21);
@@ -357516,21 +357516,21 @@ static void priv___src_self_theme_codegen_til__theme_add_color(Expr * call, USiz
         U32 hoisted__U32_22 = 0;
         Array__Str_set(&_va_Array_3, hoisted__U32_22, &_til_str_lits.ha3d3e9e34c5e, &_va_Array_3_ek);
         U32 hoisted__U32_24 = 1;
-        Str hoisted__Str_self_theme_codegen_theme_add_color_25 = Str_clone(name);
-        Array__Str_set(&_va_Array_3, hoisted__U32_24, &hoisted__Str_self_theme_codegen_theme_add_color_25, &_va_Array_3_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_25 = Str_clone(name);
+        Array__Str_set(&_va_Array_3, hoisted__U32_24, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_25, &_va_Array_3_ek);
         U32 hoisted__U32_26 = 2;
         Array__Str_set(&_va_Array_3, hoisted__U32_26, &_til_str_lits.hb2ee18399021, &_va_Array_3_ek);
-        Str hoisted__Str_self_theme_codegen_theme_add_color_28 = format(&_va_Array_3);
-        Str hoisted__Str_self_theme_codegen_theme_add_color_29 = priv___src_self_theme_codegen_til__theme_error_at(path, _bang_ret_1, &hoisted__Str_self_theme_codegen_theme_add_color_28);
-        Str_delete(&hoisted__Str_self_theme_codegen_theme_add_color_28, 0);
-        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_theme_codegen_theme_add_color_29; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_28 = format(&_va_Array_3);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_29 = priv___src_self_codegen_theme_codegen_til__theme_error_at(path, _bang_ret_1, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_28);
+        Str_delete(&hoisted__Str_self_codegen_theme_codegen_theme_add_color_28, 0);
+        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_codegen_theme_codegen_theme_add_color_29; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
         return;
     }
     Expr *color_call = Option__ref_Expr_unwrap(&resolved_o);
     Bool _m_Bool_30 = 0;
     {
-        Str hoisted__Str_self_theme_codegen_theme_add_color_36 = (Str){.c_str = TIL_OWN_LIT("ThemeColor", 10ULL), .count = 10ULL, .cap = TIL_CAP_LIT};
-        Bool hoisted__Bool_37 = priv___src_self_theme_codegen_til__theme_call_is(color_call, &hoisted__Str_self_theme_codegen_theme_add_color_36, ctx);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_36 = (Str){.c_str = TIL_OWN_LIT("ThemeColor", 10ULL), .count = 10ULL, .cap = TIL_CAP_LIT};
+        Bool hoisted__Bool_37 = priv___src_self_codegen_theme_codegen_til__theme_call_is(color_call, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_36, ctx);
         Bool _sw_Bool_31 = ((Bool)(!(hoisted__Bool_37)));
         Bool hoisted__Bool_38 = 1;
         Bool hoisted__Bool_39 = ((Bool)(_sw_Bool_31 == hoisted__Bool_38));
@@ -357551,30 +357551,30 @@ static void priv___src_self_theme_codegen_til__theme_add_color(Expr * call, USiz
         U32 hoisted__U32_41 = 0;
         Array__Str_set(&_va_Array_4, hoisted__U32_41, &_til_str_lits.ha3d3e9e34c5e, &_va_Array_4_ek);
         U32 hoisted__U32_43 = 1;
-        Str hoisted__Str_self_theme_codegen_theme_add_color_44 = Str_clone(name);
-        Array__Str_set(&_va_Array_4, hoisted__U32_43, &hoisted__Str_self_theme_codegen_theme_add_color_44, &_va_Array_4_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_44 = Str_clone(name);
+        Array__Str_set(&_va_Array_4, hoisted__U32_43, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_44, &_va_Array_4_ek);
         U32 hoisted__U32_45 = 2;
-        Str hoisted__Str_self_theme_codegen_theme_add_color_46 = (Str){.c_str = TIL_OWN_LIT("' must be ThemeColor(value = ..., note = ...)", 45ULL), .count = 45ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_4, hoisted__U32_45, &hoisted__Str_self_theme_codegen_theme_add_color_46, &_va_Array_4_ek);
-        Str hoisted__Str_self_theme_codegen_theme_add_color_47 = format(&_va_Array_4);
-        Str hoisted__Str_self_theme_codegen_theme_add_color_48 = priv___src_self_theme_codegen_til__theme_error_at(path, call, &hoisted__Str_self_theme_codegen_theme_add_color_47);
-        Str_delete(&hoisted__Str_self_theme_codegen_theme_add_color_47, 0);
-        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_theme_codegen_theme_add_color_48; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_46 = (Str){.c_str = TIL_OWN_LIT("' must be ThemeColor(value = ..., note = ...)", 45ULL), .count = 45ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_4, hoisted__U32_45, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_46, &_va_Array_4_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_47 = format(&_va_Array_4);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_48 = priv___src_self_codegen_theme_codegen_til__theme_error_at(path, call, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_47);
+        Str_delete(&hoisted__Str_self_codegen_theme_codegen_theme_add_color_47, 0);
+        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_codegen_theme_codegen_theme_add_color_48; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
         return;
     }
     U32 hoisted__U32_79 = 2;
     Array__Str _va_Array_7 = Array__Str_new(hoisted__U32_79);
     I64 _va_Array_7_ek = 0;
     U32 hoisted__U32_80 = 0;
-    Str hoisted__Str_self_theme_codegen_theme_add_color_81 = Str_clone(name);
-    Array__Str_set(&_va_Array_7, hoisted__U32_80, &hoisted__Str_self_theme_codegen_theme_add_color_81, &_va_Array_7_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_81 = Str_clone(name);
+    Array__Str_set(&_va_Array_7, hoisted__U32_80, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_81, &_va_Array_7_ek);
     U32 hoisted__U32_82 = 1;
-    Str hoisted__Str_self_theme_codegen_theme_add_color_83 = (Str){.c_str = TIL_OWN_LIT(".value", 6ULL), .count = 6ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_7, hoisted__U32_82, &hoisted__Str_self_theme_codegen_theme_add_color_83, &_va_Array_7_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_83 = (Str){.c_str = TIL_OWN_LIT(".value", 6ULL), .count = 6ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_7, hoisted__U32_82, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_83, &_va_Array_7_ek);
     U32 hoisted__U32_84 = 1;
-    Str hoisted__Str_self_theme_codegen_theme_add_color_85 = format(&_va_Array_7);
-    Str value = priv___src_self_theme_codegen_til__theme_string_arg(color_call, hoisted__U32_84, &hoisted__Str_self_theme_codegen_theme_add_color_85, program, path, ctx, error);
-    Str_delete(&hoisted__Str_self_theme_codegen_theme_add_color_85, 0);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_85 = format(&_va_Array_7);
+    Str value = priv___src_self_codegen_theme_codegen_til__theme_string_arg(color_call, hoisted__U32_84, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_85, program, path, ctx, error);
+    Str_delete(&hoisted__Str_self_codegen_theme_codegen_theme_add_color_85, 0);
     U32 hoisted__U32_86 = (error->count);
     U32 hoisted__U32_87 = 0;
     Bool hoisted__Bool_88 = ((Bool)(hoisted__U32_86 > hoisted__U32_87));
@@ -357586,15 +357586,15 @@ static void priv___src_self_theme_codegen_til__theme_add_color(Expr * call, USiz
     Array__Str _va_Array_8 = Array__Str_new(hoisted__U32_89);
     I64 _va_Array_8_ek = 0;
     U32 hoisted__U32_90 = 0;
-    Str hoisted__Str_self_theme_codegen_theme_add_color_91 = Str_clone(name);
-    Array__Str_set(&_va_Array_8, hoisted__U32_90, &hoisted__Str_self_theme_codegen_theme_add_color_91, &_va_Array_8_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_91 = Str_clone(name);
+    Array__Str_set(&_va_Array_8, hoisted__U32_90, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_91, &_va_Array_8_ek);
     U32 hoisted__U32_92 = 1;
-    Str hoisted__Str_self_theme_codegen_theme_add_color_93 = (Str){.c_str = TIL_OWN_LIT(".note", 5ULL), .count = 5ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_8, hoisted__U32_92, &hoisted__Str_self_theme_codegen_theme_add_color_93, &_va_Array_8_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_93 = (Str){.c_str = TIL_OWN_LIT(".note", 5ULL), .count = 5ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_8, hoisted__U32_92, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_93, &_va_Array_8_ek);
     U32 hoisted__U32_94 = 2;
-    Str hoisted__Str_self_theme_codegen_theme_add_color_95 = format(&_va_Array_8);
-    Str note = priv___src_self_theme_codegen_til__theme_string_arg(color_call, hoisted__U32_94, &hoisted__Str_self_theme_codegen_theme_add_color_95, program, path, ctx, error);
-    Str_delete(&hoisted__Str_self_theme_codegen_theme_add_color_95, 0);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_95 = format(&_va_Array_8);
+    Str note = priv___src_self_codegen_theme_codegen_til__theme_string_arg(color_call, hoisted__U32_94, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_95, program, path, ctx, error);
+    Str_delete(&hoisted__Str_self_codegen_theme_codegen_theme_add_color_95, 0);
     U32 hoisted__U32_96 = (error->count);
     U32 hoisted__U32_97 = 0;
     Bool hoisted__Bool_98 = ((Bool)(hoisted__U32_96 > hoisted__U32_97));
@@ -357603,7 +357603,7 @@ static void priv___src_self_theme_codegen_til__theme_add_color(Expr * call, USiz
         Str_delete(&value, 0);
         return;
     }
-    Bool hoisted__Bool_99 = priv___src_self_theme_codegen_til__theme_valid_color(&value);
+    Bool hoisted__Bool_99 = priv___src_self_codegen_theme_codegen_til__theme_valid_color(&value);
     Bool hoisted__Bool_100 = ((Bool)(!(hoisted__Bool_99)));
     if (hoisted__Bool_100) {
         U32 hoisted__U32_49 = 5;
@@ -357612,54 +357612,54 @@ static void priv___src_self_theme_codegen_til__theme_add_color(Expr * call, USiz
         U32 hoisted__U32_50 = 0;
         Array__Str_set(&_va_Array_5, hoisted__U32_50, &_til_str_lits.ha3d3e9e34c5e, &_va_Array_5_ek);
         U32 hoisted__U32_52 = 1;
-        Str hoisted__Str_self_theme_codegen_theme_add_color_53 = Str_clone(name);
-        Array__Str_set(&_va_Array_5, hoisted__U32_52, &hoisted__Str_self_theme_codegen_theme_add_color_53, &_va_Array_5_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_53 = Str_clone(name);
+        Array__Str_set(&_va_Array_5, hoisted__U32_52, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_53, &_va_Array_5_ek);
         U32 hoisted__U32_54 = 2;
-        Str hoisted__Str_self_theme_codegen_theme_add_color_55 = (Str){.c_str = TIL_OWN_LIT("' must be #RGB or #RRGGBB, got '", 32ULL), .count = 32ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_5, hoisted__U32_54, &hoisted__Str_self_theme_codegen_theme_add_color_55, &_va_Array_5_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_55 = (Str){.c_str = TIL_OWN_LIT("' must be #RGB or #RRGGBB, got '", 32ULL), .count = 32ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_5, hoisted__U32_54, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_55, &_va_Array_5_ek);
         U32 hoisted__U32_56 = 3;
-        Str hoisted__Str_self_theme_codegen_theme_add_color_57 = Str_clone(&value);
-        Array__Str_set(&_va_Array_5, hoisted__U32_56, &hoisted__Str_self_theme_codegen_theme_add_color_57, &_va_Array_5_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_57 = Str_clone(&value);
+        Array__Str_set(&_va_Array_5, hoisted__U32_56, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_57, &_va_Array_5_ek);
         U32 hoisted__U32_58 = 4;
         Array__Str_set(&_va_Array_5, hoisted__U32_58, &_til_str_lits.h00000002b5cc, &_va_Array_5_ek);
-        Str hoisted__Str_self_theme_codegen_theme_add_color_60 = format(&_va_Array_5);
-        Str hoisted__Str_self_theme_codegen_theme_add_color_61 = priv___src_self_theme_codegen_til__theme_error_at(path, call, &hoisted__Str_self_theme_codegen_theme_add_color_60);
-        Str_delete(&hoisted__Str_self_theme_codegen_theme_add_color_60, 0);
-        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_theme_codegen_theme_add_color_61; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_60 = format(&_va_Array_5);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_61 = priv___src_self_codegen_theme_codegen_til__theme_error_at(path, call, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_60);
+        Str_delete(&hoisted__Str_self_codegen_theme_codegen_theme_add_color_60, 0);
+        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_codegen_theme_codegen_theme_add_color_61; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
         Str_delete(&note, 0);
         Str_delete(&value, 0);
         return;
     }
-    Bool hoisted__Bool_101 = priv___src_self_theme_codegen_til__theme_comment_is_single_line(&note);
+    Bool hoisted__Bool_101 = priv___src_self_codegen_theme_codegen_til__theme_comment_is_single_line(&note);
     Bool hoisted__Bool_102 = ((Bool)(!(hoisted__Bool_101)));
     if (hoisted__Bool_102) {
         U32 hoisted__U32_62 = 3;
         Array__Str _va_Array_6 = Array__Str_new(hoisted__U32_62);
         I64 _va_Array_6_ek = 0;
         U32 hoisted__U32_63 = 0;
-        Str hoisted__Str_self_theme_codegen_theme_add_color_64 = (Str){.c_str = TIL_OWN_LIT("theme color note '", 18ULL), .count = 18ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_6, hoisted__U32_63, &hoisted__Str_self_theme_codegen_theme_add_color_64, &_va_Array_6_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_64 = (Str){.c_str = TIL_OWN_LIT("theme color note '", 18ULL), .count = 18ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_6, hoisted__U32_63, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_64, &_va_Array_6_ek);
         U32 hoisted__U32_65 = 1;
-        Str hoisted__Str_self_theme_codegen_theme_add_color_66 = Str_clone(name);
-        Array__Str_set(&_va_Array_6, hoisted__U32_65, &hoisted__Str_self_theme_codegen_theme_add_color_66, &_va_Array_6_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_66 = Str_clone(name);
+        Array__Str_set(&_va_Array_6, hoisted__U32_65, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_66, &_va_Array_6_ek);
         U32 hoisted__U32_67 = 2;
         Array__Str_set(&_va_Array_6, hoisted__U32_67, &_til_str_lits.h87fab17f841f, &_va_Array_6_ek);
-        Str hoisted__Str_self_theme_codegen_theme_add_color_69 = format(&_va_Array_6);
-        Str hoisted__Str_self_theme_codegen_theme_add_color_70 = priv___src_self_theme_codegen_til__theme_error_at(path, call, &hoisted__Str_self_theme_codegen_theme_add_color_69);
-        Str_delete(&hoisted__Str_self_theme_codegen_theme_add_color_69, 0);
-        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_theme_codegen_theme_add_color_70; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_69 = format(&_va_Array_6);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_add_color_70 = priv___src_self_codegen_theme_codegen_til__theme_error_at(path, call, &hoisted__Str_self_codegen_theme_codegen_theme_add_color_69);
+        Str_delete(&hoisted__Str_self_codegen_theme_codegen_theme_add_color_69, 0);
+        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_codegen_theme_codegen_theme_add_color_70; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
         Str_delete(&note, 0);
         Str_delete(&value, 0);
         return;
     }
-    priv___src_self_theme_codegen_til__ThemeColorSpec hoisted__priv___src_self_theme_codegen_til__ThemeColorSpec_103 = {0};
-    hoisted__priv___src_self_theme_codegen_til__ThemeColorSpec_103.name = Str_clone(name);
-    hoisted__priv___src_self_theme_codegen_til__ThemeColorSpec_103.value = value;
-    hoisted__priv___src_self_theme_codegen_til__ThemeColorSpec_103.note = note;
-    Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_push(&spec->colors, &hoisted__priv___src_self_theme_codegen_til__ThemeColorSpec_103);
+    priv___src_self_codegen_theme_codegen_til__ThemeColorSpec hoisted__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_103 = {0};
+    hoisted__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_103.name = Str_clone(name);
+    hoisted__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_103.value = value;
+    hoisted__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_103.note = note;
+    Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_push(&spec->colors, &hoisted__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_103);
 }
 
-static Bool priv___src_self_theme_codegen_til__theme_symbol_is_valid(Str * name) {
+static Bool priv___src_self_codegen_theme_codegen_til__theme_symbol_is_valid(Str * name) {
     U32 hoisted__U32_31 = (name->count);
     U32 hoisted__U32_32 = 0;
     Bool hoisted__Bool_33 = ((Bool)(hoisted__U32_31 == hoisted__U32_32));
@@ -357750,14 +357750,14 @@ static Bool priv___src_self_theme_codegen_til__theme_symbol_is_valid(Str * name)
     return hoisted__Bool_36;
 }
 
-static void priv___src_self_theme_codegen_til__theme_validate_comment(Str * value, Str * field, Expr * root, Str * path, Str * error) {
+static void priv___src_self_codegen_theme_codegen_til__theme_validate_comment(Str * value, Str * field, Expr * root, Str * path, Str * error) {
     U32 hoisted__U32_9 = (error->count);
     U32 hoisted__U32_10 = 0;
     Bool hoisted__Bool_11 = ((Bool)(hoisted__U32_9 > hoisted__U32_10));
     if (hoisted__Bool_11) {
         return;
     }
-    Bool hoisted__Bool_12 = priv___src_self_theme_codegen_til__theme_comment_is_single_line(value);
+    Bool hoisted__Bool_12 = priv___src_self_codegen_theme_codegen_til__theme_comment_is_single_line(value);
     Bool hoisted__Bool_13 = ((Bool)(!(hoisted__Bool_12)));
     if (hoisted__Bool_13) {
         U32 hoisted__U32_0 = 3;
@@ -357766,19 +357766,19 @@ static void priv___src_self_theme_codegen_til__theme_validate_comment(Str * valu
         U32 hoisted__U32_1 = 0;
         Array__Str_set(&_va_Array_0, hoisted__U32_1, &_til_str_lits.ha3d4c25282a3, &_va_Array_0_ek);
         U32 hoisted__U32_3 = 1;
-        Str hoisted__Str_self_theme_codegen_theme_validate_comment_4 = Str_clone(field);
-        Array__Str_set(&_va_Array_0, hoisted__U32_3, &hoisted__Str_self_theme_codegen_theme_validate_comment_4, &_va_Array_0_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_validate_comment_4 = Str_clone(field);
+        Array__Str_set(&_va_Array_0, hoisted__U32_3, &hoisted__Str_self_codegen_theme_codegen_theme_validate_comment_4, &_va_Array_0_ek);
         U32 hoisted__U32_5 = 2;
         Array__Str_set(&_va_Array_0, hoisted__U32_5, &_til_str_lits.h87fab17f841f, &_va_Array_0_ek);
-        Str hoisted__Str_self_theme_codegen_theme_validate_comment_7 = format(&_va_Array_0);
-        Str hoisted__Str_self_theme_codegen_theme_validate_comment_8 = priv___src_self_theme_codegen_til__theme_error_at(path, root, &hoisted__Str_self_theme_codegen_theme_validate_comment_7);
-        Str_delete(&hoisted__Str_self_theme_codegen_theme_validate_comment_7, 0);
-        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_theme_codegen_theme_validate_comment_8; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
+        Str hoisted__Str_self_codegen_theme_codegen_theme_validate_comment_7 = format(&_va_Array_0);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_validate_comment_8 = priv___src_self_codegen_theme_codegen_til__theme_error_at(path, root, &hoisted__Str_self_codegen_theme_codegen_theme_validate_comment_7);
+        Str_delete(&hoisted__Str_self_codegen_theme_codegen_theme_validate_comment_7, 0);
+        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_codegen_theme_codegen_theme_validate_comment_8; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
     }
 }
 
-static priv___src_self_theme_codegen_til__ThemeSpec priv___src_self_theme_codegen_til__theme_parse(Expr * root, Expr * program, Str * path, Context * ctx, Str * error) {
-    priv___src_self_theme_codegen_til__ThemeSpec spec = {0};
+static priv___src_self_codegen_theme_codegen_til__ThemeSpec priv___src_self_codegen_theme_codegen_til__theme_parse(Expr * root, Expr * program, Str * path, Context * ctx, Str * error) {
+    priv___src_self_codegen_theme_codegen_til__ThemeSpec spec = {0};
     spec.name = _til_str_lits.h000000001505;
     spec.header = _til_str_lits.h000000001505;
     spec.description = _til_str_lits.h000000001505;
@@ -357790,11 +357790,11 @@ static priv___src_self_theme_codegen_til__ThemeSpec priv___src_self_theme_codege
     spec.palette_footer = _til_str_lits.h000000001505;
     spec.constant_face_note = _til_str_lits.h000000001505;
     spec.type_face_note = _til_str_lits.h000000001505;
-    spec.colors = Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_clone(_til_precomputed_sequence_847_get());
+    spec.colors = Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_clone(_til_precomputed_sequence_847_get());
     Bool _m_Bool_0 = 0;
     {
-        Str hoisted__Str_self_theme_codegen_theme_parse_6 = (Str){.c_str = TIL_OWN_LIT("Theme", 5ULL), .count = 5ULL, .cap = TIL_CAP_LIT};
-        Bool hoisted__Bool_7 = priv___src_self_theme_codegen_til__theme_call_is(root, &hoisted__Str_self_theme_codegen_theme_parse_6, ctx);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_parse_6 = (Str){.c_str = TIL_OWN_LIT("Theme", 5ULL), .count = 5ULL, .cap = TIL_CAP_LIT};
+        Bool hoisted__Bool_7 = priv___src_self_codegen_theme_codegen_til__theme_call_is(root, &hoisted__Str_self_codegen_theme_codegen_theme_parse_6, ctx);
         Bool _sw_Bool_1 = ((Bool)(!(hoisted__Bool_7)));
         Bool hoisted__Bool_8 = 1;
         Bool hoisted__Bool_9 = ((Bool)(_sw_Bool_1 == hoisted__Bool_8));
@@ -357809,56 +357809,56 @@ static priv___src_self_theme_codegen_til__ThemeSpec priv___src_self_theme_codege
         }
     }
     if (_m_Bool_0) {
-        Str hoisted__Str_self_theme_codegen_theme_parse_10 = (Str){.c_str = TIL_OWN_LIT("exported 'theme' must be one static Theme(...) value", 52ULL), .count = 52ULL, .cap = TIL_CAP_LIT};
-        Str hoisted__Str_self_theme_codegen_theme_parse_11 = priv___src_self_theme_codegen_til__theme_error_at(path, root, &hoisted__Str_self_theme_codegen_theme_parse_10);
-        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_theme_codegen_theme_parse_11; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
+        Str hoisted__Str_self_codegen_theme_codegen_theme_parse_10 = (Str){.c_str = TIL_OWN_LIT("exported 'theme' must be one static Theme(...) value", 52ULL), .count = 52ULL, .cap = TIL_CAP_LIT};
+        Str hoisted__Str_self_codegen_theme_codegen_theme_parse_11 = priv___src_self_codegen_theme_codegen_til__theme_error_at(path, root, &hoisted__Str_self_codegen_theme_codegen_theme_parse_10);
+        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_codegen_theme_codegen_theme_parse_11; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
         return spec;
     }
     U32 hoisted__U32_21 = 1;
-    Str hoisted__Str_self_theme_codegen_theme_parse_22 = (Str){.c_str = TIL_OWN_LIT("name", 4ULL), .count = 4ULL, .cap = TIL_CAP_LIT};
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_22 = (Str){.c_str = TIL_OWN_LIT("name", 4ULL), .count = 4ULL, .cap = TIL_CAP_LIT};
     { Str _old = spec.name;
-    spec.name = priv___src_self_theme_codegen_til__theme_string_arg(root, hoisted__U32_21, &hoisted__Str_self_theme_codegen_theme_parse_22, program, path, ctx, error);
+    spec.name = priv___src_self_codegen_theme_codegen_til__theme_string_arg(root, hoisted__U32_21, &hoisted__Str_self_codegen_theme_codegen_theme_parse_22, program, path, ctx, error);
     Str_delete(&_old, (Bool){0}); }
     U32 hoisted__U32_23 = 2;
     { Str _old = spec.header;
-    spec.header = priv___src_self_theme_codegen_til__theme_string_arg(root, hoisted__U32_23, &_til_str_lits.h065301d218ae, program, path, ctx, error);
+    spec.header = priv___src_self_codegen_theme_codegen_til__theme_string_arg(root, hoisted__U32_23, &_til_str_lits.h065301d218ae, program, path, ctx, error);
     Str_delete(&_old, (Bool){0}); }
     U32 hoisted__U32_25 = 3;
-    Str hoisted__Str_self_theme_codegen_theme_parse_26 = (Str){.c_str = TIL_OWN_LIT("description", 11ULL), .count = 11ULL, .cap = TIL_CAP_LIT};
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_26 = (Str){.c_str = TIL_OWN_LIT("description", 11ULL), .count = 11ULL, .cap = TIL_CAP_LIT};
     { Str _old = spec.description;
-    spec.description = priv___src_self_theme_codegen_til__theme_string_arg(root, hoisted__U32_25, &hoisted__Str_self_theme_codegen_theme_parse_26, program, path, ctx, error);
+    spec.description = priv___src_self_codegen_theme_codegen_til__theme_string_arg(root, hoisted__U32_25, &hoisted__Str_self_codegen_theme_codegen_theme_parse_26, program, path, ctx, error);
     Str_delete(&_old, (Bool){0}); }
     U32 hoisted__U32_27 = 4;
     { Str _old = spec.source_theme;
-    spec.source_theme = priv___src_self_theme_codegen_til__theme_string_arg(root, hoisted__U32_27, &_til_str_lits.h54bb839e31a8, program, path, ctx, error);
+    spec.source_theme = priv___src_self_codegen_theme_codegen_til__theme_string_arg(root, hoisted__U32_27, &_til_str_lits.h54bb839e31a8, program, path, ctx, error);
     Str_delete(&_old, (Bool){0}); }
     U32 hoisted__U32_29 = 5;
     { Str _old = spec.source_package;
-    spec.source_package = priv___src_self_theme_codegen_til__theme_string_arg(root, hoisted__U32_29, &_til_str_lits.h71a99f8edf21, program, path, ctx, error);
+    spec.source_package = priv___src_self_codegen_theme_codegen_til__theme_string_arg(root, hoisted__U32_29, &_til_str_lits.h71a99f8edf21, program, path, ctx, error);
     Str_delete(&_old, (Bool){0}); }
     U32 hoisted__U32_31 = 6;
     { Str _old = spec.source_url;
-    spec.source_url = priv___src_self_theme_codegen_til__theme_string_arg(root, hoisted__U32_31, &_til_str_lits.hf6acb82fe348, program, path, ctx, error);
+    spec.source_url = priv___src_self_codegen_theme_codegen_til__theme_string_arg(root, hoisted__U32_31, &_til_str_lits.hf6acb82fe348, program, path, ctx, error);
     Str_delete(&_old, (Bool){0}); }
     U32 hoisted__U32_33 = 7;
     { Str _old = spec.source_license;
-    spec.source_license = priv___src_self_theme_codegen_til__theme_string_arg(root, hoisted__U32_33, &_til_str_lits.h71a87e4c1fb8, program, path, ctx, error);
+    spec.source_license = priv___src_self_codegen_theme_codegen_til__theme_string_arg(root, hoisted__U32_33, &_til_str_lits.h71a87e4c1fb8, program, path, ctx, error);
     Str_delete(&_old, (Bool){0}); }
     U32 hoisted__U32_35 = 8;
     { Str _old = spec.palette_note;
-    spec.palette_note = priv___src_self_theme_codegen_til__theme_string_arg(root, hoisted__U32_35, &_til_str_lits.hec10d69071e9, program, path, ctx, error);
+    spec.palette_note = priv___src_self_codegen_theme_codegen_til__theme_string_arg(root, hoisted__U32_35, &_til_str_lits.hec10d69071e9, program, path, ctx, error);
     Str_delete(&_old, (Bool){0}); }
     U32 hoisted__U32_37 = 9;
     { Str _old = spec.palette_footer;
-    spec.palette_footer = priv___src_self_theme_codegen_til__theme_string_arg(root, hoisted__U32_37, &_til_str_lits.h33a0a9c8da82, program, path, ctx, error);
+    spec.palette_footer = priv___src_self_codegen_theme_codegen_til__theme_string_arg(root, hoisted__U32_37, &_til_str_lits.h33a0a9c8da82, program, path, ctx, error);
     Str_delete(&_old, (Bool){0}); }
     U32 hoisted__U32_39 = 10;
     { Str _old = spec.constant_face_note;
-    spec.constant_face_note = priv___src_self_theme_codegen_til__theme_string_arg(root, hoisted__U32_39, &_til_str_lits.hf7683e1373f2, program, path, ctx, error);
+    spec.constant_face_note = priv___src_self_codegen_theme_codegen_til__theme_string_arg(root, hoisted__U32_39, &_til_str_lits.hf7683e1373f2, program, path, ctx, error);
     Str_delete(&_old, (Bool){0}); }
     U32 hoisted__U32_41 = 11;
     { Str _old = spec.type_face_note;
-    spec.type_face_note = priv___src_self_theme_codegen_til__theme_string_arg(root, hoisted__U32_41, &_til_str_lits.h33dc973e53ea, program, path, ctx, error);
+    spec.type_face_note = priv___src_self_codegen_theme_codegen_til__theme_string_arg(root, hoisted__U32_41, &_til_str_lits.h33dc973e53ea, program, path, ctx, error);
     Str_delete(&_old, (Bool){0}); }
     U32 hoisted__U32_43 = (error->count);
     U32 hoisted__U32_44 = 0;
@@ -357866,35 +357866,35 @@ static priv___src_self_theme_codegen_til__ThemeSpec priv___src_self_theme_codege
     if (hoisted__Bool_45) {
         return spec;
     }
-    Bool hoisted__Bool_46 = priv___src_self_theme_codegen_til__theme_symbol_is_valid(&spec.name);
+    Bool hoisted__Bool_46 = priv___src_self_codegen_theme_codegen_til__theme_symbol_is_valid(&spec.name);
     Bool hoisted__Bool_47 = ((Bool)(!(hoisted__Bool_46)));
     if (hoisted__Bool_47) {
         U32 hoisted__U32_12 = 3;
         Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_12);
         I64 _va_Array_0_ek = 0;
         U32 hoisted__U32_13 = 0;
-        Str hoisted__Str_self_theme_codegen_theme_parse_14 = (Str){.c_str = TIL_OWN_LIT("theme name is not an Elisp symbol: '", 36ULL), .count = 36ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_0, hoisted__U32_13, &hoisted__Str_self_theme_codegen_theme_parse_14, &_va_Array_0_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_parse_14 = (Str){.c_str = TIL_OWN_LIT("theme name is not an Elisp symbol: '", 36ULL), .count = 36ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_0, hoisted__U32_13, &hoisted__Str_self_codegen_theme_codegen_theme_parse_14, &_va_Array_0_ek);
         U32 hoisted__U32_15 = 1;
-        Str hoisted__Str_self_theme_codegen_theme_parse_16 = Str_clone(&spec.name);
-        Array__Str_set(&_va_Array_0, hoisted__U32_15, &hoisted__Str_self_theme_codegen_theme_parse_16, &_va_Array_0_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_parse_16 = Str_clone(&spec.name);
+        Array__Str_set(&_va_Array_0, hoisted__U32_15, &hoisted__Str_self_codegen_theme_codegen_theme_parse_16, &_va_Array_0_ek);
         U32 hoisted__U32_17 = 2;
         Array__Str_set(&_va_Array_0, hoisted__U32_17, &_til_str_lits.h00000002b5cc, &_va_Array_0_ek);
-        Str hoisted__Str_self_theme_codegen_theme_parse_19 = format(&_va_Array_0);
-        Str hoisted__Str_self_theme_codegen_theme_parse_20 = priv___src_self_theme_codegen_til__theme_error_at(path, root, &hoisted__Str_self_theme_codegen_theme_parse_19);
-        Str_delete(&hoisted__Str_self_theme_codegen_theme_parse_19, 0);
-        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_theme_codegen_theme_parse_20; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
+        Str hoisted__Str_self_codegen_theme_codegen_theme_parse_19 = format(&_va_Array_0);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_parse_20 = priv___src_self_codegen_theme_codegen_til__theme_error_at(path, root, &hoisted__Str_self_codegen_theme_codegen_theme_parse_19);
+        Str_delete(&hoisted__Str_self_codegen_theme_codegen_theme_parse_19, 0);
+        { TIL_LIT_GUARD(error); Str_delete(error, (Bool){0}); *error = hoisted__Str_self_codegen_theme_codegen_theme_parse_20; if (error->cap == TIL_CAP_LIT) { error->cap = TIL_CAP_VIEW; } }
         return spec;
     }
-    priv___src_self_theme_codegen_til__theme_validate_comment(&spec.header, &_til_str_lits.h065301d218ae, root, path, error);
-    priv___src_self_theme_codegen_til__theme_validate_comment(&spec.source_theme, &_til_str_lits.h54bb839e31a8, root, path, error);
-    priv___src_self_theme_codegen_til__theme_validate_comment(&spec.source_package, &_til_str_lits.h71a99f8edf21, root, path, error);
-    priv___src_self_theme_codegen_til__theme_validate_comment(&spec.source_url, &_til_str_lits.hf6acb82fe348, root, path, error);
-    priv___src_self_theme_codegen_til__theme_validate_comment(&spec.source_license, &_til_str_lits.h71a87e4c1fb8, root, path, error);
-    priv___src_self_theme_codegen_til__theme_validate_comment(&spec.palette_note, &_til_str_lits.hec10d69071e9, root, path, error);
-    priv___src_self_theme_codegen_til__theme_validate_comment(&spec.palette_footer, &_til_str_lits.h33a0a9c8da82, root, path, error);
-    priv___src_self_theme_codegen_til__theme_validate_comment(&spec.constant_face_note, &_til_str_lits.hf7683e1373f2, root, path, error);
-    priv___src_self_theme_codegen_til__theme_validate_comment(&spec.type_face_note, &_til_str_lits.h33dc973e53ea, root, path, error);
+    priv___src_self_codegen_theme_codegen_til__theme_validate_comment(&spec.header, &_til_str_lits.h065301d218ae, root, path, error);
+    priv___src_self_codegen_theme_codegen_til__theme_validate_comment(&spec.source_theme, &_til_str_lits.h54bb839e31a8, root, path, error);
+    priv___src_self_codegen_theme_codegen_til__theme_validate_comment(&spec.source_package, &_til_str_lits.h71a99f8edf21, root, path, error);
+    priv___src_self_codegen_theme_codegen_til__theme_validate_comment(&spec.source_url, &_til_str_lits.hf6acb82fe348, root, path, error);
+    priv___src_self_codegen_theme_codegen_til__theme_validate_comment(&spec.source_license, &_til_str_lits.h71a87e4c1fb8, root, path, error);
+    priv___src_self_codegen_theme_codegen_til__theme_validate_comment(&spec.palette_note, &_til_str_lits.hec10d69071e9, root, path, error);
+    priv___src_self_codegen_theme_codegen_til__theme_validate_comment(&spec.palette_footer, &_til_str_lits.h33a0a9c8da82, root, path, error);
+    priv___src_self_codegen_theme_codegen_til__theme_validate_comment(&spec.constant_face_note, &_til_str_lits.hf7683e1373f2, root, path, error);
+    priv___src_self_codegen_theme_codegen_til__theme_validate_comment(&spec.type_face_note, &_til_str_lits.h33dc973e53ea, root, path, error);
     U32 hoisted__U32_57 = (error->count);
     U32 hoisted__U32_58 = 0;
     Bool hoisted__Bool_59 = ((Bool)(hoisted__U32_57 > hoisted__U32_58));
@@ -357902,58 +357902,58 @@ static priv___src_self_theme_codegen_til__ThemeSpec priv___src_self_theme_codege
         return spec;
     }
     U32 hoisted__U32_60 = 12;
-    Str hoisted__Str_self_theme_codegen_theme_parse_61 = (Str){.c_str = TIL_OWN_LIT("background", 10ULL), .count = 10ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_60, &hoisted__Str_self_theme_codegen_theme_parse_61, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_61 = (Str){.c_str = TIL_OWN_LIT("background", 10ULL), .count = 10ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_60, &hoisted__Str_self_codegen_theme_codegen_theme_parse_61, program, path, ctx, &spec, error);
     U32 hoisted__U32_62 = 13;
-    Str hoisted__Str_self_theme_codegen_theme_parse_63 = (Str){.c_str = TIL_OWN_LIT("foreground", 10ULL), .count = 10ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_62, &hoisted__Str_self_theme_codegen_theme_parse_63, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_63 = (Str){.c_str = TIL_OWN_LIT("foreground", 10ULL), .count = 10ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_62, &hoisted__Str_self_codegen_theme_codegen_theme_parse_63, program, path, ctx, &spec, error);
     U32 hoisted__U32_64 = 14;
-    Str hoisted__Str_self_theme_codegen_theme_parse_65 = (Str){.c_str = TIL_OWN_LIT("cursor", 6ULL), .count = 6ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_64, &hoisted__Str_self_theme_codegen_theme_parse_65, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_65 = (Str){.c_str = TIL_OWN_LIT("cursor", 6ULL), .count = 6ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_64, &hoisted__Str_self_codegen_theme_codegen_theme_parse_65, program, path, ctx, &spec, error);
     U32 hoisted__U32_66 = 15;
-    Str hoisted__Str_self_theme_codegen_theme_parse_67 = (Str){.c_str = TIL_OWN_LIT("highlight", 9ULL), .count = 9ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_66, &hoisted__Str_self_theme_codegen_theme_parse_67, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_67 = (Str){.c_str = TIL_OWN_LIT("highlight", 9ULL), .count = 9ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_66, &hoisted__Str_self_codegen_theme_codegen_theme_parse_67, program, path, ctx, &spec, error);
     U32 hoisted__U32_68 = 16;
-    Str hoisted__Str_self_theme_codegen_theme_parse_69 = (Str){.c_str = TIL_OWN_LIT("hl-line", 7ULL), .count = 7ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_68, &hoisted__Str_self_theme_codegen_theme_parse_69, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_69 = (Str){.c_str = TIL_OWN_LIT("hl-line", 7ULL), .count = 7ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_68, &hoisted__Str_self_codegen_theme_codegen_theme_parse_69, program, path, ctx, &spec, error);
     U32 hoisted__U32_70 = 17;
-    Str hoisted__Str_self_theme_codegen_theme_parse_71 = (Str){.c_str = TIL_OWN_LIT("region", 6ULL), .count = 6ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_70, &hoisted__Str_self_theme_codegen_theme_parse_71, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_71 = (Str){.c_str = TIL_OWN_LIT("region", 6ULL), .count = 6ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_70, &hoisted__Str_self_codegen_theme_codegen_theme_parse_71, program, path, ctx, &spec, error);
     U32 hoisted__U32_72 = 18;
-    Str hoisted__Str_self_theme_codegen_theme_parse_73 = (Str){.c_str = TIL_OWN_LIT("comment", 7ULL), .count = 7ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_72, &hoisted__Str_self_theme_codegen_theme_parse_73, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_73 = (Str){.c_str = TIL_OWN_LIT("comment", 7ULL), .count = 7ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_72, &hoisted__Str_self_codegen_theme_codegen_theme_parse_73, program, path, ctx, &spec, error);
     U32 hoisted__U32_74 = 19;
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_74, &_til_str_lits.h06531c93affc, program, path, ctx, &spec, error);
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_74, &_til_str_lits.h06531c93affc, program, path, ctx, &spec, error);
     U32 hoisted__U32_76 = 20;
-    Str hoisted__Str_self_theme_codegen_theme_parse_77 = (Str){.c_str = TIL_OWN_LIT("keyword", 7ULL), .count = 7ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_76, &hoisted__Str_self_theme_codegen_theme_parse_77, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_77 = (Str){.c_str = TIL_OWN_LIT("keyword", 7ULL), .count = 7ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_76, &hoisted__Str_self_codegen_theme_codegen_theme_parse_77, program, path, ctx, &spec, error);
     U32 hoisted__U32_78 = 21;
-    Str hoisted__Str_self_theme_codegen_theme_parse_79 = (Str){.c_str = TIL_OWN_LIT("constant", 8ULL), .count = 8ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_78, &hoisted__Str_self_theme_codegen_theme_parse_79, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_79 = (Str){.c_str = TIL_OWN_LIT("constant", 8ULL), .count = 8ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_78, &hoisted__Str_self_codegen_theme_codegen_theme_parse_79, program, path, ctx, &spec, error);
     U32 hoisted__U32_80 = 22;
-    Str hoisted__Str_self_theme_codegen_theme_parse_81 = (Str){.c_str = TIL_OWN_LIT("type", 4ULL), .count = 4ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_80, &hoisted__Str_self_theme_codegen_theme_parse_81, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_81 = (Str){.c_str = TIL_OWN_LIT("type", 4ULL), .count = 4ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_80, &hoisted__Str_self_codegen_theme_codegen_theme_parse_81, program, path, ctx, &spec, error);
     U32 hoisted__U32_82 = 23;
-    Str hoisted__Str_self_theme_codegen_theme_parse_83 = (Str){.c_str = TIL_OWN_LIT("function", 8ULL), .count = 8ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_82, &hoisted__Str_self_theme_codegen_theme_parse_83, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_83 = (Str){.c_str = TIL_OWN_LIT("function", 8ULL), .count = 8ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_82, &hoisted__Str_self_codegen_theme_codegen_theme_parse_83, program, path, ctx, &spec, error);
     U32 hoisted__U32_84 = 24;
-    Str hoisted__Str_self_theme_codegen_theme_parse_85 = (Str){.c_str = TIL_OWN_LIT("variable", 8ULL), .count = 8ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_84, &hoisted__Str_self_theme_codegen_theme_parse_85, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_85 = (Str){.c_str = TIL_OWN_LIT("variable", 8ULL), .count = 8ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_84, &hoisted__Str_self_codegen_theme_codegen_theme_parse_85, program, path, ctx, &spec, error);
     U32 hoisted__U32_86 = 25;
-    Str hoisted__Str_self_theme_codegen_theme_parse_87 = (Str){.c_str = TIL_OWN_LIT("builtin", 7ULL), .count = 7ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_86, &hoisted__Str_self_theme_codegen_theme_parse_87, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_87 = (Str){.c_str = TIL_OWN_LIT("builtin", 7ULL), .count = 7ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_86, &hoisted__Str_self_codegen_theme_codegen_theme_parse_87, program, path, ctx, &spec, error);
     U32 hoisted__U32_88 = 26;
-    Str hoisted__Str_self_theme_codegen_theme_parse_89 = (Str){.c_str = TIL_OWN_LIT("preprocessor", 12ULL), .count = 12ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_88, &hoisted__Str_self_theme_codegen_theme_parse_89, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_89 = (Str){.c_str = TIL_OWN_LIT("preprocessor", 12ULL), .count = 12ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_88, &hoisted__Str_self_codegen_theme_codegen_theme_parse_89, program, path, ctx, &spec, error);
     U32 hoisted__U32_90 = 27;
-    Str hoisted__Str_self_theme_codegen_theme_parse_91 = (Str){.c_str = TIL_OWN_LIT("warning", 7ULL), .count = 7ULL, .cap = TIL_CAP_LIT};
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_90, &hoisted__Str_self_theme_codegen_theme_parse_91, program, path, ctx, &spec, error);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_parse_91 = (Str){.c_str = TIL_OWN_LIT("warning", 7ULL), .count = 7ULL, .cap = TIL_CAP_LIT};
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_90, &hoisted__Str_self_codegen_theme_codegen_theme_parse_91, program, path, ctx, &spec, error);
     U32 hoisted__U32_92 = 28;
-    priv___src_self_theme_codegen_til__theme_add_color(root, hoisted__U32_92, &_til_str_lits.h00310f6321ef, program, path, ctx, &spec, error);
+    priv___src_self_codegen_theme_codegen_til__theme_add_color(root, hoisted__U32_92, &_til_str_lits.h00310f6321ef, program, path, ctx, &spec, error);
     return spec;
 }
 
-static Str priv___src_self_theme_codegen_til__theme_elisp_escape(Str * value) {
+static Str priv___src_self_codegen_theme_codegen_til__theme_elisp_escape(Str * value) {
     Str out = Str_replace(value, &_til_str_lits.h00000059767d, &_til_str_lits.h00017c9115f5);
     { Str _new = Str_replace(&out, &_til_str_lits.h000000597643, &_til_str_lits.h00017c9115bb); Str_delete(&out, (Bool){0}); out = _new; }
     { Str _new = Str_replace(&out, &_til_str_lits.h00000059768f, &_til_str_lits.h00000b88468b); Str_delete(&out, (Bool){0}); out = _new; }
@@ -357962,7 +357962,7 @@ static Str priv___src_self_theme_codegen_til__theme_elisp_escape(Str * value) {
     { Str _ret = out; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
 }
 
-static Str priv___src_self_theme_codegen_til__theme_spaces(USize count) {
+static Str priv___src_self_codegen_theme_codegen_til__theme_spaces(USize count) {
     Str out = Str_with_capacity(count);
     {
         U32 _re_U32_0 = (count);
@@ -357979,22 +357979,22 @@ static Str priv___src_self_theme_codegen_til__theme_spaces(USize count) {
     { Str _ret = out; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
 }
 
-static Str priv___src_self_theme_codegen_til__theme_palette_line(priv___src_self_theme_codegen_til__ThemeColorSpec * color) {
+static Str priv___src_self_codegen_theme_codegen_til__theme_palette_line(priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * color) {
     U32 hoisted__U32_8 = 5;
     Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_8);
     I64 _va_Array_1_ek = 0;
     U32 hoisted__U32_9 = 0;
-    Str hoisted__Str_self_theme_codegen_theme_palette_line_10 = (Str){.c_str = TIL_OWN_LIT("      (", 7ULL), .count = 7ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_1, hoisted__U32_9, &hoisted__Str_self_theme_codegen_theme_palette_line_10, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_palette_line_10 = (Str){.c_str = TIL_OWN_LIT("      (", 7ULL), .count = 7ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_1, hoisted__U32_9, &hoisted__Str_self_codegen_theme_codegen_theme_palette_line_10, &_va_Array_1_ek);
     U32 hoisted__U32_11 = 1;
-    Str hoisted__Str_self_theme_codegen_theme_palette_line_12 = Str_clone(&color->name);
-    Array__Str_set(&_va_Array_1, hoisted__U32_11, &hoisted__Str_self_theme_codegen_theme_palette_line_12, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_palette_line_12 = Str_clone(&color->name);
+    Array__Str_set(&_va_Array_1, hoisted__U32_11, &hoisted__Str_self_codegen_theme_codegen_theme_palette_line_12, &_va_Array_1_ek);
     U32 hoisted__U32_13 = 2;
-    Str hoisted__Str_self_theme_codegen_theme_palette_line_14 = (Str){.c_str = TIL_OWN_LIT(" \"", 2ULL), .count = 2ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_1, hoisted__U32_13, &hoisted__Str_self_theme_codegen_theme_palette_line_14, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_palette_line_14 = (Str){.c_str = TIL_OWN_LIT(" \"", 2ULL), .count = 2ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_1, hoisted__U32_13, &hoisted__Str_self_codegen_theme_codegen_theme_palette_line_14, &_va_Array_1_ek);
     U32 hoisted__U32_15 = 3;
-    Str hoisted__Str_self_theme_codegen_theme_palette_line_16 = Str_clone(&color->value);
-    Array__Str_set(&_va_Array_1, hoisted__U32_15, &hoisted__Str_self_theme_codegen_theme_palette_line_16, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_palette_line_16 = Str_clone(&color->value);
+    Array__Str_set(&_va_Array_1, hoisted__U32_15, &hoisted__Str_self_codegen_theme_codegen_theme_palette_line_16, &_va_Array_1_ek);
     U32 hoisted__U32_17 = 4;
     Array__Str_set(&_va_Array_1, hoisted__U32_17, &_til_str_lits.h00000b883ecc, &_va_Array_1_ek);
     Str base = format(&_va_Array_1);
@@ -358006,13 +358006,13 @@ static Str priv___src_self_theme_codegen_til__theme_palette_line(priv___src_self
         Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_0);
         I64 _va_Array_0_ek = 0;
         U32 hoisted__U32_1 = 0;
-        Str hoisted__Str_self_theme_codegen_theme_palette_line_2 = Str_clone(&base);
-        Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_self_theme_codegen_theme_palette_line_2, &_va_Array_0_ek);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_palette_line_2 = Str_clone(&base);
+        Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_self_codegen_theme_codegen_theme_palette_line_2, &_va_Array_0_ek);
         U32 hoisted__U32_3 = 1;
         Array__Str_set(&_va_Array_0, hoisted__U32_3, &_til_str_lits.h00000059768f, &_va_Array_0_ek);
-        Str hoisted__Str_self_theme_codegen_theme_palette_line_5 = format(&_va_Array_0);
+        Str hoisted__Str_self_codegen_theme_codegen_theme_palette_line_5 = format(&_va_Array_0);
         Str_delete(&base, 0);
-        { Str _ret = hoisted__Str_self_theme_codegen_theme_palette_line_5; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+        { Str _ret = hoisted__Str_self_codegen_theme_codegen_theme_palette_line_5; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
     }
     USize padding = 1;
     USize palette_column = 28;
@@ -358027,113 +358027,113 @@ static Str priv___src_self_theme_codegen_til__theme_palette_line(priv___src_self
     Array__Str _va_Array_2 = Array__Str_new(hoisted__U32_24);
     I64 _va_Array_2_ek = 0;
     U32 hoisted__U32_25 = 0;
-    Str hoisted__Str_self_theme_codegen_theme_palette_line_26 = Str_clone(&base);
-    Array__Str_set(&_va_Array_2, hoisted__U32_25, &hoisted__Str_self_theme_codegen_theme_palette_line_26, &_va_Array_2_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_palette_line_26 = Str_clone(&base);
+    Array__Str_set(&_va_Array_2, hoisted__U32_25, &hoisted__Str_self_codegen_theme_codegen_theme_palette_line_26, &_va_Array_2_ek);
     U32 hoisted__U32_27 = 1;
-    Str hoisted__Str_self_theme_codegen_theme_palette_line_28 = priv___src_self_theme_codegen_til__theme_spaces(padding);
-    Array__Str_set(&_va_Array_2, hoisted__U32_27, &hoisted__Str_self_theme_codegen_theme_palette_line_28, &_va_Array_2_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_palette_line_28 = priv___src_self_codegen_theme_codegen_til__theme_spaces(padding);
+    Array__Str_set(&_va_Array_2, hoisted__U32_27, &hoisted__Str_self_codegen_theme_codegen_theme_palette_line_28, &_va_Array_2_ek);
     U32 hoisted__U32_29 = 2;
     Array__Str_set(&_va_Array_2, hoisted__U32_29, &_til_str_lits.h000000597200, &_va_Array_2_ek);
     U32 hoisted__U32_31 = 3;
-    Str hoisted__Str_self_theme_codegen_theme_palette_line_32 = Str_clone(&color->note);
-    Array__Str_set(&_va_Array_2, hoisted__U32_31, &hoisted__Str_self_theme_codegen_theme_palette_line_32, &_va_Array_2_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_palette_line_32 = Str_clone(&color->note);
+    Array__Str_set(&_va_Array_2, hoisted__U32_31, &hoisted__Str_self_codegen_theme_codegen_theme_palette_line_32, &_va_Array_2_ek);
     U32 hoisted__U32_33 = 4;
     Array__Str_set(&_va_Array_2, hoisted__U32_33, &_til_str_lits.h00000059768f, &_va_Array_2_ek);
-    Str hoisted__Str_self_theme_codegen_theme_palette_line_35 = format(&_va_Array_2);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_palette_line_35 = format(&_va_Array_2);
     Str_delete(&base, 0);
-    { Str _ret = hoisted__Str_self_theme_codegen_theme_palette_line_35; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+    { Str _ret = hoisted__Str_self_codegen_theme_codegen_theme_palette_line_35; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
 }
 
-static Str priv___src_self_theme_codegen_til__theme_render_elisp(priv___src_self_theme_codegen_til__ThemeSpec * spec) {
-    Str escaped_description = priv___src_self_theme_codegen_til__theme_elisp_escape(&spec->description);
+static Str priv___src_self_codegen_theme_codegen_til__theme_render_elisp(priv___src_self_codegen_theme_codegen_til__ThemeSpec * spec) {
+    Str escaped_description = priv___src_self_codegen_theme_codegen_til__theme_elisp_escape(&spec->description);
     U32 hoisted__U32_10 = 27;
     Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_10);
     I64 _va_Array_1_ek = 0;
     U32 hoisted__U32_11 = 0;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_12 = (Str){.c_str = TIL_OWN_LIT(";;; ", 4ULL), .count = 4ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_1, hoisted__U32_11, &hoisted__Str_self_theme_codegen_theme_render_elisp_12, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_12 = (Str){.c_str = TIL_OWN_LIT(";;; ", 4ULL), .count = 4ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_1, hoisted__U32_11, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_12, &_va_Array_1_ek);
     U32 hoisted__U32_13 = 1;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_14 = Str_clone(&spec->name);
-    Array__Str_set(&_va_Array_1, hoisted__U32_13, &hoisted__Str_self_theme_codegen_theme_render_elisp_14, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_14 = Str_clone(&spec->name);
+    Array__Str_set(&_va_Array_1, hoisted__U32_13, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_14, &_va_Array_1_ek);
     U32 hoisted__U32_15 = 2;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_16 = (Str){.c_str = TIL_OWN_LIT("-theme.el --- ", 14ULL), .count = 14ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_1, hoisted__U32_15, &hoisted__Str_self_theme_codegen_theme_render_elisp_16, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_16 = (Str){.c_str = TIL_OWN_LIT("-theme.el --- ", 14ULL), .count = 14ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_1, hoisted__U32_15, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_16, &_va_Array_1_ek);
     U32 hoisted__U32_17 = 3;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_18 = Str_clone(&spec->header);
-    Array__Str_set(&_va_Array_1, hoisted__U32_17, &hoisted__Str_self_theme_codegen_theme_render_elisp_18, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_18 = Str_clone(&spec->header);
+    Array__Str_set(&_va_Array_1, hoisted__U32_17, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_18, &_va_Array_1_ek);
     U32 hoisted__U32_19 = 4;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_20 = (Str){.c_str = TIL_OWN_LIT(" -*- lexical-binding: t -*-\n\n", 29ULL), .count = 29ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_1, hoisted__U32_19, &hoisted__Str_self_theme_codegen_theme_render_elisp_20, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_20 = (Str){.c_str = TIL_OWN_LIT(" -*- lexical-binding: t -*-\n\n", 29ULL), .count = 29ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_1, hoisted__U32_19, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_20, &_va_Array_1_ek);
     U32 hoisted__U32_21 = 5;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_22 = (Str){.c_str = TIL_OWN_LIT(";; The colors are initially taken from ", 39ULL), .count = 39ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_1, hoisted__U32_21, &hoisted__Str_self_theme_codegen_theme_render_elisp_22, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_22 = (Str){.c_str = TIL_OWN_LIT(";; The colors are initially taken from ", 39ULL), .count = 39ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_1, hoisted__U32_21, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_22, &_va_Array_1_ek);
     U32 hoisted__U32_23 = 6;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_24 = Str_clone(&spec->source_theme);
-    Array__Str_set(&_va_Array_1, hoisted__U32_23, &hoisted__Str_self_theme_codegen_theme_render_elisp_24, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_24 = Str_clone(&spec->source_theme);
+    Array__Str_set(&_va_Array_1, hoisted__U32_23, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_24, &_va_Array_1_ek);
     U32 hoisted__U32_25 = 7;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_26 = (Str){.c_str = TIL_OWN_LIT(", from the\n", 11ULL), .count = 11ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_1, hoisted__U32_25, &hoisted__Str_self_theme_codegen_theme_render_elisp_26, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_26 = (Str){.c_str = TIL_OWN_LIT(", from the\n", 11ULL), .count = 11ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_1, hoisted__U32_25, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_26, &_va_Array_1_ek);
     U32 hoisted__U32_27 = 8;
     Array__Str_set(&_va_Array_1, hoisted__U32_27, &_til_str_lits.h00000b87b59b, &_va_Array_1_ek);
     U32 hoisted__U32_29 = 9;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_30 = Str_clone(&spec->source_package);
-    Array__Str_set(&_va_Array_1, hoisted__U32_29, &hoisted__Str_self_theme_codegen_theme_render_elisp_30, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_30 = Str_clone(&spec->source_package);
+    Array__Str_set(&_va_Array_1, hoisted__U32_29, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_30, &_va_Array_1_ek);
     U32 hoisted__U32_31 = 10;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_32 = (Str){.c_str = TIL_OWN_LIT(", Original source:\n", 19ULL), .count = 19ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_1, hoisted__U32_31, &hoisted__Str_self_theme_codegen_theme_render_elisp_32, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_32 = (Str){.c_str = TIL_OWN_LIT(", Original source:\n", 19ULL), .count = 19ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_1, hoisted__U32_31, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_32, &_va_Array_1_ek);
     U32 hoisted__U32_33 = 11;
     Array__Str_set(&_va_Array_1, hoisted__U32_33, &_til_str_lits.h00000b87b59b, &_va_Array_1_ek);
     U32 hoisted__U32_35 = 12;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_36 = Str_clone(&spec->source_url);
-    Array__Str_set(&_va_Array_1, hoisted__U32_35, &hoisted__Str_self_theme_codegen_theme_render_elisp_36, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_36 = Str_clone(&spec->source_url);
+    Array__Str_set(&_va_Array_1, hoisted__U32_35, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_36, &_va_Array_1_ek);
     U32 hoisted__U32_37 = 13;
     Array__Str_set(&_va_Array_1, hoisted__U32_37, &_til_str_lits.h00000059768f, &_va_Array_1_ek);
     U32 hoisted__U32_39 = 14;
     Array__Str_set(&_va_Array_1, hoisted__U32_39, &_til_str_lits.h00000b87b59b, &_va_Array_1_ek);
     U32 hoisted__U32_41 = 15;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_42 = Str_clone(&spec->source_license);
-    Array__Str_set(&_va_Array_1, hoisted__U32_41, &hoisted__Str_self_theme_codegen_theme_render_elisp_42, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_42 = Str_clone(&spec->source_license);
+    Array__Str_set(&_va_Array_1, hoisted__U32_41, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_42, &_va_Array_1_ek);
     U32 hoisted__U32_43 = 16;
     Array__Str_set(&_va_Array_1, hoisted__U32_43, &_til_str_lits.h00017c916299, &_va_Array_1_ek);
     U32 hoisted__U32_45 = 17;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_46 = (Str){.c_str = TIL_OWN_LIT("(deftheme ", 10ULL), .count = 10ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_1, hoisted__U32_45, &hoisted__Str_self_theme_codegen_theme_render_elisp_46, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_46 = (Str){.c_str = TIL_OWN_LIT("(deftheme ", 10ULL), .count = 10ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_1, hoisted__U32_45, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_46, &_va_Array_1_ek);
     U32 hoisted__U32_47 = 18;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_48 = Str_clone(&spec->name);
-    Array__Str_set(&_va_Array_1, hoisted__U32_47, &hoisted__Str_self_theme_codegen_theme_render_elisp_48, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_48 = Str_clone(&spec->name);
+    Array__Str_set(&_va_Array_1, hoisted__U32_47, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_48, &_va_Array_1_ek);
     U32 hoisted__U32_49 = 19;
     Array__Str_set(&_va_Array_1, hoisted__U32_49, &_til_str_lits.h00000059768f, &_va_Array_1_ek);
     U32 hoisted__U32_51 = 20;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_52 = (Str){.c_str = TIL_OWN_LIT("  \"", 3ULL), .count = 3ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_1, hoisted__U32_51, &hoisted__Str_self_theme_codegen_theme_render_elisp_52, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_52 = (Str){.c_str = TIL_OWN_LIT("  \"", 3ULL), .count = 3ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_1, hoisted__U32_51, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_52, &_va_Array_1_ek);
     U32 hoisted__U32_53 = 21;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_54 = Str_clone(&escaped_description);
-    Array__Str_set(&_va_Array_1, hoisted__U32_53, &hoisted__Str_self_theme_codegen_theme_render_elisp_54, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_54 = Str_clone(&escaped_description);
+    Array__Str_set(&_va_Array_1, hoisted__U32_53, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_54, &_va_Array_1_ek);
     U32 hoisted__U32_55 = 22;
     Array__Str_set(&_va_Array_1, hoisted__U32_55, &_til_str_lits.hd0af001717e0, &_va_Array_1_ek);
     U32 hoisted__U32_57 = 23;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_58 = (Str){.c_str = TIL_OWN_LIT("(let ((class '((class color) (min-colors 89)))\n", 47ULL), .count = 47ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_1, hoisted__U32_57, &hoisted__Str_self_theme_codegen_theme_render_elisp_58, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_58 = (Str){.c_str = TIL_OWN_LIT("(let ((class '((class color) (min-colors 89)))\n", 47ULL), .count = 47ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_1, hoisted__U32_57, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_58, &_va_Array_1_ek);
     U32 hoisted__U32_59 = 24;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_60 = (Str){.c_str = TIL_OWN_LIT("      ;; ", 9ULL), .count = 9ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_1, hoisted__U32_59, &hoisted__Str_self_theme_codegen_theme_render_elisp_60, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_60 = (Str){.c_str = TIL_OWN_LIT("      ;; ", 9ULL), .count = 9ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_1, hoisted__U32_59, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_60, &_va_Array_1_ek);
     U32 hoisted__U32_61 = 25;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_62 = Str_clone(&spec->palette_note);
-    Array__Str_set(&_va_Array_1, hoisted__U32_61, &hoisted__Str_self_theme_codegen_theme_render_elisp_62, &_va_Array_1_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_62 = Str_clone(&spec->palette_note);
+    Array__Str_set(&_va_Array_1, hoisted__U32_61, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_62, &_va_Array_1_ek);
     U32 hoisted__U32_63 = 26;
     Array__Str_set(&_va_Array_1, hoisted__U32_63, &_til_str_lits.h00000059768f, &_va_Array_1_ek);
     Str out = format(&_va_Array_1);
     Str_delete(&escaped_description, 0);
     {
-        Vec__priv___src_self_theme_codegen_til__ThemeColorSpec *_fc_Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_0 = &spec->colors;
+        Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec *_fc_Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0 = &spec->colors;
         USize _fi_USize_0 = 0;
         while (1) {
-            U32 hoisted__U32_2 = (_fc_Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_0->count);
+            U32 hoisted__U32_2 = (_fc_Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0->count);
             Bool _wcond_Bool_1 = ((Bool)(_fi_USize_0 < hoisted__U32_2));
             if (!(_wcond_Bool_1)) {
                 break;
             }
-            priv___src_self_theme_codegen_til__ThemeColorSpec *color = ((priv___src_self_theme_codegen_til__ThemeColorSpec *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_0->data))) + (((U64)((U64)(((U64)(_fi_USize_0))) * (U64)(36ULL)))))));
+            priv___src_self_codegen_theme_codegen_til__ThemeColorSpec *color = ((priv___src_self_codegen_theme_codegen_til__ThemeColorSpec *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0->data))) + (((U64)((U64)(((U64)(_fi_USize_0))) * (U64)(36ULL)))))));
             U32 hoisted__U32_3 = 1;
             U32 hoisted__U32_4 = ((U32)((U64)(_fi_USize_0) + (U64)(hoisted__U32_3)));
             _fi_USize_0 = hoisted__U32_4;
@@ -358141,23 +358141,23 @@ static Str priv___src_self_theme_codegen_til__theme_render_elisp(priv___src_self
             Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_5);
             I64 _va_Array_0_ek = 0;
             U32 hoisted__U32_6 = 0;
-            Str hoisted__Str_self_theme_codegen_theme_render_elisp_7 = Str_clone(&out);
-            Array__Str_set(&_va_Array_0, hoisted__U32_6, &hoisted__Str_self_theme_codegen_theme_render_elisp_7, &_va_Array_0_ek);
+            Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_7 = Str_clone(&out);
+            Array__Str_set(&_va_Array_0, hoisted__U32_6, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_7, &_va_Array_0_ek);
             U32 hoisted__U32_8 = 1;
-            Str hoisted__Str_self_theme_codegen_theme_render_elisp_9 = priv___src_self_theme_codegen_til__theme_palette_line(color);
-            Array__Str_set(&_va_Array_0, hoisted__U32_8, &hoisted__Str_self_theme_codegen_theme_render_elisp_9, &_va_Array_0_ek);
+            Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_9 = priv___src_self_codegen_theme_codegen_til__theme_palette_line(color);
+            Array__Str_set(&_va_Array_0, hoisted__U32_8, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_9, &_va_Array_0_ek);
             { Str _new = format(&_va_Array_0); Str_delete(&out, (Bool){0}); out = _new; }
         }
     }
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_66 = Str_strip_suffix(&out, &_til_str_lits.h00000059768f);
-    Str palette = Str_clone(&hoisted__Str_self_theme_codegen_theme_render_elisp_66);
-    Str_delete(&hoisted__Str_self_theme_codegen_theme_render_elisp_66, 0);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_66 = Str_strip_suffix(&out, &_til_str_lits.h00000059768f);
+    Str palette = Str_clone(&hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_66);
+    Str_delete(&hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_66, 0);
     U32 hoisted__U32_67 = 2;
     Array__Str _va_Array_2 = Array__Str_new(hoisted__U32_67);
     I64 _va_Array_2_ek = 0;
     U32 hoisted__U32_68 = 0;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_69 = Str_clone(&palette);
-    Array__Str_set(&_va_Array_2, hoisted__U32_68, &hoisted__Str_self_theme_codegen_theme_render_elisp_69, &_va_Array_2_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_69 = Str_clone(&palette);
+    Array__Str_set(&_va_Array_2, hoisted__U32_68, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_69, &_va_Array_2_ek);
     U32 hoisted__U32_70 = 1;
     Array__Str_set(&_va_Array_2, hoisted__U32_70, &_til_str_lits.h00000b876d98, &_va_Array_2_ek);
     Str_delete(&out, 0);
@@ -358166,184 +358166,184 @@ static Str priv___src_self_theme_codegen_til__theme_render_elisp(priv___src_self
     Array__Str _va_Array_3 = Array__Str_new(hoisted__U32_72);
     I64 _va_Array_3_ek = 0;
     U32 hoisted__U32_73 = 0;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_74 = Str_clone(&out);
-    Array__Str_set(&_va_Array_3, hoisted__U32_73, &hoisted__Str_self_theme_codegen_theme_render_elisp_74, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_74 = Str_clone(&out);
+    Array__Str_set(&_va_Array_3, hoisted__U32_73, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_74, &_va_Array_3_ek);
     U32 hoisted__U32_75 = 1;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_76 = (Str){.c_str = TIL_OWN_LIT("\n  ;; ", 6ULL), .count = 6ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_75, &hoisted__Str_self_theme_codegen_theme_render_elisp_76, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_76 = (Str){.c_str = TIL_OWN_LIT("\n  ;; ", 6ULL), .count = 6ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_75, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_76, &_va_Array_3_ek);
     U32 hoisted__U32_77 = 2;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_78 = Str_clone(&spec->palette_footer);
-    Array__Str_set(&_va_Array_3, hoisted__U32_77, &hoisted__Str_self_theme_codegen_theme_render_elisp_78, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_78 = Str_clone(&spec->palette_footer);
+    Array__Str_set(&_va_Array_3, hoisted__U32_77, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_78, &_va_Array_3_ek);
     U32 hoisted__U32_79 = 3;
     Array__Str_set(&_va_Array_3, hoisted__U32_79, &_til_str_lits.h00017c916299, &_va_Array_3_ek);
     U32 hoisted__U32_81 = 4;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_82 = (Str){.c_str = TIL_OWN_LIT("  (custom-theme-set-faces\n", 26ULL), .count = 26ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_81, &hoisted__Str_self_theme_codegen_theme_render_elisp_82, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_82 = (Str){.c_str = TIL_OWN_LIT("  (custom-theme-set-faces\n", 26ULL), .count = 26ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_81, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_82, &_va_Array_3_ek);
     U32 hoisted__U32_83 = 5;
     Array__Str_set(&_va_Array_3, hoisted__U32_83, &_til_str_lits.h00017c6f280c, &_va_Array_3_ek);
     U32 hoisted__U32_85 = 6;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_86 = Str_clone(&spec->name);
-    Array__Str_set(&_va_Array_3, hoisted__U32_85, &hoisted__Str_self_theme_codegen_theme_render_elisp_86, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_86 = Str_clone(&spec->name);
+    Array__Str_set(&_va_Array_3, hoisted__U32_85, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_86, &_va_Array_3_ek);
     U32 hoisted__U32_87 = 7;
     Array__Str_set(&_va_Array_3, hoisted__U32_87, &_til_str_lits.h00000059768f, &_va_Array_3_ek);
     U32 hoisted__U32_89 = 8;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_90 = (Str){.c_str = TIL_OWN_LIT("   `(default ((,class (:background ,background :foreground ,foreground))))\n", 75ULL), .count = 75ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_89, &hoisted__Str_self_theme_codegen_theme_render_elisp_90, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_90 = (Str){.c_str = TIL_OWN_LIT("   `(default ((,class (:background ,background :foreground ,foreground))))\n", 75ULL), .count = 75ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_89, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_90, &_va_Array_3_ek);
     U32 hoisted__U32_91 = 9;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_92 = (Str){.c_str = TIL_OWN_LIT("   `(cursor ((,class (:background ,cursor))))\n", 46ULL), .count = 46ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_91, &hoisted__Str_self_theme_codegen_theme_render_elisp_92, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_92 = (Str){.c_str = TIL_OWN_LIT("   `(cursor ((,class (:background ,cursor))))\n", 46ULL), .count = 46ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_91, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_92, &_va_Array_3_ek);
     U32 hoisted__U32_93 = 10;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_94 = (Str){.c_str = TIL_OWN_LIT("   `(highlight ((,class (:background ,highlight))))\n", 52ULL), .count = 52ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_93, &hoisted__Str_self_theme_codegen_theme_render_elisp_94, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_94 = (Str){.c_str = TIL_OWN_LIT("   `(highlight ((,class (:background ,highlight))))\n", 52ULL), .count = 52ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_93, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_94, &_va_Array_3_ek);
     U32 hoisted__U32_95 = 11;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_96 = (Str){.c_str = TIL_OWN_LIT("   `(hl-line ((,class (:background ,hl-line))))\n", 48ULL), .count = 48ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_95, &hoisted__Str_self_theme_codegen_theme_render_elisp_96, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_96 = (Str){.c_str = TIL_OWN_LIT("   `(hl-line ((,class (:background ,hl-line))))\n", 48ULL), .count = 48ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_95, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_96, &_va_Array_3_ek);
     U32 hoisted__U32_97 = 12;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_98 = (Str){.c_str = TIL_OWN_LIT("   `(region ((,class (:background ,region))))\n", 46ULL), .count = 46ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_97, &hoisted__Str_self_theme_codegen_theme_render_elisp_98, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_98 = (Str){.c_str = TIL_OWN_LIT("   `(region ((,class (:background ,region))))\n", 46ULL), .count = 46ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_97, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_98, &_va_Array_3_ek);
     U32 hoisted__U32_99 = 13;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_100 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-comment-face ((,class (:foreground ,comment))))\n", 63ULL), .count = 63ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_99, &hoisted__Str_self_theme_codegen_theme_render_elisp_100, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_100 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-comment-face ((,class (:foreground ,comment))))\n", 63ULL), .count = 63ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_99, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_100, &_va_Array_3_ek);
     U32 hoisted__U32_101 = 14;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_102 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-comment-delimiter-face ((,class (:foreground ,comment))))\n", 73ULL), .count = 73ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_101, &hoisted__Str_self_theme_codegen_theme_render_elisp_102, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_102 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-comment-delimiter-face ((,class (:foreground ,comment))))\n", 73ULL), .count = 73ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_101, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_102, &_va_Array_3_ek);
     U32 hoisted__U32_103 = 15;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_104 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-string-face ((,class (:foreground ,string))))\n", 61ULL), .count = 61ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_103, &hoisted__Str_self_theme_codegen_theme_render_elisp_104, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_104 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-string-face ((,class (:foreground ,string))))\n", 61ULL), .count = 61ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_103, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_104, &_va_Array_3_ek);
     U32 hoisted__U32_105 = 16;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_106 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-keyword-face ((,class (:foreground ,keyword))))\n", 63ULL), .count = 63ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_105, &hoisted__Str_self_theme_codegen_theme_render_elisp_106, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_106 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-keyword-face ((,class (:foreground ,keyword))))\n", 63ULL), .count = 63ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_105, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_106, &_va_Array_3_ek);
     U32 hoisted__U32_107 = 17;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_108 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-constant-face ((,class (:foreground ,constant))))  ; ", 68ULL), .count = 68ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_107, &hoisted__Str_self_theme_codegen_theme_render_elisp_108, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_108 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-constant-face ((,class (:foreground ,constant))))  ; ", 68ULL), .count = 68ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_107, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_108, &_va_Array_3_ek);
     U32 hoisted__U32_109 = 18;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_110 = Str_clone(&spec->constant_face_note);
-    Array__Str_set(&_va_Array_3, hoisted__U32_109, &hoisted__Str_self_theme_codegen_theme_render_elisp_110, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_110 = Str_clone(&spec->constant_face_note);
+    Array__Str_set(&_va_Array_3, hoisted__U32_109, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_110, &_va_Array_3_ek);
     U32 hoisted__U32_111 = 19;
     Array__Str_set(&_va_Array_3, hoisted__U32_111, &_til_str_lits.h00000059768f, &_va_Array_3_ek);
     U32 hoisted__U32_113 = 20;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_114 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-type-face ((,class (:foreground ,type))))         ; ", 67ULL), .count = 67ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_113, &hoisted__Str_self_theme_codegen_theme_render_elisp_114, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_114 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-type-face ((,class (:foreground ,type))))         ; ", 67ULL), .count = 67ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_113, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_114, &_va_Array_3_ek);
     U32 hoisted__U32_115 = 21;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_116 = Str_clone(&spec->type_face_note);
-    Array__Str_set(&_va_Array_3, hoisted__U32_115, &hoisted__Str_self_theme_codegen_theme_render_elisp_116, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_116 = Str_clone(&spec->type_face_note);
+    Array__Str_set(&_va_Array_3, hoisted__U32_115, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_116, &_va_Array_3_ek);
     U32 hoisted__U32_117 = 22;
     Array__Str_set(&_va_Array_3, hoisted__U32_117, &_til_str_lits.h00000059768f, &_va_Array_3_ek);
     U32 hoisted__U32_119 = 23;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_120 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-function-name-face ((,class (:foreground ,function))))\n", 70ULL), .count = 70ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_119, &hoisted__Str_self_theme_codegen_theme_render_elisp_120, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_120 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-function-name-face ((,class (:foreground ,function))))\n", 70ULL), .count = 70ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_119, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_120, &_va_Array_3_ek);
     U32 hoisted__U32_121 = 24;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_122 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-variable-name-face ((,class (:foreground ,variable))))\n", 70ULL), .count = 70ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_121, &hoisted__Str_self_theme_codegen_theme_render_elisp_122, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_122 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-variable-name-face ((,class (:foreground ,variable))))\n", 70ULL), .count = 70ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_121, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_122, &_va_Array_3_ek);
     U32 hoisted__U32_123 = 25;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_124 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-builtin-face ((,class (:foreground ,builtin))))\n", 63ULL), .count = 63ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_123, &hoisted__Str_self_theme_codegen_theme_render_elisp_124, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_124 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-builtin-face ((,class (:foreground ,builtin))))\n", 63ULL), .count = 63ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_123, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_124, &_va_Array_3_ek);
     U32 hoisted__U32_125 = 26;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_126 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-preprocessor-face ((,class (:foreground ,preprocessor))))\n", 73ULL), .count = 73ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_125, &hoisted__Str_self_theme_codegen_theme_render_elisp_126, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_126 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-preprocessor-face ((,class (:foreground ,preprocessor))))\n", 73ULL), .count = 73ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_125, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_126, &_va_Array_3_ek);
     U32 hoisted__U32_127 = 27;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_128 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-warning-face ((,class (:foreground ,warning))))\n", 63ULL), .count = 63ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_127, &hoisted__Str_self_theme_codegen_theme_render_elisp_128, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_128 = (Str){.c_str = TIL_OWN_LIT("   `(font-lock-warning-face ((,class (:foreground ,warning))))\n", 63ULL), .count = 63ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_127, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_128, &_va_Array_3_ek);
     U32 hoisted__U32_129 = 28;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_130 = (Str){.c_str = TIL_OWN_LIT("   `(error ((,class (:foreground ,error))))\n", 44ULL), .count = 44ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_129, &hoisted__Str_self_theme_codegen_theme_render_elisp_130, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_130 = (Str){.c_str = TIL_OWN_LIT("   `(error ((,class (:foreground ,error))))\n", 44ULL), .count = 44ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_129, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_130, &_va_Array_3_ek);
     U32 hoisted__U32_131 = 29;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_132 = (Str){.c_str = TIL_OWN_LIT("   `(fringe ((,class (:background ,background :foreground ,foreground))))\n", 74ULL), .count = 74ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_131, &hoisted__Str_self_theme_codegen_theme_render_elisp_132, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_132 = (Str){.c_str = TIL_OWN_LIT("   `(fringe ((,class (:background ,background :foreground ,foreground))))\n", 74ULL), .count = 74ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_131, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_132, &_va_Array_3_ek);
     U32 hoisted__U32_133 = 30;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_134 = (Str){.c_str = TIL_OWN_LIT("   `(vertical-border ((,class (:foreground ,comment))))\n", 56ULL), .count = 56ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_133, &hoisted__Str_self_theme_codegen_theme_render_elisp_134, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_134 = (Str){.c_str = TIL_OWN_LIT("   `(vertical-border ((,class (:foreground ,comment))))\n", 56ULL), .count = 56ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_133, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_134, &_va_Array_3_ek);
     U32 hoisted__U32_135 = 31;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_136 = (Str){.c_str = TIL_OWN_LIT("   `(minibuffer-prompt ((,class (:foreground ,keyword))))\n", 58ULL), .count = 58ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_135, &hoisted__Str_self_theme_codegen_theme_render_elisp_136, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_136 = (Str){.c_str = TIL_OWN_LIT("   `(minibuffer-prompt ((,class (:foreground ,keyword))))\n", 58ULL), .count = 58ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_135, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_136, &_va_Array_3_ek);
     U32 hoisted__U32_137 = 32;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_138 = (Str){.c_str = TIL_OWN_LIT("   `(mode-line ((,class (:background ,highlight :foreground ,foreground))))\n", 76ULL), .count = 76ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_137, &hoisted__Str_self_theme_codegen_theme_render_elisp_138, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_138 = (Str){.c_str = TIL_OWN_LIT("   `(mode-line ((,class (:background ,highlight :foreground ,foreground))))\n", 76ULL), .count = 76ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_137, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_138, &_va_Array_3_ek);
     U32 hoisted__U32_139 = 33;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_140 = (Str){.c_str = TIL_OWN_LIT("   `(mode-line-inactive ((,class (:background ,background :foreground ,comment))))\n", 83ULL), .count = 83ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_139, &hoisted__Str_self_theme_codegen_theme_render_elisp_140, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_140 = (Str){.c_str = TIL_OWN_LIT("   `(mode-line-inactive ((,class (:background ,background :foreground ,comment))))\n", 83ULL), .count = 83ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_139, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_140, &_va_Array_3_ek);
     U32 hoisted__U32_141 = 34;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_142 = (Str){.c_str = TIL_OWN_LIT("   `(link ((,class (:foreground ,keyword :underline t))))\n", 58ULL), .count = 58ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_141, &hoisted__Str_self_theme_codegen_theme_render_elisp_142, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_142 = (Str){.c_str = TIL_OWN_LIT("   `(link ((,class (:foreground ,keyword :underline t))))\n", 58ULL), .count = 58ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_141, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_142, &_va_Array_3_ek);
     U32 hoisted__U32_143 = 35;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_144 = (Str){.c_str = TIL_OWN_LIT("   `(link-visited ((,class (:foreground ,function :underline t))))\n", 67ULL), .count = 67ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_143, &hoisted__Str_self_theme_codegen_theme_render_elisp_144, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_144 = (Str){.c_str = TIL_OWN_LIT("   `(link-visited ((,class (:foreground ,function :underline t))))\n", 67ULL), .count = 67ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_143, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_144, &_va_Array_3_ek);
     U32 hoisted__U32_145 = 36;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_146 = (Str){.c_str = TIL_OWN_LIT("   `(button ((,class (:foreground ,keyword :underline t))))\n", 60ULL), .count = 60ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_145, &hoisted__Str_self_theme_codegen_theme_render_elisp_146, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_146 = (Str){.c_str = TIL_OWN_LIT("   `(button ((,class (:foreground ,keyword :underline t))))\n", 60ULL), .count = 60ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_145, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_146, &_va_Array_3_ek);
     U32 hoisted__U32_147 = 37;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_148 = (Str){.c_str = TIL_OWN_LIT("   `(header-line ((,class (:background ,highlight :foreground ,foreground))))\n", 78ULL), .count = 78ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_147, &hoisted__Str_self_theme_codegen_theme_render_elisp_148, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_148 = (Str){.c_str = TIL_OWN_LIT("   `(header-line ((,class (:background ,highlight :foreground ,foreground))))\n", 78ULL), .count = 78ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_147, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_148, &_va_Array_3_ek);
     U32 hoisted__U32_149 = 38;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_150 = (Str){.c_str = TIL_OWN_LIT("   `(show-paren-match ((,class (:background ,highlight :foreground ,keyword))))\n", 80ULL), .count = 80ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_149, &hoisted__Str_self_theme_codegen_theme_render_elisp_150, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_150 = (Str){.c_str = TIL_OWN_LIT("   `(show-paren-match ((,class (:background ,highlight :foreground ,keyword))))\n", 80ULL), .count = 80ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_149, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_150, &_va_Array_3_ek);
     U32 hoisted__U32_151 = 39;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_152 = (Str){.c_str = TIL_OWN_LIT("   `(show-paren-mismatch ((,class (:background ,error :foreground ,foreground))))\n", 82ULL), .count = 82ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_151, &hoisted__Str_self_theme_codegen_theme_render_elisp_152, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_152 = (Str){.c_str = TIL_OWN_LIT("   `(show-paren-mismatch ((,class (:background ,error :foreground ,foreground))))\n", 82ULL), .count = 82ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_151, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_152, &_va_Array_3_ek);
     U32 hoisted__U32_153 = 40;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_154 = (Str){.c_str = TIL_OWN_LIT("   `(isearch ((,class (:background ,keyword :foreground ,background))))\n", 72ULL), .count = 72ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_153, &hoisted__Str_self_theme_codegen_theme_render_elisp_154, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_154 = (Str){.c_str = TIL_OWN_LIT("   `(isearch ((,class (:background ,keyword :foreground ,background))))\n", 72ULL), .count = 72ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_153, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_154, &_va_Array_3_ek);
     U32 hoisted__U32_155 = 41;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_156 = (Str){.c_str = TIL_OWN_LIT("   `(lazy-highlight ((,class (:background ,function :foreground ,background))))\n", 80ULL), .count = 80ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_155, &hoisted__Str_self_theme_codegen_theme_render_elisp_156, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_156 = (Str){.c_str = TIL_OWN_LIT("   `(lazy-highlight ((,class (:background ,function :foreground ,background))))\n", 80ULL), .count = 80ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_155, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_156, &_va_Array_3_ek);
     U32 hoisted__U32_157 = 42;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_158 = (Str){.c_str = TIL_OWN_LIT("   `(trailing-whitespace ((,class (:background ,warning))))\n", 60ULL), .count = 60ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_157, &hoisted__Str_self_theme_codegen_theme_render_elisp_158, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_158 = (Str){.c_str = TIL_OWN_LIT("   `(trailing-whitespace ((,class (:background ,warning))))\n", 60ULL), .count = 60ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_157, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_158, &_va_Array_3_ek);
     U32 hoisted__U32_159 = 43;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_160 = (Str){.c_str = TIL_OWN_LIT("   `(escape-glyph ((,class (:foreground ,constant))))\n", 54ULL), .count = 54ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_159, &hoisted__Str_self_theme_codegen_theme_render_elisp_160, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_160 = (Str){.c_str = TIL_OWN_LIT("   `(escape-glyph ((,class (:foreground ,constant))))\n", 54ULL), .count = 54ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_159, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_160, &_va_Array_3_ek);
     U32 hoisted__U32_161 = 44;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_162 = (Str){.c_str = TIL_OWN_LIT("   `(nobreak-space ((,class (:foreground ,constant))))\n", 55ULL), .count = 55ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_161, &hoisted__Str_self_theme_codegen_theme_render_elisp_162, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_162 = (Str){.c_str = TIL_OWN_LIT("   `(nobreak-space ((,class (:foreground ,constant))))\n", 55ULL), .count = 55ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_161, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_162, &_va_Array_3_ek);
     U32 hoisted__U32_163 = 45;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_164 = (Str){.c_str = TIL_OWN_LIT("   `(compilation-error ((,class (:foreground ,error))))\n", 56ULL), .count = 56ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_163, &hoisted__Str_self_theme_codegen_theme_render_elisp_164, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_164 = (Str){.c_str = TIL_OWN_LIT("   `(compilation-error ((,class (:foreground ,error))))\n", 56ULL), .count = 56ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_163, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_164, &_va_Array_3_ek);
     U32 hoisted__U32_165 = 46;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_166 = (Str){.c_str = TIL_OWN_LIT("   `(compilation-warning ((,class (:foreground ,warning))))\n", 60ULL), .count = 60ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_165, &hoisted__Str_self_theme_codegen_theme_render_elisp_166, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_166 = (Str){.c_str = TIL_OWN_LIT("   `(compilation-warning ((,class (:foreground ,warning))))\n", 60ULL), .count = 60ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_165, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_166, &_va_Array_3_ek);
     U32 hoisted__U32_167 = 47;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_168 = (Str){.c_str = TIL_OWN_LIT("   `(compilation-info ((,class (:foreground ,type))))\n", 54ULL), .count = 54ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_167, &hoisted__Str_self_theme_codegen_theme_render_elisp_168, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_168 = (Str){.c_str = TIL_OWN_LIT("   `(compilation-info ((,class (:foreground ,type))))\n", 54ULL), .count = 54ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_167, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_168, &_va_Array_3_ek);
     U32 hoisted__U32_169 = 48;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_170 = (Str){.c_str = TIL_OWN_LIT("   `(dired-directory ((,class (:foreground ,keyword))))\n", 56ULL), .count = 56ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_169, &hoisted__Str_self_theme_codegen_theme_render_elisp_170, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_170 = (Str){.c_str = TIL_OWN_LIT("   `(dired-directory ((,class (:foreground ,keyword))))\n", 56ULL), .count = 56ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_169, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_170, &_va_Array_3_ek);
     U32 hoisted__U32_171 = 49;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_172 = (Str){.c_str = TIL_OWN_LIT("   `(dired-ignored ((,class (:foreground ,comment))))\n", 54ULL), .count = 54ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_171, &hoisted__Str_self_theme_codegen_theme_render_elisp_172, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_172 = (Str){.c_str = TIL_OWN_LIT("   `(dired-ignored ((,class (:foreground ,comment))))\n", 54ULL), .count = 54ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_171, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_172, &_va_Array_3_ek);
     U32 hoisted__U32_173 = 50;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_174 = (Str){.c_str = TIL_OWN_LIT("   `(dired-mark ((,class (:foreground ,function))))\n", 52ULL), .count = 52ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_173, &hoisted__Str_self_theme_codegen_theme_render_elisp_174, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_174 = (Str){.c_str = TIL_OWN_LIT("   `(dired-mark ((,class (:foreground ,function))))\n", 52ULL), .count = 52ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_173, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_174, &_va_Array_3_ek);
     U32 hoisted__U32_175 = 51;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_176 = (Str){.c_str = TIL_OWN_LIT("   `(dired-symlink ((,class (:foreground ,type)))))\n\n", 53ULL), .count = 53ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_175, &hoisted__Str_self_theme_codegen_theme_render_elisp_176, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_176 = (Str){.c_str = TIL_OWN_LIT("   `(dired-symlink ((,class (:foreground ,type)))))\n\n", 53ULL), .count = 53ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_175, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_176, &_va_Array_3_ek);
     U32 hoisted__U32_177 = 52;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_178 = (Str){.c_str = TIL_OWN_LIT("  (custom-theme-set-variables\n", 30ULL), .count = 30ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_177, &hoisted__Str_self_theme_codegen_theme_render_elisp_178, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_178 = (Str){.c_str = TIL_OWN_LIT("  (custom-theme-set-variables\n", 30ULL), .count = 30ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_177, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_178, &_va_Array_3_ek);
     U32 hoisted__U32_179 = 53;
     Array__Str_set(&_va_Array_3, hoisted__U32_179, &_til_str_lits.h00017c6f280c, &_va_Array_3_ek);
     U32 hoisted__U32_181 = 54;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_182 = Str_clone(&spec->name);
-    Array__Str_set(&_va_Array_3, hoisted__U32_181, &hoisted__Str_self_theme_codegen_theme_render_elisp_182, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_182 = Str_clone(&spec->name);
+    Array__Str_set(&_va_Array_3, hoisted__U32_181, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_182, &_va_Array_3_ek);
     U32 hoisted__U32_183 = 55;
     Array__Str_set(&_va_Array_3, hoisted__U32_183, &_til_str_lits.h00000059768f, &_va_Array_3_ek);
     U32 hoisted__U32_185 = 56;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_186 = (Str){.c_str = TIL_OWN_LIT("   `(ansi-color-names-vector [,background ,error ,string ,type ,keyword ,variable ,function ,comment])))\n\n", 106ULL), .count = 106ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_185, &hoisted__Str_self_theme_codegen_theme_render_elisp_186, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_186 = (Str){.c_str = TIL_OWN_LIT("   `(ansi-color-names-vector [,background ,error ,string ,type ,keyword ,variable ,function ,comment])))\n\n", 106ULL), .count = 106ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_185, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_186, &_va_Array_3_ek);
     U32 hoisted__U32_187 = 57;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_188 = (Str){.c_str = TIL_OWN_LIT("(when (and (boundp 'custom-theme-load-path) load-file-name)\n", 60ULL), .count = 60ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_187, &hoisted__Str_self_theme_codegen_theme_render_elisp_188, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_188 = (Str){.c_str = TIL_OWN_LIT("(when (and (boundp 'custom-theme-load-path) load-file-name)\n", 60ULL), .count = 60ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_187, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_188, &_va_Array_3_ek);
     U32 hoisted__U32_189 = 58;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_190 = (Str){.c_str = TIL_OWN_LIT("  (add-to-list 'custom-theme-load-path\n", 39ULL), .count = 39ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_189, &hoisted__Str_self_theme_codegen_theme_render_elisp_190, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_190 = (Str){.c_str = TIL_OWN_LIT("  (add-to-list 'custom-theme-load-path\n", 39ULL), .count = 39ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_189, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_190, &_va_Array_3_ek);
     U32 hoisted__U32_191 = 59;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_192 = (Str){.c_str = TIL_OWN_LIT("               (file-name-as-directory (file-name-directory load-file-name))))\n\n", 80ULL), .count = 80ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_191, &hoisted__Str_self_theme_codegen_theme_render_elisp_192, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_192 = (Str){.c_str = TIL_OWN_LIT("               (file-name-as-directory (file-name-directory load-file-name))))\n\n", 80ULL), .count = 80ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_191, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_192, &_va_Array_3_ek);
     U32 hoisted__U32_193 = 60;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_194 = (Str){.c_str = TIL_OWN_LIT("(provide-theme '", 16ULL), .count = 16ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_193, &hoisted__Str_self_theme_codegen_theme_render_elisp_194, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_194 = (Str){.c_str = TIL_OWN_LIT("(provide-theme '", 16ULL), .count = 16ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_193, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_194, &_va_Array_3_ek);
     U32 hoisted__U32_195 = 61;
-    Str hoisted__Str_self_theme_codegen_theme_render_elisp_196 = Str_clone(&spec->name);
-    Array__Str_set(&_va_Array_3, hoisted__U32_195, &hoisted__Str_self_theme_codegen_theme_render_elisp_196, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_196 = Str_clone(&spec->name);
+    Array__Str_set(&_va_Array_3, hoisted__U32_195, &hoisted__Str_self_codegen_theme_codegen_theme_render_elisp_196, &_va_Array_3_ek);
     U32 hoisted__U32_197 = 62;
     Array__Str_set(&_va_Array_3, hoisted__U32_197, &_til_str_lits.h00000b876d98, &_va_Array_3_ek);
     Str_delete(&out, 0);
@@ -358532,7 +358532,7 @@ static I32 theme_codegen_translate(LoadedProgram * lp, Str * output_path) {
                     Array__Str_set(&_va_Array_8, hoisted__U32_80, &_til_str_lits.hd0b274b36149, &_va_Array_8_ek);
                     Str hoisted__Str_theme_codegen_translate_82 = format(&_va_Array_7);
                     U32 hoisted__U32_83 = 1;
-                    Str hoisted__Str_theme_codegen_translate_84 = priv___src_self_theme_codegen_til__theme_error_at(&root_unit->path, stmt, &hoisted__Str_theme_codegen_translate_82);
+                    Str hoisted__Str_theme_codegen_translate_84 = priv___src_self_codegen_theme_codegen_til__theme_error_at(&root_unit->path, stmt, &hoisted__Str_theme_codegen_translate_82);
                     Str_delete(&hoisted__Str_theme_codegen_translate_82, 0);
                     Array__Str_set(&_va_Array_8, hoisted__U32_83, &hoisted__Str_theme_codegen_translate_84, &_va_Array_8_ek);
                     println(&_va_Array_8);
@@ -358550,7 +358550,7 @@ static I32 theme_codegen_translate(LoadedProgram * lp, Str * output_path) {
                         Array__Str_set(&_va_Array_9, hoisted__U32_87, &_til_str_lits.hd0b274b36149, &_va_Array_9_ek);
                         Str hoisted__Str_theme_codegen_translate_89 = (Str){.c_str = TIL_OWN_LIT("mode theme requires exactly one exported 'theme' declaration", 60ULL), .count = 60ULL, .cap = TIL_CAP_LIT};
                         U32 hoisted__U32_90 = 1;
-                        Str hoisted__Str_theme_codegen_translate_91 = priv___src_self_theme_codegen_til__theme_error_at(&root_unit->path, stmt, &hoisted__Str_theme_codegen_translate_89);
+                        Str hoisted__Str_theme_codegen_translate_91 = priv___src_self_codegen_theme_codegen_til__theme_error_at(&root_unit->path, stmt, &hoisted__Str_theme_codegen_translate_89);
                         Array__Str_set(&_va_Array_9, hoisted__U32_90, &hoisted__Str_theme_codegen_translate_91, &_va_Array_9_ek);
                         println(&_va_Array_9);
                         I32 hoisted__I32_92 = 1;
@@ -358567,7 +358567,7 @@ static I32 theme_codegen_translate(LoadedProgram * lp, Str * output_path) {
                         Array__Str_set(&_va_Array_10, hoisted__U32_94, &_til_str_lits.hd0b274b36149, &_va_Array_10_ek);
                         Str hoisted__Str_theme_codegen_translate_96 = (Str){.c_str = TIL_OWN_LIT("theme declaration has no value", 30ULL), .count = 30ULL, .cap = TIL_CAP_LIT};
                         U32 hoisted__U32_97 = 1;
-                        Str hoisted__Str_theme_codegen_translate_98 = priv___src_self_theme_codegen_til__theme_error_at(&root_unit->path, stmt, &hoisted__Str_theme_codegen_translate_96);
+                        Str hoisted__Str_theme_codegen_translate_98 = priv___src_self_codegen_theme_codegen_til__theme_error_at(&root_unit->path, stmt, &hoisted__Str_theme_codegen_translate_96);
                         Array__Str_set(&_va_Array_10, hoisted__U32_97, &hoisted__Str_theme_codegen_translate_98, &_va_Array_10_ek);
                         println(&_va_Array_10);
                         I32 hoisted__I32_99 = 1;
@@ -358616,7 +358616,7 @@ static I32 theme_codegen_translate(LoadedProgram * lp, Str * output_path) {
     }
     Str error = (Str){.c_str = TIL_OWN_LIT("", 0ULL), .count = 0ULL, .cap = TIL_CAP_LIT};
     Expr *hoisted__Expr_149 = Option__ref_Expr_unwrap(&root_o);
-    Option__ref_Expr root_resolved_o = priv___src_self_theme_codegen_til__theme_static_expr(hoisted__Expr_149, program, &lp->ctx);
+    Option__ref_Expr root_resolved_o = priv___src_self_codegen_theme_codegen_til__theme_static_expr(hoisted__Expr_149, program, &lp->ctx);
     Bool hoisted__Bool_150 = Option__ref_Expr_is_none(root_resolved_o);
     if (hoisted__Bool_150) {
         U32 hoisted__U32_125 = 2;
@@ -358627,7 +358627,7 @@ static I32 theme_codegen_translate(LoadedProgram * lp, Str * output_path) {
         Expr *hoisted__Expr_128 = Option__ref_Expr_unwrap(&root_o);
         Str hoisted__Str_theme_codegen_translate_129 = (Str){.c_str = TIL_OWN_LIT("exported 'theme' is not static", 30ULL), .count = 30ULL, .cap = TIL_CAP_LIT};
         U32 hoisted__U32_130 = 1;
-        Str hoisted__Str_theme_codegen_translate_131 = priv___src_self_theme_codegen_til__theme_error_at(&root_unit->path, hoisted__Expr_128, &hoisted__Str_theme_codegen_translate_129);
+        Str hoisted__Str_theme_codegen_translate_131 = priv___src_self_codegen_theme_codegen_til__theme_error_at(&root_unit->path, hoisted__Expr_128, &hoisted__Str_theme_codegen_translate_129);
         Array__Str_set(&_va_Array_13, hoisted__U32_130, &hoisted__Str_theme_codegen_translate_131, &_va_Array_13_ek);
         println(&_va_Array_13);
         I32 hoisted__I32_132 = 1;
@@ -358635,7 +358635,7 @@ static I32 theme_codegen_translate(LoadedProgram * lp, Str * output_path) {
         return hoisted__I32_132;
     }
     Expr *hoisted__Expr_151 = Option__ref_Expr_unwrap(&root_resolved_o);
-    priv___src_self_theme_codegen_til__ThemeSpec spec = priv___src_self_theme_codegen_til__theme_parse(hoisted__Expr_151, program, &root_unit->path, &lp->ctx, &error);
+    priv___src_self_codegen_theme_codegen_til__ThemeSpec spec = priv___src_self_codegen_theme_codegen_til__theme_parse(hoisted__Expr_151, program, &root_unit->path, &lp->ctx, &error);
     U32 hoisted__U32_152 = (error.count);
     U32 hoisted__U32_153 = 0;
     Bool hoisted__Bool_154 = ((Bool)(hoisted__U32_152 > hoisted__U32_153));
@@ -358651,19 +358651,19 @@ static I32 theme_codegen_translate(LoadedProgram * lp, Str * output_path) {
         println(&_va_Array_14);
         I32 hoisted__I32_138 = 1;
         Str_delete(&error, 0);
-        priv___src_self_theme_codegen_til__ThemeSpec_delete(&spec, 0);
+        priv___src_self_codegen_theme_codegen_til__ThemeSpec_delete(&spec, 0);
         return hoisted__I32_138;
     }
-    Str hoisted__Str_theme_codegen_translate_155 = priv___src_self_theme_codegen_til__theme_render_elisp(&spec);
+    Str hoisted__Str_theme_codegen_translate_155 = priv___src_self_codegen_theme_codegen_til__theme_render_elisp(&spec);
     File_writefile(output_path, &hoisted__Str_theme_codegen_translate_155);
     Str_delete(&error, 0);
     Str_delete(&hoisted__Str_theme_codegen_translate_155, 0);
-    priv___src_self_theme_codegen_til__ThemeSpec_delete(&spec, 0);
+    priv___src_self_codegen_theme_codegen_til__ThemeSpec_delete(&spec, 0);
     I32 hoisted__I32_156 = 0;
     return hoisted__I32_156;
 }
 
-static void Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_clear(Vec__priv___src_self_theme_codegen_til__ThemeColorSpec * self) {
+static void Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_clear(Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * self) {
     {
         U32 _re_U32_0 = self->count;
         U32 _rc_U32_0 = 0;
@@ -358677,15 +358677,15 @@ static void Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_clear(Vec__pr
             U64 hoisted__U64_3 = ((U64)(i));
             U64 hoisted__U64_4 = 36ULL;
             U64 hoisted__U64_5 = ((U64)((U64)(hoisted__U64_3) * (U64)(hoisted__U64_4)));
-            priv___src_self_theme_codegen_til__ThemeColorSpec *hoisted__priv___src_self_theme_codegen_til__ThemeColorSpec_6 = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_5)));
-            priv___src_self_theme_codegen_til__ThemeColorSpec_delete(hoisted__priv___src_self_theme_codegen_til__ThemeColorSpec_6, 0);
+            priv___src_self_codegen_theme_codegen_til__ThemeColorSpec *hoisted__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_6 = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_5)));
+            priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_delete(hoisted__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_6, 0);
         }
     }
     U32 hoisted__U32_7 = 0;
     self->count = hoisted__U32_7;
 }
 
-static void Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_push(Vec__priv___src_self_theme_codegen_til__ThemeColorSpec * self, priv___src_self_theme_codegen_til__ThemeColorSpec * val) {
+static void Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_push(Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * self, priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * val) {
     Bool hoisted__Bool_9 = ((Bool)(self->count == self->cap));
     if (hoisted__Bool_9) {
         U32 hoisted__U32_1 = 2;
@@ -358707,29 +358707,29 @@ static void Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_push(Vec__pri
     U64 hoisted__U64_12 = 36ULL;
     U64 hoisted__U64_13 = ((U64)((U64)(hoisted__U64_11) * (U64)(hoisted__U64_12)));
     void *hoisted__v_14 = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_13)));
-    adopt__priv___src_self_theme_codegen_til__ThemeColorSpec(hoisted__v_14, val);
+    adopt__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec(hoisted__v_14, val);
     U32 hoisted__U32_15 = 1;
     U32 hoisted__U32_16 = ((U32)((U64)(self->count) + (U64)(hoisted__U32_15)));
     self->count = hoisted__U32_16;
 }
 
-static void Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_delete(Vec__priv___src_self_theme_codegen_til__ThemeColorSpec * self, Bool call_free) {
-    Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_clear(self);
+static void Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_delete(Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * self, Bool call_free) {
+    Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_clear(self);
     free(TIL_OWN_GET(U8, (self->data)));
     if (call_free) {
         free(self);
     }
 }
 
-static Vec__priv___src_self_theme_codegen_til__ThemeColorSpec Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_clone(Vec__priv___src_self_theme_codegen_til__ThemeColorSpec * self) {
+static Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_clone(Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * self) {
     U32 hoisted__U32_12 = 0;
     Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
     if (hoisted__Bool_13) {
-        Vec__priv___src_self_theme_codegen_til__ThemeColorSpec hoisted__Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_0 = {0};
-        TIL_OWN_SET((hoisted__Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_0.data), (NULL));
-        hoisted__Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_0.count = 0;
-        hoisted__Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_0.cap = 0;
-        return hoisted__Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_0;
+        Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0 = {0};
+        TIL_OWN_SET((hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0.data), (NULL));
+        hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0.count = 0;
+        hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0.cap = 0;
+        return hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0;
     }
     U64 hoisted__U64_15 = ((U64)(self->cap));
     U64 hoisted__U64_16 = 36ULL;
@@ -358747,23 +358747,23 @@ static Vec__priv___src_self_theme_codegen_til__ThemeColorSpec Vec__priv___src_se
             U64 hoisted__U64_4 = ((U64)(i));
             U64 hoisted__U64_5 = 36ULL;
             U64 hoisted__U64_6 = ((U64)((U64)(hoisted__U64_4) * (U64)(hoisted__U64_5)));
-            priv___src_self_theme_codegen_til__ThemeColorSpec *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            priv___src_self_theme_codegen_til__ThemeColorSpec cloned = priv___src_self_theme_codegen_til__ThemeColorSpec_clone(src);
+            priv___src_self_codegen_theme_codegen_til__ThemeColorSpec *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
+            priv___src_self_codegen_theme_codegen_til__ThemeColorSpec cloned = priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 36ULL;
             U64 hoisted__U64_10 = ((U64)((U64)(hoisted__U64_8) * (U64)(hoisted__U64_9)));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__priv___src_self_theme_codegen_til__ThemeColorSpec(hoisted__v_11, &cloned);
+            adopt__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec(hoisted__v_11, &cloned);
         }
     }
-    Vec__priv___src_self_theme_codegen_til__ThemeColorSpec hoisted__Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_17.data), (new_data));
-    hoisted__Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_17.count = self->count;
-    hoisted__Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_17.cap = self->cap;
-    return hoisted__Vec__priv___src_self_theme_codegen_til__ThemeColorSpec_17;
+    Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_17 = {0};
+    TIL_OWN_SET((hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_17.data), (new_data));
+    hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_17.count = self->count;
+    hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_17.cap = self->cap;
+    return hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_17;
 }
 
-static void adopt__priv___src_self_theme_codegen_til__ThemeColorSpec(void * dest, priv___src_self_theme_codegen_til__ThemeColorSpec * src) {
+static void adopt__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec(void * dest, priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * src) {
     U64 hoisted__U64_1 = 36ULL;
     memcpy(dest, src, hoisted__U64_1);
     ((void)src);
@@ -416442,8 +416442,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-7b141e73a", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("7b141e73a98f86524be67f7e9375ffb59245662b", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-e7a19e7fb", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("e7a19e7fb3916b83ad18ec3f9c7e5872b26f0bb2", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

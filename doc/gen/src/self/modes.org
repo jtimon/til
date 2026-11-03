@@ -1,5 +1,5 @@
 #+TITLE: src/self/modes.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * context_register_path_mode
@@ -76,7 +76,7 @@ namespace:
     func cmp(a: Option__ref_Mode, b: Option__ref_Mode) returns I64
     func to_str(self: Option__ref_Mode) returns Str
     func clone(self: Option__ref_Mode) returns Option__ref_Mode
-    func size() returns U64
+    func size() returns USize
     func lt(a: Option__ref_Mode, b: Option__ref_Mode) returns Bool
     func gt(a: Option__ref_Mode, b: Option__ref_Mode) returns Bool
     func neq(a: Option__ref_Mode, b: Option__ref_Mode) returns Bool

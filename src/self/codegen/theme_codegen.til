@@ -1,8 +1,8 @@
 mode lib
-import("context")
+import("../context")
 
-import("loader")
-import("../std/file")
+import("../loader")
+import("../../std/file")
 
 
 priv ThemeColorSpec := struct {

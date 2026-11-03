@@ -1,5 +1,5 @@
 #+TITLE: src/self/desugarer.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * desugar_fcall_args_for_fdef
@@ -9,7 +9,7 @@
 :END:
 
 #+begin_src til
-proc desugar_fcall_args_for_fdef(mut e: Expr, display_name: Str, fdef_data: FunctionDef, implicit_arg_count: U64, mut ctx: Context) returns Bool
+proc desugar_fcall_args_for_fdef(mut e: Expr, display_name: Str, fdef_data: FunctionDef, implicit_arg_count: USize, mut ctx: Context) returns Bool
 #+end_src
 
 * desugar_user_func_fcall_args
@@ -165,7 +165,7 @@ struct PendingRefBinding {
     mut line : U32
     mut col : U32
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: PendingRefBinding) returns PendingRefBinding
     func delete(own self: PendingRefBinding, call_free: Bool = true)
     func hash(self: PendingRefBinding, hasher: HashFn) returns U64
@@ -199,7 +199,7 @@ func stmt_contains_match(e: Expr) returns Bool
 :END:
 
 #+begin_src til
-func splice_stmts_before(mut body: Expr, idx: U64, mut pre: Vec__Expr)
+func splice_stmts_before(mut body: Expr, idx: USize, mut pre: Vec__Expr)
 #+end_src
 
 * collect_switch_case_bindings
@@ -229,7 +229,7 @@ func make_switch_case_condition(mut scope: TypeScope, mut case_body: Expr, match
 :END:
 
 #+begin_src til
-func replace_switch_stmt_with_block(mut body: Expr, stmt_idx: U64, own block: Expr)
+func replace_switch_stmt_with_block(mut body: Expr, stmt_idx: USize, own block: Expr)
 #+end_src
 
 * append_switch_else_if
@@ -279,7 +279,7 @@ func prepend_clike_payload_binding(mut scope: TypeScope, enum_def: Expr, sw_expr
 :END:
 
 #+begin_src til
-func replace_body_stmt_with_block(mut body: Expr, stmt_idx: U64, own block: Expr)
+func replace_body_stmt_with_block(mut body: Expr, stmt_idx: USize, own block: Expr)
 #+end_src
 
 * make_for_in_range_while_body
@@ -325,8 +325,8 @@ struct Vec__I32 {
     mut cap : USize
 namespace:
     func new() returns Vec__I32
-    func with_capacity(n: U64) returns Vec__I32
-    func len(self: Vec__I32) returns U64
+    func with_capacity(n: USize) returns Vec__I32
+    func len(self: Vec__I32) returns USize
     func clear(mut self: Vec__I32)
     func delete_marked(mut self: Vec__I32, marks: Dynamic)
     func push(mut self: Vec__I32, own val: I32)
@@ -334,18 +334,18 @@ namespace:
     func take(mut self: Vec__I32) returns Vec__I32
     func move_to(own self: Vec__I32, mut dest: Vec__I32)
     func move_from(mut self: Vec__I32, own other: Vec__I32)
-    func unsafe_get(self: Vec__I32, i: U64) returns ref I32
-    func get(self: Vec__I32, shallow i: U64) returns ref I32 throws OutOfBounds
+    func unsafe_get(self: Vec__I32, i: USize) returns ref I32
+    func get(self: Vec__I32, shallow i: USize) returns ref I32 throws OutOfBounds
     func pop(mut self: Vec__I32) returns I32
-    func remove_at(mut self: Vec__I32, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__I32, n: U64) returns Vec__I32
-    func truncate(mut self: Vec__I32, n: U64)
-    func unsafe_set(mut self: Vec__I32, i: U64, own val: I32)
-    func set(mut self: Vec__I32, i: U64, own val: I32) throws OutOfBounds
-    func push_take(mut self: Vec__I32, mut src: Vec__I32, i: U64)
+    func remove_at(mut self: Vec__I32, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__I32, n: USize) returns Vec__I32
+    func truncate(mut self: Vec__I32, n: USize)
+    func unsafe_set(mut self: Vec__I32, i: USize, own val: I32)
+    func set(mut self: Vec__I32, i: USize, own val: I32) throws OutOfBounds
+    func push_take(mut self: Vec__I32, mut src: Vec__I32, i: USize)
     func delete(own self: Vec__I32, call_free: Bool = true)
     func clone(self: Vec__I32) returns Vec__I32
-    func size() returns U64
+    func size() returns USize
 }
 #+end_src
 
@@ -379,7 +379,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__I32.with_capacity(n: U64) returns Vec__I32
+func Vec__I32.with_capacity(n: USize) returns Vec__I32
 #+end_src
 
 * Vec__I32.clear
@@ -506,7 +506,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__I32.unsafe_get(self: Vec__I32, i: U64) returns ref I32
+func Vec__I32.unsafe_get(self: Vec__I32, i: USize) returns ref I32
 #+end_src
 
 * Vec__I32.get
@@ -521,7 +521,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__I32.get(self: Vec__I32, shallow i: U64) returns ref I32 throws OutOfBounds
+func Vec__I32.get(self: Vec__I32, shallow i: USize) returns ref I32 throws OutOfBounds
 #+end_src
 
 * Vec__I32.pop
@@ -546,7 +546,7 @@ func Vec__I32.pop(mut self: Vec__I32) returns I32
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__I32.remove_at(mut self: Vec__I32, i: U64) throws OutOfBounds
+func Vec__I32.remove_at(mut self: Vec__I32, i: USize) throws OutOfBounds
 #+end_src
 
 * Vec__I32.take_prefix
@@ -559,7 +559,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__I32.take_prefix(mut self: Vec__I32, n: U64) returns Vec__I32
+func Vec__I32.take_prefix(mut self: Vec__I32, n: USize) returns Vec__I32
 #+end_src
 
 * Vec__I32.truncate
@@ -574,7 +574,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__I32.truncate(mut self: Vec__I32, n: U64)
+func Vec__I32.truncate(mut self: Vec__I32, n: USize)
 #+end_src
 
 * Vec__I32.unsafe_set
@@ -588,7 +588,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__I32.unsafe_set(mut self: Vec__I32, i: U64, own val: I32)
+func Vec__I32.unsafe_set(mut self: Vec__I32, i: USize, own val: I32)
 #+end_src
 
 * Vec__I32.set
@@ -602,7 +602,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__I32.set(mut self: Vec__I32, i: U64, own val: I32) throws OutOfBounds
+func Vec__I32.set(mut self: Vec__I32, i: USize, own val: I32) throws OutOfBounds
 #+end_src
 
 * Vec__I32.push_take
@@ -616,7 +616,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__I32.push_take(mut self: Vec__I32, mut src: Vec__I32, i: U64)
+func Vec__I32.push_take(mut self: Vec__I32, mut src: Vec__I32, i: USize)
 #+end_src
 
 * Vec__I32.delete
@@ -657,8 +657,8 @@ struct Vec__PendingRefBinding {
     mut cap : USize
 namespace:
     func new() returns Vec__PendingRefBinding
-    func with_capacity(n: U64) returns Vec__PendingRefBinding
-    func len(self: Vec__PendingRefBinding) returns U64
+    func with_capacity(n: USize) returns Vec__PendingRefBinding
+    func len(self: Vec__PendingRefBinding) returns USize
     func clear(mut self: Vec__PendingRefBinding)
     func delete_marked(mut self: Vec__PendingRefBinding, marks: Dynamic)
     func push(mut self: Vec__PendingRefBinding, own val: PendingRefBinding)
@@ -666,18 +666,18 @@ namespace:
     func take(mut self: Vec__PendingRefBinding) returns Vec__PendingRefBinding
     func move_to(own self: Vec__PendingRefBinding, mut dest: Vec__PendingRefBinding)
     func move_from(mut self: Vec__PendingRefBinding, own other: Vec__PendingRefBinding)
-    func unsafe_get(self: Vec__PendingRefBinding, i: U64) returns ref PendingRefBinding
-    func get(self: Vec__PendingRefBinding, shallow i: U64) returns ref PendingRefBinding throws OutOfBounds
+    func unsafe_get(self: Vec__PendingRefBinding, i: USize) returns ref PendingRefBinding
+    func get(self: Vec__PendingRefBinding, shallow i: USize) returns ref PendingRefBinding throws OutOfBounds
     func pop(mut self: Vec__PendingRefBinding) returns PendingRefBinding
-    func remove_at(mut self: Vec__PendingRefBinding, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__PendingRefBinding, n: U64) returns Vec__PendingRefBinding
-    func truncate(mut self: Vec__PendingRefBinding, n: U64)
-    func unsafe_set(mut self: Vec__PendingRefBinding, i: U64, own val: PendingRefBinding)
-    func set(mut self: Vec__PendingRefBinding, i: U64, own val: PendingRefBinding) throws OutOfBounds
-    func push_take(mut self: Vec__PendingRefBinding, mut src: Vec__PendingRefBinding, i: U64)
+    func remove_at(mut self: Vec__PendingRefBinding, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__PendingRefBinding, n: USize) returns Vec__PendingRefBinding
+    func truncate(mut self: Vec__PendingRefBinding, n: USize)
+    func unsafe_set(mut self: Vec__PendingRefBinding, i: USize, own val: PendingRefBinding)
+    func set(mut self: Vec__PendingRefBinding, i: USize, own val: PendingRefBinding) throws OutOfBounds
+    func push_take(mut self: Vec__PendingRefBinding, mut src: Vec__PendingRefBinding, i: USize)
     func delete(own self: Vec__PendingRefBinding, call_free: Bool = true)
     func clone(self: Vec__PendingRefBinding) returns Vec__PendingRefBinding
-    func size() returns U64
+    func size() returns USize
 }
 #+end_src
 
@@ -711,7 +711,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__PendingRefBinding.with_capacity(n: U64) returns Vec__PendingRefBinding
+func Vec__PendingRefBinding.with_capacity(n: USize) returns Vec__PendingRefBinding
 #+end_src
 
 * Vec__PendingRefBinding.clear
@@ -838,7 +838,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__PendingRefBinding.unsafe_get(self: Vec__PendingRefBinding, i: U64) returns ref PendingRefBinding
+func Vec__PendingRefBinding.unsafe_get(self: Vec__PendingRefBinding, i: USize) returns ref PendingRefBinding
 #+end_src
 
 * Vec__PendingRefBinding.get
@@ -853,7 +853,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__PendingRefBinding.get(self: Vec__PendingRefBinding, shallow i: U64) returns ref PendingRefBinding throws OutOfBounds
+func Vec__PendingRefBinding.get(self: Vec__PendingRefBinding, shallow i: USize) returns ref PendingRefBinding throws OutOfBounds
 #+end_src
 
 * Vec__PendingRefBinding.pop
@@ -878,7 +878,7 @@ func Vec__PendingRefBinding.pop(mut self: Vec__PendingRefBinding) returns Pendin
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__PendingRefBinding.remove_at(mut self: Vec__PendingRefBinding, i: U64) throws OutOfBounds
+func Vec__PendingRefBinding.remove_at(mut self: Vec__PendingRefBinding, i: USize) throws OutOfBounds
 #+end_src
 
 * Vec__PendingRefBinding.take_prefix
@@ -891,7 +891,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__PendingRefBinding.take_prefix(mut self: Vec__PendingRefBinding, n: U64) returns Vec__PendingRefBinding
+func Vec__PendingRefBinding.take_prefix(mut self: Vec__PendingRefBinding, n: USize) returns Vec__PendingRefBinding
 #+end_src
 
 * Vec__PendingRefBinding.truncate
@@ -906,7 +906,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__PendingRefBinding.truncate(mut self: Vec__PendingRefBinding, n: U64)
+func Vec__PendingRefBinding.truncate(mut self: Vec__PendingRefBinding, n: USize)
 #+end_src
 
 * Vec__PendingRefBinding.unsafe_set
@@ -920,7 +920,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__PendingRefBinding.unsafe_set(mut self: Vec__PendingRefBinding, i: U64, own val: PendingRefBinding)
+func Vec__PendingRefBinding.unsafe_set(mut self: Vec__PendingRefBinding, i: USize, own val: PendingRefBinding)
 #+end_src
 
 * Vec__PendingRefBinding.set
@@ -934,7 +934,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__PendingRefBinding.set(mut self: Vec__PendingRefBinding, i: U64, own val: PendingRefBinding) throws OutOfBounds
+func Vec__PendingRefBinding.set(mut self: Vec__PendingRefBinding, i: USize, own val: PendingRefBinding) throws OutOfBounds
 #+end_src
 
 * Vec__PendingRefBinding.push_take
@@ -948,7 +948,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__PendingRefBinding.push_take(mut self: Vec__PendingRefBinding, mut src: Vec__PendingRefBinding, i: U64)
+func Vec__PendingRefBinding.push_take(mut self: Vec__PendingRefBinding, mut src: Vec__PendingRefBinding, i: USize)
 #+end_src
 
 * Vec__PendingRefBinding.delete

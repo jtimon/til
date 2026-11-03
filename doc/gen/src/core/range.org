@@ -1,5 +1,5 @@
 #+TITLE: src/core/range.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * Range
@@ -20,7 +20,7 @@ namespace:
     func get(self: Range, i: U64) returns U64
     func clone(val: Range) returns Range
     func delete(own self: Range, call_free: Bool = true)
-    func size() returns U64
+    func size() returns USize
     func hash(self: Range, hasher: HashFn) returns U64
     func cmp(a: Range, b: Range) returns I64
     func to_str(self: Range) returns Str

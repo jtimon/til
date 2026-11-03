@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e302196</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-a132b29</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -93,7 +93,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/codegen/fasm_codegen.html">src/self/codegen/fasm_codegen.til</a></li>
 <li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
 <li><a href="../../src/self/codegen/holyc_codegen.html">src/self/codegen/holyc_codegen.til</a></li>
-<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/codegen/theme_codegen.html">src/self/codegen/theme_codegen.til</a></li>
 <li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
@@ -122,7 +122,7 @@ namespace:
     func cmp(a: Lang, b: Lang) returns I64
     func to_str(self: Lang) returns Str
     func clone(self: Lang) returns Lang
-    func size() returns U64
+    func size() returns USize
     func lt(a: Lang, b: Lang) returns Bool
     func gt(a: Lang, b: Lang) returns Bool
     func neq(a: Lang, b: Lang) returns Bool
@@ -166,7 +166,7 @@ namespace:
     func cmp(a: Target, b: Target) returns I64
     func to_str(self: Target) returns Str
     func clone(self: Target) returns Target
-    func size() returns U64
+    func size() returns USize
     func lt(a: Target, b: Target) returns Bool
     func gt(a: Target, b: Target) returns Bool
     func neq(a: Target, b: Target) returns Bool
@@ -208,7 +208,7 @@ namespace:
 <article class="doc-entry" id="til.src.self.targets.target_simd_bits">
 <h2>target_simd_bits</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler backend</dd></dl>
-<pre><code class="language-til">func (target: Target) returns U64
+<pre><code class="language-til">func (target: Target) returns USize
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.targets.TargetCpu">
@@ -219,7 +219,7 @@ namespace:
     mut simd_bits : USize
     mut c_flags : Str
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: TargetCpu) returns TargetCpu
     func delete(own self: TargetCpu, call_free: Bool = true)
     func hash(self: TargetCpu, hasher: HashFn) returns U64

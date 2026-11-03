@@ -1,5 +1,5 @@
 #+TITLE: src/core/dyn.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * Dynamic
@@ -11,7 +11,7 @@
 #+begin_src til
 struct Dynamic {
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: Dynamic) returns Dynamic
     func delete(own self: Dynamic, call_free: Bool = true)
 }
@@ -24,7 +24,7 @@ namespace:
 :END:
 
 #+begin_src til
-core_func is_n(self: Dynamic, other: Dynamic, shallow size: U64) returns shallow Bool
+core_func is_n(self: Dynamic, other: Dynamic, shallow size: USize) returns shallow Bool
 #+end_src
 
 * get_payload
@@ -109,7 +109,7 @@ ext_func dyn_fn(type_name: Str, method: Str) returns Dynamic
 :END:
 
 #+begin_src til
-ext_func dyn_size_of(type_name: Str) returns shallow U64
+ext_func dyn_size_of(type_name: Str) returns shallow USize
 #+end_src
 
 * dyn_storage_kind
@@ -119,7 +119,7 @@ ext_func dyn_size_of(type_name: Str) returns shallow U64
 :END:
 
 #+begin_src til
-ext_func dyn_storage_kind(type_name: Str) returns shallow U64
+ext_func dyn_storage_kind(type_name: Str) returns shallow USize
 #+end_src
 
 * dyn_type_to_str
@@ -190,7 +190,7 @@ func til_type_name(t: Type) returns Str
 :END:
 
 #+begin_src til
-func type_name_storage_kind(type_name: Str) returns U64
+func type_name_storage_kind(type_name: Str) returns USize
 #+end_src
 
 * type_storage_kind
@@ -200,7 +200,7 @@ func type_name_storage_kind(type_name: Str) returns U64
 :END:
 
 #+begin_src til
-func type_storage_kind(t: Type) returns U64
+func type_storage_kind(t: Type) returns USize
 #+end_src
 
 * struct_field_count
@@ -520,7 +520,7 @@ func IncFn(Dynamic)
 :END:
 
 #+begin_src til
-func DistanceFn(Dynamic, Dynamic) returns U64
+func DistanceFn(Dynamic, Dynamic) returns USize
 #+end_src
 
 * HashFn
@@ -530,7 +530,7 @@ func DistanceFn(Dynamic, Dynamic) returns U64
 :END:
 
 #+begin_src til
-func HashFn(Dynamic, U64) returns U64
+func HashFn(Dynamic, USize) returns U64
 #+end_src
 
 * TypeHashFn
@@ -590,7 +590,7 @@ func default_inc(_v: Dynamic)
 :END:
 
 #+begin_src til
-func default_distance(_a: Dynamic, _b: Dynamic) returns U64
+func default_distance(_a: Dynamic, _b: Dynamic) returns USize
 #+end_src
 
 * default_type_hash

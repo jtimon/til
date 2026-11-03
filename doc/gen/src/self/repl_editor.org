@@ -1,5 +1,5 @@
 #+TITLE: src/self/repl_editor.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * repl_term_is_interactive
@@ -406,7 +406,7 @@ namespace:
     func cmp(a: EditAction, b: EditAction) returns I64
     func to_str(self: EditAction) returns Str
     func clone(self: EditAction) returns EditAction
-    func size() returns U64
+    func size() returns USize
     func lt(a: EditAction, b: EditAction) returns Bool
     func gt(a: EditAction, b: EditAction) returns Bool
     func neq(a: EditAction, b: EditAction) returns Bool
@@ -443,7 +443,7 @@ struct ReplEditor {
     mut saved_line : Str
     mut saved_cursor : USize
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: ReplEditor) returns ReplEditor
     func delete(own self: ReplEditor, call_free: Bool = true)
 }
@@ -459,7 +459,7 @@ struct AnsiDecoder {
     mut state : I64
     mut params : Str
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: AnsiDecoder) returns AnsiDecoder
     func delete(own self: AnsiDecoder, call_free: Bool = true)
     func hash(self: AnsiDecoder, hasher: HashFn) returns U64
@@ -563,7 +563,7 @@ renderer so the scrolling arithmetic is testable at narrow widths
 without a terminal.
 
 #+begin_src til
-func repl_editor_viewport(view_start: U64, cursor: U64, line_len: U64, avail: U64) returns U64
+func repl_editor_viewport(view_start: USize, cursor: USize, line_len: USize, avail: USize) returns USize
 #+end_src
 
 * repl_editor_start

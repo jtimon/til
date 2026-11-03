@@ -1,5 +1,5 @@
 #+TITLE: src/self/codegen/mlir_codegen.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * mlir_source_declarations
@@ -31,8 +31,8 @@ struct Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding {
     mut values : Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
 namespace:
     func new() returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding
-    func with_capacity(n: U64) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding
-    func len(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding) returns U64
+    func with_capacity(n: USize) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding
+    func len(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding) returns USize
     func clear(mut self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding)
     func has(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding, key: Str) returns Bool
     func get(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding, key: Str) returns ref priv___src_self_codegen_mlir_codegen_til__MlirBinding throws KeyNotFound
@@ -40,7 +40,7 @@ namespace:
     func remove(mut self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding, key: Str) returns Bool
     func delete(own self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding, call_free: Bool = true)
     func clone(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding
-    func size() returns U64
+    func size() returns USize
     func hash(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding, hasher: HashFn) returns U64
 }
 #+end_src
@@ -67,7 +67,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding.with_capacity(n: U64) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding
+func Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding.with_capacity(n: USize) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding
 #+end_src
 
 * Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding.clear
@@ -139,8 +139,8 @@ struct Map__Str_U64 {
     mut values : Vec__U64
 namespace:
     func new() returns Map__Str_U64
-    func with_capacity(n: U64) returns Map__Str_U64
-    func len(self: Map__Str_U64) returns U64
+    func with_capacity(n: USize) returns Map__Str_U64
+    func len(self: Map__Str_U64) returns USize
     func clear(mut self: Map__Str_U64)
     func has(self: Map__Str_U64, key: Str) returns Bool
     func get(self: Map__Str_U64, key: Str) returns ref U64 throws KeyNotFound
@@ -148,7 +148,7 @@ namespace:
     func remove(mut self: Map__Str_U64, key: Str) returns Bool
     func delete(own self: Map__Str_U64, call_free: Bool = true)
     func clone(self: Map__Str_U64) returns Map__Str_U64
-    func size() returns U64
+    func size() returns USize
     func hash(self: Map__Str_U64, hasher: HashFn) returns U64
 }
 #+end_src
@@ -175,7 +175,7 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_U64.with_capacity(n: U64) returns Map__Str_U64
+func Map__Str_U64.with_capacity(n: USize) returns Map__Str_U64
 #+end_src
 
 * Map__Str_U64.clear
@@ -259,7 +259,7 @@ namespace:
     func cmp(a: Option__U64, b: Option__U64) returns I64
     func to_str(self: Option__U64) returns Str
     func clone(self: Option__U64) returns Option__U64
-    func size() returns U64
+    func size() returns USize
     func lt(a: Option__U64, b: Option__U64) returns Bool
     func gt(a: Option__U64, b: Option__U64) returns Bool
     func neq(a: Option__U64, b: Option__U64) returns Bool
@@ -325,7 +325,7 @@ namespace:
     func cmp(a: Option__Bool, b: Option__Bool) returns I64
     func to_str(self: Option__Bool) returns Str
     func clone(self: Option__Bool) returns Option__Bool
-    func size() returns U64
+    func size() returns USize
     func lt(a: Option__Bool, b: Option__Bool) returns Bool
     func gt(a: Option__Bool, b: Option__Bool) returns Bool
     func neq(a: Option__Bool, b: Option__Bool) returns Bool
@@ -380,8 +380,8 @@ struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding {
     mut cap : USize
 namespace:
     func new() returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
-    func with_capacity(n: U64) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
-    func len(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding) returns U64
+    func with_capacity(n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
+    func len(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding) returns USize
     func clear(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding)
     func delete_marked(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, marks: Dynamic)
     func push(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, own val: priv___src_self_codegen_mlir_codegen_til__MlirBinding)
@@ -389,18 +389,18 @@ namespace:
     func take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
     func move_to(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, mut dest: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding)
     func move_from(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding)
-    func unsafe_get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: U64) returns ref priv___src_self_codegen_mlir_codegen_til__MlirBinding
-    func get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, shallow i: U64) returns ref priv___src_self_codegen_mlir_codegen_til__MlirBinding throws OutOfBounds
+    func unsafe_get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirBinding
+    func get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, shallow i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirBinding throws OutOfBounds
     func pop(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding) returns priv___src_self_codegen_mlir_codegen_til__MlirBinding
-    func remove_at(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, n: U64) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
-    func truncate(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, n: U64)
-    func unsafe_set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: U64, own val: priv___src_self_codegen_mlir_codegen_til__MlirBinding)
-    func set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: U64, own val: priv___src_self_codegen_mlir_codegen_til__MlirBinding) throws OutOfBounds
-    func push_take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, mut src: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: U64)
+    func remove_at(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
+    func truncate(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirBinding)
+    func set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirBinding) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, mut src: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: USize)
     func delete(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
-    func size() returns U64
+    func size() returns USize
 }
 #+end_src
 
@@ -432,7 +432,7 @@ list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
 no allocation (the grow sites seed cap 0->1 on the first insert).
 
 #+begin_src til
-func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.with_capacity(n: U64) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.with_capacity(n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
 #+end_src
 
 * Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.clear
@@ -551,7 +551,7 @@ directly because its ~_fi < len()~ termination test already
 proves the index in bounds (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.unsafe_get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: U64) returns ref priv___src_self_codegen_mlir_codegen_til__MlirBinding
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.unsafe_get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirBinding
 #+end_src
 
 * Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.get
@@ -565,7 +565,7 @@ to panic on a bad index. The reference is valid until the
 next mutation.
 
 #+begin_src til
-func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, shallow i: U64) returns ref priv___src_self_codegen_mlir_codegen_til__MlirBinding throws OutOfBounds
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, shallow i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirBinding throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.pop
@@ -588,7 +588,7 @@ func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.pop(mut self: Ve
 Remove and drop the element at ~i~, shifting later elements left.
 
 #+begin_src til
-func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.remove_at(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: U64) throws OutOfBounds
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.remove_at(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: USize) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.take_prefix
@@ -600,7 +600,7 @@ Split off the first ~n~ elements into a new Vec. Panics if ~n~
 exceeds self.len(). The remaining elements shift to the front.
 
 #+begin_src til
-func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.take_prefix(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, n: U64) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.take_prefix(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
 #+end_src
 
 * Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.truncate
@@ -614,7 +614,7 @@ untouched). Panics if ~n~ exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
 
 #+begin_src til
-func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.truncate(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, n: U64)
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.truncate(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, n: USize)
 #+end_src
 
 * Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.unsafe_set
@@ -627,7 +627,7 @@ the old value. Caller guarantees ~i < self.count~; the write-side
 mirror of unsafe_get (issue #284).
 
 #+begin_src til
-func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.unsafe_set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: U64, own val: priv___src_self_codegen_mlir_codegen_til__MlirBinding)
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.unsafe_set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirBinding)
 #+end_src
 
 * Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.set
@@ -640,7 +640,7 @@ OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
 (or ~vec.set(i, own val)!~) to panic on a bad index.
 
 #+begin_src til
-func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: U64, own val: priv___src_self_codegen_mlir_codegen_til__MlirBinding) throws OutOfBounds
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirBinding) throws OutOfBounds
 #+end_src
 
 * Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.push_take
@@ -653,7 +653,7 @@ src's eventual elem_delete on it is a no-op (relies on the same
 count==0/data==NULL convention used by take_children and Vec.delete).
 
 #+begin_src til
-func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.push_take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, mut src: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: U64)
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.push_take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, mut src: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, i: USize)
 #+end_src
 
 * Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.delete

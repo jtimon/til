@@ -1,5 +1,5 @@
 #+TITLE: src/std/dyn_hashset.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * DynHashSet
@@ -20,8 +20,8 @@ namespace:
     hasher : HashFn
     func new_type_name(elem_type: Str) returns DynHashSet
     func new(T: Type) returns DynHashSet
-    func with_capacity(T: Type, n: U64) returns DynHashSet
-    func len(self: DynHashSet) returns U64
+    func with_capacity(T: Type, n: USize) returns DynHashSet
+    func len(self: DynHashSet) returns USize
     func clear(mut self: DynHashSet)
     func clone(self: DynHashSet) returns DynHashSet
     func hash_elem(self: DynHashSet, val: Dynamic) returns U64
@@ -33,7 +33,7 @@ namespace:
     func rehash(mut self: DynHashSet)
     func delete(own self: DynHashSet, call_free: Bool = true)
     func remove(mut self: DynHashSet, val: Dynamic) returns Bool
-    func size() returns U64
+    func size() returns USize
     func hash(self: DynHashSet, hasher: HashFn) returns U64
 }
 #+end_src
@@ -49,7 +49,7 @@ Create an empty DynHashSet pre-sized for ~n~ elements
 runtime argument here, as for ~new~).
 
 #+begin_src til
-func DynHashSet.with_capacity(T: Type, n: U64) returns DynHashSet
+func DynHashSet.with_capacity(T: Type, n: USize) returns DynHashSet
 #+end_src
 
 * DynHashSet.clear

@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e302196</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-a132b29</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -93,7 +93,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/codegen/fasm_codegen.html">src/self/codegen/fasm_codegen.til</a></li>
 <li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
 <li><a href="../../src/self/codegen/holyc_codegen.html">src/self/codegen/holyc_codegen.til</a></li>
-<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/codegen/theme_codegen.html">src/self/codegen/theme_codegen.til</a></li>
 <li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
@@ -204,13 +204,13 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.self.eval_heap.own_slot_load">
 <h2>own_slot_load</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func (slot: Dynamic, shallow size: U64) returns ref Dynamic
+<pre><code class="language-til">ext_func (slot: Dynamic, shallow size: USize) returns ref Dynamic
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.own_slot_store">
 <h2>own_slot_store</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler tools</dd></dl>
-<pre><code class="language-til">ext_func (mut slot: Dynamic, p: Dynamic, shallow size: U64)
+<pre><code class="language-til">ext_func (mut slot: Dynamic, p: Dynamic, shallow size: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.eval_heap.dispatch_scratch_base">
@@ -232,11 +232,11 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut unused : U8
 namespace:
     func new() returns EvalHeap
-    func heap_alloc(size: U64) returns Dynamic
+    func heap_alloc(size: USize) returns Dynamic
     func heap_free(own ptr: Dynamic)
     func delete(own self: EvalHeap, call_free: Bool = true)
-    func set_bytes(mut ptr: Dynamic, src: Dynamic, n: U64)
-    func get_bytes(ptr: Dynamic, mut dst: Dynamic, n: U64)
+    func set_bytes(mut ptr: Dynamic, src: Dynamic, n: USize)
+    func get_bytes(ptr: Dynamic, mut dst: Dynamic, n: USize)
     func set_i64(mut ptr: Dynamic, val: I64)
     func get_i64(ptr: Dynamic) returns I64
     func set_u64(mut ptr: Dynamic, val: U64)
@@ -247,7 +247,7 @@ namespace:
     func get_f32(ptr: Dynamic) returns F32
     func set_bool(mut ptr: Dynamic, val: Bool)
     func get_bool(ptr: Dynamic) returns Bool
-    func size() returns U64
+    func size() returns USize
     func clone(self: EvalHeap) returns EvalHeap
     func hash(self: EvalHeap, hasher: HashFn) returns U64
     func cmp(a: EvalHeap, b: EvalHeap) returns I64

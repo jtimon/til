@@ -736,6 +736,8 @@
 *** heap_aliases := Map(Str, Str).new()
 *** parent := Option(ref Scope).None
 *** is_call_scope := false
+** InterpSharedI64: StructDef
+*** value: I64 = 0 }
 ** InterpSession: StructDef
 *** global := Option(Scope).None
 *** core_evaluated := false
@@ -744,6 +746,7 @@
 *** is_repl := false
 *** capture_output := false
 *** evaluated_units := Set(Str).new()
+*** shared_i64_storage := Option(InterpSharedI64).None
 ** TilVmError: StructDef
 *** phase := ""
 *** diagnostics := Vec(TilVmDiagnostic).new()
@@ -840,21 +843,3 @@
 ** AnsiDecoder: StructDef
 *** state : I64 = 0
 *** params := ""
-* theme_codegen
-** ThemeColorSpec: StructDef
-*** name := ""
-*** value := ""
-*** note := ""
-** ThemeSpec: StructDef
-*** name := ""
-*** header := ""
-*** description := ""
-*** source_theme := ""
-*** source_package := ""
-*** source_url := ""
-*** source_license := ""
-*** palette_note := ""
-*** palette_footer := ""
-*** constant_face_note := ""
-*** type_face_note := ""
-*** colors := Vec(ThemeColorSpec).new()

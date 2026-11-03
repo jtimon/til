@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e302196</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-a132b29</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -93,7 +93,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/codegen/fasm_codegen.html">src/self/codegen/fasm_codegen.til</a></li>
 <li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
 <li><a href="../../src/self/codegen/holyc_codegen.html">src/self/codegen/holyc_codegen.til</a></li>
-<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/codegen/theme_codegen.html">src/self/codegen/theme_codegen.til</a></li>
 <li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
@@ -114,12 +114,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut buckets : Vec__U32
     mut next : U32
 namespace:
-    func rebuild(mut self: SymbolPool, count: U64)
+    func rebuild(mut self: SymbolPool, count: USize)
     func lookup(self: SymbolPool, name: Str) returns Option__U32
     func intern(mut self: SymbolPool, name: Str) returns U32
     func grow_names(mut self: SymbolPool)
     func resolve(self: SymbolPool, sym: U32) returns ref Str
-    func size() returns U64
+    func size() returns USize
     func clone(self: SymbolPool) returns SymbolPool
     func delete(own self: SymbolPool, call_free: Bool = true)
     func hash(self: SymbolPool, hasher: HashFn) returns U64
@@ -135,7 +135,7 @@ namespace:
 <article class="doc-entry" id="til.src.self.parser.builtin_primitive_size_align">
 <h2>builtin_primitive_size_align</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (prim: Primitive, mut sz: U64, mut al: U64)
+<pre><code class="language-til">func (prim: Primitive, mut sz: USize, mut al: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.sym_of">
@@ -261,37 +261,37 @@ namespace:
 <article class="doc-entry" id="til.src.self.parser.set_own_arg">
 <h2>set_own_arg</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut fcall: Expr, arg_index: U64)
+<pre><code class="language-til">func (mut fcall: Expr, arg_index: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.get_own_arg">
 <h2>get_own_arg</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (fcall: Expr, arg_index: U64) returns Bool
+<pre><code class="language-til">func (fcall: Expr, arg_index: USize) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.set_splat_arg">
 <h2>set_splat_arg</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut fcall: Expr, arg_index: U64)
+<pre><code class="language-til">func (mut fcall: Expr, arg_index: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.get_splat_arg">
 <h2>get_splat_arg</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (fcall: Expr, arg_index: U64) returns Bool
+<pre><code class="language-til">func (fcall: Expr, arg_index: USize) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.set_ref_arg">
 <h2>set_ref_arg</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut fcall: Expr, arg_index: U64)
+<pre><code class="language-til">func (mut fcall: Expr, arg_index: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.get_ref_arg">
 <h2>get_ref_arg</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (fcall: Expr, arg_index: U64) returns Bool
+<pre><code class="language-til">func (fcall: Expr, arg_index: USize) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.fcall_has_ref_args">
@@ -309,13 +309,13 @@ namespace:
 <article class="doc-entry" id="til.src.self.parser.set_keep_outer_arg">
 <h2>set_keep_outer_arg</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (mut fcall: Expr, arg_index: U64)
+<pre><code class="language-til">func (mut fcall: Expr, arg_index: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.get_keep_outer_arg">
 <h2>get_keep_outer_arg</h2>
 <dl class="meta"><dt>Group</dt><dd>Compiler frontend</dd></dl>
-<pre><code class="language-til">func (fcall: Expr, arg_index: U64) returns Bool
+<pre><code class="language-til">func (fcall: Expr, arg_index: USize) returns Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.func_type_name">
@@ -339,8 +339,8 @@ namespace:
     mut cap : USize
 namespace:
     func new() returns Vec__call_Vec_Str
-    func with_capacity(n: U64) returns Vec__call_Vec_Str
-    func len(self: Vec__call_Vec_Str) returns U64
+    func with_capacity(n: USize) returns Vec__call_Vec_Str
+    func len(self: Vec__call_Vec_Str) returns USize
     func clear(mut self: Vec__call_Vec_Str)
     func delete_marked(mut self: Vec__call_Vec_Str, marks: Dynamic)
     func push(mut self: Vec__call_Vec_Str, own val: Vec__Str)
@@ -348,18 +348,18 @@ namespace:
     func take(mut self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
     func move_to(own self: Vec__call_Vec_Str, mut dest: Vec__call_Vec_Str)
     func move_from(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
-    func unsafe_get(self: Vec__call_Vec_Str, i: U64) returns ref Vec__Str
-    func get(self: Vec__call_Vec_Str, shallow i: U64) returns ref Vec__Str throws OutOfBounds
+    func unsafe_get(self: Vec__call_Vec_Str, i: USize) returns ref Vec__Str
+    func get(self: Vec__call_Vec_Str, shallow i: USize) returns ref Vec__Str throws OutOfBounds
     func pop(mut self: Vec__call_Vec_Str) returns Vec__Str
-    func remove_at(mut self: Vec__call_Vec_Str, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__call_Vec_Str, n: U64) returns Vec__call_Vec_Str
-    func truncate(mut self: Vec__call_Vec_Str, n: U64)
-    func unsafe_set(mut self: Vec__call_Vec_Str, i: U64, own val: Vec__Str)
-    func set(mut self: Vec__call_Vec_Str, i: U64, own val: Vec__Str) throws OutOfBounds
-    func push_take(mut self: Vec__call_Vec_Str, mut src: Vec__call_Vec_Str, i: U64)
+    func remove_at(mut self: Vec__call_Vec_Str, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__call_Vec_Str, n: USize) returns Vec__call_Vec_Str
+    func truncate(mut self: Vec__call_Vec_Str, n: USize)
+    func unsafe_set(mut self: Vec__call_Vec_Str, i: USize, own val: Vec__Str)
+    func set(mut self: Vec__call_Vec_Str, i: USize, own val: Vec__Str) throws OutOfBounds
+    func push_take(mut self: Vec__call_Vec_Str, mut src: Vec__call_Vec_Str, i: USize)
     func delete(own self: Vec__call_Vec_Str, call_free: Bool = true)
     func clone(self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -387,7 +387,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (n: U64) returns Vec__call_Vec_Str
+<pre><code class="language-til">func (n: USize) returns Vec__call_Vec_Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.clear">
@@ -488,7 +488,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__call_Vec_Str, i: U64) returns ref Vec__Str
+<pre><code class="language-til">func (self: Vec__call_Vec_Str, i: USize) returns ref Vec__Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.get">
@@ -500,7 +500,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__call_Vec_Str, shallow i: U64) returns ref Vec__Str throws OutOfBounds
+<pre><code class="language-til">func (self: Vec__call_Vec_Str, shallow i: USize) returns ref Vec__Str throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.pop">
@@ -519,7 +519,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, i: U64) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, i: USize) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.take_prefix">
@@ -529,7 +529,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, n: U64) returns Vec__call_Vec_Str
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, n: USize) returns Vec__call_Vec_Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.truncate">
@@ -541,7 +541,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, n: U64)
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, n: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.unsafe_set">
@@ -552,7 +552,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, i: U64, own val: Vec__Str)
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, i: USize, own val: Vec__Str)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.set">
@@ -563,7 +563,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, i: U64, own val: Vec__Str) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, i: USize, own val: Vec__Str) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.push_take">
@@ -574,7 +574,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, mut src: Vec__call_Vec_Str, i: U64)
+<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, mut src: Vec__call_Vec_Str, i: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__call_Vec_Str.delete">
@@ -605,8 +605,8 @@ unless <code>call_free</code> is false.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__U32
-    func with_capacity(n: U64) returns Vec__U32
-    func len(self: Vec__U32) returns U64
+    func with_capacity(n: USize) returns Vec__U32
+    func len(self: Vec__U32) returns USize
     func clear(mut self: Vec__U32)
     func delete_marked(mut self: Vec__U32, marks: Dynamic)
     func push(mut self: Vec__U32, own val: U32)
@@ -614,18 +614,18 @@ namespace:
     func take(mut self: Vec__U32) returns Vec__U32
     func move_to(own self: Vec__U32, mut dest: Vec__U32)
     func move_from(mut self: Vec__U32, own other: Vec__U32)
-    func unsafe_get(self: Vec__U32, i: U64) returns ref U32
-    func get(self: Vec__U32, shallow i: U64) returns ref U32 throws OutOfBounds
+    func unsafe_get(self: Vec__U32, i: USize) returns ref U32
+    func get(self: Vec__U32, shallow i: USize) returns ref U32 throws OutOfBounds
     func pop(mut self: Vec__U32) returns U32
-    func remove_at(mut self: Vec__U32, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__U32, n: U64) returns Vec__U32
-    func truncate(mut self: Vec__U32, n: U64)
-    func unsafe_set(mut self: Vec__U32, i: U64, own val: U32)
-    func set(mut self: Vec__U32, i: U64, own val: U32) throws OutOfBounds
-    func push_take(mut self: Vec__U32, mut src: Vec__U32, i: U64)
+    func remove_at(mut self: Vec__U32, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__U32, n: USize) returns Vec__U32
+    func truncate(mut self: Vec__U32, n: USize)
+    func unsafe_set(mut self: Vec__U32, i: USize, own val: U32)
+    func set(mut self: Vec__U32, i: USize, own val: U32) throws OutOfBounds
+    func push_take(mut self: Vec__U32, mut src: Vec__U32, i: USize)
     func delete(own self: Vec__U32, call_free: Bool = true)
     func clone(self: Vec__U32) returns Vec__U32
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -653,7 +653,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (n: U64) returns Vec__U32
+<pre><code class="language-til">func (n: USize) returns Vec__U32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__U32.clear">
@@ -754,7 +754,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__U32, i: U64) returns ref U32
+<pre><code class="language-til">func (self: Vec__U32, i: USize) returns ref U32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__U32.get">
@@ -766,7 +766,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__U32, shallow i: U64) returns ref U32 throws OutOfBounds
+<pre><code class="language-til">func (self: Vec__U32, shallow i: USize) returns ref U32 throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__U32.pop">
@@ -785,7 +785,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__U32, i: U64) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__U32, i: USize) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__U32.take_prefix">
@@ -795,7 +795,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__U32, n: U64) returns Vec__U32
+<pre><code class="language-til">func (mut self: Vec__U32, n: USize) returns Vec__U32
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__U32.truncate">
@@ -807,7 +807,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__U32, n: U64)
+<pre><code class="language-til">func (mut self: Vec__U32, n: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__U32.unsafe_set">
@@ -818,7 +818,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__U32, i: U64, own val: U32)
+<pre><code class="language-til">func (mut self: Vec__U32, i: USize, own val: U32)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__U32.set">
@@ -829,7 +829,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__U32, i: U64, own val: U32) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__U32, i: USize, own val: U32) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__U32.push_take">
@@ -840,7 +840,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__U32, mut src: Vec__U32, i: U64)
+<pre><code class="language-til">func (mut self: Vec__U32, mut src: Vec__U32, i: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__U32.delete">
@@ -882,7 +882,7 @@ namespace:
     func cmp(a: Option__U32, b: Option__U32) returns I64
     func to_str(self: Option__U32) returns Str
     func clone(self: Option__U32) returns Option__U32
-    func size() returns U64
+    func size() returns USize
     func lt(a: Option__U32, b: Option__U32) returns Bool
     func gt(a: Option__U32, b: Option__U32) returns Bool
     func neq(a: Option__U32, b: Option__U32) returns Bool
@@ -930,16 +930,16 @@ a clone would copy a whole subtree and break node identity.</p>
     mut cap : USize
 namespace:
     func new() returns Set__Str
-    func with_capacity(n: U64) returns Set__Str
-    func len(self: Set__Str) returns U64
-    func unsafe_get(self: Set__Str, i: U64) returns ref Str
+    func with_capacity(n: USize) returns Set__Str
+    func len(self: Set__Str) returns USize
+    func unsafe_get(self: Set__Str, i: USize) returns ref Str
     func clear(mut self: Set__Str)
     func has(self: Set__Str, val: Str) returns Bool
     func add(mut self: Set__Str, own val: Str)
     func remove(mut self: Set__Str, val: Str) returns Bool
     func delete(own self: Set__Str, call_free: Bool = true)
     func clone(self: Set__Str) returns Set__Str
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -966,7 +966,7 @@ where the final size is known or well predicted; <code>new()</code> grows
 0-&gt;1-&gt;2-&gt;4, which is the right default but costs a realloc per
 doubling. n=0 behaves like new(): lazy-empty, no allocation.</p>
 </div>
-<pre><code class="language-til">func (n: U64) returns Set__Str
+<pre><code class="language-til">func (n: USize) returns Set__Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Set__Str.unsafe_get">
@@ -979,7 +979,7 @@ prove <code>i &lt; len()</code>. This is what makes <code>for x in set</code> wo
 uses <code>unsafe_get</code> when a type has it, and its <code>_fi &lt; len()</code>
 termination test proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Set__Str, i: U64) returns ref Str
+<pre><code class="language-til">func (self: Set__Str, i: USize) returns ref Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Set__Str.clear">
@@ -1030,8 +1030,8 @@ storage sorted and dense.</p>
     mut values : Vec__Str
 namespace:
     func new() returns Map__Str_Str
-    func with_capacity(n: U64) returns Map__Str_Str
-    func len(self: Map__Str_Str) returns U64
+    func with_capacity(n: USize) returns Map__Str_Str
+    func len(self: Map__Str_Str) returns USize
     func clear(mut self: Map__Str_Str)
     func has(self: Map__Str_Str, key: Str) returns Bool
     func get(self: Map__Str_Str, key: Str) returns ref Str throws KeyNotFound
@@ -1039,7 +1039,7 @@ namespace:
     func remove(mut self: Map__Str_Str, key: Str) returns Bool
     func delete(own self: Map__Str_Str, call_free: Bool = true)
     func clone(self: Map__Str_Str) returns Map__Str_Str
-    func size() returns U64
+    func size() returns USize
     func hash(self: Map__Str_Str, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -1062,7 +1062,7 @@ The key type must implement <code>cmp</code>.</p>
 <code>n</code> reallocs neither backing Vec (Vec.with_capacity's
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.</p>
 </div>
-<pre><code class="language-til">func (n: U64) returns Map__Str_Str
+<pre><code class="language-til">func (n: USize) returns Map__Str_Str
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Map__Str_Str.clear">
@@ -1122,8 +1122,8 @@ other keys are cloned and other values are taken by ownership.</p>
     mut cap : USize
 namespace:
     func new() returns Vec__Bool
-    func with_capacity(n: U64) returns Vec__Bool
-    func len(self: Vec__Bool) returns U64
+    func with_capacity(n: USize) returns Vec__Bool
+    func len(self: Vec__Bool) returns USize
     func clear(mut self: Vec__Bool)
     func delete_marked(mut self: Vec__Bool, marks: Dynamic)
     func push(mut self: Vec__Bool, own val: Bool)
@@ -1131,18 +1131,18 @@ namespace:
     func take(mut self: Vec__Bool) returns Vec__Bool
     func move_to(own self: Vec__Bool, mut dest: Vec__Bool)
     func move_from(mut self: Vec__Bool, own other: Vec__Bool)
-    func unsafe_get(self: Vec__Bool, i: U64) returns ref Bool
-    func get(self: Vec__Bool, shallow i: U64) returns ref Bool throws OutOfBounds
+    func unsafe_get(self: Vec__Bool, i: USize) returns ref Bool
+    func get(self: Vec__Bool, shallow i: USize) returns ref Bool throws OutOfBounds
     func pop(mut self: Vec__Bool) returns Bool
-    func remove_at(mut self: Vec__Bool, i: U64) throws OutOfBounds
-    func take_prefix(mut self: Vec__Bool, n: U64) returns Vec__Bool
-    func truncate(mut self: Vec__Bool, n: U64)
-    func unsafe_set(mut self: Vec__Bool, i: U64, own val: Bool)
-    func set(mut self: Vec__Bool, i: U64, own val: Bool) throws OutOfBounds
-    func push_take(mut self: Vec__Bool, mut src: Vec__Bool, i: U64)
+    func remove_at(mut self: Vec__Bool, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__Bool, n: USize) returns Vec__Bool
+    func truncate(mut self: Vec__Bool, n: USize)
+    func unsafe_set(mut self: Vec__Bool, i: USize, own val: Bool)
+    func set(mut self: Vec__Bool, i: USize, own val: Bool) throws OutOfBounds
+    func push_take(mut self: Vec__Bool, mut src: Vec__Bool, i: USize)
     func delete(own self: Vec__Bool, call_free: Bool = true)
     func clone(self: Vec__Bool) returns Vec__Bool
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -1170,7 +1170,7 @@ list, ...) to avoid the 1-&gt;2-&gt;4-&gt;...-&gt;n grow-and-realloc churn that
 <code>new()</code> + repeated <code>push</code> pays. n=0 behaves like new(): lazy-empty,
 no allocation (the grow sites seed cap 0-&gt;1 on the first insert).</p>
 </div>
-<pre><code class="language-til">func (n: U64) returns Vec__Bool
+<pre><code class="language-til">func (n: USize) returns Vec__Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__Bool.clear">
@@ -1271,7 +1271,7 @@ This is the unchecked core that <code>get</code> wraps; for-in uses it
 directly because its <code>_fi &lt; len()</code> termination test already
 proves the index in bounds (issue #284).</p>
 </div>
-<pre><code class="language-til">func (self: Vec__Bool, i: U64) returns ref Bool
+<pre><code class="language-til">func (self: Vec__Bool, i: USize) returns ref Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__Bool.get">
@@ -1283,7 +1283,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i]</code>
 to panic on a bad index. The reference is valid until the
 next mutation.</p>
 </div>
-<pre><code class="language-til">func (self: Vec__Bool, shallow i: U64) returns ref Bool throws OutOfBounds
+<pre><code class="language-til">func (self: Vec__Bool, shallow i: USize) returns ref Bool throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__Bool.pop">
@@ -1302,7 +1302,7 @@ takes ownership of the returned value.</p>
 <div class="doc-body">
 <p>Remove and drop the element at <code>i</code>, shifting later elements left.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Bool, i: U64) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__Bool, i: USize) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__Bool.take_prefix">
@@ -1312,7 +1312,7 @@ takes ownership of the returned value.</p>
 <p>Split off the first <code>n</code> elements into a new Vec. Panics if <code>n</code>
 exceeds self.len(). The remaining elements shift to the front.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Bool, n: U64) returns Vec__Bool
+<pre><code class="language-til">func (mut self: Vec__Bool, n: USize) returns Vec__Bool
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__Bool.truncate">
@@ -1324,7 +1324,7 @@ elem_delete, and set count to <code>n</code> (the survivors [0, n) are left
 untouched). Panics if <code>n</code> exceeds len. This is the container home
 for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Bool, n: U64)
+<pre><code class="language-til">func (mut self: Vec__Bool, n: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__Bool.unsafe_set">
@@ -1335,7 +1335,7 @@ for a pop-and-free-the-tail loop shrinking a Vec back to a mark.</p>
 the old value. Caller guarantees <code>i &lt; self.count</code>; the write-side
 mirror of unsafe_get (issue #284).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Bool, i: U64, own val: Bool)
+<pre><code class="language-til">func (mut self: Vec__Bool, i: USize, own val: Bool)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__Bool.set">
@@ -1346,7 +1346,7 @@ mirror of unsafe_get (issue #284).</p>
 OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 (or <code>vec.set(i, own val)!</code>) to panic on a bad index.</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Bool, i: U64, own val: Bool) throws OutOfBounds
+<pre><code class="language-til">func (mut self: Vec__Bool, i: USize, own val: Bool) throws OutOfBounds
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__Bool.push_take">
@@ -1357,7 +1357,7 @@ OutOfBounds if <code>i</code> is past the end; call as <code>vec[i] = val</code>
 src's eventual elem_delete on it is a no-op (relies on the same
 count<code></code>0/data<code></code>NULL convention used by take_children and Vec.delete).</p>
 </div>
-<pre><code class="language-til">func (mut self: Vec__Bool, mut src: Vec__Bool, i: U64)
+<pre><code class="language-til">func (mut self: Vec__Bool, mut src: Vec__Bool, i: USize)
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.self.parser.Vec__Bool.delete">

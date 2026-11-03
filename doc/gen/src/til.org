@@ -1,5 +1,5 @@
 #+TITLE: src/til.til
-#+SUBTITLE: til 0.0.1-e302196
+#+SUBTITLE: til 0.0.1-a132b29
 #+OPTIONS: toc:t
 
 * BASE_VERSION
@@ -109,7 +109,7 @@ proc repl_capture_eval_current(mut session: InterpSession, mut lp: LoadedProgram
 :END:
 
 #+begin_src til
-proc repl_capture_eval_tail(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, start_idx: U64, count: U64, mut aborted: Bool) returns Str
+proc repl_capture_eval_tail(mut session: InterpSession, mut lp: LoadedProgram, out_path: Str, start_idx: USize, count: USize, mut aborted: Bool) returns Str
 #+end_src
 
 * repl_source_line_count
@@ -209,7 +209,7 @@ func repl_ast_updates_doc_cache(e: Expr, symbols: SymbolPool) returns Bool
 :END:
 
 #+begin_src til
-proc repl_refresh_user_doc_cache(mode_str: Str, accum: Str, tmp_path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec__Str, mut user_info_cache: Str, mut user_docs_cache: Str)
+proc repl_refresh_user_doc_cache(mode_str: Str, accum: Str, tmp_path: Str, bin_dir: Str, cwd: Str, extra_modes: Vec__Str, mut user_info_cache: Str, mut user_docs_cache: Str)
 #+end_src
 
 * run_repl_session
@@ -270,11 +270,10 @@ struct CliArgs {
     mut asan : Bool
     mut prof : Bool
     mut usize_bits : I64
-    mut cptr_bits : I64
     mut check_unused_imports : Bool
     own mut extra_modes : Vec__Str
 namespace:
-    func size() returns U64
+    func size() returns USize
     func clone(self: CliArgs) returns CliArgs
     func delete(own self: CliArgs, call_free: Bool = true)
 }
@@ -297,7 +296,7 @@ proc parse_args(args: Array__Str) returns CliArgs
 :END:
 
 #+begin_src til
-func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, start_idx: U64) returns Vec__Str
+func collect_user_argv(mut lp: LoadedProgram, args: Array__Str, start_idx: USize) returns Vec__Str
 #+end_src
 
 * main

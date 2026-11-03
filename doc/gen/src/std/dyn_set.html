@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e302196</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-a132b29</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -93,7 +93,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <li><a href="../../src/self/codegen/fasm_codegen.html">src/self/codegen/fasm_codegen.til</a></li>
 <li><a href="../../src/self/fasm_build.html">src/self/fasm_build.til</a></li>
 <li><a href="../../src/self/codegen/holyc_codegen.html">src/self/codegen/holyc_codegen.til</a></li>
-<li><a href="../../src/self/theme_codegen.html">src/self/theme_codegen.til</a></li>
+<li><a href="../../src/self/codegen/theme_codegen.html">src/self/codegen/theme_codegen.til</a></li>
 <li><a href="../../src/self/install.html">src/self/install.til</a></li>
 <li><a href="../../src/self/repl_editor.html">src/self/repl_editor.til</a></li>
 </ul>
@@ -121,15 +121,15 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     elem_cmp : CmpFn
 namespace:
     func new(T: Type) returns DynSet
-    func with_capacity(T: Type, n: U64) returns DynSet
-    func len(self: DynSet) returns U64
+    func with_capacity(T: Type, n: USize) returns DynSet
+    func len(self: DynSet) returns USize
     func clear(mut self: DynSet)
     func has(self: DynSet, val: Dynamic) returns Bool
     func add(mut self: DynSet, own val: Dynamic)
     func remove(mut self: DynSet, val: Dynamic) returns Bool
     func delete(own self: DynSet, call_free: Bool = true)
     func clone(self: DynSet) returns DynSet
-    func size() returns U64
+    func size() returns USize
 }
 </code></pre>
 </article>
@@ -150,7 +150,7 @@ namespace:
 to <code>n</code> reallocs zero times (Set.with_capacity's counterpart; the
 element type is a runtime argument here, as for <code>new</code>).</p>
 </div>
-<pre><code class="language-til">func (T: Type, n: U64) returns DynSet
+<pre><code class="language-til">func (T: Type, n: USize) returns DynSet
 </code></pre>
 </article>
 <article class="doc-entry" id="til.src.std.dyn_set.DynSet.clear">
