@@ -4,8 +4,9 @@ import("../src/std/sys")
 import("../src/std/file")
 import("../src/self/install")
 
-// Build the native libraries and installed ASAN host once. Families run in
-// fresh processes with private library copies, guest directories and HOME.
+// One central build prerequisite creates the native libraries and ASAN host.
+// Normal suite jobs then run families synchronously in fresh processes with
+// private library copies, guest directories and HOME.
 
 realpath_str := ext_proc(path: Str) returns Str {}
 
@@ -38,47 +39,47 @@ check_native_output := func(fixture: Str, output: Str, errors: Str) {
     }
 }
 
-run_native_families := proc(work: Str, fixture: Str) {
-    families := array(Str, "state", "config", "prelude", "reload")
-    mut children := Vec(Cmd).new()
-    for family : Str in families {
-        directory := format(work, "/", family)
-        mkdir_p(format(directory, "/gen/til"))
-        mkdir_p(format(directory, "/home"))
-        File.writefile(format(directory, "/gen/til/vm_native.til"), File.readfile(format(work, "/gen/til/vm_native.til")))
-        // Keep the generated bindings unmodified and their relative paths
-        // valid. Host and guest must load the SAME private library copies,
-        // or the state assertions would compare different native globals.
-        assert_eq(I32, copy_tree(format(work, "/gen/lib"), format(directory, "/gen/lib")), 0)
-        assert_eq(I32, copy_tree(format(work, "/bin"), format(directory, "/bin")), 0)
-        library_dir := realpath_str(format(directory, "/gen/lib"))
-        child := Cmd.new("./bin/tilvm_native", format("../../install_", fixture, "/lib/til"), family)
-        child.cwd(directory)
-        child.env("PATH", "")
-        child.env("HOME", realpath_str(format(directory, "/home")))
-        child.env("LD_LIBRARY_PATH", library_dir)
-        child.env("DYLD_LIBRARY_PATH", library_dir)
-        child.capture()
-        child.start()
-        children.push(own child)
-    }
-    // Finish all children before checking their status/output, including
-    // failure paths: no family may outlive the suite row that owns it.
-    mut statuses := Vec(I64).new()
-    for child in children { statuses.push(own child.wait()) }
-    for i, child in children {
-        if statuses[i] != 0 {
-            panic("installed native TilVm ", families[i], " failed: ", child.out(), child.err())
-        }
-        check_native_output(format("tilvm_native_", families[i]), child.out(), child.err())
-        println("install TilVm native ", families[i], " PASS")
-    }
+run_native_family := proc(work: Str, fixture: Str, family: Str) {
+    directory := format(work, "/", family)
+    File.remove_tree(directory)
+    mkdir_p(format(directory, "/gen/til"))
+    mkdir_p(format(directory, "/home"))
+    File.writefile(format(directory, "/gen/til/vm_native.til"), File.readfile(format(work, "/gen/til/vm_native.til")))
+    // Keep bindings and relative paths intact. Host and guest must load the
+    // SAME private library copies, or they would see different native globals.
+    assert_eq(I32, copy_tree(format(work, "/gen/lib"), format(directory, "/gen/lib")), 0)
+    assert_eq(I32, copy_tree(format(work, "/bin"), format(directory, "/bin")), 0)
+    library_dir := realpath_str(format(directory, "/gen/lib"))
+    child := Cmd.new("./bin/tilvm_native", format("../../install_", fixture, "/lib/til"), family)
+    child.cwd(directory)
+    child.env("PATH", "")
+    child.env("HOME", realpath_str(format(directory, "/home")))
+    child.env("LD_LIBRARY_PATH", library_dir)
+    child.env("DYLD_LIBRARY_PATH", library_dir)
+    child.capture()
+    if child.run() != 0 { panic("installed native TilVm ", family, " failed: ", child.out(), child.err()) }
+    check_native_output(format("tilvm_native_", family), child.out(), child.err())
+    println("install TilVm native ", family, " PASS")
 }
 
-main := proc(fixture: Str = "tilvm_native") returns I64 {
+main := proc(args: ..Str) returns I64 {
+    if args.len() > 2 { panic("expected fixture and optional build/family action") }
+    mut fixture := "tilvm_native"
+    mut action := "all"
+    if args.len() > 0 { fixture = args[0].borrowed_view() }
+    if args.len() > 1 { action = args[1].borrowed_view() }
     if native_fixture_known(fixture).not() { panic("unknown native TilVm fixture: ", fixture) }
     prefix := format("tmp/install_", fixture)
     work := format(prefix, "_work")
+    if action.eq("all").or(action.eq("build")).not() {
+        if fixture != "tilvm_native" { panic("family action requires the shared native TilVm host") }
+        switch action {
+        case "state", "config", "prelude", "reload":
+            run_native_family(work, fixture, action)
+            return 0
+        case: panic("unknown native TilVm family: ", action)
+        }
+    }
     File.remove_tree(prefix)
     File.remove_tree(work)
     mkdir_p(work)
@@ -142,9 +143,8 @@ main := proc(fixture: Str = "tilvm_native") returns I64 {
     if host_os() == "windows" {
         assert_eq(I32, copy_tree(format(work, "/gen/lib"), format(work, "/bin")), 0)
     }
-    if fixture == "tilvm_native" {
-        run_native_families(work, fixture)
-        println("install TilVm native PASS")
+    if action == "build" {
+        println("install TilVm native build PASS")
         return 0
     }
     native_run := Cmd.new("./bin/tilvm_native", format("../install_", fixture, "/lib/til"))

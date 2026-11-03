@@ -681,12 +681,13 @@ build_debug := proc(mut b: Build) {
 
 /// A til program built from one source with an explicit output path,
 /// depending on bin/til and the standard library it was compiled from.
-build_program := proc(mut b: Build, step: Str, source: Str, output: Str) {
+build_program := proc(mut b: Build, step: Str, source: Str, output: Str, extra_sources: ..Str) {
     if b.begin(step).not() { return }
     build_til(b)
     mut inputs := compiler_sources()
     inputs.push(own TIL.clone())
     inputs.push(own source.clone())
+    for dependency : Str in extra_sources { inputs.push(own dependency.clone()) }
     if needs_rebuild(output, inputs).not() { return }
     run(TIL, "build", "-o", output, source)
 }
@@ -700,7 +701,7 @@ build_plot := proc(mut b: Build) {
 }
 
 build_tests := proc(mut b: Build) {
-    build_program(b, "tests", "src/tests.til", "bin/tests")
+    build_program(b, "tests", "src/tests.til", "bin/tests", "src/test_scheduler.til")
 }
 
 /// Explicit layout regressions (issues #309, #313), interpreted and compiled,

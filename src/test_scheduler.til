@@ -1,0 +1,245 @@
+mode lib
+
+import("std/sys")
+import("std/file")
+
+PEAK_MEM_SAMPLE_MS := 100
+
+ms_to_str := func(ms: I64) returns Str {
+    secs := ms / 1000
+    frac := ms.mod(1000) / 10
+    mut frac_str := frac.to_str()
+    if frac < 10 { frac_str = format("0", frac_str) }
+    return format(secs.to_str(), ".", frac_str, "s")
+}
+
+pad_right := func(s: Str, width: USize) returns Str {
+    mut result := s.clone()
+    while result.len() < width { result = format(result, " ") }
+    return result
+}
+
+parse_kv := func(line: Str, key: Str) returns I64 {
+    needle := format(key, "=")
+    pos := line.find(needle)
+    if pos < 0 { return 0 }
+    pos_u : USize = pos.to_usize()
+    start := pos_u + needle.len()
+    mut end := start
+    while end.lt(line.len()).and(line.get(end).neq(' ')).and(line.get(end).neq(10)) { end++ }
+    return line.substr(start, end - start).to_i64()
+}
+
+BothData := struct {
+    interp_ms := 0
+    interp_ok := 0
+    interp_mem := 0
+    compile_ms := 0
+    compile_ok := 0
+    compile_mem := 0
+    run_ms := 0
+    run_ok := 0
+    run_mem := 0
+    output_match := 1
+namespace:
+    eq := func(a: BothData, b: BothData) returns Bool {
+        return and(a.interp_ms.eq(b.interp_ms), a.interp_ok.eq(b.interp_ok),
+                   a.interp_mem.eq(b.interp_mem),
+                   a.compile_ms.eq(b.compile_ms),
+                   a.compile_ok.eq(b.compile_ok),
+                   a.compile_mem.eq(b.compile_mem),
+                   a.run_ms.eq(b.run_ms),
+                   a.run_ok.eq(b.run_ok),
+                   a.run_mem.eq(b.run_mem),
+                   a.output_match.eq(b.output_match))
+    }
+    to_str := func(_self: BothData) returns Str { return "BothData" }
+}
+
+TestKind := enum { Both: BothData, Single, Count }
+
+Test := struct {
+    label := ""
+    cmd := ""
+    outfile := ""
+    category := ""
+    kind := TestKind.Single
+    pid := 0
+    start_ms := 0
+    // Earlier registrations only: no separate dependency graph or registry.
+    prerequisite := Option(USize).None
+    finished := false
+    ok := 0
+    ms := 0
+    mem := 0
+    has_interp := 0
+    has_run := 0
+    // A mode rejection writes no C and is exempt from the collision check.
+    refused_before_codegen := false
+}
+
+Slot := struct {
+    test_idx : USize = 0
+    pid := 0
+    start_ms := 0
+}
+
+print_test_result := proc(t: Test) {
+    switch t.kind {
+    case .Both(md):
+        mut line := pad_right(t.label, 42)
+        if t.has_interp == 1 { line = format(line, "interp: ", pad_right(ms_to_str(md.interp_ms), 9)) }
+        if t.has_run == 1 { line = format(line, "compile: ", pad_right(ms_to_str(md.compile_ms), 9), "run: ", pad_right(ms_to_str(md.run_ms), 9)) }
+        if md.output_match == 0 { line = format(line, " MISMATCH") }
+        println(line)
+    case:
+        if t.ok == 1 { println(pad_right(t.label, 42), ms_to_str(t.ms)) }
+    }
+}
+
+check_test_prerequisites := func(tests: Vec(Test)) {
+    for i, t in tests {
+        switch t.prerequisite {
+        case .Some(parent):
+            if parent >= i { panic("test prerequisite must be registered earlier: ", t.label) }
+        case .None:
+        }
+    }
+}
+
+// Keep registration order among ready rows. A waiting dependent consumes no
+// slot, so unrelated work can proceed while its build is running.
+next_ready_test := proc(mut tests: Vec(Test), mut fail: I64) returns Option(USize) {
+    for i in 0..tests.len() {
+        ref mut t : Test = tests[i]
+        if t.pid.neq(0).or(t.finished) { continue }
+        switch t.prerequisite {
+        case .Some(parent):
+            ref prerequisite : Test = tests[parent]
+            if prerequisite.finished.not() { continue }
+            if prerequisite.ok != 1 {
+                println("FAIL: ", t.label, " blocked by failed prerequisite ", prerequisite.label)
+                t.finished = true
+                fail = 1
+                continue
+            }
+        case .None:
+        }
+        return Option(USize).Some(i)
+    }
+    return Option(USize).None
+}
+
+// The self-translate benchmarks run alongside the suite, outside its wall
+// and peak-memory series. Build prerequisites remain ordinary measured rows.
+is_benchmark_category := func(category: Str) returns Bool {
+    return category.eq("self").or(category.eq("self_asan"))
+}
+
+run_all_parallel := proc(mut tests: Vec(Test), j: USize, mut fail: I64,
+                        mut suite_end_ms: I64, mut suite_peak_mem: I64) {
+    check_test_prerequisites(tests)
+    mut active : USize = 0
+    mut slots := Array(Slot).new(j)
+    for si in 0..j { slots[si] = Slot() }
+    // Aggregate process-tree walks are heavier than status checks: sample
+    // suite pressure at 10 Hz; each test_runner samples phase peaks at 100 Hz.
+    mut next_mem_sample_ms := 0
+    mut reschedule := true
+    while true {
+        if reschedule {
+            reschedule = false
+            // Refill ALL idle slots after a completion changes readiness,
+            // including several families released by one completed build.
+            for si in 0..j {
+                if slots[si].pid != 0 { continue }
+                ready := next_ready_test(tests, fail)
+                if ready.is_none() { break }
+                next := ready.unwrap().clone()
+                ref mut t : Test = tests[next]
+                cmd := format(t.cmd, " > ", t.outfile, " 2>&1")
+                start := clock_ms()
+                pid := spawn_cmd(cmd)
+                t.pid = pid.clone()
+                t.start_ms = start.clone()
+                slots[si] = Slot(test_idx = next, pid = pid, start_ms = start)
+                active++
+            }
+        }
+        if active == 0 {
+            for t : Test in tests {
+                if t.finished.not() { panic("test scheduling made no progress: ", t.label) }
+            }
+            break
+        }
+        now := clock_ms()
+        if now >= next_mem_sample_ms {
+            mut live_mem := 0
+            for slot : Slot in slots {
+                if slot.pid > 0 {
+                    ref t : Test = tests[slot.test_idx]
+                    if is_benchmark_category(t.category).not() {
+                        live_mem = live_mem + current_rss_bytes(slot.pid).cast(I64)
+                    }
+                }
+            }
+            if live_mem > suite_peak_mem { suite_peak_mem = live_mem }
+            next_mem_sample_ms = now + PEAK_MEM_SAMPLE_MS
+        }
+        for mut slot : Slot in slots {
+            if slot.pid <= 0 { continue }
+            status := check_cmd_status(slot.pid)
+            if status == -1 { continue }
+            ref mut t : Test = tests[slot.test_idx]
+            runner_out := File.readfile(t.outfile)
+            // #395: absence of RESULT is a failure. Every test_runner path
+            // writes it; an absent line means the runner did not execute.
+            mut result_line := ""
+            result_pos := runner_out.rfind("RESULT ")
+            if result_pos >= 0 {
+                result_pos_u : USize = result_pos.to_usize()
+                result_line = runner_out.substr(result_pos_u, runner_out.len() - result_pos_u)
+            } else {
+                println("FAIL: ", t.label, " produced no RESULT line",
+                    " -- test_runner did not run it (a shell operator",
+                    " in the registered command takes the redirect)")
+                fail = 1
+            }
+            t.ok = parse_kv(result_line, "ok")
+            t.ms = parse_kv(result_line, "ms")
+            t.mem = parse_kv(result_line, "mem")
+            switch t.kind {
+            case .Both(md):
+                md.interp_ms = parse_kv(result_line, "interp_ms")
+                md.interp_ok = parse_kv(result_line, "interp_ok")
+                md.interp_mem = parse_kv(result_line, "interp_mem")
+                md.compile_ms = parse_kv(result_line, "compile_ms")
+                md.compile_ok = parse_kv(result_line, "compile_ok")
+                md.compile_mem = parse_kv(result_line, "compile_mem")
+                md.run_ms = parse_kv(result_line, "run_ms")
+                md.run_ok = parse_kv(result_line, "run_ok")
+                md.run_mem = parse_kv(result_line, "run_mem")
+                md.output_match = parse_kv(result_line, "match")
+                t.kind = TestKind.Both(md.clone())
+            case:
+            }
+            print_test_result(t)
+            if is_benchmark_category(t.category).not() { suite_end_ms = clock_ms() }
+            if status != 0 {
+                t.ok = 0
+                // Relay the actual compiler/panic/ASAN output, not merely
+                // FAIL/MISMATCH lines, or CI-only failures lose their cause.
+                for line : Str in runner_out.split("\n") {
+                    if line.starts_with("RESULT ").not() { println(line) }
+                }
+                fail = 1
+            }
+            active--
+            slot.pid = 0
+            t.pid = 0
+            t.finished = true
+            reschedule = true
+        }
+        if active.gt(0).and(reschedule.not()) { sleep_ms(10) }
+    }
+}

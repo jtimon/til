@@ -1,0 +1,135 @@
+mode test
+
+import("../src/std/sys")
+import("../src/std/file")
+suite := import("../src/test_scheduler")
+Job := suite.Test
+
+check_readiness := proc() {
+    mut jobs := Vec(Job).new()
+    jobs.push(own Job(label = "build", pid = 123))
+    jobs.push(own Job(label = "family", prerequisite = Option(USize).Some(0)))
+    jobs.push(own Job(label = "sibling", prerequisite = Option(USize).Some(0)))
+    jobs.push(own Job(label = "independent"))
+    suite.check_test_prerequisites(jobs)
+    mut fail := 0
+    waiting := suite.next_ready_test(jobs, fail)
+    assert(waiting.is_some() && waiting.unwrap() == 3)
+    assert(fail == 0)
+    assert(jobs[1].finished.or(jobs[2].finished).not())
+
+    ref mut build : Job = jobs[0]
+    build.pid = 0
+    build.finished = true
+    build.ok = 1
+    first := suite.next_ready_test(jobs, fail)
+    assert(first.is_some() && first.unwrap() == 1)
+    ref mut family : Job = jobs[1]
+    family.pid = 456
+    second := suite.next_ready_test(jobs, fail)
+    assert(second.is_some() && second.unwrap() == 2)
+
+    mut failed := Vec(Job).new()
+    failed.push(own Job(label = "failed build", finished = true))
+    failed.push(own Job(label = "blocked", prerequisite = Option(USize).Some(0)))
+    failed.push(own Job(label = "blocked descendant", prerequisite = Option(USize).Some(1)))
+    failed.push(own Job(label = "unrelated"))
+    unrelated := suite.next_ready_test(failed, fail)
+    assert(unrelated.is_some() && unrelated.unwrap() == 3)
+    assert(fail == 1)
+    assert(failed[1].finished && failed[2].finished)
+    assert(failed[1].ok == 0 && failed[2].ok == 0)
+    assert(failed[1].pid == 0 && failed[2].pid == 0)
+}
+
+worker_command := func(compiler: Str, worker: Str, root: Str, action: Str) returns Str {
+    return format(compiler, " interpret ", worker, " ", root, " ", action)
+}
+
+add_job := func(mut jobs: Vec(Job), label: Str, command: Str) {
+    jobs.push(own Job(label = label.clone(), category = "build",
+        cmd = format("bin/test_runner single ", label, " 0 -- ", command),
+        outfile = format("gen/out/results/", label, ".txt")))
+}
+
+check_execution := proc(compiler: Str, worker: Str, root: Str, j: USize, build_fails: Bool) {
+    mkdir_p(root)
+    mut jobs := Vec(Job).new()
+    label := format("dependency_", j.to_str(), "_", build_fails.to_str())
+    mut build_action := "build"
+    mut child_action := "child"
+    if build_fails { build_action = "fail"; child_action = "blocked" }
+    add_job(jobs, format(label, "_build"),
+        worker_command(compiler, worker, root, build_action))
+    add_job(jobs, format(label, "_child"),
+        worker_command(compiler, worker, root, child_action))
+    ref mut child : Job = jobs[1]
+    child.prerequisite = Option(USize).Some(0)
+    mut sibling_action := "sibling"
+    if build_fails { sibling_action = "blocked" }
+    add_job(jobs, format(label, "_sibling"),
+        worker_command(compiler, worker, root, sibling_action))
+    ref mut sibling : Job = jobs[2]
+    sibling.prerequisite = Option(USize).Some(0)
+    add_job(jobs, format(label, "_independent"),
+        worker_command(compiler, worker, root, "independent"))
+    mut fail := 0
+    mut end_ms := clock_ms()
+    mut peak := 0
+    suite.run_all_parallel(jobs, j, fail, end_ms, peak)
+    for job : Job in jobs { assert(job.finished && job.pid == 0) }
+    assert(jobs[3].ok == 1 && File.is_file(format(root, "/independent")))
+    if build_fails {
+        assert(fail == 1 && jobs[0].ok == 0 && jobs[1].ok == 0 && jobs[2].ok == 0)
+        assert(File.is_file(format(root, "/failed")))
+        assert(File.is_file(format(root, "/blocked")).not())
+    } else {
+        assert(fail == 0 && jobs[0].ok == 1 && jobs[1].ok == 1 && jobs[2].ok == 1)
+        assert_eq(Str, File.readfile(format(root, "/build_count")), "build\n")
+        assert(File.is_file(format(root, "/child")))
+        assert(File.is_file(format(root, "/sibling")))
+        if j == 1 {
+            assert_eq(Str, File.readfile(format(root, "/events")), "build\nchild\nsibling\nindependent\n")
+        }
+    }
+}
+
+test_prerequisites := test() {
+    compiler := "bin/til"
+    root := "tmp/test_dependencies"
+    File.remove_tree(root)
+    mkdir_p(root)
+    mkdir_p("gen/out/results")
+    mkdir_p("gen/out/single")
+    worker := format(root, "/worker.til")
+    File.writefile(worker, format(
+        "mode cli\nimport(\"std/file\")\n",
+        "main := proc(root: Str, action: Str) returns I64 {\n",
+        "if root.ends_with(\"/ok_1\") { File.appendfile(format(root, \"/events\"), format(action, \"\\n\")) }\n",
+        "if action == \"build\" { File.appendfile(format(root, \"/build_count\"), \"build\\n\"); File.writefile(format(root, \"/built\"), \"done\"); return 0 }\n",
+        "if action == \"fail\" { File.writefile(format(root, \"/failed\"), \"done\"); return 1 }\n",
+        "if action == \"child\" { assert(File.is_file(format(root, \"/built\"))); File.writefile(format(root, \"/child\"), \"done\"); return 0 }\n",
+        "if action == \"sibling\" { assert(File.is_file(format(root, \"/built\"))); File.writefile(format(root, \"/sibling\"), \"done\"); return 0 }\n",
+        "if action == \"independent\" { File.writefile(format(root, \"/independent\"), \"done\"); return 0 }\n",
+        "if action == \"blocked\" { File.writefile(format(root, \"/blocked\"), \"must not run\"); return 0 }\n",
+        "panic(\"unknown worker action\")\n}\n"))
+    check_readiness()
+    // Self and forward prerequisites are rejected before any test is spawned.
+    for parent : USize in array(USize, 0, 1) {
+        invalid := format(root, "/invalid.til")
+        File.writefile(invalid, format(
+            "mode test\nsuite := import(\"../../src/test_scheduler\")\nJob := suite.Test\n",
+            "invalid_graph := test() { mut jobs := Vec(Job).new(); ",
+            "jobs.push(own Job(label = \"invalid\", prerequisite = Option(USize).Some(", parent.to_str(), "))); ",
+            "suite.check_test_prerequisites(jobs) }\n"))
+        cmd := Cmd.new(compiler, "interpret", invalid)
+        cmd.capture()
+        assert(cmd.run() != 0)
+        expect(cmd.out().contains("test prerequisite must be registered earlier"), cmd.out(), cmd.err())
+    }
+    for j : USize in array(USize, 1, 2) {
+        check_execution(compiler, worker, format(root, "/ok_", j.to_str()), j, false)
+        check_execution(compiler, worker, format(root, "/fail_", j.to_str()), j, true)
+    }
+    println("test prerequisites passed")
+}

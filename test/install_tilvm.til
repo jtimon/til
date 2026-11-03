@@ -4,42 +4,43 @@ import("../src/std/sys")
 import("../src/std/file")
 import("../src/self/install")
 
-// Build the installed ASAN host once, then run the semantic families in
-// separate processes and guest directories. The SDK is read-only during
-// execution. install.til covers rebuilding the compiler through `til install`.
+// The central suite schedules one build prerequisite and separate family
+// jobs. Each family runs one child synchronously in its own guest directory;
+// the SDK and host executable are read-only products of this invocation's
+// build. The standalone command still builds and runs all cases in order.
 
-run_families := proc(work: Str, fixture: Str) {
-    families := array(Str, "lifecycle", "calls", "lookup", "references", "values")
-    mut children := Vec(Cmd).new()
-    for family : Str in families {
-        directory := format(work, "/", family)
-        mkdir_p(directory)
-        child := Cmd.new("../bin/tilvm_host", format("../../install_", fixture, "/lib/til"), family)
-        child.cwd(directory)
-        child.env("PATH", "")
-        child.capture()
-        child.start()
-        children.push(own child)
+run_family := proc(work: Str, fixture: Str, family: Str) {
+    directory := format(work, "/", family)
+    File.remove_tree(directory)
+    mkdir_p(directory)
+    child := Cmd.new("../bin/tilvm_host", format("../../install_", fixture, "/lib/til"), family)
+    child.cwd(directory)
+    child.env("PATH", "")
+    child.capture()
+    if child.run() != 0 { panic("installed TilVm ", family, " failed: ", child.out(), child.err()) }
+    if child.out().contains("TilVm host survived errors and teardown").not() {
+        panic("installed TilVm ", family, " did not finish: ", child.out(), child.err())
     }
-    // Reap every child before reporting failures, so one failed family
-    // cannot leave the others running after the test row has finished.
-    mut failures := ""
-    for i, child in children {
-        status := child.wait()
-        if status != 0 {
-            failures = format(failures, families[i], " exited ", status.to_str(), ": ", child.out(), child.err(), "\n")
-        } else if child.out().contains("TilVm host survived errors and teardown").not() {
-            failures = format(failures, families[i], " did not finish: ", child.out(), child.err(), "\n")
-        } else {
-            println("install TilVm ", families[i], " PASS")
-        }
-    }
-    if failures.len() > 0 { panic("installed TilVm families failed: ", failures) }
+    println("install TilVm ", family, " PASS")
 }
 
-main := proc(fixture: Str = "tilvm") returns I64 {
+main := proc(args: ..Str) returns I64 {
+    if args.len() > 2 { panic("expected fixture and optional build/family action") }
+    mut fixture := "tilvm"
+    mut action := "all"
+    if args.len() > 0 { fixture = args[0].borrowed_view() }
+    if args.len() > 1 { action = args[1].borrowed_view() }
     prefix := format("tmp/install_", fixture)
     work := format(prefix, "_work")
+    if action.eq("all").or(action.eq("build")).not() {
+        if fixture != "tilvm" { panic("family action requires the shared TilVm host") }
+        switch action {
+        case "lifecycle", "calls", "lookup", "references", "values":
+            run_family(work, fixture, action)
+            return 0
+        case: panic("unknown TilVm family: ", action)
+        }
+    }
     File.remove_tree(prefix)
     File.remove_tree(work)
     mkdir_p(work)
@@ -56,9 +57,8 @@ main := proc(fixture: Str = "tilvm") returns I64 {
     vm_build := Cmd.new(installed_til, "build", "--asan", "-o", "bin/tilvm_host", "tilvm_host.til")
     vm_build.cwd(work)
     vm_build.run_checked()
-    if fixture == "tilvm" {
-        run_families(work, fixture)
-        println("install TilVm PASS")
+    if action == "build" {
+        println("install TilVm build PASS")
         return 0
     }
     vm_run := Cmd.new("./bin/tilvm_host", format("../install_", fixture, "/lib/til"))

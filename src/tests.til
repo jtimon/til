@@ -2,6 +2,7 @@ mode cli
 
 import("std/sys")
 import("std/file")
+import("test_scheduler")
 
 NL := "\n"
 TIL := "bin/til"
@@ -17,7 +18,6 @@ TOTALS_PLOT_ARGS := " --left-unit s --left-divisor 1000 --right-unit gb --right-
 GUI_TIMEOUT := "1"
 DOC_DOCTEST_FILE := "tmp/doc_doctests.til"
 TUTORIAL_DOCTEST_DIR := "tmp/tutorial_doctests"
-PEAK_MEM_SAMPLE_MS := 100
 
 count_matches := func(haystack: Str, needle: Str) returns I64 {
     if needle.is_empty() { return 0 }
@@ -41,22 +41,6 @@ run := proc(cmd: Str) returns I64 {
 
 // --- Helpers ---
 
-ms_to_str := func(ms: I64) returns Str {
-    secs := ms / 1000
-    frac := ms.mod(1000) / 10
-    mut frac_str := frac.to_str()
-    if frac < 10 { frac_str = format("0", frac_str) }
-    return format(secs.to_str(), ".", frac_str, "s")
-}
-
-pad_right := func(s: Str, width: USize) returns Str {
-    mut result := s.clone()
-    while result.len() < width {
-        result = format(result, " ")
-    }
-    return result
-}
-
 test_basename := func(path: Str) returns Str {
     mut last_slash : USize = 0
     mut has_slash := 0
@@ -74,19 +58,6 @@ test_basename := func(path: Str) returns Str {
         name = name.strip_suffix(".til")
     }
     return name
-}
-
-parse_kv := func(line: Str, key: Str) returns I64 {
-    needle := format(key, "=")
-    pos := line.find(needle)
-    if pos < 0 { return 0 }
-    pos_u : USize = pos.to_usize()
-    start := pos_u + needle.len()
-    mut end := start
-    while end.lt(line.len()).and(line.get(end).neq(' ')).and(line.get(end).neq(10)) {
-        end++
-    }
-    return line.substr(start, end - start).to_i64()
 }
 
 mode_flags := func(en_interp: I64, en_run: I64, asan_flag: Str) returns Str {
@@ -461,81 +432,9 @@ write_doc_doctests := proc(out_path: Str) {
 
 // --- Data structures ---
 
-BothData := struct {
-    interp_ms := 0
-    interp_ok := 0
-    interp_mem := 0
-    compile_ms := 0
-    compile_ok := 0
-    compile_mem := 0
-    run_ms := 0
-    run_ok := 0
-    run_mem := 0
-    output_match := 1
-namespace:
-    eq := func(a: BothData, b: BothData) returns Bool {
-        return and(a.interp_ms.eq(b.interp_ms), a.interp_ok.eq(b.interp_ok),
-                   a.interp_mem.eq(b.interp_mem),
-                   a.compile_ms.eq(b.compile_ms),
-                   a.compile_ok.eq(b.compile_ok),
-                   a.compile_mem.eq(b.compile_mem),
-                   a.run_ms.eq(b.run_ms),
-                   a.run_ok.eq(b.run_ok),
-                   a.run_mem.eq(b.run_mem),
-                   a.output_match.eq(b.output_match))
-    }
-    to_str := func(_self: BothData) returns Str { return "BothData" }
-}
-
-TestKind := enum { Both: BothData, Single, Count }
-
 CountCheck := struct {
     needle := ""
     expected_count := 0
-}
-
-Test := struct {
-    label := ""
-    cmd := ""
-    outfile := ""
-    category := ""
-    kind := TestKind.Single
-    // scheduling
-    pid := 0
-    start_ms := 0
-    // common results
-    ok := 0
-    ms := 0
-    mem := 0
-    // both config flags
-    has_interp := 0
-    has_run := 0
-    // The row's command is refused before codegen (a mode rejection), so it
-    // writes no generated C and cannot collide -- see check_gen_c_collisions.
-    refused_before_codegen := false
-}
-
-Slot := struct {
-    test_idx : USize = 0
-    pid := 0
-    start_ms := 0
-}
-
-// --- Output helpers ---
-
-print_test_result := proc(t: Test) {
-    switch t.kind {
-    case .Both(md):
-        mut line := pad_right(t.label, 42)
-        if t.has_interp == 1 { line = format(line, "interp: ", pad_right(ms_to_str(md.interp_ms), 9)) }
-        if t.has_run == 1 { line = format(line, "compile: ", pad_right(ms_to_str(md.compile_ms), 9), "run: ", pad_right(ms_to_str(md.run_ms), 9)) }
-        if md.output_match == 0 { line = format(line, " MISMATCH") }
-        println(line)
-    case:
-        if t.ok == 1 {
-            println(pad_right(t.label, 42), ms_to_str(t.ms))
-        }
-    }
 }
 
 // --- Generated-C collision check ---
@@ -864,170 +763,9 @@ add_cli_pair := func(mut tests: Vec(Test), name: Str, file: Str,
         add_single(tests, format(name, "_r"), "cli", expected_exit, expected_out, cmd_r)
     }
 
-// --- Blind parallel runner ---
-
-// The self-translate benchmarks ("self": bin/til as built, self_ms /
-// self_mem; "self_asan": the ASAN compiler, self_asan_ms / self_asan_mem)
-// run alongside the suite but are not part of its wall or its peak memory.
-is_benchmark_category := func(category: Str) returns Bool {
-    return category.eq("self").or(category.eq("self_asan"))
-}
-
-run_all_parallel := proc(mut tests: Vec(Test), j: USize, mut fail: I64,
-                        mut suite_end_ms: I64, mut suite_peak_mem: I64) {
-    mut next : USize = 0
-    mut active : USize = 0
-
-    mut slots := Array(Slot).new(j)
-    mut si : USize = 0
-    while si < j {
-        slots[si] = Slot()
-        si++
-    }
-
-    // Spawn initial batch
-    si = 0
-    while si.lt(j).and(next.lt(tests.len())) {
-        ref t : Test = tests[next]
-        cmd := format(t.cmd, " > ", t.outfile, " 2>&1")
-        start := clock_ms()
-        pid := spawn_cmd(cmd)
-        slots[si] = Slot(test_idx = next, pid = pid, start_ms = start)
-        active++
-        next++
-        si++
-    }
-
-    // Poll loop. Aggregate process-tree walks are materially heavier than a
-    // status check, so sample suite pressure at 10 Hz; each test_runner still
-    // samples its individual phase peaks at 100 Hz.
-    mut next_mem_sample_ms := 0
-    while active > 0 {
-        now := clock_ms()
-        if now >= next_mem_sample_ms {
-            mut live_mem := 0
-            mut mi : USize = 0
-            while mi < j {
-                ref slot : Slot = slots[mi]
-                if slot.pid > 0 {
-                    ref t : Test = tests[slot.test_idx]
-                    if is_benchmark_category(t.category).not() {
-                        live_mem = live_mem + current_rss_bytes(slot.pid).cast(I64)
-                    }
-                }
-                mi++
-            }
-            if live_mem > suite_peak_mem { suite_peak_mem = live_mem }
-            next_mem_sample_ms = now + PEAK_MEM_SAMPLE_MS
-        }
-
-        mut i : USize = 0
-        while i < j {
-            ref mut slot : Slot = slots[i]
-            if slot.pid > 0 {
-                status := check_cmd_status(slot.pid)
-                if status != -1 {
-                    ref mut t : Test = tests[slot.test_idx]
-                    runner_out := File.readfile(t.outfile)
-
-                    // Find RESULT line. #395: its ABSENCE is a failure, not a
-                    // zero to carry quietly. test_runner prints the line on
-                    // every path it takes, so no line means it never ran --
-                    // which is what a shell operator in a registered command
-                    // does, by taking the redirect (and the rest of the work)
-                    // away from it. The old silence let one such test sit
-                    // uncounted for as long as it existed, visible only as a
-                    // "Passed: N-1/N" over the words "all tests passed".
-                    mut result_line := ""
-                    result_pos := runner_out.rfind("RESULT ")
-                    if result_pos >= 0 {
-                        result_pos_u : USize = result_pos.to_usize()
-                        result_line = runner_out.substr(result_pos_u,
-                            runner_out.len() - result_pos_u)
-                    } else {
-                        println("FAIL: ", t.label, " produced no RESULT line",
-                            " -- test_runner did not run it (a shell operator",
-                            " in the registered command takes the redirect)")
-                        fail = 1
-                    }
-
-                    // Parse common fields
-                    t.ok = parse_kv(result_line, "ok")
-                    t.ms = parse_kv(result_line, "ms")
-                    t.mem = parse_kv(result_line, "mem")
-                    // Parse both-specific fields into payload
-                    switch t.kind {
-                    case .Both(md):
-                        md.interp_ms = parse_kv(result_line, "interp_ms")
-                        md.interp_ok = parse_kv(result_line, "interp_ok")
-                        md.interp_mem = parse_kv(result_line, "interp_mem")
-                        md.compile_ms = parse_kv(result_line, "compile_ms")
-                        md.compile_ok = parse_kv(result_line, "compile_ok")
-                        md.compile_mem = parse_kv(result_line, "compile_mem")
-                        md.run_ms = parse_kv(result_line, "run_ms")
-                        md.run_ok = parse_kv(result_line, "run_ok")
-                        md.run_mem = parse_kv(result_line, "run_mem")
-                        md.output_match = parse_kv(result_line, "match")
-                        t.kind = TestKind.Both(md.clone())
-                    case:
-                    }
-
-                    print_test_result(t)
-
-                    // Suite wall excludes the self-translate benchmarks: record
-                    // when each non-benchmark test finishes; the last one marks
-                    // the end of the real suite (they run in parallel past it).
-                    if is_benchmark_category(t.category).not() { suite_end_ms = clock_ms() }
-
-                    if status != 0 {
-                        // Everything the runner said, minus the
-                        // machine-readable RESULT line already parsed
-                        // above. Relaying ONLY the FAIL/MISMATCH lines
-                        // dropped the one thing a reader needs: the
-                        // block print_captured_err writes -- the til
-                        // panic, the ASAN report, the cc error, the
-                        // test's own assertion dump. A failure that
-                        // reproduces locally survives that filter; a
-                        // CI-only one does not, and `FAIL: repl_pty
-                        // exit=1 expected=0` with no second line is all
-                        // the mac jobs could say for twenty red runs.
-                        runner_lines := runner_out.split(NL)
-                        mut li : USize = 0
-                        while li < runner_lines.len() {
-                            ref ln : Str = runner_lines[li]
-                            if ln.starts_with("RESULT ").not() {
-                                println(ln)
-                            }
-                            li++
-                        }
-                        fail = 1
-                    }
-
-                    active--
-                    slot.pid = 0
-
-                    if next < tests.len() {
-                        ref nt : Test = tests[next]
-                        cmd := format(nt.cmd, " > ", nt.outfile, " 2>&1")
-                        start := clock_ms()
-                        pid := spawn_cmd(cmd)
-                        slots[i] = Slot(test_idx = next, pid = pid, start_ms = start)
-                        active++
-                        next++
-                    }
-                }
-            }
-            i++
-        }
-        if active > 0 {
-            sleep_ms(10)
-        }
-    }
-}
-
 // --- Main ---
 
-main := proc(args: ..Str) {
+main := proc(args: ..Str) returns I64 {
     wall_start := clock_ms()
 
     // Parse args: -jN, -no-interp, -no-run, --no-gui, --no-jvm, --til-bin <path>,
@@ -1243,14 +981,27 @@ main := proc(args: ..Str) {
         format(TIL, " run -o bin/c/install_rebuild -c gen/c/install_rebuild.c test/install.til rebuild"))
     add_single(tests, "install", "build", 0, "", format(TIL, " run test/install.til support"))
 
-    // One installed ASAN host build serves all public-API families. The
-    // driver runs each in its own process/guest directory with an empty PATH.
-    add_single(tests, "install_tilvm", "build", 0, "", format(TIL, " interpret test/install_tilvm.til tilvm"))
-    // The native driver likewise shares one build, but preserves a private
-    // set of libraries per family process. Keep the driver compiled: it
-    // calls the host C ABI directly (realpath_str).
-    add_single(tests, "install_tilvm_native", "build", 0, "",
-        format(TIL, " run test/install_tilvm_native.til tilvm_native"))
+    // Build each installed ASAN host once. Families are normal scheduler
+    // jobs, released only after their build succeeds; waiting costs no slot.
+    // The compiled orchestration drivers are products of the same build row.
+    public_vm_build := tests.len()
+    add_count(tests, "install_tilvm_build", "build", "install TilVm build PASS", 1,
+        format(TIL, " run test/install_tilvm.til tilvm build"))
+    for family : Str in array(Str, "lifecycle", "calls", "lookup", "references", "values") {
+        add_single(tests, format("install_tilvm_", family), "build", 0, "",
+            format("bin/test/install_tilvm tilvm ", family))
+        ref mut job : Test = tests[tests.len().sub(1)]
+        job.prerequisite = Option(USize).Some(public_vm_build)
+    }
+    native_vm_build := tests.len()
+    add_count(tests, "install_tilvm_native_build", "build", "install TilVm native build PASS", 1,
+        format(TIL, " run test/install_tilvm_native.til tilvm_native build"))
+    for family : Str in array(Str, "state", "config", "prelude", "reload") {
+        add_single(tests, format("install_tilvm_native_", family), "build", 0, "",
+            format("bin/test/install_tilvm_native tilvm_native ", family))
+        ref mut job : Test = tests[tests.len().sub(1)]
+        job.prerequisite = Option(USize).Some(native_vm_build)
+    }
     // #313: the cage's leak report (LeakSanitizer cannot see the cage's
     // blocks). A compiled program that loses one allocation must exit 1,
     // under the cage from the cage's own report and under --usize=64 from
@@ -1358,6 +1109,10 @@ main := proc(args: ..Str) {
     add_count(tests, "build_outputs", "build", "build outputs passed", 1,
         format(til_bin, " run", asan_flag,
             " -o bin/c/build_outputs -c gen/c/build_outputs.c test/build_outputs.til ", til_bin))
+
+    add_count(tests, "test_dependencies", "build", "test prerequisites passed", 1,
+        format(til_bin, " run", asan_flag,
+            " -o bin/c/test_dependencies -c gen/c/test_dependencies.c test/test_dependencies.til"))
 
     // Each family owns its renamed templates, generated probes and driver
     // outputs. All cases/backends are retained; no compiler-host build is
@@ -3854,5 +3609,5 @@ main := proc(args: ..Str) {
         println("Updated doc/totals.csv and img/totals.svg")
     }
 
-    exit(fail)
+    return fail
 }
