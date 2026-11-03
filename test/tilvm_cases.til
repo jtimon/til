@@ -1714,6 +1714,35 @@ kwargs_callback_tests := proc(root: Str) {
     assert(snapshot == "snapshot")
 }
 
+// Shared dispatch for the once-built host and the standalone family hosts.
+// A family is always run in a fresh process with its own guest directory.
+run_tilvm_family := proc(root: Str, family: Str) returns I64 {
+    switch family {
+    case "lifecycle": return lifecycle_tests(root)
+    case "calls":
+        multiple_error_callback_tests(root)
+        throwing_callback_tests(root)
+        throwing_schema_tests(root)
+        callback_tests(root)
+    case "lookup":
+        checked_lookup(root)
+        typed_callback_tests(root)
+    case "values":
+        record_error := shared_record_callback_tests(root)
+        assert(record_error.message == "record borrow error")
+        shared_error := shared_cell_callback_tests(root)
+        assert(shared_error.code == 21 && shared_error.message == "shared error")
+        kwargs_callback_tests(root)
+        variadic_callback_tests(root)
+        nested_callback_tests(root)
+        enum_callback_tests(root)
+        record_callback_tests(root)
+    case: panic("unknown TilVm test family: ", family)
+    }
+    println("TilVm host survived errors and teardown")
+    return 0
+}
+
 lifecycle_tests := proc(root: Str) returns I64 {
     mut vm := TilVm.new(root)
     expect_failure(vm, "mode lib\nbroken := func( {\n", "load", "expected", 2)

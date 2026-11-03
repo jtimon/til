@@ -6,8 +6,5 @@ import("./tilvm_cases")
 // Keep these together: checked_lookup prepares the guest/input files, and
 // typed_callback_tests keeps the concrete throw schemas used by reflection.
 main := proc(root: Str) returns I64 {
-    checked_lookup(root)
-    typed_callback_tests(root)
-    println("TilVm host survived errors and teardown")
-    return 0
+    return run_tilvm_family(root, "lookup")
 }

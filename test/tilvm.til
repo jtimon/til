@@ -2,9 +2,11 @@ mode cli
 
 import("./tilvm_cases")
 
-// Keep the standalone all-cases host. The suite runs the semantic families
-// separately through install_tilvm.til, each with its own installation.
-main := proc(root: Str) returns I64 {
+// Keep the standalone all-cases order. The suite builds this host once and
+// selects each family in a separate process with isolated guest files.
+main := proc(root: Str, families: ..Str) returns I64 {
+    if families.len() > 1 { panic("expected at most one TilVm test family") }
+    if families.len() == 1 { return run_tilvm_family(root, families[0]) }
     record_error := shared_record_callback_tests(root)
     assert(record_error.message == "record borrow error")
     shared_error := shared_cell_callback_tests(root)

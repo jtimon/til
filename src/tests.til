@@ -1234,14 +1234,9 @@ main := proc(args: ..Str) {
     // examples/lib/ and the installer kept copying the old path.
     add_single(tests, "install", "build", 0, "", format(TIL, " run test/install.til"))
 
-    // Each installed TilVm family owns its copy-only installation and guest
-    // directory. Interpret the shared orchestration driver so simultaneous
-    // rows do not race while rebuilding the same driver binary. The tested
-    // hosts are still compiled with ASAN and run with an empty PATH.
-    for family : Str in array(Str, "lifecycle", "calls", "lookup", "values") {
-        add_single(tests, format("install_tilvm_", family), "build", 0, "",
-            format(TIL, " interpret test/install_tilvm.til tilvm_", family))
-    }
+    // One installed ASAN host build serves all public-API families. The
+    // driver runs each in its own process/guest directory with an empty PATH.
+    add_single(tests, "install_tilvm", "build", 0, "", format(TIL, " interpret test/install_tilvm.til tilvm"))
     // The native driver calls the host C ABI directly (realpath_str). Keep
     // its original compiled execution, with distinct outputs for each row.
     for family : Str in array(Str, "state", "config", "prelude", "reload") {

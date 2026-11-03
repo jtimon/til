@@ -4,9 +4,38 @@ import("../src/std/sys")
 import("../src/std/file")
 import("../src/self/install")
 
-// Each semantic host has its own prefix and guest files, so the suite can
-// run the families independently. Reuse the compiler already built by the
-// suite; install.til separately exercises rebuilding it through `til install`.
+// Build the installed ASAN host once, then run the semantic families in
+// separate processes and guest directories. The SDK is read-only during
+// execution. install.til covers rebuilding the compiler through `til install`.
+
+run_families := proc(work: Str, fixture: Str) {
+    families := array(Str, "lifecycle", "calls", "lookup", "values")
+    mut children := Vec(Cmd).new()
+    for family : Str in families {
+        directory := format(work, "/", family)
+        mkdir_p(directory)
+        child := Cmd.new("../bin/tilvm_host", format("../../install_", fixture, "/lib/til"), family)
+        child.cwd(directory)
+        child.env("PATH", "")
+        child.capture()
+        child.start()
+        children.push(own child)
+    }
+    // Reap every child before reporting failures, so one failed family
+    // cannot leave the others running after the test row has finished.
+    mut failures := ""
+    for i, child in children {
+        status := child.wait()
+        if status != 0 {
+            failures = format(failures, families[i], " exited ", status.to_str(), ": ", child.out(), child.err(), "\n")
+        } else if child.out().contains("TilVm host survived errors and teardown").not() {
+            failures = format(failures, families[i], " did not finish: ", child.out(), child.err(), "\n")
+        } else {
+            println("install TilVm ", families[i], " PASS")
+        }
+    }
+    if failures.len() > 0 { panic("installed TilVm families failed: ", failures) }
+}
 
 main := proc(fixture: Str = "tilvm") returns I64 {
     prefix := format("tmp/install_", fixture)
@@ -27,6 +56,11 @@ main := proc(fixture: Str = "tilvm") returns I64 {
     vm_build := Cmd.new(installed_til, "build", "--asan", "-o", "bin/tilvm_host", "tilvm_host.til")
     vm_build.cwd(work)
     vm_build.run_checked()
+    if fixture == "tilvm" {
+        run_families(work, fixture)
+        println("install TilVm PASS")
+        return 0
+    }
     vm_run := Cmd.new("./bin/tilvm_host", format("../install_", fixture, "/lib/til"))
     vm_run.cwd(work)
     vm_run.env("PATH", "")

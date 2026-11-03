@@ -4,10 +4,5 @@ import("./tilvm_cases")
 
 // Callback-handle lifetimes and declared-error contracts.
 main := proc(root: Str) returns I64 {
-    multiple_error_callback_tests(root)
-    throwing_callback_tests(root)
-    throwing_schema_tests(root)
-    callback_tests(root)
-    println("TilVm host survived errors and teardown")
-    return 0
+    return run_tilvm_family(root, "calls")
 }
