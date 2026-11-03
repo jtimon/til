@@ -1353,9 +1353,15 @@ main := proc(args: ..Str) {
         format(til_bin, " run", asan_flag,
             " -o bin/c/build_outputs -c gen/c/build_outputs.c test/build_outputs.til ", til_bin))
 
-    add_count(tests, "type_arg_qualifiers", "build", "type argument qualifiers passed", 1,
-        format(til_bin, " run", asan_flag,
-            " -o bin/c/type_arg_qualifiers -c gen/c/type_arg_qualifiers.c test/type_arg_qualifiers.til ", til_bin))
+    // Each family owns its renamed templates, generated probes and driver
+    // outputs. All cases/backends are retained; no compiler-host build is
+    // duplicated, just the small orchestration driver and template copies.
+    for family : Str in array(Str, "success", "borrows", "generics") {
+        add_count(tests, format("type_arg_qualifiers_", family), "build", "type argument qualifiers passed", 1,
+            format(til_bin, " run", asan_flag,
+                " -o bin/c/type_arg_qualifiers_", family, " -c gen/c/type_arg_qualifiers_", family,
+                ".c test/type_arg_qualifiers.til ", til_bin, " ", family))
+    }
 
     add_count(tests, "cpu_options", "build", "cpu options passed", 1,
         format(til_bin, " run", asan_flag,

@@ -33,10 +33,7 @@ reject_generic := proc(compiler: Str, root: Str, source: Str, expected: Str) {
     }
 }
 
-main := proc(args: ..Str) {
-    ref compiler: Str = args[0]
-    root := "tmp/type_arg_qualifiers"
-    mkdir_p(root)
+prepare_templates := proc(root: Str) {
     // Exercise the real macro source under an unrelated name and file path.
     // The injected method only exposes the qualifier query for assertions;
     // it makes no claim that Vec's borrowed-element operations are complete.
@@ -60,6 +57,9 @@ main := proc(args: ..Str) {
         .replace("Set", "MyAltSet").replace("set_ref_store", "my_alt_set_ref_store")
         .replace("import(\"", "import(\"core/")
     File.writefile(format(root, "/MyAltSet.til"), set_source)
+}
+
+query_checks := proc(compiler: Str, root: Str) {
     File.writefile(format(root, "/probe.til"), format(
         "mode cli\nimport(\"MyAltVec\")\n",
         "Contract := interface { value := func(self: Contract) returns I64\n",
@@ -186,8 +186,10 @@ main := proc(args: ..Str) {
     check(Cmd.new(compiler, "interpret", format(root, "/probe.til")), "qualifiers OK\n")
     check(Cmd.new(compiler, "run", "--asan", "-o", format(root, "/probe"),
         "-c", format(root, "/probe.c"), format(root, "/probe.til")), "qualifiers OK\n")
-    family_imports := "import(\"MyAltArray\")\nimport(\"MyAltMap\")\nimport(\"MyAltSet\")\n"
-    family_types := format(
+}
+
+family_type_source := func() returns Str {
+    return format(
         "Ordered := interface { value := func(self: Ordered) returns I64\ncmp := func(self: Ordered, other: Ordered) returns I64 }\n",
         "Item := struct implements Ordered { n: I64\nnamespace:\n",
         "value := func(self: Item) returns I64 { return self.n }\n",
@@ -196,6 +198,11 @@ main := proc(args: ..Str) {
         "value := func(self: Entry) returns I64 { switch self { case .Number(n): return n } }\n",
         "cmp := func(self: Entry, other: Entry) returns I64 { return I64.cmp(self.value(), other.value()) } }\n",
         "RefKey := struct implements Ordered { ref label: Str\nnamespace:\nvalue := func(self: RefKey) returns I64 { return self.label.len().to_i64() }\ncmp := func(self: RefKey, other: RefKey) returns I64 { return Str.cmp(self.label, other.label) } }\n")
+}
+
+container_checks := proc(compiler: Str, root: Str) {
+    family_imports := "import(\"MyAltArray\")\nimport(\"MyAltMap\")\nimport(\"MyAltSet\")\n"
+    family_types := family_type_source()
     File.writefile(format(root, "/families.til"), format("mode cli\n", family_imports, family_types,
         "concat_local := func(left: MyAltArray(ref Str)) returns USize { local := format(\"local\"); mut right := MyAltArray(ref Str).new(1); right.set(0, local)!; joined := left.concat(right); return joined[left.len()].len() }\n",
         "check_concat := proc(prefix: Str) { noop_proc(); first := prefix.clone(); second := format(prefix, \"second\"); mut left := MyAltArray(ref Str).new(1); mut right := MyAltArray(ref Str).new(1); left.set(0, first)!; right.set(0, second)!; joined := left.concat(right); own left.delete(); own right.delete(); assert_eq(Str, joined[0], prefix); assert_eq(Str, joined[1], format(prefix, \"second\")) }\n",
@@ -245,6 +252,10 @@ main := proc(args: ..Str) {
     check(Cmd.new(compiler, "interpret", format(root, "/native_families.til")), "container families OK\n")
     check(Cmd.new(compiler, "run", "--asan", "-o", format(root, "/native_families"),
         "-c", format(root, "/native_families.c"), format(root, "/native_families.til")), "container families OK\n")
+}
+
+family_borrow_checks := proc(compiler: Str, root: Str) {
+    family_types := family_type_source()
     for body : Str in array(Str,
         "import(\"MyAltArray\")\nbad := func() returns MyAltArray(ref Str) { value := format(\"local\"); mut a := MyAltArray(ref Str).new(1); a.set(0, value)!; return a.clone() }\nmain := proc() {}",
         "import(\"MyAltArray\")\nbad := func() returns MyAltVec(ref Str) { value := format(\"local\"); mut a := MyAltArray(ref Str).new(1); a.set(0, value)!; return a.to_vec() }\nmain := proc() {}",
@@ -282,6 +293,9 @@ main := proc(args: ..Str) {
         expect(status != 0, output)
         expect(output.contains("Array.get: uninitialized borrowed element"), output)
     }
+}
+
+query_error_checks := proc(compiler: Str, root: Str) {
     File.writefile(format(root, "/invalid.til"), format(
         "mode cli\nbad := func(value: Type) returns Bool { return type_arg_is_ref(value) }\n",
         "main := proc() { println(type_arg_is_ref(1)); println(type_arg_is_ref()) }\n"))
@@ -311,6 +325,9 @@ main := proc(args: ..Str) {
             expect(output.contains("error: type_arg_is_interface"), body, ": ", output)
         }
     }
+}
+
+vector_borrow_checks := proc(compiler: Str, root: Str) {
     contract := "Contract := interface { value := func(self: Contract) returns I64 }\n"
     for body : Str in array(Str,
         "bad := func() returns MyAltVec(ref Str) { text := format(\"local\"); mut v := MyAltVec(ref Str).new(); v.push(text); return v }\nmain := proc() {}",
@@ -340,6 +357,10 @@ main := proc(args: ..Str) {
             expect(output.contains("cannot store a borrow").or(output.contains("cannot return a borrow")).or(output.contains("still borrows its storage")), body, ": ", output)
         }
     }
+}
+
+interface_argument_checks := proc(compiler: Str, root: Str) {
+    contract := "Contract := interface { value := func(self: Contract) returns I64 }\n"
     for declaration : Str in array(Str,
         "Bad := Vec(Contract)",
         "Bad := Array(Contract)",
@@ -424,6 +445,9 @@ main := proc(args: ..Str) {
         expect(status != 0, output)
         expect(output.contains("has a 'ref' payload"), output)
     }
+}
+
+generic_call_checks := proc(compiler: Str, root: Str) {
     File.writefile(format(root, "/ufcs_api.til"), format(
         "mode lib\nRender := interface { draw := func(self: Render) returns Str }\n",
         "RenderValue := struct implements Render { text: Str\nnamespace:\ndraw := func(self: RenderValue) returns Str { return self.text.clone() } }\n",
@@ -483,5 +507,39 @@ main := proc(args: ..Str) {
         "many := func<T: Type implements Draw>(value: T, parts: ..Str) returns Str { return format(value.draw(), ..parts) }\n",
         "main := proc() { value := Good(); parts := array(Str, \"end\"); println(value.many(", many_args, "..parts)) }\n"),
         "UFCS receiver insertion would overflow the argument qualifier bitmap")
+}
+
+main := proc(args: ..Str) {
+    ref compiler: Str = args[0]
+    mut family := "all"
+    if args.len() > 1 { family = args[1].borrowed_view() }
+    if family.eq("all").or(family.eq("success")).or(family.eq("borrows")).or(family.eq("generics")).not() {
+        panic("unknown qualifier test family: ", family)
+    }
+    mut root := "tmp/type_arg_qualifiers"
+    if family != "all" { root = format(root, "_", family) }
+    mkdir_p(root)
+    prepare_templates(root)
+    switch family {
+    case "all":
+        // Keep the standalone command's original case order.
+        query_checks(compiler, root)
+        container_checks(compiler, root)
+        family_borrow_checks(compiler, root)
+        query_error_checks(compiler, root)
+        vector_borrow_checks(compiler, root)
+        interface_argument_checks(compiler, root)
+        generic_call_checks(compiler, root)
+    case "success":
+        query_checks(compiler, root)
+        container_checks(compiler, root)
+    case "borrows":
+        family_borrow_checks(compiler, root)
+        vector_borrow_checks(compiler, root)
+    case "generics":
+        query_error_checks(compiler, root)
+        interface_argument_checks(compiler, root)
+        generic_call_checks(compiler, root)
+    }
     println("type argument qualifiers passed")
 }
