@@ -38,6 +38,19 @@ Acceptance for the remaining representation work:
 - Measure memory and time, distinguishing representation gains from unrelated
   runtime validation or sanitizer changes.
 
+Progress (no representation change yet):
+
+- [X] The callback bridge no longer assumes a reference slot's width:
+  ~interp_callback_error_copy~ copies a record's ref field at its layout
+  width (~layout_slot_size~) and a borrowed enum payload at
+  ~stored_ref_size~ (native today: the one place compression changes it),
+  instead of ~Dynamic.size()~ bytes.
+- [X] Stored-reference sizes are pinned for records under both layouts:
+  ~RefPair~ (two ~ref I64~ fields) is 16 bytes in test/usize32_sizes.til and
+  test/usize64_sizes.til. Compression makes the compact pin 8.
+- [ ] Borrowed enum payloads and ref containers: size pins and the native
+  boundary rules.
+
 **** Separate callback validation cost
 
 The initial #370 shared-cell restriction checked that an incoming borrowed address was

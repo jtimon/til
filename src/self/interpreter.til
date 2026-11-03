@@ -6874,6 +6874,21 @@ priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut 
     return layout.ptr.size.to_usize() == dyn_size_of(name)
 }
 
+// #313 (reopened): the width of a stored reference -- a borrowed enum
+// payload here; a record's ref field reads its width from the record's
+// layout (layout_slot_size). Native pointers under both layouts today, so
+// this is where reference compression changes it. Such slots are copied at
+// this width, never assumed Dynamic.size() bytes, and a load goes through
+// own_slot_load (which decodes a 4-byte cage offset), never deref.
+priv stored_ref_size := func() returns USize { return Dynamic.size() }
+
+// The byte width of field `index` in a libffi layout: what ffi_struct_layout
+// gave it (field_ffi_type), so a pointer field's slot follows the layout.
+priv layout_slot_size := func(layout: FFITypePtrBox, index: USize) returns USize {
+    ref slot_type : ffi_type = deref(ptr_add(layout.ptr.elements, index.mul(8)))
+    return slot_type.size.to_usize()
+}
+
 priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Context, to_guest: Bool = false) returns Dynamic {
     // The validated inline-field layout is shared by host and interpreter.
     // Reuse this deep boundary copy for arguments, results and error payloads.
@@ -6904,7 +6919,7 @@ priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Con
         if variant.payload_type.len() > 0 {
             ref offset : U64 = ptr_add(layout.offsets, 8)
             if variant.payload_ref {
-                memcpy(ptr_add(out, offset.to_usize()), ptr_add(source, offset.to_usize()), Dynamic.size())
+                memcpy(ptr_add(out, offset.to_usize()), ptr_add(source, offset.to_usize()), stored_ref_size())
                 return out
             }
             copied : Dynamic = interp_callback_error_copy(variant.payload_type, ptr_add(source, offset.to_usize()), ctx, to_guest)
@@ -6922,7 +6937,7 @@ priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Con
         if field.own_type.is(OwnType.Ref) {
             // Ordinary Til clone semantics: copy the borrow, not its pointee.
             // The referent's owner, not the callback/VM, controls its lifetime.
-            memcpy(ptr_add(out, offset.to_usize()), ptr_add(source, offset.to_usize()), Dynamic.size())
+            memcpy(ptr_add(out, offset.to_usize()), ptr_add(source, offset.to_usize()), layout_slot_size(layout, i))
             continue
         }
         field_type := type_from_name_init_name(decl_type_name(field, ctx.symbols), ctx.scope, ctx.symbols)

@@ -2,28 +2,42 @@
 # category: cleanups
 ** OPEN #455 Replace --usize with source-level configuration while preserving cross-width use cases
 
-Move explicit USize-width selection into til code, through an early
+Move explicit layout selection into til code, through an early
 configuration call analogous to ~link(...)~, then remove the public
-~--usize~ command-line flag. Preserve a viable way to select the width
-under a project's own options and to exercise the same source at multiple
-widths. Removing the flag must not mean deleting the underlying capability
-or losing cross-width tests.
+~--usize~ command-line flag. Preserve a viable way to select the layout
+under a project's own options and to exercise the same source under both
+layouts. Removing the flag must not mean deleting the underlying capability
+or losing cross-layout tests.
 
 *** Defaults and current state
 
-- Normal builds should have ~USize.size() == UPtr.size()~ for the target.
-  Keep their roles distinct: USize is for counts/indices; UPtr is for
-  pointer-width arithmetic. A USize override must not change UPtr.
-- ~src/til.til~ currently defaults ~usize_bits~ to 0 (no override), so
-  ordinary compiled programs already use target-native USize.
-- ~make.til~ explicitly uses ~--usize=32~ for the compiler's compact
-  internal container metadata. The migration should restore native-width
-  ordinary compiler builds while retaining deliberate compact-width
-  experiments through the replacement mechanism.
-- The use cases include U32 container metadata on 64-bit targets and
-  cross-width compiler/interpreter/FFI/layout testing, not just printing
-  different answers from size queries. Interpreted size queries can reflect
-  host representations; verify actual target layouts and behavior too.
+- One layout flag (doc/self.org, "Decided: one layout flag"): ~--usize~
+  selects the whole layout, not just the container width. ~--usize=32~ is
+  the compact layout -- U32 container widths and, on a 64-bit C target,
+  own pointer fields stored as 32-bit cage offsets (#313); ~--usize=64~ is
+  the native layout -- U64 widths and native pointers. ~--cptr~ is gone.
+  Keep the roles distinct: USize is for counts/indices; UPtr is for
+  pointer-width arithmetic and always follows the pointer width, under
+  either layout.
+- ~src/til.til~ resolves an unset ~--usize~ to 32 on a 64-bit C target
+  (not mode theme, not HolyC output), so ordinary programs get the compact
+  layout. The MLIR backend has the native layout only: it defaults to 64
+  and refuses ~--usize=32~. 32-bit targets are U32 either way and never
+  use the cage. Interpretation (the ~interpret~ command, the REPL, help,
+  TilVm sessions) defaults to the running compiler's own layout, because
+  an interpreter shares its allocator with the code and libraries it
+  loads.
+- ~make.til~ spells ~--usize=32~ for the compiler's own builds although it
+  is the default, so the compiler's layout does not depend on the default
+  of whichever compiler runs that line. ~make check_usize64~ (and its CI
+  job) runs the whole suite through a compiler built ~--usize=64~, with
+  every program built ~--usize=64~; the width regressions run in every
+  suite target (~layout_regressions~).
+- The use cases include the compact default and the native opt-out on
+  64-bit targets, and cross-layout compiler/interpreter/FFI testing, not
+  just printing different answers from size queries. Interpreted size
+  queries can reflect host representations; verify actual target layouts
+  and behavior too.
 
 *** Replacement contract to agree before implementation
 
@@ -31,16 +45,19 @@ or losing cross-width tests.
   configuration in code. Exact syntax is not chosen by this issue.
 - A ~mode test~-only restriction was suggested. Decide whether it covers
   the real use cases before adopting it: current fixtures also use ~mode
-  cli~ and ~mode script~, and compiler self-builds need cross-width coverage.
-  The same fixture must remain testable at both widths without maintaining
-  duplicate source copies or introducing another compiler CLI width flag.
-- Resolve configuration before width-dependent typing, layout and constant
-  evaluation. The condition selecting a width cannot already depend on
-  that width. Define the permitted early inputs and evaluation phase.
-- Resolve one width for the compilation/import graph. Conflicting source
+  cli~ and ~mode script~, and compiler self-builds need cross-layout
+  coverage. The same fixture must remain testable under both layouts
+  without maintaining duplicate source copies or introducing another
+  compiler CLI layout flag.
+- Resolve configuration before layout-dependent typing, layout and constant
+  evaluation. The condition selecting a layout cannot already depend on
+  that layout. Define the permitted early inputs and evaluation phase.
+- Resolve one layout for the compilation/import graph. Conflicting source
   requirements must fail explicitly. Separately compiled libraries must
-  satisfy the selected ABI; preserve the existing width-qualified runtime
-  and core-library identities rather than silently mixing layouts.
+  satisfy the selected ABI: keep the layout-qualified runtime and
+  core-library identities (~abi_layout_id~: ~U32~ / ~U64~) and the
+  exported ~til_<lib>___til_abi_layout~ the interpreter checks at load,
+  rather than silently mixing layouts.
 - Define source/CLI conflict behavior during migration. Do not leave two
   competing authorities or introduce a persistent configuration cache.
 
@@ -49,26 +66,33 @@ or losing cross-width tests.
 - [ ] Inventory ~--usize~ callers in the compiler, build program, tests,
   CI, documentation and installation/cross-compilation workflows.
 - [ ] Approve and implement the early source-level replacement, with a
-  concrete example of project-defined options and a two-width test driver.
-- [ ] Establish parity with the flag: container layout/stride, size queries,
-  mutable USize write-back, width-dependent constant evaluation, FFI and
-  checked count-to-pointer conversions. Cover native defaults and explicit
-  differing widths, including USize wider than UPtr where supported.
-- [ ] Migrate tests and build callers to the code-level mechanism. Remove
-  the implicit compact-width choice from ordinary compiler builds; retain
-  explicit compact and wide compiler test configurations.
+  concrete example of project-defined options and a two-layout test driver.
+- [ ] Establish parity with the flag: container layout/stride, own-pointer
+  storage (cage offsets vs native), size queries, mutable USize write-back,
+  layout-dependent constant evaluation, FFI and the library layout check,
+  and checked count-to-pointer conversions. Cover the defaults (compact on
+  64-bit C targets, native for MLIR, the target's own width elsewhere) and
+  explicit selections, including USize wider than UPtr where supported.
+- [ ] Migrate tests and build callers to the code-level mechanism. Keep the
+  compact layout as the default for ordinary builds, the compiler's
+  included; retain explicit compact and native compiler test
+  configurations (today's default suite and ~check_usize64~).
 - [ ] Once the replacement and migrated coverage work, remove ~--usize~
   parsing/help and obsolete CLI-specific tests/docs. Keep a clear diagnostic
-  for the retired option rather than treating it as a source filename.
+  for the retired options rather than treating them as a source filename:
+  ~--usize~, and ~--cptr~, which the driver reads as the source path today.
 
 *** Acceptance
 
-Native-width defaults work without configuration. Source-controlled width
-selection demonstrably covers the former flag's use cases, and the test
-matrix continues to exercise both widths. No public ~--usize~ flag remains.
-The whole compiler need not acquire MLIR or GPU dependencies for this work.
+The defaults work without configuration: the compact layout on 64-bit C
+targets, the native one for MLIR, and the target's own width elsewhere.
+Source-controlled layout selection demonstrably covers the former flag's
+use cases, and the test matrix continues to exercise both layouts. No
+public ~--usize~ flag remains. The whole compiler need not acquire MLIR or
+GPU dependencies for this work.
 
-Follow-up to [[../fixed/309.org][#309]]; coordinate with [[./317.org][#317]] but do not block basic
-native-width MLIR indexing on this migration. See
-[[../../doc/self.org::*USize defaults and source-level configuration direction][the recorded configuration direction]]. New calls, driver interfaces or
+Follow-up to [[../fixed/309.org][#309]] and [[./313.org][#313]]; coordinate with [[./317.org][#317]] but do
+not block basic native-width MLIR indexing on this migration. See
+[[../../doc/self.org::*USize defaults and source-level configuration direction][the recorded configuration direction]] and
+[[../../doc/self.org::*Decided: one layout flag (~--usize~ selects the own-pointer storage too)][the one layout flag decision]]. New calls, driver interfaces or
 artifacts require their specific design approval before implementation.

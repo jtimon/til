@@ -11,6 +11,15 @@ mode script
 // NOT interpreted: the compile-time interpreter manipulates the compiler's
 // own HOST structs, so X.size() is the host width under the interpreter.
 
+// #313 (reopened): stored references. A ref field is still an 8-byte
+// native pointer under the compact layout -- only own fields are cage
+// offsets -- so two refs take 16 bytes, as natively. Completing reference
+// compression makes RefPair 8 here; update this pin when it lands.
+RefPair := struct {
+    ref first : I64
+    ref second : I64
+}
+
 check := proc(label: Str, got: USize, want: USize) {
     if got.neq(want) {
         println(format("FAIL: ", label, " = ", got.to_str(), ", want ", want.to_str()))
@@ -23,6 +32,7 @@ check("Vec(Str).size()", Vec(Str).size(), 12)
 check("Vec(I64).size()", Vec(I64).size(), 12)
 check("Map(Str, I64).size()", Map(Str, I64).size(), 24)
 check("dyn_size_of Str", dyn_size_of("Str"), 12)
+check("RefPair.size() (stored refs, still native)", RefPair.size(), 16)
 
 // Elements stride at the compressed width: 3 pushes stay addressable.
 mut v := Vec(Str).new()

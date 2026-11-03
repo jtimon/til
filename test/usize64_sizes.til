@@ -12,6 +12,12 @@ mode script
 // the interpreter. The target-layout assertion therefore belongs in compiled
 // code.
 
+// #313: stored references are native pointers in the native layout.
+RefPair := struct {
+    ref first : I64
+    ref second : I64
+}
+
 check := proc(label: Str, got: USize, want: USize) {
     if got.neq(want) {
         println(format("FAIL: ", label, " = ", got.to_str(), ", want ", want.to_str()))
@@ -23,6 +29,7 @@ check("Str.size()", Str.size(), 24)
 check("Vec(Str).size()", Vec(Str).size(), 24)
 check("Vec(I64).size()", Vec(I64).size(), 24)
 check("dyn_size_of Str", dyn_size_of("Str"), 24)
+check("RefPair.size()", RefPair.size(), 16)
 
 // A vec must stride at the wide width too: 3 pushes stay addressable and
 // round-trip (a host-width 16-byte stride over 24-byte structs would misplace
