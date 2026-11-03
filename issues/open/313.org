@@ -292,7 +292,7 @@ assumptions do not match the compiler:
    src/std/crypto.til. No core/std struct stores an address in a UPtr field.
    The real pointers are the C ~T *~ / ~void *~ fields that c_codegen emits
    for every non-shallow (~own~ / ~ref~) struct field
-   (src/self/c_codegen.til ~6090-6101: ~sname *field;~), for Dynamic
+   (src/self/codegen/c_codegen.til ~6090-6101: ~sname *field;~), for Dynamic
    (~void *~) and for closures (~TilClosure *~). So "narrow UPtr" is the
    wrong lever: UPtr stays U64 (FFI byte counts and the ~(UPtr)p~ casts in
    the is_null lowering and TIL_LIT_GUARD need the full address width). What
@@ -303,7 +303,7 @@ assumptions do not match the compiler:
    garbager's asap destruction (src/self/garbager.til inserts delete/free at
    the last use, at compile time). No collector ever has to find, walk or
    decode a compressed pointer; a compressed field is only read/written by
-   generated code and by src/c/ext.c. That removes the hardest part of the
+   generated code and by src/self/codegen/ext.c. That removes the hardest part of the
    V8/JVM work.
 
 3. The ownership annotations already give the "two pointer kinds" split the
@@ -504,7 +504,7 @@ assumptions do not match the compiler:
   (~create_mspace_with_base~ gives a region-confined malloc for free, at
   the cost of a new vendored dependency). Recommendation: hand-written in
   ext.c.
-- No new files: the cage lives in src/c/ext.c + ext.h under
+- No new files: the cage lives in src/self/codegen/ext.c + ext.h under
   ~#ifdef TIL_CPTR32~, like the USize split does.
 
 **** Step 1 -- cage allocator, native pointers still (width-neutral)
