@@ -414,7 +414,11 @@ priv seed_guard_receiver_types := proc(mut ctx: Context, e: Expr, mut scope: Typ
     switch e.node_type {
     case .Ident(idn):
         ref nm : Str = idn.ident_name(ctx.symbols.names)
-        if nm.len().gt(0).and(func_state.lowering_param_types.has(nm).not()) {
+        // #471: a "" entry is a declaration the lowering could not type;
+        // the live typer scope can, so it is re-seeded like a missing one.
+        mut needs_seed := func_state.lowering_param_types.has(nm).not()
+        if needs_seed.not() { needs_seed = func_state.lowering_param_types[nm].is_empty() }
+        if nm.len().gt(0).and(needs_seed) {
             b_o := scope.get_binding_sym(idn.ident_sym())
             if b_o.is_some() {
                 ref b : TypeBinding = b_o.unwrap()
@@ -568,13 +572,20 @@ priv guess_prior_local_type_in_vec := func(scope: TypeScope, stmts: Vec(Expr), u
     return ""
 }
 
-// Record one statement's local declaration type in lowering_param_types,
-// which only ever grows. The throws lowering calls this once per statement as
-// it walks a body, so the map holds every prior local by the time a Throw
-// needs it -- it used to re-scan statements 0..j from a snapshot at every j,
-// which is the same accumulation done n times over a cloned vector.
-priv seed_local_type_from_stmt := func(mut scope: TypeScope, ctx: Context, stmt: Expr) {
-    ref mut func_state : TyperFuncState = scope.typer_func_state()
+// The type one local declaration records in lowering_param_types. The
+// throws lowering asks once per statement as it walks a body, so the map
+// holds every prior local by the time a Throw needs it -- it used to
+// re-scan statements 0..j from a snapshot at every j, which is the same
+// accumulation done n times over a cloned vector.
+//
+// #471: the map is LEXICAL. process_throw_catch_in_body restores it when a
+// nested body ends and records a declaration only from the NEXT statement
+// on (its own initializer still sees the outer binding: `v := I64.clone(v[0])`).
+// A declaration whose type cannot be named is still recorded, as ""
+// (unresolved): it shadows any outer binding of the same name, which a
+// lookup must then not consult. Readers treat a "" entry as an
+// unresolvable receiver, never as "absent".
+priv local_decl_lowering_type := func(mut scope: TypeScope, ctx: Context, stmt: Expr) returns Str {
     switch stmt.node_type {
     case .Decl(dd):
         mut tn := decl_type_name(dd, ctx.symbols)
@@ -642,9 +653,12 @@ priv seed_local_type_from_stmt := func(mut scope: TypeScope, ctx: Context, stmt:
             case:
             }
         }
-        if tn.len() == 0 { return }
-        func_state.lowering_param_types.set(dd.name, own tn)
+        // The same guess the whole-body scan made, confined to this
+        // declaration (constructors, `Type.new()`, typed literals).
+        if tn.len() == 0 { tn = validated_local_guess(ctx, stmt, dd.name) }
+        return tn
     case:
+        panic(__LOC__, "local_decl_lowering_type: not a Decl")
     }
 }
 
@@ -1508,6 +1522,30 @@ priv struct_field_type := func(ctx: Context, type_name: Str, field_name: Str) re
     return ""
 }
 
+// guess_local_type's answer for `nm` within `e`, kept only when it names a
+// type: the guess can be the base receiver of an FCall (eg.
+// `files := uc.split(" ")` -> "uc"), which is not one. A struct name is
+// kept; a function name (`mut x := some_func(...)`) becomes its declared
+// return type; anything else is "" (unresolved -- the caller falls back to
+// the suffix-match path).
+priv validated_local_guess := func(ctx: Context, e: Expr, nm: Str) returns Str {
+    g := guess_local_type(ctx.scope, e, nm, ctx.symbols)
+    if g.len() == 0 { return "" }
+    ng := normalize_ctor_type(g)
+    if ctx.scope.get_struct(ng, ctx.symbols).is_some() { return ng }
+    fb_fd_o := ctx.scope.lookup_func_name(ng, ctx.symbols)
+    if fb_fd_o.is_some() {
+        switch fb_fd_o.unwrap().node_type {
+        case .FuncDef(fdef):
+            if fdef.sig.return_type.len() > 0 {
+                return normalize_ctor_type(fdef.sig.return_type)
+            }
+        case:
+        }
+    }
+    return ""
+}
+
 // Best-effort type of a value expression for receiver resolution.
 // Handles idents (params, body-local Decls, literals) and field-access
 // chains (resolve the receiver, then look up the field's declared type
@@ -1521,30 +1559,7 @@ priv resolve_value_type := func(mut scope: TypeScope, ctx: Context, e: Expr, bod
             ref pt : Str = func_state.lowering_param_types[nm]
             return normalize_ctor_type(pt)
         }
-        g := guess_local_type(ctx.scope, body, nm, ctx.symbols)
-        if g.len() > 0 {
-            ng := normalize_ctor_type(g)
-            // guess_local_type can return the base receiver of an FCall
-            // (eg. `files := uc.split(" ")` -> "uc"), which isn't a real
-            // type. Only commit to ng if it names a known struct; let the
-            // caller fall back to the suffix-match path otherwise.
-            if ctx.scope.get_struct(ng, ctx.symbols).is_some() { return ng }
-            // FCall form `mut x := some_func(...)` lands here with
-            // ng == "some_func". If the name resolves to a function in
-            // scope, return its declared return_type instead.
-            fb_fd_o := ctx.scope.lookup_func_name(ng, ctx.symbols)
-            if fb_fd_o.is_some() {
-                switch fb_fd_o.unwrap().node_type {
-                case .FuncDef(fdef):
-                    if fdef.sig.return_type.len() > 0 {
-                        return normalize_ctor_type(fdef.sig.return_type)
-                    }
-                case:
-                }
-            }
-            return ""
-        }
-        return ""
+        return validated_local_guess(ctx, body, nm)
     case .FieldAccess(fn):
         if e.children.len() == 0 { return "" }
         recv_t := resolve_value_type(scope, ctx, e.children[0], body)
@@ -1652,14 +1667,16 @@ priv find_callee_throws_key := func(mut scope: TypeScope, mut ctx: Context, fcal
         }
         // Callable variables carry the throw contract of their FuncSig,
         // not a free-function registry entry under the variable's name.
+        // #471: the lexical map first -- the body scan finds whichever
+        // same-named declaration comes first, shadowed or not.
+        ref func_state : TyperFuncState = scope.typer_func_state()
+        if func_state.lowering_param_types.has(name) {
+            return registry_exact_key(ctx, func_state.lowering_param_types[name])
+        }
         sig_name := guess_local_type(scope, body, name, ctx.symbols)
         if sig_name.len() > 0 {
             signature := registry_exact_key(ctx, sig_name)
             if signature.len() > 0 { return signature }
-        }
-        ref func_state : TyperFuncState = scope.typer_func_state()
-        if func_state.lowering_param_types.has(name) {
-            return registry_exact_key(ctx, func_state.lowering_param_types[name])
         }
         return ""
     case .FieldAccess(fname):
@@ -2502,6 +2519,8 @@ priv process_throw_catch_in_body := proc(
     ref mut func_state : TyperFuncState = scope.typer_func_state()
     if body.node_type.is(NodeType.Body).not() { return }
     if body.children.len() == 0 { return }
+    // #471: declarations of this body go out of scope at its end.
+    outer_local_types := func_state.lowering_param_types.clone()
 
     mut old := body.children.take()
     // The snapshot is a deep copy of every statement in the body, and the
@@ -2525,11 +2544,23 @@ priv process_throw_catch_in_body := proc(
     // for the catches of its throw types (see PendingRefBinding).
     mut pending_refs := Vec(PendingRefBinding).new()
 
+    // #471: the previous statement's declaration, entering scope now.
+    mut declared_name := ""
+    mut declared_type := ""
     for j in 0..old.len() {
         ref mut stmt : Expr = old[j]
         stmt_line := stmt.line
         stmt_col := stmt.col
-        seed_local_type_from_stmt(scope, ctx, stmt)
+        if declared_name.len() > 0 {
+            func_state.lowering_param_types.set(declared_name, own declared_type.clone())
+            declared_name = ""
+        }
+        switch stmt.node_type {
+        case .Decl(sdd):
+            declared_type = local_decl_lowering_type(scope, ctx, stmt)
+            declared_name = sdd.name.clone()
+        case:
+        }
 
         // The grouping step below consumes statements j..stop; entries the
         // guard already swallowed are skipped here on the following
@@ -2929,20 +2960,19 @@ priv process_throw_catch_in_body := proc(
                         case:
                         }
                     }
-                    if tn.len() == 0 {
-                        tn = guess_local_type(ctx.scope, root_body, idn.ident_name(ctx.symbols.names), ctx.symbols)
-                    }
                     // A thrown PARAMETER is not a Decl anywhere in the
-                    // body, so neither scan above can see it. The map the
+                    // body, so the scan above cannot see it. The map the
                     // typer seeds before this walk already carries every
                     // parameter type (and every switch-case payload
                     // binding), which is exactly what `throws T` on a
                     // generic needs after substitution makes T concrete.
-                    if tn.len() == 0 {
-                        ref throw_name : Str = idn.ident_name(ctx.symbols.names)
-                        if func_state.lowering_param_types.has(throw_name) {
-                            tn = normalize_ctor_type(func_state.lowering_param_types[throw_name])
-                        }
+                    // #471: it is also lexical, so it answers before the
+                    // whole-body scan, which ignores shadowing.
+                    ref throw_name : Str = idn.ident_name(ctx.symbols.names)
+                    if tn.len().eq(0).and(func_state.lowering_param_types.has(throw_name)) {
+                        tn = normalize_ctor_type(func_state.lowering_param_types[throw_name])
+                    } else if tn.len() == 0 {
+                        tn = guess_local_type(ctx.scope, root_body, throw_name, ctx.symbols)
                     }
                 case:
                 }
@@ -3108,6 +3138,7 @@ priv process_throw_catch_in_body := proc(
     }
 
     body.children.move_from(own new_ch)
+    func_state.lowering_param_types = outer_local_types
 }
 
 // The read-only root snapshot is used only for local-type lookup. Keep

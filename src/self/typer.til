@@ -12593,8 +12593,65 @@ expr_collect_stmt_facts := func(e: Expr, scope: TypeScope, want_transfers: Bool,
         }
     }
 
+    // #471: a nested body is a scope. After a declaration in it, the name
+    // means the INNER binding, not the outer one these rows describe --
+    // an inner owned value's scope-end delete read as a transfer of the
+    // outer binding. Collect the rest of the body into scratch rows and
+    // merge them with the shadowed names masked out.
+    if e.node_type.is(NodeType.Body) {
+        words := fi.idx.len().add(63) / 64
+        mut shadowed := Vec(U64).new()
+        for e_i : Expr in e.children {
+            if shadowed.len() == 0 {
+                expr_collect_stmt_facts(e_i, scope, want_transfers, sub_transfers_on, fi, base, uses, decls, nested, escapes, transfers, symbols)
+            } else {
+                mut s_uses := fact_zero_row(words)
+                mut s_decls := fact_zero_row(words)
+                mut s_nested := fact_zero_row(words)
+                mut s_escapes := fact_zero_row(words)
+                mut s_transfers := fact_zero_row(words)
+                expr_collect_stmt_facts(e_i, scope, want_transfers, sub_transfers_on, fi, 0, s_uses, s_decls, s_nested, s_escapes, s_transfers, symbols)
+                fact_row_merge_unshadowed(uses, base, s_uses, shadowed)
+                fact_row_merge_unshadowed(decls, base, s_decls, shadowed)
+                fact_row_merge_unshadowed(nested, base, s_nested, shadowed)
+                fact_row_merge_unshadowed(escapes, base, s_escapes, shadowed)
+                fact_row_merge_unshadowed(transfers, base, s_transfers, shadowed)
+            }
+            fact_note_shadowing_decl(e_i, fi, words, shadowed)
+        }
+        return
+    }
     for e_i : Expr in e.children {
         expr_collect_stmt_facts(e_i, scope, want_transfers, sub_transfers_on, fi, base, uses, decls, nested, escapes, transfers, symbols)
+    }
+}
+
+// #471: one zeroed fact row, `words` wide.
+fact_zero_row := func(words: USize) returns Vec(U64) {
+    mut row := Vec(U64).with_capacity(words)
+    for _ in 0..words { row.push(own 0) }
+    return row
+}
+
+// #471: a nested body's Decl starts shadowing its name for the rest of
+// that body. `shadowed` stays empty until the first such name, so bodies
+// that declare nothing from the universe pay nothing.
+fact_note_shadowing_decl := func(stmt: Expr, fi: FactIndex, words: USize, mut shadowed: Vec(U64)) {
+    switch stmt.node_type {
+    case .Decl(dd):
+        bit := fact_bit_of(fi, dd.name)
+        if bit < 0 { return }
+        if shadowed.len() == 0 { shadowed = fact_zero_row(words) }
+        fact_bit_record(shadowed, 0, bit.to_usize())
+    case:
+    }
+}
+
+// #471: OR a scratch row into `row` at `base`, minus the shadowed bits.
+fact_row_merge_unshadowed := func(mut row: Vec(U64), base: USize, scratch: Vec(U64), shadowed: Vec(U64)) {
+    for w in 0..scratch.len() {
+        ref mut slot : U64 = row.unsafe_get(base.add(w))
+        slot = slot.bor(scratch.unsafe_get(w).band(shadowed.unsafe_get(w).bnot()))
     }
 }
 

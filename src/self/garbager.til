@@ -1751,6 +1751,23 @@ priv collect_reassign_facts := func(e: Expr, fi: FactIndex, base: USize, mut rea
         if dd.own_type.is(OwnType.Ref) { has_reference_decls = true }
     case:
     }
+    // #471: as in expr_collect_stmt_facts, an assignment after a nested
+    // body's own declaration of the name targets the inner binding.
+    if e.node_type.is(NodeType.Body) {
+        words := fi.idx.len().add(63) / 64
+        mut shadowed := Vec(U64).new()
+        for child : Expr in e.children {
+            if shadowed.len() == 0 {
+                collect_reassign_facts(child, fi, base, reassigns, has_reference_decls)
+            } else {
+                mut s_reassigns := fact_zero_row(words)
+                collect_reassign_facts(child, fi, 0, s_reassigns, has_reference_decls)
+                fact_row_merge_unshadowed(reassigns, base, s_reassigns, shadowed)
+            }
+            fact_note_shadowing_decl(child, fi, words, shadowed)
+        }
+        return
+    }
     for child : Expr in e.children { collect_reassign_facts(child, fi, base, reassigns, has_reference_decls) }
 }
 

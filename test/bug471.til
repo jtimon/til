@@ -1,0 +1,55 @@
+mode cli
+
+// Issue #471: a nested-body local that shadows an outer name of another
+// type was resolved against the OUTER binding, twice over: the throw
+// lowering typed the indexing receiver from the first same-named
+// declaration in the function (so `v[0]` on the inner Array lost its
+// error out-args), and the garbager's statement facts read the inner
+// value's scope-end delete as a transfer of the outer binding ("use of 'v'
+// after ownership transfer"). Both now treat a nested body as a scope.
+
+inner_array_outer_scalar := proc() {
+    v := 10
+    if true {
+        v := Array(I64).new(1)
+        assert(v[0] == 0)
+    }
+    assert(v == 10)
+    {
+        mut v := Vec(I64).new()
+        v.push(own 7)
+        assert(v[0] == 7)
+    }
+    assert(v == 10)
+    println("inner array, outer scalar")
+}
+
+inner_scalar_outer_array := proc() {
+    v := Array(I64).new(2)
+    if true {
+        v := I64.clone(v[1])
+        assert(v == 0)
+    }
+    assert(v.len() == 2)
+    assert(v[0] == 0)
+    println("inner scalar, outer array")
+}
+
+loop_body_shadow := proc() {
+    total := Vec(I64).new()
+    mut sum := 0
+    for i in 0..3 {
+        total := Array(I64).new(1)
+        sum = sum + total[0] + i
+    }
+    assert(sum == 3)
+    assert(total.len() == 0)
+    println("loop body shadow")
+}
+
+main := proc() {
+    inner_array_outer_scalar()
+    inner_scalar_outer_array()
+    loop_body_shadow()
+    println("shadowed nested locals passed")
+}

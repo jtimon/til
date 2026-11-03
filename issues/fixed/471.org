@@ -1,0 +1,91 @@
+# priority: medium
+# category: bugs
+** FIXED #471 Indexing a block-local that shadows an outer name of another type resolves against the outer binding
+
+*** Post-mortem
+
+  Two name-based lookups ignored that a nested body is a scope; the
+  repro needed both fixed.
+
+  1. Throw lowering (~src/self/desugarer.til~). ~resolve_value_type~ and
+     ~find_callee_throws_key~ type a receiver from ~lowering_param_types~,
+     falling back to ~guess_local_type~, which returns the FIRST
+     same-named declaration anywhere in the function. The map never
+     recorded the inner ~v := Array(I64).new(1)~ (its type is not
+     guessable syntactically), so the scan answered the outer
+     ~v := 10~: ~I64.get~ does not throw, and the ~_err_kind~ out-args
+     were never injected. The map is now lexical:
+     ~process_throw_catch_in_body~ records every declaration
+     (~local_decl_lowering_type~) from the NEXT statement on -- its own
+     initializer still sees the outer binding, ~v := I64.clone(v[0])~ --
+     and restores the map when the body ends. A declaration the guess
+     cannot type falls back to the same syntactic guess confined to that
+     declaration (~validated_local_guess~: constructors, ~Type.new()~),
+     and failing that is recorded as "" (unresolved), which shadows the
+     outer name. The callable-variable and throw-site lookups consult the
+     map before the whole-body scan, and the #282 guard seeding re-seeds
+     a "" entry from the live typer scope.
+
+     This also corrected a latent wrong panic check the golden
+     ~test/templeos_struct_runtime.expected~ had recorded: a ~Map.get~ on
+     a local built by ~.clone()~ was typed by the whole-body scan's
+     suffix fallback as ~Array.get~, so its bang checked tag
+     ~OutOfBounds~ instead of ~KeyNotFound~ -- a missing key would have
+     continued with a NULL. Five such sites now check ~KeyNotFound~,
+     like every other ~Map.get~ in that file.
+
+  2. Garbager statement facts (~src/self/typer.til~
+     ~expr_collect_stmt_facts~, ~src/self/garbager.til~
+     ~collect_reassign_facts~). Facts are per-name bitsets over a
+     statement's whole subtree, so the inner owned value's scope-end
+     delete inside the ~if~ read as an ownership transfer of the OUTER
+     ~v~ ("use of 'v' after ownership transfer"; this failed even with
+     no throwing call). A nested Body is now collected statement by
+     statement: after a declaration in it, the rest of the body goes into
+     scratch rows that are merged with the shadowed names masked out.
+
+  Regression test: ~test/bug471.til~ (inner Array / outer scalar in an
+  ~if~ and a bare block, inner scalar / outer Array with a
+  self-referential initializer, a loop-body shadow).
+
+Found while writing the [[../fixed/468.org][#468]] regression test.
+Inside a nested body, indexing a local that shadows an outer local of a
+different type fails to type-check: the throwing indexed read seems to
+be resolved against the OUTER binding's type.
+
+*** Reproduction
+
+  ~tmp/bug471.til~:
+
+  #+begin_src til
+  mode cli
+  main := proc() {
+      v := 10
+      if true {
+          v := Array(I64).new(1)
+          assert(v[0] == 0)
+      }
+      assert(v == 10)
+      println("shadowed index ok")
+  }
+  #+end_src
+
+  Observed on master ~f36bb7e~ + the #468 fix, interpreter and C, USize32
+  and USize64:
+
+  #+begin_src text
+  tmp/bug471.til:6:17: error: missing argument for parameter '_err_kind'
+  tmp/bug471.til:6:21: error: no method 'eq' for type 'unknown'
+  2 type error(s) found
+  #+end_src
+
+  Expected: prints ~shadowed index ok~. The same happens with a bare
+  block instead of ~if true~. Without the outer ~v := 10~ it works.
+
+*** Notes
+
+  The missing ~_err_kind~ argument suggests the throw/catch lowering in
+  ~src/self/desugarer.til~ (~find_callee_throws_key~ /
+  ~validate_one_fcall_consolidated~) looks the receiver up in a scope that
+  still sees the outer ~v : I64~, so ~v.get~ is not recognized as the
+  throwing ~Array.get~ and its error out-args are never injected.

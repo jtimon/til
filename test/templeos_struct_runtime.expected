@@ -12549,7 +12549,7 @@ I64 TilMain()
     TilStr hoisted__Str_g762_1289;
     TilStrInitLit(&hoisted__Str_g762_1289, "apple", 5);
     I64 *ref_value_1291 = Map__Str_I64_Get(&fruit_copy_1274, &hoisted__Str_g762_1289, &_err_kind_377);
-    I64 hoisted__I64_g763_1292 = 1;
+    I64 hoisted__I64_g763_1292 = 4;
     Bool hoisted__Bool_g764_1293 = (_err_kind_377 == hoisted__I64_g763_1292);
     if (hoisted__Bool_g764_1293) {
         I64 hoisted__I64_g221_1294 = 0;
@@ -12560,7 +12560,7 @@ I64 TilMain()
         I64 _va_Array_g57_ek_1297 = 0;
         U64 hoisted__U64_g223_1298 = 0;
         TilStr hoisted__Str_g224_1299;
-        TilStrInitLit(&hoisted__Str_g224_1299, "uncaught throw 'OutOfBounds'", 28);
+        TilStrInitLit(&hoisted__Str_g224_1299, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g57_1296, hoisted__U64_g223_1298, &hoisted__Str_g224_1299);
         TilStr hoisted__Str_g225_1300;
         TilStrInitLit(&hoisted__Str_g225_1300, "test/script_struct_runtime.til:469:56", 37);
@@ -12815,7 +12815,7 @@ I64 TilMain()
     }
     I64 hoisted__I64_g823_1426 = 1;
     TilStr *ref_value_1428 = Map__I64_Str_Get(&word_values_copy_1411, hoisted__I64_g823_1426, &_err_kind_377);
-    I64 hoisted__I64_g824_1429 = 1;
+    I64 hoisted__I64_g824_1429 = 4;
     Bool hoisted__Bool_g825_1430 = (_err_kind_377 == hoisted__I64_g824_1429);
     if (hoisted__Bool_g825_1430) {
         I64 hoisted__I64_g262_1431 = 0;
@@ -12826,7 +12826,7 @@ I64 TilMain()
         I64 _va_Array_g66_ek_1434 = 0;
         U64 hoisted__U64_g264_1435 = 0;
         TilStr hoisted__Str_g265_1436;
-        TilStrInitLit(&hoisted__Str_g265_1436, "uncaught throw 'OutOfBounds'", 28);
+        TilStrInitLit(&hoisted__Str_g265_1436, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g66_1433, hoisted__U64_g264_1435, &hoisted__Str_g265_1436);
         TilStr hoisted__Str_g266_1437;
         TilStrInitLit(&hoisted__Str_g266_1437, "test/script_struct_runtime.til:507:46", 37);
@@ -12904,7 +12904,7 @@ I64 TilMain()
     Map__I64_StructNamedPoint_Set(&named_values_1464, hoisted__I64_g849_1472, &hoisted__StructNamedPoint_g850_1473);
     I64 hoisted__I64_g851_1474 = 1;
     StructNamedPoint *ref_value_1476 = Map__I64_StructNamedPoint_Get(&named_values_copy_1469, hoisted__I64_g851_1474, &_err_kind_377);
-    I64 hoisted__I64_g852_1477 = 1;
+    I64 hoisted__I64_g852_1477 = 4;
     Bool hoisted__Bool_g853_1478 = (_err_kind_377 == hoisted__I64_g852_1477);
     if (hoisted__Bool_g853_1478) {
         I64 hoisted__I64_g270_1479 = 0;
@@ -12915,7 +12915,7 @@ I64 TilMain()
         I64 _va_Array_g68_ek_1482 = 0;
         U64 hoisted__U64_g272_1483 = 0;
         TilStr hoisted__Str_g273_1484;
-        TilStrInitLit(&hoisted__Str_g273_1484, "uncaught throw 'OutOfBounds'", 28);
+        TilStrInitLit(&hoisted__Str_g273_1484, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g68_1481, hoisted__U64_g272_1483, &hoisted__Str_g273_1484);
         TilStr hoisted__Str_g274_1485;
         TilStrInitLit(&hoisted__Str_g274_1485, "test/script_struct_runtime.til:521:5", 36);
@@ -12978,7 +12978,7 @@ I64 TilMain()
     }
     I64 hoisted__I64_g867_1514 = 2;
     Vec__I64 *ref_value_1516 = Map__I64_call_Vec_I64_Get(&grouped_copy_1506, hoisted__I64_g867_1514, &_err_kind_377);
-    I64 hoisted__I64_g868_1517 = 1;
+    I64 hoisted__I64_g868_1517 = 4;
     Bool hoisted__Bool_g869_1518 = (_err_kind_377 == hoisted__I64_g868_1517);
     if (hoisted__Bool_g869_1518) {
         I64 hoisted__I64_g281_1519 = 0;
@@ -12989,7 +12989,7 @@ I64 TilMain()
         I64 _va_Array_g71_ek_1522 = 0;
         U64 hoisted__U64_g283_1523 = 0;
         TilStr hoisted__Str_g284_1524;
-        TilStrInitLit(&hoisted__Str_g284_1524, "uncaught throw 'OutOfBounds'", 28);
+        TilStrInitLit(&hoisted__Str_g284_1524, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g71_1521, hoisted__U64_g283_1523, &hoisted__Str_g284_1524);
         TilStr hoisted__Str_g285_1525;
         TilStrInitLit(&hoisted__Str_g285_1525, "test/script_struct_runtime.til:533:5", 36);
@@ -13134,7 +13134,7 @@ I64 TilMain()
     hoisted__OrderedKey_g910_1595.rank = hoisted__I64_g909_1594;
     TilStrInitLit(&hoisted__OrderedKey_g910_1595.name, "alpha", 5);
     TilStr *ref_value_1597 = Map__OrderedKey_Str_Get(&ordered_values_copy_1577, &hoisted__OrderedKey_g910_1595, &_err_kind_377);
-    I64 hoisted__I64_g911_1598 = 1;
+    I64 hoisted__I64_g911_1598 = 4;
     Bool hoisted__Bool_g912_1599 = (_err_kind_377 == hoisted__I64_g911_1598);
     if (hoisted__Bool_g912_1599) {
         I64 hoisted__I64_g296_1600 = 0;
@@ -13145,7 +13145,7 @@ I64 TilMain()
         I64 _va_Array_g74_ek_1603 = 0;
         U64 hoisted__U64_g298_1604 = 0;
         TilStr hoisted__Str_g299_1605;
-        TilStrInitLit(&hoisted__Str_g299_1605, "uncaught throw 'OutOfBounds'", 28);
+        TilStrInitLit(&hoisted__Str_g299_1605, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g74_1602, hoisted__U64_g298_1604, &hoisted__Str_g299_1605);
         TilStr hoisted__Str_g300_1606;
         TilStrInitLit(&hoisted__Str_g300_1606, "test/script_struct_runtime.til:588:24", 37);
