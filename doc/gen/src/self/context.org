@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-a132b29
+#+SUBTITLE: til 0.0.1-e9c9d59
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -40,6 +40,36 @@ proc context_diagnostic(mut ctx: Context, phase: DiagnosticPhase, severity: Diag
 
 #+begin_src til
 func simd_instance_name(elem: Str, width: USize) returns Str
+#+end_src
+
+* numeric_cast_float
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.numeric_cast_float
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func numeric_cast_float(name: Str) returns Bool
+#+end_src
+
+* numeric_cast_integer_bits
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.numeric_cast_integer_bits
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func numeric_cast_integer_bits(name: Str) returns USize
+#+end_src
+
+* numeric_cast_location
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.numeric_cast_location
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func numeric_cast_location(e: Expr, ctx: Context) returns Str
 #+end_src
 
 * display_path

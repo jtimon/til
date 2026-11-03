@@ -1094,41 +1094,6 @@ priv emit_indent := proc(f: File, shallow depth: I32) returns ref File {
     return f
 }
 
-// Post-escape byte count for a source-form string literal: each `\n`,
-// `\t`, `\xNN`, etc. collapses to one byte. The emitted `.count` must
-// be this, not the source-form length.
-priv c_lit_byte_count := func(s: Str) returns USize {
-    n := s.len()
-    mut count : USize = 0
-    mut i : USize = 0
-    while i < n {
-        ref b : I8 = s.unsafe_get(i)
-        if b.eq('\\').and(i.add(1).lt(n)) {
-            ref nx : I8 = s.unsafe_get(i + 1)
-            if nx.eq('x').and(i.add(3).lt(n)) {
-                i = i + 4
-                count++
-                continue
-            }
-            i = i + 2
-            count++
-            continue
-        }
-        // str_to_source_form emits a `""` (close-quote + open-quote) after
-        // every `\xNN` so the C lexer doesn't greedily consume following
-        // hex/digit chars into the escape. The C compiler concatenates the
-        // two adjacent literals and the `""` contributes zero bytes to the
-        // resulting global array, so don't count them.
-        if b.eq('"').and(i.add(1).lt(n)).and(s.unsafe_get(i + 1).eq('"')) {
-            i = i + 2
-            continue
-        }
-        i++
-        count++
-    }
-    return count
-}
-
 // Collect every Ident reference under `e` into `refs`. Used by the
 // function-body entry pass to decide which params actually need the
 // `(void)<name>;` unused-arg suppressor.
@@ -1941,11 +1906,11 @@ priv builder_is_pooled_str_lit_decl := func(e: Expr, mut ctx: Context) returns B
 // once per use site (TIL_OWN_LIT, a function-scope expression).
 priv emit_lit_c_str_init := proc(f: File, s: Str, ctx: Context) {
     if ctx.target_cptr32 {
-        f.write(".c_str = TIL_OWN_LIT(\"").write(s).write("\", ")
-        emit_usize(f, c_lit_byte_count(s))
+        f.write(".c_str = TIL_OWN_LIT(\"").write(str_lit_escape(s)).write("\", ")
+        emit_usize(f, s.len())
         f.write("ULL)")
     } else {
-        f.write(".c_str = (void *)\"").write(s).write("\"")
+        f.write(".c_str = (void *)\"").write(str_lit_escape(s)).write("\"")
     }
 }
 
@@ -1960,8 +1925,8 @@ priv builder_emit_cptr_lit_init := proc(f: File, pool: Str, init: Str, members: 
     f.write("    static const struct { size_t offset; const char *text; USize count; } entries[] = {\n")
     for i in 0..members.len() {
         f.write("        {offsetof(__typeof__(*").write(pool).write("), ").write(members[i]).write("), \"")
-        f.write(contents[i]).write("\", ")
-        emit_usize(f, c_lit_byte_count(contents[i]))
+        f.write(str_lit_escape(contents[i])).write("\", ")
+        emit_usize(f, contents[i].len())
         f.write("ULL},\n")
     }
     f.write("    };\n    ").write(pool).write(" = malloc(sizeof(*").write(pool).write("));\n")
@@ -1973,9 +1938,9 @@ priv builder_emit_cptr_lit_init := proc(f: File, pool: Str, init: Str, members: 
 
 priv builder_emit_str_lit_elem := proc(f: File, s: Str) {
     f.write("(Str){.c_str = (void *)\"")
-    f.write(s)
+    f.write(str_lit_escape(s))
     f.write("\", .count = ")
-    emit_usize(f, c_lit_byte_count(s))
+    emit_usize(f, s.len())
     f.write("ULL, .cap = TIL_CAP_LIT},\n")
 }
 
@@ -2382,9 +2347,9 @@ priv builder_emit_loc_region := proc(f: File, ctx: Context) {
             wrote = true
         }
         f.write("static Str ").write(iname).write(" = (Str){.c_str = (void *)\"")
-        f.write(icontent)
+        f.write(str_lit_escape(icontent))
         f.write("\", .count = ")
-        emit_usize(f, c_lit_byte_count(icontent))
+        emit_usize(f, icontent.len())
         f.write("ULL, .cap = TIL_CAP_LIT};\n")
     }
     if wrote { f.write("\n") }
@@ -2610,7 +2575,7 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                         case .Literal(Literal.Str(s)):
                             emit_lit_c_str_init(f, s, ctx)
                             f.write(", .count = ")
-                            emit_usize(f, c_lit_byte_count(s))
+                            emit_usize(f, s.len())
                         case:
                         }
                         f.write("ULL, .cap = TIL_CAP_LIT};\n")
@@ -3043,7 +3008,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 switch rhs.node_type {
                 case .Literal(Literal.Str(lit_s)):
                     emit_lit_c_str_init(f, lit_s, ctx)
-                    f.write(", .count = ").emit_usize(c_lit_byte_count(lit_s))
+                    f.write(", .count = ").emit_usize(lit_s.len())
                 case:
                 }
                 f.write("ULL, .cap = TIL_CAP_VIEW};\n")
@@ -3720,7 +3685,7 @@ priv emit_str_lit_expr := proc(f: File, s: Str, mut ctx: Context) {
         f.write(" = (Str){")
         emit_lit_c_str_init(f, s, ctx)
         f.write(", .count = ")
-        emit_usize(f, c_lit_byte_count(s))
+        emit_usize(f, s.len())
         f.write("ULL, .cap = TIL_CAP_LIT}; } _lit")
         emit_i32(f, id)
         f.write("; })")
@@ -3729,9 +3694,9 @@ priv emit_str_lit_expr := proc(f: File, s: Str, mut ctx: Context) {
     f.write("({ static Str _lit")
     emit_i32(f, id)
     f.write(" = (Str){.c_str = (void *)\"")
-    f.write(s)
+    f.write(str_lit_escape(s))
     f.write("\", .count = ")
-    emit_usize(f, c_lit_byte_count(s))
+    emit_usize(f, s.len())
     f.write("ULL, .cap = TIL_CAP_LIT}; &_lit")
     emit_i32(f, id)
     f.write("; })")
@@ -3761,7 +3726,7 @@ priv emit_str_lit_own_box := proc(f: File, s: Str, ctx: Context) {
     f.write("({ Str *_lb = malloc(TIL_BOX(Str)); *_lb = (Str){")
     emit_lit_c_str_init(f, s, ctx)
     f.write(", .count = ")
-    emit_usize(f, c_lit_byte_count(s))
+    emit_usize(f, s.len())
     f.write("ULL, .cap = TIL_CAP_VIEW}; _lb; })")
 }
 
@@ -3776,7 +3741,7 @@ priv emit_str_lit_temp_expr := proc(f: File, s: Str, ctx: Context) {
     f.write("&(Str){")
     emit_lit_c_str_init(f, s, ctx)
     f.write(", .count = ")
-    emit_usize(f, c_lit_byte_count(s))
+    emit_usize(f, s.len())
     f.write("ULL, .cap = TIL_CAP_LIT}")
 }
 
@@ -4011,9 +3976,9 @@ priv emit_c_static_initializer := proc(f: File, e: Expr, mut ctx: Context) {
         // are built at run time (emit_cptr_sequence_template), in a function.
         f.write("{")
         if ctx.target_cptr32 { emit_lit_c_str_init(f, s, ctx) }
-        else { f.write(".c_str = (I8 *)\"").write(s).write("\"") }
+        else { f.write(".c_str = (I8 *)\"").write(str_lit_escape(s)).write("\"") }
         f.write(", .count = ")
-        emit_usize(f, c_lit_byte_count(s))
+        emit_usize(f, s.len())
         f.write("ULL, .cap = TIL_CAP_LIT}")
     case .PrecomputedSequence(data):
         symbol := precomputed_sequence_symbol(data)
@@ -4223,7 +4188,7 @@ priv emit_numeric_cast_check := proc(f: File, value: Str, target: Str, e: Expr, 
     // In particular, do not round MAX to a floating upper bound and use <=.
     f.write("{ long double til_cast_truncated = __builtin_truncl((long double)(").write(value).write(")); if (!(til_cast_truncated >= ")
         .write(lower).write(" && til_cast_truncated < 0x1p").write(exponent.to_str()).write("L)) { fprintf(stdout, \"%s: panic: invalid numeric cast\\n\", \"")
-        .write(str_to_source_form(numeric_cast_location(e, ctx))).write("\"); exit(1); } } ")
+        .write(str_lit_escape(numeric_cast_location(e, ctx))).write("\"); exit(1); } } ")
 }
 
 priv emit_simd_core := proc(f: File, e: Expr, sname: Str, op: Str, flat: Str, depth: I32, mut ctx: Context) returns Bool {
@@ -5337,7 +5302,7 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                         f.write("(Str){")
                         emit_lit_c_str_init(f, slit, ctx)
                         f.write(", .count = ")
-                        emit_usize(f, c_lit_byte_count(slit))
+                        emit_usize(f, slit.len())
                         f.write("ULL, .cap = TIL_CAP_LIT}.")
                         f.write(fname.field_access_name(ctx.symbols.names))
                     case:
@@ -5643,7 +5608,7 @@ priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) 
             } else {
                 f.write("(Str){")
                 emit_lit_c_str_init(f, s, ctx)
-                f.write(", .count=").emit_usize(c_lit_byte_count(s)).write("ULL, .cap=TIL_CAP_LIT}")
+                f.write(", .count=").emit_usize(s.len()).write("ULL, .cap=TIL_CAP_LIT}")
             }
         case .FCall:
             if fcall_returns_c_value(e, ctx) {
@@ -8135,7 +8100,7 @@ priv binding_param_is_throw_abi := func(param: Declaration, fd: FunctionDef) ret
 
 priv emit_binding_expr := proc(f: File, e: Expr, ctx: Context, owner: Str = "") {
     switch e.node_type {
-    case .Literal(Literal.Str(s)): f.write("\"").write(s).write("\"")
+    case .Literal(Literal.Str(s)): f.write("\"").write(str_lit_escape(s)).write("\"")
     case .Literal(Literal.Num(n)): f.write(n.literal_num_text())
     case .Literal(Literal.Bool(b)):
         if b { f.write("true") } else { f.write("false") }
@@ -9432,8 +9397,8 @@ priv jni_init_value := proc(place: Str, tn: Str, e: Expr, types: JniTypes, ctx: 
         }
     case .Literal(Literal.Str(lit)):
         if kind == "str" {
-            out.code = format(out.code, "    ", place, " = til_jni_str_lit(\"", lit, "\", ",
-                c_lit_byte_count(lit).to_str(), ");\n")
+            out.code = format(out.code, "    ", place, " = til_jni_str_lit(\"", str_lit_escape(lit), "\", ",
+                lit.len().to_str(), ");\n")
             return
         }
     case .FCall:

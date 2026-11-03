@@ -203,8 +203,7 @@ priv mlir_record_arg := proc(e: Expr, i: USize, t: Str, mut state: MlirState, mu
     return mlir_expr(e.children[i], state, lp, true)
 }
 
-priv mlir_string_literal := func(source: Str, mut state: MlirState, lp: LoadedProgram) returns Str {
-    text := from_source_form(source)
+priv mlir_string_literal := func(text: Str, mut state: MlirState, lp: LoadedProgram) returns Str {
     mut escaped := ""
     digits := "0123456789ABCDEF"
     for i in 0..text.len() {
@@ -790,7 +789,7 @@ priv mlir_cast_failure := func(e: Expr, mut state: MlirState, lp: LoadedProgram)
     zero := mlir_value(state, "arith.constant 0 : i64")
     mlir_store(error, zero, "i64", state)
     state.text = format(state.text, "    llvm.call @\"", set_name, "\"(", parts, ", ", index, ", ", message_box, ", ", error, ") : (!llvm.ptr, ", count_type, ", !llvm.ptr, !llvm.ptr) -> ()\n")
-    location := mlir_string_literal(str_to_source_form(numeric_cast_location(e, lp.ctx)), state, lp)
+    location := mlir_string_literal(numeric_cast_location(e, lp.ctx), state, lp)
     location_slot := mlir_slot(str_type, state)
     mlir_store(location_slot, location, str_type, state)
     state.text = format(state.text, "    llvm.call @\"", panic_name, "\"(", parts, ", ", location_slot, ") : (!llvm.ptr, !llvm.ptr) -> ()\n    llvm.unreachable\n")

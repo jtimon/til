@@ -1903,36 +1903,106 @@ take_expr := func(mut e: Expr) returns Expr {
 }
 
 // parse_primary: literals, identifiers, calls, field access, grouping parens
-// A string literal's text in source form, the representation every
-// Literal.Str consumer expects (the C emitter writes it into a C literal,
-// the interpreter and constfolder decode its escapes, and constfolder's
-// str_to_source_form writes the same form): a literal may span lines, but a
-// raw newline or carriage return becomes its \n / \r escape. A backslash
-// directly before one is an escape C would read as a line splice and the
-// interpreter as a literal backslash; it is spelled \\ so both keep the
-// backslash.
-priv str_lit_source_form := func(text: Str) returns Str {
-    if text.contains("\n").or(text.contains("\r")).not() { return text.clone() }
-    mut out := ""
-    mut i : USize = 0
+// A string literal's bytes. Literal.Str holds what the program sees, not
+// how the source spelled it: \n \r \t \\ \" \' \0 and \xN / \xNN decode here,
+// once, and every backend spells the bytes for its own target
+// (str_lit_escape for C, HolyC and til source). A backslash before any
+// other character stays as written, with that character, as the
+// interpreter has always read it. A literal may span lines; its newlines
+// are bytes like any other.
+priv str_lit_decode := func(text: Str) returns Str {
+    if text.contains("\\").not() { return text.clone() }
     n := text.len()
+    mut out := Str.with_capacity(n)
+    mut i : USize = 0
     while i < n {
         ref c : I8 = text.unsafe_get(i)
         if c.eq('\\').and(i.add(1).lt(n)) {
-            ref next : I8 = text.unsafe_get(i + 1)
-            if next.eq('\n').or(next.eq('\r')) {
-                out = format(out, "\\\\")
-                i = i + 1
+            ref nx : I8 = text.unsafe_get(i + 1)
+            mut val : I64 = -1
+            if nx == 'n' { val = 10 }
+            else if nx == 'r' { val = 13 }
+            else if nx == 't' { val = 9 }
+            else if nx == '\\' { val = 92 }
+            else if nx == '"' { val = 34 }
+            else if nx == '\'' { val = 39 }
+            else if nx == '0' { val = 0 }
+            if val >= 0 {
+                out.push_str(Str.from_byte(val.to_u8()))
+                i = i + 2
                 continue
             }
-            out = format(out, text.substr(i, 2))
-            i = i + 2
+            // \x takes one or two hex digits: \x0 is NUL, \x41B is "AB".
+            if nx.eq('x').and(i.add(2).lt(n)) {
+                hi := str_lit_hex_digit(text.unsafe_get(i + 2))
+                if hi.gte(0) {
+                    mut value := hi
+                    mut used : USize = 3
+                    if i.add(3).lt(n) {
+                        lo := str_lit_hex_digit(text.unsafe_get(i + 3))
+                        if lo.gte(0) {
+                            value = hi.mul(16).add(lo)
+                            used = 4
+                        }
+                    }
+                    out.push_str(Str.from_byte(value.to_u8()))
+                    i = i + used
+                    continue
+                }
+            }
+        }
+        out.push_str(Str.from_byte(c.cast(U8)))
+        i = i + 1
+    }
+    return out
+}
+
+priv str_lit_hex_digit := func(c: I8) returns I64 {
+    if c.gte('0').and(c.lte('9')) { return c.sub('0').cast(I64) }
+    if c.gte('a').and(c.lte('f')) { return c.sub('a').cast(I64) + 10 }
+    if c.gte('A').and(c.lte('F')) { return c.sub('A').cast(I64) + 10 }
+    return -1
+}
+
+// A string's bytes spelled as the body of a C-like string literal, which C,
+// HolyC (doubling '$' on top, for DolDoc) and til source all read back to
+// the same bytes: \\ \" \n \r \t, printable ASCII as is, every other byte
+// as \xNN. C and HolyC read \x greedily, so a hex-digit character right
+// after a \xNN escape is escaped too, and a '?' right after a '?' is
+// \x3f, so no C trigraph (??= ??/ ...) forms.
+str_lit_escape := func(s: Str) returns Str {
+    n := s.len()
+    mut plain := true
+    for i in 0..n {
+        b := s.unsafe_get(i).cast(U8)
+        if b.lt(32).or(b.gt(126)).or(b.eq(34)).or(b.eq(92)) { plain = false; break }
+        if b.eq(63).and(i.gt(0)).and(s.unsafe_get(i - 1).eq('?')) { plain = false; break }
+    }
+    if plain { return s.clone() }
+    digits := "0123456789abcdef"
+    mut out := Str.with_capacity(n.mul(4))
+    mut after_hex := false
+    mut after_question := false
+    for j in 0..n {
+        b := s.unsafe_get(j).cast(U8)
+        is_hex_char := b.gte(48).and(b.lte(57)).or(b.gte(97).and(b.lte(102))).or(b.gte(65).and(b.lte(70)))
+        if b == 34 { out.push_str("\\\"") }
+        else if b == 92 { out.push_str("\\\\") }
+        else if b == 10 { out.push_str("\\n") }
+        else if b == 13 { out.push_str("\\r") }
+        else if b == 9 { out.push_str("\\t") }
+        else if b.gte(32).and(b.lte(126)).and(after_hex.and(is_hex_char).or(after_question.and(b.eq(63))).not()) {
+            out.push_str(Str.from_byte(b))
+        } else {
+            out.push_str("\\x")
+            out.push_str(digits.substr(b.shr(4).to_usize(), 1))
+            out.push_str(digits.substr(b.band(15).to_usize(), 1))
+            after_hex = true
+            after_question = false
             continue
         }
-        if c.eq('\n') { out = format(out, "\\n") }
-        else if c.eq('\r') { out = format(out, "\\r") }
-        else { out = format(out, text.substr(i, 1)) }
-        i = i + 1
+        after_hex = false
+        after_question = b.eq(63)
     }
     return out
 }
@@ -1961,7 +2031,7 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
         e_set = true
     case .StringTok:
         advance(p)
-        e = Expr.new(own NodeType.Literal(Literal.Str(str_lit_source_form(tok_text(p, t)))), t_line, t_col)
+        e = Expr.new(own NodeType.Literal(Literal.Str(str_lit_decode(tok_text(p, t)))), t_line, t_col)
         e_set = true
     case .Number:
         advance(p)

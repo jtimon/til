@@ -245,130 +245,6 @@ priv constfolder_has_func := func(ctx: Context, name: Str) returns Bool {
 }
 
 
-// Inverse of str_to_source_form: convert source-form text (with C-style
-// escape sequences `\n`, `\"`, `\xNN`, ...) into the raw bytes that the
-// C compiler produces for the same literal at runtime. Needed so that
-// constfolder's interpreter sees the same byte count and contents as runtime
-// (e.g. `"viewBox=\""` is 10 source-form bytes but 9 raw bytes).
-priv hex_digit_value := func(b: I8) returns U8 {
-    if b.lt(48).or(b.gt(102)) { return 0 }
-    if b <= 57 { return b.sub(48).cast(U8) }
-    if b >= 97 { return b.sub(97).add(10).cast(U8) }
-    if b.gte(65).and(b.lte(70)) { return b.sub(65).add(10).cast(U8) }
-    return 0
-}
-
-from_source_form := func(s: Str) returns Str {
-    // Fast path: no backslash means no escape sequence to process,
-    // source-form bytes already equal post-escape bytes.
-    mut has_bs := false
-    for b : I8 in s {
-        if b == 92 { has_bs = true; break }
-    }
-    if has_bs.not() { return s }
-    n := s.len()
-    mut out := ""
-    mut i : USize = 0
-    one : USize = 1
-    two : USize = 2
-    while i < n {
-        ref b : I8 = s.unsafe_get(i)
-        if b.eq(92).and(i.add(one).lt(n)) {
-            ref nx : I8 = s.unsafe_get(i + one)
-            // `continue` targets the enclosing `while`: a C switch does not
-            // capture it (unlike `break`, which is why none appears here).
-            switch nx {
-            case 110: out = format(out, "\n"); i = i + two; continue
-            case 114: out = format(out, "\r"); i = i + two; continue
-            case 116: out = format(out, "\t"); i = i + two; continue
-            case 34:  out = format(out, "\""); i = i + two; continue
-            case 92:  out = format(out, "\\"); i = i + two; continue
-            case 39:  out = format(out, "'"); i = i + two; continue
-            case 48:  out = format(out, "\0"); i = i + two; continue
-            case:
-            }
-            // Kept out of the switch above: the `\xNN` arm needs a length
-            // guard, and a guarded case would drop the whole switch off the
-            // C-like path into the if/elif desugar.
-            if nx.eq(120).and(i.add(3).lt(n)) {
-                ref h1 : I8 = s.unsafe_get(i + two)
-                ref h2 : I8 = s.unsafe_get(i + 3)
-                val : U8 = hex_digit_value(h1).mul(16) + hex_digit_value(h2)
-                out = format(out, Str.from_byte(val))
-                i = i + 4
-                continue
-            }
-        }
-        // A bare (unescaped) `"` is one half of a `""` separator that
-        // str_to_source_form emits after a `\xNN` escape to stop the C
-        // compiler reading the next char as another hex/octal digit. It
-        // carries no byte; skip it so re-reading a folded binary literal
-        // round-trips losslessly. A real quote byte is stored as `\"` and
-        // handled by the backslash branch above.
-        if b == 34 { i = i + one; continue }
-        out = format(out, s.substr(i, one))
-        i = i + one
-    }
-    return out
-}
-
-// Cheap pre-scan: if every byte is a printable ASCII char that doesn't
-// need an escape, str_to_source_form would clone byte-for-byte.
-priv needs_source_escape := func(s: Str) returns Bool {
-    n := s.len()
-    for i in 0..n {
-        ref b : I8 = s.unsafe_get(i)
-        if b == 34 { return true }
-        if b == 92 { return true }
-        if b < 32 { return true }
-        if b.lt(0).or(b.gt(126)) { return true }
-    }
-    return false
-}
-
-// Convert a runtime Str (raw bytes) into the source-form text that the
-// parser produces for `"..."` literals: 0x0A becomes the two chars
-// `\n`, 0x22 (`"`) becomes `\"`, etc. Keeps LiteralStr storage
-// consistent regardless of whether the node came from the parser or
-// from a constfolder-time fold.
-str_to_source_form := func(s: Str) returns Str {
-    if needs_source_escape(s).not() { return s }
-    n := s.len()
-    mut out := ""
-    for i in 0..n {
-        ref b : I8 = s.unsafe_get(i)
-        if b == 34  { out = format(out, "\\\""); continue }
-        if b == 92  { out = format(out, "\\\\"); continue }
-        if b == 10  { out = format(out, "\\n"); continue }
-        if b == 13  { out = format(out, "\\r"); continue }
-        if b == 9   { out = format(out, "\\t"); continue }
-        if b.lt(32).or(b.gt(126)) {
-            // Hex escape with explicit terminator -- "" between escape
-            // and following digits prevents greedy hex consumption.
-            // NUL (0x00) goes through here too: emitting it as `\0` would
-            // merge with a following octal digit char (`\0`+`1` -> `\01` =
-            // 0x01), collapsing two bytes into one -- which shrinks the
-            // emitted C buffer below the baked `.count` (a global-buffer
-            // overflow read in Str_clone, e.g. folded UTF-16 TTF data in
-            // svg2ttf). `\x00""` is unambiguous.
-            // Reinterpret the I8 byte as U8 for the nibble math: I8's
-            // negative range (high-bit bytes like 0x80..0xFF) splits
-            // arithmetic the wrong way around for hex display.
-            ub : U8 = b.cast(U8)
-            out = format(out, "\\x")
-            hi : U8 = ub / 16
-            lo : U8 = ub % 16
-            hex := "0123456789abcdef"
-            out = format(out, hex.substr(hi.to_usize(), 1))
-            out = format(out, hex.substr(lo.to_usize(), 1))
-            out = format(out, "\"\"")
-            continue
-        }
-        out = format(out, s.substr(i, 1))
-    }
-    return out
-}
-
 // The variant ctor's declared payload ownership, read from the
 // generated ctor itself so this shares the initer's answer instead of
 // re-deriving it.
@@ -538,8 +414,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
             cap := str_cap_at(raw, ctx)
             if cap.lt(CAP_VIEW).and(cap.gt(count)) { return Option(Expr).None }
             view := Str(c_str = s.c_str, count = count, cap = CAP_VIEW)
-            escaped := str_to_source_form(view)
-            return Option(Expr).Some(Expr.new(own NodeType.Literal(Literal.Str(escaped)), src.line, src.col))
+            return Option(Expr).Some(Expr.new(own NodeType.Literal(Literal.Str(view.clone())), src.line, src.col))
         }
         ref sdef : Expr = lookup_interp_type_def(sname, ctx).unwrap()
         switch sdef.node_type {
@@ -597,9 +472,8 @@ priv expr_to_known_raw := func(e: Expr, ctx: Context) returns Dynamic {
         }
         return result
     case .Literal(Literal.Str(s)):
-        decoded := from_source_form(s)
         mut result : Dynamic = dispatch_result_alloc(e.til_type(), ctx)
-        str_copy_into(result, decoded, ctx)
+        str_copy_into(result, s, ctx)
         return result
     case .Literal(Literal.Bool(b)):
         mut result : Dynamic = dispatch_result_alloc(e.til_type(), ctx)

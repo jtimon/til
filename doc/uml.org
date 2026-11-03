@@ -162,6 +162,7 @@
 *** propagates_error := false
 *** panic_on_error := false
 *** is_bang_check := false
+*** cast_path : Sym = 0
 ** LiteralNumData: StructDef
 *** text := ""
 *** til_type := Type.Unknown
@@ -687,8 +688,11 @@
 *** sites := Set(Str).new()
 * builder
 ** BuildPaths: StructDef
+*** backend := "c"
 *** name := ""
 *** c_path := ""
+*** runtime_c_path := ""
+*** runtime_fwd_path := ""
 *** bin_path := ""
 *** fwd_path := ""
 *** h_path := ""

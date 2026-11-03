@@ -1,26 +1,6 @@
 #+TITLE: src/self/builder.til
-#+SUBTITLE: til 0.0.1-a132b29
+#+SUBTITLE: til 0.0.1-e9c9d59
 #+OPTIONS: toc:t
-
-* cmd_mlir
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.builder.cmd_mlir
-:group: Compiler backend
-:END:
-
-#+begin_src til
-proc cmd_mlir(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec__Str, functions: Set__Str) returns I32
-#+end_src
-
-* cmd_fasm
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.builder.cmd_fasm
-:group: Compiler backend
-:END:
-
-#+begin_src til
-proc cmd_fasm(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec__Str, functions: Set__Str) returns I32
-#+end_src
 
 * cmd_translate
 :PROPERTIES:
@@ -29,7 +9,7 @@ proc cmd_fasm(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec__Str, 
 :END:
 
 #+begin_src til
-proc cmd_translate(mut lp: LoadedProgram, custom_output: Str, custom_c: Str, target: Target) returns I32
+proc cmd_translate(mut lp: LoadedProgram, custom_output: Str, custom_c: Str, target: Target, backend: Str = "c", functions: Set__Str = Set__Str.new(), argv: Vec__Str = Vec__Str.new()) returns I32
 #+end_src
 
 * cmd_build
@@ -39,7 +19,7 @@ proc cmd_translate(mut lp: LoadedProgram, custom_output: Str, custom_c: Str, tar
 :END:
 
 #+begin_src til
-proc cmd_build(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32
+proc cmd_build(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool, backend: Str = "c", functions: Set__Str = Set__Str.new(), argv: Vec__Str = Vec__Str.new()) returns I32
 #+end_src
 
 * cmd_install
@@ -59,7 +39,7 @@ proc cmd_install(mut lp: LoadedProgram, install_prefix_in: Str, target: Target, 
 :END:
 
 #+begin_src til
-proc cmd_run(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec__Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32
+proc cmd_run(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec__Str, target: Target, cc_override: Str, asan: Bool, prof: Bool, backend: Str = "c", functions: Set__Str = Set__Str.new()) returns I32
 #+end_src
 
 * cmd_test_build_run

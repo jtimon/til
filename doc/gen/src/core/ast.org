@@ -1,5 +1,5 @@
 #+TITLE: src/core/ast.til
-#+SUBTITLE: til 0.0.1-a132b29
+#+SUBTITLE: til 0.0.1-e9c9d59
 #+OPTIONS: toc:t
 
 * Primitive
@@ -494,6 +494,7 @@ struct FCallData {
     mut propagates_error : Bool
     mut panic_on_error : Bool
     mut is_bang_check : Bool
+    mut cast_path : U32
 namespace:
     func eq(_a: FCallData, _b: FCallData) returns Bool
     func to_str(_self: FCallData) returns Str

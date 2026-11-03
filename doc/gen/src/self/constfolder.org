@@ -1,5 +1,5 @@
 #+TITLE: src/self/constfolder.til
-#+SUBTITLE: til 0.0.1-a132b29
+#+SUBTITLE: til 0.0.1-e9c9d59
 #+OPTIONS: toc:t
 
 * constfolder_eval_generator_function
@@ -30,16 +30,6 @@ func constfolder_clear_known(mut ctx: Context)
 
 #+begin_src til
 func constfolder_reset_state(mut ctx: Context)
-#+end_src
-
-* from_source_form
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.constfolder.from_source_form
-:group: Compiler backend
-:END:
-
-#+begin_src til
-func from_source_form(s: Str) returns Str
 #+end_src
 
 * is_macro_call

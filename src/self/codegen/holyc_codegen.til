@@ -272,45 +272,11 @@ priv holyc_global_declarations := func(lp: LoadedProgram, state: HolyCEmitState,
     return out
 }
 
-// HolyC includes source through DolDoc, where a literal dollar must be doubled.
-// Escape the spelling, not the byte count of the resulting string.
+// A string literal's bytes as a HolyC literal body: C escapes, and, since
+// HolyC includes source through DolDoc, every '$' doubled. The byte count
+// is the bytes' own length.
 priv holyc_literal_text := func(s: Str) returns Str {
-    return s.replace("$", "$$")
-}
-
-// Post-escape byte count for the original source-form string literal.
-priv holyc_lit_byte_count := func(s: Str) returns USize {
-    n := s.len()
-    mut count : USize = 0
-    mut i : USize = 0
-    while i < n {
-        ref b : I8 = s.unsafe_get(i)
-        if b.eq('\\').and(i.add(1).lt(n)) {
-            ref next : I8 = s.unsafe_get(i + 1)
-            if next == 'x' {
-                mut hex_i := i + 2
-                while hex_i < n {
-                    if digit_value(s.unsafe_get(hex_i)).lt(0) { break }
-                    hex_i++
-                }
-                if hex_i > i + 2 {
-                    i = hex_i
-                    count++
-                    continue
-                }
-            }
-            i = i + 2
-            count++
-            continue
-        }
-        if b.eq('"').and(i.add(1).lt(n)).and(s.unsafe_get(i + 1).eq('"')) {
-            i = i + 2
-            continue
-        }
-        i++
-        count++
-    }
-    return count
+    return str_lit_escape(s).replace("$", "$$")
 }
 
 priv holyc_decl_pointer_type := func(decl: Declaration, rhs: Expr,
@@ -616,7 +582,7 @@ priv holyc_str_init := func(dest: Str, e: Expr, ctx: Context,
     switch e.node_type {
     case .Literal(Literal.Str(s)):
         return format("TilStrInitLit(&", dest, ", \"", holyc_literal_text(s), "\", ",
-            holyc_lit_byte_count(s).to_str(), ")")
+            s.len().to_str(), ")")
     case .Ident:
         src := holyc_str_ref(e, ctx, locals, error)
         return format("TilStrCopyValue(&", dest, ", ", src, ")")
@@ -3485,7 +3451,7 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                     if source == "F64" { bits = format("TilF64Word(", value, ")"); source_width = "64" }
                     mut signed_flag := "FALSE"
                     if target.starts_with("I") { signed_flag = "TRUE" }
-                    message := str_to_source_form(format(numeric_cast_location(e, ctx), ": panic: invalid numeric cast\n"))
+                    message := format(numeric_cast_location(e, ctx), ": panic: invalid numeric cast\n")
                     converted := format("TilFloatCastInteger(", bits, ", ", source_width, ", ",
                         numeric_cast_integer_bits(target).to_str(), ", ", signed_flag, ", \"", holyc_literal_text(message), "\")")
                     if target.starts_with("I") { return format("(", converted, ")(I64)") }
@@ -3513,19 +3479,19 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                     switch e.children[2].node_type {
                     case .Literal(Literal.Str(method_literal)):
                         return format("TilDynFnLiteralNames", suffix, "(\"", holyc_literal_text(type_literal), "\", ",
-                            holyc_lit_byte_count(type_literal).to_str(), ", \"", holyc_literal_text(method_literal), "\", ",
-                            holyc_lit_byte_count(method_literal).to_str(), ")")
+                            type_literal.len().to_str(), ", \"", holyc_literal_text(method_literal), "\", ",
+                            method_literal.len().to_str(), ")")
                     case:
                     }
                     method_ref := holyc_str_ref(e.children[2], ctx, locals, error)
                     return format("TilDynFnLiteralType", suffix, "(\"", holyc_literal_text(type_literal), "\", ",
-                        holyc_lit_byte_count(type_literal).to_str(), ", ", method_ref, ")")
+                        type_literal.len().to_str(), ", ", method_ref, ")")
                 case:
                 }
                 type_name := holyc_str_ref(e.children[1], ctx, locals, error)
                 switch e.children[2].node_type {
                 case .Literal(Literal.Str(s)):
-                    return format("TilDynFnLiteralMethod", suffix, "(", type_name, ", \"", holyc_literal_text(s), "\", ", holyc_lit_byte_count(s).to_str(), ")")
+                    return format("TilDynFnLiteralMethod", suffix, "(", type_name, ", \"", holyc_literal_text(s), "\", ", s.len().to_str(), ")")
                 case:
                 }
                 method := holyc_str_ref(e.children[2], ctx, locals, error)
@@ -3536,7 +3502,7 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 type_name := holyc_str_ref(e.children[1], ctx, locals, error)
                 switch e.children[2].node_type {
                 case .Literal(Literal.Str(s)):
-                    return format("TilDynHasMethodLiteral(", type_name, ", \"", holyc_literal_text(s), "\", ", holyc_lit_byte_count(s).to_str(), ")")
+                    return format("TilDynHasMethodLiteral(", type_name, ", \"", holyc_literal_text(s), "\", ", s.len().to_str(), ")")
                 case:
                 }
                 method := holyc_str_ref(e.children[2], ctx, locals, error)

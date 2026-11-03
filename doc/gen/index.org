@@ -1,5 +1,5 @@
 #+TITLE: til documentation index
-#+SUBTITLE: til 0.0.1-a132b29
+#+SUBTITLE: til 0.0.1-e9c9d59
 #+OPTIONS: toc:t
 
 * Core
@@ -2404,6 +2404,7 @@ struct FCallData {
     mut propagates_error : Bool
     mut panic_on_error : Bool
     mut is_bang_check : Bool
+    mut cast_path : U32
 namespace:
     func eq(_a: FCallData, _b: FCallData) returns Bool
     func to_str(_self: FCallData) returns Str
@@ -7040,6 +7041,11 @@ func decl_typed(mut symbols: SymbolPool, type_name: Str, name: Str = "", doc: St
 func take_expr(mut e: Expr) returns Expr
 #+end_src
 
+** [[file:src/self/parser.org::#til.src.self.parser.str_lit_escape][str_lit_escape]]
+#+begin_src til
+func str_lit_escape(s: Str) returns Str
+#+end_src
+
 ** [[file:src/self/parser.org::#til.src.self.parser.parse][parse]]
 #+begin_src til
 proc parse(tokens: Vec__Token, source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32 = 0, quiet: Bool = false, mut diagnostics: Vec__SourceDiagnostic = Vec__SourceDiagnostic.new()) returns Expr
@@ -7759,6 +7765,21 @@ proc context_diagnostic(mut ctx: Context, phase: DiagnosticPhase, severity: Diag
 ** [[file:src/self/context.org::#til.src.self.context.simd_instance_name][simd_instance_name]]
 #+begin_src til
 func simd_instance_name(elem: Str, width: USize) returns Str
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.numeric_cast_float][numeric_cast_float]]
+#+begin_src til
+func numeric_cast_float(name: Str) returns Bool
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.numeric_cast_integer_bits][numeric_cast_integer_bits]]
+#+begin_src til
+func numeric_cast_integer_bits(name: Str) returns USize
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.numeric_cast_location][numeric_cast_location]]
+#+begin_src til
+func numeric_cast_location(e: Expr, ctx: Context) returns Str
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.display_path][display_path]]
@@ -16210,11 +16231,6 @@ func constfolder_clear_known(mut ctx: Context)
 func constfolder_reset_state(mut ctx: Context)
 #+end_src
 
-** [[file:src/self/constfolder.org::#til.src.self.constfolder.from_source_form][from_source_form]]
-#+begin_src til
-func from_source_form(s: Str) returns Str
-#+end_src
-
 ** [[file:src/self/constfolder.org::#til.src.self.constfolder.is_macro_call][is_macro_call]]
 #+begin_src til
 func is_macro_call(e: Expr, mut ctx: Context) returns Bool
@@ -17182,24 +17198,14 @@ func adopt__priv___src_self_codegen_c_codegen_til__DynCallInfo(mut dest: Dynamic
 func adopt__priv___src_self_codegen_c_codegen_til__BuilderFuncSites(mut dest: Dynamic, own src: priv___src_self_codegen_c_codegen_til__BuilderFuncSites)
 #+end_src
 
-** [[file:src/self/builder.org::#til.src.self.builder.cmd_mlir][cmd_mlir]]
-#+begin_src til
-proc cmd_mlir(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec__Str, functions: Set__Str) returns I32
-#+end_src
-
-** [[file:src/self/builder.org::#til.src.self.builder.cmd_fasm][cmd_fasm]]
-#+begin_src til
-proc cmd_fasm(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec__Str, functions: Set__Str) returns I32
-#+end_src
-
 ** [[file:src/self/builder.org::#til.src.self.builder.cmd_translate][cmd_translate]]
 #+begin_src til
-proc cmd_translate(mut lp: LoadedProgram, custom_output: Str, custom_c: Str, target: Target) returns I32
+proc cmd_translate(mut lp: LoadedProgram, custom_output: Str, custom_c: Str, target: Target, backend: Str = "c", functions: Set__Str = Set__Str.new(), argv: Vec__Str = Vec__Str.new()) returns I32
 #+end_src
 
 ** [[file:src/self/builder.org::#til.src.self.builder.cmd_build][cmd_build]]
 #+begin_src til
-proc cmd_build(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32
+proc cmd_build(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool, backend: Str = "c", functions: Set__Str = Set__Str.new(), argv: Vec__Str = Vec__Str.new()) returns I32
 #+end_src
 
 ** [[file:src/self/builder.org::#til.src.self.builder.cmd_install][cmd_install]]
@@ -17209,7 +17215,7 @@ proc cmd_install(mut lp: LoadedProgram, install_prefix_in: Str, target: Target, 
 
 ** [[file:src/self/builder.org::#til.src.self.builder.cmd_run][cmd_run]]
 #+begin_src til
-proc cmd_run(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec__Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32
+proc cmd_run(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec__Str, target: Target, cc_override: Str, asan: Bool, prof: Bool, backend: Str = "c", functions: Set__Str = Set__Str.new()) returns I32
 #+end_src
 
 ** [[file:src/self/builder.org::#til.src.self.builder.cmd_test_build_run][cmd_test_build_run]]

@@ -1,6 +1,5 @@
 mode lib
 import("../loader")
-import("../constfolder")
 import("../../std/file")
 
 // Locals and temporaries have frame slots, so nested calls cannot clobber
@@ -459,7 +458,7 @@ priv fasm_static_value := proc(e: Expr, shallow t: Type, mut state: FasmState, m
         return "db 0\n"
     case .Literal(Literal.Null): return "dq 0\n"
     case .Literal(Literal.Str(value)):
-        bytes := from_source_form(value)
+        ref bytes : Str = value
         label := fasm_static_label(state)
         mut data := "db "
         for b : I8 in bytes { data = format(data, b.cast(U8).to_str(), ",") }
@@ -1016,7 +1015,7 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
         target := fasm_request(method, state.program)
         fasm_emit(state, format("mov rdi, ", label, "\n    call ", target))
     case .Literal(Literal.Str(value)):
-        bytes := from_source_form(value)
+        ref bytes : Str = value
         label := format(state.prefix, "s", state.literals.to_str())
         state.literals++
         state.data = format(state.data, "align 8\n", label, ": dq ", label, "bytes\n")

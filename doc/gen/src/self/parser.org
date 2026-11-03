@@ -1,5 +1,5 @@
 #+TITLE: src/self/parser.til
-#+SUBTITLE: til 0.0.1-a132b29
+#+SUBTITLE: til 0.0.1-e9c9d59
 #+OPTIONS: toc:t
 
 * SymbolPool
@@ -105,6 +105,16 @@ func decl_typed(mut symbols: SymbolPool, type_name: Str, name: Str = "", doc: St
 
 #+begin_src til
 func take_expr(mut e: Expr) returns Expr
+#+end_src
+
+* str_lit_escape
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.parser.str_lit_escape
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func str_lit_escape(s: Str) returns Str
 #+end_src
 
 * parse

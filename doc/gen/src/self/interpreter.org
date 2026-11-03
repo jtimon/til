@@ -1,5 +1,5 @@
 #+TITLE: src/self/interpreter.til
-#+SUBTITLE: til 0.0.1-a132b29
+#+SUBTITLE: til 0.0.1-e9c9d59
 #+OPTIONS: toc:t
 
 * CALLABLE_BOX_MAGIC
@@ -173,8 +173,9 @@ namespace:
 :group: Compiler tools
 :END:
 
-Inputs remain host-owned snapshots; borrowed mut inputs copy back,
-including on failure. Results are owned copies independent of the VM.
+Ref parameters borrow the host Tuple element directly. Own parameters
+consume independent copies from that caller-owned packet. References
+inside values remain borrows; copying a carrier never owns its referents.
 Panic/exit preserve this handle and session; earlier effects remain.
 
 #+begin_src til
