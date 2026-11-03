@@ -5649,7 +5649,7 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr, mut symbols: 
         }
     }
     for mut param : Declaration in fdef.sig.params {
-        if param.auto_shallow.and(fdef_deposits_param(fdef, param.name)) {
+        if param.auto_shallow.and(fdef_return_carries_borrow(fdef, scope, symbols).or(fdef_deposits_param(fdef, param.name))) {
             param.own_type = OwnType.Ref
             param.auto_shallow = false
         }
@@ -5764,6 +5764,11 @@ priv fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeScope, sym
     if fdef.sig.return_own_type.is(OwnType.Ref) { return true }
     if fdef.sig.return_type.len() == 0 { return false }
     ref resolved : Str = resolve_type_alias(scope, fdef.sig.return_type, symbols)
+    // A returned callable can retain input storage through captures. Keep
+    // the ordinary borrowed ABI for factories and their bodyless signatures;
+    // the signature alone cannot prove that the returned environment owns
+    // independent copies of every input.
+    if type_is_callable_storage(type_from_name_init_name(resolved, scope, symbols)) { return true }
     if type_name_is_interface(scope, resolved, symbols) { return false }
     rdef_o := scope.get_struct(resolved, symbols)
     if rdef_o.is_none() { return false }
@@ -6144,7 +6149,8 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         in_main_def := top_func_name.eq("main").and(scope.parent.is_none())
         for i in 0..fdef.sig.params.len() {
             ref mut param : Declaration = fdef.sig.params[i]
-            if param.auto_shallow.and(fdef_deposits_param(fdef, param.name).or(fdef_global_borrows_param(fdef, param.name, ctx))) {
+            if param.auto_shallow.and(fdef_return_carries_borrow(fdef, scope, ctx.symbols).or(fdef_deposits_param(fdef, param.name))
+                .or(fdef_global_borrows_param(fdef, param.name, ctx))) {
                 param.own_type = OwnType.Ref
                 param.auto_shallow = false
             }
@@ -13937,8 +13943,35 @@ priv summary_fieldassign_stores_no_borrow := func(e: Expr, scope: TypeScope, sel
     return false
 }
 
+priv summary_capture_bits := func(captures: Vec(Declaration), roots: Map(Str, RootBits),
+    scope: TypeScope, params: Vec(Declaration), symbols: SymbolPool) returns RootBits {
+    mut result := RootBits()
+    for cap : Declaration in captures {
+        // Only names related to this function's parameters occur in roots.
+        if roots.has(cap.name).not() { continue }
+        ref bits : RootBits = roots[cap.name]
+        if cap.own_type.is(OwnType.Ref) { result = result.bor(summary_ctor_wrap(bits)) }
+        else {
+            // Copying/moving the captured value does not borrow its own slot,
+            // but pointers already carried inside it remain pointers.
+            mut carries := type_carries_borrow_t(scope, cap.til_type, symbols)
+            // Capture types are filled during typing; declared parameters
+            // also supply that information to the earlier summary fixpoint.
+            for param : Declaration in params {
+                if param.name == cap.name { carries = type_carries_borrow_t(scope, declaration_resolved_type(param, scope, symbols), symbols) }
+            }
+            mut carried := bits.carried
+            if carries { carried = carried.bor(bits.alias) }
+            result = result.bor(RootBits(into=bits.into, carried=carried))
+        }
+    }
+    return result
+}
+
 priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeScope, self_type: Str, params: Vec(Declaration), symbols: SymbolPool, ctx: Context) returns RootBits {
     switch e.node_type {
+    case .FuncDef(fd): return summary_capture_bits(fd.captures, roots, scope, params, symbols)
+    case .BodyValue(bd): return summary_capture_bits(bd.captures, roots, scope, params, symbols)
     case .Ident(id):
         if roots.has(id.ident_name(symbols.names)) {
             ref bits : RootBits = roots[id.ident_name(symbols.names)]

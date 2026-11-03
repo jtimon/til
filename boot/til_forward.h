@@ -1640,6 +1640,8 @@ typedef struct priv___src_self_codegen_fasm_codegen_til__FasmDefinition {
     Str path;
     USize declaration;
     I64 member;
+    Vec__USize nested;
+    Map__Str_Str capture_signatures;
 } priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
 
 
@@ -1650,6 +1652,7 @@ typedef struct priv___src_self_codegen_fasm_codegen_til__FasmGlobal {
     Bool pointer;
     Bool boxed;
     Bool reference;
+    Str signature;
 } priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
 
 
@@ -2356,6 +2359,7 @@ typedef struct priv___src_self_codegen_fasm_codegen_til__FasmState {
     Set__Str no_free;
     Set__Str references;
     Set__Str parameters;
+    Map__Str_Str signatures;
     Type return_type;
     Bool return_ref;
     Str data;
@@ -2697,6 +2701,7 @@ typedef struct priv___src_self_codegen_fasm_codegen_til__FasmProgram {
     Set__Str source_names;
     Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal globals;
     Str global_data;
+    Str callable_data;
 } priv___src_self_codegen_fasm_codegen_til__FasmProgram;
 
 

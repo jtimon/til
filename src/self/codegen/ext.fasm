@@ -179,6 +179,73 @@ rt_memcpy:
     cld
     rep movsb
     ret
+
+; Callable values use {code, env, drop, clone} native-pointer descriptors.
+; A null descriptor is an empty moved slot; drop=0 denotes static storage.
+rt_til_closure_delete:
+    test rdi, rdi
+    jz .done
+    cmp qword [rdi+16], 0
+    je .done
+    frame 16
+    mov [rbp-8], rdi
+    mov rax, [rdi+16]
+    mov rdi, [rdi+8]
+    call rax
+    mov rdi, [rbp-8]
+    call rt_free
+    leave
+.done:
+    ret
+rt_til_closure_slot_delete:
+    mov rax, [rdi]
+    mov qword [rdi], 0
+    mov rdi, rax
+    jmp rt_til_closure_delete
+rt_til_closure_slot_take:
+    mov [rdi], rsi
+    ret
+rt_til_closure_slot_pop:
+    mov rax, [rdi]
+    mov qword [rdi], 0
+    ret
+rt_closure_clone:
+    test rdi, rdi
+    jz .shared
+    cmp qword [rdi+16], 0
+    je .shared
+    frame 32
+    mov [rbp-8], rdi
+    mov edi, 32
+    call rt_malloc
+    mov [rbp-16], rax
+    mov rdi, rax
+    mov rsi, [rbp-8]
+    mov edx, 32
+    call rt_memcpy
+    mov rax, [rbp-8]
+    mov rdi, [rax+8]
+    call qword [rax+24]
+    mov rdx, [rbp-16]
+    mov [rdx+8], rax
+    mov rax, rdx
+    leave
+    ret
+.shared:
+    mov rax, rdi
+    ret
+rt_til_closure_slot_clone:
+    frame 16
+    mov rdi, [rdi]
+    call rt_closure_clone
+    mov [rbp-8], rax
+    mov edi, 8
+    call rt_malloc
+    mov rdx, [rbp-8]
+    mov [rax], rdx
+    leave
+    ret
+
 rt_memmove:
     cmp rdi, rsi
     jbe rt_memcpy

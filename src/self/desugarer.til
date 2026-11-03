@@ -5644,6 +5644,23 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     }
     for i in 0..expr.children.len() {
         hoist_expr(ctx, expr.children[i], hoisted, scope)
+        // A call's owned callable receiver needs an owner until invocation
+        // finishes. Name it before processing the arguments, so the common
+        // cleanup pass can reclaim its environment in source evaluation order.
+        if i == 0 && expr.node_type.is(NodeType.FCall) {
+            ref callee : Expr = expr.children[0]
+            if callee.node_type.is(NodeType.FCall).and(type_is_callable_storage(callee.til_type()))
+                .and(is_macro_call(callee, ctx).not()).and(fcall_returns_own(callee, scope, ctx.symbols)) {
+                mut borrowed_cast := false
+                switch callee.children[0].node_type {
+                case .Ident(id): borrowed_cast = id.ident_name(ctx.symbols.names) == "cast"
+                case:
+                }
+                // Immediate casts borrow the callable; owning their result
+                // here would clone/reset private state before each call.
+                if borrowed_cast.not() { expr.children[0] = hoist_slot_to_temp(ctx, expr.children, 0, hoisted, scope, false) }
+            }
+        }
         if i > 0 && i < last_call {
             ref param : Declaration = funcdef_of(core_def.unwrap()).sig.params[i - 1]
             if param.own_type.is(OwnType.Shallow).and(param.is_mut.not()) {

@@ -124,6 +124,27 @@ main := proc(compiler_arg: Str) {
     work := "tmp/fasm_runtime"
     mkdir_p(work)
     check_globals(compiler, work)
+    check(compiler, work, "global_callables", format(
+        "mode cli\nAction := func(value: I64) returns I64\nSaved := struct { action: Action }\n",
+        "make := func(start: I64) returns Action { state := start; return func(value: I64) returns I64 [own mut state] { state = state + value; return state } }\n",
+        "save := func(action: Action) returns Saved { return Saved(action=action) }\n",
+        "mut current : Action = make(10)\n",
+        "main := proc() { assert(current(1) == 11); saved := save(current); assert(saved.action(1) == 12);\n",
+        "assert(current(1) == 12); own saved.delete(); current = make(20); assert(current(1) == 21); println(\"global callbacks passed\") }\n"),
+        "global callbacks passed\n")
+    // Raw callable cells are a native ABI boundary. The interpreter's owning
+    // Dynamic bookkeeping requires its typed-container path for these values.
+    check(compiler, work, "callable_slots", format(
+        "mode cli\nAction := func() returns I64\n",
+        "make := func(start: I64) returns Action { state := start; return func() returns I64 [own mut state] { state++; return state } }\n",
+        "main := proc() { mut slot : U8 = malloc(8); ref mut raw : Dynamic = to_ptr(slot); owner : Dynamic = make(1);\n",
+        "til_closure_slot_take(raw,owner); assert(cast(raw,Action)() == 2); assert(cast(raw,Action)() == 3);\n",
+        "mut copy : Dynamic = til_closure_slot_clone(raw); assert(cast(copy,Action)() == 4); assert(cast(raw,Action)() == 4);\n",
+        "mut second : U8 = calloc(8,1); ref mut second_raw : Dynamic = to_ptr(second); popped : Dynamic = til_closure_slot_pop(copy);\n",
+        "assert(deref(copy).is_null()); til_closure_slot_take(second_raw,popped); til_closure_slot_delete(copy); free(own copy);\n",
+        "til_closure_slot_delete(raw); free(own slot); assert(cast(second_raw,Action)() == 5);\n",
+        "til_closure_slot_delete(second_raw); free(own second); println(\"callable slots passed\") }\n"),
+        "callable slots passed\n", interpret_source = false)
     // Use the existing hello-world source unchanged, rather than a FASM copy.
     check(compiler, work, "hello", File.readfile("examples/hello_script.til"), "Hello World!\n")
     check(compiler, work, "output", "mode cli\nmain := proc() { print_single(\"a\\x00Z\\x80Z\"); eprint_single(\"err%\\n\"); println(\"x\",\"y\") }\n", "a\x00Z\x80Zxy\n", "err%\n")

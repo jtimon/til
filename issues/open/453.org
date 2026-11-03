@@ -308,6 +308,62 @@ existing C and MLIR backends.
   exercises native executables, libraries, toolchain lowering and ASAN C
   consumers. Backend option and shared output-path tests also passed directly.
 
+**** Indirect calls and closures
+
+  On rebased base ~b114fe56c~, FASM now materializes callable values and executes
+  indirect calls through parameters, locals, fields and globals. Descriptors
+  use four native words (code/env/drop/clone). Static functions have shared
+  read-only descriptors/cells; capturing functions and Body values have owned
+  descriptors and environments. Prepared bodies are addressed by canonical AST
+  routes, with local/capture signature metadata retained for ABI selection.
+
+  The hidden environment travels in R10 and is saved before any nested call;
+  explicit runtime arguments retain the existing six-register budget. Mutable
+  callable parameters and ref-callable results use descriptor cells. Ordinary
+  scalar/aggregate/ref results preserve their existing native convention.
+  Ref captures alias their source; shallow/own captures use private boxes.
+  Generated drop/clone functions invoke actual capture lifecycle methods, and
+  the native runtime implements closure/cell clone, take, pop and deletion.
+  Replacement evaluates/copies the new callable before old-value cleanup.
+
+  Two shared root causes surfaced in the resource tests during development:
+
+  - Callable-returning factories could auto-shallow an input such as Counts,
+    then return an environment whose owned Tracked capture still referenced
+    that dead stack copy. Factories and their signature contracts retain the
+    ordinary borrowed-input ABI. Return summaries now include captured into-
+    storage and carried relationships, including moved aggregate carriers.
+    This complements the retained-parameter protection from #467 already on
+    the rebased master, including consistent bodyless factory signatures.
+  - An immediately invoked owned factory result had no owner for cleanup.
+    The hoister now names that callee before processing argument expressions,
+    allowing the existing garbager to destroy its environment after the call.
+    Immediate Dynamic casts retain their borrowed invocation context.
+
+  ~test/aggregate_control.til::check_callables~ compares interpreter/C/FASM at
+  both USize widths: inferred/named/static values, field/parameter calls,
+  returned factories, six arguments, aggregate/ref results, mutable callable
+  parameters/cells, ref/shallow/own captures, nested Body captures, static array
+  templates, cloned private state and custom payload destructor counts. It
+  checks evaluation order and immediate-call destruction. ~fasm_runtime~ also
+  covers global replacement and copying through a borrowed parameter, plus
+  native C/FASM raw callable slot operations/casts. Raw cells do not use the
+  interpreter's typed-container ownership bookkeeping and are native-only tests.
+
+  ~fasm_options~ checks a supported native runtime function as a callable;
+  an explicit native probe prints through that descriptor. C currently fails
+  the corresponding direct print_single value probe because its static closure
+  descriptor is not emitted, so the three-way corpus uses an ordinary til print
+  wrapper. This change does not add arbitrary foreign-function callbacks,
+  dynamic method/reflection lookup, a public closure ABI or JIT execution.
+
+  The shared factory ABI/hoisting changes are verified through a two-pass
+  self-build; the final commit uses the Two-pass prefix for integration.
+  After rebase, ~make clean && make test_two_pass~ passed 536/536 with master's
+  current non-ASAN suite configuration (#464). Both optional FASM drivers passed with
+  the self-applied compiler at USize32/USize64. The expanded shared corpus also
+  passed a focused C ~--asan --usize=64~ run with no sanitizer diagnostics.
+
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
   repeated work. In-process code allocation, relocation, lifetime management

@@ -204,6 +204,135 @@ check_enums := func(seed: I64, counts: Counts) {
     assert(owned.is(EnumOwned.None))
 }
 
+UnaryAction := func(value: I64) returns I64
+SixAction := func(a: I64,b: I64,c: I64,d: I64,e: I64,f: I64) returns I64
+BorrowAction := func(mut value: I64) returns ref I64
+SizeAction := func() returns USize
+SizeFactory := func(counts: Counts) returns SizeAction
+SlotAction := func(mut action: UnaryAction, seed: I64) returns ref UnaryAction
+RecordAction := func(number: I64) returns Record
+TextPrinter := proc(text: Str)
+ActionHolder := struct { action: UnaryAction }
+SizeHolder := struct { action: SizeAction }
+BodyHolder := struct { action: Body = {} }
+action_add := func(value: I64) returns I64 { return value + 1 }
+action_borrow := func(mut value: I64) returns ref I64 { value++; return value }
+action_record := func(number: I64) returns Record { return make_record(number,"callable record") }
+action_print := proc(text: Str) { print_single(text) }
+constant_actions := func() returns Array(ActionHolder) {
+    return array(ActionHolder,ActionHolder(action=action_add))
+}
+invoke_action := func(action: UnaryAction, value: I64) returns I64 { return action(value) }
+invoke_body := proc(action: Body) { action(); action() }
+make_action := func(seed: I64) returns UnaryAction {
+    total := seed
+    return func(value: I64) returns I64 [own mut total] {
+        total = total + value
+        return total
+    }
+}
+replace_action := func(mut action: UnaryAction, seed: I64) { action = make_action(seed) }
+borrow_action_slot := func(mut action: UnaryAction, seed: I64) returns ref UnaryAction {
+    action = make_action(seed)
+    return action
+}
+make_size_action := func(counts: Counts) returns SizeAction {
+    resource := make_tracked(counts,"captured resource")
+    return func() returns USize [own resource] { return resource.text.len() }
+}
+make_owned_size_action := func(own resource: Tracked) returns SizeAction {
+    return func() returns USize [own resource] { return resource.text.len() }
+}
+traced_factory := func(mut trace: I64) returns UnaryAction {
+    trace = trace * 10 + 1
+    initial := 1
+    return func(value: I64) returns I64 [own initial] { return initial + value }
+}
+traced_argument := func(mut trace: I64) returns I64 { trace = trace * 10 + 2; return 5 }
+check_callables := proc(seed: I64, counts: Counts) {
+    action : UnaryAction = action_add
+    assert(invoke_action(action,seed) == seed + 1)
+    alias := action_add
+    assert(alias(seed) == seed + 1)
+    actions := constant_actions()
+    assert(actions[0].action(seed) == seed + 1)
+    output : TextPrinter = action_print
+    output("callable builtins passed\n")
+    mut stateful : UnaryAction = make_action(seed)
+    assert(stateful(2) == seed + 2)
+    replace_action(stateful,seed + 10)
+    assert(stateful(1) == seed + 11)
+    holder := ActionHolder(action=stateful)
+    copied := holder.clone()
+    assert(holder.action(2) == seed + 13)
+    assert(copied.action(3) == seed + 14)
+    assert(make_action(seed)(3) == seed + 3)
+    mut trace := 0
+    assert(traced_factory(trace)(traced_argument(trace)) == 6)
+    assert(trace == 12)
+    mut replaceable : UnaryAction = make_action(seed)
+    slot_getter : SlotAction = borrow_action_slot
+    slot_getter(replaceable,seed + 30)
+    assert(replaceable(1) == seed + 31)
+    ref mut slot_alias : UnaryAction = slot_getter(replaceable,seed + 40)
+    assert(slot_alias(1) == seed + 41)
+    replace_action(slot_alias,seed + 50)
+    assert(replaceable(2) == seed + 52)
+    record_action : RecordAction = action_record
+    returned_record := record_action(seed)
+    assert(returned_record.number == seed && returned_record.text.eq("callable record"))
+    record_action(seed)
+
+    start := seed
+    private : UnaryAction = func(value: I64) returns I64 [shallow mut start] {
+        start = start + value
+        return start
+    }
+    assert(private(4) == seed + 4)
+    assert(private(2) == seed + 6)
+    assert(start == seed)
+    bias := seed
+    six : SixAction = func(a: I64,b: I64,c: I64,d: I64,e: I64,f: I64) returns I64 [own bias] {
+        return a+b+c+d+e+f+bias
+    }
+    assert(six(1,2,3,4,5,6) == seed + 21)
+    mut number := seed
+    by_reference : UnaryAction = func(value: I64) returns I64 [mut number] { number = number + value; return number }
+    borrow_action : BorrowAction = action_borrow
+    ref mut reference : I64 = borrow_action(number)
+    reference = reference + 3
+    assert(number == seed + 4)
+    assert(by_reference(1) == seed + 5)
+
+    mut observed : I64 = 0
+    inner : Body = [mut observed] { observed++ }
+    outer : Body = [own inner] { inner() }
+    body_holder := BodyHolder(action=outer)
+    body_copy := body_holder.clone()
+    invoke_body(body_holder.action)
+    invoke_body(body_copy.action)
+    assert(observed == 4)
+    [shallow mut start, mut observed] { start++; observed = observed + start }
+    assert(observed == seed + 5)
+    assert(start == seed)
+
+    before := counts.drops
+    factory : SizeFactory = make_size_action
+    resource_action : SizeAction = factory(counts)
+    resource_holder := SizeHolder(action=resource_action)
+    resource_copy := resource_holder.clone()
+    assert(resource_holder.action() == 17)
+    own resource_holder.delete()
+    assert(counts.drops == before + 1)
+    assert(resource_copy.action() == 17)
+    own resource_copy.delete()
+    assert(counts.drops == before + 2)
+    assert(make_size_action(counts)() == 17)
+    assert(counts.drops == before + 3)
+    assert(make_owned_size_action(own make_tracked(counts,"owned input"))() == 11)
+    assert(counts.drops == before + 4)
+}
+
 mut seed : I64 = 6
 seed++
 make_plain(seed)
@@ -273,4 +402,5 @@ assert(contents.eq("alpha!"))
 File.remove("tmp/aggregate_control_file")
 assert(File.exists("tmp/aggregate_control_file").not())
 check_enums(seed,counts)
+check_callables(seed,counts)
 println("aggregate control passed")

@@ -751,6 +751,39 @@
   destroyed by the carrier. Precomputed arrays can contain tagged or owned-niche
   enums and are cloned through the same methods, keeping templates immutable.
 
+  Callable values are native pointers to four-word descriptors
+  ~{code, environment, drop, clone}~. Static named functions share read-only
+  descriptors with no environment/drop/clone; reference bindings can name
+  stable descriptor cells. Capturing functions and Body values allocate an
+  environment and descriptor. Environment fields point at borrowed storage or
+  private value boxes according to the prepared ref/shallow/own capture list.
+  Cloning retains Ref targets and deep-clones private captures through their
+  actual lifecycle methods, including nested callable captures.
+
+  Indirect calls evaluate the callable before its arguments, save intermediate
+  values in the existing frames, then call its code pointer. R10 carries the
+  hidden environment and is saved on entry before other calls; the six existing
+  integer argument registers remain available for explicit runtime arguments.
+  This is a private invocation convention, not the C closure-call ABI. Aggregate
+  results retain the boxed-return convention; callable values return descriptor
+  pointers, and ref-callable results return addresses of descriptor cells.
+  Mutable callable parameters likewise receive cells for write-back.
+
+  Prepared closure bodies are indexed by routes into the canonical imported
+  AST. Signature metadata for locals/captures supplies the indirect ABI after
+  typer scopes have gone. The shared ownership pass supplies replacement/drop
+  decisions; native closure slot clone/take/pop/delete operations execute them.
+  Supported bodyless runtime operations can be materialized through native
+  thunks. Precomputed callable fields contain static descriptors; serializing a
+  capturing environment into a precomputed template remains unsupported.
+
+  Shared preparation also preserves borrowed factory inputs when the result
+  can be a capturing callable: auto-shallow must not leave an environment
+  pointing into a dead by-value input. Capture provenance is included in return
+  summaries. An owned callable factory result used immediately as a callee is
+  hoisted before its arguments, so ordinary cleanup destroys it after invocation;
+  an immediate cast still borrows its callable instead of resetting private state.
+
   Supported module and namespace globals have stable, zero-filled storage in
   the executable's writable segment. Scalars use addressable slots; aggregates
   use target-sized inline storage or pointer slots according to their prepared
@@ -798,7 +831,7 @@
     Removal follows ext.c's unlink contract: a missing path is harmless, but
     directories and other failures are errors.
 
-  Interfaces, indirect calls/closures, floating-point operations,
+  Interfaces, floating-point operations, dynamic method/reflection lookup,
   unsupported external runtime services and mode test remain outside this
   subset. Array methods are no longer restricted to compiler-generated
   variadic collectors.
@@ -831,6 +864,16 @@
   immutable precomputed templates, Option(ref I64)/Option(ref Record), and
   taking an owned Record from Option. Resource-bearing cases execute with a
   runtime seed rather than relying solely on folded enum literals.
+
+  Callable coverage includes static/inferred values, parameters/fields/globals,
+  returned closures, six-argument captures, scalar/aggregate/ref results, mutable
+  callable cells, borrowed/private/moved captures, Body values with owned nested
+  captures, static templates, independent clones and custom destructor counts.
+  It pins factory-before-argument evaluation and immediate-result destruction.
+  Raw slot take/pop/clone/delete and immediate Dynamic casts are additionally
+  compared between native C and FASM; the interpreter's owning Dynamic path
+  requires its typed-container bookkeeping for these raw cells. The options test
+  checks materializing a supported native runtime entry as a callable.
 
   ~test/reference_rebinding.til~ now runs unchanged through the interpreter,
   C and FASM at both USize widths. Reference rebinding retargets the borrow
