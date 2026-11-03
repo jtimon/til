@@ -5,7 +5,7 @@
 TEMPORARY state, introduced on purpose: ~make test~ (and ~make test_two_pass~,
 which the merge script runs for "Two-pass: " commits) runs the suite WITHOUT
 ASAN. With the cage (#313) the sanitizer's bookkeeping became the dominant
-cost of every merge-time run (the "self-asan" line in img/totals.svg against
+cost of every merge-time run (the historical "self-asan" series against
 "self"), and the merge loop needed the time back while #313's follow-ups
 settle (the one-flag layout, doc/self.org "Decided: one layout flag").
 
@@ -15,13 +15,90 @@ and on every compiled test program, and the cage's exit-time leak report
 CI keeps all of it: the linux-x64 and linux-arm64 native jobs run
 ~make test_asan~, and the opt-out suites build ASAN compilers as before.
 
-The revert, once #313 is settled:
+*** Complete temporary shutdown
+
+The default used to retain hidden sanitizer work despite selecting the
+native suite. It now performs every ordinary functional/layout check without
+sanitizer instrumentation:
+
+- ~make.til::layout_regressions(b, false)~ uses ~bin/til~ for compile-time
+  folding and compact-to-native self-translation. It neither builds nor
+  invokes ~bin/til_asan~ / ~tmp/til_usize32_asan~. Explicit ~test_asan~ and
+  ~check_usize64~ select ~layout_regressions(b, true)~ and retain that work.
+- ~src/tests.til~ passes its explicit ASAN selection to nested drivers:
+  ~install_tilvm.til~ / ~install_tilvm_native.til~ hosts and native libraries,
+  ~type_arg_qualifiers.til~ child runs, ~numeric_cast_errors.til~ reference
+  builds, ~library_namespace.til~'s enum consumer and Linux JNI pass, and
+  ~jni.til~'s Linux JNI pass. The ordinary JVM runs and text checks remain.
+- HolyC support/primitives/numeric-cast C reference rows use the suite flag
+  rather than hard-coding ~--asan~. Their width and optimization matrices
+  and exact diagnostic comparisons remain unchanged.
+- Standalone driver commands accept a trailing ~--asan~ after their existing
+  arguments (VM: fixture/action; qualifiers: compiler/family; cast errors:
+  width; JNI/namespaces: alongside ~--no-jvm~). The suite supplies this only
+  in explicit ASAN mode. The separate optional MLIR and TempleOS integration
+  drivers retain their existing sanitizer checks; they are outside ~make test~.
+
+*** Self-translation data
+
+The default also used to translate twice through the same ~bin/til~, with one
+native result mislabeled as ASAN. It now runs only the native benchmark and
+boot comparison. A different selected compiler still gets its independent
+self-application/repeatability guard (~self_check~), including ASAN and the
+native-layout opt-out; it is not recorded as a benchmark series.
+
+The ~self-asan~ curve and summary measurement are removed. CSV columns 15-16
+(~self_asan_ms~, ~self_asan_mem~) remain in place to preserve historical data;
+new rows leave them empty, including explicit ASAN runs. Native measurements
+remain in columns 18-19 (~self_ms~, ~self_mem~). Do not delete/relabel old
+values or populate the archive with native timings/zeroes. ~8981d947b~ documents
+the original in-place ASAN column rename. Plotting accepts empty cells as
+absent, rather than treating them as measured zeroes.
+
+*** Shutdown verification (base b114fe56c)
+
+- ~make clean && make test~: 535/535 passed; no ASAN compiler invocation in
+  the build log. Native host/library, qualifier, cast-reference, enum-consumer
+  and JNI bridge binaries have no undefined ~__asan_*~ instrumentation symbols.
+- ~make test_asan~: 538/538 passed, including the selected compiler's separate
+  self-application check and Linux JNI sanitizer passes. The same nested
+  binaries contain ~__asan_*~ references in this mode.
+- CSV regeneration leaves existing historical rows unchanged and new ASAN
+  cells empty. The plot regression exercises both missing trailing columns
+  and an empty interior selected cell; the retired series is not requested.
+- These runs establish coverage/mode selection, not a controlled speedup
+  measurement: other sessions were running on the machine.
+
+After rebasing onto ~959dff083~, ~make clean && make test~ passed 538/538.
+~make test_asan~ passed 540/541: interpretation of ~test/aggregate_control.til~
+reports 928 bytes leaked in 30 allocations after its functional assertions
+pass. An ASAN build directly from master's committed ~boot/~ and C runtime
+(the ~tmp/boot/~ snapshot) reproduces the identical leak without this patch;
+the compiler and aggregate fixture sources are unchanged here. The other
+ASAN rows, including the nested drivers and selected-compiler self check,
+passed. This is an existing failure on the rebased master, not a disabled
+or newly unsanitized test.
+
+*** Restoration, once #313 is settled
 
 - make.til: ~run_test~ calls ~run_test_asan~'s body again (or simply
   ~run_test_asan(b)~), and ~run_test_two_pass~ builds the ASAN compiler from
   the self-applied bin/til and runs the suite with ~--til-bin bin/til_asan
   --asan~ (the commented lines there).
+- Change ~run_test_two_pass~ to ~layout_regressions(b, true)~ after building
+  that self-applied ASAN compiler. Keep ~run_test_fast~ explicitly native.
+  The nested-driver flag plumbing already restores their sanitizer work when
+  the suite receives ~--asan~; do not restore unconditional sanitizer flags
+  that would make ~test_fast~ secretly sanitize again.
 - .github/workflows/tests.yml: the two native linux jobs go back to
   ~make test~ (or keep ~test_asan~, same thing then).
 - doc/self.org "Commands": drop the TEMPORARY note.
+- Validate ~make clean && make test~, ~make test_two_pass~ and the explicit
+  native ~make test_fast~ path. Check both VM hosts/libraries, qualifier and
+  cast-reference binaries for sanitizer instrumentation in ASAN mode and
+  its absence in fast mode; verify both Linux JNI leak passes execute only
+  in ASAN mode. Confirm the selected compiler's self-application guard runs.
+- Keep the retired benchmark/curve retired unless separately requested:
+  restoring default sanitizer coverage does not require duplicate native
+  translation or reviving the archive columns as a live series.
 - Close this issue in that commit.

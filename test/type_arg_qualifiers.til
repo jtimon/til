@@ -11,6 +11,13 @@ check := proc(cmd: Cmd, expected: Str) {
     assert_eq(Str, output, expected)
 }
 
+check_run := proc(compiler: Str, root: Str, name: Str, expected: Str, asan: Bool) {
+    cmd := Cmd.new(compiler, "run")
+    if asan { cmd.arg("--asan") }
+    cmd.args("-o", format(root, "/", name), "-c", format(root, "/", name, ".c"), format(root, "/", name, ".til"))
+    check(cmd, expected)
+}
+
 reject := proc(cmd: Cmd, expects_arity: Bool = true) {
     cmd.capture()
     status := cmd.run()
@@ -59,7 +66,7 @@ prepare_templates := proc(root: Str) {
     File.writefile(format(root, "/MyAltSet.til"), set_source)
 }
 
-query_checks := proc(compiler: Str, root: Str) {
+query_checks := proc(compiler: Str, root: Str, asan: Bool) {
     File.writefile(format(root, "/probe.til"), format(
         "mode cli\nimport(\"MyAltVec\")\n",
         "Contract := interface { value := func(self: Contract) returns I64\n",
@@ -184,8 +191,7 @@ query_checks := proc(compiler: Str, root: Str) {
         "    handle: Contract = Record(n = 51)\nhandle_refs: MyAltVec(ref Contract) = handle.borrowed_values()\nmut handle_copies: MyAltVec(own Contract) = handle.owned_values()\nhandle_copies.push(own Choice.One)\nassert_eq(I64, handle_refs[0].value(), 51)\nassert_eq(I64, handle_copies[1].value(), 1)\n",
         "    println(\"qualifiers OK\")\n}\n"))
     check(Cmd.new(compiler, "interpret", format(root, "/probe.til")), "qualifiers OK\n")
-    check(Cmd.new(compiler, "run", "--asan", "-o", format(root, "/probe"),
-        "-c", format(root, "/probe.c"), format(root, "/probe.til")), "qualifiers OK\n")
+    check_run(compiler, root, "probe", "qualifiers OK\n", asan)
 }
 
 family_type_source := func() returns Str {
@@ -200,7 +206,7 @@ family_type_source := func() returns Str {
         "RefKey := struct implements Ordered { ref label: Str\nnamespace:\nvalue := func(self: RefKey) returns I64 { return self.label.len().to_i64() }\ncmp := func(self: RefKey, other: RefKey) returns I64 { return Str.cmp(self.label, other.label) } }\n")
 }
 
-container_checks := proc(compiler: Str, root: Str) {
+container_checks := proc(compiler: Str, root: Str, asan: Bool) {
     family_imports := "import(\"MyAltArray\")\nimport(\"MyAltMap\")\nimport(\"MyAltSet\")\n"
     family_types := family_type_source()
     File.writefile(format(root, "/families.til"), format("mode cli\n", family_imports, family_types,
@@ -243,15 +249,13 @@ container_checks := proc(compiler: Str, root: Str) {
         "mut owned_set := MyAltSet(own Str).new()\nowned_set.add(own format(\"owned\"))\nassert(owned_set.has(\"owned\"))\n",
         "println(\"container families OK\")\n}\n"))
     check(Cmd.new(compiler, "interpret", format(root, "/families.til")), "container families OK\n")
-    check(Cmd.new(compiler, "run", "--asan", "-o", format(root, "/families"),
-        "-c", format(root, "/families.c"), format(root, "/families.til")), "container families OK\n")
+    check_run(compiler, root, "families", "container families OK\n", asan)
     native_families := File.readfile(format(root, "/families.til"))
         .replace(family_imports, "")
         .replace("MyAltArray", "Array").replace("MyAltMap", "Map").replace("MyAltSet", "Set")
     File.writefile(format(root, "/native_families.til"), native_families)
     check(Cmd.new(compiler, "interpret", format(root, "/native_families.til")), "container families OK\n")
-    check(Cmd.new(compiler, "run", "--asan", "-o", format(root, "/native_families"),
-        "-c", format(root, "/native_families.c"), format(root, "/native_families.til")), "container families OK\n")
+    check_run(compiler, root, "native_families", "container families OK\n", asan)
 }
 
 family_borrow_checks := proc(compiler: Str, root: Str) {
@@ -447,7 +451,7 @@ interface_argument_checks := proc(compiler: Str, root: Str) {
     }
 }
 
-generic_call_checks := proc(compiler: Str, root: Str) {
+generic_call_checks := proc(compiler: Str, root: Str, asan: Bool) {
     File.writefile(format(root, "/ufcs_api.til"), format(
         "mode lib\nRender := interface { draw := func(self: Render) returns Str }\n",
         "RenderValue := struct implements Render { text: Str\nnamespace:\ndraw := func(self: RenderValue) returns Str { return self.text.clone() } }\n",
@@ -468,8 +472,7 @@ generic_call_checks := proc(compiler: Str, root: Str) {
         "assert_eq(Str, kind.runtime_receiver(value), \"I64/main\");\n",
         "println(left(), \":\", right(), \":\", value.render(), \":\", render(RenderValue)(value)) }\n"))
     check(Cmd.new(compiler, "interpret", format(root, "/ufcs_imports.til")), "left:right:main:main\n")
-    check(Cmd.new(compiler, "run", "--asan", "-o", format(root, "/ufcs_imports"),
-        "-c", format(root, "/ufcs_imports.c"), format(root, "/ufcs_imports.til")), "left:right:main:main\n")
+    check_run(compiler, root, "ufcs_imports", "left:right:main:main\n", asan)
     bound_prelude := format("mode cli\n",
         "Draw := interface { draw := func(self: Draw) returns Str }\n",
         "Extra := interface { extra := func(self: Extra) returns I64 }\n",
@@ -510,9 +513,16 @@ generic_call_checks := proc(compiler: Str, root: Str) {
 }
 
 main := proc(args: ..Str) {
+    if args.len() > 3 { panic("expected compiler, optional family, and optional --asan") }
     ref compiler: Str = args[0]
     mut family := "all"
     if args.len() > 1 { family = args[1].borrowed_view() }
+    // TEMPORARY (#464): sanitizer coverage is selected by the suite.
+    mut asan := false
+    if args.len() > 2 {
+        if args[2] != "--asan" { panic("unknown qualifier test option: ", args[2]) }
+        asan = true
+    }
     if family.eq("all").or(family.eq("success")).or(family.eq("borrows")).or(family.eq("generics")).not() {
         panic("unknown qualifier test family: ", family)
     }
@@ -523,23 +533,23 @@ main := proc(args: ..Str) {
     switch family {
     case "all":
         // Keep the standalone command's original case order.
-        query_checks(compiler, root)
-        container_checks(compiler, root)
+        query_checks(compiler, root, asan)
+        container_checks(compiler, root, asan)
         family_borrow_checks(compiler, root)
         query_error_checks(compiler, root)
         vector_borrow_checks(compiler, root)
         interface_argument_checks(compiler, root)
-        generic_call_checks(compiler, root)
+        generic_call_checks(compiler, root, asan)
     case "success":
-        query_checks(compiler, root)
-        container_checks(compiler, root)
+        query_checks(compiler, root, asan)
+        container_checks(compiler, root, asan)
     case "borrows":
         family_borrow_checks(compiler, root)
         vector_borrow_checks(compiler, root)
     case "generics":
         query_error_checks(compiler, root)
         interface_argument_checks(compiler, root)
-        generic_call_checks(compiler, root)
+        generic_call_checks(compiler, root, asan)
     }
     println("type argument qualifiers passed")
 }

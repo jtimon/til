@@ -1205,6 +1205,9 @@
     includes boot/. TEMPORARY (issue #464): without ASAN until #313 is
     settled; ~make test_asan~ is the ASAN suite (~bin/til_asan~, ASAN
     programs, the cage's leak report), which CI's native linux jobs run.
+    Layout checks and nested VM, qualifier, numeric-cast and JNI drivers
+    follow this selection too; the default performs no sanitizer builds.
+    Restoration steps are in [[../issues/open/464.org][#464]].
   - ~make two_pass~ builds, then rebuilds with the freshly-built ~bin/til~
     so ~boot/til.c~ reflects the new compiler self-applied. Use for
     "Two-pass: "-prefixed commits.
@@ -1218,7 +1221,7 @@
     and match expressions. Callable/body defaults show their signatures/captures with
     an explicit ~{ ... }~ marker for the omitted implementation; the reference
     is not a source-code serialization. The same formatting is used by help().
-  - ~make test_asan~ and ~make test_asan_full~ are aliases for ~make test~.
+  - ~make test_asan_full~ is an alias for ~make test_asan~.
   - ~make test_nogui~ skips GUI build tests (no xvfb needed).
   - ~make test_regen~ rewrites the ~test/*.expected~ goldens from what the
     tests actually print. They are reviewed artifacts, not a cache: a
@@ -1229,3 +1232,16 @@
   - ~make bin/til_debug~ debug build for gdb.
   - ~make clean && make test~ always works.
   - ~git checkout HEAD boot/~ for recovery.
+
+** Self-translation measurements
+
+  The default suite translates once through ~bin/til~, compares the C and
+  forward header with ~boot/~, and records ~self_ms~ / ~self_mem~. A different
+  ~--til-bin~ adds its own self-application check (two-process repeatability
+  instead of a boot comparison for the native-layout opt-out). Both stay
+  outside suite wall/peak; only the normal compiler supplies benchmark data.
+
+  The ~self-asan~ curve is retired. Historical ~self_asan_ms~ / ~self_asan_mem~
+  cells remain verbatim in ~doc/totals.csv~; new rows leave those cells empty,
+  even during explicit ASAN runs. They must never contain native timings or
+  fabricated zeroes. ~examples/plot.til~ treats empty cells as absent data.

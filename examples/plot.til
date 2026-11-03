@@ -33,7 +33,7 @@ X_LABEL_COLOR := "#666"
 
 Row := struct {
     const label := ""
-    const values := Vec(I64).new()
+    const values := Vec(Option(I64)).new()
 }
 
 Series := struct {
@@ -81,10 +81,15 @@ parse_csv := func(content: Str) returns Vec(Row) {
             continue
         }
         cols := line.split(",")
-        mut values := Vec(I64).new()
+        mut values := Vec(Option(I64)).new()
         mut c : USize = 1
         while c.lt(cols.len()) {
-            values.push(own cols[c].to_i64())
+            // Retired historical columns can be empty inside a newer row.
+            if cols[c].is_empty() {
+                values.push(own Option(I64).None)
+            } else {
+                values.push(own Option(I64).Some(cols[c].to_i64()))
+            }
             c++
         }
         rows.push(own Row(label = cols[0].clone(), values = values))
@@ -154,12 +159,13 @@ x_px := func(idx: I64, count: I64) returns I64 {
 }
 
 raw_series_value := func(row: Row, series: Series) returns I64 {
-    return row.values[series.column_index].clone()
+    return row.values[series.column_index].unwrap()
 }
 
 series_value_available := func(row: Row, series: Series) returns Bool {
-    // Trailing columns added to a persisted CSV are absent from older rows.
-    return series.column_index.lt(row.values.len())
+    // Older rows lack appended columns; retired columns can be empty anywhere.
+    if series.column_index.gte(row.values.len()) { return false }
+    return row.values[series.column_index].is_some()
 }
 
 build_points := func(rows: Vec(Row), series: Series, y_max: I64) returns Str {

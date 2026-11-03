@@ -1,8 +1,14 @@
 mode cli
 import("numeric_cast_reference")
 
-main := proc(bits: Str) {
-    transcript := numeric_cast_failure_output(bits)
+main := proc(bits: Str, options: ..Str) {
+    // TEMPORARY (#464): the regular suite keeps all diagnostics but no ASAN.
+    mut asan := false
+    for option : Str in options {
+        if option != "--asan" { panic("unknown numeric-cast test option: ", option) }
+        asan = true
+    }
+    transcript := numeric_cast_failure_output(bits, asan)
     if transcript.len() == 0 { panic("missing numeric cast diagnostics") }
     println("Numeric cast failures passed")
 }

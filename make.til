@@ -706,11 +706,15 @@ build_tests := proc(mut b: Build) {
 
 /// Explicit layout regressions (issues #309, #313), interpreted and compiled,
 /// including compile-time interpreter folding and cross-width
-/// self-translation under ASAN. Part of every suite target.
-layout_regressions := proc(mut b: Build) {
-    if b.begin("layout_regressions").not() { return }
+/// self-translation. TEMPORARY (#464): only explicit ASAN/opt-out suites
+/// enable sanitizer work; the native default still runs every layout check.
+layout_regressions := proc(mut b: Build, asan: Bool) {
+    mut step := "layout_regressions"
+    if asan { step = "layout_regressions_asan" }
+    if b.begin(step).not() { return }
     build_til(b)
-    build_asan(b)
+    mut compiler := TIL.clone()
+    if asan { build_asan(b); compiler = ASAN.clone() }
     mkdir_p("tmp")
     run(TIL, "--usize=64", "test/usize64.til")
     run(TIL, "build", "--usize=64", "-o", "tmp/usize64", "test/usize64.til")
@@ -719,10 +723,14 @@ layout_regressions := proc(mut b: Build) {
     run("tmp/usize64_sizes")
     run(TIL, "build", "--usize=32", "-o", "tmp/usize32_sizes", "test/usize32_sizes.til")
     run("tmp/usize32_sizes")
-    run(ASAN, "build", "--usize=64", "-o", "tmp/usize64_comptime", "test/usize64_comptime.til")
+    run(compiler, "build", "--usize=64", "-o", "tmp/usize64_comptime", "test/usize64_comptime.til")
     run("tmp/usize64_comptime")
-    run(TIL, "build", "--asan", "--usize=32", "-o", "tmp/til_usize32_asan", "src/til.til")
-    run("tmp/til_usize32_asan", "translate", "--usize=64", "--force-rebuild", "-c", "tmp/til_usize32_to_64.c", "src/til.til")
+    mut compact := TIL.clone()
+    if asan {
+        compact = "tmp/til_usize32_asan"
+        run(TIL, "build", "--asan", "--usize=32", "-o", compact, "src/til.til")
+    }
+    run(compact, "translate", "--usize=64", "--force-rebuild", "-c", "tmp/til_usize32_to_64.c", "src/til.til")
 }
 
 /// The native layout, the one opt-out (#309, #313; one layout flag,
@@ -733,7 +741,7 @@ layout_regressions := proc(mut b: Build) {
 /// second full suite run.
 check_usize64 := proc(mut b: Build) {
     if b.begin("check_usize64").not() { return }
-    layout_regressions(b)
+    layout_regressions(b, true)
     build_test_runner(b)
     build_plot(b)
     build_tests(b)
@@ -793,7 +801,8 @@ refresh_constfold := proc() {
 /// is settled -- the cage made the sanitizer's bookkeeping the dominant
 /// cost of every merge-time run. `make test` is `make test_fast` for now;
 /// `make test_asan` is the full ASAN suite, which CI's native linux jobs
-/// still run. Restoring the ASAN default is #464's one-line revert.
+/// still run. Issue #464 records all restoration steps, including layouts
+/// and nested drivers that now inherit the suite's explicit ASAN mode.
 run_test := proc(mut b: Build) {
     if b.begin("test").not() { return }
     run_test_fast(b)
@@ -808,7 +817,7 @@ run_test_asan := proc(mut b: Build) {
     build_test_runner(b)
     build_plot(b)
     build_tests(b)
-    layout_regressions(b)
+    layout_regressions(b, true)
     check_clang(b)
     c := suite_cmd(b, "--til-bin", ASAN, "--asan")
     c.run_checked()
@@ -823,7 +832,7 @@ run_test_fast := proc(mut b: Build) {
     build_test_runner(b)
     build_plot(b)
     build_tests(b)
-    layout_regressions(b)
+    layout_regressions(b, false)
     check_clang(b)
     c := suite_cmd(b)
     c.run_checked()
@@ -872,7 +881,7 @@ run_test_two_pass := proc(mut b: Build) {
     //   run(TIL, "build", "--usize=32", "--asan", "-o", ASAN, "src/til.til")
     //   b.begin("asan")
     // and the suite below takes "--til-bin", ASAN, "--asan".
-    layout_regressions(b)
+    layout_regressions(b, false)
     check_clang(b)
     run(TIL, "build", "-o", "bin/test_runner", "src/test_runner.til")
     run(TIL, "build", "-o", "bin/plot", "examples/plot.til")

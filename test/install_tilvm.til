@@ -25,11 +25,17 @@ run_family := proc(work: Str, fixture: Str, family: Str) {
 }
 
 main := proc(args: ..Str) returns I64 {
-    if args.len() > 2 { panic("expected fixture and optional build/family action") }
+    if args.len() > 3 { panic("expected fixture, optional build/family action, and optional --asan") }
     mut fixture := "tilvm"
     mut action := "all"
+    // TEMPORARY (#464): native unless the suite explicitly requests ASAN.
+    mut asan := false
     if args.len() > 0 { fixture = args[0].borrowed_view() }
     if args.len() > 1 { action = args[1].borrowed_view() }
+    if args.len() > 2 {
+        if args[2] != "--asan" { panic("unknown TilVm build option: ", args[2]) }
+        asan = true
+    }
     prefix := format("tmp/install_", fixture)
     work := format(prefix, "_work")
     if action.eq("all").or(action.eq("build")).not() {
@@ -54,7 +60,9 @@ main := proc(args: ..Str) returns I64 {
     // Guest files do not exist until that compiled host creates them.
     File.writefile(format(work, "/tilvm_cases.til"), File.readfile("test/tilvm_cases.til"))
     File.writefile(format(work, "/tilvm_host.til"), File.readfile(format("test/", fixture, ".til")))
-    vm_build := Cmd.new(installed_til, "build", "--asan", "-o", "bin/tilvm_host", "tilvm_host.til")
+    vm_build := Cmd.new(installed_til, "build")
+    if asan { vm_build.arg("--asan") }
+    vm_build.args("-o", "bin/tilvm_host", "tilvm_host.til")
     vm_build.cwd(work)
     vm_build.run_checked()
     if action == "build" {

@@ -63,11 +63,17 @@ run_native_family := proc(work: Str, fixture: Str, family: Str) {
 }
 
 main := proc(args: ..Str) returns I64 {
-    if args.len() > 2 { panic("expected fixture and optional build/family action") }
+    if args.len() > 3 { panic("expected fixture, optional build/family action, and optional --asan") }
     mut fixture := "tilvm_native"
     mut action := "all"
+    // TEMPORARY (#464): libraries and host inherit explicit suite ASAN mode.
+    mut asan := false
     if args.len() > 0 { fixture = args[0].borrowed_view() }
     if args.len() > 1 { action = args[1].borrowed_view() }
+    if args.len() > 2 {
+        if args[2] != "--asan" { panic("unknown native TilVm build option: ", args[2]) }
+        asan = true
+    }
     if native_fixture_known(fixture).not() { panic("unknown native TilVm fixture: ", fixture) }
     prefix := format("tmp/install_", fixture)
     work := format(prefix, "_work")
@@ -120,12 +126,16 @@ main := proc(args: ..Str) returns I64 {
         "native_enum_reset := proc() { noop_proc(); native_choice_state = NativeChoice.Empty; native_maybe_state = NativeMaybeConfig.None }\n",
         "NativeError := struct { code : I64 = 0 }\n",
         "native_fail := func() throws NativeError { throw NativeError(code = 7) }\n"))
-    native_build := Cmd.new(installed_til, "build", "--asan", "vm_native.til")
+    native_build := Cmd.new(installed_til, "build")
+    if asan { native_build.arg("--asan") }
+    native_build.arg("vm_native.til")
     native_build.cwd(work)
     native_build.run_checked()
     File.writefile(format(work, "/vm_plugin.til"),
         "mode lib\nplugin_value := func() returns I64 { return 73 }\n")
-    plugin_build := Cmd.new(installed_til, "build", "--asan", "vm_plugin.til")
+    plugin_build := Cmd.new(installed_til, "build")
+    if asan { plugin_build.arg("--asan") }
+    plugin_build.arg("vm_plugin.til")
     plugin_build.cwd(work)
     plugin_build.run_checked()
     // Force shared linking on platforms where a .a would otherwise take
@@ -134,7 +144,9 @@ main := proc(args: ..Str) returns I64 {
     library_dir := realpath_str(format(work, "/gen/lib"))
     File.writefile(format(work, "/tilvm_native_cases.til"), File.readfile("test/tilvm_native_cases.til"))
     File.writefile(format(work, "/tilvm_native.til"), File.readfile(format("test/", fixture, ".til")))
-    native_host := Cmd.new(installed_til, "build", "--asan", "-o", "bin/tilvm_native", "tilvm_native.til")
+    native_host := Cmd.new(installed_til, "build")
+    if asan { native_host.arg("--asan") }
+    native_host.args("-o", "bin/tilvm_native", "tilvm_native.til")
     native_host.cwd(work)
     native_host.env("LIBRARY_PATH", library_dir)
     native_host.run_checked()

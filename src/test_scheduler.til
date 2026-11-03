@@ -130,10 +130,10 @@ next_ready_test := proc(mut tests: Vec(Test), mut fail: I64) returns Option(USiz
     return Option(USize).None
 }
 
-// The self-translate benchmarks run alongside the suite, outside its wall
-// and peak-memory series. Build prerequisites remain ordinary measured rows.
+// The native benchmark and selected-compiler self-application guard run
+// outside suite wall/peak. Build prerequisites remain ordinary measured rows.
 is_benchmark_category := func(category: Str) returns Bool {
-    return category.eq("self").or(category.eq("self_asan"))
+    return category.eq("self").or(category.eq("self_check"))
 }
 
 run_all_parallel := proc(mut tests: Vec(Test), j: USize, mut fail: I64,

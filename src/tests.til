@@ -14,7 +14,7 @@ RUNNER := "bin/test_runner"
 // otherwise all have to carry a flag none of them decides.
 mut REGEN := ""
 PLOT := "bin/plot"
-TOTALS_PLOT_ARGS := " --left-unit s --left-divisor 1000 --right-unit gb --right-divisor 1000000000 --axis-precision 0 --units-after-values --series interp_ms:inte:left --series compile_ms:comp:left --series run_ms:run:left --series wall_ms:wall:left --series self_ms:self:left --series self_asan_ms:self-asan:left --series mem_inte:mem-inte:right --series mem_comp:mem-comp:right --series mem_run:mem-run:right --series self_mem:mem-self:right --series peak_mem:peak-mem:right"
+TOTALS_PLOT_ARGS := " --left-unit s --left-divisor 1000 --right-unit gb --right-divisor 1000000000 --axis-precision 0 --units-after-values --series interp_ms:inte:left --series compile_ms:comp:left --series run_ms:run:left --series wall_ms:wall:left --series self_ms:self:left --series mem_inte:mem-inte:right --series mem_comp:mem-comp:right --series mem_run:mem-run:right --series self_mem:mem-self:right --series peak_mem:peak-mem:right"
 GUI_TIMEOUT := "1"
 DOC_DOCTEST_FILE := "tmp/doc_doctests.til"
 TUTORIAL_DOCTEST_DIR := "tmp/tutorial_doctests"
@@ -808,6 +808,9 @@ main := proc(args: ..Str) returns I64 {
     // their own leaks when executed.
     mut asan_flag := ""
     if asan == 1 { asan_flag = " --asan" }
+    // Nested drivers parse ASAN separately from their own layout matrices.
+    // TEMPORARY (#464): the native default passes no sanitizer argument.
+    driver_asan_arg := asan_flag.clone()
     // An explicit --usize=32|64 -- the whole layout, one flag (doc/self.org)
     // -- rides along with the ASAN flag into every compiled program's build
     // (make check_usize64 passes --usize=64, the native opt-out of the
@@ -826,18 +829,14 @@ main := proc(args: ..Str) returns I64 {
     mut flags := mode_flags(en_interp, en_run, asan_flag)
     if til_bin != TIL { flags = format(" --til-bin ", til_bin, flags) }
 
-    // Self-translate: bin/til translate src/til.til -- the compiler translating
-    // its own source, the largest input it handles and the single slowest job.
-    // Registered FIRST so run_all_parallel spawns it in the first batch; it then
-    // holds one of the j parallel slots for the whole run (usually the long
-    // pole). Its time is collected via the "self_asan" category into
-    // self_asan_ms and is deliberately EXCLUDED from wall_ms (run_all_parallel
-    // marks the suite end from the last non-benchmark test), so the benchmark
-    // does not inflate wall.
+    // Check self-application through a separately selected compiler (ASAN or
+    // an opt-out layout). The normal compiler is already checked by the native
+    // benchmark below, so the default suite does not translate twice with the
+    // same binary. This check is excluded from wall/peak and is not a series.
     // Exit must be 0: the compiler has to be able to translate itself.
     //
     // Issue #101: it is also the determinism guard, and ONE translation buys
-    // both halves of it, so self_asan_ms stays a single self-translate. The
+    // both halves of it through a single self-translate. The
     // comparison is against the pass-1 boot/ artifacts the build just
     // produced, which were written by a DIFFERENT compiler binary in a
     // DIFFERENT process (til_boot under `make test`, the self-applied
@@ -893,24 +892,18 @@ main := proc(args: ..Str) returns I64 {
         self_reference_cmd = format(" '&&' rm -f tmp/self_det_ref.c tmp/self_det_ref_forward.h",
             " '&&' ", til_bin, " translate --usize=32 -c tmp/self_det_ref.c src/til.til")
     }
-    add_single(tests, "self_translate", "self_asan", 0, "",
-        format("rm -f tmp/self_det.c tmp/self_det_forward.h",
-            " '&&' ", til_bin, " translate --usize=32 -c tmp/self_det.c src/til.til",
-            self_reference_cmd,
-            " '&&' cmp tmp/self_det.c ", self_reference, ".c",
-            " '&&' cmp tmp/self_det_forward.h ", self_reference, "_forward.h"))
-    // The same self-translate WITHOUT ASAN (#313): the suite's compiler is
-    // the ASAN build, so self_asan_ms / self_asan_mem measure the sanitizer's
-    // bookkeeping as much as the compiler -- the cage's default flip showed
-    // as a halving there that was ASAN's per-allocation cost disappearing,
-    // not the cage's own ~5%. This row runs bin/til, the compiler as built,
-    // and is THE self-translate benchmark: self_ms / self_mem, the numbers to
-    // judge a layout change by (the ASAN row's time is plotted beside it for
-    // the sanitizer's cost; its memory is kept in the csv, not plotted). Its
-    // own category, so it joins the ASAN row in staying out of wall and the
-    // peak. The comparison is against boot/, which this very compiler's
-    // layout produced under every suite (the opt-outs change til_bin, not
-    // TIL).
+    if til_bin != TIL {
+        add_single(tests, "self_translate", "self_check", 0, "",
+            format("rm -f tmp/self_det.c tmp/self_det_forward.h",
+                " '&&' ", til_bin, " translate --usize=32 -c tmp/self_det.c src/til.til",
+                self_reference_cmd,
+                " '&&' cmp tmp/self_det.c ", self_reference, ".c",
+                " '&&' cmp tmp/self_det_forward.h ", self_reference, "_forward.h"))
+    }
+    // The native compiler's self-translate is the canonical self_ms/self_mem
+    // benchmark. It also checks the default compiler's bootstrap fixed point.
+    // Historical ASAN measurements remain archived in their original CSV
+    // columns, but no duplicate/sanitizer series is recorded or plotted.
     add_single(tests, "self_translate_native", "self", 0, "",
         format("rm -f tmp/self_native.c tmp/self_native_forward.h",
             " '&&' ", TIL, " translate --usize=32 -c tmp/self_native.c src/til.til",
@@ -981,12 +974,12 @@ main := proc(args: ..Str) returns I64 {
         format(TIL, " run -o bin/c/install_rebuild -c gen/c/install_rebuild.c test/install.til rebuild"))
     add_single(tests, "install", "build", 0, "", format(TIL, " run test/install.til support"))
 
-    // Build each installed ASAN host once. Families are normal scheduler
-    // jobs, released only after their build succeeds; waiting costs no slot.
+    // Build each installed host once, inheriting explicit ASAN mode. Families
+    // are scheduler jobs released after the build; waiting costs no slot.
     // The compiled orchestration drivers are products of the same build row.
     public_vm_build := tests.len()
     add_count(tests, "install_tilvm_build", "build", "install TilVm build PASS", 1,
-        format(TIL, " run test/install_tilvm.til tilvm build"))
+        format(TIL, " run test/install_tilvm.til tilvm build", driver_asan_arg))
     for family : Str in array(Str, "lifecycle", "calls", "lookup", "references", "values") {
         add_single(tests, format("install_tilvm_", family), "build", 0, "",
             format("bin/test/install_tilvm tilvm ", family))
@@ -995,7 +988,7 @@ main := proc(args: ..Str) returns I64 {
     }
     native_vm_build := tests.len()
     add_count(tests, "install_tilvm_native_build", "build", "install TilVm native build PASS", 1,
-        format(TIL, " run test/install_tilvm_native.til tilvm_native build"))
+        format(TIL, " run test/install_tilvm_native.til tilvm_native build", driver_asan_arg))
     for family : Str in array(Str, "state", "config", "prelude", "reload") {
         add_single(tests, format("install_tilvm_native_", family), "build", 0, "",
             format("bin/test/install_tilvm_native tilvm_native ", family))
@@ -1019,7 +1012,7 @@ main := proc(args: ..Str) returns I64 {
     mut jvm_arg := ""
     if en_jvm == 0 { jvm_arg = " --no-jvm" }
     add_single(tests, "library_namespace", "build", 0, "",
-        format(TIL, " run test/library_namespace.til", jvm_arg))
+        format(TIL, " run test/library_namespace.til", jvm_arg, driver_asan_arg))
     // #313: an interpreted call marshals a returned library struct whose
     // last field is a 4-byte own pointer without running past it. Under
     // the native opt-out (make check_usize64) the same row
@@ -1048,8 +1041,8 @@ main := proc(args: ..Str) returns I64 {
 
     // #463: every library also gets a JNI bridge and Java class. The test
     // checks them as text, then runs a Java caller through them (plus, on
-    // Linux, an ASAN leak run), which needs a JDK unless --no-jvm.
-    add_single(tests, "jni", "build", 0, "", format(TIL, " run test/jni.til", jvm_arg))
+    // Linux with --asan, a leak run), which needs a JDK unless --no-jvm.
+    add_single(tests, "jni", "build", 0, "", format(TIL, " run test/jni.til", jvm_arg, driver_asan_arg))
 
     // The non-zero half of the value-returning-main contract: `return 7`
     // is process exit status 7 on both backends. The compiled `int main`
@@ -1121,7 +1114,7 @@ main := proc(args: ..Str) returns I64 {
         add_count(tests, format("type_arg_qualifiers_", family), "build", "type argument qualifiers passed", 1,
             format(til_bin, " run", asan_flag,
                 " -o bin/c/type_arg_qualifiers_", family, " -c gen/c/type_arg_qualifiers_", family,
-                ".c test/type_arg_qualifiers.til ", til_bin, " ", family))
+                ".c test/type_arg_qualifiers.til ", til_bin, " ", family, driver_asan_arg))
     }
 
     add_count(tests, "cpu_options", "build", "cpu options passed", 1,
@@ -1215,14 +1208,14 @@ main := proc(args: ..Str) returns I64 {
     add_count(tests, "holyc_i32_divmod_interp", "build", "I32 divmod passed", 1,
         format(til_bin, " interpret test/holyc_i32_divmod.til"))
     add_count(tests, "holyc_i32_divmod_compile", "build", "I32 divmod passed", 1,
-        format(til_bin, " run --asan -o bin/c/holyc_i32_divmod -c gen/c/holyc_i32_divmod.c test/holyc_i32_divmod.til"))
+        format(til_bin, " run", asan_flag, " -o bin/c/holyc_i32_divmod -c gen/c/holyc_i32_divmod.c test/holyc_i32_divmod.til"))
     // Interpreter aggregates use the compiler host layout. Check its matching
     // width here; compiled C and HolyC exercise both target layouts below.
     add_count(tests, "holyc_terminal_model_support_interp", "build", "Terminal model support passed", 1,
         format(til_bin, " interpret --usize=32 test/holyc_terminal_model_support.til"))
     for bits : Str in array(Str, "32", "64") {
         add_count(tests, format("holyc_terminal_model_support_compile_", bits), "build", "Terminal model support passed", 1,
-            format(til_bin, " run --asan --usize=", bits, " -o bin/c/holyc_terminal_model_support_", bits,
+            format(til_bin, " run", asan_flag, " --usize=", bits, " -o bin/c/holyc_terminal_model_support_", bits,
                 " -c gen/c/holyc_terminal_model_support_", bits, ".c test/holyc_terminal_model_support.til"))
         add_single(tests, format("holyc_terminal_model_support_translate_", bits), "build", 0, "",
             format(til_bin, " translate --target=templeos --usize=", bits,
@@ -1240,7 +1233,7 @@ main := proc(args: ..Str) returns I64 {
             for opt : Str in array(Str, "0", "2") {
                 executable := format(name, "_opt", opt)
                 add_count(tests, executable, "build", message, 1,
-                    format(til_bin, " run --asan --opt=", opt, " --usize=", bits,
+                    format(til_bin, " run", asan_flag, " --opt=", opt, " --usize=", bits,
                         " -o bin/c/", executable, " -c gen/c/", executable, ".c ", source))
             }
             add_single(tests, format(name, "_translate"), "build", 0, "",
@@ -1248,7 +1241,7 @@ main := proc(args: ..Str) returns I64 {
                     " -c gen/c/", name, ".HC ", source))
         }
         add_count(tests,format("numeric_cast_failures_",bits),"build","Numeric cast failures passed",1,
-            format(til_bin," test/numeric_cast_errors.til ",bits))
+            format(til_bin," test/numeric_cast_errors.til ",bits, driver_asan_arg))
     }
     add_counts(tests, "holyc_gui_keyboard_translate", "build",
         format(til_bin, " translate --target=templeos -c gen/c/gui_keyboard.HC examples/gui_keyboard.til '&&' cat gen/c/gui_keyboard.HC"),
@@ -1332,10 +1325,10 @@ main := proc(args: ..Str) returns I64 {
     // unused param spelling issue #86 defines. The shared translation uses
     // its own -c path so it and the `both` compile never race on one file.
     //
-    // Category "build", NOT "self" / "self_asan": those are reserved for the
-    // self-translate BENCHMARKS. Any extra test filed under them lands
-    // in doc/totals.csv and img/totals.svg as a benchmark regression that
-    // did not happen -- these three cost ~3 x 2s and ~3 x 1.1GB of peak RSS,
+    // Category "build", NOT "self" / "self_check": those are reserved for the
+    // native self benchmark and selected-compiler guard. Extra tests there
+    // would either inflate self_ms/self_mem or disappear from wall/peak --
+    // these three cost ~3 x 2s and ~3 x 1.1GB of peak RSS,
     // which is what made self_mem jump 11.8GB -> 15.1GB when they were first
     // registered here. Measured on identical input, the compiler's own
     // self-translate was 29.07s/262.8MB before #326 and 29.40s/261.7MB after.
@@ -3388,8 +3381,6 @@ main := proc(args: ..Str) returns I64 {
     mut build_mem := 0
     mut self_ms := 0
     mut self_mem := 0
-    mut self_asan_ms := 0
-    mut self_asan_mem := 0
     mut other_passed : USize = 0
     mut other_total : USize = 0
     pi = 0
@@ -3405,10 +3396,6 @@ main := proc(args: ..Str) returns I64 {
                 self_ms = self_ms + t.ms
                 self_mem = self_mem + t.mem
             }
-            if t.category == "self_asan" {
-                self_asan_ms = self_asan_ms + t.ms
-                self_asan_mem = self_asan_mem + t.mem
-            }
             if t.category == "build" {
                 build_ms = build_ms + t.ms
                 build_mem = build_mem + t.mem
@@ -3420,9 +3407,10 @@ main := proc(args: ..Str) returns I64 {
     // --- Plot test (stays sequential) ---
 
     plot_start := clock_ms()
-    test_csv := format("sample,requests,heap_bytes,ignored,later", NL,
+    test_csv := format("sample,requests,heap_bytes,ignored,later,archive", NL,
         "alpha,10500,5000000000,70", NL,
-        "beta,23456,38000000000,90,1000000000", NL)
+        "beta,23456,38000000000,90,1000000000", NL,
+        "gamma,1000,2000000000,0,,42", NL)
     File.writefile("tmp/_test_plot.csv", test_csv)
     run(format(PLOT, " tmp/_test_plot.csv tmp/_test_plot.svg 0",
                " --left-unit widgets --left-divisor 1000",
@@ -3523,7 +3511,6 @@ main := proc(args: ..Str) returns I64 {
     println("Plot test:    ", ms_to_str(plot_ms))
     println("Build tests:  ", ms_to_str(build_ms))
     println("Self-translate: ", ms_to_str(self_ms))
-    println("Self-translate (ASAN): ", ms_to_str(self_asan_ms))
     println("Wall-clock:   ", ms_to_str(wall_ms))
     println("Peak memory:  ", suite_peak_mem.to_str(), " bytes")
     println("Passed:       ", total_passed.to_i64().to_str(), "/", total_tests.to_i64().to_str())
@@ -3585,8 +3572,8 @@ main := proc(args: ..Str) returns I64 {
             total_mem_comp.to_str(), ",",
             total_mem_run.to_str(), ",",
             total_mem_total.to_str(), ",",
-            self_asan_ms.to_str(), ",",
-            self_asan_mem.to_str(), ",",
+            // Retired ASAN columns stay empty; never invent measurements.
+            ",,",
             suite_peak_mem.to_str(), ",",
             self_ms.to_str(), ",",
             self_mem.to_str())
@@ -3600,7 +3587,8 @@ main := proc(args: ..Str) returns I64 {
         // row's missing trailing columns as absent), so the history stays.
         // Columns 15-16 held the ASAN self-translate from the start and were
         // renamed in place when the native row became THE self-translate
-        // (18-19): every old row keeps plotting under self-asan.
+        // (18-19). Keep those historical cells verbatim; new rows leave them
+        // empty, and the retired self-asan curve is no longer selected.
         header := "commit,interp_ms,compile_ms,run_ms,ffi_ms,typer_ms,cli_ms,wall_ms,passed,total,mem_inte,mem_comp,mem_run,mem_total,self_asan_ms,self_asan_mem,peak_mem,self_ms,self_mem"
         existing := File.readfile(totals_path)
         mut totals_content := format(header, NL)

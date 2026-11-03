@@ -125,9 +125,12 @@ check_binding_composition := proc(compiler: Str) {
 main := proc(args: ..Str) {
     // --no-jvm (bin/tests --no-jvm): a host without a JDK skips the JNI run.
     mut run_jvm := true
+    // TEMPORARY (#464): nested C/JNI sanitizer work follows suite mode.
+    mut asan := false
     for arg : Str in args {
-        if arg != "--no-jvm" { panic("test/library_namespace.til: unknown argument ", arg) }
-        run_jvm = false
+        if arg == "--no-jvm" { run_jvm = false }
+        else if arg == "--asan" { asan = true }
+        else { panic("test/library_namespace.til: unknown argument ", arg) }
     }
     til_bin := "bin/til"
     build_a := Cmd.new(til_bin, "build", "test/library_namespace_a.til")
@@ -336,7 +339,9 @@ main := proc(args: ..Str) {
         "switch ref_value { case .Value(value): assert(value == 23); case: assert(false) }\n",
         "assert(wide_echo(ProbeWide.High).is(ProbeWide.High)); assert(wide_echo(ProbeWide.Next).is(ProbeWide.Next))\n",
         "mut caught := false; failing_enum()?; catch (error: ProbeError) { caught = true }; assert(caught)\n"))
-    enum_consumer := Cmd.new(til_bin, "run", "--asan", "tmp/library_namespace_enum.til")
+    enum_consumer := Cmd.new(til_bin, "run")
+    if asan { enum_consumer.arg("--asan") }
+    enum_consumer.arg("tmp/library_namespace_enum.til")
     enum_consumer.env("LIBRARY_PATH", "gen/lib")
     enum_consumer.env("LD_LIBRARY_PATH", "gen/lib")
     enum_consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
@@ -412,7 +417,7 @@ main := proc(args: ..Str) {
     require_absent(output, "panic:")
     require_absent(output, "error:")
 
-    if run_jvm { check_jvm() }
+    if run_jvm { check_jvm(asan) }
 }
 
 // #463: the same library from the JVM, through its generated JNI binding --
@@ -421,14 +426,14 @@ main := proc(args: ..Str) {
 // library_namespace_a with --asan.
 JVM_EXPECTED := "globals ok\nenums ok\nclosed: BindingPoint handle is closed or moved\nhandles ok\n"
 
-check_jvm := proc() {
+check_jvm := proc(asan: Bool) {
     java_home := jni_java_home()
     jni_build_bridge(java_home, "library_namespace_a", false)
     jni_javac(java_home, "tmp/library_namespace_classes",
         "gen/til/java/til/library_namespace_a/LibraryNamespaceA.java", "test/LibraryNamespaceAJniTest.java")
     out := jni_run(java_home, "tmp/library_namespace_classes", "LibraryNamespaceAJniTest")
     if out != JVM_EXPECTED { panic("LibraryNamespaceAJniTest output mismatch:\n", out) }
-    if host_os() == "linux" {
+    if asan.and(host_os() == "linux") {
         Cmd.new("bin/til", "build", "--asan", "test/library_namespace_a.til").run_checked()
         jni_build_bridge(java_home, "library_namespace_a", true)
         out_asan := jni_run_asan(java_home, "tmp/library_namespace_classes", "LibraryNamespaceAJniTest")
