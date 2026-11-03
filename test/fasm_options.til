@@ -16,6 +16,12 @@ main := proc(compiler_arg: Str) {
         expect(good_status == 0, good.out(), good.err())
         assembly := File.readfile(format(work, "/gen/fasm/main.fasm"))
         expect(assembly.contains("format ELF64 executable 3"), assembly)
+        for command_name in array(Str, "translate", "build", "run") {
+            arguments := Cmd.new(compiler, command_name, "--backend=fasm", "main.til", "unexpected")
+            arguments.cwd(work).capture()
+            expect(arguments.run() != 0, "FASM entry arguments accepted: ", command_name)
+            expect(arguments.out() == "error: FASM entry point takes no arguments\n", arguments.out(), arguments.err())
+        }
         File.writefile(format(work, "/runtime.til"), "mode script\nprintln(\"hello\",\"%\\x00Z\")\npanic(\"bad\",loc=\"probe:1:1\")\n")
         runtime := Cmd.new(compiler, "translate", "--backend=fasm", "runtime.til")
         runtime.cwd(work).capture()

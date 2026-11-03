@@ -485,8 +485,13 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
 }
 
 priv BuildPaths := struct {
+    backend := "c"
     name := ""
+    // Primary backend source (.c, .HC, .mlir or .fasm).
     c_path := ""
+    // MLIR's existing C-core bridge emits these support files alongside IR.
+    runtime_c_path := ""
+    runtime_fwd_path := ""
     bin_path := ""
     fwd_path := ""
     h_path := ""
@@ -498,8 +503,9 @@ priv BuildPaths := struct {
     do_lib := false
 }
 
-priv derive_build_paths := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target) returns BuildPaths {
+priv derive_build_paths := proc(lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, backend: Str = "c") returns BuildPaths {
     mut paths := BuildPaths()
+    paths.backend = backend.clone()
 
     last_slash := lp.path.rfind("/")
     mut basename := lp.path
@@ -552,6 +558,18 @@ priv derive_build_paths := proc(lp: LoadedProgram, custom_bin: Str, custom_c: St
     paths.jni_c_path = format("gen/til/", name, "_jni.c")
     paths.java_path = format("gen/til/java/til/", jni_package_name(name), "/", jni_class_name(name), ".java")
     paths.do_lib = lp.cur_mode.is_library
+    switch backend {
+    case "mlir":
+        paths.runtime_c_path = paths.c_path.clone()
+        paths.runtime_fwd_path = paths.fwd_path.clone()
+        paths.c_path = format("gen/mlir/", paths.c_path.strip_prefix("gen/til/").strip_suffix(".c"), ".mlir")
+        paths.fwd_path = ""
+    case "fasm":
+        paths.c_path = format("gen/fasm/", paths.c_path.strip_prefix("gen/til/").strip_suffix(".c"), ".fasm")
+        paths.fwd_path = ""
+    case "c":
+    case: UNREACHABLE("unknown build backend: ", backend)
+    }
     return paths
 }
 
@@ -563,9 +581,9 @@ priv make_build_dirs := proc(paths: BuildPaths) {
         if mkdir_p(theme_dir) != 0 { panic("failed to create theme output dir") }
         return
     }
-    // The .c / _forward.h pair is written for EVERY mode, to c_path and to
-    // the fwd_path derived from it, so its directory has to exist whatever
-    // the mode is. The library branch used to create only gen/til + gen/lib
+    // A backend's primary source directory exists for every mode. For C this
+    // also holds the _forward.h derived from c_path. The library branch used
+    // to create only gen/til + gen/lib
     // and skip this, so `translate -c gen/c/x.c <a library>` died on
     // `cfile_open: could not open 'gen/c/x_forward.h'` unless some other
     // build had already made gen/c. In the suite that is a scheduling
@@ -578,6 +596,11 @@ priv make_build_dirs := proc(paths: BuildPaths) {
         cp_dir = paths.c_path.substr(0, cp_slash_u)
     }
     if mkdir_p(cp_dir) != 0 { panic("failed to create build output dir") }
+    if paths.runtime_c_path.len() > 0 {
+        runtime_slash := paths.runtime_c_path.rfind("/")
+        runtime_dir := paths.runtime_c_path.substr(0, runtime_slash.to_usize())
+        if mkdir_p(runtime_dir) != 0 { panic("failed to create runtime output dir") }
+    }
     if paths.do_lib {
         if mkdir_p("gen/til") != 0 { panic("failed to create gen/til") }
         if mkdir_p("gen/lib") != 0 { panic("failed to create gen/lib") }
@@ -594,9 +617,17 @@ priv make_build_dirs := proc(paths: BuildPaths) {
     }
 }
 
-priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths, target: Target) returns I32 {
+priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths, target: Target, functions: Set(Str) = Set(Str).new()) returns I32 {
     if lp.mode_str == "theme" {
         return theme_codegen_translate(lp, paths.theme_path)
+    }
+    switch paths.backend {
+    case "mlir":
+        if c_codegen_translate_runtime(lp, paths.runtime_c_path, paths.runtime_fwd_path, paths.name) != 0 { return 1 }
+        return mlir_codegen_translate(lp, paths.c_path, functions)
+    case "fasm": return fasm_codegen_translate(lp, paths.c_path, functions)
+    case "c":
+    case: UNREACHABLE("unknown build backend: ", paths.backend)
     }
     lang := target_lang(target)
     if lang.is(Lang.HolyC) {
@@ -628,6 +659,7 @@ priv print_translate_success := proc(paths: BuildPaths) {
         return
     }
     println(format("Generated: ", paths.c_path))
+    if paths.backend != "c" { return }
     if paths.fwd_path.len() > 0 { println(format("Generated: ", paths.fwd_path)) }
     if paths.do_lib {
         println(format("Generated: ", paths.h_path))
@@ -642,6 +674,12 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
     if lp.mode_str == "theme" {
         println("error: mode theme supports translation only")
         return 1
+    }
+    switch paths.backend {
+    case "mlir": return compile_mlir(lp, paths)
+    case "fasm": return compile_fasm(lp, paths)
+    case "c":
+    case: UNREACHABLE("unknown build backend: ", paths.backend)
     }
     lang := target_lang(target)
     if lang.is(Lang.HolyC) {
@@ -754,28 +792,7 @@ priv mlir_shell_quote := func(value: Str) returns Str {
     return format("'", value.replace("'", "'\"'\"'"), "'")
 }
 
-cmd_mlir := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str), functions: Set(Str)) returns I32 {
-    if command == "run" && argv.len() > 0 {
-        println("error: MLIR entry point takes no arguments")
-        return 1
-    }
-    mut paths := derive_build_paths(lp, output, "", lp.target)
-    runtime_c := paths.c_path.clone()
-    runtime_header := paths.fwd_path.clone()
-    make_build_dirs(paths)
-    if c_codegen_translate_runtime(lp, runtime_c, runtime_header, paths.name) != 0 { return 1 }
-    paths.c_path = format("gen/mlir/", paths.c_path.strip_prefix("gen/til/").strip_suffix(".c"), ".mlir")
-    make_build_dirs(paths)
-    result := mlir_codegen_translate(lp, paths.c_path, functions)
-    if result != 0 { return result }
-    if command == "translate" {
-        println("Generated: ", paths.c_path)
-        return 0
-    }
-    if paths.do_lib && command == "run" {
-        println("error: cannot run an MLIR library")
-        return 1
-    }
+priv compile_mlir := proc(lp: LoadedProgram, paths: BuildPaths) returns I32 {
     mut destination := paths.bin_path.clone()
     runtime_obj := format("gen/lib/", lp.runtime_stem(), ".o")
     core_obj := format("gen/lib/", lp.core_stem(), ".o")
@@ -784,11 +801,11 @@ cmd_mlir := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str
     temporary_directory := realpath_str("tmp")
     mut usize_flag := "-DTIL_USIZE32"
     if lp.ctx.target_usize_pname == "U64" { usize_flag = "-DTIL_USIZE64" }
-    core := Cmd.new("clang-18", "-fPIC", usize_flag, "-I", lp.ext_c_path.strip_suffix("/ext.c"), "-DTIL_CORE_ONLY", "-c", runtime_c, "-o", core_obj)
+    core := Cmd.new("clang-18", "-fPIC", usize_flag, "-I", lp.ext_c_path.strip_suffix("/ext.c"), "-DTIL_CORE_ONLY", "-c", paths.runtime_c_path, "-o", core_obj)
     core.arg(format("-O", lp.opt_level.to_str())).arg("-ffp-contract=off").env("TMPDIR", temporary_directory)
     for flag : Str in lp.cpu.c_flags.split(" ") { if flag.len() > 0 { core.arg(flag) } }
     if core.run() != 0 { return 1 }
-    runtime := Cmd.new("clang-18", "-fPIC", usize_flag, "-I", lp.ext_c_path.strip_suffix("/ext.c"), "-DTIL_LIBRARY_BUILD", "-include", runtime_header, "-c", lp.ext_c_path, "-o", runtime_obj)
+    runtime := Cmd.new("clang-18", "-fPIC", usize_flag, "-I", lp.ext_c_path.strip_suffix("/ext.c"), "-DTIL_LIBRARY_BUILD", "-include", paths.runtime_fwd_path, "-c", lp.ext_c_path, "-o", runtime_obj)
     runtime.arg(format("-O", lp.opt_level.to_str())).arg("-ffp-contract=off").env("TMPDIR", temporary_directory)
     for flag : Str in lp.cpu.c_flags.split(" ") { if flag.len() > 0 { runtime.arg(flag) } }
     if runtime.run() != 0 { return 1 }
@@ -823,65 +840,82 @@ cmd_mlir := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str
         archiver := Cmd.new()
         archiver.args("ar", "rcs", archive, destination, core_obj, runtime_obj)
         if archiver.run() != 0 { return 1 }
-        println("Generated: ", shared)
-        println("Generated: ", archive)
-        return 0
     }
-    if command == "run" { return run_artifact(paths, argv, lp.target, false) }
     return 0
 }
 
-cmd_fasm := proc(mut lp: LoadedProgram, command: Str, output: Str, argv: Vec(Str), functions: Set(Str)) returns I32 {
-    if lp.cur_mode.is_library || (lp.mode_str != "cli" && lp.mode_str != "script") {
-        println("error: FASM backend currently supports mode cli or script only")
-        return 1
-    }
-    if argv.len() > 0 { println("error: FASM entry point takes no arguments"); return 1 }
-    mut paths := derive_build_paths(lp, output, "", lp.target)
-    paths.c_path = format("gen/fasm/", paths.c_path.strip_prefix("gen/til/").strip_suffix(".c"), ".fasm")
-    make_build_dirs(paths)
-    result := fasm_codegen_translate(lp, paths.c_path, functions)
-    if result != 0 { return result }
-    if command == "translate" { println("Generated: ", paths.c_path); return 0 }
+priv compile_fasm := proc(lp: LoadedProgram, paths: BuildPaths) returns I32 {
     assembler := format(lp.ctx.import_support_dir, "/vendor/fasm/fasm")
     if fasm_prepare(lp.ctx.import_support_dir, true) != 0 { return 1 }
     assemble := Cmd.new(assembler, paths.c_path, paths.bin_path)
     if assemble.run() != 0 { File.remove(paths.bin_path); return 1 }
     permissions := Cmd.new("chmod", "+x", paths.bin_path)
     if permissions.run() != 0 { return 1 }
-    if command == "run" { return run_artifact(paths, argv, lp.target, false) }
     return 0
 }
 
-cmd_translate := proc(mut lp: LoadedProgram, custom_output: Str, custom_c: Str, target: Target) returns I32 {
-    if lp.mode_str.eq("theme").and(custom_c.len().gt(0)) {
+// One command lifecycle for every backend. Emission and toolchain invocation
+// are selected by BuildPaths; preparation and execution remain shared.
+priv build_program := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str,
+    target: Target, cc_override: Str, asan: Bool, prof: Bool, backend: Str,
+    functions: Set(Str), argv: Vec(Str)) returns I32 {
+    if backend == "fasm" {
+        if lp.cur_mode.is_library || (lp.mode_str != "cli" && lp.mode_str != "script") {
+            println("error: FASM backend currently supports mode cli or script only")
+            return 1
+        }
+        if argv.len() > 0 { println("error: FASM entry point takes no arguments"); return 1 }
+    }
+    if backend == "mlir" && command == "run" && argv.len() > 0 {
+        println("error: MLIR entry point takes no arguments")
+        return 1
+    }
+    if backend == "c" && command == "run" && lp.cur_mode.is_library {
+        panic("cannot run a library -- use translate or build")
+    }
+    if command == "translate" && lp.mode_str == "theme" && custom_c.len() > 0 {
         println("error: -c is not supported with mode theme; use -o for the Elisp output")
         return 1
     }
     mut theme_output := ""
-    if lp.mode_str == "theme" { theme_output = custom_output.clone() }
-    paths := derive_build_paths(lp, theme_output, custom_c, target)
+    if command == "translate" {
+        if lp.mode_str == "theme" || backend != "c" { theme_output = custom_bin.clone() }
+    } else { theme_output = custom_bin.clone() }
+    mut paths := derive_build_paths(lp, theme_output, custom_c, target, backend)
+    if command == "test" { paths.do_lib = false }
     make_build_dirs(paths)
-    result := translate_ast(lp, paths, target)
-    if result == 0 { print_translate_success(paths) }
-    return result
-}
-
-cmd_build := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
-    paths := derive_build_paths(lp, custom_bin, custom_c, target)
-    make_build_dirs(paths)
-    mut result := translate_ast(lp, paths, target)
-    if result == 0 { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
-    if result.eq(0).and(paths.do_lib) {
-        print_translate_success(paths)
-        println(format("Generated: gen/lib/lib", paths.name, shared_lib_extension(target)))
+    mut result := translate_ast(lp, paths, target, functions)
+    if result != 0 { return result }
+    if command == "translate" { print_translate_success(paths); return 0 }
+    if backend == "mlir" && command == "run" && paths.do_lib {
+        println("error: cannot run an MLIR library")
+        return 1
+    }
+    result = compile_ast(lp, paths, target, cc_override, asan, prof)
+    if result != 0 { return result }
+    if command == "build" && paths.do_lib {
+        if backend == "c" { print_translate_success(paths) }
+        mut extension := shared_lib_extension(target)
+        if backend == "mlir" { extension = ".so" }
+        println(format("Generated: gen/lib/lib", paths.name, extension))
         println(format("Generated: gen/lib/lib", paths.name, ".a"))
-        if lp.uses_shared_runtime() {
+        if backend == "c" && lp.uses_shared_runtime() {
             println(format("Generated: gen/lib/", lp.runtime_shared_basename()))
             println(format("Generated: gen/lib/", lp.core_shared_basename()))
         }
     }
-    return result
+    if command == "run" || command == "test" { return run_artifact(paths, argv, target, asan) }
+    return 0
+}
+
+cmd_translate := proc(mut lp: LoadedProgram, custom_output: Str, custom_c: Str, target: Target,
+    backend: Str = "c", functions: Set(Str) = Set(Str).new(), argv: Vec(Str) = Vec(Str).new()) returns I32 {
+    return build_program(lp, "translate", custom_output, custom_c, target, "", false, false, backend, functions, argv)
+}
+
+cmd_build := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool,
+    backend: Str = "c", functions: Set(Str) = Set(Str).new(), argv: Vec(Str) = Vec(Str).new()) returns I32 {
+    return build_program(lp, "build", custom_bin, custom_c, target, cc_override, asan, prof, backend, functions, argv)
 }
 
 priv builder_compiler_root := func(lp: LoadedProgram) returns Str {
@@ -1032,34 +1066,17 @@ priv run_artifact := proc(paths: BuildPaths, user_argv: Vec(Str),
         return status.to_i32()
 }
 
-cmd_run := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec(Str), target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
-    if lp.cur_mode.is_library {
-        panic("cannot run a library -- use translate or build")
-    }
-    paths := derive_build_paths(lp, custom_bin, custom_c, target)
-    make_build_dirs(paths)
-    mut result := translate_ast(lp, paths, target)
-    if result == 0 { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
-    if result == 0 {
-        result = run_artifact(paths, user_argv, target, asan)
-    }
-    return result
+cmd_run := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: Vec(Str), target: Target, cc_override: Str, asan: Bool, prof: Bool,
+    backend: Str = "c", functions: Set(Str) = Set(Str).new()) returns I32 {
+    return build_program(lp, "run", custom_bin, custom_c, target, cc_override, asan, prof, backend, functions, user_argv)
 }
 
 // Compile and run a test binary. Forces do_lib=false so library-mode
 // files still produce an executable -- emit_test_main is gated on
 // lp.run_tests, so the C output has a real main().
 cmd_test_build_run := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
-    mut paths := derive_build_paths(lp, custom_bin, custom_c, target)
-    paths.do_lib = false
-    make_build_dirs(paths)
-    mut result := translate_ast(lp, paths, target)
-    if result == 0 { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
-    if result == 0 {
-        empty_argv := Vec(Str).new()
-        result = run_artifact(paths, empty_argv, target, asan)
-    }
-    return result
+    return build_program(lp, "test", custom_bin, custom_c, target, cc_override, asan, prof,
+        "c", Set(Str).new(), Vec(Str).new())
 }
 
 // --- til doc <path> -- documentation generator ---

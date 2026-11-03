@@ -1256,38 +1256,23 @@ main := proc(args: ..Str) {
 
     // An output's mtime cannot establish its source, compiler or options.
     // Always prepare and emit the requested program, including explicit paths.
-    mut mlir_functions := Set(Str).new()
+    mut backend_functions := Set(Str).new()
     if cli.backend == "mlir" {
-        mlir_functions = mlir_source_declarations(lp)
+        backend_functions = mlir_source_declarations(lp)
         lp.mlir_runtime = true
         // Core calls cross a translation-unit boundary even for executables.
         lp.ctx.param_value_abi_ok = false
     }
-    if cli.backend == "fasm" { mlir_functions = fasm_source_declarations(lp) }
+    if cli.backend == "fasm" { backend_functions = fasm_source_declarations(lp) }
     prepare_program(lp, cli.command == "test")
 
-    if cli.backend == "fasm" {
-        if lp.link_c_paths.len() > 0 || lp.link_flags_for_target().len() > 0 {
+    if cli.backend.eq("fasm").or(cli.backend.eq("mlir")) && (lp.link_c_paths.len() > 0 || lp.link_flags_for_target().len() > 0) {
+        if cli.backend == "fasm" {
             println("error: FASM backend does not yet support link_c or link flags")
-            exit(1)
-        }
-        fasm_result := cmd_fasm(lp, cli.command, cli.custom_bin, user_argv, mlir_functions)
-        ffi_cleanup(lp.ctx)
-        lexer_cleanup()
-        if fasm_result != 0 { exit(fasm_result.cast(I64)) }
-        return
-    }
-
-    if cli.backend == "mlir" {
-        if lp.link_c_paths.len() > 0 || lp.link_flags_for_target().len() > 0 {
+        } else {
             println("error: MLIR backend does not yet support link_c or link flags")
-            exit(1)
         }
-        mlir_result := cmd_mlir(lp, cli.command, cli.custom_bin, user_argv, mlir_functions)
-        ffi_cleanup(lp.ctx)
-        lexer_cleanup()
-        if mlir_result != 0 { exit(mlir_result.cast(I64)) }
-        return
+        exit(1)
     }
 
     mut result : I32 = 0
@@ -1305,13 +1290,13 @@ main := proc(args: ..Str) {
             result = cmd_test_build_run(lp, cli.custom_bin, cli.custom_c, target, cli.cc, cli.asan, cli.prof)
         }
     case "translate":
-        result = cmd_translate(lp, cli.custom_bin, cli.custom_c, target)
+        result = cmd_translate(lp, cli.custom_bin, cli.custom_c, target, cli.backend, backend_functions, user_argv)
     case "build":
-        result = cmd_build(lp, cli.custom_bin, cli.custom_c, target, cli.cc, cli.asan, cli.prof)
+        result = cmd_build(lp, cli.custom_bin, cli.custom_c, target, cli.cc, cli.asan, cli.prof, cli.backend, backend_functions, user_argv)
     case "install":
         result = cmd_install(lp, cli.install_prefix, target, cli.cc, cli.asan, cli.prof)
     case "run":
-        result = cmd_run(lp, cli.custom_bin, cli.custom_c, user_argv, target, cli.cc, cli.asan, cli.prof)
+        result = cmd_run(lp, cli.custom_bin, cli.custom_c, user_argv, target, cli.cc, cli.asan, cli.prof, cli.backend, backend_functions)
     case:
         println(format("error: unknown command '", cli.command, "'"))
         usage()

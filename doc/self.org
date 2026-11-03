@@ -70,6 +70,36 @@
   Bootstrap steps explicitly select ~bin/til~ and ~gen/til/til.c~ so the
   established boot regeneration paths work with old and new compilers.
 
+** Shared program builder
+
+  After CLI validation and the common ~prepare_program~ pass, C, HolyC, MLIR
+  and FASM commands enter ~src/self/builder.til~'s ~build_program~ lifecycle:
+  derive paths, create output directories, emit source, compile/assemble, then
+  execute for ~run~. The compiled half of ~test~ uses the same lifecycle with
+  executable output forced for library-mode test sources. CLI result handling
+  and interpreter/lexer teardown are shared too.
+
+  Backend differences are build hooks rather than separate command drivers:
+
+  - ~derive_build_paths~ chooses the primary source path. MLIR also retains
+    its existing ~gen/til/*.c~ / ~*_forward.h~ runtime-support paths.
+  - ~translate_ast~ dispatches to the emitter: C or HolyC according to target
+    language, or the selected MLIR/FASM backend. MLIR emits its C-core bridge
+    before IR through the existing runtime emitter.
+  - ~compile_ast~ dispatches to C/library compilation, ~compile_mlir~'s LLVM
+    pipeline and library linking, or ~compile_fasm~'s assembler invocation.
+    HolyC compilation still belongs inside TempleOS; theme is translation-only.
+  - ~run_artifact~ executes the produced artifact and propagates its status,
+    including the existing Node/wasm and ASAN child-environment handling.
+
+  ~src/self/fasm_build.til~ prepares the optional vendored assembler for the
+  build/install workflows; it is tool preparation, not a separate builder for
+  til programs. Source lowering and emitted instructions remain in codegen.
+  Existing CLI restrictions, output names and backend-specific library reporting
+  are preserved. The backend options and ~test/build_outputs.til~ check source
+  hierarchy, generated-file reporting, MLIR bridge files and early rejection;
+  native integration drivers exercise the actual toolchains and execution.
+
 ** USize defaults and source-level configuration direction
 
   ~USize~ describes counts, lengths, capacities and indices; ~UPtr~ describes

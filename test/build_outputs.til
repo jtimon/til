@@ -2,6 +2,7 @@ mode cli
 
 import("../src/std/sys")
 import("../src/std/file")
+import("../src/self/targets")
 
 realpath_str := ext_proc(path: Str) returns Str {}
 
@@ -104,5 +105,26 @@ main := proc(args: ..Str) {
     }
     File.writefile(format(WORK, "/value.c"), "#include <stdint.h>\nint64_t value(void) { return 29; }\n")
     check_command(Cmd.new(compiler, "run", "linked.til"), "29\n")
+    if detect_current_target().is(Target.LinuxX64) {
+        File.writefile(format(WORK, "/foo/backend.til"), "mode cli\nmain := proc() { println(\"first backend\") }\n")
+        File.writefile(format(WORK, "/bar/backend.til"), "mode cli\nmain := proc() { println(\"second backend\") }\n")
+        // Translation needs neither the assembler nor LLVM tools. Every
+        // backend must retain the source hierarchy and its exact reporting.
+        for backend in array(Str, "fasm", "mlir") {
+            mut suffix := ".fasm"
+            if backend == "mlir" { suffix = ".mlir" }
+            for directory in array(Str, "foo", "bar") {
+                source := format(directory, "/backend.til")
+                generated := format("gen/", backend, "/", directory, "/backend", suffix)
+                check_command(Cmd.new(compiler, "translate", format("--backend=", backend), source),
+                    format("Generated: ", generated, "\n"))
+                expect(File.is_file(format(WORK, "/", generated)), "missing backend source: ", generated)
+                if backend == "mlir" {
+                    expect(File.is_file(format(WORK, "/gen/til/", directory, "/backend.c")), "missing MLIR support C")
+                    expect(File.is_file(format(WORK, "/gen/til/", directory, "/backend_forward.h")), "missing MLIR support header")
+                }
+            }
+        }
+    }
     println("build outputs passed")
 }

@@ -1713,8 +1713,11 @@ typedef struct Vec__priv___src_self_theme_codegen_til__ThemeColorSpec {
 
 
 typedef struct priv___src_self_builder_til__BuildPaths {
+    Str backend;
     Str name;
     Str c_path;
+    Str runtime_c_path;
+    Str runtime_fwd_path;
     Str bin_path;
     Str fwd_path;
     Str h_path;

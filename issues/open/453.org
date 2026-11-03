@@ -282,6 +282,32 @@ existing C and MLIR backends.
   used master's current non-ASAN test configuration (#464); native assembly is
   not ASAN-instrumented.
 
+**** Shared builder orchestration
+
+  On base ~742677606~, FASM and MLIR now use the common translate/build/run
+  command dispatch and ~builder.til::build_program~ lifecycle alongside C/HolyC.
+  Backend-specific primary/support paths, emission and compilation are selected
+  through ~derive_build_paths~, ~translate_ast~ and ~compile_ast~ hooks. The
+  separate ~cmd_fasm~ / ~cmd_mlir~ command drivers and CLI cleanup branches are
+  removed. C test compilation also uses the shared lifecycle.
+
+  FASM assembler preparation stays in ~fasm_build.til~, used by the vendor,
+  install and compile hooks. MLIR retains its existing C-core bridge and LLVM
+  toolchain. Source locations, artifact paths, CLI restrictions and existing
+  library/error reporting are preserved; no new invocation or artifact layout
+  is introduced. ~doc/self.org~ describes the responsibilities of each hook.
+
+  ~test/build_outputs.til~ checks directory-preserving FASM/MLIR translation,
+  exact primary-source reporting and MLIR support files alongside existing C
+  path/freshness coverage. Backend option tests pin FASM argument rejection
+  for translate/build/run and MLIR run-argument/library rejection.
+
+  Verification: ~make clean && make test~ passed 514/514 on this base, using
+  master's current non-ASAN suite configuration (#464). Both FASM integration
+  drivers and ~test/mlir.til~ passed with the candidate compiler; the latter
+  exercises native executables, libraries, toolchain lowering and ASAN C
+  consumers. Backend option and shared output-path tests also passed directly.
+
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
   repeated work. In-process code allocation, relocation, lifetime management
