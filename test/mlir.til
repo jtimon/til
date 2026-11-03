@@ -151,6 +151,91 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_stack_abi := proc(compiler: Str, work: Str) {
+    mut source := "mode lib\nF4:=Simd(F32,4)\nI4:=Simd(I32,4)\nM4:=Simd(Bool,4)\n"
+    mut prototypes := "#include <assert.h>\n#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n#include <stdio.h>\ntypedef struct{float v[4];}F4;typedef struct{int32_t v[4];}I4;typedef struct{uint8_t v[4];}M4;typedef struct{int32_t *data;uint64_t cap;}Buffer;typedef struct{char *data;uint64_t count,cap;}Str;\n"
+    mut native := "int main(void){F4 fa={{1,2,3,4}},fb={{10,20,30,40}};I4 ia={{INT32_MIN,-1,INT32_MAX,7}},ib={{1,2,3,4}};\n"
+    mut consumer := "mode cli\nlink(\"gen/lib/libstack_abi.so\")\nF4:=Simd(F32,4)\nI4:=Simd(I32,4)\n"
+    mut checks := "main:=proc(){fa:=make_f(1,2,3,4);fb:=make_f(10,20,30,40);ia:=make_i(I32.MIN,-1,I32.MAX,7);ib:=make_i(1,2,3,4);\n"
+    for bank in array(Str,"f","i") {
+        mut scalar := "F32"; mut vector := "F4"; mut cscalar := "float"; mut tag_type := "I64"; mut ctag := "int64_t"
+        mut args_tail := "fa,fb,17,23"; mut value_tail := "fa,fb,17,23"; mut maximum : I64 = 11
+        if bank=="i" {scalar="I32";vector="I4";cscalar="int32_t";tag_type="F32";ctag="float";args_tail="ia,ib,17,1";value_tail="ia,ib,17,1";maximum=9}
+        for count in 0..maximum {
+            name := format(bank,count.to_str())
+            relay := format("relay_",name)
+            mut params := ""; mut ctypes := ""; mut shallow_params := ""; mut names := ""; mut values := ""; mut sum := "tail"; mut total : I64 = 0
+            for i in 0..count {
+                head := format("h",i.to_str())
+                params=format(params,head,":",scalar,",")
+                ctypes=format(ctypes,cscalar,",")
+                shallow_params=format(shallow_params,"shallow ",head,":",scalar,",")
+                names=format(names,head,",")
+                values=format(values,(i+1).to_str(),",")
+                sum=format(sum,"+",head)
+                total=total+i+1
+            }
+            params=format(params,"a:",vector,",b:",vector,",tail:",scalar,",tag:",tag_type)
+            ctypes=format(ctypes,vector,",",vector,",",cscalar,",",ctag)
+            shallow_params=format(shallow_params,"shallow a:",vector,",shallow b:",vector,",shallow tail:",scalar,",shallow tag:",tag_type)
+            mut body := format("return a+b+F4.splat(",sum,"+tag.cast(F32))")
+            if bank=="i" {body=format("mut sum:I32=",sum,";if tag>0 {sum=sum+1};return a+b+I4.splat(sum)")}
+            source=format(source,name,":=func(",params,") returns ",vector," {",body,"}\n",relay,":=func(",params,") returns ",vector," {return ",name,"(",names,"a,b,tail,tag)}\n")
+            prototypes=format(prototypes,"extern ",vector," ",name,"(",ctypes,"),",relay,"(",ctypes,");\n")
+            consumer=format(consumer,name,":=ext_func(",shallow_params,") returns shallow ",vector," {}\n",relay,":=ext_func(",shallow_params,") returns shallow ",vector," {}\n")
+            native=format(native,"{",vector," first=",name,"(",values,args_tail,"),second=",relay,"(",values,args_tail,");")
+            if bank=="f" {
+                total=total+40
+                native=format(native,"for(unsigned k=0;k<4;k++){float expected=fa.v[k]+fb.v[k]+",total.to_str(),";assert(first.v[k]==expected && second.v[k]==expected);}}\n")
+                checks=format(checks,"{first:=",name,"(",values,value_tail,");second:=",relay,"(",values,value_tail,");expected:=make_f(",(total+11).to_str(),",",(total+22).to_str(),",",(total+33).to_str(),",",(total+44).to_str(),");assert(first.eq(expected).all());assert(second.eq(expected).all())};\n")
+            } else {
+                total=total+18
+                native=format(native,"for(unsigned k=0;k<4;k++){uint32_t expected=(uint32_t)ia.v[k]+(uint32_t)ib.v[k]+",total.to_str(),";assert((uint32_t)first.v[k]==expected && (uint32_t)second.v[k]==expected);}}\n")
+                checks=format(checks,"{first:=",name,"(",values,value_tail,");second:=",relay,"(",values,value_tail,");assert(first.eq(second).all());assert_eq(I32,first.reduce_add(),",(15+4*total).to_str(),")};\n")
+            }
+        }
+    }
+    source=format(source,
+        "make_f:=func(a:F32,b:F32,c:F32,d:F32) returns F4 {return F4.new(a,b,c,d)}\nmake_i:=func(a:I32,b:I32,c:I32,d:I32) returns I4 {return I4.new(a,b,c,d)}\n",
+        "error_spill:=func(a:I32,b:I32,c:I32,d:I32,e:I32,v:I4,input:Array(I32)) returns I4 throws OutOfBounds {ref x:I32=input.get(0)?;return v+I4.splat(a+b+c+d+e+x.clone())}\n",
+        "error_relay:=func(a:I32,b:I32,c:I32,d:I32,e:I32,v:I4,input:Array(I32)) returns I4 throws OutOfBounds {return error_spill(a,b,c,d,e,v,input)?}\n",
+        "late_error:=func(a:I4,b:I4,c:I4,input:Array(I32)) returns I4 throws OutOfBounds {ref x:I32=input.get(0)?;return a+b+c+I4.splat(x)}\n",
+        "late_relay:=func(a:I4,b:I4,c:I4,input:Array(I32)) returns I4 throws OutOfBounds {return late_error(a,b,c,input)?}\n",
+        "sret_spill:=func(a:I32,b:I32,c:I32,d:I32,v:I4,tail:I32) returns Str {value:=a+b+c+d+v.reduce_add()+tail;return value.to_str()}\n",
+        "sret_relay:=func(a:I32,b:I32,c:I32,d:I32,v:I4,tail:I32) returns Str {return sret_spill(a,b,c,d,v,tail)}\n",
+        "mixed:=func(a:I32,b:I32,c:I32,d:I32,e:I32,f:F32,g:F32,h:F32,i:F32,j:F32,k:F32,l:F32,v:F4,w:I4,last_i:I32,last_f:F32,mask:M4) returns F4 {mut extra:I32=a+b+c+d+e+last_i;if mask.any(){extra=extra+1};return v+w.cast(F32)+F4.splat(f+g+h+i+j+k+l+last_f+extra.cast(F32))}\n",
+        "mixed_relay:=func(a:I32,b:I32,c:I32,d:I32,e:I32,f:F32,g:F32,h:F32,i:F32,j:F32,k:F32,l:F32,v:F4,w:I4,last_i:I32,last_f:F32,mask:M4) returns F4 {return mixed(a,b,c,d,e,f,g,h,i,j,k,l,v,w,last_i,last_f,mask)}\n",
+        "copy_bits:=func(a:F32,b:F32,c:F32,d:F32,e:F32,f:F32,g:F32,v:F4,last:F32) returns F4 {if a+b+c+d+e+f+g+last<0 {return F4.zero()};return v.clone()}\n",
+        "copy_relay:=func(a:F32,b:F32,c:F32,d:F32,e:F32,f:F32,g:F32,v:F4,last:F32) returns F4 {return copy_bits(a,b,c,d,e,f,g,v,last)}\n",
+        "priv mutate:=func(mut a:Array(I32)) returns I4 throws OutOfBounds {a.set(0,own 99)?;return I4.load(a,0)?}\n",
+        "snapshot:=func(mut a:Array(I32)) returns I4 throws OutOfBounds {return i5(1,2,3,4,5,I4.load(a,0)?,mutate(a)?,17,1)}\n",
+        "bounded_stack:=func(n:USize) returns F32 {mut total:F32=0;mut i:USize=0;while i<n {v:=f7(0,0,0,0,0,0,0,F4.zero(),F4.zero(),0,0);total=total+v[0]+1;i++};return total}\n")
+    prototypes=format(prototypes,
+        "extern I4 error_spill(int32_t,int32_t,int32_t,int32_t,int32_t,I4,Buffer*,int64_t*),error_relay(int32_t,int32_t,int32_t,int32_t,int32_t,I4,Buffer*,int64_t*),late_error(I4,I4,I4,Buffer*,int64_t*),late_relay(I4,I4,I4,Buffer*,int64_t*),snapshot(Buffer*,int64_t*);extern Str sret_spill(int32_t,int32_t,int32_t,int32_t,I4,int32_t),sret_relay(int32_t,int32_t,int32_t,int32_t,I4,int32_t);\n",
+        "extern F4 mixed(int32_t,int32_t,int32_t,int32_t,int32_t,float,float,float,float,float,float,float,F4,I4,int32_t,float,M4),mixed_relay(int32_t,int32_t,int32_t,int32_t,int32_t,float,float,float,float,float,float,float,F4,I4,int32_t,float,M4),copy_bits(float,float,float,float,float,float,float,F4,float),copy_relay(float,float,float,float,float,float,float,F4,float);extern float bounded_stack(uint64_t);\n")
+    native=format(native,
+        "int32_t data[4]={2,3,4,5};Buffer input={data,4},empty={0,0};int64_t error=0;I4 a=error_spill(1,2,3,4,5,ib,&input,&error),b=error_relay(1,2,3,4,5,ib,&input,&error);assert(error==0 && memcmp(&a,&b,16)==0 && a.v[0]==18);error_spill(1,2,3,4,5,ib,&empty,&error);assert(error==1);error=0;error_relay(1,2,3,4,5,ib,&empty,&error);assert(error==1);error=0;a=late_error(ib,ib,ib,&input,&error);b=late_relay(ib,ib,ib,&input,&error);assert(error==0 && a.v[3]==14 && memcmp(&a,&b,16)==0);late_relay(ib,ib,ib,&empty,&error);assert(error==1);\n",
+        "for(int r=0;r<100;r++){Str a=sret_spill(1,2,3,4,ib,17),b=sret_relay(1,2,3,4,ib,17);assert(a.count==2 && b.count==2 && memcmp(a.data,\"37\",2)==0 && memcmp(b.data,\"37\",2)==0);free(a.data);free(b.data);}\n",
+        "for(unsigned mask=0;mask<16;mask++){M4 m;for(unsigned k=0;k<4;k++)m.v[k]=(mask>>k)&1;F4 a=mixed(1,2,3,4,5,1,2,3,4,5,6,7,fa,ib,17,13,m),b=mixed_relay(1,2,3,4,5,1,2,3,4,5,6,7,fa,ib,17,13,m);for(unsigned k=0;k<4;k++)assert(a.v[k]==fa.v[k]+ib.v[k]+73+(mask!=0));assert(memcmp(&a,&b,16)==0);}\n",
+        "const uint32_t raw[4]={0x7f800001,0xffc12345,0x80000000,1};F4 value;memcpy(&value,raw,16);F4 copied=copy_bits(1,2,3,4,5,6,7,value,17),relayed=copy_relay(1,2,3,4,5,6,7,value,17);assert(memcmp(&copied,raw,16)==0 && memcmp(&relayed,raw,16)==0);error=0;a=snapshot(&input,&error);assert(error==0 && data[0]==99 && a.v[0]==134 && a.v[3]==43);assert(bounded_stack(1000000)==1000000);return 0;}\n")
+    consumer=format(consumer,
+        "make_f:=ext_func(shallow a:F32,shallow b:F32,shallow c:F32,shallow d:F32) returns shallow F4 {}\nmake_i:=ext_func(shallow a:I32,shallow b:I32,shallow c:I32,shallow d:I32) returns shallow I4 {}\n",
+        "sret_relay:=ext_func(shallow a:I32,shallow b:I32,shallow c:I32,shallow d:I32,shallow v:I4,shallow last:I32) returns shallow Str {}\n",
+        "error_relay:=ext_func(shallow a:I32,shallow b:I32,shallow c:I32,shallow d:I32,shallow e:I32,shallow v:I4,input:Array(I32)) returns shallow I4 throws OutOfBounds {}\n")
+    checks=format(checks,"assert_eq(Str,sret_relay(1,2,3,4,ib,17),\"37\");input:=array(I32,2);answer:=error_relay(1,2,3,4,5,ib,input)!;assert_eq(I32,answer[0],18);empty:=Array(I32).new(0);mut caught:=false;error_relay(1,2,3,4,5,ib,empty)? catch(err:OutOfBounds){caught=true};assert(caught);println(\"stack ABI PASS\")}\n")
+    File.writefile(format(work,"/stack_abi.til"),source)
+    File.writefile(format(work,"/stack_caller.c"),format(prototypes,native))
+    File.writefile(format(work,"/stack_reference.til"),format("mode cli\nimport(\"stack_abi\")\n",checks))
+    File.writefile(format(work,"/stack_consumer.til"),format(consumer,checks))
+    for command in array(Str,"interpret","run") {reference:=Cmd.new(compiler,command,"--usize=64","stack_reference.til");checked(reference,work)}
+    for level in array(Str,"0","2","3") {
+        build:=Cmd.new(compiler,"build","--backend=mlir",format("--opt=",level),"stack_abi.til");checked(build,work)
+        cc:=Cmd.new("clang-18","-O2","-fsanitize=address","-Wall","-Wextra","-Werror","stack_caller.c","gen/lib/libstack_abi.a","-lm","-o","stack_caller");checked(cc,work)
+        run:=Cmd.new("./stack_caller");checked(run,work)
+        client:=Cmd.new(compiler,"run","--usize=64","--asan","stack_consumer.til");checked(client,work)
+    }
+}
+
 priv check_casts := proc(compiler: Str, work: Str) {
     File.writefile(format(work,"/conversions.til"),format(
         "mode pure\nF4:=Simd(F32,4)\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\n",
@@ -708,5 +793,6 @@ main := proc(compiler_arg: Str) {
     check_integer_vectors(compiler, work)
     check_extrema(compiler, work)
     check_casts(compiler, work)
+    check_stack_abi(compiler, work)
     println("mlir PASS")
 }

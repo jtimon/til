@@ -114,6 +114,46 @@ priv mlir_record := func(t: Str) returns Bool { return t.starts_with("!llvm.stru
 
 priv mlir_sret := func(t: Str) returns Bool { return t == "!llvm.struct<(!llvm.ptr, i64, i64)>" }
 
+priv mlir_byval_type := func(t: Str) returns Str {
+    scalar := mlir_vector_scalar(t)
+    return format("!llvm.struct<(", scalar, ", ", scalar, ", ", scalar, ", ", scalar, ")>")
+}
+
+// SysV allocates each two-eightbyte aggregate atomically. If its register
+// bank cannot hold BOTH chunks, pass it on the stack and roll back that bank:
+// a later scalar (or an aggregate in the other bank) can still use registers.
+// Scalar stack placement is left to LLVM. Both definitions and direct calls
+// consume this same plan, including the leading sret and trailing error args.
+priv mlir_stack_arguments := func(fd: FunctionDef, lp: LoadedProgram) returns Vec(Bool) {
+    mut integer_slots : USize = 0
+    mut sse_slots : USize = 0
+    if fd.sig.return_type.len() > 0 {
+        ret := mlir_type(type_from_name_init_name(fd.sig.return_type, lp.ctx.scope, lp.ctx.symbols), lp)
+        if mlir_sret(ret) { integer_slots = 1 }
+    }
+    mut stack := Vec(Bool).new()
+    for p : Declaration in fd.sig.params {
+        t := mlir_type(declaration_resolved_type(p, lp.ctx.scope, lp.ctx.symbols), lp)
+        mut spilled := false
+        if p.own_type.is(OwnType.Ref) || mlir_record(t) || t == "!llvm.ptr" {
+            if integer_slots < 6 { integer_slots++ }
+        } else if t == "vector<4xf32>" {
+            if sse_slots <= 6 { sse_slots = sse_slots+2 }
+            else { spilled = true }
+        } else if t == "vector<4xi32>" {
+            if integer_slots <= 4 { integer_slots = integer_slots+2 }
+            else { spilled = true }
+        } else if t == "f32" {
+            if sse_slots < 8 { sse_slots++ }
+        } else {
+            // Supported integer scalars and the one-eightbyte Bool mask.
+            if integer_slots < 6 { integer_slots++ }
+        }
+        stack.push(own spilled)
+    }
+    return stack
+}
+
 priv mlir_record_abi := func(t: Str) returns Str {
     if t == "!llvm.struct<(!llvm.ptr, i32, i32)>" { return "!llvm.struct<(!llvm.ptr, i64)>" }
     return t.clone()
@@ -263,11 +303,13 @@ priv mlir_runtime_call := proc(e: Expr, name: Str, fd: FunctionDef, mut state: M
     return result
 }
 
-priv mlir_slot := func(t: Str, mut state: MlirState) returns Str {
+priv mlir_slot := func(t: Str, mut state: MlirState, alignment: Str = "") returns Str {
     name := format("%v", state.next.to_str())
     state.next++
+    mut actual_alignment := alignment.clone()
+    if actual_alignment.len() == 0 { actual_alignment = mlir_alignment(t) }
     state.allocations = format(state.allocations, "    ", name,
-        " = llvm.alloca %alloc_count x ", t, " {alignment = ", mlir_alignment(t),
+        " = llvm.alloca %alloc_count x ", t, " {alignment = ", actual_alignment,
         " : i64} : (i64) -> !llvm.ptr\n")
     return name
 }
@@ -1118,6 +1160,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             if name == "main" { call_name = "til.mlir.main" }
             mut args := ""
             mut types := ""
+            stack_arguments := mlir_stack_arguments(fd, lp)
             for i in 0..fd.sig.params.len() {
                 t := mlir_type(declaration_resolved_type(fd.sig.params[i], lp.ctx.scope, lp.ctx.symbols), lp)
                 if (fd.sig.params[i].own_type.is(OwnType.Ref) && t != "!llvm.ptr") || mlir_record(t) {
@@ -1132,7 +1175,18 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                 mut value := mlir_expr(e.children[i + 1], state, lp)
                 value = mlir_coerce(value, e.children[i + 1], t, state, lp)
                 if i > 0 { args = format(args, ", "); types = format(types, ", ") }
-                if t == "vector<4xf32>" {
+                if stack_arguments[i] {
+                    // Each source call site has entry-block storage, reused
+                    // across loop iterations. Store the snapshot before later
+                    // operands run; byval makes the callee's copy independent.
+                    // LLVM 18 obtains byval from the directly called function;
+                    // its MLIR call op does not translate arg_attrs. Indirect
+                    // calls would need explicit call-site ABI attributes too.
+                    slot := mlir_slot(t, state, "8")
+                    mlir_store(slot, value, t, state)
+                    args = format(args, slot)
+                    types = format(types, "!llvm.ptr")
+                } else if t == "vector<4xf32>" {
                     lo := mlir_half(value, false, state)
                     hi := mlir_half(value, true, state)
                     args = format(args, lo, ", ", hi)
@@ -1436,9 +1490,7 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut externals: Map(S
         state.error_known_clear = true
     }
     mut signature := ""
-    mut slots : USize = 0
-    mut integer_slots : USize = 0
-    mut has_integer_vector := false
+    stack_arguments := mlir_stack_arguments(fd, lp)
     for i in 0..fd.sig.params.len() {
         ref p : Declaration = fd.sig.params[i]
         t := mlir_type(declaration_resolved_type(p, lp.ctx.scope, lp.ctx.symbols), lp)
@@ -1448,7 +1500,6 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut externals: Map(S
             arg := format("%p", i.to_str())
             signature = format(signature, arg, ": !llvm.ptr")
             state.values.set(p.name, own MlirBinding(value = arg, type_name = t.clone(), is_ref = true, is_mut = p.is_mut, owns_wrapper = p.own_type.is(OwnType.Own)))
-            integer_slots++
             continue
         }
         if t == "!llvm.ptr" && p.own_type.is(OwnType.Ref) {
@@ -1456,7 +1507,6 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut externals: Map(S
             arg := format("%p", i.to_str())
             signature = format(signature, arg, ": !llvm.ptr")
             state.values.set(p.name, own MlirBinding(value = arg, type_name = t.clone()))
-            integer_slots++
             continue
         }
         if p.name == state.error_parameter && t == "i64" && p.own_type.is(OwnType.Ref) && p.is_mut {
@@ -1464,7 +1514,6 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut externals: Map(S
             arg := format("%p", i.to_str())
             signature = format(signature, arg, ": !llvm.ptr")
             state.values.set(p.name, own MlirBinding(value = arg, type_name = t.clone(), is_mut = true, is_ref = true, is_signed = true))
-            integer_slots++
             continue
         }
         if t == "!llvm.ptr" { return mlir_error(decl, "numeric Array parameters must be borrowed, not own or shallow", lp) }
@@ -1473,15 +1522,16 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut externals: Map(S
         }
         if i > 0 { signature = format(signature, ", ") }
         arg := format("%p", i.to_str())
-        if t == "vector<4xf32>" {
+        if stack_arguments[i] {
+            signature = format(signature, arg, ": !llvm.ptr {llvm.byval = ", mlir_byval_type(t), ", llvm.align = 8 : i64}")
+            value := mlir_value(state, format("llvm.load ", arg, " {alignment = 4 : i64} : !llvm.ptr -> ", t))
+            state.values.set(p.name, own MlirBinding(value = value, type_name = t.clone()))
+        } else if t == "vector<4xf32>" {
             signature = format(signature, arg, "lo: vector<2xf32>, ", arg, "hi: vector<2xf32>")
             state.values.set(p.name, own MlirBinding(value = mlir_join(format(arg, "lo"), format(arg, "hi"), state), type_name = t.clone()))
-            slots = slots + 2
         } else if t == "vector<4xi32>" {
             signature = format(signature, arg, "lo: i64, ", arg, "hi: i64")
             state.values.set(p.name, own MlirBinding(value = mlir_i4_join(format(arg, "lo"), format(arg, "hi"), state), type_name = t.clone()))
-            integer_slots = integer_slots + 2
-            has_integer_vector = true
         } else {
             mut value := arg.clone()
             mut abi_t := t.clone()
@@ -1495,20 +1545,13 @@ priv mlir_function := proc(decl: Expr, functions: Set(Str), mut externals: Map(S
             }
             signature = format(signature, arg, ": ", abi_t)
             state.values.set(p.name, own MlirBinding(value = value, type_name = t.clone(), is_signed = mlir_signed(declaration_resolved_type(p, lp.ctx.scope, lp.ctx.symbols))))
-            if t == "f32" { slots++ }
-            else { integer_slots++ }
         }
     }
-    // SysV spills aggregates as a whole when SSE argument registers run out.
-    // That ABI case is deliberately outside this first value-only slice.
-    if slots > 8 { return mlir_error(decl, "more than eight SSE argument slots are not supported", lp) }
     mut ret := "void"
     if fd.sig.return_type.len() > 0 {
         ret = mlir_type(type_from_name_init_name(fd.sig.return_type, lp.ctx.scope, lp.ctx.symbols), lp)
     }
     if ret.len() == 0 || ret == "!llvm.ptr" { return mlir_error(decl, "unsupported return type", lp) }
-    if mlir_sret(ret) { integer_slots++ }
-    if has_integer_vector && integer_slots > 6 { return mlir_error(decl, "more than six INTEGER argument slots with integer SIMD are not supported", lp) }
     if dd.name == "main" && (ret != "void" || fd.sig.params.len() > 0) {
         return mlir_error(decl, "main must take no arguments and return no value", lp)
     }

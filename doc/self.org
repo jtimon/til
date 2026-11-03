@@ -384,8 +384,8 @@
   ~vector<4xf32>~, ~arith.addf~ and ~arith.mulf~, without fast-math flags.
   ~reduce_add~ emits exactly ~(lane0+lane2)+(lane1+lane3)~, not a reassociating
   vector reduction or an extra initial addition of positive zero. Multiply
-  followed by add remains unfused. More than eight
-  SSE argument slots is rejected until aggregate stack passing is supported.
+  followed by add remains unfused. Arguments beyond the register budget use
+  the SysV stack ABI described below.
   Mutable scalar parameters and ownership-transferring numeric-buffer parameters remain
   outside the subset; strings, borrowed buffers and the error-out parameter are
   described below.
@@ -415,10 +415,29 @@
   Construction, splat, zero, band/bor/bxor/bnot, comparisons, mask selection,
   checked lanes and checked load/store are supported for both types.
 
-  Functions taking integer SIMD currently reject more than six INTEGER argument
-  slots, counting scalar/pointer/mask arguments and any hidden sret/error pointer.
-  Whole-aggregate stack passing needs a separate ABI extension. Tests exercise
-  the six-register boundary, mixed scalar/vector/SSE arguments, direct calls,
+  Arguments use the six INTEGER and eight SSE registers in source order,
+  accounting for a leading sret pointer and trailing lowered error parameters.
+  A four-lane numeric vector needs two registers of its bank. If both are not
+  available, the WHOLE scalar-layout aggregate is passed on the stack; it does
+  not consume the remaining register, which a later scalar/mask can still use.
+  The two banks are independent. This removes the old SIMD argument-count
+  limits without changing register-passed values or return conventions.
+
+  Definitions and direct calls share one allocation calculation. Stack
+  aggregates use LLVM byval pointers to four-scalar structs with alignment 8,
+  not native-vector parameter types. Each call site's source snapshot has an
+  aligned entry-block slot, so repeated loop calls do not grow local storage.
+  LLVM 18's direct-call lowering obtains byval from the callee declaration;
+  its MLIR call op does not translate an arg_attrs array. Indirect calls remain
+  unsupported and would need explicit call-site attributes.
+
+  Tests exercise register exhaustion and rollback, subsequent scalar/mask
+  arguments, mixed-bank spills, stack scalars, sret and error-out pointers,
+  incoming C calls, MLIR-to-MLIR forwarding and ASAN til/C consumers at O0/O2/O3
+  with the supported native USize64 layout. Raw F32 bits survive stack copies,
+  earlier operands remain snapshots across mutation, and a million-iteration
+  caller checks bounded stack storage. Other integer SIMD tests cover
+  mixed scalar/vector/SSE arguments, direct calls,
   signed/unsigned boundary values, wraparound, zero/overflow division, all
   selection masks, and C/til consumers at both USize widths and O0/O2/O3.
 

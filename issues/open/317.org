@@ -159,6 +159,29 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** SysV aggregate stack arguments (base e9c9d59e7)
+
+The old eight-SSE/six-INTEGER SIMD argument limits are removed. A shared
+definition/call allocation pass walks parameters in source order, accounts
+for hidden sret and error-out pointers, and spills whole two-eightbyte vectors
+when their bank cannot hold both chunks. Spilling rolls the bank back so later
+scalars or masks can use its remaining register. The banks stay independent.
+
+Stack arguments use LLVM byval pointers to scalar-layout structs, alignment 8,
+with source snapshots stored in fixed entry-block slots. Register and return
+ABIs stay as before. An LLVM 18 probe confirmed that direct-call codegen derives
+byval from the callee declaration: MLIR call arg_attrs are not translated by
+that version. No toolchain change or additional C wrapper is needed. Indirect
+calls remain outside the subset.
+
+Integration covers 0..10 leading SSE scalars and 0..8 leading INTEGER scalars,
+two numeric vectors and trailing scalars, both direct and forwarded calls.
+Additional cases cover mixed-bank spills, masks, sret, trailing error pointers,
+raw signaling-NaN/zero copies, operand snapshots across mutation and a million-
+iteration bounded-stack loop. Interpreter/C references and ASAN C/til consumers
+run at O0/O2/O3 with the supported native USize64 layout. Translation checks
+assert byval/alignment without requiring installed LLVM tools.
+
 *** Numeric casts (base 742677606)
 
 The shared language cast now includes integer/float numeric conversion, not
