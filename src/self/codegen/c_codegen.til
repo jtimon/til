@@ -1949,15 +1949,26 @@ priv emit_lit_c_str_init := proc(f: File, s: Str, ctx: Context) {
     }
 }
 
-// #313: a CAP_LIT Str value whose bytes are copied into the cage, for the
-// --usize=32 initializers that run before main (a statement, `;` included).
-priv emit_cptr_static_str_lit := proc(f: File, s: Str) {
-    n := c_lit_byte_count(s)
-    f.write("(Str){.c_str = {til_cage_lit(\"").write(s).write("\", ")
-    emit_usize(f, n)
-    f.write("ULL)}, .count = ")
-    emit_usize(f, n)
-    f.write("ULL, .cap = TIL_CAP_LIT};\n")
+// #313: initialize the cage's named Str fields in their original order.
+// Native descriptors contain only constant offsets/bytes/counts; the Str
+// wrappers and copied bytes still live in the cage. One loop avoids emitting
+// thousands of separately ASAN-instrumented assignment statements in hosts
+// that embed the compiler. offsetof preserves the named pool's exact layout.
+priv builder_emit_cptr_lit_init := proc(f: File, pool: Str, init: Str, members: Vec(Str), contents: Vec(Str)) {
+    f.write("static void ").write(init).write("(void) __attribute__((constructor));\n")
+    f.write("static void ").write(init).write("(void) {\n")
+    f.write("    static const struct { size_t offset; const char *text; USize count; } entries[] = {\n")
+    for i in 0..members.len() {
+        f.write("        {offsetof(__typeof__(*").write(pool).write("), ").write(members[i]).write("), \"")
+        f.write(contents[i]).write("\", ")
+        emit_usize(f, c_lit_byte_count(contents[i]))
+        f.write("ULL},\n")
+    }
+    f.write("    };\n    ").write(pool).write(" = malloc(sizeof(*").write(pool).write("));\n")
+    f.write("    for (size_t i = 0; i < sizeof(entries) / sizeof(entries[0]); ++i) {\n")
+    f.write("        Str *slot = (Str *)((unsigned char *)").write(pool).write(" + entries[i].offset);\n")
+    f.write("        *slot = (Str){.c_str = {til_cage_lit(entries[i].text, entries[i].count)}, .count = entries[i].count, .cap = TIL_CAP_LIT};\n")
+    f.write("    }\n}\n")
 }
 
 priv builder_emit_str_lit_elem := proc(f: File, s: Str) {
@@ -2313,14 +2324,7 @@ priv builder_emit_str_lit_pool := proc(f: File, ctx: Context) {
         // macro sends every `_til_str_lits.x` use, and TIL_LIT_GUARD's
         // range test, to the cage copy.
         f.write("} *_til_str_lits_cage;\n#define _til_str_lits (*_til_str_lits_cage)\n")
-        f.write("static void til_str_lits_init(void) __attribute__((constructor));\n")
-        f.write("static void til_str_lits_init(void) {\n")
-        f.write("    _til_str_lits_cage = malloc(sizeof(*_til_str_lits_cage));\n")
-        for i in 0..n {
-            f.write("    _til_str_lits.").write(ctx.builder_str_lit_members[i]).write(" = ")
-            emit_cptr_static_str_lit(f, ctx.builder_str_lit_values[i])
-        }
-        f.write("}\n")
+        builder_emit_cptr_lit_init(f, "_til_str_lits_cage", "til_str_lits_init", ctx.builder_str_lit_members, ctx.builder_str_lit_values)
     } else {
         f.write("} _til_str_lits = {\n")
         for i in 0..n {
@@ -2362,17 +2366,12 @@ priv builder_emit_loc_region := proc(f: File, ctx: Context) {
         f.write("/* til source locations, in the --usize=32 cage */\nstatic struct {\n")
         for iname : Str in sorted_locs.keys { f.write("    Str ").write(iname).write(";\n") }
         f.write("} *_til_loc_lits_cage;\n")
+        // Emit offsetof's raw member names before their use-site macros.
+        builder_emit_cptr_lit_init(f, "_til_loc_lits_cage", "til_loc_lits_init", sorted_locs.keys, sorted_locs.values)
         for iname : Str in sorted_locs.keys {
             f.write("#define ").write(iname).write(" (_til_loc_lits_cage->").write(iname).write(")\n")
         }
-        f.write("static void til_loc_lits_init(void) __attribute__((constructor));\n")
-        f.write("static void til_loc_lits_init(void) {\n")
-        f.write("    _til_loc_lits_cage = malloc(sizeof(*_til_loc_lits_cage));\n")
-        for iname : Str in sorted_locs.keys {
-            f.write("    ").write(iname).write(" = ")
-            emit_cptr_static_str_lit(f, sorted_locs[iname])
-        }
-        f.write("}\n\n")
+        f.write("\n")
         return
     }
     mut wrote := false

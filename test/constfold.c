@@ -277,22 +277,28 @@ static struct {
 #define _til_str_lits (*_til_str_lits_cage)
 static void til_str_lits_init(void) __attribute__((constructor));
 static void til_str_lits_init(void) {
+    static const struct { size_t offset; const char *text; USize count; } entries[] = {
+        {offsetof(__typeof__(*_til_str_lits_cage), h000000001505), "", 0ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h00000002b5cc), "'", 1ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h15a1180c089b), "', found '", 10ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h00000b8791fb), "3.5", 3ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h00017c7b7650), "6.25", 4ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h00000002b606), "a", 1ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h00310f176c2b), "alpha", 5ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h44abcb58cde4), "assert_eq failed: expected '", 28ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h00000002b607), "b", 1ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h00017c9489a1), "beta", 4ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), hd0b1c236fb8f), "changed", 7ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h3fd43551c8c1), "hello world", 11ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h00000002b617), "r", 1ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), hd0e435b6dffc), "uncaught throw 'KeyNotFound'", 28ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h4d3ab87300de), "uncaught throw 'OutOfBounds'", 28ULL},
+    };
     _til_str_lits_cage = malloc(sizeof(*_til_str_lits_cage));
-    _til_str_lits.h000000001505 = (Str){.c_str = {til_cage_lit("", 0ULL)}, .count = 0ULL, .cap = TIL_CAP_LIT};
-    _til_str_lits.h00000002b5cc = (Str){.c_str = {til_cage_lit("'", 1ULL)}, .count = 1ULL, .cap = TIL_CAP_LIT};
-    _til_str_lits.h15a1180c089b = (Str){.c_str = {til_cage_lit("', found '", 10ULL)}, .count = 10ULL, .cap = TIL_CAP_LIT};
-    _til_str_lits.h00000b8791fb = (Str){.c_str = {til_cage_lit("3.5", 3ULL)}, .count = 3ULL, .cap = TIL_CAP_LIT};
-    _til_str_lits.h00017c7b7650 = (Str){.c_str = {til_cage_lit("6.25", 4ULL)}, .count = 4ULL, .cap = TIL_CAP_LIT};
-    _til_str_lits.h00000002b606 = (Str){.c_str = {til_cage_lit("a", 1ULL)}, .count = 1ULL, .cap = TIL_CAP_LIT};
-    _til_str_lits.h00310f176c2b = (Str){.c_str = {til_cage_lit("alpha", 5ULL)}, .count = 5ULL, .cap = TIL_CAP_LIT};
-    _til_str_lits.h44abcb58cde4 = (Str){.c_str = {til_cage_lit("assert_eq failed: expected '", 28ULL)}, .count = 28ULL, .cap = TIL_CAP_LIT};
-    _til_str_lits.h00000002b607 = (Str){.c_str = {til_cage_lit("b", 1ULL)}, .count = 1ULL, .cap = TIL_CAP_LIT};
-    _til_str_lits.h00017c9489a1 = (Str){.c_str = {til_cage_lit("beta", 4ULL)}, .count = 4ULL, .cap = TIL_CAP_LIT};
-    _til_str_lits.hd0b1c236fb8f = (Str){.c_str = {til_cage_lit("changed", 7ULL)}, .count = 7ULL, .cap = TIL_CAP_LIT};
-    _til_str_lits.h3fd43551c8c1 = (Str){.c_str = {til_cage_lit("hello world", 11ULL)}, .count = 11ULL, .cap = TIL_CAP_LIT};
-    _til_str_lits.h00000002b617 = (Str){.c_str = {til_cage_lit("r", 1ULL)}, .count = 1ULL, .cap = TIL_CAP_LIT};
-    _til_str_lits.hd0e435b6dffc = (Str){.c_str = {til_cage_lit("uncaught throw 'KeyNotFound'", 28ULL)}, .count = 28ULL, .cap = TIL_CAP_LIT};
-    _til_str_lits.h4d3ab87300de = (Str){.c_str = {til_cage_lit("uncaught throw 'OutOfBounds'", 28ULL)}, .count = 28ULL, .cap = TIL_CAP_LIT};
+    for (size_t i = 0; i < sizeof(entries) / sizeof(entries[0]); ++i) {
+        Str *slot = (Str *)((unsigned char *)_til_str_lits_cage + entries[i].offset);
+        *slot = (Str){.c_str = {til_cage_lit(entries[i].text, entries[i].count)}, .count = entries[i].count, .cap = TIL_CAP_LIT};
+    }
 }
 
 /* til source locations, in the --usize=32 cage */
@@ -427,6 +433,145 @@ static struct {
     Str hoisted__Str_test_variadic_fold_3;
     Str hoisted__Str_test_variadic_fold_8;
 } *_til_loc_lits_cage;
+static void til_loc_lits_init(void) __attribute__((constructor));
+static void til_loc_lits_init(void) {
+    static const struct { size_t offset; const char *text; USize count; } entries[] = {
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Str_push_str_3), "./src/core/str.til:217:13", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Str_push_str_7), "./src/core/str.til:221:13", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_block_constants_do_not_escape_their_scope_11), "test/constfold.til:650:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_block_constants_do_not_escape_their_scope_15), "test/constfold.til:655:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_block_constants_do_not_escape_their_scope_19), "test/constfold.til:660:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_block_constants_do_not_escape_their_scope_3), "test/constfold.til:653:9", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_block_constants_do_not_escape_their_scope_7), "test/constfold.til:658:9", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_102), "test/constfold.til:444:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_105), "test/constfold.til:447:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_110), "test/constfold.til:448:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_115), "test/constfold.til:449:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_118), "test/constfold.til:452:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_129), "test/constfold.til:455:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_134), "test/constfold.til:456:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_14), "test/constfold.til:443:25", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_143), "test/constfold.til:461:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_148), "test/constfold.til:462:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_150), "test/constfold.til:465:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_155), "test/constfold.til:466:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_19), "test/constfold.til:444:25", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_24), "test/constfold.til:448:25", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_29), "test/constfold.til:449:25", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_34), "test/constfold.til:453:9", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_39), "test/constfold.til:454:9", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_4), "test/constfold.til:434:26", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_44), "test/constfold.til:455:39", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_49), "test/constfold.til:456:40", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_54), "test/constfold.til:460:9", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_59), "test/constfold.til:461:24", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_64), "test/constfold.til:462:25", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_69), "test/constfold.til:466:32", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_72), "test/constfold.til:432:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_74), "test/constfold.til:433:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_79), "test/constfold.til:434:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_84), "test/constfold.til:435:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_87), "test/constfold.til:438:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_89), "test/constfold.til:439:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_9), "test/constfold.til:435:26", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_92), "test/constfold.til:442:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_collection_return_fold_97), "test/constfold.til:443:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_const_and_or_fold_10), "test/constfold.til:505:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_const_and_or_fold_16), "test/constfold.til:506:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_const_and_or_fold_21), "test/constfold.til:507:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_const_and_or_fold_27), "test/constfold.til:508:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_const_and_or_fold_32), "test/constfold.til:509:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_const_and_or_fold_38), "test/constfold.til:510:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_const_and_or_fold_43), "test/constfold.til:511:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_const_and_or_fold_49), "test/constfold.til:512:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_const_and_or_fold_54), "test/constfold.til:513:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_const_and_or_fold_58), "test/constfold.til:514:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_constfold_abort_after_release_3), "test/constfold.til:602:9", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_constfold_abort_after_release_9), "test/constfold.til:604:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_constfold_abort_branch_locals_3), "test/constfold.til:594:9", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_constfold_abort_branch_locals_9), "test/constfold.til:596:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_constfold_abort_owned_args_3), "test/constfold.til:586:9", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_constfold_abort_owned_args_9), "test/constfold.til:588:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_deeply_nested_7), "test/constfold.til:27:5", 23ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_enum_fold_1), "test/constfold.til:250:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_enum_fold_4), "test/constfold.til:251:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_enum_literal_fold_10), "test/constfold.til:267:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_enum_literal_fold_5), "test/constfold.til:265:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_enum_literal_fold_7), "test/constfold.til:266:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_enum_payload_fold_2), "test/constfold.til:275:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_enum_payload_fold_5), "test/constfold.til:276:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_enum_payload_return_fold_2), "test/constfold.til:297:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_enum_payload_return_fold_5), "test/constfold.til:298:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_enum_return_fold_1), "test/constfold.til:285:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_enum_return_fold_4), "test/constfold.til:286:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_explicit_tag_enum_return_fold_1), "test/constfold.til:331:32", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_explicit_tag_enum_return_fold_3), "test/constfold.til:332:11", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_explicit_tag_enum_return_fold_6), "test/constfold.til:335:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_fold_f32_4), "test/constfold.til:154:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_fold_f32_9), "test/constfold.til:156:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_fold_reads_global_const_3), "test/constfold.til:539:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_fold_variable_2), "test/constfold.til:137:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_loc_folded_3), "test/constfold.til:142:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_loc_folded_7), "test/constfold.til:143:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_lolalalo_8), "test/constfold.til:129:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_lolalalo_9), "test/constfold.til:130:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_mixed_fold_4), "test/constfold.til:521:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_nested_arithmetic_7), "test/constfold.til:21:5", 23ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_nested_enum_payload_return_fold_1), "test/constfold.til:343:36", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_nested_enum_payload_return_fold_3), "test/constfold.til:344:15", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_nested_enum_payload_return_fold_5), "test/constfold.til:346:11", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_runtime_bindings_shadow_global_constants_12), "test/constfold.til:643:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_runtime_bindings_shadow_global_constants_16), "test/constfold.til:644:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_runtime_bindings_shadow_global_constants_2), "test/constfold.til:639:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_runtime_bindings_shadow_global_constants_20), "test/constfold.til:645:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_runtime_bindings_shadow_global_constants_5), "test/constfold.til:640:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_runtime_bindings_shadow_global_constants_8), "test/constfold.til:641:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_serialized_values_are_compositional_12), "test/constfold.til:475:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_serialized_values_are_compositional_14), "test/constfold.til:476:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_serialized_values_are_compositional_17), "test/constfold.til:478:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_serialized_values_are_compositional_2), "test/constfold.til:470:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_serialized_values_are_compositional_21), "test/constfold.til:479:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_serialized_values_are_compositional_6), "test/constfold.til:471:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_serialized_values_are_compositional_9), "test/constfold.til:474:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_simple_add_3), "test/constfold.til:15:5", 23ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_static_global_initializers_1), "test/constfold.til:488:28", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_static_global_initializers_11), "test/constfold.til:484:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_static_global_initializers_13), "test/constfold.til:485:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_static_global_initializers_15), "test/constfold.til:486:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_static_global_initializers_17), "test/constfold.til:491:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_static_global_initializers_19), "test/constfold.til:496:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_static_global_initializers_3), "test/constfold.til:489:11", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_static_global_initializers_5), "test/constfold.til:493:32", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_static_global_initializers_7), "test/constfold.til:494:11", 25ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_static_global_initializers_9), "test/constfold.til:483:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_string_concat_3), "test/constfold.til:33:5", 23ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_f32_11), "test/constfold.til:240:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_f32_5), "test/constfold.til:238:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_f32_8), "test/constfold.til:239:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_nested_1), "test/constfold.til:212:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_nested_3), "test/constfold.til:213:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_nested_5), "test/constfold.til:214:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_nested_7), "test/constfold.til:215:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_simple_1), "test/constfold.til:184:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_simple_3), "test/constfold.til:185:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_values_11), "test/constfold.til:195:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_values_13), "test/constfold.til:196:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_values_3), "test/constfold.til:191:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_values_5), "test/constfold.til:192:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_values_7), "test/constfold.til:193:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_struct_fold_values_9), "test/constfold.til:194:5", 24ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_variadic_direct_fold_12), "test/constfold.til:72:5", 23ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_variadic_direct_fold_21), "test/constfold.til:74:5", 23ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_variadic_direct_fold_31), "test/constfold.til:76:5", 23ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_variadic_fold_3), "test/constfold.til:49:5", 23ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_test_variadic_fold_8), "test/constfold.til:51:5", 23ULL},
+    };
+    _til_loc_lits_cage = malloc(sizeof(*_til_loc_lits_cage));
+    for (size_t i = 0; i < sizeof(entries) / sizeof(entries[0]); ++i) {
+        Str *slot = (Str *)((unsigned char *)_til_loc_lits_cage + entries[i].offset);
+        *slot = (Str){.c_str = {til_cage_lit(entries[i].text, entries[i].count)}, .count = entries[i].count, .cap = TIL_CAP_LIT};
+    }
+}
 #define hoisted__Str_Str_push_str_3 (_til_loc_lits_cage->hoisted__Str_Str_push_str_3)
 #define hoisted__Str_Str_push_str_7 (_til_loc_lits_cage->hoisted__Str_Str_push_str_7)
 #define hoisted__Str_test_block_constants_do_not_escape_their_scope_11 (_til_loc_lits_cage->hoisted__Str_test_block_constants_do_not_escape_their_scope_11)
@@ -556,139 +701,6 @@ static struct {
 #define hoisted__Str_test_variadic_direct_fold_31 (_til_loc_lits_cage->hoisted__Str_test_variadic_direct_fold_31)
 #define hoisted__Str_test_variadic_fold_3 (_til_loc_lits_cage->hoisted__Str_test_variadic_fold_3)
 #define hoisted__Str_test_variadic_fold_8 (_til_loc_lits_cage->hoisted__Str_test_variadic_fold_8)
-static void til_loc_lits_init(void) __attribute__((constructor));
-static void til_loc_lits_init(void) {
-    _til_loc_lits_cage = malloc(sizeof(*_til_loc_lits_cage));
-    hoisted__Str_Str_push_str_3 = (Str){.c_str = {til_cage_lit("./src/core/str.til:217:13", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_Str_push_str_7 = (Str){.c_str = {til_cage_lit("./src/core/str.til:221:13", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_block_constants_do_not_escape_their_scope_11 = (Str){.c_str = {til_cage_lit("test/constfold.til:650:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_block_constants_do_not_escape_their_scope_15 = (Str){.c_str = {til_cage_lit("test/constfold.til:655:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_block_constants_do_not_escape_their_scope_19 = (Str){.c_str = {til_cage_lit("test/constfold.til:660:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_block_constants_do_not_escape_their_scope_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:653:9", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_block_constants_do_not_escape_their_scope_7 = (Str){.c_str = {til_cage_lit("test/constfold.til:658:9", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_102 = (Str){.c_str = {til_cage_lit("test/constfold.til:444:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_105 = (Str){.c_str = {til_cage_lit("test/constfold.til:447:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_110 = (Str){.c_str = {til_cage_lit("test/constfold.til:448:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_115 = (Str){.c_str = {til_cage_lit("test/constfold.til:449:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_118 = (Str){.c_str = {til_cage_lit("test/constfold.til:452:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_129 = (Str){.c_str = {til_cage_lit("test/constfold.til:455:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_134 = (Str){.c_str = {til_cage_lit("test/constfold.til:456:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_14 = (Str){.c_str = {til_cage_lit("test/constfold.til:443:25", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_143 = (Str){.c_str = {til_cage_lit("test/constfold.til:461:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_148 = (Str){.c_str = {til_cage_lit("test/constfold.til:462:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_150 = (Str){.c_str = {til_cage_lit("test/constfold.til:465:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_155 = (Str){.c_str = {til_cage_lit("test/constfold.til:466:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_19 = (Str){.c_str = {til_cage_lit("test/constfold.til:444:25", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_24 = (Str){.c_str = {til_cage_lit("test/constfold.til:448:25", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_29 = (Str){.c_str = {til_cage_lit("test/constfold.til:449:25", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_34 = (Str){.c_str = {til_cage_lit("test/constfold.til:453:9", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_39 = (Str){.c_str = {til_cage_lit("test/constfold.til:454:9", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_4 = (Str){.c_str = {til_cage_lit("test/constfold.til:434:26", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_44 = (Str){.c_str = {til_cage_lit("test/constfold.til:455:39", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_49 = (Str){.c_str = {til_cage_lit("test/constfold.til:456:40", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_54 = (Str){.c_str = {til_cage_lit("test/constfold.til:460:9", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_59 = (Str){.c_str = {til_cage_lit("test/constfold.til:461:24", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_64 = (Str){.c_str = {til_cage_lit("test/constfold.til:462:25", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_69 = (Str){.c_str = {til_cage_lit("test/constfold.til:466:32", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_72 = (Str){.c_str = {til_cage_lit("test/constfold.til:432:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_74 = (Str){.c_str = {til_cage_lit("test/constfold.til:433:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_79 = (Str){.c_str = {til_cage_lit("test/constfold.til:434:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_84 = (Str){.c_str = {til_cage_lit("test/constfold.til:435:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_87 = (Str){.c_str = {til_cage_lit("test/constfold.til:438:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_89 = (Str){.c_str = {til_cage_lit("test/constfold.til:439:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_9 = (Str){.c_str = {til_cage_lit("test/constfold.til:435:26", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_92 = (Str){.c_str = {til_cage_lit("test/constfold.til:442:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_collection_return_fold_97 = (Str){.c_str = {til_cage_lit("test/constfold.til:443:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_const_and_or_fold_10 = (Str){.c_str = {til_cage_lit("test/constfold.til:505:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_const_and_or_fold_16 = (Str){.c_str = {til_cage_lit("test/constfold.til:506:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_const_and_or_fold_21 = (Str){.c_str = {til_cage_lit("test/constfold.til:507:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_const_and_or_fold_27 = (Str){.c_str = {til_cage_lit("test/constfold.til:508:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_const_and_or_fold_32 = (Str){.c_str = {til_cage_lit("test/constfold.til:509:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_const_and_or_fold_38 = (Str){.c_str = {til_cage_lit("test/constfold.til:510:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_const_and_or_fold_43 = (Str){.c_str = {til_cage_lit("test/constfold.til:511:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_const_and_or_fold_49 = (Str){.c_str = {til_cage_lit("test/constfold.til:512:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_const_and_or_fold_54 = (Str){.c_str = {til_cage_lit("test/constfold.til:513:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_const_and_or_fold_58 = (Str){.c_str = {til_cage_lit("test/constfold.til:514:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_constfold_abort_after_release_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:602:9", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_constfold_abort_after_release_9 = (Str){.c_str = {til_cage_lit("test/constfold.til:604:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_constfold_abort_branch_locals_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:594:9", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_constfold_abort_branch_locals_9 = (Str){.c_str = {til_cage_lit("test/constfold.til:596:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_constfold_abort_owned_args_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:586:9", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_constfold_abort_owned_args_9 = (Str){.c_str = {til_cage_lit("test/constfold.til:588:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_deeply_nested_7 = (Str){.c_str = {til_cage_lit("test/constfold.til:27:5", 23ULL)}, .count = 23ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_enum_fold_1 = (Str){.c_str = {til_cage_lit("test/constfold.til:250:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_enum_fold_4 = (Str){.c_str = {til_cage_lit("test/constfold.til:251:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_enum_literal_fold_10 = (Str){.c_str = {til_cage_lit("test/constfold.til:267:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_enum_literal_fold_5 = (Str){.c_str = {til_cage_lit("test/constfold.til:265:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_enum_literal_fold_7 = (Str){.c_str = {til_cage_lit("test/constfold.til:266:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_enum_payload_fold_2 = (Str){.c_str = {til_cage_lit("test/constfold.til:275:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_enum_payload_fold_5 = (Str){.c_str = {til_cage_lit("test/constfold.til:276:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_enum_payload_return_fold_2 = (Str){.c_str = {til_cage_lit("test/constfold.til:297:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_enum_payload_return_fold_5 = (Str){.c_str = {til_cage_lit("test/constfold.til:298:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_enum_return_fold_1 = (Str){.c_str = {til_cage_lit("test/constfold.til:285:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_enum_return_fold_4 = (Str){.c_str = {til_cage_lit("test/constfold.til:286:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_explicit_tag_enum_return_fold_1 = (Str){.c_str = {til_cage_lit("test/constfold.til:331:32", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_explicit_tag_enum_return_fold_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:332:11", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_explicit_tag_enum_return_fold_6 = (Str){.c_str = {til_cage_lit("test/constfold.til:335:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_fold_f32_4 = (Str){.c_str = {til_cage_lit("test/constfold.til:154:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_fold_f32_9 = (Str){.c_str = {til_cage_lit("test/constfold.til:156:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_fold_reads_global_const_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:539:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_fold_variable_2 = (Str){.c_str = {til_cage_lit("test/constfold.til:137:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_loc_folded_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:142:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_loc_folded_7 = (Str){.c_str = {til_cage_lit("test/constfold.til:143:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_lolalalo_8 = (Str){.c_str = {til_cage_lit("test/constfold.til:129:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_lolalalo_9 = (Str){.c_str = {til_cage_lit("test/constfold.til:130:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_mixed_fold_4 = (Str){.c_str = {til_cage_lit("test/constfold.til:521:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_nested_arithmetic_7 = (Str){.c_str = {til_cage_lit("test/constfold.til:21:5", 23ULL)}, .count = 23ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_nested_enum_payload_return_fold_1 = (Str){.c_str = {til_cage_lit("test/constfold.til:343:36", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_nested_enum_payload_return_fold_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:344:15", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_nested_enum_payload_return_fold_5 = (Str){.c_str = {til_cage_lit("test/constfold.til:346:11", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_runtime_bindings_shadow_global_constants_12 = (Str){.c_str = {til_cage_lit("test/constfold.til:643:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_runtime_bindings_shadow_global_constants_16 = (Str){.c_str = {til_cage_lit("test/constfold.til:644:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_runtime_bindings_shadow_global_constants_2 = (Str){.c_str = {til_cage_lit("test/constfold.til:639:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_runtime_bindings_shadow_global_constants_20 = (Str){.c_str = {til_cage_lit("test/constfold.til:645:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_runtime_bindings_shadow_global_constants_5 = (Str){.c_str = {til_cage_lit("test/constfold.til:640:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_runtime_bindings_shadow_global_constants_8 = (Str){.c_str = {til_cage_lit("test/constfold.til:641:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_serialized_values_are_compositional_12 = (Str){.c_str = {til_cage_lit("test/constfold.til:475:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_serialized_values_are_compositional_14 = (Str){.c_str = {til_cage_lit("test/constfold.til:476:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_serialized_values_are_compositional_17 = (Str){.c_str = {til_cage_lit("test/constfold.til:478:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_serialized_values_are_compositional_2 = (Str){.c_str = {til_cage_lit("test/constfold.til:470:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_serialized_values_are_compositional_21 = (Str){.c_str = {til_cage_lit("test/constfold.til:479:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_serialized_values_are_compositional_6 = (Str){.c_str = {til_cage_lit("test/constfold.til:471:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_serialized_values_are_compositional_9 = (Str){.c_str = {til_cage_lit("test/constfold.til:474:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_simple_add_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:15:5", 23ULL)}, .count = 23ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_static_global_initializers_1 = (Str){.c_str = {til_cage_lit("test/constfold.til:488:28", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_static_global_initializers_11 = (Str){.c_str = {til_cage_lit("test/constfold.til:484:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_static_global_initializers_13 = (Str){.c_str = {til_cage_lit("test/constfold.til:485:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_static_global_initializers_15 = (Str){.c_str = {til_cage_lit("test/constfold.til:486:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_static_global_initializers_17 = (Str){.c_str = {til_cage_lit("test/constfold.til:491:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_static_global_initializers_19 = (Str){.c_str = {til_cage_lit("test/constfold.til:496:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_static_global_initializers_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:489:11", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_static_global_initializers_5 = (Str){.c_str = {til_cage_lit("test/constfold.til:493:32", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_static_global_initializers_7 = (Str){.c_str = {til_cage_lit("test/constfold.til:494:11", 25ULL)}, .count = 25ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_static_global_initializers_9 = (Str){.c_str = {til_cage_lit("test/constfold.til:483:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_string_concat_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:33:5", 23ULL)}, .count = 23ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_f32_11 = (Str){.c_str = {til_cage_lit("test/constfold.til:240:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_f32_5 = (Str){.c_str = {til_cage_lit("test/constfold.til:238:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_f32_8 = (Str){.c_str = {til_cage_lit("test/constfold.til:239:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_nested_1 = (Str){.c_str = {til_cage_lit("test/constfold.til:212:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_nested_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:213:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_nested_5 = (Str){.c_str = {til_cage_lit("test/constfold.til:214:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_nested_7 = (Str){.c_str = {til_cage_lit("test/constfold.til:215:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_simple_1 = (Str){.c_str = {til_cage_lit("test/constfold.til:184:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_simple_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:185:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_values_11 = (Str){.c_str = {til_cage_lit("test/constfold.til:195:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_values_13 = (Str){.c_str = {til_cage_lit("test/constfold.til:196:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_values_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:191:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_values_5 = (Str){.c_str = {til_cage_lit("test/constfold.til:192:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_values_7 = (Str){.c_str = {til_cage_lit("test/constfold.til:193:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_struct_fold_values_9 = (Str){.c_str = {til_cage_lit("test/constfold.til:194:5", 24ULL)}, .count = 24ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_variadic_direct_fold_12 = (Str){.c_str = {til_cage_lit("test/constfold.til:72:5", 23ULL)}, .count = 23ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_variadic_direct_fold_21 = (Str){.c_str = {til_cage_lit("test/constfold.til:74:5", 23ULL)}, .count = 23ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_variadic_direct_fold_31 = (Str){.c_str = {til_cage_lit("test/constfold.til:76:5", 23ULL)}, .count = 23ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_variadic_fold_3 = (Str){.c_str = {til_cage_lit("test/constfold.til:49:5", 23ULL)}, .count = 23ULL, .cap = TIL_CAP_LIT};
-    hoisted__Str_test_variadic_fold_8 = (Str){.c_str = {til_cage_lit("test/constfold.til:51:5", 23ULL)}, .count = 23ULL, .cap = TIL_CAP_LIT};
-}
 
 static TilCPtr _til_precomputed_sequence_22_data_cptr(void) {
     static TilCPtr built;

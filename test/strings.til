@@ -44,6 +44,27 @@ test_clone := test() {
     assert_eq(Str, s, "hello")
 }
 
+priv check_constructor_literals := proc(first: Str, second: Str, first_location: Str, second_location: Str) {
+    // A proc boundary keeps these reads at runtime, after pool construction.
+    print("")
+    assert_eq(Str, first, "pool\nrow")
+    assert_eq(USize, first.len(), 8)
+    assert_eq(Str, second, "x\0y")
+    assert_eq(USize, second.len(), 3)
+    assert_eq(I8, second.unsafe_get(1), 0)
+    assert_eq(I8, second.unsafe_get(2), 'y')
+    assert_eq(I8, second.unsafe_get(second.len()), 0)
+    assert(first_location.contains("strings.til:"))
+    assert(second_location.contains("strings.til:"))
+    assert(first_location.neq(second_location))
+}
+
+test_constructor_literals := test() {
+    first_location := __LOC__
+    second_location := __LOC__
+    check_constructor_literals("pool\nrow", "x\0y", first_location, second_location)
+}
+
 test_len := test() {
     assert_eq(USize, "hello".len(), 5)
     assert_eq(USize, "".len(), 0)
