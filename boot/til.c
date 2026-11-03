@@ -16475,24 +16475,24 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_FuncSig_eq_40), "./src/core/ast.til:440:49", 25ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_FuncSig_eq_8), "./src/core/ast.til:428:17", 25ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_LoadedProgram_runtime_abi_id_3), "./src/self/loader.til:389:48", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_Bool_remove_13), "./src/self/context.til:171:33", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_Bool_remove_8), "./src/self/context.til:170:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_Dynamic_remove_13), "./src/self/context.til:171:33", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_Dynamic_remove_8), "./src/self/context.til:170:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_FFIEntry_remove_13), "./src/self/context.til:171:33", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_FFIEntry_remove_8), "./src/self/context.til:170:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_FuncType_remove_13), "./src/self/context.til:171:33", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_FuncType_remove_8), "./src/self/context.til:170:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_Str_remove_13), "./src/self/parser.til:171:33", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_Str_remove_8), "./src/self/parser.til:170:31", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_U64_remove_13), "./src/self/codegen/mlir_codegen.til:171:33", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_U64_remove_8), "./src/self/codegen/mlir_codegen.til:170:31", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_call_Set_Str_remove_13), "./src/self/codegen/holyc_codegen.til:171:33", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_call_Set_Str_remove_8), "./src/self/codegen/holyc_codegen.til:170:31", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_call_Vec_Str_remove_13), "./src/self/context.til:171:33", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_call_Vec_Str_remove_8), "./src/self/context.til:170:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__UPtr_ForeignPlace_remove_13), "./src/self/context.til:171:33", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__UPtr_ForeignPlace_remove_8), "./src/self/context.til:170:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_Bool_remove_13), "./src/self/context.til:170:33", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_Bool_remove_8), "./src/self/context.til:169:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_Dynamic_remove_13), "./src/self/context.til:170:33", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_Dynamic_remove_8), "./src/self/context.til:169:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_FFIEntry_remove_13), "./src/self/context.til:170:33", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_FFIEntry_remove_8), "./src/self/context.til:169:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_FuncType_remove_13), "./src/self/context.til:170:33", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_FuncType_remove_8), "./src/self/context.til:169:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_Str_remove_13), "./src/self/parser.til:170:33", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_Str_remove_8), "./src/self/parser.til:169:31", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_U64_remove_13), "./src/self/codegen/mlir_codegen.til:170:33", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_U64_remove_8), "./src/self/codegen/mlir_codegen.til:169:31", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_call_Set_Str_remove_13), "./src/self/codegen/holyc_codegen.til:170:33", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_call_Set_Str_remove_8), "./src/self/codegen/holyc_codegen.til:169:31", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_call_Vec_Str_remove_13), "./src/self/context.til:170:33", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__Str_call_Vec_Str_remove_8), "./src/self/context.til:169:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__UPtr_ForeignPlace_remove_13), "./src/self/context.til:170:33", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Map__UPtr_ForeignPlace_remove_8), "./src/self/context.til:169:31", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Option__Bool_unwrap_3), "./src/self/codegen/mlir_codegen.til:41:25", 41ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Option__Bool_unwrap_6), "./src/self/codegen/mlir_codegen.til:41:19", 41ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Option__Expr_take_4), "./src/core/ast.til:54:25", 24ULL},
@@ -36956,18 +36956,18 @@ static void Vec__Dynamic_delete(Vec__Dynamic * self, Bool call_free) {
 }
 
 static Vec__Dynamic Vec__Dynamic_clone(Vec__Dynamic * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__Dynamic hoisted__Vec__Dynamic_0 = {0};
         TIL_OWN_SET((hoisted__Vec__Dynamic_0.data), (NULL));
         hoisted__Vec__Dynamic_0.count = 0;
         hoisted__Vec__Dynamic_0.cap = 0;
         return hoisted__Vec__Dynamic_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 8ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 8ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -36982,19 +36982,19 @@ static Vec__Dynamic Vec__Dynamic_clone(Vec__Dynamic * self) {
             U64 hoisted__U64_5 = 8ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             void *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            void * cloned = Dynamic_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 8ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__Dynamic(hoisted__v_11, cloned);
+            void * hoisted__v_12 = Dynamic_clone(src);
+            adopt__Dynamic(hoisted__v_11, hoisted__v_12);
         }
     }
-    Vec__Dynamic hoisted__Vec__Dynamic_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__Dynamic_17.data), (new_data));
-    hoisted__Vec__Dynamic_17.count = self->count;
-    hoisted__Vec__Dynamic_17.cap = self->cap;
-    return hoisted__Vec__Dynamic_17;
+    Vec__Dynamic hoisted__Vec__Dynamic_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__Dynamic_18.data), (new_data));
+    hoisted__Vec__Dynamic_18.count = self->count;
+    hoisted__Vec__Dynamic_18.cap = self->cap;
+    return hoisted__Vec__Dynamic_18;
 }
 
 static void adopt__Dynamic(void * dest, void * src) {
@@ -38431,9 +38431,9 @@ static void Array__Str_delete(Array__Str * self, Bool call_free) {
 }
 
 static Array__Str Array__Str_clone(Array__Str * self) {
-    U64 hoisted__U64_12 = ((U64)(self->cap));
-    U64 hoisted__U64_13 = 12ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_12 * hoisted__U64_13)));
+    U64 hoisted__U64_13 = ((U64)(self->cap));
+    U64 hoisted__U64_14 = 12ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_13 * hoisted__U64_14)));
     {
         U32 _re_U32_0 = self->cap;
         U32 _rc_U32_0 = 0;
@@ -38448,18 +38448,18 @@ static Array__Str Array__Str_clone(Array__Str * self) {
             U64 hoisted__U64_4 = 12ULL;
             U64 hoisted__U64_5 = ((U64)(hoisted__U64_3 * hoisted__U64_4));
             Str *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_5)));
-            Str cloned = Str_clone(src);
             U64 hoisted__U64_7 = ((U64)(i));
             U64 hoisted__U64_8 = 12ULL;
             U64 hoisted__U64_9 = ((U64)(hoisted__U64_7 * hoisted__U64_8));
             void *hoisted__v_10 = ((void *)((U8 *)(new_data) + (hoisted__U64_9)));
-            adopt__Str(hoisted__v_10, &cloned);
+            Str hoisted__Str_Array__Str_clone_11 = Str_clone(src);
+            adopt__Str(hoisted__v_10, &hoisted__Str_Array__Str_clone_11);
         }
     }
-    Array__Str hoisted__Array__Str_14 = {0};
-    TIL_OWN_SET((hoisted__Array__Str_14.data), (new_data));
-    hoisted__Array__Str_14.cap = self->cap;
-    return hoisted__Array__Str_14;
+    Array__Str hoisted__Array__Str_15 = {0};
+    TIL_OWN_SET((hoisted__Array__Str_15.data), (new_data));
+    hoisted__Array__Str_15.cap = self->cap;
+    return hoisted__Array__Str_15;
 }
 
 static Vec__Str Vec__Str_with_capacity(USize n) {
@@ -38685,18 +38685,18 @@ static void Vec__Str_delete(Vec__Str * self, Bool call_free) {
 }
 
 static Vec__Str Vec__Str_clone(Vec__Str * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__Str hoisted__Vec__Str_0 = {0};
         TIL_OWN_SET((hoisted__Vec__Str_0.data), (NULL));
         hoisted__Vec__Str_0.count = 0;
         hoisted__Vec__Str_0.cap = 0;
         return hoisted__Vec__Str_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 12ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 12ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -38711,19 +38711,19 @@ static Vec__Str Vec__Str_clone(Vec__Str * self) {
             U64 hoisted__U64_5 = 12ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             Str *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            Str cloned = Str_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 12ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__Str(hoisted__v_11, &cloned);
+            Str hoisted__Str_Vec__Str_clone_12 = Str_clone(src);
+            adopt__Str(hoisted__v_11, &hoisted__Str_Vec__Str_clone_12);
         }
     }
-    Vec__Str hoisted__Vec__Str_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__Str_17.data), (new_data));
-    hoisted__Vec__Str_17.count = self->count;
-    hoisted__Vec__Str_17.cap = self->cap;
-    return hoisted__Vec__Str_17;
+    Vec__Str hoisted__Vec__Str_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__Str_18.data), (new_data));
+    hoisted__Vec__Str_18.count = self->count;
+    hoisted__Vec__Str_18.cap = self->cap;
+    return hoisted__Vec__Str_18;
 }
 
 static void adopt__Str(void * dest, Str * src) {
@@ -42541,9 +42541,9 @@ static void * Map__Str_USize_value_slot(Map__Str_USize * self, USize * i) {
 }
 
 static void Map__Str_USize_store_key(Map__Str_USize * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_USize_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_USize_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_USize_store_key_1);
 }
 
 static void Map__Str_USize_open_slot(Map__Str_USize * self, USize lo) {
@@ -42713,18 +42713,18 @@ static void Vec__VariantDef_delete(Vec__VariantDef * self, Bool call_free) {
 }
 
 static Vec__VariantDef Vec__VariantDef_clone(Vec__VariantDef * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__VariantDef hoisted__Vec__VariantDef_0 = {0};
         TIL_OWN_SET((hoisted__Vec__VariantDef_0.data), (NULL));
         hoisted__Vec__VariantDef_0.count = 0;
         hoisted__Vec__VariantDef_0.cap = 0;
         return hoisted__Vec__VariantDef_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 56ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 56ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -42739,19 +42739,19 @@ static Vec__VariantDef Vec__VariantDef_clone(Vec__VariantDef * self) {
             U64 hoisted__U64_5 = 56ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             VariantDef *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            VariantDef cloned = VariantDef_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 56ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__VariantDef(hoisted__v_11, &cloned);
+            VariantDef hoisted__VariantDef_12 = VariantDef_clone(src);
+            adopt__VariantDef(hoisted__v_11, &hoisted__VariantDef_12);
         }
     }
-    Vec__VariantDef hoisted__Vec__VariantDef_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__VariantDef_17.data), (new_data));
-    hoisted__Vec__VariantDef_17.count = self->count;
-    hoisted__Vec__VariantDef_17.cap = self->cap;
-    return hoisted__Vec__VariantDef_17;
+    Vec__VariantDef hoisted__Vec__VariantDef_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__VariantDef_18.data), (new_data));
+    hoisted__Vec__VariantDef_18.count = self->count;
+    hoisted__Vec__VariantDef_18.cap = self->cap;
+    return hoisted__Vec__VariantDef_18;
 }
 
 static void Vec__FieldLayout_clear(Vec__FieldLayout * self) {
@@ -42813,18 +42813,18 @@ static void Vec__FieldLayout_delete(Vec__FieldLayout * self, Bool call_free) {
 }
 
 static Vec__FieldLayout Vec__FieldLayout_clone(Vec__FieldLayout * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__FieldLayout hoisted__Vec__FieldLayout_0 = {0};
         TIL_OWN_SET((hoisted__Vec__FieldLayout_0.data), (NULL));
         hoisted__Vec__FieldLayout_0.count = 0;
         hoisted__Vec__FieldLayout_0.cap = 0;
         return hoisted__Vec__FieldLayout_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 28ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 28ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -42839,19 +42839,19 @@ static Vec__FieldLayout Vec__FieldLayout_clone(Vec__FieldLayout * self) {
             U64 hoisted__U64_5 = 28ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             FieldLayout *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            FieldLayout cloned = FieldLayout_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 28ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__FieldLayout(hoisted__v_11, &cloned);
+            FieldLayout hoisted__FieldLayout_12 = FieldLayout_clone(src);
+            adopt__FieldLayout(hoisted__v_11, &hoisted__FieldLayout_12);
         }
     }
-    Vec__FieldLayout hoisted__Vec__FieldLayout_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__FieldLayout_17.data), (new_data));
-    hoisted__Vec__FieldLayout_17.count = self->count;
-    hoisted__Vec__FieldLayout_17.cap = self->cap;
-    return hoisted__Vec__FieldLayout_17;
+    Vec__FieldLayout hoisted__Vec__FieldLayout_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__FieldLayout_18.data), (new_data));
+    hoisted__Vec__FieldLayout_18.count = self->count;
+    hoisted__Vec__FieldLayout_18.cap = self->cap;
+    return hoisted__Vec__FieldLayout_18;
 }
 
 static void Vec__Declaration_clear(Vec__Declaration * self) {
@@ -43022,18 +43022,18 @@ static void Vec__Declaration_delete(Vec__Declaration * self, Bool call_free) {
 }
 
 static Vec__Declaration Vec__Declaration_clone(Vec__Declaration * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__Declaration hoisted__Vec__Declaration_0 = {0};
         TIL_OWN_SET((hoisted__Vec__Declaration_0.data), (NULL));
         hoisted__Vec__Declaration_0.count = 0;
         hoisted__Vec__Declaration_0.cap = 0;
         return hoisted__Vec__Declaration_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 144ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 144ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -43048,19 +43048,19 @@ static Vec__Declaration Vec__Declaration_clone(Vec__Declaration * self) {
             U64 hoisted__U64_5 = 144ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             Declaration *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            Declaration cloned = Declaration_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 144ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__Declaration(hoisted__v_11, &cloned);
+            Declaration hoisted__Declaration_12 = Declaration_clone(src);
+            adopt__Declaration(hoisted__v_11, &hoisted__Declaration_12);
         }
     }
-    Vec__Declaration hoisted__Vec__Declaration_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__Declaration_17.data), (new_data));
-    hoisted__Vec__Declaration_17.count = self->count;
-    hoisted__Vec__Declaration_17.cap = self->cap;
-    return hoisted__Vec__Declaration_17;
+    Vec__Declaration hoisted__Vec__Declaration_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__Declaration_18.data), (new_data));
+    hoisted__Vec__Declaration_18.count = self->count;
+    hoisted__Vec__Declaration_18.cap = self->cap;
+    return hoisted__Vec__Declaration_18;
 }
 
 static Vec__Expr Vec__Expr_new(void) {
@@ -43424,18 +43424,18 @@ static void Vec__Expr_delete(Vec__Expr * self, Bool call_free) {
 }
 
 static Vec__Expr Vec__Expr_clone(Vec__Expr * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__Expr hoisted__Vec__Expr_0 = {0};
         TIL_OWN_SET((hoisted__Vec__Expr_0.data), (NULL));
         hoisted__Vec__Expr_0.count = 0;
         hoisted__Vec__Expr_0.cap = 0;
         return hoisted__Vec__Expr_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 176ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 176ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -43450,19 +43450,19 @@ static Vec__Expr Vec__Expr_clone(Vec__Expr * self) {
             U64 hoisted__U64_5 = 176ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             Expr *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            Expr cloned = Expr_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 176ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__Expr(hoisted__v_11, &cloned);
+            Expr hoisted__Expr_12 = Expr_clone(src);
+            adopt__Expr(hoisted__v_11, &hoisted__Expr_12);
         }
     }
-    Vec__Expr hoisted__Vec__Expr_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__Expr_17.data), (new_data));
-    hoisted__Vec__Expr_17.count = self->count;
-    hoisted__Vec__Expr_17.cap = self->cap;
-    return hoisted__Vec__Expr_17;
+    Vec__Expr hoisted__Vec__Expr_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__Expr_18.data), (new_data));
+    hoisted__Vec__Expr_18.count = self->count;
+    hoisted__Vec__Expr_18.cap = self->cap;
+    return hoisted__Vec__Expr_18;
 }
 
 static void Vec__USize_clear(Vec__USize * self) {
@@ -43561,19 +43561,19 @@ static void Vec__USize_delete(Vec__USize * self, Bool call_free) {
 }
 
 static Vec__USize Vec__USize_clone(Vec__USize * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__USize hoisted__Vec__USize_0 = {0};
         TIL_OWN_SET((hoisted__Vec__USize_0.data), (NULL));
         hoisted__Vec__USize_0.count = 0;
         hoisted__Vec__USize_0.cap = 0;
         return hoisted__Vec__USize_0;
     }
-    U32 hoisted__U32_14 = U32_size();
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = ((U64)(hoisted__U32_14));
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U32 hoisted__U32_15 = U32_size();
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = ((U64)(hoisted__U32_15));
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -43589,20 +43589,20 @@ static Vec__USize Vec__USize_clone(Vec__USize * self) {
             U64 hoisted__U64_5 = ((U64)(hoisted__U32_3));
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             USize *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            USize cloned = (DEREF(src));
             U32 hoisted__U32_7 = U32_size();
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = ((U64)(hoisted__U32_7));
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__USize(hoisted__v_11, cloned);
+            U32 hoisted__U32_12 = (DEREF(src));
+            adopt__USize(hoisted__v_11, hoisted__U32_12);
         }
     }
-    Vec__USize hoisted__Vec__USize_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__USize_17.data), (new_data));
-    hoisted__Vec__USize_17.count = self->count;
-    hoisted__Vec__USize_17.cap = self->cap;
-    return hoisted__Vec__USize_17;
+    Vec__USize hoisted__Vec__USize_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__USize_18.data), (new_data));
+    hoisted__Vec__USize_18.count = self->count;
+    hoisted__Vec__USize_18.cap = self->cap;
+    return hoisted__Vec__USize_18;
 }
 
 static void adopt__USize(void * dest, USize src) {
@@ -46824,18 +46824,18 @@ static void Vec__SourceDiagnostic_delete(Vec__SourceDiagnostic * self, Bool call
 }
 
 static Vec__SourceDiagnostic Vec__SourceDiagnostic_clone(Vec__SourceDiagnostic * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__SourceDiagnostic hoisted__Vec__SourceDiagnostic_0 = {0};
         TIL_OWN_SET((hoisted__Vec__SourceDiagnostic_0.data), (NULL));
         hoisted__Vec__SourceDiagnostic_0.count = 0;
         hoisted__Vec__SourceDiagnostic_0.cap = 0;
         return hoisted__Vec__SourceDiagnostic_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 40ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 40ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -46850,19 +46850,19 @@ static Vec__SourceDiagnostic Vec__SourceDiagnostic_clone(Vec__SourceDiagnostic *
             U64 hoisted__U64_5 = 40ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             SourceDiagnostic *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            SourceDiagnostic cloned = SourceDiagnostic_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 40ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__SourceDiagnostic(hoisted__v_11, &cloned);
+            SourceDiagnostic hoisted__SourceDiagnostic_12 = SourceDiagnostic_clone(src);
+            adopt__SourceDiagnostic(hoisted__v_11, &hoisted__SourceDiagnostic_12);
         }
     }
-    Vec__SourceDiagnostic hoisted__Vec__SourceDiagnostic_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__SourceDiagnostic_17.data), (new_data));
-    hoisted__Vec__SourceDiagnostic_17.count = self->count;
-    hoisted__Vec__SourceDiagnostic_17.cap = self->cap;
-    return hoisted__Vec__SourceDiagnostic_17;
+    Vec__SourceDiagnostic hoisted__Vec__SourceDiagnostic_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__SourceDiagnostic_18.data), (new_data));
+    hoisted__Vec__SourceDiagnostic_18.count = self->count;
+    hoisted__Vec__SourceDiagnostic_18.cap = self->cap;
+    return hoisted__Vec__SourceDiagnostic_18;
 }
 
 static void Vec__Token_clear(Vec__Token * self) {
@@ -46907,18 +46907,18 @@ static void Vec__Token_delete(Vec__Token * self, Bool call_free) {
 }
 
 static Vec__Token Vec__Token_clone(Vec__Token * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__Token hoisted__Vec__Token_0 = {0};
         TIL_OWN_SET((hoisted__Vec__Token_0.data), (NULL));
         hoisted__Vec__Token_0.count = 0;
         hoisted__Vec__Token_0.cap = 0;
         return hoisted__Vec__Token_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 20ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 20ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -46933,19 +46933,19 @@ static Vec__Token Vec__Token_clone(Vec__Token * self) {
             U64 hoisted__U64_5 = 20ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             Token *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            Token cloned = Token_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 20ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__Token(hoisted__v_11, &cloned);
+            Token hoisted__Token_12 = Token_clone(src);
+            adopt__Token(hoisted__v_11, &hoisted__Token_12);
         }
     }
-    Vec__Token hoisted__Vec__Token_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__Token_17.data), (new_data));
-    hoisted__Vec__Token_17.count = self->count;
-    hoisted__Vec__Token_17.cap = self->cap;
-    return hoisted__Vec__Token_17;
+    Vec__Token hoisted__Vec__Token_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__Token_18.data), (new_data));
+    hoisted__Vec__Token_18.count = self->count;
+    hoisted__Vec__Token_18.cap = self->cap;
+    return hoisted__Vec__Token_18;
 }
 
 static void Vec__TokenType_clear(Vec__TokenType * self) {
@@ -46962,18 +46962,18 @@ static void Vec__TokenType_delete(Vec__TokenType * self, Bool call_free) {
 }
 
 static Vec__TokenType Vec__TokenType_clone(Vec__TokenType * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__TokenType hoisted__Vec__TokenType_0 = {0};
         TIL_OWN_SET((hoisted__Vec__TokenType_0.data), (NULL));
         hoisted__Vec__TokenType_0.count = 0;
         hoisted__Vec__TokenType_0.cap = 0;
         return hoisted__Vec__TokenType_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 1ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 1ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -46988,19 +46988,19 @@ static Vec__TokenType Vec__TokenType_clone(Vec__TokenType * self) {
             U64 hoisted__U64_5 = 1ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             TokenType *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            TokenType cloned = TokenType_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 1ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__TokenType(hoisted__v_11, &cloned);
+            TokenType hoisted__TokenType_12 = TokenType_clone(src);
+            adopt__TokenType(hoisted__v_11, &hoisted__TokenType_12);
         }
     }
-    Vec__TokenType hoisted__Vec__TokenType_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__TokenType_17.data), (new_data));
-    hoisted__Vec__TokenType_17.count = self->count;
-    hoisted__Vec__TokenType_17.cap = self->cap;
-    return hoisted__Vec__TokenType_17;
+    Vec__TokenType hoisted__Vec__TokenType_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__TokenType_18.data), (new_data));
+    hoisted__Vec__TokenType_18.count = self->count;
+    hoisted__Vec__TokenType_18.cap = self->cap;
+    return hoisted__Vec__TokenType_18;
 }
 
 static void adopt__TokenType(void * dest, TokenType * src) {
@@ -56787,18 +56787,18 @@ static void Vec__call_Vec_Str_delete(Vec__call_Vec_Str * self, Bool call_free) {
 }
 
 static Vec__call_Vec_Str Vec__call_Vec_Str_clone(Vec__call_Vec_Str * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__call_Vec_Str hoisted__Vec__call_Vec_Str_0 = {0};
         TIL_OWN_SET((hoisted__Vec__call_Vec_Str_0.data), (NULL));
         hoisted__Vec__call_Vec_Str_0.count = 0;
         hoisted__Vec__call_Vec_Str_0.cap = 0;
         return hoisted__Vec__call_Vec_Str_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 12ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 12ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -56813,19 +56813,19 @@ static Vec__call_Vec_Str Vec__call_Vec_Str_clone(Vec__call_Vec_Str * self) {
             U64 hoisted__U64_5 = 12ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             Vec__Str *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            Vec__Str cloned = Vec__Str_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 12ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__Vec__Str(hoisted__v_11, &cloned);
+            Vec__Str hoisted__Vec__Str_12 = Vec__Str_clone(src);
+            adopt__Vec__Str(hoisted__v_11, &hoisted__Vec__Str_12);
         }
     }
-    Vec__call_Vec_Str hoisted__Vec__call_Vec_Str_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__call_Vec_Str_17.data), (new_data));
-    hoisted__Vec__call_Vec_Str_17.count = self->count;
-    hoisted__Vec__call_Vec_Str_17.cap = self->cap;
-    return hoisted__Vec__call_Vec_Str_17;
+    Vec__call_Vec_Str hoisted__Vec__call_Vec_Str_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__call_Vec_Str_18.data), (new_data));
+    hoisted__Vec__call_Vec_Str_18.count = self->count;
+    hoisted__Vec__call_Vec_Str_18.cap = self->cap;
+    return hoisted__Vec__call_Vec_Str_18;
 }
 
 static Vec__U32 Vec__U32_with_capacity(USize n) {
@@ -56953,18 +56953,18 @@ static void Vec__U32_delete(Vec__U32 * self, Bool call_free) {
 }
 
 static Vec__U32 Vec__U32_clone(Vec__U32 * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__U32 hoisted__Vec__U32_0 = {0};
         TIL_OWN_SET((hoisted__Vec__U32_0.data), (NULL));
         hoisted__Vec__U32_0.count = 0;
         hoisted__Vec__U32_0.cap = 0;
         return hoisted__Vec__U32_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 4ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 4ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -56979,19 +56979,19 @@ static Vec__U32 Vec__U32_clone(Vec__U32 * self) {
             U64 hoisted__U64_5 = 4ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             U32 *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            U32 cloned = (DEREF(src));
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 4ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__U32(hoisted__v_11, cloned);
+            U32 hoisted__U32_12 = (DEREF(src));
+            adopt__U32(hoisted__v_11, hoisted__U32_12);
         }
     }
-    Vec__U32 hoisted__Vec__U32_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__U32_17.data), (new_data));
-    hoisted__Vec__U32_17.count = self->count;
-    hoisted__Vec__U32_17.cap = self->cap;
-    return hoisted__Vec__U32_17;
+    Vec__U32 hoisted__Vec__U32_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__U32_18.data), (new_data));
+    hoisted__Vec__U32_18.count = self->count;
+    hoisted__Vec__U32_18.cap = self->cap;
+    return hoisted__Vec__U32_18;
 }
 
 static Option__U32 Option__U32_Some(U32 * val) {
@@ -57302,18 +57302,18 @@ static void Set__Str_delete(Set__Str * self, Bool call_free) {
 }
 
 static Set__Str Set__Str_clone(Set__Str * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Set__Str hoisted__Set__Str_0 = {0};
         TIL_OWN_SET((hoisted__Set__Str_0.data), (NULL));
         hoisted__Set__Str_0.count = 0;
         hoisted__Set__Str_0.cap = 0;
         return hoisted__Set__Str_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 12ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 12ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -57328,19 +57328,19 @@ static Set__Str Set__Str_clone(Set__Str * self) {
             U64 hoisted__U64_5 = 12ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             Str *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            Str cloned = Str_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 12ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__Str(hoisted__v_11, &cloned);
+            Str hoisted__Str_Set__Str_clone_12 = Str_clone(src);
+            adopt__Str(hoisted__v_11, &hoisted__Str_Set__Str_clone_12);
         }
     }
-    Set__Str hoisted__Set__Str_17 = {0};
-    TIL_OWN_SET((hoisted__Set__Str_17.data), (new_data));
-    hoisted__Set__Str_17.count = self->count;
-    hoisted__Set__Str_17.cap = self->cap;
-    return hoisted__Set__Str_17;
+    Set__Str hoisted__Set__Str_18 = {0};
+    TIL_OWN_SET((hoisted__Set__Str_18.data), (new_data));
+    hoisted__Set__Str_18.count = self->count;
+    hoisted__Set__Str_18.cap = self->cap;
+    return hoisted__Set__Str_18;
 }
 
 static Bool Map__Str_Str_has(Map__Str_Str * self, Str * key) {
@@ -57475,9 +57475,9 @@ static void * Map__Str_Str_value_slot(Map__Str_Str * self, USize * i) {
 }
 
 static void Map__Str_Str_store_key(Map__Str_Str * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_Str_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_Str_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_Str_store_key_1);
 }
 
 static void Map__Str_Str_open_slot(Map__Str_Str * self, USize lo) {
@@ -57732,18 +57732,18 @@ static void Vec__Bool_delete(Vec__Bool * self, Bool call_free) {
 }
 
 static Vec__Bool Vec__Bool_clone(Vec__Bool * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__Bool hoisted__Vec__Bool_0 = {0};
         TIL_OWN_SET((hoisted__Vec__Bool_0.data), (NULL));
         hoisted__Vec__Bool_0.count = 0;
         hoisted__Vec__Bool_0.cap = 0;
         return hoisted__Vec__Bool_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 1ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 1ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -57758,19 +57758,19 @@ static Vec__Bool Vec__Bool_clone(Vec__Bool * self) {
             U64 hoisted__U64_5 = 1ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             Bool *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            Bool cloned = (DEREF(src));
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 1ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__Bool(hoisted__v_11, cloned);
+            Bool hoisted__Bool_12 = (DEREF(src));
+            adopt__Bool(hoisted__v_11, hoisted__Bool_12);
         }
     }
-    Vec__Bool hoisted__Vec__Bool_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__Bool_17.data), (new_data));
-    hoisted__Vec__Bool_17.count = self->count;
-    hoisted__Vec__Bool_17.cap = self->cap;
-    return hoisted__Vec__Bool_17;
+    Vec__Bool hoisted__Vec__Bool_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__Bool_18.data), (new_data));
+    hoisted__Vec__Bool_18.count = self->count;
+    hoisted__Vec__Bool_18.cap = self->cap;
+    return hoisted__Vec__Bool_18;
 }
 
 static void swap__Vec__Str(Vec__Str * a, Vec__Str * b) {
@@ -57874,18 +57874,18 @@ static void Vec__I64_delete(Vec__I64 * self, Bool call_free) {
 }
 
 static Vec__I64 Vec__I64_clone(Vec__I64 * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__I64 hoisted__Vec__I64_0 = {0};
         TIL_OWN_SET((hoisted__Vec__I64_0.data), (NULL));
         hoisted__Vec__I64_0.count = 0;
         hoisted__Vec__I64_0.cap = 0;
         return hoisted__Vec__I64_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 8ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 8ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -57900,19 +57900,19 @@ static Vec__I64 Vec__I64_clone(Vec__I64 * self) {
             U64 hoisted__U64_5 = 8ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             I64 *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            I64 cloned = (DEREF(src));
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 8ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__I64(hoisted__v_11, cloned);
+            I64 hoisted__I64_12 = (DEREF(src));
+            adopt__I64(hoisted__v_11, hoisted__I64_12);
         }
     }
-    Vec__I64 hoisted__Vec__I64_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__I64_17.data), (new_data));
-    hoisted__Vec__I64_17.count = self->count;
-    hoisted__Vec__I64_17.cap = self->cap;
-    return hoisted__Vec__I64_17;
+    Vec__I64 hoisted__Vec__I64_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__I64_18.data), (new_data));
+    hoisted__Vec__I64_18.count = self->count;
+    hoisted__Vec__I64_18.cap = self->cap;
+    return hoisted__Vec__I64_18;
 }
 
 static Vec__U64 Vec__U64_with_capacity(USize n) {
@@ -58016,18 +58016,18 @@ static void Vec__U64_delete(Vec__U64 * self, Bool call_free) {
 }
 
 static Vec__U64 Vec__U64_clone(Vec__U64 * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__U64 hoisted__Vec__U64_0 = {0};
         TIL_OWN_SET((hoisted__Vec__U64_0.data), (NULL));
         hoisted__Vec__U64_0.count = 0;
         hoisted__Vec__U64_0.cap = 0;
         return hoisted__Vec__U64_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 8ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 8ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -58042,19 +58042,19 @@ static Vec__U64 Vec__U64_clone(Vec__U64 * self) {
             U64 hoisted__U64_5 = 8ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             U64 *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            U64 cloned = (DEREF(src));
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 8ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__U64(hoisted__v_11, cloned);
+            U64 hoisted__U64_12 = (DEREF(src));
+            adopt__U64(hoisted__v_11, hoisted__U64_12);
         }
     }
-    Vec__U64 hoisted__Vec__U64_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__U64_17.data), (new_data));
-    hoisted__Vec__U64_17.count = self->count;
-    hoisted__Vec__U64_17.cap = self->cap;
-    return hoisted__Vec__U64_17;
+    Vec__U64 hoisted__Vec__U64_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__U64_18.data), (new_data));
+    hoisted__Vec__U64_18.count = self->count;
+    hoisted__Vec__U64_18.cap = self->cap;
+    return hoisted__Vec__U64_18;
 }
 
 static void adopt__I64(void * dest, I64 src) {
@@ -66097,18 +66097,18 @@ static void Vec__BorrowRoot_delete(Vec__BorrowRoot * self, Bool call_free) {
 }
 
 static Vec__BorrowRoot Vec__BorrowRoot_clone(Vec__BorrowRoot * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__BorrowRoot hoisted__Vec__BorrowRoot_0 = {0};
         TIL_OWN_SET((hoisted__Vec__BorrowRoot_0.data), (NULL));
         hoisted__Vec__BorrowRoot_0.count = 0;
         hoisted__Vec__BorrowRoot_0.cap = 0;
         return hoisted__Vec__BorrowRoot_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 48ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 48ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -66123,19 +66123,19 @@ static Vec__BorrowRoot Vec__BorrowRoot_clone(Vec__BorrowRoot * self) {
             U64 hoisted__U64_5 = 48ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             BorrowRoot *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            BorrowRoot cloned = BorrowRoot_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 48ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__BorrowRoot(hoisted__v_11, &cloned);
+            BorrowRoot hoisted__BorrowRoot_12 = BorrowRoot_clone(src);
+            adopt__BorrowRoot(hoisted__v_11, &hoisted__BorrowRoot_12);
         }
     }
-    Vec__BorrowRoot hoisted__Vec__BorrowRoot_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__BorrowRoot_17.data), (new_data));
-    hoisted__Vec__BorrowRoot_17.count = self->count;
-    hoisted__Vec__BorrowRoot_17.cap = self->cap;
-    return hoisted__Vec__BorrowRoot_17;
+    Vec__BorrowRoot hoisted__Vec__BorrowRoot_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__BorrowRoot_18.data), (new_data));
+    hoisted__Vec__BorrowRoot_18.count = self->count;
+    hoisted__Vec__BorrowRoot_18.cap = self->cap;
+    return hoisted__Vec__BorrowRoot_18;
 }
 
 static SymMap__TypeBinding SymMap__TypeBinding_with_capacity(USize n) {
@@ -66862,9 +66862,9 @@ static void * Map__U32_Str_value_slot(Map__U32_Str * self, USize * i) {
 }
 
 static void Map__U32_Str_store_key(Map__U32_Str * self, USize i, U32 key) {
-    U32 copy = (key);
     void *hoisted__v_0 = Map__U32_Str_key_slot(self, &i);
-    adopt__U32(hoisted__v_0, copy);
+    U32 hoisted__U32_1 = (key);
+    adopt__U32(hoisted__v_0, hoisted__U32_1);
 }
 
 static void Map__U32_Str_open_slot(Map__U32_Str * self, USize lo) {
@@ -67114,9 +67114,9 @@ static void * Map__Str_FFIEntry_value_slot(Map__Str_FFIEntry * self, USize * i) 
 }
 
 static void Map__Str_FFIEntry_store_key(Map__Str_FFIEntry * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_FFIEntry_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_FFIEntry_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_FFIEntry_store_key_1);
 }
 
 static void Map__Str_FFIEntry_open_slot(Map__Str_FFIEntry * self, USize lo) {
@@ -67429,9 +67429,9 @@ static void * Map__Str_ExprPtrBox_value_slot(Map__Str_ExprPtrBox * self, USize *
 }
 
 static void Map__Str_ExprPtrBox_store_key(Map__Str_ExprPtrBox * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_ExprPtrBox_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_ExprPtrBox_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_ExprPtrBox_store_key_1);
 }
 
 static void Map__Str_ExprPtrBox_open_slot(Map__Str_ExprPtrBox * self, USize lo) {
@@ -67681,9 +67681,9 @@ static void * Map__Str_FFITypePtrBox_value_slot(Map__Str_FFITypePtrBox * self, U
 }
 
 static void Map__Str_FFITypePtrBox_store_key(Map__Str_FFITypePtrBox * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_FFITypePtrBox_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_FFITypePtrBox_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_FFITypePtrBox_store_key_1);
 }
 
 static void Map__Str_FFITypePtrBox_open_slot(Map__Str_FFITypePtrBox * self, USize lo) {
@@ -67874,19 +67874,19 @@ static void Vec__UPtr_delete(Vec__UPtr * self, Bool call_free) {
 }
 
 static Vec__UPtr Vec__UPtr_clone(Vec__UPtr * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__UPtr hoisted__Vec__UPtr_0 = {0};
         TIL_OWN_SET((hoisted__Vec__UPtr_0.data), (NULL));
         hoisted__Vec__UPtr_0.count = 0;
         hoisted__Vec__UPtr_0.cap = 0;
         return hoisted__Vec__UPtr_0;
     }
-    U32 hoisted__U32_14 = U64_size();
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = ((U64)(hoisted__U32_14));
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U32 hoisted__U32_15 = U64_size();
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = ((U64)(hoisted__U32_15));
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -67902,20 +67902,20 @@ static Vec__UPtr Vec__UPtr_clone(Vec__UPtr * self) {
             U64 hoisted__U64_5 = ((U64)(hoisted__U32_3));
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             UPtr *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            UPtr cloned = (DEREF(src));
             U32 hoisted__U32_7 = U64_size();
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = ((U64)(hoisted__U32_7));
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__UPtr(hoisted__v_11, cloned);
+            U64 hoisted__U64_12 = (DEREF(src));
+            adopt__UPtr(hoisted__v_11, hoisted__U64_12);
         }
     }
-    Vec__UPtr hoisted__Vec__UPtr_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__UPtr_17.data), (new_data));
-    hoisted__Vec__UPtr_17.count = self->count;
-    hoisted__Vec__UPtr_17.cap = self->cap;
-    return hoisted__Vec__UPtr_17;
+    Vec__UPtr hoisted__Vec__UPtr_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__UPtr_18.data), (new_data));
+    hoisted__Vec__UPtr_18.count = self->count;
+    hoisted__Vec__UPtr_18.cap = self->cap;
+    return hoisted__Vec__UPtr_18;
 }
 
 static Vec__ComptimeDefinition Vec__ComptimeDefinition_new(void) {
@@ -67985,18 +67985,18 @@ static void Vec__ComptimeDefinition_delete(Vec__ComptimeDefinition * self, Bool 
 }
 
 static Vec__ComptimeDefinition Vec__ComptimeDefinition_clone(Vec__ComptimeDefinition * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__ComptimeDefinition hoisted__Vec__ComptimeDefinition_0 = {0};
         TIL_OWN_SET((hoisted__Vec__ComptimeDefinition_0.data), (NULL));
         hoisted__Vec__ComptimeDefinition_0.count = 0;
         hoisted__Vec__ComptimeDefinition_0.cap = 0;
         return hoisted__Vec__ComptimeDefinition_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 32ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 32ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -68011,19 +68011,19 @@ static Vec__ComptimeDefinition Vec__ComptimeDefinition_clone(Vec__ComptimeDefini
             U64 hoisted__U64_5 = 32ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             ComptimeDefinition *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            ComptimeDefinition cloned = ComptimeDefinition_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 32ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__ComptimeDefinition(hoisted__v_11, &cloned);
+            ComptimeDefinition hoisted__ComptimeDefinition_12 = ComptimeDefinition_clone(src);
+            adopt__ComptimeDefinition(hoisted__v_11, &hoisted__ComptimeDefinition_12);
         }
     }
-    Vec__ComptimeDefinition hoisted__Vec__ComptimeDefinition_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__ComptimeDefinition_17.data), (new_data));
-    hoisted__Vec__ComptimeDefinition_17.count = self->count;
-    hoisted__Vec__ComptimeDefinition_17.cap = self->cap;
-    return hoisted__Vec__ComptimeDefinition_17;
+    Vec__ComptimeDefinition hoisted__Vec__ComptimeDefinition_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__ComptimeDefinition_18.data), (new_data));
+    hoisted__Vec__ComptimeDefinition_18.count = self->count;
+    hoisted__Vec__ComptimeDefinition_18.cap = self->cap;
+    return hoisted__Vec__ComptimeDefinition_18;
 }
 
 static Option__I64 Option__I64_Some(I64 * val) {
@@ -68171,9 +68171,9 @@ static void * Map__UPtr_Str_value_slot(Map__UPtr_Str * self, USize * i) {
 }
 
 static void Map__UPtr_Str_store_key(Map__UPtr_Str * self, USize i, UPtr key) {
-    UPtr copy = (key);
     void *hoisted__v_0 = Map__UPtr_Str_key_slot(self, &i);
-    adopt__UPtr(hoisted__v_0, copy);
+    U64 hoisted__U64_1 = (key);
+    adopt__UPtr(hoisted__v_0, hoisted__U64_1);
 }
 
 static void Map__UPtr_Str_open_slot(Map__UPtr_Str * self, USize lo) {
@@ -68343,18 +68343,18 @@ static void Vec__InterpOutputEvent_delete(Vec__InterpOutputEvent * self, Bool ca
 }
 
 static Vec__InterpOutputEvent Vec__InterpOutputEvent_clone(Vec__InterpOutputEvent * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__InterpOutputEvent hoisted__Vec__InterpOutputEvent_0 = {0};
         TIL_OWN_SET((hoisted__Vec__InterpOutputEvent_0.data), (NULL));
         hoisted__Vec__InterpOutputEvent_0.count = 0;
         hoisted__Vec__InterpOutputEvent_0.cap = 0;
         return hoisted__Vec__InterpOutputEvent_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 16ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 16ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -68369,19 +68369,19 @@ static Vec__InterpOutputEvent Vec__InterpOutputEvent_clone(Vec__InterpOutputEven
             U64 hoisted__U64_5 = 16ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             InterpOutputEvent *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            InterpOutputEvent cloned = InterpOutputEvent_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 16ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__InterpOutputEvent(hoisted__v_11, &cloned);
+            InterpOutputEvent hoisted__InterpOutputEvent_12 = InterpOutputEvent_clone(src);
+            adopt__InterpOutputEvent(hoisted__v_11, &hoisted__InterpOutputEvent_12);
         }
     }
-    Vec__InterpOutputEvent hoisted__Vec__InterpOutputEvent_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__InterpOutputEvent_17.data), (new_data));
-    hoisted__Vec__InterpOutputEvent_17.count = self->count;
-    hoisted__Vec__InterpOutputEvent_17.cap = self->cap;
-    return hoisted__Vec__InterpOutputEvent_17;
+    Vec__InterpOutputEvent hoisted__Vec__InterpOutputEvent_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__InterpOutputEvent_18.data), (new_data));
+    hoisted__Vec__InterpOutputEvent_18.count = self->count;
+    hoisted__Vec__InterpOutputEvent_18.cap = self->cap;
+    return hoisted__Vec__InterpOutputEvent_18;
 }
 
 static Map__UPtr_ForeignPlace Map__UPtr_ForeignPlace_new(void) {
@@ -68523,9 +68523,9 @@ static void * Map__UPtr_ForeignPlace_value_slot(Map__UPtr_ForeignPlace * self, U
 }
 
 static void Map__UPtr_ForeignPlace_store_key(Map__UPtr_ForeignPlace * self, USize i, UPtr key) {
-    UPtr copy = (key);
     void *hoisted__v_0 = Map__UPtr_ForeignPlace_key_slot(self, &i);
-    adopt__UPtr(hoisted__v_0, copy);
+    U64 hoisted__U64_1 = (key);
+    adopt__UPtr(hoisted__v_0, hoisted__U64_1);
 }
 
 static void Map__UPtr_ForeignPlace_open_slot(Map__UPtr_ForeignPlace * self, USize lo) {
@@ -68831,9 +68831,9 @@ static void * Map__Str_Mode_value_slot(Map__Str_Mode * self, USize * i) {
 }
 
 static void Map__Str_Mode_store_key(Map__Str_Mode * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_Mode_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_Mode_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_Mode_store_key_1);
 }
 
 static void Map__Str_Mode_open_slot(Map__Str_Mode * self, USize lo) {
@@ -69127,9 +69127,9 @@ static void * Map__Str_FuncType_value_slot(Map__Str_FuncType * self, USize * i) 
 }
 
 static void Map__Str_FuncType_store_key(Map__Str_FuncType * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_FuncType_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_FuncType_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_FuncType_store_key_1);
 }
 
 static void Map__Str_FuncType_open_slot(Map__Str_FuncType * self, USize lo) {
@@ -69528,9 +69528,9 @@ static void * Map__Str_ImportUnit_value_slot(Map__Str_ImportUnit * self, USize *
 }
 
 static void Map__Str_ImportUnit_store_key(Map__Str_ImportUnit * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_ImportUnit_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_ImportUnit_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_ImportUnit_store_key_1);
 }
 
 static void Map__Str_ImportUnit_open_slot(Map__Str_ImportUnit * self, USize lo) {
@@ -69773,9 +69773,9 @@ static void * Map__UPtr_RootBits_value_slot(Map__UPtr_RootBits * self, USize * i
 }
 
 static void Map__UPtr_RootBits_store_key(Map__UPtr_RootBits * self, USize i, UPtr key) {
-    UPtr copy = (key);
     void *hoisted__v_0 = Map__UPtr_RootBits_key_slot(self, &i);
-    adopt__UPtr(hoisted__v_0, copy);
+    U64 hoisted__U64_1 = (key);
+    adopt__UPtr(hoisted__v_0, hoisted__U64_1);
 }
 
 static void Map__UPtr_RootBits_open_slot(Map__UPtr_RootBits * self, USize lo) {
@@ -70018,9 +70018,9 @@ static void * Map__Str_Type_value_slot(Map__Str_Type * self, USize * i) {
 }
 
 static void Map__Str_Type_store_key(Map__Str_Type * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_Type_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_Type_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_Type_store_key_1);
 }
 
 static void Map__Str_Type_open_slot(Map__Str_Type * self, USize lo) {
@@ -70263,9 +70263,9 @@ static void * Map__Str_StructLayout_value_slot(Map__Str_StructLayout * self, USi
 }
 
 static void Map__Str_StructLayout_store_key(Map__Str_StructLayout * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_StructLayout_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_StructLayout_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_StructLayout_store_key_1);
 }
 
 static void Map__Str_StructLayout_open_slot(Map__Str_StructLayout * self, USize lo) {
@@ -70594,18 +70594,18 @@ static void Set__U32_delete(Set__U32 * self, Bool call_free) {
 }
 
 static Set__U32 Set__U32_clone(Set__U32 * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Set__U32 hoisted__Set__U32_0 = {0};
         TIL_OWN_SET((hoisted__Set__U32_0.data), (NULL));
         hoisted__Set__U32_0.count = 0;
         hoisted__Set__U32_0.cap = 0;
         return hoisted__Set__U32_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 4ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 4ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -70620,19 +70620,19 @@ static Set__U32 Set__U32_clone(Set__U32 * self) {
             U64 hoisted__U64_5 = 4ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             U32 *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            U32 cloned = (DEREF(src));
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 4ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__U32(hoisted__v_11, cloned);
+            U32 hoisted__U32_12 = (DEREF(src));
+            adopt__U32(hoisted__v_11, hoisted__U32_12);
         }
     }
-    Set__U32 hoisted__Set__U32_17 = {0};
-    TIL_OWN_SET((hoisted__Set__U32_17.data), (new_data));
-    hoisted__Set__U32_17.count = self->count;
-    hoisted__Set__U32_17.cap = self->cap;
-    return hoisted__Set__U32_17;
+    Set__U32 hoisted__Set__U32_18 = {0};
+    TIL_OWN_SET((hoisted__Set__U32_18.data), (new_data));
+    hoisted__Set__U32_18.count = self->count;
+    hoisted__Set__U32_18.cap = self->cap;
+    return hoisted__Set__U32_18;
 }
 
 static Bool Map__Str_I64_has(Map__Str_I64 * self, Str * key) {
@@ -70767,9 +70767,9 @@ static void * Map__Str_I64_value_slot(Map__Str_I64 * self, USize * i) {
 }
 
 static void Map__Str_I64_store_key(Map__Str_I64 * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_I64_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_I64_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_I64_store_key_1);
 }
 
 static void Map__Str_I64_open_slot(Map__Str_I64 * self, USize lo) {
@@ -71019,9 +71019,9 @@ static void * Map__Str_call_Vec_Str_value_slot(Map__Str_call_Vec_Str * self, USi
 }
 
 static void Map__Str_call_Vec_Str_store_key(Map__Str_call_Vec_Str * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_call_Vec_Str_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_call_Vec_Str_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_call_Vec_Str_store_key_1);
 }
 
 static void Map__Str_call_Vec_Str_open_slot(Map__Str_call_Vec_Str * self, USize lo) {
@@ -71856,9 +71856,9 @@ static void * Map__Str_Bool_value_slot(Map__Str_Bool * self, USize * i) {
 }
 
 static void Map__Str_Bool_store_key(Map__Str_Bool * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_Bool_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_Bool_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_Bool_store_key_1);
 }
 
 static void Map__Str_Bool_open_slot(Map__Str_Bool * self, USize lo) {
@@ -72171,9 +72171,9 @@ static void * Map__Str_Dynamic_value_slot(Map__Str_Dynamic * self, USize * i) {
 }
 
 static void Map__Str_Dynamic_store_key(Map__Str_Dynamic * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_Dynamic_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_Dynamic_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_Dynamic_store_key_1);
 }
 
 static void Map__Str_Dynamic_open_slot(Map__Str_Dynamic * self, USize lo) {
@@ -72486,9 +72486,9 @@ static void * Map__Str_Expr_value_slot(Map__Str_Expr * self, USize * i) {
 }
 
 static void Map__Str_Expr_store_key(Map__Str_Expr * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_Expr_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_Expr_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_Expr_store_key_1);
 }
 
 static void Map__Str_Expr_open_slot(Map__Str_Expr * self, USize lo) {
@@ -72780,18 +72780,18 @@ static void Vec__TypeBinding_delete(Vec__TypeBinding * self, Bool call_free) {
 }
 
 static Vec__TypeBinding Vec__TypeBinding_clone(Vec__TypeBinding * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__TypeBinding hoisted__Vec__TypeBinding_0 = {0};
         TIL_OWN_SET((hoisted__Vec__TypeBinding_0.data), (NULL));
         hoisted__Vec__TypeBinding_0.count = 0;
         hoisted__Vec__TypeBinding_0.cap = 0;
         return hoisted__Vec__TypeBinding_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 160ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 160ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -72806,19 +72806,19 @@ static Vec__TypeBinding Vec__TypeBinding_clone(Vec__TypeBinding * self) {
             U64 hoisted__U64_5 = 160ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             TypeBinding *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            TypeBinding cloned = TypeBinding_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 160ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__TypeBinding(hoisted__v_11, &cloned);
+            TypeBinding hoisted__TypeBinding_12 = TypeBinding_clone(src);
+            adopt__TypeBinding(hoisted__v_11, &hoisted__TypeBinding_12);
         }
     }
-    Vec__TypeBinding hoisted__Vec__TypeBinding_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__TypeBinding_17.data), (new_data));
-    hoisted__Vec__TypeBinding_17.count = self->count;
-    hoisted__Vec__TypeBinding_17.cap = self->cap;
-    return hoisted__Vec__TypeBinding_17;
+    Vec__TypeBinding hoisted__Vec__TypeBinding_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__TypeBinding_18.data), (new_data));
+    hoisted__Vec__TypeBinding_18.count = self->count;
+    hoisted__Vec__TypeBinding_18.cap = self->cap;
+    return hoisted__Vec__TypeBinding_18;
 }
 
 static Vec__FFIEntry Vec__FFIEntry_new(void) {
@@ -72903,18 +72903,18 @@ static void Vec__FFIEntry_delete(Vec__FFIEntry * self, Bool call_free) {
 }
 
 static Vec__FFIEntry Vec__FFIEntry_clone(Vec__FFIEntry * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__FFIEntry hoisted__Vec__FFIEntry_0 = {0};
         TIL_OWN_SET((hoisted__Vec__FFIEntry_0.data), (NULL));
         hoisted__Vec__FFIEntry_0.count = 0;
         hoisted__Vec__FFIEntry_0.cap = 0;
         return hoisted__Vec__FFIEntry_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 72ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 72ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -72929,19 +72929,19 @@ static Vec__FFIEntry Vec__FFIEntry_clone(Vec__FFIEntry * self) {
             U64 hoisted__U64_5 = 72ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             FFIEntry *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            FFIEntry cloned = FFIEntry_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 72ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__FFIEntry(hoisted__v_11, &cloned);
+            FFIEntry hoisted__FFIEntry_12 = FFIEntry_clone(src);
+            adopt__FFIEntry(hoisted__v_11, &hoisted__FFIEntry_12);
         }
     }
-    Vec__FFIEntry hoisted__Vec__FFIEntry_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__FFIEntry_17.data), (new_data));
-    hoisted__Vec__FFIEntry_17.count = self->count;
-    hoisted__Vec__FFIEntry_17.cap = self->cap;
-    return hoisted__Vec__FFIEntry_17;
+    Vec__FFIEntry hoisted__Vec__FFIEntry_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__FFIEntry_18.data), (new_data));
+    hoisted__Vec__FFIEntry_18.count = self->count;
+    hoisted__Vec__FFIEntry_18.cap = self->cap;
+    return hoisted__Vec__FFIEntry_18;
 }
 
 static Vec__ExprPtrBox Vec__ExprPtrBox_new(void) {
@@ -72971,18 +72971,18 @@ static void Vec__ExprPtrBox_delete(Vec__ExprPtrBox * self, Bool call_free) {
 }
 
 static Vec__ExprPtrBox Vec__ExprPtrBox_clone(Vec__ExprPtrBox * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__ExprPtrBox hoisted__Vec__ExprPtrBox_0 = {0};
         TIL_OWN_SET((hoisted__Vec__ExprPtrBox_0.data), (NULL));
         hoisted__Vec__ExprPtrBox_0.count = 0;
         hoisted__Vec__ExprPtrBox_0.cap = 0;
         return hoisted__Vec__ExprPtrBox_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 8ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 8ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -72997,19 +72997,19 @@ static Vec__ExprPtrBox Vec__ExprPtrBox_clone(Vec__ExprPtrBox * self) {
             U64 hoisted__U64_5 = 8ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             ExprPtrBox *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            ExprPtrBox cloned = ExprPtrBox_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 8ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__ExprPtrBox(hoisted__v_11, &cloned);
+            ExprPtrBox hoisted__ExprPtrBox_12 = ExprPtrBox_clone(src);
+            adopt__ExprPtrBox(hoisted__v_11, &hoisted__ExprPtrBox_12);
         }
     }
-    Vec__ExprPtrBox hoisted__Vec__ExprPtrBox_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__ExprPtrBox_17.data), (new_data));
-    hoisted__Vec__ExprPtrBox_17.count = self->count;
-    hoisted__Vec__ExprPtrBox_17.cap = self->cap;
-    return hoisted__Vec__ExprPtrBox_17;
+    Vec__ExprPtrBox hoisted__Vec__ExprPtrBox_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__ExprPtrBox_18.data), (new_data));
+    hoisted__Vec__ExprPtrBox_18.count = self->count;
+    hoisted__Vec__ExprPtrBox_18.cap = self->cap;
+    return hoisted__Vec__ExprPtrBox_18;
 }
 
 static Vec__FFITypePtrBox Vec__FFITypePtrBox_new(void) {
@@ -73058,18 +73058,18 @@ static void Vec__FFITypePtrBox_delete(Vec__FFITypePtrBox * self, Bool call_free)
 }
 
 static Vec__FFITypePtrBox Vec__FFITypePtrBox_clone(Vec__FFITypePtrBox * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__FFITypePtrBox hoisted__Vec__FFITypePtrBox_0 = {0};
         TIL_OWN_SET((hoisted__Vec__FFITypePtrBox_0.data), (NULL));
         hoisted__Vec__FFITypePtrBox_0.count = 0;
         hoisted__Vec__FFITypePtrBox_0.cap = 0;
         return hoisted__Vec__FFITypePtrBox_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 12ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 12ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -73084,19 +73084,19 @@ static Vec__FFITypePtrBox Vec__FFITypePtrBox_clone(Vec__FFITypePtrBox * self) {
             U64 hoisted__U64_5 = 12ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             FFITypePtrBox *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            FFITypePtrBox cloned = FFITypePtrBox_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 12ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__FFITypePtrBox(hoisted__v_11, &cloned);
+            FFITypePtrBox hoisted__FFITypePtrBox_12 = FFITypePtrBox_clone(src);
+            adopt__FFITypePtrBox(hoisted__v_11, &hoisted__FFITypePtrBox_12);
         }
     }
-    Vec__FFITypePtrBox hoisted__Vec__FFITypePtrBox_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__FFITypePtrBox_17.data), (new_data));
-    hoisted__Vec__FFITypePtrBox_17.count = self->count;
-    hoisted__Vec__FFITypePtrBox_17.cap = self->cap;
-    return hoisted__Vec__FFITypePtrBox_17;
+    Vec__FFITypePtrBox hoisted__Vec__FFITypePtrBox_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__FFITypePtrBox_18.data), (new_data));
+    hoisted__Vec__FFITypePtrBox_18.count = self->count;
+    hoisted__Vec__FFITypePtrBox_18.cap = self->cap;
+    return hoisted__Vec__FFITypePtrBox_18;
 }
 
 static Vec__ForeignPlace Vec__ForeignPlace_new(void) {
@@ -73181,18 +73181,18 @@ static void Vec__ForeignPlace_delete(Vec__ForeignPlace * self, Bool call_free) {
 }
 
 static Vec__ForeignPlace Vec__ForeignPlace_clone(Vec__ForeignPlace * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__ForeignPlace hoisted__Vec__ForeignPlace_0 = {0};
         TIL_OWN_SET((hoisted__Vec__ForeignPlace_0.data), (NULL));
         hoisted__Vec__ForeignPlace_0.count = 0;
         hoisted__Vec__ForeignPlace_0.cap = 0;
         return hoisted__Vec__ForeignPlace_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 28ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 28ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -73207,19 +73207,19 @@ static Vec__ForeignPlace Vec__ForeignPlace_clone(Vec__ForeignPlace * self) {
             U64 hoisted__U64_5 = 28ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             ForeignPlace *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            ForeignPlace cloned = ForeignPlace_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 28ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__ForeignPlace(hoisted__v_11, &cloned);
+            ForeignPlace hoisted__ForeignPlace_12 = ForeignPlace_clone(src);
+            adopt__ForeignPlace(hoisted__v_11, &hoisted__ForeignPlace_12);
         }
     }
-    Vec__ForeignPlace hoisted__Vec__ForeignPlace_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__ForeignPlace_17.data), (new_data));
-    hoisted__Vec__ForeignPlace_17.count = self->count;
-    hoisted__Vec__ForeignPlace_17.cap = self->cap;
-    return hoisted__Vec__ForeignPlace_17;
+    Vec__ForeignPlace hoisted__Vec__ForeignPlace_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__ForeignPlace_18.data), (new_data));
+    hoisted__Vec__ForeignPlace_18.count = self->count;
+    hoisted__Vec__ForeignPlace_18.cap = self->cap;
+    return hoisted__Vec__ForeignPlace_18;
 }
 
 static void Vec__Mode_clear(Vec__Mode * self) {
@@ -73260,18 +73260,18 @@ static void Vec__Mode_delete(Vec__Mode * self, Bool call_free) {
 }
 
 static Vec__Mode Vec__Mode_clone(Vec__Mode * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__Mode hoisted__Vec__Mode_0 = {0};
         TIL_OWN_SET((hoisted__Vec__Mode_0.data), (NULL));
         hoisted__Vec__Mode_0.count = 0;
         hoisted__Vec__Mode_0.cap = 0;
         return hoisted__Vec__Mode_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 44ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 44ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -73286,19 +73286,19 @@ static Vec__Mode Vec__Mode_clone(Vec__Mode * self) {
             U64 hoisted__U64_5 = 44ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             Mode *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            Mode cloned = Mode_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 44ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__Mode(hoisted__v_11, &cloned);
+            Mode hoisted__Mode_12 = Mode_clone(src);
+            adopt__Mode(hoisted__v_11, &hoisted__Mode_12);
         }
     }
-    Vec__Mode hoisted__Vec__Mode_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__Mode_17.data), (new_data));
-    hoisted__Vec__Mode_17.count = self->count;
-    hoisted__Vec__Mode_17.cap = self->cap;
-    return hoisted__Vec__Mode_17;
+    Vec__Mode hoisted__Vec__Mode_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__Mode_18.data), (new_data));
+    hoisted__Vec__Mode_18.count = self->count;
+    hoisted__Vec__Mode_18.cap = self->cap;
+    return hoisted__Vec__Mode_18;
 }
 
 static void Vec__FuncType_clear(Vec__FuncType * self) {
@@ -73354,18 +73354,18 @@ static void Vec__FuncType_delete(Vec__FuncType * self, Bool call_free) {
 }
 
 static Vec__FuncType Vec__FuncType_clone(Vec__FuncType * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__FuncType hoisted__Vec__FuncType_0 = {0};
         TIL_OWN_SET((hoisted__Vec__FuncType_0.data), (NULL));
         hoisted__Vec__FuncType_0.count = 0;
         hoisted__Vec__FuncType_0.cap = 0;
         return hoisted__Vec__FuncType_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 1ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 1ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -73380,19 +73380,19 @@ static Vec__FuncType Vec__FuncType_clone(Vec__FuncType * self) {
             U64 hoisted__U64_5 = 1ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             FuncType *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            FuncType cloned = FuncType_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 1ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__FuncType(hoisted__v_11, &cloned);
+            FuncType hoisted__FuncType_12 = FuncType_clone(src);
+            adopt__FuncType(hoisted__v_11, &hoisted__FuncType_12);
         }
     }
-    Vec__FuncType hoisted__Vec__FuncType_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__FuncType_17.data), (new_data));
-    hoisted__Vec__FuncType_17.count = self->count;
-    hoisted__Vec__FuncType_17.cap = self->cap;
-    return hoisted__Vec__FuncType_17;
+    Vec__FuncType hoisted__Vec__FuncType_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__FuncType_18.data), (new_data));
+    hoisted__Vec__FuncType_18.count = self->count;
+    hoisted__Vec__FuncType_18.cap = self->cap;
+    return hoisted__Vec__FuncType_18;
 }
 
 static Vec__ImportUnit Vec__ImportUnit_new(void) {
@@ -73441,18 +73441,18 @@ static void Vec__ImportUnit_delete(Vec__ImportUnit * self, Bool call_free) {
 }
 
 static Vec__ImportUnit Vec__ImportUnit_clone(Vec__ImportUnit * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__ImportUnit hoisted__Vec__ImportUnit_0 = {0};
         TIL_OWN_SET((hoisted__Vec__ImportUnit_0.data), (NULL));
         hoisted__Vec__ImportUnit_0.count = 0;
         hoisted__Vec__ImportUnit_0.cap = 0;
         return hoisted__Vec__ImportUnit_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 136ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 136ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -73467,19 +73467,19 @@ static Vec__ImportUnit Vec__ImportUnit_clone(Vec__ImportUnit * self) {
             U64 hoisted__U64_5 = 136ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             ImportUnit *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            ImportUnit cloned = ImportUnit_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 136ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__ImportUnit(hoisted__v_11, &cloned);
+            ImportUnit hoisted__ImportUnit_12 = ImportUnit_clone(src);
+            adopt__ImportUnit(hoisted__v_11, &hoisted__ImportUnit_12);
         }
     }
-    Vec__ImportUnit hoisted__Vec__ImportUnit_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__ImportUnit_17.data), (new_data));
-    hoisted__Vec__ImportUnit_17.count = self->count;
-    hoisted__Vec__ImportUnit_17.cap = self->cap;
-    return hoisted__Vec__ImportUnit_17;
+    Vec__ImportUnit hoisted__Vec__ImportUnit_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__ImportUnit_18.data), (new_data));
+    hoisted__Vec__ImportUnit_18.count = self->count;
+    hoisted__Vec__ImportUnit_18.cap = self->cap;
+    return hoisted__Vec__ImportUnit_18;
 }
 
 static void Vec__RootBits_clear(Vec__RootBits * self) {
@@ -73501,18 +73501,18 @@ static void Vec__RootBits_delete(Vec__RootBits * self, Bool call_free) {
 }
 
 static Vec__RootBits Vec__RootBits_clone(Vec__RootBits * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__RootBits hoisted__Vec__RootBits_0 = {0};
         TIL_OWN_SET((hoisted__Vec__RootBits_0.data), (NULL));
         hoisted__Vec__RootBits_0.count = 0;
         hoisted__Vec__RootBits_0.cap = 0;
         return hoisted__Vec__RootBits_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 32ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 32ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -73527,19 +73527,19 @@ static Vec__RootBits Vec__RootBits_clone(Vec__RootBits * self) {
             U64 hoisted__U64_5 = 32ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             RootBits *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            RootBits cloned = RootBits_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 32ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__RootBits(hoisted__v_11, &cloned);
+            RootBits hoisted__RootBits_12 = RootBits_clone(src);
+            adopt__RootBits(hoisted__v_11, &hoisted__RootBits_12);
         }
     }
-    Vec__RootBits hoisted__Vec__RootBits_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__RootBits_17.data), (new_data));
-    hoisted__Vec__RootBits_17.count = self->count;
-    hoisted__Vec__RootBits_17.cap = self->cap;
-    return hoisted__Vec__RootBits_17;
+    Vec__RootBits hoisted__Vec__RootBits_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__RootBits_18.data), (new_data));
+    hoisted__Vec__RootBits_18.count = self->count;
+    hoisted__Vec__RootBits_18.cap = self->cap;
+    return hoisted__Vec__RootBits_18;
 }
 
 static void Vec__Type_clear(Vec__Type * self) {
@@ -73580,18 +73580,18 @@ static void Vec__Type_delete(Vec__Type * self, Bool call_free) {
 }
 
 static Vec__Type Vec__Type_clone(Vec__Type * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__Type hoisted__Vec__Type_0 = {0};
         TIL_OWN_SET((hoisted__Vec__Type_0.data), (NULL));
         hoisted__Vec__Type_0.count = 0;
         hoisted__Vec__Type_0.cap = 0;
         return hoisted__Vec__Type_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 24ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 24ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -73606,19 +73606,19 @@ static Vec__Type Vec__Type_clone(Vec__Type * self) {
             U64 hoisted__U64_5 = 24ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             Type *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            Type cloned = Type_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 24ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__Type(hoisted__v_11, &cloned);
+            Type hoisted__Type_12 = Type_clone(src);
+            adopt__Type(hoisted__v_11, &hoisted__Type_12);
         }
     }
-    Vec__Type hoisted__Vec__Type_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__Type_17.data), (new_data));
-    hoisted__Vec__Type_17.count = self->count;
-    hoisted__Vec__Type_17.cap = self->cap;
-    return hoisted__Vec__Type_17;
+    Vec__Type hoisted__Vec__Type_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__Type_18.data), (new_data));
+    hoisted__Vec__Type_18.count = self->count;
+    hoisted__Vec__Type_18.cap = self->cap;
+    return hoisted__Vec__Type_18;
 }
 
 static void Vec__StructLayout_clear(Vec__StructLayout * self) {
@@ -73659,18 +73659,18 @@ static void Vec__StructLayout_delete(Vec__StructLayout * self, Bool call_free) {
 }
 
 static Vec__StructLayout Vec__StructLayout_clone(Vec__StructLayout * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__StructLayout hoisted__Vec__StructLayout_0 = {0};
         TIL_OWN_SET((hoisted__Vec__StructLayout_0.data), (NULL));
         hoisted__Vec__StructLayout_0.count = 0;
         hoisted__Vec__StructLayout_0.cap = 0;
         return hoisted__Vec__StructLayout_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 24ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 24ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -73685,19 +73685,19 @@ static Vec__StructLayout Vec__StructLayout_clone(Vec__StructLayout * self) {
             U64 hoisted__U64_5 = 24ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             StructLayout *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            StructLayout cloned = StructLayout_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 24ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__StructLayout(hoisted__v_11, &cloned);
+            StructLayout hoisted__StructLayout_12 = StructLayout_clone(src);
+            adopt__StructLayout(hoisted__v_11, &hoisted__StructLayout_12);
         }
     }
-    Vec__StructLayout hoisted__Vec__StructLayout_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__StructLayout_17.data), (new_data));
-    hoisted__Vec__StructLayout_17.count = self->count;
-    hoisted__Vec__StructLayout_17.cap = self->cap;
-    return hoisted__Vec__StructLayout_17;
+    Vec__StructLayout hoisted__Vec__StructLayout_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__StructLayout_18.data), (new_data));
+    hoisted__Vec__StructLayout_18.count = self->count;
+    hoisted__Vec__StructLayout_18.cap = self->cap;
+    return hoisted__Vec__StructLayout_18;
 }
 
 static void adopt__BorrowRoot(void * dest, BorrowRoot * src) {
@@ -98810,9 +98810,9 @@ static void * Map__Str_GenericFuncSource_value_slot(Map__Str_GenericFuncSource *
 }
 
 static void Map__Str_GenericFuncSource_store_key(Map__Str_GenericFuncSource * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_GenericFuncSource_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_GenericFuncSource_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_GenericFuncSource_store_key_1);
 }
 
 static void Map__Str_GenericFuncSource_open_slot(Map__Str_GenericFuncSource * self, USize lo) {
@@ -98954,18 +98954,18 @@ static void Vec__GenericFuncSource_delete(Vec__GenericFuncSource * self, Bool ca
 }
 
 static Vec__GenericFuncSource Vec__GenericFuncSource_clone(Vec__GenericFuncSource * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__GenericFuncSource hoisted__Vec__GenericFuncSource_0 = {0};
         TIL_OWN_SET((hoisted__Vec__GenericFuncSource_0.data), (NULL));
         hoisted__Vec__GenericFuncSource_0.count = 0;
         hoisted__Vec__GenericFuncSource_0.cap = 0;
         return hoisted__Vec__GenericFuncSource_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 40ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 40ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -98980,19 +98980,19 @@ static Vec__GenericFuncSource Vec__GenericFuncSource_clone(Vec__GenericFuncSourc
             U64 hoisted__U64_5 = 40ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             GenericFuncSource *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            GenericFuncSource cloned = GenericFuncSource_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 40ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__GenericFuncSource(hoisted__v_11, &cloned);
+            GenericFuncSource hoisted__GenericFuncSource_12 = GenericFuncSource_clone(src);
+            adopt__GenericFuncSource(hoisted__v_11, &hoisted__GenericFuncSource_12);
         }
     }
-    Vec__GenericFuncSource hoisted__Vec__GenericFuncSource_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__GenericFuncSource_17.data), (new_data));
-    hoisted__Vec__GenericFuncSource_17.count = self->count;
-    hoisted__Vec__GenericFuncSource_17.cap = self->cap;
-    return hoisted__Vec__GenericFuncSource_17;
+    Vec__GenericFuncSource hoisted__Vec__GenericFuncSource_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__GenericFuncSource_18.data), (new_data));
+    hoisted__Vec__GenericFuncSource_18.count = self->count;
+    hoisted__Vec__GenericFuncSource_18.cap = self->cap;
+    return hoisted__Vec__GenericFuncSource_18;
 }
 
 static void adopt__GenericFuncSource(void * dest, GenericFuncSource * src) {
@@ -160131,18 +160131,18 @@ static void Vec__priv___src_self_typer_til__CtorArg_delete(Vec__priv___src_self_
 }
 
 static Vec__priv___src_self_typer_til__CtorArg Vec__priv___src_self_typer_til__CtorArg_clone(Vec__priv___src_self_typer_til__CtorArg * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__priv___src_self_typer_til__CtorArg hoisted__Vec__priv___src_self_typer_til__CtorArg_0 = {0};
         TIL_OWN_SET((hoisted__Vec__priv___src_self_typer_til__CtorArg_0.data), (NULL));
         hoisted__Vec__priv___src_self_typer_til__CtorArg_0.count = 0;
         hoisted__Vec__priv___src_self_typer_til__CtorArg_0.cap = 0;
         return hoisted__Vec__priv___src_self_typer_til__CtorArg_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 8ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 8ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -160157,19 +160157,19 @@ static Vec__priv___src_self_typer_til__CtorArg Vec__priv___src_self_typer_til__C
             U64 hoisted__U64_5 = 8ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             priv___src_self_typer_til__CtorArg *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            priv___src_self_typer_til__CtorArg cloned = priv___src_self_typer_til__CtorArg_clone(DEREF(src));
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 8ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__priv___src_self_typer_til__CtorArg(hoisted__v_11, &cloned);
+            priv___src_self_typer_til__CtorArg hoisted__priv___src_self_typer_til__CtorArg_12 = priv___src_self_typer_til__CtorArg_clone(DEREF(src));
+            adopt__priv___src_self_typer_til__CtorArg(hoisted__v_11, &hoisted__priv___src_self_typer_til__CtorArg_12);
         }
     }
-    Vec__priv___src_self_typer_til__CtorArg hoisted__Vec__priv___src_self_typer_til__CtorArg_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__priv___src_self_typer_til__CtorArg_17.data), (new_data));
-    hoisted__Vec__priv___src_self_typer_til__CtorArg_17.count = self->count;
-    hoisted__Vec__priv___src_self_typer_til__CtorArg_17.cap = self->cap;
-    return hoisted__Vec__priv___src_self_typer_til__CtorArg_17;
+    Vec__priv___src_self_typer_til__CtorArg hoisted__Vec__priv___src_self_typer_til__CtorArg_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__priv___src_self_typer_til__CtorArg_18.data), (new_data));
+    hoisted__Vec__priv___src_self_typer_til__CtorArg_18.count = self->count;
+    hoisted__Vec__priv___src_self_typer_til__CtorArg_18.cap = self->cap;
+    return hoisted__Vec__priv___src_self_typer_til__CtorArg_18;
 }
 
 static Vec__priv___src_self_typer_til__ComptimeFunction Vec__priv___src_self_typer_til__ComptimeFunction_new(void) {
@@ -160550,9 +160550,9 @@ static void * Map__Str_RootBits_value_slot(Map__Str_RootBits * self, USize * i) 
 }
 
 static void Map__Str_RootBits_store_key(Map__Str_RootBits * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_RootBits_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_RootBits_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_RootBits_store_key_1);
 }
 
 static void Map__Str_RootBits_open_slot(Map__Str_RootBits * self, USize lo) {
@@ -183031,18 +183031,18 @@ static void Vec__I32_delete(Vec__I32 * self, Bool call_free) {
 }
 
 static Vec__I32 Vec__I32_clone(Vec__I32 * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__I32 hoisted__Vec__I32_0 = {0};
         TIL_OWN_SET((hoisted__Vec__I32_0.data), (NULL));
         hoisted__Vec__I32_0.count = 0;
         hoisted__Vec__I32_0.cap = 0;
         return hoisted__Vec__I32_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 4ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 4ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -183057,19 +183057,19 @@ static Vec__I32 Vec__I32_clone(Vec__I32 * self) {
             U64 hoisted__U64_5 = 4ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             I32 *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            I32 cloned = (DEREF(src));
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 4ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__I32(hoisted__v_11, cloned);
+            I32 hoisted__I32_12 = (DEREF(src));
+            adopt__I32(hoisted__v_11, hoisted__I32_12);
         }
     }
-    Vec__I32 hoisted__Vec__I32_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__I32_17.data), (new_data));
-    hoisted__Vec__I32_17.count = self->count;
-    hoisted__Vec__I32_17.cap = self->cap;
-    return hoisted__Vec__I32_17;
+    Vec__I32 hoisted__Vec__I32_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__I32_18.data), (new_data));
+    hoisted__Vec__I32_18.count = self->count;
+    hoisted__Vec__I32_18.cap = self->cap;
+    return hoisted__Vec__I32_18;
 }
 
 static void Vec__PendingRefBinding_clear(Vec__PendingRefBinding * self) {
@@ -183131,18 +183131,18 @@ static void Vec__PendingRefBinding_delete(Vec__PendingRefBinding * self, Bool ca
 }
 
 static Vec__PendingRefBinding Vec__PendingRefBinding_clone(Vec__PendingRefBinding * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__PendingRefBinding hoisted__Vec__PendingRefBinding_0 = {0};
         TIL_OWN_SET((hoisted__Vec__PendingRefBinding_0.data), (NULL));
         hoisted__Vec__PendingRefBinding_0.count = 0;
         hoisted__Vec__PendingRefBinding_0.cap = 0;
         return hoisted__Vec__PendingRefBinding_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 32ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 32ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -183157,19 +183157,19 @@ static Vec__PendingRefBinding Vec__PendingRefBinding_clone(Vec__PendingRefBindin
             U64 hoisted__U64_5 = 32ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             PendingRefBinding *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            PendingRefBinding cloned = PendingRefBinding_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 32ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__PendingRefBinding(hoisted__v_11, &cloned);
+            PendingRefBinding hoisted__PendingRefBinding_12 = PendingRefBinding_clone(src);
+            adopt__PendingRefBinding(hoisted__v_11, &hoisted__PendingRefBinding_12);
         }
     }
-    Vec__PendingRefBinding hoisted__Vec__PendingRefBinding_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__PendingRefBinding_17.data), (new_data));
-    hoisted__Vec__PendingRefBinding_17.count = self->count;
-    hoisted__Vec__PendingRefBinding_17.cap = self->cap;
-    return hoisted__Vec__PendingRefBinding_17;
+    Vec__PendingRefBinding hoisted__Vec__PendingRefBinding_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__PendingRefBinding_18.data), (new_data));
+    hoisted__Vec__PendingRefBinding_18.count = self->count;
+    hoisted__Vec__PendingRefBinding_18.cap = self->cap;
+    return hoisted__Vec__PendingRefBinding_18;
 }
 
 static void adopt__I32(void * dest, I32 src) {
@@ -201501,18 +201501,18 @@ static void Vec__priv___src_self_garbager_til__ReferenceNameChange_delete(Vec__p
 }
 
 static Vec__priv___src_self_garbager_til__ReferenceNameChange Vec__priv___src_self_garbager_til__ReferenceNameChange_clone(Vec__priv___src_self_garbager_til__ReferenceNameChange * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__priv___src_self_garbager_til__ReferenceNameChange hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_0 = {0};
         TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_0.data), (NULL));
         hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_0.count = 0;
         hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_0.cap = 0;
         return hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 40ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 40ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -201527,19 +201527,19 @@ static Vec__priv___src_self_garbager_til__ReferenceNameChange Vec__priv___src_se
             U64 hoisted__U64_5 = 40ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             priv___src_self_garbager_til__ReferenceNameChange *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            priv___src_self_garbager_til__ReferenceNameChange cloned = priv___src_self_garbager_til__ReferenceNameChange_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 40ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__priv___src_self_garbager_til__ReferenceNameChange(hoisted__v_11, &cloned);
+            priv___src_self_garbager_til__ReferenceNameChange hoisted__priv___src_self_garbager_til__ReferenceNameChange_12 = priv___src_self_garbager_til__ReferenceNameChange_clone(src);
+            adopt__priv___src_self_garbager_til__ReferenceNameChange(hoisted__v_11, &hoisted__priv___src_self_garbager_til__ReferenceNameChange_12);
         }
     }
-    Vec__priv___src_self_garbager_til__ReferenceNameChange hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_17.data), (new_data));
-    hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_17.count = self->count;
-    hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_17.cap = self->cap;
-    return hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_17;
+    Vec__priv___src_self_garbager_til__ReferenceNameChange hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_18.data), (new_data));
+    hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_18.count = self->count;
+    hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_18.cap = self->cap;
+    return hoisted__Vec__priv___src_self_garbager_til__ReferenceNameChange_18;
 }
 
 static Option__Str Option__Str_Some(Str * val) {
@@ -201674,18 +201674,18 @@ static void Vec__priv___src_self_garbager_til__GcBorrowEdge_delete(Vec__priv___s
 }
 
 static Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_self_garbager_til__GcBorrowEdge_clone(Vec__priv___src_self_garbager_til__GcBorrowEdge * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__priv___src_self_garbager_til__GcBorrowEdge hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_0 = {0};
         TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_0.data), (NULL));
         hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_0.count = 0;
         hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_0.cap = 0;
         return hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 40ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 40ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -201700,19 +201700,19 @@ static Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_self_garb
             U64 hoisted__U64_5 = 40ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             priv___src_self_garbager_til__GcBorrowEdge *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            priv___src_self_garbager_til__GcBorrowEdge cloned = priv___src_self_garbager_til__GcBorrowEdge_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 40ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__priv___src_self_garbager_til__GcBorrowEdge(hoisted__v_11, &cloned);
+            priv___src_self_garbager_til__GcBorrowEdge hoisted__priv___src_self_garbager_til__GcBorrowEdge_12 = priv___src_self_garbager_til__GcBorrowEdge_clone(src);
+            adopt__priv___src_self_garbager_til__GcBorrowEdge(hoisted__v_11, &hoisted__priv___src_self_garbager_til__GcBorrowEdge_12);
         }
     }
-    Vec__priv___src_self_garbager_til__GcBorrowEdge hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_17.data), (new_data));
-    hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_17.count = self->count;
-    hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_17.cap = self->cap;
-    return hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_17;
+    Vec__priv___src_self_garbager_til__GcBorrowEdge hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_18.data), (new_data));
+    hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_18.count = self->count;
+    hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_18.cap = self->cap;
+    return hoisted__Vec__priv___src_self_garbager_til__GcBorrowEdge_18;
 }
 
 static Array__USize Array__USize_new(USize cap) {
@@ -201841,18 +201841,18 @@ static void Vec__priv___src_self_garbager_til__LocalInfo_delete(Vec__priv___src_
 }
 
 static Vec__priv___src_self_garbager_til__LocalInfo Vec__priv___src_self_garbager_til__LocalInfo_clone(Vec__priv___src_self_garbager_til__LocalInfo * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__priv___src_self_garbager_til__LocalInfo hoisted__Vec__priv___src_self_garbager_til__LocalInfo_0 = {0};
         TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__LocalInfo_0.data), (NULL));
         hoisted__Vec__priv___src_self_garbager_til__LocalInfo_0.count = 0;
         hoisted__Vec__priv___src_self_garbager_til__LocalInfo_0.cap = 0;
         return hoisted__Vec__priv___src_self_garbager_til__LocalInfo_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 88ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 88ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -201867,19 +201867,19 @@ static Vec__priv___src_self_garbager_til__LocalInfo Vec__priv___src_self_garbage
             U64 hoisted__U64_5 = 88ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             priv___src_self_garbager_til__LocalInfo *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            priv___src_self_garbager_til__LocalInfo cloned = priv___src_self_garbager_til__LocalInfo_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 88ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__priv___src_self_garbager_til__LocalInfo(hoisted__v_11, &cloned);
+            priv___src_self_garbager_til__LocalInfo hoisted__priv___src_self_garbager_til__LocalInfo_12 = priv___src_self_garbager_til__LocalInfo_clone(src);
+            adopt__priv___src_self_garbager_til__LocalInfo(hoisted__v_11, &hoisted__priv___src_self_garbager_til__LocalInfo_12);
         }
     }
-    Vec__priv___src_self_garbager_til__LocalInfo hoisted__Vec__priv___src_self_garbager_til__LocalInfo_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__LocalInfo_17.data), (new_data));
-    hoisted__Vec__priv___src_self_garbager_til__LocalInfo_17.count = self->count;
-    hoisted__Vec__priv___src_self_garbager_til__LocalInfo_17.cap = self->cap;
-    return hoisted__Vec__priv___src_self_garbager_til__LocalInfo_17;
+    Vec__priv___src_self_garbager_til__LocalInfo hoisted__Vec__priv___src_self_garbager_til__LocalInfo_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__LocalInfo_18.data), (new_data));
+    hoisted__Vec__priv___src_self_garbager_til__LocalInfo_18.count = self->count;
+    hoisted__Vec__priv___src_self_garbager_til__LocalInfo_18.cap = self->cap;
+    return hoisted__Vec__priv___src_self_garbager_til__LocalInfo_18;
 }
 
 static void Vec__priv___src_self_garbager_til__GcCfgBlock_clear(Vec__priv___src_self_garbager_til__GcCfgBlock * self) {
@@ -201941,18 +201941,18 @@ static void Vec__priv___src_self_garbager_til__GcCfgBlock_delete(Vec__priv___src
 }
 
 static Vec__priv___src_self_garbager_til__GcCfgBlock Vec__priv___src_self_garbager_til__GcCfgBlock_clone(Vec__priv___src_self_garbager_til__GcCfgBlock * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__priv___src_self_garbager_til__GcCfgBlock hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_0 = {0};
         TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_0.data), (NULL));
         hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_0.count = 0;
         hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_0.cap = 0;
         return hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 32ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 32ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -201967,19 +201967,19 @@ static Vec__priv___src_self_garbager_til__GcCfgBlock Vec__priv___src_self_garbag
             U64 hoisted__U64_5 = 32ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             priv___src_self_garbager_til__GcCfgBlock *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            priv___src_self_garbager_til__GcCfgBlock cloned = priv___src_self_garbager_til__GcCfgBlock_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 32ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__priv___src_self_garbager_til__GcCfgBlock(hoisted__v_11, &cloned);
+            priv___src_self_garbager_til__GcCfgBlock hoisted__priv___src_self_garbager_til__GcCfgBlock_12 = priv___src_self_garbager_til__GcCfgBlock_clone(src);
+            adopt__priv___src_self_garbager_til__GcCfgBlock(hoisted__v_11, &hoisted__priv___src_self_garbager_til__GcCfgBlock_12);
         }
     }
-    Vec__priv___src_self_garbager_til__GcCfgBlock hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_17.data), (new_data));
-    hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_17.count = self->count;
-    hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_17.cap = self->cap;
-    return hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_17;
+    Vec__priv___src_self_garbager_til__GcCfgBlock hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_18.data), (new_data));
+    hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_18.count = self->count;
+    hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_18.cap = self->cap;
+    return hoisted__Vec__priv___src_self_garbager_til__GcCfgBlock_18;
 }
 
 static void Vec__priv___src_self_garbager_til__GcDeposit_clear(Vec__priv___src_self_garbager_til__GcDeposit * self) {
@@ -202041,18 +202041,18 @@ static void Vec__priv___src_self_garbager_til__GcDeposit_delete(Vec__priv___src_
 }
 
 static Vec__priv___src_self_garbager_til__GcDeposit Vec__priv___src_self_garbager_til__GcDeposit_clone(Vec__priv___src_self_garbager_til__GcDeposit * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__priv___src_self_garbager_til__GcDeposit hoisted__Vec__priv___src_self_garbager_til__GcDeposit_0 = {0};
         TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__GcDeposit_0.data), (NULL));
         hoisted__Vec__priv___src_self_garbager_til__GcDeposit_0.count = 0;
         hoisted__Vec__priv___src_self_garbager_til__GcDeposit_0.cap = 0;
         return hoisted__Vec__priv___src_self_garbager_til__GcDeposit_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 96ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 96ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -202067,19 +202067,19 @@ static Vec__priv___src_self_garbager_til__GcDeposit Vec__priv___src_self_garbage
             U64 hoisted__U64_5 = 96ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             priv___src_self_garbager_til__GcDeposit *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            priv___src_self_garbager_til__GcDeposit cloned = priv___src_self_garbager_til__GcDeposit_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 96ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__priv___src_self_garbager_til__GcDeposit(hoisted__v_11, &cloned);
+            priv___src_self_garbager_til__GcDeposit hoisted__priv___src_self_garbager_til__GcDeposit_12 = priv___src_self_garbager_til__GcDeposit_clone(src);
+            adopt__priv___src_self_garbager_til__GcDeposit(hoisted__v_11, &hoisted__priv___src_self_garbager_til__GcDeposit_12);
         }
     }
-    Vec__priv___src_self_garbager_til__GcDeposit hoisted__Vec__priv___src_self_garbager_til__GcDeposit_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__GcDeposit_17.data), (new_data));
-    hoisted__Vec__priv___src_self_garbager_til__GcDeposit_17.count = self->count;
-    hoisted__Vec__priv___src_self_garbager_til__GcDeposit_17.cap = self->cap;
-    return hoisted__Vec__priv___src_self_garbager_til__GcDeposit_17;
+    Vec__priv___src_self_garbager_til__GcDeposit hoisted__Vec__priv___src_self_garbager_til__GcDeposit_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__priv___src_self_garbager_til__GcDeposit_18.data), (new_data));
+    hoisted__Vec__priv___src_self_garbager_til__GcDeposit_18.count = self->count;
+    hoisted__Vec__priv___src_self_garbager_til__GcDeposit_18.cap = self->cap;
+    return hoisted__Vec__priv___src_self_garbager_til__GcDeposit_18;
 }
 
 static Option__ref_FunctionDef Option__ref_FunctionDef_Some(FunctionDef * val) {
@@ -202149,18 +202149,18 @@ static void Vec__U8_delete(Vec__U8 * self, Bool call_free) {
 }
 
 static Vec__U8 Vec__U8_clone(Vec__U8 * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__U8 hoisted__Vec__U8_0 = {0};
         TIL_OWN_SET((hoisted__Vec__U8_0.data), (NULL));
         hoisted__Vec__U8_0.count = 0;
         hoisted__Vec__U8_0.cap = 0;
         return hoisted__Vec__U8_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 1ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 1ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -202175,19 +202175,19 @@ static Vec__U8 Vec__U8_clone(Vec__U8 * self) {
             U64 hoisted__U64_5 = 1ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             U8 *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            U8 cloned = (DEREF(src));
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 1ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__U8(hoisted__v_11, cloned);
+            U8 hoisted__U8_12 = (DEREF(src));
+            adopt__U8(hoisted__v_11, hoisted__U8_12);
         }
     }
-    Vec__U8 hoisted__Vec__U8_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__U8_17.data), (new_data));
-    hoisted__Vec__U8_17.count = self->count;
-    hoisted__Vec__U8_17.cap = self->cap;
-    return hoisted__Vec__U8_17;
+    Vec__U8 hoisted__Vec__U8_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__U8_18.data), (new_data));
+    hoisted__Vec__U8_18.count = self->count;
+    hoisted__Vec__U8_18.cap = self->cap;
+    return hoisted__Vec__U8_18;
 }
 
 static void adopt__priv___src_self_garbager_til__ReferenceNameChange(void * dest, priv___src_self_garbager_til__ReferenceNameChange * src) {
@@ -218876,9 +218876,9 @@ static void * Map__Str_priv___src_self_scavenger_til__DeclRef_value_slot(Map__St
 }
 
 static void Map__Str_priv___src_self_scavenger_til__DeclRef_store_key(Map__Str_priv___src_self_scavenger_til__DeclRef * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_priv___src_self_scavenger_til__DeclRef_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_priv___src_self_scavenger_til__DeclRef_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_priv___src_self_scavenger_til__DeclRef_store_key_1);
 }
 
 static void Map__Str_priv___src_self_scavenger_til__DeclRef_open_slot(Map__Str_priv___src_self_scavenger_til__DeclRef * self, USize lo) {
@@ -219020,18 +219020,18 @@ static void Vec__priv___src_self_scavenger_til__DeclRef_delete(Vec__priv___src_s
 }
 
 static Vec__priv___src_self_scavenger_til__DeclRef Vec__priv___src_self_scavenger_til__DeclRef_clone(Vec__priv___src_self_scavenger_til__DeclRef * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__priv___src_self_scavenger_til__DeclRef hoisted__Vec__priv___src_self_scavenger_til__DeclRef_0 = {0};
         TIL_OWN_SET((hoisted__Vec__priv___src_self_scavenger_til__DeclRef_0.data), (NULL));
         hoisted__Vec__priv___src_self_scavenger_til__DeclRef_0.count = 0;
         hoisted__Vec__priv___src_self_scavenger_til__DeclRef_0.cap = 0;
         return hoisted__Vec__priv___src_self_scavenger_til__DeclRef_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 16ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 16ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -219046,19 +219046,19 @@ static Vec__priv___src_self_scavenger_til__DeclRef Vec__priv___src_self_scavenge
             U64 hoisted__U64_5 = 16ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             priv___src_self_scavenger_til__DeclRef *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            priv___src_self_scavenger_til__DeclRef cloned = priv___src_self_scavenger_til__DeclRef_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 16ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__priv___src_self_scavenger_til__DeclRef(hoisted__v_11, &cloned);
+            priv___src_self_scavenger_til__DeclRef hoisted__priv___src_self_scavenger_til__DeclRef_12 = priv___src_self_scavenger_til__DeclRef_clone(src);
+            adopt__priv___src_self_scavenger_til__DeclRef(hoisted__v_11, &hoisted__priv___src_self_scavenger_til__DeclRef_12);
         }
     }
-    Vec__priv___src_self_scavenger_til__DeclRef hoisted__Vec__priv___src_self_scavenger_til__DeclRef_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__priv___src_self_scavenger_til__DeclRef_17.data), (new_data));
-    hoisted__Vec__priv___src_self_scavenger_til__DeclRef_17.count = self->count;
-    hoisted__Vec__priv___src_self_scavenger_til__DeclRef_17.cap = self->cap;
-    return hoisted__Vec__priv___src_self_scavenger_til__DeclRef_17;
+    Vec__priv___src_self_scavenger_til__DeclRef hoisted__Vec__priv___src_self_scavenger_til__DeclRef_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__priv___src_self_scavenger_til__DeclRef_18.data), (new_data));
+    hoisted__Vec__priv___src_self_scavenger_til__DeclRef_18.count = self->count;
+    hoisted__Vec__priv___src_self_scavenger_til__DeclRef_18.cap = self->cap;
+    return hoisted__Vec__priv___src_self_scavenger_til__DeclRef_18;
 }
 
 static void adopt__priv___src_self_scavenger_til__DeclRef(void * dest, priv___src_self_scavenger_til__DeclRef * src) {
@@ -238309,18 +238309,18 @@ static void Vec__TargetLink_delete(Vec__TargetLink * self, Bool call_free) {
 }
 
 static Vec__TargetLink Vec__TargetLink_clone(Vec__TargetLink * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__TargetLink hoisted__Vec__TargetLink_0 = {0};
         TIL_OWN_SET((hoisted__Vec__TargetLink_0.data), (NULL));
         hoisted__Vec__TargetLink_0.count = 0;
         hoisted__Vec__TargetLink_0.cap = 0;
         return hoisted__Vec__TargetLink_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 48ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 48ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -238335,19 +238335,19 @@ static Vec__TargetLink Vec__TargetLink_clone(Vec__TargetLink * self) {
             U64 hoisted__U64_5 = 48ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             TargetLink *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            TargetLink cloned = TargetLink_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 48ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__TargetLink(hoisted__v_11, &cloned);
+            TargetLink hoisted__TargetLink_12 = TargetLink_clone(src);
+            adopt__TargetLink(hoisted__v_11, &hoisted__TargetLink_12);
         }
     }
-    Vec__TargetLink hoisted__Vec__TargetLink_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__TargetLink_17.data), (new_data));
-    hoisted__Vec__TargetLink_17.count = self->count;
-    hoisted__Vec__TargetLink_17.cap = self->cap;
-    return hoisted__Vec__TargetLink_17;
+    Vec__TargetLink hoisted__Vec__TargetLink_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__TargetLink_18.data), (new_data));
+    hoisted__Vec__TargetLink_18.count = self->count;
+    hoisted__Vec__TargetLink_18.cap = self->cap;
+    return hoisted__Vec__TargetLink_18;
 }
 
 static void Vec__ProgramUnit_clear(Vec__ProgramUnit * self) {
@@ -238456,18 +238456,18 @@ static void Vec__ProgramUnit_delete(Vec__ProgramUnit * self, Bool call_free) {
 }
 
 static Vec__ProgramUnit Vec__ProgramUnit_clone(Vec__ProgramUnit * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__ProgramUnit hoisted__Vec__ProgramUnit_0 = {0};
         TIL_OWN_SET((hoisted__Vec__ProgramUnit_0.data), (NULL));
         hoisted__Vec__ProgramUnit_0.count = 0;
         hoisted__Vec__ProgramUnit_0.cap = 0;
         return hoisted__Vec__ProgramUnit_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 12ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 12ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -238482,19 +238482,19 @@ static Vec__ProgramUnit Vec__ProgramUnit_clone(Vec__ProgramUnit * self) {
             U64 hoisted__U64_5 = 12ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             ProgramUnit *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            ProgramUnit cloned = ProgramUnit_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 12ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__ProgramUnit(hoisted__v_11, &cloned);
+            ProgramUnit hoisted__ProgramUnit_12 = ProgramUnit_clone(src);
+            adopt__ProgramUnit(hoisted__v_11, &hoisted__ProgramUnit_12);
         }
     }
-    Vec__ProgramUnit hoisted__Vec__ProgramUnit_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__ProgramUnit_17.data), (new_data));
-    hoisted__Vec__ProgramUnit_17.count = self->count;
-    hoisted__Vec__ProgramUnit_17.cap = self->cap;
-    return hoisted__Vec__ProgramUnit_17;
+    Vec__ProgramUnit hoisted__Vec__ProgramUnit_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__ProgramUnit_18.data), (new_data));
+    hoisted__Vec__ProgramUnit_18.count = self->count;
+    hoisted__Vec__ProgramUnit_18.cap = self->cap;
+    return hoisted__Vec__ProgramUnit_18;
 }
 
 static void Vec__priv___src_self_loader_til__ImportCheckEntry_clear(Vec__priv___src_self_loader_til__ImportCheckEntry * self) {
@@ -238556,18 +238556,18 @@ static void Vec__priv___src_self_loader_til__ImportCheckEntry_delete(Vec__priv__
 }
 
 static Vec__priv___src_self_loader_til__ImportCheckEntry Vec__priv___src_self_loader_til__ImportCheckEntry_clone(Vec__priv___src_self_loader_til__ImportCheckEntry * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__priv___src_self_loader_til__ImportCheckEntry hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_0 = {0};
         TIL_OWN_SET((hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_0.data), (NULL));
         hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_0.count = 0;
         hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_0.cap = 0;
         return hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 56ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 56ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -238582,19 +238582,19 @@ static Vec__priv___src_self_loader_til__ImportCheckEntry Vec__priv___src_self_lo
             U64 hoisted__U64_5 = 56ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             priv___src_self_loader_til__ImportCheckEntry *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            priv___src_self_loader_til__ImportCheckEntry cloned = priv___src_self_loader_til__ImportCheckEntry_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 56ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__priv___src_self_loader_til__ImportCheckEntry(hoisted__v_11, &cloned);
+            priv___src_self_loader_til__ImportCheckEntry hoisted__priv___src_self_loader_til__ImportCheckEntry_12 = priv___src_self_loader_til__ImportCheckEntry_clone(src);
+            adopt__priv___src_self_loader_til__ImportCheckEntry(hoisted__v_11, &hoisted__priv___src_self_loader_til__ImportCheckEntry_12);
         }
     }
-    Vec__priv___src_self_loader_til__ImportCheckEntry hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_17.data), (new_data));
-    hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_17.count = self->count;
-    hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_17.cap = self->cap;
-    return hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_17;
+    Vec__priv___src_self_loader_til__ImportCheckEntry hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_18.data), (new_data));
+    hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_18.count = self->count;
+    hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_18.cap = self->cap;
+    return hoisted__Vec__priv___src_self_loader_til__ImportCheckEntry_18;
 }
 
 static void swap__Str(Str * a, Str * b) {
@@ -295744,9 +295744,9 @@ static void * Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites_
 }
 
 static void Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites_store_key(Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites * self, USize i, UPtr key) {
-    UPtr copy = (key);
     void *hoisted__v_0 = Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites_key_slot(self, &i);
-    adopt__UPtr(hoisted__v_0, copy);
+    U64 hoisted__U64_1 = (key);
+    adopt__UPtr(hoisted__v_0, hoisted__U64_1);
 }
 
 static void Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites_open_slot(Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites * self, USize lo) {
@@ -307941,9 +307941,9 @@ static void * Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding_val
 }
 
 static void Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding_store_key(Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding_store_key_1);
 }
 
 static void Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding_open_slot(Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding * self, USize lo) {
@@ -308186,9 +308186,9 @@ static void * Map__Str_U64_value_slot(Map__Str_U64 * self, USize * i) {
 }
 
 static void Map__Str_U64_store_key(Map__Str_U64 * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_U64_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_U64_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_U64_store_key_1);
 }
 
 static void Map__Str_U64_open_slot(Map__Str_U64 * self, USize lo) {
@@ -308490,18 +308490,18 @@ static void Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_delete(Ve
 }
 
 static Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_clone(Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_0 = {0};
         TIL_OWN_SET((hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_0.data), (NULL));
         hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_0.count = 0;
         hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_0.cap = 0;
         return hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 28ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 28ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -308516,19 +308516,19 @@ static Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding Vec__priv___sr
             U64 hoisted__U64_5 = 28ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             priv___src_self_codegen_mlir_codegen_til__MlirBinding *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            priv___src_self_codegen_mlir_codegen_til__MlirBinding cloned = priv___src_self_codegen_mlir_codegen_til__MlirBinding_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 28ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__priv___src_self_codegen_mlir_codegen_til__MlirBinding(hoisted__v_11, &cloned);
+            priv___src_self_codegen_mlir_codegen_til__MlirBinding hoisted__priv___src_self_codegen_mlir_codegen_til__MlirBinding_12 = priv___src_self_codegen_mlir_codegen_til__MlirBinding_clone(src);
+            adopt__priv___src_self_codegen_mlir_codegen_til__MlirBinding(hoisted__v_11, &hoisted__priv___src_self_codegen_mlir_codegen_til__MlirBinding_12);
         }
     }
-    Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_17.data), (new_data));
-    hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_17.count = self->count;
-    hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_17.cap = self->cap;
-    return hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_17;
+    Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_18.data), (new_data));
+    hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_18.count = self->count;
+    hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_18.cap = self->cap;
+    return hoisted__Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding_18;
 }
 
 static void adopt__priv___src_self_codegen_mlir_codegen_til__MlirBinding(void * dest, priv___src_self_codegen_mlir_codegen_til__MlirBinding * src) {
@@ -321785,9 +321785,9 @@ static void * Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition_
 }
 
 static void Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition_store_key(Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition_store_key_1);
 }
 
 static void Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition_open_slot(Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition * self, USize lo) {
@@ -322023,9 +322023,9 @@ static void * Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal_valu
 }
 
 static void Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal_store_key(Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal_store_key_1);
 }
 
 static void Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal_open_slot(Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal * self, USize lo) {
@@ -322167,18 +322167,18 @@ static void Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_delete
 }
 
 static Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_clone(Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_0 = {0};
         TIL_OWN_SET((hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_0.data), (NULL));
         hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_0.count = 0;
         hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_0.cap = 0;
         return hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 64ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 64ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -322193,19 +322193,19 @@ static Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition Vec__priv__
             U64 hoisted__U64_5 = 64ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             priv___src_self_codegen_fasm_codegen_til__FasmDefinition *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            priv___src_self_codegen_fasm_codegen_til__FasmDefinition cloned = priv___src_self_codegen_fasm_codegen_til__FasmDefinition_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 64ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__priv___src_self_codegen_fasm_codegen_til__FasmDefinition(hoisted__v_11, &cloned);
+            priv___src_self_codegen_fasm_codegen_til__FasmDefinition hoisted__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_12 = priv___src_self_codegen_fasm_codegen_til__FasmDefinition_clone(src);
+            adopt__priv___src_self_codegen_fasm_codegen_til__FasmDefinition(hoisted__v_11, &hoisted__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_12);
         }
     }
-    Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_17.data), (new_data));
-    hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_17.count = self->count;
-    hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_17.cap = self->cap;
-    return hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_17;
+    Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_18.data), (new_data));
+    hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_18.count = self->count;
+    hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_18.cap = self->cap;
+    return hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition_18;
 }
 
 static void Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_clear(Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal * self) {
@@ -322246,18 +322246,18 @@ static void Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_delete(Vec
 }
 
 static Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_clone(Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_0 = {0};
         TIL_OWN_SET((hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_0.data), (NULL));
         hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_0.count = 0;
         hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_0.cap = 0;
         return hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 56ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 56ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -322272,19 +322272,19 @@ static Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal Vec__priv___src
             U64 hoisted__U64_5 = 56ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             priv___src_self_codegen_fasm_codegen_til__FasmGlobal *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            priv___src_self_codegen_fasm_codegen_til__FasmGlobal cloned = priv___src_self_codegen_fasm_codegen_til__FasmGlobal_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 56ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__priv___src_self_codegen_fasm_codegen_til__FasmGlobal(hoisted__v_11, &cloned);
+            priv___src_self_codegen_fasm_codegen_til__FasmGlobal hoisted__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_12 = priv___src_self_codegen_fasm_codegen_til__FasmGlobal_clone(src);
+            adopt__priv___src_self_codegen_fasm_codegen_til__FasmGlobal(hoisted__v_11, &hoisted__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_12);
         }
     }
-    Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_17.data), (new_data));
-    hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_17.count = self->count;
-    hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_17.cap = self->cap;
-    return hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_17;
+    Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_18.data), (new_data));
+    hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_18.count = self->count;
+    hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_18.cap = self->cap;
+    return hoisted__Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal_18;
 }
 
 static void adopt__priv___src_self_codegen_fasm_codegen_til__FasmDefinition(void * dest, priv___src_self_codegen_fasm_codegen_til__FasmDefinition * src) {
@@ -364624,9 +364624,9 @@ static void * Map__Str_call_Map_Str_Bool_value_slot(Map__Str_call_Map_Str_Bool *
 }
 
 static void Map__Str_call_Map_Str_Bool_store_key(Map__Str_call_Map_Str_Bool * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_call_Map_Str_Bool_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_call_Map_Str_Bool_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_call_Map_Str_Bool_store_key_1);
 }
 
 static void Map__Str_call_Map_Str_Bool_open_slot(Map__Str_call_Map_Str_Bool * self, USize lo) {
@@ -364862,9 +364862,9 @@ static void * Map__Str_FuncSig_value_slot(Map__Str_FuncSig * self, USize * i) {
 }
 
 static void Map__Str_FuncSig_store_key(Map__Str_FuncSig * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_FuncSig_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_FuncSig_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_FuncSig_store_key_1);
 }
 
 static void Map__Str_FuncSig_open_slot(Map__Str_FuncSig * self, USize lo) {
@@ -365107,9 +365107,9 @@ static void * Map__Str_call_Set_Str_value_slot(Map__Str_call_Set_Str * self, USi
 }
 
 static void Map__Str_call_Set_Str_store_key(Map__Str_call_Set_Str * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_call_Set_Str_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_call_Set_Str_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_call_Set_Str_store_key_1);
 }
 
 static void Map__Str_call_Set_Str_open_slot(Map__Str_call_Set_Str * self, USize lo) {
@@ -365422,9 +365422,9 @@ static void * Map__Str_call_Set_USize_value_slot(Map__Str_call_Set_USize * self,
 }
 
 static void Map__Str_call_Set_USize_store_key(Map__Str_call_Set_USize * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_call_Set_USize_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_call_Set_USize_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_call_Set_USize_store_key_1);
 }
 
 static void Map__Str_call_Set_USize_open_slot(Map__Str_call_Set_USize * self, USize lo) {
@@ -365611,18 +365611,18 @@ static void Vec__FuncSig_delete(Vec__FuncSig * self, Bool call_free) {
 }
 
 static Vec__FuncSig Vec__FuncSig_clone(Vec__FuncSig * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__FuncSig hoisted__Vec__FuncSig_0 = {0};
         TIL_OWN_SET((hoisted__Vec__FuncSig_0.data), (NULL));
         hoisted__Vec__FuncSig_0.count = 0;
         hoisted__Vec__FuncSig_0.cap = 0;
         return hoisted__Vec__FuncSig_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 52ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 52ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -365637,19 +365637,19 @@ static Vec__FuncSig Vec__FuncSig_clone(Vec__FuncSig * self) {
             U64 hoisted__U64_5 = 52ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             FuncSig *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            FuncSig cloned = FuncSig_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 52ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__FuncSig(hoisted__v_11, &cloned);
+            FuncSig hoisted__FuncSig_12 = FuncSig_clone(src);
+            adopt__FuncSig(hoisted__v_11, &hoisted__FuncSig_12);
         }
     }
-    Vec__FuncSig hoisted__Vec__FuncSig_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__FuncSig_17.data), (new_data));
-    hoisted__Vec__FuncSig_17.count = self->count;
-    hoisted__Vec__FuncSig_17.cap = self->cap;
-    return hoisted__Vec__FuncSig_17;
+    Vec__FuncSig hoisted__Vec__FuncSig_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__FuncSig_18.data), (new_data));
+    hoisted__Vec__FuncSig_18.count = self->count;
+    hoisted__Vec__FuncSig_18.cap = self->cap;
+    return hoisted__Vec__FuncSig_18;
 }
 
 static Vec__call_Set_Str Vec__call_Set_Str_new(void) {
@@ -365734,18 +365734,18 @@ static void Vec__call_Set_Str_delete(Vec__call_Set_Str * self, Bool call_free) {
 }
 
 static Vec__call_Set_Str Vec__call_Set_Str_clone(Vec__call_Set_Str * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__call_Set_Str hoisted__Vec__call_Set_Str_0 = {0};
         TIL_OWN_SET((hoisted__Vec__call_Set_Str_0.data), (NULL));
         hoisted__Vec__call_Set_Str_0.count = 0;
         hoisted__Vec__call_Set_Str_0.cap = 0;
         return hoisted__Vec__call_Set_Str_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 12ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 12ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -365760,19 +365760,19 @@ static Vec__call_Set_Str Vec__call_Set_Str_clone(Vec__call_Set_Str * self) {
             U64 hoisted__U64_5 = 12ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             Set__Str *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            Set__Str cloned = Set__Str_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 12ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__Set__Str(hoisted__v_11, &cloned);
+            Set__Str hoisted__Set__Str_12 = Set__Str_clone(src);
+            adopt__Set__Str(hoisted__v_11, &hoisted__Set__Str_12);
         }
     }
-    Vec__call_Set_Str hoisted__Vec__call_Set_Str_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__call_Set_Str_17.data), (new_data));
-    hoisted__Vec__call_Set_Str_17.count = self->count;
-    hoisted__Vec__call_Set_Str_17.cap = self->cap;
-    return hoisted__Vec__call_Set_Str_17;
+    Vec__call_Set_Str hoisted__Vec__call_Set_Str_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__call_Set_Str_18.data), (new_data));
+    hoisted__Vec__call_Set_Str_18.count = self->count;
+    hoisted__Vec__call_Set_Str_18.cap = self->cap;
+    return hoisted__Vec__call_Set_Str_18;
 }
 
 static Vec__call_Set_USize Vec__call_Set_USize_new(void) {
@@ -367553,18 +367553,18 @@ static void Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_delet
 }
 
 static Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_clone(Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0 = {0};
         TIL_OWN_SET((hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0.data), (NULL));
         hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0.count = 0;
         hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0.cap = 0;
         return hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 36ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 36ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -367579,19 +367579,19 @@ static Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec Vec__priv_
             U64 hoisted__U64_5 = 36ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             priv___src_self_codegen_theme_codegen_til__ThemeColorSpec *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            priv___src_self_codegen_theme_codegen_til__ThemeColorSpec cloned = priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 36ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec(hoisted__v_11, &cloned);
+            priv___src_self_codegen_theme_codegen_til__ThemeColorSpec hoisted__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_12 = priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_clone(src);
+            adopt__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec(hoisted__v_11, &hoisted__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_12);
         }
     }
-    Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_17.data), (new_data));
-    hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_17.count = self->count;
-    hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_17.cap = self->cap;
-    return hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_17;
+    Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_18.data), (new_data));
+    hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_18.count = self->count;
+    hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_18.cap = self->cap;
+    return hoisted__Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec_18;
 }
 
 static void adopt__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec(void * dest, priv___src_self_codegen_theme_codegen_til__ThemeColorSpec * src) {
@@ -376827,18 +376827,18 @@ static void Vec__DocEntry_delete(Vec__DocEntry * self, Bool call_free) {
 }
 
 static Vec__DocEntry Vec__DocEntry_clone(Vec__DocEntry * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__DocEntry hoisted__Vec__DocEntry_0 = {0};
         TIL_OWN_SET((hoisted__Vec__DocEntry_0.data), (NULL));
         hoisted__Vec__DocEntry_0.count = 0;
         hoisted__Vec__DocEntry_0.cap = 0;
         return hoisted__Vec__DocEntry_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 108ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 108ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -376853,19 +376853,19 @@ static Vec__DocEntry Vec__DocEntry_clone(Vec__DocEntry * self) {
             U64 hoisted__U64_5 = 108ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             DocEntry *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            DocEntry cloned = DocEntry_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 108ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__DocEntry(hoisted__v_11, &cloned);
+            DocEntry hoisted__DocEntry_12 = DocEntry_clone(src);
+            adopt__DocEntry(hoisted__v_11, &hoisted__DocEntry_12);
         }
     }
-    Vec__DocEntry hoisted__Vec__DocEntry_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__DocEntry_17.data), (new_data));
-    hoisted__Vec__DocEntry_17.count = self->count;
-    hoisted__Vec__DocEntry_17.cap = self->cap;
-    return hoisted__Vec__DocEntry_17;
+    Vec__DocEntry hoisted__Vec__DocEntry_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__DocEntry_18.data), (new_data));
+    hoisted__Vec__DocEntry_18.count = self->count;
+    hoisted__Vec__DocEntry_18.cap = self->cap;
+    return hoisted__Vec__DocEntry_18;
 }
 
 static void adopt__DocEntry(void * dest, DocEntry * src) {
@@ -411125,9 +411125,9 @@ static void * Map__Str_HeapBinding_value_slot(Map__Str_HeapBinding * self, USize
 }
 
 static void Map__Str_HeapBinding_store_key(Map__Str_HeapBinding * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_HeapBinding_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_HeapBinding_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_HeapBinding_store_key_1);
 }
 
 static void Map__Str_HeapBinding_open_slot(Map__Str_HeapBinding * self, USize lo) {
@@ -411565,18 +411565,18 @@ static void Vec__HeapBinding_delete(Vec__HeapBinding * self, Bool call_free) {
 }
 
 static Vec__HeapBinding Vec__HeapBinding_clone(Vec__HeapBinding * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__HeapBinding hoisted__Vec__HeapBinding_0 = {0};
         TIL_OWN_SET((hoisted__Vec__HeapBinding_0.data), (NULL));
         hoisted__Vec__HeapBinding_0.count = 0;
         hoisted__Vec__HeapBinding_0.cap = 0;
         return hoisted__Vec__HeapBinding_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 64ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 64ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -411591,19 +411591,19 @@ static Vec__HeapBinding Vec__HeapBinding_clone(Vec__HeapBinding * self) {
             U64 hoisted__U64_5 = 64ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             HeapBinding *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            HeapBinding cloned = HeapBinding_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 64ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__HeapBinding(hoisted__v_11, &cloned);
+            HeapBinding hoisted__HeapBinding_12 = HeapBinding_clone(src);
+            adopt__HeapBinding(hoisted__v_11, &hoisted__HeapBinding_12);
         }
     }
-    Vec__HeapBinding hoisted__Vec__HeapBinding_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__HeapBinding_17.data), (new_data));
-    hoisted__Vec__HeapBinding_17.count = self->count;
-    hoisted__Vec__HeapBinding_17.cap = self->cap;
-    return hoisted__Vec__HeapBinding_17;
+    Vec__HeapBinding hoisted__Vec__HeapBinding_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__HeapBinding_18.data), (new_data));
+    hoisted__Vec__HeapBinding_18.count = self->count;
+    hoisted__Vec__HeapBinding_18.cap = self->cap;
+    return hoisted__Vec__HeapBinding_18;
 }
 
 static Option__ref_Dynamic safe_ref__Dynamic(void * value) {
@@ -418880,9 +418880,9 @@ static void * Map__Str_priv___src_self_binder_til__AuditedDecl_value_slot(Map__S
 }
 
 static void Map__Str_priv___src_self_binder_til__AuditedDecl_store_key(Map__Str_priv___src_self_binder_til__AuditedDecl * self, USize i, Str * key) {
-    Str copy = Str_clone(key);
     void *hoisted__v_0 = Map__Str_priv___src_self_binder_til__AuditedDecl_key_slot(self, &i);
-    adopt__Str(hoisted__v_0, &copy);
+    Str hoisted__Str_Map__Str_priv___src_self_binder_til__AuditedDecl_store_key_1 = Str_clone(key);
+    adopt__Str(hoisted__v_0, &hoisted__Str_Map__Str_priv___src_self_binder_til__AuditedDecl_store_key_1);
 }
 
 static void Map__Str_priv___src_self_binder_til__AuditedDecl_open_slot(Map__Str_priv___src_self_binder_til__AuditedDecl * self, USize lo) {
@@ -419024,18 +419024,18 @@ static void Vec__priv___src_self_binder_til__AuditedDecl_delete(Vec__priv___src_
 }
 
 static Vec__priv___src_self_binder_til__AuditedDecl Vec__priv___src_self_binder_til__AuditedDecl_clone(Vec__priv___src_self_binder_til__AuditedDecl * self) {
-    U32 hoisted__U32_12 = 0;
-    Bool hoisted__Bool_13 = ((Bool)(self->cap == hoisted__U32_12));
-    if (hoisted__Bool_13) {
+    U32 hoisted__U32_13 = 0;
+    Bool hoisted__Bool_14 = ((Bool)(self->cap == hoisted__U32_13));
+    if (hoisted__Bool_14) {
         Vec__priv___src_self_binder_til__AuditedDecl hoisted__Vec__priv___src_self_binder_til__AuditedDecl_0 = {0};
         TIL_OWN_SET((hoisted__Vec__priv___src_self_binder_til__AuditedDecl_0.data), (NULL));
         hoisted__Vec__priv___src_self_binder_til__AuditedDecl_0.count = 0;
         hoisted__Vec__priv___src_self_binder_til__AuditedDecl_0.cap = 0;
         return hoisted__Vec__priv___src_self_binder_til__AuditedDecl_0;
     }
-    U64 hoisted__U64_15 = ((U64)(self->cap));
-    U64 hoisted__U64_16 = 28ULL;
-    U8 *new_data = malloc(((U64)(hoisted__U64_15 * hoisted__U64_16)));
+    U64 hoisted__U64_16 = ((U64)(self->cap));
+    U64 hoisted__U64_17 = 28ULL;
+    U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
         U32 _rc_U32_1 = 0;
@@ -419050,19 +419050,19 @@ static Vec__priv___src_self_binder_til__AuditedDecl Vec__priv___src_self_binder_
             U64 hoisted__U64_5 = 28ULL;
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             priv___src_self_binder_til__AuditedDecl *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
-            priv___src_self_binder_til__AuditedDecl cloned = priv___src_self_binder_til__AuditedDecl_clone(src);
             U64 hoisted__U64_8 = ((U64)(i));
             U64 hoisted__U64_9 = 28ULL;
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
-            adopt__priv___src_self_binder_til__AuditedDecl(hoisted__v_11, &cloned);
+            priv___src_self_binder_til__AuditedDecl hoisted__priv___src_self_binder_til__AuditedDecl_12 = priv___src_self_binder_til__AuditedDecl_clone(src);
+            adopt__priv___src_self_binder_til__AuditedDecl(hoisted__v_11, &hoisted__priv___src_self_binder_til__AuditedDecl_12);
         }
     }
-    Vec__priv___src_self_binder_til__AuditedDecl hoisted__Vec__priv___src_self_binder_til__AuditedDecl_17 = {0};
-    TIL_OWN_SET((hoisted__Vec__priv___src_self_binder_til__AuditedDecl_17.data), (new_data));
-    hoisted__Vec__priv___src_self_binder_til__AuditedDecl_17.count = self->count;
-    hoisted__Vec__priv___src_self_binder_til__AuditedDecl_17.cap = self->cap;
-    return hoisted__Vec__priv___src_self_binder_til__AuditedDecl_17;
+    Vec__priv___src_self_binder_til__AuditedDecl hoisted__Vec__priv___src_self_binder_til__AuditedDecl_18 = {0};
+    TIL_OWN_SET((hoisted__Vec__priv___src_self_binder_til__AuditedDecl_18.data), (new_data));
+    hoisted__Vec__priv___src_self_binder_til__AuditedDecl_18.count = self->count;
+    hoisted__Vec__priv___src_self_binder_til__AuditedDecl_18.cap = self->cap;
+    return hoisted__Vec__priv___src_self_binder_til__AuditedDecl_18;
 }
 
 static void adopt__priv___src_self_binder_til__AuditedDecl(void * dest, priv___src_self_binder_til__AuditedDecl * src) {
@@ -425443,8 +425443,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-88ce2bd53", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("88ce2bd53c5f54432dda146120f5c9441289776b", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-51236457f", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("51236457fb40ca4af7e50f5aed1908eae46783ae", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

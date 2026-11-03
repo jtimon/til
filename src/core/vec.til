@@ -447,8 +447,7 @@ namespace:
         mut new_data : U8 = malloc(self.cap.to_uptr().mul(T.size().to_uptr()))
         for i in 0..self.count {
             ref src : T = ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
-            mut cloned : T = T.clone(src)
-            adopt(T, ptr_add(new_data, i.to_uptr().mul(T.size().to_uptr())), own cloned)
+            adopt(T, ptr_add(new_data, i.to_uptr().mul(T.size().to_uptr())), own T.clone(src))
         }
         return Vec(T)(data = new_data, count = self.count, cap = self.cap)
     }

@@ -2471,7 +2471,7 @@ GC-CFG block 2 body=448:13 span=2..16 succs=0
 GC-CFG block 3 body=448:13 span=0..0 succs=2
 GC-CFG block 4 body=448:13 span=0..1 succs=0
 GC-FLOW local _wcond_Bool_#0 entry=I exit=O out=O,O,O,O,O
-GC-FLOW local cloned entry=I exit=X out=X,I,M,I,I
+GC-FLOW local hoisted__I64_#0 entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I,I
@@ -2484,7 +2484,7 @@ GC-FLOW local hoisted__v_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local i entry=I exit=X out=X,I,O,I,I
 GC-FLOW local src entry=I exit=X out=X,I,O,I,I
 GC-LIVE local _wcond_Bool_#0 entry=0 in=0,0,0,0,0
-GC-LIVE local cloned entry=0 in=0,0,0,0,0
+GC-LIVE local hoisted__I64_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U32_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U32_#1 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#0 entry=0 in=0,0,0,0,0
@@ -2498,16 +2498,16 @@ GC-LIVE local i entry=0 in=0,0,0,0,0
 GC-LIVE local src entry=0 in=0,0,0,0,0
 GC-AUDIT body test/gc_audit.til:448:13 locals=13
 GC-AUDIT local _wcond_Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local cloned type=I64 decl=9 last_use=15 own_transfer=15 heap=0 skip=0
+GC-AUDIT local hoisted__I64_#0 type=I64 decl=14 last_use=15 own_transfer=15 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=6 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#1 type=U32 decl=10 last_use=12 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=13 last_use=15 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=9 last_use=11 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#0 type=U64 decl=12 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#1 type=U64 decl=5 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#2 type=U64 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#3 type=U64 decl=7 last_use=9 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#4 type=U64 decl=11 last_use=13 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#5 type=U64 decl=12 last_use=13 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__v_#0 type= decl=14 last_use=15 own_transfer=-1 heap=0 skip=1
+GC-AUDIT local hoisted__U64_#3 type=U64 decl=7 last_use=14 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#4 type=U64 decl=10 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#5 type=U64 decl=11 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__v_#0 type= decl=13 last_use=15 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local i type=U32 decl=2 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local src type=I64 decl=8 last_use=15 own_transfer=-1 heap=0 skip=1
 GC-CFG body test/gc_audit.til:448:13 blocks=8
@@ -2733,7 +2733,6 @@ GC-CFG block 2 body=149:13 span=2..16 succs=0
 GC-CFG block 3 body=149:13 span=0..0 succs=2
 GC-CFG block 4 body=149:13 span=0..1 succs=0
 GC-FLOW local _wcond_Bool_#0 entry=I exit=O out=O,O,O,O,O
-GC-FLOW local cloned entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I,I
@@ -2742,11 +2741,11 @@ GC-FLOW local hoisted__U64_#2 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#3 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#4 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#5 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U8_#0 entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__v_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local i entry=I exit=X out=X,I,O,I,I
 GC-FLOW local src entry=I exit=X out=X,I,O,I,I
 GC-LIVE local _wcond_Bool_#0 entry=0 in=0,0,0,0,0
-GC-LIVE local cloned entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U32_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U32_#1 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#0 entry=0 in=0,0,0,0,0
@@ -2755,21 +2754,22 @@ GC-LIVE local hoisted__U64_#2 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#3 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#4 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#5 entry=0 in=0,0,0,0,0
+GC-LIVE local hoisted__U8_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__v_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local i entry=0 in=0,0,0,0,0
 GC-LIVE local src entry=0 in=0,0,0,0,0
 GC-AUDIT body test/gc_audit.til:149:13 locals=13
 GC-AUDIT local _wcond_Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local cloned type=U8 decl=9 last_use=15 own_transfer=15 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=6 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#1 type=U32 decl=10 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=9 last_use=11 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#1 type=U64 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#2 type=U64 decl=7 last_use=9 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#3 type=U64 decl=11 last_use=13 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#4 type=U64 decl=12 last_use=13 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#5 type=U64 decl=13 last_use=15 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__v_#0 type= decl=14 last_use=15 own_transfer=-1 heap=0 skip=1
+GC-AUDIT local hoisted__U64_#2 type=U64 decl=7 last_use=14 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#3 type=U64 decl=10 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#4 type=U64 decl=11 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#5 type=U64 decl=12 last_use=15 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U8_#0 type=U8 decl=14 last_use=15 own_transfer=15 heap=0 skip=0
+GC-AUDIT local hoisted__v_#0 type= decl=13 last_use=15 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local i type=U32 decl=2 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local src type=U8 decl=8 last_use=15 own_transfer=-1 heap=0 skip=1
 GC-CFG body test/gc_audit.til:149:13 blocks=8
@@ -2788,12 +2788,12 @@ GC-LIVE local _re_U32_#0 entry=0 in=0,0,1,0,1,1,1,0
 GC-AUDIT body test/gc_audit.til:149:13 locals=2
 GC-AUDIT local _rc_U32_#0 type=U32 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local _re_U32_#0 type=U32 decl=0 last_use=2 own_transfer=-1 heap=0 skip=0
-GC-CFG body test/gc_audit.til:154:13 blocks=5
+GC-CFG body test/gc_audit.til:153:13 blocks=5
 GC-CFG block 0 exit
-GC-CFG block 1 body=154:13 span=0..2 succs=3,4
-GC-CFG block 2 body=154:13 span=2..17 succs=0
-GC-CFG block 3 body=154:13 span=0..0 succs=2
-GC-CFG block 4 body=154:13 span=0..1 succs=0
+GC-CFG block 1 body=153:13 span=0..2 succs=3,4
+GC-CFG block 2 body=153:13 span=2..17 succs=0
+GC-CFG block 3 body=153:13 span=0..0 succs=2
+GC-CFG block 4 body=153:13 span=0..1 succs=0
 GC-FLOW local _wcond_Bool_#0 entry=I exit=O out=O,O,O,O,O
 GC-FLOW local hoisted__U32_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I,I
@@ -2804,9 +2804,9 @@ GC-FLOW local hoisted__U64_#2 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#3 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#4 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#5 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U8_#0 entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__v_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local j entry=I exit=X out=X,I,O,I,I
-GC-FLOW local ocloned entry=I exit=X out=X,I,M,I,I
 GC-FLOW local osrc entry=I exit=X out=X,I,O,I,I
 GC-LIVE local _wcond_Bool_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U32_#0 entry=0 in=0,0,0,0,0
@@ -2818,39 +2818,39 @@ GC-LIVE local hoisted__U64_#2 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#3 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#4 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#5 entry=0 in=0,0,0,0,0
+GC-LIVE local hoisted__U8_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__v_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local j entry=0 in=0,0,0,0,0
-GC-LIVE local ocloned entry=0 in=0,0,0,0,0
 GC-LIVE local osrc entry=0 in=0,0,0,0,0
-GC-AUDIT body test/gc_audit.til:154:13 locals=14
+GC-AUDIT body test/gc_audit.til:153:13 locals=14
 GC-AUDIT local _wcond_Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=6 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#1 type=U32 decl=10 last_use=12 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#2 type=U32 decl=11 last_use=13 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=9 last_use=11 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#2 type=U32 decl=10 last_use=12 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#1 type=U64 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#2 type=U64 decl=7 last_use=9 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#3 type=U64 decl=12 last_use=14 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#4 type=U64 decl=13 last_use=14 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#5 type=U64 decl=14 last_use=16 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__v_#0 type= decl=15 last_use=16 own_transfer=-1 heap=0 skip=1
+GC-AUDIT local hoisted__U64_#2 type=U64 decl=7 last_use=15 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#3 type=U64 decl=11 last_use=13 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#4 type=U64 decl=12 last_use=13 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#5 type=U64 decl=13 last_use=16 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U8_#0 type=U8 decl=15 last_use=16 own_transfer=16 heap=0 skip=0
+GC-AUDIT local hoisted__v_#0 type= decl=14 last_use=16 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local j type=U32 decl=2 last_use=16 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local ocloned type=U8 decl=9 last_use=16 own_transfer=16 heap=0 skip=0
 GC-AUDIT local osrc type=U8 decl=8 last_use=16 own_transfer=-1 heap=0 skip=1
-GC-CFG body test/gc_audit.til:154:13 blocks=8
+GC-CFG body test/gc_audit.til:153:13 blocks=8
 GC-CFG block 0 exit
-GC-CFG block 1 body=154:13 span=0..2 succs=2
-GC-CFG block 2 body=154:13 span=2..3 succs=4,3
-GC-CFG block 3 body=154:13 span=3..3 succs=0
-GC-CFG block 4 body=154:13 span=0..2 succs=6,7
-GC-CFG block 5 body=154:13 span=2..17 succs=2
-GC-CFG block 6 body=154:13 span=0..0 succs=5
-GC-CFG block 7 body=154:13 span=0..1 succs=3
+GC-CFG block 1 body=153:13 span=0..2 succs=2
+GC-CFG block 2 body=153:13 span=2..3 succs=4,3
+GC-CFG block 3 body=153:13 span=3..3 succs=0
+GC-CFG block 4 body=153:13 span=0..2 succs=6,7
+GC-CFG block 5 body=153:13 span=2..17 succs=2
+GC-CFG block 6 body=153:13 span=0..0 succs=5
+GC-CFG block 7 body=153:13 span=0..1 succs=3
 GC-FLOW local _rc_U32_#0 entry=I exit=O out=O,O,O,O,O,O,O,O
 GC-FLOW local _re_U32_#0 entry=I exit=O out=O,O,O,O,O,O,O,O
 GC-LIVE local _rc_U32_#0 entry=0 in=0,0,1,0,1,1,1,0
 GC-LIVE local _re_U32_#0 entry=0 in=0,0,1,0,1,1,1,0
-GC-AUDIT body test/gc_audit.til:154:13 locals=2
+GC-AUDIT body test/gc_audit.til:153:13 locals=2
 GC-AUDIT local _rc_U32_#0 type=U32 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local _re_U32_#0 type=U32 decl=0 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-CFG body test/gc_audit.til:147:9 blocks=18
@@ -2865,13 +2865,13 @@ GC-CFG block 7 body=149:13 span=2..16 succs=4
 GC-CFG block 8 body=149:13 span=0..0 succs=7
 GC-CFG block 9 body=149:13 span=0..1 succs=5
 GC-CFG block 10 body=147:9 span=7..9 succs=0
-GC-CFG block 11 body=154:13 span=0..2 succs=12
-GC-CFG block 12 body=154:13 span=2..3 succs=14,13
-GC-CFG block 13 body=154:13 span=3..3 succs=10
-GC-CFG block 14 body=154:13 span=0..2 succs=16,17
-GC-CFG block 15 body=154:13 span=2..17 succs=12
-GC-CFG block 16 body=154:13 span=0..0 succs=15
-GC-CFG block 17 body=154:13 span=0..1 succs=13
+GC-CFG block 11 body=153:13 span=0..2 succs=12
+GC-CFG block 12 body=153:13 span=2..3 succs=14,13
+GC-CFG block 13 body=153:13 span=3..3 succs=10
+GC-CFG block 14 body=153:13 span=0..2 succs=16,17
+GC-CFG block 15 body=153:13 span=2..17 succs=12
+GC-CFG block 16 body=153:13 span=0..0 succs=15
+GC-CFG block 17 body=153:13 span=0..1 succs=13
 GC-FLOW local hoisted__Array__U8_#0 entry=I exit=O out=O,I,I,I,I,I,I,I,I,I,O,I,I,I,I,I,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O
 GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O,O
@@ -2891,76 +2891,75 @@ GC-AUDIT local hoisted__U64_#0 type=U64 decl=2 last_use=4 own_transfer=-1 heap=0
 GC-AUDIT local hoisted__U64_#1 type=U64 decl=3 last_use=4 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local new_data type=U8 decl=4 last_use=8 own_transfer=7 heap=1 skip=0
 GC-AUDIT local total type=U32 decl=0 last_use=8 own_transfer=-1 heap=0 skip=0
-GC-CFG body test/gc_audit.til:169:13 blocks=5
+GC-CFG body test/gc_audit.til:167:13 blocks=5
 GC-CFG block 0 exit
-GC-CFG block 1 body=169:13 span=0..2 succs=3,4
-GC-CFG block 2 body=169:13 span=2..11 succs=0
-GC-CFG block 3 body=169:13 span=0..0 succs=2
-GC-CFG block 4 body=169:13 span=0..1 succs=0
+GC-CFG block 1 body=167:13 span=0..2 succs=3,4
+GC-CFG block 2 body=167:13 span=2..11 succs=0
+GC-CFG block 3 body=167:13 span=0..0 succs=2
+GC-CFG block 4 body=167:13 span=0..1 succs=0
 GC-FLOW local _wcond_Bool_#0 entry=I exit=O out=O,O,O,O,O
-GC-FLOW local cloned entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#1 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#2 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U8_#0 entry=I exit=X out=X,I,M,I,I
 GC-FLOW local i entry=I exit=X out=X,I,O,I,I
 GC-FLOW local src entry=I exit=X out=X,I,O,I,I
 GC-LIVE local _wcond_Bool_#0 entry=0 in=0,0,0,0,0
-GC-LIVE local cloned entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U32_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#1 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#2 entry=0 in=0,0,0,0,0
+GC-LIVE local hoisted__U8_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local i entry=0 in=0,0,0,0,0
 GC-LIVE local src entry=0 in=0,0,0,0,0
-GC-AUDIT body test/gc_audit.til:169:13 locals=8
+GC-AUDIT body test/gc_audit.til:167:13 locals=8
 GC-AUDIT local _wcond_Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local cloned type=U8 decl=9 last_use=10 own_transfer=10 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=6 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#1 type=U64 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#2 type=U64 decl=7 last_use=9 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U8_#0 type=U8 decl=9 last_use=10 own_transfer=10 heap=0 skip=0
 GC-AUDIT local i type=U32 decl=2 last_use=10 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local src type=U8 decl=8 last_use=10 own_transfer=-1 heap=0 skip=1
-GC-CFG body test/gc_audit.til:169:13 blocks=8
+GC-CFG body test/gc_audit.til:167:13 blocks=8
 GC-CFG block 0 exit
-GC-CFG block 1 body=169:13 span=0..2 succs=2
-GC-CFG block 2 body=169:13 span=2..3 succs=4,3
-GC-CFG block 3 body=169:13 span=3..3 succs=0
-GC-CFG block 4 body=169:13 span=0..2 succs=6,7
-GC-CFG block 5 body=169:13 span=2..11 succs=2
-GC-CFG block 6 body=169:13 span=0..0 succs=5
-GC-CFG block 7 body=169:13 span=0..1 succs=3
+GC-CFG block 1 body=167:13 span=0..2 succs=2
+GC-CFG block 2 body=167:13 span=2..3 succs=4,3
+GC-CFG block 3 body=167:13 span=3..3 succs=0
+GC-CFG block 4 body=167:13 span=0..2 succs=6,7
+GC-CFG block 5 body=167:13 span=2..11 succs=2
+GC-CFG block 6 body=167:13 span=0..0 succs=5
+GC-CFG block 7 body=167:13 span=0..1 succs=3
 GC-FLOW local _rc_U32_#0 entry=I exit=O out=O,O,O,O,O,O,O,O
 GC-FLOW local _re_U32_#0 entry=I exit=O out=O,O,O,O,O,O,O,O
 GC-LIVE local _rc_U32_#0 entry=0 in=0,0,1,0,1,1,1,0
 GC-LIVE local _re_U32_#0 entry=0 in=0,0,1,0,1,1,1,0
-GC-AUDIT body test/gc_audit.til:169:13 locals=2
+GC-AUDIT body test/gc_audit.til:167:13 locals=2
 GC-AUDIT local _rc_U32_#0 type=U32 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local _re_U32_#0 type=U32 decl=0 last_use=2 own_transfer=-1 heap=0 skip=0
-GC-CFG body test/gc_audit.til:168:9 blocks=10
+GC-CFG body test/gc_audit.til:166:9 blocks=10
 GC-CFG block 0 exit
-GC-CFG block 1 body=168:9 span=0..2 succs=3
-GC-CFG block 2 body=168:9 span=2..3 succs=0
-GC-CFG block 3 body=169:13 span=0..2 succs=4
-GC-CFG block 4 body=169:13 span=2..3 succs=6,5
-GC-CFG block 5 body=169:13 span=3..3 succs=2
-GC-CFG block 6 body=169:13 span=0..2 succs=8,9
-GC-CFG block 7 body=169:13 span=2..11 succs=4
-GC-CFG block 8 body=169:13 span=0..0 succs=7
-GC-CFG block 9 body=169:13 span=0..1 succs=5
+GC-CFG block 1 body=166:9 span=0..2 succs=3
+GC-CFG block 2 body=166:9 span=2..3 succs=0
+GC-CFG block 3 body=167:13 span=0..2 succs=4
+GC-CFG block 4 body=167:13 span=2..3 succs=6,5
+GC-CFG block 5 body=167:13 span=3..3 succs=2
+GC-CFG block 6 body=167:13 span=0..2 succs=8,9
+GC-CFG block 7 body=167:13 span=2..11 succs=4
+GC-CFG block 8 body=167:13 span=0..0 succs=7
+GC-CFG block 9 body=167:13 span=0..1 succs=5
 GC-FLOW local out entry=I exit=O out=O,O,O,O,O,O,O,O,O,O
 GC-LIVE local out entry=0 in=0,0,1,1,1,1,1,1,1,1
-GC-AUDIT body test/gc_audit.til:168:9 locals=1
+GC-AUDIT body test/gc_audit.til:166:9 locals=1
 GC-AUDIT local out type=Vec__U8 decl=0 last_use=2 own_transfer=-1 heap=0 skip=0
-GC-CFG body test/gc_audit.til:179:13 blocks=5
+GC-CFG body test/gc_audit.til:176:13 blocks=5
 GC-CFG block 0 exit
-GC-CFG block 1 body=179:13 span=0..2 succs=3,4
-GC-CFG block 2 body=179:13 span=2..16 succs=0
-GC-CFG block 3 body=179:13 span=0..0 succs=2
-GC-CFG block 4 body=179:13 span=0..1 succs=0
+GC-CFG block 1 body=176:13 span=0..2 succs=3,4
+GC-CFG block 2 body=176:13 span=2..16 succs=0
+GC-CFG block 3 body=176:13 span=0..0 succs=2
+GC-CFG block 4 body=176:13 span=0..1 succs=0
 GC-FLOW local _wcond_Bool_#0 entry=I exit=O out=O,O,O,O,O
-GC-FLOW local cloned entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I,I
@@ -2969,11 +2968,11 @@ GC-FLOW local hoisted__U64_#2 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#3 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#4 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#5 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U8_#0 entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__v_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local i entry=I exit=X out=X,I,O,I,I
 GC-FLOW local src entry=I exit=X out=X,I,O,I,I
 GC-LIVE local _wcond_Bool_#0 entry=0 in=0,0,0,0,0
-GC-LIVE local cloned entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U32_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U32_#1 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#0 entry=0 in=0,0,0,0,0
@@ -2982,50 +2981,51 @@ GC-LIVE local hoisted__U64_#2 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#3 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#4 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#5 entry=0 in=0,0,0,0,0
+GC-LIVE local hoisted__U8_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__v_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local i entry=0 in=0,0,0,0,0
 GC-LIVE local src entry=0 in=0,0,0,0,0
-GC-AUDIT body test/gc_audit.til:179:13 locals=13
+GC-AUDIT body test/gc_audit.til:176:13 locals=13
 GC-AUDIT local _wcond_Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local cloned type=U8 decl=9 last_use=15 own_transfer=15 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=6 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#1 type=U32 decl=10 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=9 last_use=11 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#0 type=U64 decl=5 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#1 type=U64 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#2 type=U64 decl=7 last_use=9 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#3 type=U64 decl=11 last_use=13 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#4 type=U64 decl=12 last_use=13 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#5 type=U64 decl=13 last_use=15 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__v_#0 type= decl=14 last_use=15 own_transfer=-1 heap=0 skip=1
+GC-AUDIT local hoisted__U64_#2 type=U64 decl=7 last_use=14 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#3 type=U64 decl=10 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#4 type=U64 decl=11 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#5 type=U64 decl=12 last_use=15 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U8_#0 type=U8 decl=14 last_use=15 own_transfer=15 heap=0 skip=0
+GC-AUDIT local hoisted__v_#0 type= decl=13 last_use=15 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local i type=U32 decl=2 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local src type=U8 decl=8 last_use=15 own_transfer=-1 heap=0 skip=1
-GC-CFG body test/gc_audit.til:179:13 blocks=8
+GC-CFG body test/gc_audit.til:176:13 blocks=8
 GC-CFG block 0 exit
-GC-CFG block 1 body=179:13 span=0..2 succs=2
-GC-CFG block 2 body=179:13 span=2..3 succs=4,3
-GC-CFG block 3 body=179:13 span=3..3 succs=0
-GC-CFG block 4 body=179:13 span=0..2 succs=6,7
-GC-CFG block 5 body=179:13 span=2..16 succs=2
-GC-CFG block 6 body=179:13 span=0..0 succs=5
-GC-CFG block 7 body=179:13 span=0..1 succs=3
+GC-CFG block 1 body=176:13 span=0..2 succs=2
+GC-CFG block 2 body=176:13 span=2..3 succs=4,3
+GC-CFG block 3 body=176:13 span=3..3 succs=0
+GC-CFG block 4 body=176:13 span=0..2 succs=6,7
+GC-CFG block 5 body=176:13 span=2..16 succs=2
+GC-CFG block 6 body=176:13 span=0..0 succs=5
+GC-CFG block 7 body=176:13 span=0..1 succs=3
 GC-FLOW local _rc_U32_#0 entry=I exit=O out=O,O,O,O,O,O,O,O
 GC-FLOW local _re_U32_#0 entry=I exit=O out=O,O,O,O,O,O,O,O
 GC-LIVE local _rc_U32_#0 entry=0 in=0,0,1,0,1,1,1,0
 GC-LIVE local _re_U32_#0 entry=0 in=0,0,1,0,1,1,1,0
-GC-AUDIT body test/gc_audit.til:179:13 locals=2
+GC-AUDIT body test/gc_audit.til:176:13 locals=2
 GC-AUDIT local _rc_U32_#0 type=U32 decl=1 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local _re_U32_#0 type=U32 decl=0 last_use=2 own_transfer=-1 heap=0 skip=0
-GC-CFG body test/gc_audit.til:178:9 blocks=10
+GC-CFG body test/gc_audit.til:175:9 blocks=10
 GC-CFG block 0 exit
-GC-CFG block 1 body=178:9 span=0..5 succs=3
-GC-CFG block 2 body=178:9 span=5..7 succs=0
-GC-CFG block 3 body=179:13 span=0..2 succs=4
-GC-CFG block 4 body=179:13 span=2..3 succs=6,5
-GC-CFG block 5 body=179:13 span=3..3 succs=2
-GC-CFG block 6 body=179:13 span=0..2 succs=8,9
-GC-CFG block 7 body=179:13 span=2..16 succs=4
-GC-CFG block 8 body=179:13 span=0..0 succs=7
-GC-CFG block 9 body=179:13 span=0..1 succs=5
+GC-CFG block 1 body=175:9 span=0..5 succs=3
+GC-CFG block 2 body=175:9 span=5..7 succs=0
+GC-CFG block 3 body=176:13 span=0..2 succs=4
+GC-CFG block 4 body=176:13 span=2..3 succs=6,5
+GC-CFG block 5 body=176:13 span=3..3 succs=2
+GC-CFG block 6 body=176:13 span=0..2 succs=8,9
+GC-CFG block 7 body=176:13 span=2..16 succs=4
+GC-CFG block 8 body=176:13 span=0..0 succs=7
+GC-CFG block 9 body=176:13 span=0..1 succs=5
 GC-FLOW local hoisted__Array__U8_#0 entry=I exit=O out=O,I,O,I,I,I,I,I,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O,O,O,O,O,O,O,O,O
 GC-FLOW local hoisted__U64_#0 entry=I exit=O out=O,O,O,O,O,O,O,O,O,O
@@ -3036,7 +3036,7 @@ GC-LIVE local hoisted__U32_#0 entry=0 in=0,0,0,0,0,0,0,0,0,0
 GC-LIVE local hoisted__U64_#0 entry=0 in=0,0,0,0,0,0,0,0,0,0
 GC-LIVE local hoisted__U64_#1 entry=0 in=0,0,0,0,0,0,0,0,0,0
 GC-LIVE local new_data entry=0 in=0,0,1,1,1,1,1,1,1,1
-GC-AUDIT body test/gc_audit.til:178:9 locals=5
+GC-AUDIT body test/gc_audit.til:175:9 locals=5
 GC-AUDIT local hoisted__Array__U8_#0 type=Array__U8 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=2 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#0 type=U64 decl=1 last_use=3 own_transfer=-1 heap=0 skip=0
@@ -4391,7 +4391,6 @@ GC-CFG block 2 body=448:13 span=2..16 succs=0
 GC-CFG block 3 body=448:13 span=0..0 succs=2
 GC-CFG block 4 body=448:13 span=0..1 succs=0
 GC-FLOW local _wcond_Bool_#0 entry=I exit=O out=O,O,O,O,O
-GC-FLOW local cloned entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__U32_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U32_#1 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#0 entry=I exit=X out=X,I,O,I,I
@@ -4400,11 +4399,11 @@ GC-FLOW local hoisted__U64_#2 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#3 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#4 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local hoisted__U64_#5 entry=I exit=X out=X,I,O,I,I
+GC-FLOW local hoisted__U8_#0 entry=I exit=X out=X,I,M,I,I
 GC-FLOW local hoisted__v_#0 entry=I exit=X out=X,I,O,I,I
 GC-FLOW local i entry=I exit=X out=X,I,O,I,I
 GC-FLOW local src entry=I exit=X out=X,I,O,I,I
 GC-LIVE local _wcond_Bool_#0 entry=0 in=0,0,0,0,0
-GC-LIVE local cloned entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U32_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U32_#1 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#0 entry=0 in=0,0,0,0,0
@@ -4413,21 +4412,22 @@ GC-LIVE local hoisted__U64_#2 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#3 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#4 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__U64_#5 entry=0 in=0,0,0,0,0
+GC-LIVE local hoisted__U8_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local hoisted__v_#0 entry=0 in=0,0,0,0,0
 GC-LIVE local i entry=0 in=0,0,0,0,0
 GC-LIVE local src entry=0 in=0,0,0,0,0
 GC-AUDIT body test/gc_audit.til:448:13 locals=13
 GC-AUDIT local _wcond_Bool_#0 type=Bool decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local cloned type=U8 decl=9 last_use=15 own_transfer=15 heap=0 skip=0
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=4 last_use=6 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U32_#1 type=U32 decl=10 last_use=12 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#0 type=U64 decl=13 last_use=15 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U32_#1 type=U32 decl=9 last_use=11 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#0 type=U64 decl=12 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#1 type=U64 decl=5 last_use=7 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__U64_#2 type=U64 decl=6 last_use=7 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#3 type=U64 decl=7 last_use=9 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#4 type=U64 decl=11 last_use=13 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__U64_#5 type=U64 decl=12 last_use=13 own_transfer=-1 heap=0 skip=0
-GC-AUDIT local hoisted__v_#0 type= decl=14 last_use=15 own_transfer=-1 heap=0 skip=1
+GC-AUDIT local hoisted__U64_#3 type=U64 decl=7 last_use=14 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#4 type=U64 decl=10 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U64_#5 type=U64 decl=11 last_use=12 own_transfer=-1 heap=0 skip=0
+GC-AUDIT local hoisted__U8_#0 type=U8 decl=14 last_use=15 own_transfer=15 heap=0 skip=0
+GC-AUDIT local hoisted__v_#0 type= decl=13 last_use=15 own_transfer=-1 heap=0 skip=1
 GC-AUDIT local i type=U32 decl=2 last_use=15 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local src type=U8 decl=8 last_use=15 own_transfer=-1 heap=0 skip=1
 GC-CFG body test/gc_audit.til:448:13 blocks=8
@@ -4481,12 +4481,12 @@ GC-AUDIT local hoisted__U64_#0 type=U64 decl=4 last_use=6 own_transfer=-1 heap=0
 GC-AUDIT local hoisted__U64_#1 type=U64 decl=5 last_use=6 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local hoisted__Vec__U8_#0 type=Vec__U8 decl=8 last_use=9 own_transfer=-1 heap=0 skip=0
 GC-AUDIT local new_data type=U8 decl=6 last_use=9 own_transfer=8 heap=1 skip=0
-GC-CFG body test/gc_audit.til:168:28 blocks=2
+GC-CFG body test/gc_audit.til:166:28 blocks=2
 GC-CFG block 0 exit
-GC-CFG block 1 body=168:28 span=0..2 succs=0
+GC-CFG block 1 body=166:28 span=0..2 succs=0
 GC-FLOW local hoisted__U32_#0 entry=I exit=O out=O,O
 GC-LIVE local hoisted__U32_#0 entry=0 in=0,0
-GC-AUDIT body test/gc_audit.til:168:28 locals=1
+GC-AUDIT body test/gc_audit.til:166:28 locals=1
 GC-AUDIT local hoisted__U32_#0 type=U32 decl=0 last_use=1 own_transfer=-1 heap=0 skip=0
 GC-CFG body test/gc_audit.til:116:5 blocks=2
 GC-CFG block 0 exit

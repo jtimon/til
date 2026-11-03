@@ -148,13 +148,11 @@ namespace:
         mut new_data : U8 = malloc(total.to_uptr().mul(T.size().to_uptr()))
         for i in 0..self.cap {
             ref src : T = ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
-            mut cloned : T = T.clone(src)
-            adopt(T, ptr_add(new_data, i.to_uptr().mul(T.size().to_uptr())), own cloned)
+            adopt(T, ptr_add(new_data, i.to_uptr().mul(T.size().to_uptr())), own T.clone(src))
         }
         for j in 0..other.cap {
             ref osrc : T = ptr_add(other.data, j.to_uptr().mul(T.size().to_uptr()))
-            mut ocloned : T = T.clone(osrc)
-            adopt(T, ptr_add(new_data, self.cap.add(j).to_uptr().mul(T.size().to_uptr())), own ocloned)
+            adopt(T, ptr_add(new_data, self.cap.add(j).to_uptr().mul(T.size().to_uptr())), own T.clone(osrc))
         }
         return Array(T)(data = new_data, cap = total)
     }
@@ -168,8 +166,7 @@ namespace:
         mut out : Vec(T) = Vec(T).with_capacity(self.cap)
         for i in 0..self.cap {
             ref src : T = ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
-            mut cloned : T = T.clone(src)
-            out.push(own cloned)
+            out.push(own T.clone(src))
         }
         return out
     }
@@ -178,8 +175,7 @@ namespace:
         mut new_data : U8 = malloc(self.cap.to_uptr().mul(T.size().to_uptr()))
         for i in 0..self.cap {
             ref src : T = ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
-            mut cloned : T = T.clone(src)
-            adopt(T, ptr_add(new_data, i.to_uptr().mul(T.size().to_uptr())), own cloned)
+            adopt(T, ptr_add(new_data, i.to_uptr().mul(T.size().to_uptr())), own T.clone(src))
         }
         return Array(T)(data = new_data, cap = self.cap)
     }

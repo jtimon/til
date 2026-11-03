@@ -11,8 +11,7 @@ priv map_store_key := macro(K: Type, V: Type) returns FuncDef {
         return func(mut self: Map(K, V), i: USize, key: K) { self.keys.unsafe_set(i, key) }
     } else {
         return func(mut self: Map(K, V), i: USize, key: K) {
-            mut copy: K = K.clone(key)
-            adopt(K, self.key_slot(i), own copy)
+            adopt(K, self.key_slot(i), own K.clone(key))
         }
     }
 }
