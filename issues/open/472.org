@@ -12,20 +12,29 @@ artifacts from all the hosts and checks that, for each target, every copy
 hashes to the same value, whichever host built it. A mismatch fails the
 job and names the artifact, the target and the hosts that disagree.
 
-Today nothing checks this. The closest is ~self_translate~ (two
-translations of src/til.til on ONE host must be byte-identical) and the
-cross jobs, which only check that a cross-built binary runs.
+Today no CI job compares these outputs across hosts. The closest is
+~self_translate~, which compares the compiler's generated C and forward
+header with the local bootstrap output (or two local translations in the
+explicit-width suite). Cross jobs check execution or file format instead.
 
-*** Two levels, in order
+*** Three levels, in order
 
-1. *The translator's output.* ~til translate~ for a target (the .c and
-   _forward.h for C targets, .HC for TempleOS, .java for the JVM, ...)
+1. *Lexing through the pre-codegen boundary.* First establish identical
+   tokens, parsed program and prepared, typed/lowered program for identical
+   source bytes, logical module identities, explicit target/backend and
+   compile-time inputs. Stop before invoking a backend. Compare program
+   structure and codegen-relevant facts, not raw heap addresses, padding or
+   host interpreter storage. This is the FIRST milestone; choosing FASM or
+   changing GCC/Clang flags cannot repair differences introduced here.
+2. *The translator's output.* ~til translate~ for a target (the .c and
+   _forward.h for C targets, .HC for TempleOS, .fasm for FASM, ...)
    is produced by til alone, so it must be byte-identical across hosts
    for the same source/compiler revision, target and configuration,
    independently of the host's C toolchain. This is entirely til's
-   responsibility and is the first level to make blocking. Run it on
-   every host for every target, including all emitted companion files.
-2. *The binaries.* A compiled artifact also depends on the C toolchain
+   responsibility, after the frontend gate. Run it on every host for every
+   supported target/backend, including all emitted companion files. Java
+   files are currently generated library bindings, not a JVM Target entry.
+3. *The binaries.* A compiled artifact also depends on the C toolchain
    and the sysroot. Two hosts can only agree when they use the same
    compiler version, linker, headers and libraries for that target. On
    macOS the native jobs use Apple's clang and ld, while the linux cross
@@ -96,15 +105,22 @@ cross jobs, which only check that a cross-built binary runs.
   agreement among only surviving uploads must not count as success. A group
   with only one producer does not establish cross-host reproducibility.
   Native test failures fail CI independently of hash agreement.
-- Start with level 1 only, blocking. Add level 2 per target once a pinned
+- Start with the frontend gate, then generated-source comparisons, blocking.
+  Add binary comparisons per target once a pinned
   toolchain pair exists for it, initially non-blocking until it is green,
   then make that comparison blocking. Label non-blocking results and coverage
   gaps explicitly rather than presenting partial coverage as full success.
 
 *** Acceptance
 
-- [ ] Document the input/build-stage contract, artifact inventory and
-  host-by-target matrix, including comparable binary toolchain groups.
+- [X] Inventory the existing frontend, checks and CI matrix; record a staged
+  plan (below). This is source inspection, not cross-host verification.
+- [ ] Agree and implement the exact frontend comparison contract, including
+  complete semantic coverage and controlled compile-time inputs.
+- [ ] Lexing, parsing, typing, compile-time evaluation and shared lowering
+  agree before codegen across fresh processes, compiler layouts and hosts
+  for the same target/configuration. Localize failures to the earliest phase.
+- [ ] Establish the binary toolchain groups and complete artifact inventory.
 - [ ] Clean rebuilds at different times and in different checkout paths
   produce identical hashes within the declared comparison groups.
 - [ ] Every host runs its native tests and produces byte-identical translator
@@ -121,11 +137,235 @@ cross jobs, which only check that a cross-built binary runs.
   gaps, working toward the full all-hosts-by-all-targets goal. Coordinate
   32-bit compiler coverage with [[./431.org][#431]].
 
-*** Open questions
+*** Inventory at master 959dff083
 
-- Which hosts build which targets today: linux builds every target; the
-  mac host builds windows and linux (macos-host-cross-build); windows as
-  a host builds windows only. The matrix decides what can be compared.
-- How much CI time and how many runner slots this adds, especially on
-  the macOS pool, which is already the bottleneck (runs 2920-2925 lost
-  mac jobs to queueing).
+This inventory reads the workflow and implementation at that revision. It
+does not assert that the latest remote jobs passed or that every cell below
+is reproducible. No cross-host comparison has been executed for this issue.
+
+**** Actual CI producers and target coverage
+
+Source: ~.github/workflows/tests.yml~. Job names such as ~linux-arm64~ often
+name the OUTPUT target, not the machine running the compiler.
+
+| Compiler execution host | Existing checks / producers | Explicit target coverage |
+|-------------------------+-----------------------------+--------------------------|
+| Linux x64 | ~linux-x64~ native ASAN suite; ~linux-x64-usize64~ alternate-layout suite; separate cross jobs | Six Linux targets, Windows x64/x86, macOS x64/arm64, wasm32; TempleOS via guest acceptance |
+| Linux arm64 | ~linux-arm64-native~ native ASAN suite and hello build | Native arm64 explicitly; no all-target producer matrix |
+| macOS arm64 | ~macos-arm64~ no-GUI ASAN suite and native examples | Native arm64 |
+| macOS arm64 | ~macos-host-cross-build~ | Windows x64 hello; Linux x64 hello and crypto, using Homebrew cross tools |
+| macOS x64 | ~macos-x64~ no-GUI ASAN suite and native examples | Native x64; no equivalent cross producer job |
+| Windows x64 | ~windows-x64-host-run~ runs the Linux-built ~til.exe~, interprets/translates and compiles selected programs with native GCC | Windows x64 build probes; no native bootstrap/full-suite producer |
+
+- The six Linux targets are x64, arm64, riscv64, x86, arm32 and riscv32.
+  QEMU runs the cross-built Linux programs. Compiler/interpreter cross
+  probes exist for arm64/riscv64; 32-bit compiler coverage remains #431.
+- Windows x64/x86 binaries built on Linux run on Windows; Linux-built
+  macOS binaries run on both Macs. Those consumers do not independently
+  rebuild the same artifacts or compare hashes. The Mac-host cross outputs
+  also have Windows/Linux execution consumers.
+- ~Target~ in ~src/self/targets.til~ has twelve entries: the six Linux,
+  two Windows, two macOS, wasm32 and TempleOS targets. FASM/MLIR are backend
+  selections, not extra platform entries. Theme output is mode-selected.
+- The workflow uploads selected Windows/Mac executables and diagnostics,
+  not a common frontend state or generated-source corpus. There is no
+  collecting equality job. Linux cross coverage is distributed over jobs,
+  not performed by every host after its native suite.
+- Toolchains are not mutually pinned: Ubuntu packages, Homebrew packages,
+  Windows-provided/Chocolatey MinGW and native Apple tools differ. The
+  riscv32 job names a Bootlin release, but that alone creates no second
+  comparable producer. Binary comparisons cannot be enabled just by adding
+  a hash command to the existing uploads.
+
+**** Frontend pipeline and evidence
+
+- *Lexing*: ~src/self/lexer.til::tokenize~ walks source bytes and emits
+  token kind, start/length and line/column. Character classification uses
+  explicit ASCII comparisons rather than locale-sensitive ctype calls.
+  Compare source bytes as inputs and numeric token fields, never a raw
+  ~Token~ memory image (start/length use the compiler's USize).
+- *Parsing/loading*: ~parser.til::parse~ and ~loader.til::load_program~
+  produce the canonical imported ASTs. Import discovery follows source
+  child order and records dependencies before importers; it is not a
+  directory scan. Modes/core/user imports all participate. ~SymbolPool~
+  assigns IDs in intern order; its hash buckets are lookup storage.
+- *Initialization/typing*: ~loader.til::type_program_errors~ resolves
+  target aliases, expands namespace imports/lazy calls, initializes units,
+  performs recursive type sweeps, instantiates generics, lowers constructs
+  and validates ownership-related facts. Compile-time evaluation occurs
+  during these passes, not just in one final constfolder pass.
+- *Final preparation*: ~finish_init_and_type_program~ runs ownership
+  destruction insertion and clears evaluation state. ~finish_prepare_program~
+  calls ~constfolder_imported~, validates the entry point and scavenges.
+  The shared boundary is the return from ~prepare_program~, before
+  ~cmd_translate~ / ~builder.til::translate_ast~ dispatches to a backend.
+  Backend configuration already affects preparation (~cptr32~, MLIR's ABI
+  settings, etc.); compare a fixed backend as well as a fixed target.
+- *Ordering already present*: core Map/Set use ordered storage, and #101
+  moved synthesized-name counters into Context/per-definition scopes.
+  Preserve these instead of assuming every map needs sorting. Audit any
+  pointer-keyed analysis state and hash-table iteration for observable
+  order; a pointer used solely for identity is not itself a determinism bug.
+- *Confirmed host-layout dependency*: ~context.til::size_intrinsics_emit_sizeof~
+  checks target widths/compression AGAINST the running compiler's layout.
+  ~constfolder_classify_stmt~ uses that result to decide whether size
+  methods/~dyn_size_of~ fold. The same target can therefore receive different
+  lowered expressions from compact and native-layout compiler binaries.
+  ~src/tests.til~ explicitly accommodates that difference in ~self_translate~.
+  It is a frontend issue before any C optimization is considered.
+- *Target-layout groundwork*: ~typer.til::target_value_size_align~ computes
+  target facts separately from ~ctx.struct_layouts~ (host evaluation
+  buffers); generator evaluation also has ~target_size_queries~. Reuse that
+  separation, but audit coverage before applying it universally: the helper
+  is not automatically a complete model of compressed pointers, SIMD,
+  external C layouts and every backend ABI.
+- *Paths already affect semantics*: ~context.til::display_path~ makes paths
+  under cwd relative but leaves outside paths absolute. Private declaration
+  identities are path-mangled in ~initer.til::init_private_names~. The typer
+  resolves ~__LOC__~ to string literals. Stable logical source identity must
+  be addressed before codegen, including installed core/std and Windows
+  spelling. Do not hide those differences by scrubbing emitted output.
+- *Compile-time external inputs*: macros may perform effects, as documented
+  in ~constfolder.til::try_eval_call~. ~src/til.til~ itself executes git at
+  compile time for VERSION/COMPILER_REVISION. Pin full revision and short
+  revision spelling, source/support trees and the declared external inputs.
+  Arbitrary time/environment/command-dependent macros cannot be promised
+  host-independent results without controlling those inputs or changing
+  their language contract. The latter needs a separate explicit decision.
+- *Numerical audit*: folded F32/F64 values use host parsing/formatting
+  (~strtof~, ~strtod~, ~snprintf~ in ~src/self/codegen/ext.c~), and evaluation
+  can call host external functions. Round-trip formatting is not proof of
+  cross-libc identical spelling or arithmetic. Test signed zero, subnormals,
+  rounding boundaries and nonfinite values where supported; distinguish
+  representation differences from differing values. These are audit risks,
+  not measured regressions in this inventory.
+
+**** Existing checks and the observation gap
+
+- ~src/tests.til~ runs ~test/parsing.til~ compile-only and
+  ~test/doc_block_comments.til~ compile-only. ~test/lexing.til~ is commented
+  out of the suite; it still refers to ~Token.text~ and ~KwNull~, which are
+  absent from the current lexer. Restore meaningful lexer coverage first.
+- ~til ast~ / ~loader.til::cmd_ast~ returns before initialization/typing and
+  prints user units, not the complete prepared core/mode/import graph.
+  ~NodeType.head_str~ omits types, full signatures, ownership/call metadata,
+  struct/enum payload details and locations. Equal current dumps are not
+  sufficient proof even of complete parsed-AST equality. ~Expr.eq~ is TODO.
+- ~self_translate~ / ~self_translate_native~ compare C and forward headers
+  locally, after codegen. Keep them, but do not substitute them for the
+  requested pre-codegen gate or claim they localize frontend divergence.
+- No complete pre-codegen comparison facility was found on this path.
+  Implementing one needs an explicit observation contract; hashing current
+  pretty-printer output or raw Context bytes would give misleading results.
+
+*** Implementation sequence
+
+**** 1. Frontend comparison contract and lexer/parser baseline
+
+- Start with one explicit target/backend/width and a small corpus. Define
+  comparison checkpoints at tokens, parsed loaded graph, after typing,
+  after ownership lowering, and after final folding/scavenging. The typing
+  checkpoint includes nested compile-time evaluation; it is not a claim
+  that parsing, expansion and typing are completely separate passes.
+- Compare all node payloads, declaration/signature/type facts, ownership
+  and call metadata, literals, locations, declaration order and synthesized
+  identities that can affect subsequent processing. Include core/mode units
+  and backend-consumed side state. Resolve references to stable declaration
+  identities rather than comparing addresses; audit each excluded host-only
+  field. Do not sort away meaningful order or rename away differing symbols.
+- Extend the existing lexer/parser tests for the current token contract,
+  then repeat independent loads in one process and fresh processes. Add
+  deliberate token/type/ownership/order changes to prove the comparator
+  detects differences hidden by today's AST printer.
+
+Observation proposal for approval BEFORE implementation: a test-only til
+driver, ~test/frontend_determinism.til~, calls the real loader/preparation
+phases and streams explicitly field-tagged S-expression comparison records
+to stdout. The test harness captures them under ~tmp/~; the CI collector
+reads those records and compares them, retaining the first differing phase
+for diagnosis. It is compiled/run through the existing test workflow, with
+no installed command or public compiler flag. Every run regenerates records
+from the source; they are not loaded back into the compiler or kept as a
+cache. Existing ~til ast~ and generated C omit the necessary state or cross
+the wrong boundary. The tradeoff is maintaining complete field coverage as
+the AST changes, plus runtime/storage for observations. This is a proposed
+new test-output representation, not an approved serialization/cache format.
+
+**** 2. Make frontend decisions independent of the executing compiler
+
+- Reproduce the size-folding difference with the SAME target/layout using
+  USize32 and USize64 compiler builds on Linux x64. This gives a cheap local
+  cross-layout gate before requiring a five-host CI cycle.
+- Make target-dependent size/alignment/folding decisions depend only on
+  the target contract. Keep live interpreter/FFI storage in its host domain;
+  do not replace host layouts globally with target layouts. Complete shared
+  target queries where needed, with native/cross-layout regression cases.
+- Resolve logical module identity and ~__LOC__~ policy explicitly, then
+  compare different checkout roots and installed support roots. Merely
+  pinning all CI jobs to one absolute path would miss the real defect.
+- Audit compiler revision queries, effectful macros, numerical folding and
+  generated-name/iteration order with focused fixtures. Fix each difference
+  at its first phase. Do not disable folding wholesale to make hashes agree.
+- Exit gate: identical complete pre-codegen observations for the declared
+  fixtures under fresh/reused-process tests, both compiler layouts and root
+  variations, with identical target inputs. This is not yet a binary claim.
+
+**** 3. Cross-host frontend CI, then expand coverage
+
+- Begin with Linux x64 and Linux arm64, one explicit Linux-x64 C target,
+  one USize width and a small shared corpus. No cross C toolchain is needed
+  merely to prepare that target. Keep native suites as independent gates.
+- Reuse the existing Mac native jobs and Windows-host execution job when
+  the comparison driver is portable. Windows initially uses a Linux-built
+  compiler/driver: label that as execution-host diversity, not independent
+  native bootstrapping. A Windows native self-build/full suite is additional
+  work, not something the existing workflow already supplies.
+- Expand to both widths and the twelve declared targets where the corpus's
+  mode supports them. Start with small scalar/import/closure/generic,
+  ownership/throwing and size/constant-evaluation fixtures. Include negative
+  diagnostics, import diamonds/cycles and declaration-order cases.
+- Add ~src/til.til~ as the large integration case only after the small
+  cases agree. Record per-host time, peak memory and output size before
+  multiplying it across targets. Translation/preparation of the compiler
+  is already one of the suite's most expensive operations.
+- Cost is approximately hosts * target-configurations * corpus cases, even
+  without assembly/linking. A five-host, twelve-target, two-width sweep is
+  120 preparations PER case. Run observations sequentially inside each
+  producer initially; avoid adding another memory-heavy self-prepare beside
+  the existing Mac ASAN workload. Use measured cost to choose later coverage,
+  while explicitly reporting absent cells. No new native test matrix is
+  needed for the first two-host frontend gate.
+
+**** 4. Only after frontend equality: emitted source and native binaries
+
+- Compare every generated companion file for the same target/backend. Add
+  library binding output as its own corpus case. Frontend equality narrows
+  any remaining difference to emission; a matching C file alone still does
+  not prove matching preprocessing, runtime sources or linked libraries.
+- Keep GCC and Clang comparisons within pinned editions/configurations,
+  not GCC-versus-Clang byte equality. ~--opt~ already defaults to 0;
+  ~builder.til::compile_ast~ also disables FP contraction and requests
+  standard excess precision. Lower optimization is therefore not a missing
+  global switch. Higher optimization can be reproducible too; investigate
+  concrete differences before paying a runtime-performance penalty. Neither
+  ~-O0~ nor matching compiler version strings standardizes SDKs or linkers.
+- FASM is a promising later binary experiment: it assembles standalone ELF64
+  with the vendored runtime, avoiding the C compiler/libc/linker for supported
+  programs. At this revision the CLI restricts it to Linux x64 hosts AND
+  targets, cli/script modes, no link flags/~link_c~, and an incomplete language
+  subset (#453, now including indirect calls/closures). It cannot yet replace
+  the all-host matrix or build the compiler, which links external libraries.
+  It shares the frontend and cannot bypass steps 1-3. Check identical assembly
+  and pinned runtime/assembler inputs, then ELF bytes, before claiming it is
+  deterministic. Other host/target ports are separate backend work.
+- The first binary gate should be one small program on one target from two
+  compatible producers, not the entire compiler/runtime/vendor dependency
+  graph at once. Extend the artifact set only as toolchain groups are pinned.
+
+**** Immediate next implementation scope
+
+Approve the frontend observation contract, restore lexer coverage, and
+establish lexer/parser plus same-target cross-layout preparation checks.
+Keep backend changes, optimization changes and the full CI build matrix
+after that first milestone. This plan has no basis for a fixed time estimate
+until the observation cost and first cross-layout failure are measured.
