@@ -181,7 +181,7 @@ bin/til_boot: $(LIBFFI_HOST_DIR)/.built
 	for f in $$(git ls-tree --name-only HEAD src/self/codegen/ | grep '\.[ch]$$'); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" || exit 1; \
 	done
-	cc -Wall -Wextra -Werror -fsigned-char -g -Itmp/boot/src -Itmp/boot/src/self/codegen -Itmp/boot/boot tmp/boot/src/self/codegen/*.c tmp/boot/boot/til.c $(BOOT_LD_FLAGS) $(LIBFFI_FLAGS) -o bin/til_boot
+	cc -Wall -Wextra -Werror -fsigned-char -g -Itmp/boot/src/self/codegen -Itmp/boot/boot tmp/boot/src/self/codegen/*.c tmp/boot/boot/til.c $(BOOT_LD_FLAGS) $(LIBFFI_FLAGS) -o bin/til_boot
 
 # The build program itself: a generated artifact under the already
 # ignored bin/ tree, never committed and never installed. bin/til_boot

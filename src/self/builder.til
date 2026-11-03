@@ -388,9 +388,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
             // each other's bridges before the final linker reads them.
             user_obj := c_base.format("_user_", fi.to_str(), ".o")
 
-            // Skip -include forward.h for the compiler's own C runtime files
-            mut fwd_flag := format(" -include ", fwd_path)
-            if file.starts_with("src/self/codegen/") { fwd_flag = " -Isrc/self/codegen -Iboot" }
+            fwd_flag := format(" -include ", fwd_path)
             obj_cmd := compiler.format(extra, werr, asan_flags, prof_flags, usize_flags, " -I", ext_dir,
                 fwd_flag, ifl, " -c ", file,
                 " -o ", user_obj)

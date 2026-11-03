@@ -654,7 +654,6 @@ build_debug := proc(mut b: Build) {
     argv.push(own "-Werror")
     argv.push(own "-fsigned-char")
     argv.push(own "-Iboot")
-    argv.push(own "-Isrc")
     argv.push(own "-Isrc/self/codegen")
     argv.push(own "boot/til.c")
     add_matching(argv, "src/self/codegen", ".c")
@@ -753,7 +752,7 @@ check_clang := proc(mut b: Build) {
         return
     }
     run("clang", "-fsyntax-only", "-Wall", "-Wextra", "-Werror", "-fsigned-char",
-        "-Isrc", "-Isrc/self/codegen", "-Iboot", "boot/til.c")
+        "-Isrc/self/codegen", "-Iboot", "boot/til.c")
     println("check_clang: generated C is clang-clean")
 }
 
