@@ -21,8 +21,10 @@ cross jobs, which only check that a cross-built binary runs.
 1. *The translator's output.* ~til translate~ for a target (the .c and
    _forward.h for C targets, .HC for TempleOS, .java for the JVM, ...)
    is produced by til alone, so it must be byte-identical across hosts
-   with no conditions. This is entirely til's responsibility and is the
-   first level to make blocking. Run it on every host for every target.
+   for the same source/compiler revision, target and configuration,
+   independently of the host's C toolchain. This is entirely til's
+   responsibility and is the first level to make blocking. Run it on
+   every host for every target, including all emitted companion files.
 2. *The binaries.* A compiled artifact also depends on the C toolchain
    and the sysroot. Two hosts can only agree when they use the same
    compiler version, linker, headers and libraries for that target. On
@@ -33,17 +35,40 @@ cross jobs, which only check that a cross-built binary runs.
    hosts that use the SAME pinned toolchain for a target, and the issue
    should record which pairs those are.
 
-*** Known sources of nondeterminism to remove (binary level)
+*** Build contract
+
+- Fix source and bootstrap revisions, dependency versions, target
+  OS/architecture/ABI, CPU baseline, USize width, optimization and sanitizer
+  settings. For binary comparisons, pin compatible host-native editions of
+  the same compiler, linker and archive tools, plus the target sysroot/SDK
+  and deployment target.
+- Compare the same build stage and artifact set. Different targets, USize
+  widths or other configurations are separate groups, not expected to hash
+  alike. Include generated source, compiler binaries and runtime/core
+  libraries explicitly in the comparison inventory.
+- Define the boundary for packaging and signing. If signed or timestamped
+  distribution wrappers cannot be reproduced, compare the exact pre-signing
+  payload and state that boundary; do not silently strip or rewrite
+  differing outputs just to make their hashes match.
+
+*** Sources of nondeterminism to audit and remove
 
 - Absolute paths. ~__LOC__~ strings and debug info carry the path the
   sources were read from; an installed til bakes its install path into
   libtilcore (see CLAUDE.md, "Compiler versions, installs, and shared
   core"). Builds from different checkout paths differ for that reason
   alone. Candidates: -ffile-prefix-map / -fdebug-prefix-map, or emitting
-  repo-relative locations.
-- Archive metadata. ~ar rcs~ records timestamps, uids and modes; use
-  deterministic mode (~ar D~ / ~-D~) wherever til or make.til builds an
-  archive.
+  repo-relative locations. C compiler prefix maps do not necessarily rewrite
+  paths already emitted as til string literals; check the translator output
+  as well as debug information. Decide explicitly how reproducibility and
+  useful diagnostic paths coexist before changing location semantics or
+  installation layout.
+- Archive metadata. Non-deterministic archive modes can record timestamps,
+  uids and modes; ensure deterministic mode (~ar D~ / ~-D~ where supported)
+  wherever til or make.til builds an archive. Do not assume the same default
+  for every implementation of ~ar rcs~.
+- Locale, directory traversal and archive member ordering, generated code
+  ordering, embedded dates and accidental host CPU detection.
 - Build ids and linker-chosen identifiers (--build-id, Mach-O LC_UUID).
 - Code signatures (Mach-O ad-hoc signing by lld or codesign) -- check
   whether they are stable for identical input.
@@ -56,12 +81,45 @@ cross jobs, which only check that a cross-built binary runs.
 - Each existing platform job, after its normal suite, builds a fixed set
   of programs (hello_script, the compiler itself, a std/crypto program,
   ...) for every target it supports, at every USize width it supports,
-  and uploads them as one artifact named after the host.
+  and uploads them as one artifact named after the host. Keep producer-host,
+  target and configuration identities distinct so uploads cannot overwrite
+  one another. Native tests must use that job's own native build.
 - A new job ~needs:~ all of them, downloads every artifact, and compares
-  the hashes per (target, artifact). It reports the full matrix, not just
-  the first mismatch.
+  the hashes per (level, target, configuration, artifact), restricted to the
+  declared compatible toolchain groups at the binary level. Collect actual
+  outputs from the same CI run and compute their hashes in the collecting
+  job, including the native producer's output wherever comparable. Report
+  the full matrix, not just the first mismatch, with producer hosts and
+  hashes, and retain differing outputs for diagnosis.
+- Require every expected host/target artifact. Missing or failed producers,
+  incomplete artifact sets and hash mismatches fail blocking comparisons;
+  agreement among only surviving uploads must not count as success. A group
+  with only one producer does not establish cross-host reproducibility.
+  Native test failures fail CI independently of hash agreement.
 - Start with level 1 only, blocking. Add level 2 per target once a pinned
-  toolchain pair exists for it, initially non-blocking until it is green.
+  toolchain pair exists for it, initially non-blocking until it is green,
+  then make that comparison blocking. Label non-blocking results and coverage
+  gaps explicitly rather than presenting partial coverage as full success.
+
+*** Acceptance
+
+- [ ] Document the input/build-stage contract, artifact inventory and
+  host-by-target matrix, including comparable binary toolchain groups.
+- [ ] Clean rebuilds at different times and in different checkout paths
+  produce identical hashes within the declared comparison groups.
+- [ ] Every host runs its native tests and produces byte-identical translator
+  output for every target/configuration in the matrix.
+- [ ] Native and cross-built binaries, including runtime/core libraries,
+  match across hosts using the pinned target toolchain; enabled binary
+  comparisons become blocking once established.
+- [ ] Deliberately altered and missing artifacts each fail a blocking
+  comparison with actionable output. Native test failures cannot be hidden
+  by a successful hash comparison.
+- [ ] Trace discrepancies to their source and add regression coverage for
+  discovered nondeterminism rather than masking differing bytes.
+- [ ] Record unavailable toolchains/SDKs and broken target builds as coverage
+  gaps, working toward the full all-hosts-by-all-targets goal. Coordinate
+  32-bit compiler coverage with [[./431.org][#431]].
 
 *** Open questions
 
