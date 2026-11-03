@@ -1,5 +1,5 @@
 // JVM caller for the generated JNI binding of test/jni_lib.til; run by
-// `bin/til run test/jni.til jvm`. Non-ASCII round trips are checked with
+// test/jni.til. Non-ASCII round trips are checked with
 // equals() so the result does not depend on the JVM's stdout encoding.
 import til.jni_lib.JniLib;
 

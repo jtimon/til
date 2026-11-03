@@ -1,15 +1,15 @@
 mode cli
 
-// #463: the JNI binding generated for every `mode lib` library. Without
-// arguments this checks the generated Java class and C bridge as text, so
-// the default suite needs no JDK. With `jvm` it also compiles the bridges
-// against $JAVA_HOME and runs test/JniLibTest.java and
-// test/LibraryNamespaceAJniTest.java through them, then again with the
-// libraries and bridges built with --asan so the cage's leak report checks
-// every path; that half requires a JDK (JAVA_HOME) and libasan.
+// #463: the JNI binding generated for every `mode lib` library. Checks the
+// generated Java class and C bridge for test/jni_lib.til as text, then
+// compiles the bridge and runs test/JniLibTest.java through it; on Linux
+// again with the library and bridge built with --asan, so the cage's leak
+// report covers every bridge path. Needs a JDK (test/jni_support.til finds
+// it). test/library_namespace.til drives library_namespace_a the same way.
 
 import("../src/std/sys")
 import("../src/std/file")
+import("jni_support")
 
 JAVA := "gen/til/java/til/jni_lib/JniLib.java"
 BRIDGE := "gen/til/jni_lib_jni.c"
@@ -70,86 +70,25 @@ check_text := proc() {
     require_contains(c, "til_jni_x5flib__JniPerson_delete((til_jni_x5flib__JniPerson *)(intptr_t)h, 1);")
 }
 
-EXPECTED_A := "globals ok\nenums ok\nclosed: BindingPoint handle is closed or moved\nhandles ok\n"
-
 EXPECTED := "127\n250\n-2000\n65000\n1999999999\n4294967295\n1099511627783\n18446744073709551615\n42\n1.5\n2.5\nfalse true\n42\n6\nhello, jvm\n<owned>\n42\ncaught DivideByZero / DivideByZero: b is zero\ncaught JniBad / JniBad\nada:36\ngrace:37 true\nanon 0 true\n5\nmoved: JniPerson handle is closed or moved\n42 false\nholder: n: a mut parameter takes a one-element array\n49 12 0\n7 own 0\npayload: JniShape is not Label\n2 held held\n5 renamed\nborrowed: cannot move a borrowed JniPerson\n90\n[cb]\n36\nmade:9\ntrue\nx|y||z\np|q\n303\nanon 0\nloop ok\n"
 
-// The bridge command doc/ffi.org documents (plus -fsanitize=address for
-// the leak run).
-build_bridge := proc(java_home: Str, name: Str, asan: Bool) {
-    cmd := Cmd.new("cc", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC")
-    if asan { cmd.arg("-fsanitize=address") }
-    cmd.args(format("-I", java_home, "/include"), format("-I", java_home, "/include/linux"),
-        "-Igen/til", "-Isrc/self/codegen", format("gen/til/", name, "_jni.c"), "-Lgen/lib", format("-l", name),
-        "-Wl,-rpath,$ORIGIN", "-o", format("gen/lib/lib", name, "_jni.so"))
-    cmd.run_checked()
-}
-
-run_java := proc(java_home: Str, main_class: Str) returns Str {
-    run := Cmd.new(format(java_home, "/bin/java"), "-Xcheck:jni", "-Djava.library.path=gen/lib",
-        "-cp", "tmp/jni_classes", main_class)
-    run.capture_out()
-    if run.run() != 0 { panic(main_class, " failed:\n", run.out()) }
-    return run.out()
-}
-
-// The same caller with the library and bridge built with --asan: the cage's
-// exit-time report fails the run if anything til allocated is left
-// unreachable (LeakSanitizer itself is pointed away from the JVM's own
-// allocations, which it cannot tell from leaks).
-run_java_asan := proc(java_home: Str, main_class: Str, libasan: Str) returns Str {
-    run := Cmd.new(format(java_home, "/bin/java"), "-Djava.library.path=gen/lib", "-cp", "tmp/jni_classes", main_class)
-    run.env("LD_PRELOAD", libasan)
-    run.env("ASAN_OPTIONS", "detect_leaks=1:handle_segv=0:allow_user_segv_handler=1:detect_odr_violation=0")
-    run.env("LSAN_OPTIONS", "suppressions=tmp/jni_lsan.supp:print_suppressions=0")
-    run.capture_out()
-    if run.run() != 0 { panic(main_class, " failed under ASAN:\n", run.out()) }
-    return run.out()
-}
-
-check_jvm := proc() {
-    java_home := get_env("JAVA_HOME")
-    if java_home.len() == 0 { panic("test/jni.til jvm: set JAVA_HOME to a JDK") }
-    // The library whose Python binding test/library_namespace.til checks.
-    Cmd.new("bin/til", "build", "test/library_namespace_a.til").run_checked()
-    build_bridge(java_home, "jni_lib", false)
-    build_bridge(java_home, "library_namespace_a", false)
-    File.remove_tree("tmp/jni_classes")
-    // --release 8: the generated classes stay usable from every JVM toolchain
-    // (doc/ffi.org); -Xlint:-options mutes the JDK's notice about release 8.
-    Cmd.new(format(java_home, "/bin/javac"), "--release", "8", "-Xlint:all", "-Xlint:-options", "-Werror",
-        "-d", "tmp/jni_classes",
-        JAVA, "test/JniLibTest.java",
-        "gen/til/java/til/library_namespace_a/LibraryNamespaceA.java",
-        "test/LibraryNamespaceAJniTest.java").run_checked()
-    out := run_java(java_home, "JniLibTest")
-    if out != EXPECTED { panic("JniLibTest output mismatch:\n", out) }
-    out_a := run_java(java_home, "LibraryNamespaceAJniTest")
-    if out_a != EXPECTED_A { panic("LibraryNamespaceAJniTest output mismatch:\n", out_a) }
-    println("jni jvm ok")
-
-    Cmd.new("bin/til", "build", "--asan", "test/jni_lib.til").run_checked()
-    Cmd.new("bin/til", "build", "--asan", "test/library_namespace_a.til").run_checked()
-    build_bridge(java_home, "jni_lib", true)
-    build_bridge(java_home, "library_namespace_a", true)
-    find := Cmd.new("cc", "-print-file-name=libasan.so")
-    find.capture_out()
-    if find.run() != 0 { panic("cc cannot locate libasan.so") }
-    libasan := find.out().trim().clone()
-    File.writefile("tmp/jni_lsan.supp", "leak:libjvm.so\nleak:libjli.so\nleak:libjava.so\n")
-    if run_java_asan(java_home, "JniLibTest", libasan) != EXPECTED { panic("JniLibTest output mismatch under ASAN") }
-    if run_java_asan(java_home, "LibraryNamespaceAJniTest", libasan) != EXPECTED_A {
-        panic("LibraryNamespaceAJniTest output mismatch under ASAN")
-    }
-    println("jni jvm asan ok")
-}
-
-main := proc(args: ..Str) {
+main := proc() {
     Cmd.new("bin/til", "build", "test/jni_lib.til").run_checked()
     check_text()
     println("jni text ok")
-    if args.len() > 0 {
-        if args[0] != "jvm" { panic("test/jni.til: unknown argument ", args[0]) }
-        check_jvm()
+
+    java_home := jni_java_home()
+    jni_build_bridge(java_home, "jni_lib", false)
+    jni_javac(java_home, "tmp/jni_classes", JAVA, "test/JniLibTest.java")
+    out := jni_run(java_home, "tmp/jni_classes", "JniLibTest")
+    if out != EXPECTED { panic("JniLibTest output mismatch:\n", out) }
+    println("jni jvm ok")
+
+    if host_os() == "linux" {
+        Cmd.new("bin/til", "build", "--asan", "test/jni_lib.til").run_checked()
+        jni_build_bridge(java_home, "jni_lib", true)
+        out_asan := jni_run_asan(java_home, "tmp/jni_classes", "JniLibTest")
+        if out_asan != EXPECTED { panic("JniLibTest output mismatch under ASAN:\n", out_asan) }
+        println("jni jvm asan ok")
     }
 }

@@ -1,6 +1,6 @@
 // JVM caller for the JNI binding of test/library_namespace_a.til, the
 // library whose Python binding test/library_namespace.til checks; run by
-// `bin/til run test/jni.til jvm`. It reads and writes the same globals the
+// test/library_namespace.til itself. It reads and writes the same globals the
 // Python check does, then exercises struct handles.
 import til.library_namespace_a.LibraryNamespaceA;
 import til.library_namespace_a.LibraryNamespaceA.BindingNiche;

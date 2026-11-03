@@ -2,6 +2,7 @@ mode cli
 
 import("../src/std/sys")
 import("../src/std/file")
+import("jni_support")
 
 require_contains := func(text: Str, expected: Str) returns Bool {
     if text.contains(expected).not() { panic("missing generated binding text: ", expected) }
@@ -404,4 +405,27 @@ main := proc() {
     require_contains(output, "pool-host-temporary=444")
     require_absent(output, "panic:")
     require_absent(output, "error:")
+
+    check_jvm()
+}
+
+// #463: the same library from the JVM, through its generated JNI binding --
+// the globals the Python check reads and writes, enums, and struct handles
+// (test/LibraryNamespaceAJniTest.java). Last, because the ASAN run rebuilds
+// library_namespace_a with --asan.
+JVM_EXPECTED := "globals ok\nenums ok\nclosed: BindingPoint handle is closed or moved\nhandles ok\n"
+
+check_jvm := proc() {
+    java_home := jni_java_home()
+    jni_build_bridge(java_home, "library_namespace_a", false)
+    jni_javac(java_home, "tmp/library_namespace_classes",
+        "gen/til/java/til/library_namespace_a/LibraryNamespaceA.java", "test/LibraryNamespaceAJniTest.java")
+    out := jni_run(java_home, "tmp/library_namespace_classes", "LibraryNamespaceAJniTest")
+    if out != JVM_EXPECTED { panic("LibraryNamespaceAJniTest output mismatch:\n", out) }
+    if host_os() == "linux" {
+        Cmd.new("bin/til", "build", "--asan", "test/library_namespace_a.til").run_checked()
+        jni_build_bridge(java_home, "library_namespace_a", true)
+        out_asan := jni_run_asan(java_home, "tmp/library_namespace_classes", "LibraryNamespaceAJniTest")
+        if out_asan != JVM_EXPECTED { panic("LibraryNamespaceAJniTest output mismatch under ASAN:\n", out_asan) }
+    }
 }

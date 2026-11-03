@@ -81,6 +81,8 @@ This is more predictable, but sill not completely deterministic. And can be more
 - ~make~
 - ~gcc~
 - ~xvfb~ (for GUI tests)
+- a JDK (for the JNI binding tests; ~$JAVA_HOME~, else the ~javac~ on
+  ~PATH~), e.g. ~sudo apt install default-jdk-headless~
 
 ** Optional LLVM/MLIR development tools
 

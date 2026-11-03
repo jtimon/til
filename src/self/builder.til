@@ -225,7 +225,16 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
         runtime_dependency = runtime_dependency_args(target, runtime_shared_path, runtime_import_path)
         core_dependency = runtime_dependency_args(target, core_shared_path, core_import_path)
     }
-    cmd = compiler.format(extra, asan_flags, target_link_extra_args(target), " -shared -o ", so_path,
+    // On macOS a dylib's install name is how its consumers record it. Left
+    // unset it is the -o path, gen/lib/lib<name>.dylib, which resolves only
+    // from the build directory: name it @rpath/ like the runtime and core,
+    // so consumers find it through their own rpath (a JNI bridge's
+    // @loader_path, an installed prefix's lib/).
+    mut lib_identity := ""
+    if target.is(Target.MacosX64).or(target.is(Target.MacosArm64)) {
+        lib_identity = runtime_link_identity_args(target, format("lib", lib_name, shared_lib_extension(target)), "")
+    }
+    cmd = compiler.format(extra, asan_flags, target_link_extra_args(target), " -shared -o ", so_path, lib_identity,
         " ", shared_obj_path, core_dependency, runtime_dependency, user_objs, lf)
     result = system_cmd(cmd)
     if result != 0 {

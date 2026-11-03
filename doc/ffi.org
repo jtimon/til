@@ -850,13 +850,20 @@ escaped as ~_x<hex>~; ~<Cls>~ is its alphanumeric runs capitalized
 ~System.loadLibrary("<name>_jni")~:
 
 #+begin_src sh
-cc -shared -fPIC -I$JAVA_HOME/include -I$JAVA_HOME/include/linux \
+cc -fsigned-char -shared -fPIC -I$JAVA_HOME/include -I$JAVA_HOME/include/linux \
    -Igen/til -Isrc/self/codegen gen/til/<name>_jni.c -Lgen/lib -l<name> \
    -Wl,-rpath,'$ORIGIN' -o gen/lib/lib<name>_jni.so
 java -Djava.library.path=gen/lib -cp <classes> <Main>
 #+end_src
 
-~-Isrc/self/codegen~ is for ~ext.h~, which the library header includes. On Android the
+On macOS the JDK's platform headers are in ~include/darwin~, the bridge is
+~lib<name>_jni.dylib~, its rpath is ~@loader_path~ (til libraries carry
+~@rpath~ install names, so no ~DYLD_*~ variable is needed), and it links
+with ~-Wl,-undefined,dynamic_lookup~: the bridge calls the til runtime's
+allocator directly, and Mach-O, unlike ELF, wants every symbol bound to a
+library at link time; the runtime is already loaded by ~lib<name>~.
+~-Isrc/self/codegen~ is for ~ext.h~, which the library header includes;
+~-fsigned-char~ is required by it, as on every til compile. On Android the
 same bridge source goes into the NDK build beside the library (#462).
 
 Bound: public top-level ~func~ / ~proc~ (and function aliases), user-written
@@ -871,7 +878,7 @@ Values cross as
 | ~I16~ / ~U16~ | ~short~ |
 | ~I32~ / ~U32~ | ~int~ |
 | ~I64~ / ~U64~ | ~long~ |
-| ~USize~ / ~UPtr~ | the target's width (~long~ on 64-bit) |
+| ~USize~ / ~UPtr~ | the library's width: ~int~ by default, ~long~ under ~--usize=64~ |
 | ~F32~ / ~F64~ | ~float~ / ~double~ |
 | ~Bool~ | ~boolean~ |
 | ~Str~ | ~String~ (UTF-8 bytes across JNI) |
@@ -948,13 +955,19 @@ Anything else -- ~Dynamic~ (type-erased, nothing to marshal), ~shallow Str~
 parameters, other collections, variadics, callbacks that throw or take
 ~own~ / ~mut~ parameters, ~mut~ callback parameters -- is listed in the
 class as a ~// <name>: not bound: <reason>~ comment, so the gap is visible
-in the generated source. ~bin/til run test/jni.til~ checks the generated
-text; ~bin/til run test/jni.til jvm~ (with ~JAVA_HOME~ set) compiles the
-bridges and runs ~test/JniLibTest.java~ and
-~test/LibraryNamespaceAJniTest.java~ through them -- the latter against the
-same library and globals test/library_namespace.til checks from Python --
-then repeats both with the libraries and bridges built with ~--asan~, where
-the cage's exit-time leak report fails the run if the bridge leaks.
+in the generated source.
+
+~make test~ runs the binding the way it runs the Python one, so the suite
+needs a JDK (~$JAVA_HOME~, else the one ~javac~ on ~PATH~ belongs to) as it
+needs ~python3~. The ~jni~ test checks the generated text for
+test/jni_lib.til, then compiles the classes with ~javac --release 8~, builds
+the bridge and runs ~test/JniLibTest.java~ through it;
+test/library_namespace.til does the same with
+~test/LibraryNamespaceAJniTest.java~ against the library and globals its
+Python check reads and writes. On Linux both then rerun with the library and
+bridge built with ~--asan~, where the cage's exit-time leak report fails the
+run if the bridge leaks (macOS's signed JDK launchers refuse the preloaded
+sanitizer). The shared steps are in test/jni_support.til.
 
 ** Passing a Str to a C string parameter
 

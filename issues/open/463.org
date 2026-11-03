@@ -56,14 +56,14 @@ compiling it does.
     ~gen/til/<name>_jni.c~ (layout and bridge command in doc/ffi.org,
     "Calling a library from the JVM"). Unbound signatures are listed in the
     class as ~// <name>: not bound: <reason>~. ~test/jni.til~ checks the
-    generated text in the suite; ~test/jni.til jvm~ runs a Java caller
-    through a JDK.
+    generated text in the suite; a Java caller ran through a JDK on demand
+    (now in the suite, below).
   - JNI, second slice: public structs as AutoCloseable handle classes
     (owned results, borrowed / ~mut~ / ~own~ parameters, inline scalar and
     Str field accessors, a default constructor from literal defaults),
     public globals and namespace data (getters, setters when ~mut~, borrowed
     handles for struct globals), and the cage ABI (~TIL_CPTR32~, now the
-    default) in the bridge. ~test/jni.til jvm~ also drives
+    default) in the bridge. The JDK run also drove
     library_namespace_a, the library the Python binding test checks, which
     completes the first JVM acceptance item.
   - JNI, third slice: enums (tags, payload getters, variant constructors),
@@ -71,13 +71,15 @@ compiling it does.
     ~returns ref~, ~own~ and ~ref~ fields, Vec(Str) as String[], function
     aliases, default constructors through nested constructor calls and own
     boxes, and FuncSigs as Java functional interfaces (callbacks through a
-    TilClosure over a JNI global reference). ~test/jni.til jvm~ also reruns
+    TilClosure over a JNI global reference). The JDK run also reran
     both callers with ~--asan~ libraries and bridges, so the cage's leak
     report covers every bridge path. What stays unbound is listed in
     doc/ffi.org and in each generated class.
-  - Open: the BEAM half (NIFs); whether to compile the bridge from
-    ~til build~ and add a ~make~ goal for the JDK run; Android packaging
-    (#462).
+  - The JVM checks run in ~make test~, like the Python ones: the ~jni~ test
+    (jni_lib) and library_namespace (library_namespace_a, beside its Python
+    check), each with a Linux ASAN leak run; the suite needs a JDK.
+  - Open: whether ~til build~ should compile the bridge, Java packaging (a
+    jar), Android packaging (#462); then the BEAM half (NIFs).
 
 *** Acceptance
 

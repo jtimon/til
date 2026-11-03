@@ -1259,7 +1259,8 @@ main := proc(args: ..Str) {
     add_single(tests, "install_tilvm_errors", "build", 0, "", format(TIL, " run test/install_tilvm_errors.til"))
 
     // #90: independently generated libraries own separate C namespaces.
-    // The driver checks combined headers, static/shared links, and both Til bindings.
+    // The driver checks combined headers, static/shared links, both Til
+    // bindings, and the Python and Java (JNI) bindings of library_namespace_a.
     add_single(tests, "library_namespace", "build", 0, "",
         format(TIL, " run test/library_namespace.til"))
     // #313: an interpreted call marshals a returned library struct whose
@@ -1288,9 +1289,9 @@ main := proc(args: ..Str) {
                 til_bin, asan_flag))
     }
 
-    // #463: every library also gets a JNI bridge and Java class. The suite
-    // checks them as generated text; `til run test/jni.til jvm` runs them
-    // through a JDK.
+    // #463: every library also gets a JNI bridge and Java class. The test
+    // checks them as text, then runs a Java caller through them (plus, on
+    // Linux, an ASAN leak run): the suite needs a JDK as it needs python3.
     add_single(tests, "jni", "build", 0, "", format(TIL, " run test/jni.til"))
 
     // The non-zero half of the value-returning-main contract: `return 7`
