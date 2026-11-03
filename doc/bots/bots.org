@@ -334,8 +334,8 @@ timeout STOP (exit 143) instead of moving to the background, so
 Claude Code never creates a background task for a Bash call. The
 same file sets the default Bash timeout to 30 minutes and the
 maximum to 60; pass a longer `timeout` for a full suite if 30 is not
-enough. The Monitor tool, which runs in the background regardless,
-is denied there too. The reliable
+enough. The Monitor and Workflow tools, which run in the background
+regardless, are denied there too. The reliable
 flow is plain synchronous foreground Bash calls with output
 redirected to a file (`make clean && make test > tmp/test.log 2>&1`),
 one at a time, per "Background vs Foreground" below. The full
@@ -603,8 +603,9 @@ independent"; that guidance is wrong for this project and rejected.
 In Claude Code, `.claude/settings.json` enforces it:
 `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` keeps every Bash call in the
 foreground (a timed-out command is stopped, not backgrounded), the
-Monitor tool is denied, and the .claude/hooks/block-background-bash.sh
-hook refuses a trailing `&` and `nohup` / `disown` / `setsid`, which
+Monitor and Workflow tools are denied, and the
+.claude/hooks/block-background-bash.sh hook refuses a trailing `&`
+(also inside a subshell, `(cmd &)`) and `nohup` / `disown` / `setsid`, which
 would leave an untracked orphan process. `git stash` is denied there
 as well.
 

@@ -16,9 +16,9 @@ cmd=$(python3 -c "import sys,json; print(json.load(sys.stdin).get('tool_input',{
 # (e.g., a commit message that mentions "nohup" or ends with "&").
 first_line=$(printf '%s\n' "$cmd" | sed -n '1p')
 
-# Block trailing & (process backgrounding) but not && or | logical/pipe
-# operators.
-if echo "$first_line" | grep -qP '(^|[^&])&(\s*$|\s*[;|]|\s*#)'; then
+# Block trailing & (process backgrounding), including inside a subshell
+# like (cmd &), but not && or | logical/pipe operators.
+if echo "$first_line" | grep -qP '(^|[^&])&(\s*$|\s*[;|)]|\s*#)'; then
     echo "BLOCKED: trailing '&' backgrounds the command. Run in the foreground." >&2
     exit 2
 fi

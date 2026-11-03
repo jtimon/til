@@ -9,7 +9,8 @@
         "deny": [
             "Bash(git stash)",
             "Bash(git stash *)",
-            "Monitor"
+            "Monitor",
+            "Workflow"
         ]
     },
     "hooks": {
