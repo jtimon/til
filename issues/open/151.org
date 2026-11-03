@@ -21,6 +21,8 @@
   - Implement ~mode gui~ on TempleOS using native graphics rather than
     raylib.
   - Define a QEMU-based test loop using a TempleOS VM image.
+  - Progress to native til self-hosting for TempleOS, then a first foreign
+    target: Linux x64 through a TempleOS-hosted FASM (plan below).
 
 *** Notes
 
@@ -33,11 +35,12 @@
 
 *** Direction
 
-  Translation stays on the Linux host: Linux til loads, types, lowers,
+  Translation currently runs on the Linux host: Linux til loads, types, lowers,
   and emits a HolyC source file. TempleOS receives only that generated
   source plus its TempleOS-native runtime support, then its own compiler
   compiles and executes the program. A host-side HolyC implementation is
-  not the acceptance environment.
+  not the acceptance environment. Native compiler hosting is the later
+  milestone below; the initial guest acceptance path remains useful then too.
 
   Share the frontend and semantic analyses, not the textual emitter. HolyC
   receives the same typed, lowered, ownership-annotated, constant-folded, and
@@ -708,6 +711,119 @@
   458/458 (including clang validation); TempleOS passes all 55 cases at USize
   32/64. The aggregate and collection checklist entries above now reflect the
   completed guest coverage.
+
+*** Native self-hosting and first foreign target (plan)
+
+   Direction agreed during the #472/#473 review: first make a TempleOS-hosted
+   til build itself FOR TempleOS. Only then add a foreign target, with Linux
+   x64 through FASM the preferred first step. Do not require GCC, Clang or the
+   full LLVM toolchain inside TempleOS, or all foreign targets before calling
+   the first native self-host milestone complete.
+
+   This is a researched plan, not a claim that the compiler or FASM currently
+   runs in TempleOS. Sources inspected at master ~e5cc848e9~: this issue's CLI
+   milestones, ~src/til.til~, ~src/self/builder.til~, ~src/self/fasm_build.til~
+   and ~vendor/fasm/source/linux/x64/{fasm.asm,modes.inc,system.inc}~.
+
+**** Native til bootstrap loop
+
+   - [ ] Finish the compiler's required language/runtime coverage and port
+     the frontend's host services: source/import file access, paths, memory,
+     argument/entry handling and compile-time evaluation. Audit actual
+     foreign dependencies such as libffi/nng and external calls; emitting
+     their declarations is not an implementation. Handle compile-time revision
+     inputs explicitly: current ~src/til.til~ invokes git, which must not be
+     an undeclared requirement on the guest.
+   - [ ] Produce the first native compiler from a working external host,
+     transport the matching compiler/core/std/runtime sources, and execute
+     focused lex/parse/type/translate checks inside TempleOS.
+   - [ ] Use that compiler to build a replacement compiler for TempleOS,
+     then use the replacement to rebuild again and run the same checks.
+     The existing HolyC backend and TempleOS's own compiler offer a bootstrap
+     route without GCC/Clang; a FASM port is not a prerequisite for that route.
+   - [ ] Keep functional self-hosting separate from reproducibility: the
+     guest-produced compiler must actually work first. Compare frontend state,
+     emitted source and agreed native artifacts through #472 as those gates
+     become available; never compare raw loaded process memory as a binary.
+
+   A self-hosted compiler only needs its own target for this initial milestone.
+   The native invocation, revision-input and build-output contracts must be
+   agreed before adding a launcher, format, flag or other new project surface.
+
+**** Port FASM as a TempleOS-hosted assembler
+
+   FASM 1 is written in assembly and already has a shared assembler core plus
+   OS-specific interfaces. The vendored Linux x64 interface emits an ELF
+   executable and uses Linux syscalls for memory, files, console output, timing
+   and exit. A TempleOS interface must supply native equivalents and bridge
+   the calling convention; the current Linux executable cannot run unchanged.
+
+   Its x64 implementation still carries 32-bit internal addresses: ~system.inc~
+   explicitly checks for low memory and uses ~MAP_32BIT~ on Linux. The port
+   must establish suitable address ranges for code/data/work buffers and
+   check stack assumptions in ~modes.inc~, not merely replace file syscalls.
+   TempleOS is itself 64-bit; this is a FASM implementation constraint, not a
+   reason to treat the target as a 32-bit machine.
+
+   - [ ] Define native entry/loading/relocation and the TempleOS service/ABI
+     adapter. Decide whether and where a small HolyC wrapper is needed before
+     choosing a new binary/container format; no format is selected here.
+   - [ ] Bootstrap the assembler externally, transport the seed and matching
+     assembly/includes, then assemble and execute a small native probe in
+     TempleOS. Validate allocation and error/file handling in the guest.
+   - [ ] Have the guest assembler rebuild its own TempleOS source, run that
+     rebuilt assembler and repeat. FASM assembling itself and til compiling
+     itself are distinct checks; the latter does not prove this port works.
+
+**** First foreign target: TempleOS -> Linux x64 through FASM
+
+   - [ ] Make the TempleOS-hosted til emit the existing Linux-x64/FASM subset.
+     Select Linux target facts explicitly; compiler host services remain
+     TempleOS services. Start with the supported shared program corpus.
+   - [ ] Invoke the ported FASM in TempleOS to write a Linux ELF executable.
+     The assembler can write another OS's file format without running that
+     OS. The emitted ~ext.fasm~ Linux runtime runs only when the result is
+     executed on Linux; it is not the runtime of the guest compiler/assembler.
+   - [ ] Replace the Linux-host-only invocation assumptions in
+     ~builder.til::compile_fasm~ / ~fasm_build.til~ and the CLI host gate with
+     the agreed native host adapter. Today the path uses Cmd/chmod and
+     requires a Linux x64 host as well as target.
+   - [ ] Export the resulting bytes using the guest/host exchange machinery
+     and execute them on Linux. Add this producer/consumer pair to #473;
+     hash comparisons with other producers follow #472's relevant milestones.
+
+   This does NOT require adding TempleOS output to the FASM backend. That
+   backend currently produces Linux ELF64 with Linux runtime services. If
+   native TempleOS output through FASM is later wanted, it additionally needs
+   TempleOS target ABI/runtime/loading support, independently of hosting the
+   assembler there. Coordinate backend changes with [[./453.org][#453]].
+
+   MLIR is not currently a way around the guest toolchain constraint:
+   ~builder.til::compile_mlir~ invokes ~mlir-opt-18~, ~mlir-translate-18~ and
+   ~clang-18~, and compiles/links C runtime sources. Emitting MLIR in TempleOS
+   but finishing the binary on Linux would test emission, not the requested
+   in-guest cross-build. FASM is therefore the preferred first foreign path;
+   full compiler/runtime/library coverage is a later extension of its subset.
+
+   Ownership of the related work: this issue tracks native hosting/bootstrap;
+   #453 tracks FASM backend/host integration; [[./472.org][#472]] tracks deterministic
+   compiler/build behavior; [[./473.org][#473]] tracks CI production, execution and
+   comparison rollout. Functional host bring-up need not wait for #472 to close.
+
+**** Longer term: native JIT execution
+
+   [[./474.org][#474]] tracks replacing AST interpretation with native JIT execution.
+   On TempleOS the JIT should use the native HolyC compiler to compile til's
+   generated HolyC into callable code, with the existing til value/callback
+   semantics and explicit session/code lifetime management. This includes
+   eventual REPL/embedded and compile-time execution, not just launching a
+   compiled program. It does not require hosting Clang/GCC/LLVM in the guest.
+
+   The TempleOS FASM port and the HolyC JIT serve different initial goals:
+   FASM enables Linux-x64 cross-building; HolyC supplies native JIT execution.
+   Native til self-building for TempleOS comes first. Our own reduced
+   MLIR-style JIT and eventual GCC/Clang retirement are broader long-term
+   milestones in #474, not prerequisites for this initial host bring-up.
 
 *** CLI translation and future compiler/application milestones
 

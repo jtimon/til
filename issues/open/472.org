@@ -1,16 +1,25 @@
 # priority: medium
 # category: backends
-** OPEN #472 Deterministic builds: every host builds every target, CI checks they hash the same
+** OPEN #472 Deterministic builds independent of build host
 
 *** Goal
 
 A til build is a function of its inputs (source tree, target, flags), not
-of the machine it ran on. Every CI platform job keeps running the suite
-with its own native build, and additionally builds the same artifacts for
-every OTHER target it can build for. A final CI job collects all of those
-artifacts from all the hosts and checks that, for each target, every copy
-hashes to the same value, whichever host built it. A mismatch fails the
-job and names the artifact, the target and the hosts that disagree.
+of the machine it ran on. Start with lexing through the pre-codegen boundary,
+then establish reproducible emitted source and binaries under explicit input
+contracts. Fix nondeterminism in the compiler/build pipeline at its source.
+
+[[./473.org][#473]] separately owns cross-platform CI coverage, native/cross execution,
+artifact collection and the eventual equality gates. Its functional CI work
+can proceed now. Each equality gate depends on the relevant milestone here,
+not on this entire issue being closed. This issue owns the frontend observation
+contract and determinism regressions; #473 integrates them across producers.
+
+[[./474.org][#474]] records eventual replacement of interpretation by native JITs and,
+much later, removal of the GCC/Clang requirement. The determinism contract
+applies to either compile-time execution engine. It must be established now,
+not deferred until the JIT or native-backend migration; JIT host execution
+still must not substitute host facts for the selected target's facts.
 
 Today no CI job compares these outputs across hosts. The closest is
 ~self_translate~, which compares the compiler's generated C and forward
@@ -60,6 +69,29 @@ explicit-width suite). Cross jobs check execution or file format instead.
   payload and state that boundary; do not silently strip or rewrite
   differing outputs just to make their hashes match.
 
+**** TempleOS comparison stages
+
+[[./151.org][#151]] owns the native self-hosting plan: TempleOS builds til for itself
+first; Linux x64/FASM is the preferred first foreign target. Functional
+bootstrap and cross-build execution do not depend on closing this issue.
+No GCC/Clang installation inside TempleOS is assumed.
+
+- Compare frontend state for identical source/target/backend inputs between
+  the TempleOS-hosted compiler and other hosts once native execution works.
+  Keep host evaluator storage separate from target layout, and control
+  logical source paths, revision inputs and external compile-time effects.
+- For native TempleOS self-rebuilds, compare the same emitted representation
+  and, once defined, the same on-disk native artifact stage. A working HolyC
+  bootstrap is not proof of identical native bytes; loaded addresses and
+  relocations are not an appropriate raw-memory comparison contract.
+- For TempleOS -> Linux-x64/FASM, compare like-for-like frontend state,
+  assembly and then ELF output with a Linux-hosted producer, using identical
+  assembler core/runtime sources and target options. The assembler's own
+  TempleOS and Linux executables need not match: their HOST targets differ.
+- FASM's native host port and self-assembly loop are #151/#453 prerequisites,
+  not a guarantee of deterministic output. #473 can add each functional CI
+  cell before enabling the corresponding equality check.
+
 *** Sources of nondeterminism to audit and remove
 
 - Absolute paths. ~__LOC__~ strings and debug info carry the path the
@@ -85,32 +117,6 @@ explicit-width suite). Cross jobs check execution or file format instead.
   their own build systems, which may embed paths or dates; either pin
   their flags or exclude them from the comparison and say so.
 
-*** CI shape
-
-- Each existing platform job, after its normal suite, builds a fixed set
-  of programs (hello_script, the compiler itself, a std/crypto program,
-  ...) for every target it supports, at every USize width it supports,
-  and uploads them as one artifact named after the host. Keep producer-host,
-  target and configuration identities distinct so uploads cannot overwrite
-  one another. Native tests must use that job's own native build.
-- A new job ~needs:~ all of them, downloads every artifact, and compares
-  the hashes per (level, target, configuration, artifact), restricted to the
-  declared compatible toolchain groups at the binary level. Collect actual
-  outputs from the same CI run and compute their hashes in the collecting
-  job, including the native producer's output wherever comparable. Report
-  the full matrix, not just the first mismatch, with producer hosts and
-  hashes, and retain differing outputs for diagnosis.
-- Require every expected host/target artifact. Missing or failed producers,
-  incomplete artifact sets and hash mismatches fail blocking comparisons;
-  agreement among only surviving uploads must not count as success. A group
-  with only one producer does not establish cross-host reproducibility.
-  Native test failures fail CI independently of hash agreement.
-- Start with the frontend gate, then generated-source comparisons, blocking.
-  Add binary comparisons per target once a pinned
-  toolchain pair exists for it, initially non-blocking until it is green,
-  then make that comparison blocking. Label non-blocking results and coverage
-  gaps explicitly rather than presenting partial coverage as full success.
-
 *** Acceptance
 
 - [X] Inventory the existing frontend, checks and CI matrix; record a staged
@@ -123,59 +129,22 @@ explicit-width suite). Cross jobs check execution or file format instead.
 - [ ] Establish the binary toolchain groups and complete artifact inventory.
 - [ ] Clean rebuilds at different times and in different checkout paths
   produce identical hashes within the declared comparison groups.
-- [ ] Every host runs its native tests and produces byte-identical translator
-  output for every target/configuration in the matrix.
+- [ ] Generated source and every companion file agree across reference hosts
+  for the same supported target/backend/configuration.
 - [ ] Native and cross-built binaries, including runtime/core libraries,
-  match across hosts using the pinned target toolchain; enabled binary
-  comparisons become blocking once established.
-- [ ] Deliberately altered and missing artifacts each fail a blocking
-  comparison with actionable output. Native test failures cannot be hidden
-  by a successful hash comparison.
+  match across reference hosts using the pinned target toolchain. CI rollout
+  and failure propagation are tracked in #473.
 - [ ] Trace discrepancies to their source and add regression coverage for
   discovered nondeterminism rather than masking differing bytes.
-- [ ] Record unavailable toolchains/SDKs and broken target builds as coverage
-  gaps, working toward the full all-hosts-by-all-targets goal. Coordinate
-  32-bit compiler coverage with [[./431.org][#431]].
+- [ ] Document supported reproducibility configurations and remaining
+  limitations for #473's matrix; do not equate functional cross-build support
+  with reproducibility.
 
 *** Inventory at master 959dff083
 
-This inventory reads the workflow and implementation at that revision. It
-does not assert that the latest remote jobs passed or that every cell below
-is reproducible. No cross-host comparison has been executed for this issue.
-
-**** Actual CI producers and target coverage
-
-Source: ~.github/workflows/tests.yml~. Job names such as ~linux-arm64~ often
-name the OUTPUT target, not the machine running the compiler.
-
-| Compiler execution host | Existing checks / producers | Explicit target coverage |
-|-------------------------+-----------------------------+--------------------------|
-| Linux x64 | ~linux-x64~ native ASAN suite; ~linux-x64-usize64~ alternate-layout suite; separate cross jobs | Six Linux targets, Windows x64/x86, macOS x64/arm64, wasm32; TempleOS via guest acceptance |
-| Linux arm64 | ~linux-arm64-native~ native ASAN suite and hello build | Native arm64 explicitly; no all-target producer matrix |
-| macOS arm64 | ~macos-arm64~ no-GUI ASAN suite and native examples | Native arm64 |
-| macOS arm64 | ~macos-host-cross-build~ | Windows x64 hello; Linux x64 hello and crypto, using Homebrew cross tools |
-| macOS x64 | ~macos-x64~ no-GUI ASAN suite and native examples | Native x64; no equivalent cross producer job |
-| Windows x64 | ~windows-x64-host-run~ runs the Linux-built ~til.exe~, interprets/translates and compiles selected programs with native GCC | Windows x64 build probes; no native bootstrap/full-suite producer |
-
-- The six Linux targets are x64, arm64, riscv64, x86, arm32 and riscv32.
-  QEMU runs the cross-built Linux programs. Compiler/interpreter cross
-  probes exist for arm64/riscv64; 32-bit compiler coverage remains #431.
-- Windows x64/x86 binaries built on Linux run on Windows; Linux-built
-  macOS binaries run on both Macs. Those consumers do not independently
-  rebuild the same artifacts or compare hashes. The Mac-host cross outputs
-  also have Windows/Linux execution consumers.
-- ~Target~ in ~src/self/targets.til~ has twelve entries: the six Linux,
-  two Windows, two macOS, wasm32 and TempleOS targets. FASM/MLIR are backend
-  selections, not extra platform entries. Theme output is mode-selected.
-- The workflow uploads selected Windows/Mac executables and diagnostics,
-  not a common frontend state or generated-source corpus. There is no
-  collecting equality job. Linux cross coverage is distributed over jobs,
-  not performed by every host after its native suite.
-- Toolchains are not mutually pinned: Ubuntu packages, Homebrew packages,
-  Windows-provided/Chocolatey MinGW and native Apple tools differ. The
-  riscv32 job names a Bootlin release, but that alone creates no second
-  comparable producer. Binary comparisons cannot be enabled just by adding
-  a hash command to the existing uploads.
+This inventory reads the implementation at that revision. It does not claim
+cross-host verification. The CI producer/target inventory and rollout plan
+now live in [[./473.org][#473]], where the workflow and host-support dependencies belong.
 
 **** Frontend pipeline and evidence
 
@@ -310,31 +279,22 @@ new test-output representation, not an approved serialization/cache format.
   fixtures under fresh/reused-process tests, both compiler layouts and root
   variations, with identical target inputs. This is not yet a binary claim.
 
-**** 3. Cross-host frontend CI, then expand coverage
+**** 3. Validate frontend equality across hosts with #473
 
 - Begin with Linux x64 and Linux arm64, one explicit Linux-x64 C target,
   one USize width and a small shared corpus. No cross C toolchain is needed
   merely to prepare that target. Keep native suites as independent gates.
-- Reuse the existing Mac native jobs and Windows-host execution job when
-  the comparison driver is portable. Windows initially uses a Linux-built
-  compiler/driver: label that as execution-host diversity, not independent
-  native bootstrapping. A Windows native self-build/full suite is additional
-  work, not something the existing workflow already supplies.
-- Expand to both widths and the twelve declared targets where the corpus's
-  mode supports them. Start with small scalar/import/closure/generic,
+- Expand the regression corpus across widths and targets where its mode
+  supports them. Start with small scalar/import/closure/generic,
   ownership/throwing and size/constant-evaluation fixtures. Include negative
   diagnostics, import diamonds/cycles and declaration-order cases.
 - Add ~src/til.til~ as the large integration case only after the small
   cases agree. Record per-host time, peak memory and output size before
   multiplying it across targets. Translation/preparation of the compiler
   is already one of the suite's most expensive operations.
-- Cost is approximately hosts * target-configurations * corpus cases, even
-  without assembly/linking. A five-host, twelve-target, two-width sweep is
-  120 preparations PER case. Run observations sequentially inside each
-  producer initially; avoid adding another memory-heavy self-prepare beside
-  the existing Mac ASAN workload. Use measured cost to choose later coverage,
-  while explicitly reporting absent cells. No new native test matrix is
-  needed for the first two-host frontend gate.
+- #473 owns job scheduling, artifact completeness, matrix expansion and
+  host bootstrapping. Small working frontend comparison groups can become
+  blocking there while binary determinism remains unfinished here.
 
 **** 4. Only after frontend equality: emitted source and native binaries
 
@@ -366,6 +326,7 @@ new test-output representation, not an approved serialization/cache format.
 
 Approve the frontend observation contract, restore lexer coverage, and
 establish lexer/parser plus same-target cross-layout preparation checks.
-Keep backend changes, optimization changes and the full CI build matrix
-after that first milestone. This plan has no basis for a fixed time estimate
+Keep backend/optimization changes and strict output-equality gates after
+that first milestone. Independent functional CI improvements in #473 need
+not wait. This plan has no basis for a fixed time estimate
 until the observation cost and first cross-layout failure are measured.

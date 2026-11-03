@@ -1,0 +1,171 @@
+# priority: medium
+# category: backends
+** OPEN #473 Expand native and cross-platform CI, then enforce per-target reproducibility
+
+Each supported host should test its own native build and build programs for
+the other supported targets. Execute cross-built artifacts on the target or
+an emulator where available. A collecting job checks completeness and, as
+determinism is established, that corresponding outputs for each target hash
+identically regardless of producer host.
+
+This is a separate CI improvement issue. [[./472.org][#472]] owns deterministic
+compilation, starting with lexing through the pre-codegen boundary. Only the
+corresponding equality gates depend on its milestones; native tests, functional
+cross-build coverage, artifact delivery and toolchain research can proceed now.
+Do not put a blanket "blocked by #472" dependency on this issue.
+
+*** Dependency map
+
+| Work | Prerequisite |
+|------+--------------|
+| Inventory actual host/target/backend/width coverage and costs | None from #472 |
+| Native self-builds/tests and functional cross-build/run coverage | Host/target support and tools, not deterministic bytes |
+| Required-artifact checks, collection, diagnostics and hashes | A declared expected producer set; no equality promise needed |
+| Research/pin comparable toolchains, sysroots and dependency builds | Can start independently of #472 |
+| Cross-host frontend-state equality | #472's approved complete observation contract and fixes for that comparison group |
+| Generated-source equality | #472's frontend-first milestone and emission determinism for that group |
+| Binary equality | Reproducible upstream stages plus matched assembler/C toolchain, runtime, sysroot and packaging inputs |
+
+Matching hashes in an exploratory run are evidence for that run, not proof
+that a whole platform is reproducible. Native/cross execution checks remain
+blocking independently of equality checks. Enable each equality group when
+its prerequisites are met; do not wait for every target or all of #472.
+
+*** Inventory at master e5cc848e9
+
+Sources: ~.github/workflows/tests.yml~, ~Makefile~, ~make.til~ and
+~src/self/targets.til~. Workflow/build code is unchanged from the earlier
+~959dff083~ inventory. This is source inspection, not a fresh green CI run;
+live Actions history was unavailable in this session (~gh~ is not installed).
+
+Job names such as ~linux-arm64~ often name the output target, not the host
+executing the compiler.
+
+| Compiler execution host | Existing checks / producers | Explicit target coverage |
+|-------------------------+-----------------------------+--------------------------|
+| Linux x64 | ~linux-x64~ native ASAN suite; ~linux-x64-usize64~ alternate-layout suite; separate cross jobs | Six Linux targets, Windows x64/x86, macOS x64/arm64, wasm32; TempleOS guest acceptance |
+| Linux arm64 | ~linux-arm64-native~ native ASAN suite and hello build | Native arm64 explicitly; no all-target producer matrix |
+| macOS arm64 | ~macos-arm64~ no-GUI ASAN suite and native examples | Native arm64 |
+| macOS arm64 | ~macos-host-cross-build~ | Windows x64 hello; Linux x64 hello and crypto, using Homebrew cross tools |
+| macOS x64 | ~macos-x64~ no-GUI ASAN suite and native examples | Native x64; no equivalent cross producer job |
+| Windows x64 | ~windows-x64-host-run~ executes the Linux-built ~til.exe~, interprets/translates and builds selected programs using native GCC | Windows x64 probes; no native compiler bootstrap/full-suite producer |
+| TempleOS guest | Linux produces HolyC; TempleOS compiles/runs it through guest acceptance | A target/execution consumer, not yet a self-hosted til producer |
+
+- The six Linux targets are x64, arm64, riscv64, x86, arm32 and riscv32.
+  ~Target~ has twelve entries in all: those six, two Windows, two macOS,
+  wasm32 and TempleOS. FASM/MLIR are separate backend selections; theme is
+  mode-selected. Target support is not evidence of support as a build host.
+- QEMU runs the cross-built Linux programs. Compiler/interpreter cross
+  probes exist for arm64/riscv64; 32-bit compiler coverage remains [[./431.org][#431]].
+- Linux-built Windows x64/x86 programs run on Windows. Linux-built macOS
+  programs run on both Macs. Mac-host cross outputs run on Windows/Linux.
+  These consumers do not independently rebuild and hash the same artifacts.
+- Existing uploads carry selected Windows/Mac executables, support libraries
+  and failure diagnostics. There is no common all-host corpus or collecting
+  equality job. Expected build uploads mostly omit ~if-no-files-found: error~;
+  consumers catch some missing files, but there is no complete expected-set
+  check. Failure-diagnostic uploads are a separate, legitimately optional case.
+- Native Windows self-building is real porting work: the Makefile bootstrap
+  currently accepts Linux/Darwin, while ~make.til::build_win_host~ builds
+  ~til.exe~ on a foreign host with target libffi/nng. Importing that executable
+  proves host execution, not a native rebuild of the compiler or full suite.
+- The broad completion wording in [[../fixed/25.org][#25]] is not proof of today's
+  all-host/all-target matrix; use the explicit workflow steps above.
+- Toolchains are not mutually pinned: Ubuntu packages, Homebrew packages,
+  Windows-provided/Chocolatey MinGW and native Apple tools differ. The
+  riscv32 job selects a Bootlin release, but has no matching second producer.
+  Native Apple SDK/linker inputs also differ from Linux's SDK-less macOS path.
+
+*** Independent CI improvements, before #472 is complete
+
+1. Record a concrete host x target x backend x configuration matrix, with
+   separate statuses for prepare/translate, compile/link, execute and compare.
+   Use the existing workflow and this issue as the initial authorities, not
+   a new persistent manifest. Distinguish unavailable tools, unsupported
+   compiler features and untested cells from failed supported builds.
+2. Choose a small common functional corpus (hello, scalar/control/aggregate
+   cases, then crypto and compiler probes where supported). Expand Linux
+   arm64 and Mac x64 cross production one supported cell at a time. Port
+   missing Windows host build/test plumbing independently of determinism.
+   A warning-only corpus scan such as the current macOS clang sweep does not
+   replace a successful build/run check for the selected positive cases.
+3. Preserve each platform's own native tests, using its native compiler build.
+   Reuse existing target execution consumers for new foreign artifacts when
+   possible. File-format checks remain build-only evidence; do not label
+   them execution coverage. Keep ASAN/width coverage explicit.
+4. Collect outputs from the same CI run with unambiguous producer, target,
+   backend, width, build-stage and artifact identities. Require all expected
+   files, fail required uploads on absence, and check producer job outcomes.
+   The collector must report missing/failed producers rather than being
+   skipped by default ~needs~ failure propagation. Native test failures must
+   never be masked by successful artifact collection or matching hashes.
+5. Gather tool versions/configuration, source revision, flags, dependency/SDK
+   identities and timings in existing job logs. Research compatible native
+   and cross toolchains for the first binary pair. Pinning is useful before
+   reproducibility is solved; a version string alone is not the full input.
+
+New tools, artifact paths/formats or workflow interfaces still need their
+specific design approval before implementation. This issue records the
+work and dependencies; it does not introduce a cache or second build system.
+
+*** Equality integration and cost
+
+- Integrate #472's frontend observations first, initially on Linux x64 and
+  arm64 for one target/width and a small corpus. They need no foreign C
+  toolchain merely to prepare that target. Preserve the frontend-first order
+  even if existing binary uploads already permit exploratory hash reporting.
+- Add Mac producers and Windows execution once the comparison driver runs
+  there. Label the initial Windows imported-compiler path accurately. Native
+  self-building and cross-host determinism are distinct tests.
+- The collector computes hashes from downloaded outputs and groups by
+  (level, target, backend, configuration, build stage, artifact), with matching
+  toolchain groups for binaries. Include the native output where comparable;
+  one producer cannot establish cross-host reproducibility. Report all
+  mismatches with hosts/hashes and retain useful comparison diagnostics.
+- Validate the collector using deliberately changed and missing artifacts,
+  wrong-target/configuration uploads and failed producers. Completeness can
+  be blocking before byte equality; exploratory mismatches must be clearly
+  reported rather than silently normalized or described as passing equality.
+- Expand through emitted source/companions and then binaries as #472 provides
+  their contracts and fixes. Enabled equality groups become blocking; known
+  unready groups remain explicitly uncovered, not false-green comparisons.
+- Measure time, peak memory, upload size and runner availability before
+  multiplying expensive compiler self-preparation. Five hosted platforms x
+  twelve targets x two widths means 120 preparations per corpus case before
+  linking. Start sequentially within a producer, especially on Mac ASAN jobs.
+  Reuse a job's already-built compiler before considering extra bootstraps;
+  sharing binaries across jobs changes provenance/critical-path dependencies
+  and is a separate measured tradeoff, not an assumed persistent cache.
+
+*** TempleOS as a staged future producer
+
+The detailed native-host/FASM port and bootstrap plan lives in [[./151.org][#151]],
+with backend integration in [[./453.org][#453]] and comparison contracts in #472.
+The CI sequence is:
+
+- TempleOS first builds/tests til for TempleOS. Its own target is sufficient
+  for the initial host milestone; do not require all foreign targets.
+- After a native self-rebuilding FASM is available, add TempleOS -> Linux
+  x64/FASM production and export the binary for execution on Linux. No
+  GCC/Clang/LLVM installation inside TempleOS is part of this plan.
+- Add frontend, emitted-source and ELF comparisons with other producers as
+  #472's corresponding milestones are ready. The guest can join functional
+  CI before byte equality is established.
+
+*** Acceptance / staged progress
+
+- [X] Inventory actual workflow coverage and separate partial dependencies
+  on #472 from independent CI/host work.
+- [ ] Record the expected matrix and common corpus; keep native tests on
+  each established host, and add supported functional cross-build/run cells.
+- [ ] Required artifact absence and producer failure are visible and fail
+  completeness checks independently of byte equality.
+- [ ] Portable frontend comparison groups from #472 are enforced, followed
+  by source and compatible-toolchain binary groups as each becomes ready.
+- [ ] Altered/missing/wrong-configuration artifacts and native test failures
+  are covered by collector validation; incomplete runs cannot pass equality.
+- [ ] TempleOS first self-builds/tests til for itself, then gains a native
+  self-rebuilding FASM and Linux-x64/FASM production with execution on Linux.
+- [ ] Report remaining host/target/backend gaps and measured runner costs;
+  full compiler, vendor-library and additional-target coverage expands from
+  the demonstrated cells rather than being assumed from target names.

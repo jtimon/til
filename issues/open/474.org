@@ -1,0 +1,128 @@
+# priority: medium
+# category: backends
+** OPEN #474 Replace AST interpretation with native JIT execution
+
+Long-term direction: replace the tree-walking interpreter with native JIT
+execution, rather than retaining interpretation as the permanent execution
+engine alongside an optional accelerator. Use FASM as a basis for hosted
+native JIT work, TempleOS's HolyC compiler for the TempleOS JIT, and eventually
+develop our own reduced MLIR-style JIT appropriate to til's needs.
+
+Eventually retire GCC/Clang from the required build/execution toolchain too.
+That is a distant goal, not an immediate backend switch or permission to
+remove today's working compiler, interpreter or C conformance reference.
+JIT replacement and eliminating the C toolchain are separate milestones.
+
+*** Scope and existing dependencies
+
+Source inspection at master ~e5cc848e9~:
+
+- ~src/self/interpreter.til~ supplies ordinary interpretation, persistent
+  sessions, native-call dispatch and embedded execution. ~src/std/tilvm.til~
+  exposes loading, initialization, typed callback lookup and VM/code lifetime
+  contracts to applications; replacing the engine must account for them.
+- The interpreter also executes macros/generators and constant evaluation
+  during initialization/typing and folding. A replacement is not complete
+  when ~interpret hello_script.til~ works: compiler self-hosting needs its
+  own compile-time execution to keep working throughout the migration.
+- The REPL needs persistent globals, incremental definitions, imports,
+  diagnostics and recoverable errors. Shared ownership/throwing semantics,
+  retained callables and foreign callbacks must work in the same process.
+- [[./453.org][#453]] currently emits standalone Linux-x64 FASM executables. Its
+  callable support is useful groundwork, but it is not an in-process JIT.
+  The TempleOS native compiler/FASM host bootstrap is tracked in [[./151.org][#151]].
+- [[./317.org][#317]] is the current MLIR backend. Its build path invokes LLVM 18
+  command-line tools and Clang, and compiles C runtime code. It does not
+  already provide the reduced, self-contained JIT proposed here.
+
+*** Execution-engine direction
+
+**** FASM-based hosted JIT
+
+- Reuse the prepared program, shared lowering and FASM backend/runtime
+  semantics. Add callable native code loading, symbol resolution/relocation,
+  host memory/execution support and diagnostics around the assembler.
+  Producing and spawning an ELF executable is not in-process JIT execution.
+- Define the ABI for values, aggregate results, ownership, closures/captures,
+  throwing calls, globals and native services before exposing entry points.
+  Code must remain alive while callbacks/closures or executing frames use it;
+  session teardown/redefinition must not invalidate live code or captured data.
+- FASM 1 is an x86 assembler, not a portable machine-code backend. Initial
+  work can target Linux x64, but other host architectures need their own
+  native code-generation strategy before their interpreter can be retired.
+
+**** TempleOS JIT through HolyC
+
+- Generate HolyC through the existing backend and ask the native HolyC
+  compiler to compile callable functions/modules in the running session.
+  Bridge its entry/callable conventions to til's values and lifetime rules.
+  This route uses TempleOS's native compiler, not GCC/Clang or hosted LLVM.
+- Preserve session state, initialization ordering, callbacks and error
+  recovery; loading generated source once is not by itself REPL/VM parity.
+- Keep this distinct from porting FASM to TempleOS. HolyC is the planned
+  TempleOS JIT engine; a TempleOS-hosted FASM primarily enables the separate
+  Linux-x64 cross-build path initially. Native til self-building remains
+  the first compiler-host milestone, not dependent on completing this issue.
+
+**** Our own reduced MLIR-style JIT
+
+- Define the minimum typed intermediate operations, lowering and native
+  execution machinery til actually needs, informed by #317 and the shared
+  backend/runtime work in [[./383.org][#383]]. The goal is our own reduced system,
+  not an implicit requirement to host the full LLVM/MLIR/Clang distribution.
+- Decide explicitly whether that becomes a til-specific implementation or
+  uses selected upstream components, and how it relates to FASM assembly.
+  The exact IR, dependency selection and public interfaces are not chosen by
+  this issue. Do not add a parallel semantic definition or persistent IR
+  format/cache merely to start experimenting.
+- Account for verification, optimization, target lowering, instruction
+  selection/register allocation where needed, relocation, code memory and
+  runtime integration. A smaller system reduces dependency scope but moves
+  that maintenance and portability work into til; it is not a free replacement
+  for the functionality currently supplied by LLVM.
+
+*** Staged migration and acceptance
+
+- [ ] Inventory interpreter consumers: CLI, REPL, TilVm, macros/generators,
+  constant evaluation, reflection, foreign calls and retained callbacks.
+  Define the first callable-code/ABI/lifetime slice before implementing it.
+- [ ] Establish a small FASM-backed native JIT using shared-source tests and
+  the current interpreter/C backend as differential references. Unsupported
+  operations must be identified explicitly during the transition, not hidden
+  behind a permanent silent interpreter fallback.
+- [ ] Establish the HolyC-backed TempleOS JIT with native guest execution,
+  session-state and callback/lifetime checks. Coordinate the required host
+  runtime services and frontend execution with #151.
+- [ ] Cover incremental loading/redefinition, globals and initialization,
+  ownership/destruction, exceptions, callback ABI and session teardown.
+  Preserve existing public behavior unless a specific change is approved.
+- [ ] Move compile-time evaluation to the new engine while keeping the
+  bootstrap viable. A JIT needing the fully prepared whole program cannot
+  be the only mechanism used to prepare that same program: support the
+  necessary staged evaluation of already-resolved functions and generators.
+  Follow ~doc/self.org~ for preparation/use migrations rather than breaking
+  the seed compiler mid-transition.
+- [ ] Preserve [[./472.org][#472]]'s frontend determinism contract. Compile-time JIT code
+  runs on the host, while queried layout/semantics belong to the selected
+  target. Code addresses, host widths and floating-point behavior must not
+  leak into persistent program results. Replacing interpretation alone does
+  not make constant evaluation deterministic.
+- [ ] Measure cold compilation plus execution, repeated calls, REPL latency,
+  compiler self-build/constant-folding time, memory and teardown. JIT startup
+  can cost more than interpreting tiny one-shot operations; tune based on
+  those measurements without weakening the eventual replacement goal.
+- [ ] Implement the agreed reduced MLIR-style JIT scope, with shared semantics
+  and cross-target coverage. Retire AST interpretation only after its required
+  consumers and supported host platforms have native-engine coverage.
+- [ ] Eventually remove GCC/Clang as required tools once self-building,
+  runtime services, supported targets, native library/foreign integration,
+  diagnostics and testing have replacement paths. Resolve the remaining
+  C/vendor dependency build strategy explicitly; do not claim independence
+  while JIT/AOT runtime or library builds still invoke a C compiler.
+
+The bootstrap interpreter and C backend remain transition references until
+their replacements meet these gates. FASM/AOT completion does not require
+this entire issue; #472's initial frontend work and [[./473.org][#473]]'s functional
+CI improvements can proceed independently. New APIs, generated artifacts,
+dependencies, install surfaces or persistent caches require their concrete
+design approval before implementation.

@@ -7,6 +7,18 @@ from til's prepared program, then assembles it into native code. Backend
 selection and the target OS/architecture are separate concerns, as with the
 existing C and MLIR backends.
 
+*** Related host direction
+
+[[./151.org][#151]] records the TempleOS-host plan: native til self-building for
+TempleOS first, then Linux x64 as its first foreign target through a ported
+FASM. This issue supplies the corresponding FASM backend/host integration;
+the detailed bootstrap and low-address/OS-adapter requirements live in #151.
+Porting the assembler to TempleOS is distinct from adding TempleOS output
+to this backend. The latter is not required to produce Linux ELF in the guest.
+Current Linux-only host invocation and target restrictions remain the actual
+implementation. [[./472.org][#472]] owns determinism; [[./473.org][#473]] owns the producer/consumer
+CI cells, whose functional checks need not wait for reproducible bytes.
+
 *** Reference
 
   - Official FASM 1 source repository: https://github.com/tgrysztar/fasm
@@ -370,6 +382,13 @@ existing C and MLIR backends.
   and interpreter/native value boundaries are separate future work; JIT is
   not required to complete this initial backend, nor a wholesale interpreter
   replacement.
+
+   Subsequent direction is tracked separately in [[./474.org][#474]]: FASM is a base
+   for native JIT work, with eventual replacement of AST interpretation rather
+   than only selective acceleration. TempleOS uses its HolyC compiler for the
+   native JIT. Our own reduced MLIR-style JIT and eventual retirement of the
+   required GCC/Clang toolchain are later milestones; the standalone FASM
+   backend need not wait for that full migration.
 
 *** Related
 
