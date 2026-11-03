@@ -8591,6 +8591,85 @@ priv h_U32_cmp := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Conte
     return true
 }
 
+priv interp_numeric_cast_word := func(source: Type, target: Type, word: Dynamic, ctx: Context) returns Option(U64) {
+    source_name := til_type_name_c(source, ctx.symbols)
+    target_name := til_type_name_c(target, ctx.symbols)
+    if source_name == target_name { return Option(U64).Some(word_bits(word)) }
+    if numeric_cast_float(source_name) {
+        raw := word_bits(word)
+        mut value : F64 = 0
+        if source_name == "F32" {
+            mut single : F32 = 0
+            memcpy(to_ptr(single), to_ptr(raw), 4)
+            value = single.to_f64()
+        } else { memcpy(to_ptr(value), to_ptr(raw), 8) }
+        if target_name == "F32" {
+            single := value.to_f32()
+            mut bits : U32 = 0
+            memcpy(to_ptr(bits), to_ptr(single), 4)
+            return Option(U64).Some(bits.to_u64())
+        }
+        if target_name == "F64" {
+            mut bits : U64 = 0
+            memcpy(to_ptr(bits), to_ptr(value), 8)
+            return Option(U64).Some(bits)
+        }
+        width := numeric_cast_integer_bits(target_name)
+        signed_target := target_name.starts_with("I")
+        mut exponent := width
+        if signed_target { exponent = width-1 }
+        mut upper : F64 = 1
+        for _ in 0..exponent { upper = upper * 2 }
+        mut lower_ok := value > -1
+        if signed_target {
+            // For small targets, fractions immediately below MIN still
+            // truncate to MIN. At 64 bits no such fraction is representable.
+            negative_upper := upper * -1
+            if width < 64 { lower_ok = value > negative_upper-1 }
+            else { lower_ok = value >= negative_upper }
+        }
+        if lower_ok.and(value < upper).not() { return Option(U64).None }
+        mut high : F64 = 1
+        for _ in 0..63 { high = high * 2 }
+        if signed_target || value < high { return Option(U64).Some(value.to_i64().cast(U64)) }
+        return Option(U64).Some((value-high).to_i64().cast(U64) + 0x8000000000000000)
+    }
+    raw := raw_to_u64(source, word, ctx)
+    if numeric_cast_float(target_name) {
+        if target_name == "F32" {
+            mut value : F32 = 0
+            if source_name.starts_with("I") { value = raw.cast(I64).to_f32() }
+            else { value = raw.to_f32() }
+            mut bits : U32 = 0
+            memcpy(to_ptr(bits), to_ptr(value), 4)
+            return Option(U64).Some(bits.to_u64())
+        }
+        mut value : F64 = 0
+        if source_name.starts_with("I") { value = raw.cast(I64).to_f64() }
+        else { value = raw.to_f64() }
+        mut bits : U64 = 0
+        memcpy(to_ptr(bits), to_ptr(value), 8)
+        return Option(U64).Some(bits)
+    }
+    return Option(U64).Some(raw)
+}
+
+priv interp_numeric_cast_panic := proc(mut scope: Scope, e: Expr, mut ctx: Context) {
+    message := format(numeric_cast_location(e, ctx), ": panic: invalid numeric cast\n")
+    mut output := Expr.new(own NodeType.FCall(FCallData()), e.line, e.col)
+    output.add_child(own Expr.new(own ident_node(ctx.symbols.intern("print_single")), e.line, e.col))
+    mut text := Expr.new(own NodeType.Literal(Literal.Str(str_to_source_form(message))), e.line, e.col)
+    text.set_til_type(type_from_name_init_name("Str", ctx.scope, ctx.symbols))
+    output.add_child(own text)
+    h_print_single(scope, output, bits_word(0), ctx)
+    mut stop := Expr.new(own NodeType.FCall(FCallData()), e.line, e.col)
+    stop.add_child(own Expr.new(own ident_node(ctx.symbols.intern("exit")), e.line, e.col))
+    mut status := Expr.new(own literal_num_node("1"), e.line, e.col)
+    status.set_til_type(Type.Primitive(Primitive.I64))
+    stop.add_child(own status)
+    h_exit(scope, stop, bits_word(0), ctx)
+}
+
 // Issue #212: integer reinterpret or same-signedness widening cast. The
 // typer set this FCall's til_type to the target type T; read the operand's
 // raw bits and write them at the target width.
@@ -8613,17 +8692,13 @@ priv h_cast := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context)
             target_stride := raw_type_size(target_t, ctx)
             ptr : Dynamic = raw_arg_pointer(src, src_info, ctx)
             for i in 0..target_simd.simd_width {
-                if source_lane.eq("F32").and(target_lane.eq("F64")) {
-                    ref value : F32 = ptr_add(ptr, i * source_stride)
-                    converted := value.to_f64()
-                    memcpy(ptr_add(r, i * target_stride), converted, target_stride)
-                } else if source_lane.eq("F64").and(target_lane.eq("F32")) {
-                    ref value : F64 = ptr_add(ptr, i * source_stride)
-                    write_f32(ptr_add(r, i * target_stride), value.to_f32())
-                } else {
-                    raw := raw_to_u64(source_t, scalar_word_load(source_t, ptr_add(ptr, i * source_stride), ctx), ctx)
-                    scalar_word_store(target_t, ptr_add(r, i * target_stride), bits_word(raw), ctx)
+                converted := interp_numeric_cast_word(source_t, target_t, scalar_word_load(source_t, ptr_add(ptr, i * source_stride), ctx), ctx)
+                if converted.is_none() {
+                    raw_result_drop(src_expr.til_type(), src, src_info.is_ref, ctx)
+                    interp_numeric_cast_panic(s, e, ctx)
+                    return true
                 }
+                scalar_word_store(target_t, ptr_add(r, i * target_stride), bits_word(converted.unwrap()), ctx)
             }
             raw_result_drop(src_expr.til_type(), src, src_info.is_ref, ctx)
             return true
@@ -8647,6 +8722,18 @@ priv h_cast := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context)
         return true
     }
     ref src_type : Type = raw_result_source_type(src_info)
+    if numeric_cast_float(til_type_name_c(src_type, ctx.symbols)) || numeric_cast_float(tn) {
+        word : Dynamic = scalar_word_of_raw(src, src_info.is_ref, src_info.is_word, src_type, ctx)
+        requested_type := type_from_name_init_name(target_name, ctx.scope, ctx.symbols)
+        converted := interp_numeric_cast_word(src_type, requested_type, word, ctx)
+        raw_result_drop(src_expr.til_type(), src, src_info.is_ref, ctx)
+        if converted.is_none() { interp_numeric_cast_panic(s, e, ctx); return true }
+        // Argument coercion can widen the call's stamp. Convert to the explicit
+        // target FIRST (including its range/rounding), then to the consumer.
+        final := interp_numeric_cast_word(requested_type, e.til_type(), bits_word(converted.unwrap()), ctx)
+        scalar_word_store(e.til_type(), r, bits_word(final.unwrap()), ctx)
+        return true
+    }
     // Collapse the eval to an inline word first: raw_to_u64 is word-based,
     // and the pre-word raw_arg_pointer form fed it an ADDRESS.
     raw := raw_to_u64(src_type, scalar_word_of_raw(src, src_info.is_ref, src_info.is_word, src_type, ctx), ctx)

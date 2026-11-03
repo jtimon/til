@@ -15,8 +15,8 @@ mask := a == a
 _wrong_selection := mask.select(b, b)
 if mask { println("a mask is not a Bool") }
 
-// Floating-to-integer casts have no approved out-of-range/NaN contract.
-_float_cast := f.cast(I32)
+// Bool masks are not numeric cast operands/targets.
+_float_cast := f.cast(Bool)
 
 // FMA is floating-only and requires matching lane types and widths.
 integer_fma := a.fma(a, a)

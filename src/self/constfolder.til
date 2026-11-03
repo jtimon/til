@@ -331,7 +331,7 @@ priv needs_source_escape := func(s: Str) returns Bool {
 // `\n`, 0x22 (`"`) becomes `\"`, etc. Keeps LiteralStr storage
 // consistent regardless of whether the node came from the parser or
 // from a constfolder-time fold.
-priv str_to_source_form := func(s: Str) returns Str {
+str_to_source_form := func(s: Str) returns Str {
     if needs_source_escape(s).not() { return s }
     n := s.len()
     mut out := ""

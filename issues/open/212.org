@@ -15,7 +15,7 @@ The chosen interface (see "Interface" below) is a two-argument builtin
 `cast(e, T)` callable UFCS-style as `e.cast(T)`, NOT Jai's prefix
 `cast(T) expr`. The Jai form is kept below as background/contrast.
 
-*** Current contract (reviewed 2026-10-31, master 4f976d78e)
+*** Current contract (numeric conversion increment, base 742677606)
 
 The original integer-cast work shipped; the implementation has since grown.
 The authoritative legality checks are ~cast_pair_ok~ and ~infer_cast_fcall~
@@ -24,19 +24,25 @@ in [[file:../../src/self/typer.til][typer.til]], not the narrower historical sum
 - Scalar integers: same-width casts (including identity) with either
   signedness, and same-signedness widening. Narrowing and cross-signedness
   widening are rejected. These are not checked numeric conversions.
-- Scalar floats, Bool, strings, arbitrary structs and ordinary enum values
-  are not admitted by the scalar integer rule. Parsing/formatting and scalar
-  float conversions still use their methods.
+- Integers may cast to F32/F64, floats may cast to integers, and F32/F64 may
+  cast to each other. These convert numeric values, not floating bit patterns.
+  Floating results follow the normal rounding mode (nearest-even by default).
+  Float-to-integer truncates toward zero, then requires the result to fit the
+  target. NaNs, infinities and out-of-range truncated values panic with
+  ~invalid numeric cast~ at the cast's source location. Thus -0.75 -> U32 is
+  zero, -1 -> U32 is invalid, and -128.99 -> I8 is -128.
+- Bool, strings, arbitrary structs and ordinary enums remain excluded.
+  Parsing/formatting keep named methods; the existing numeric to_x methods
+  remain available for compatibility. This increment does not remove them.
 - Callable recovery is already supported: ~Dynamic~ or a function-pointer
   type can cast to a named FuncSig; ~Dynamic~ or ~Body~ can cast to ~Body~.
   This is not general raw-pointer casting. The interpreter's ~h_cast~ calls
   ~check_dynamic_callable_signature~ and handles callable storage separately
   from integer bits. See [[file:../../test/fn_ptr.til][test/fn_ptr.til]], including delayed casts.
-- SIMD casts preserve lane count. Integer lanes use the integer legality
-  rule; F32/F64 lane conversions are also implemented. This does not imply
-  that scalar float casts or float-to-integer SIMD casts are supported.
-  [[file:../../test/simd.til][test/simd.til]] covers integer widening and both float-width
-  directions; [[file:../../test/simd_errors.til][test/simd_errors.til]] includes float-to-integer rejection.
+- SIMD casts preserve lane count and use the same numeric rules per lane.
+  Any invalid lane panics. The operand is evaluated once. MLIR implements
+  I32x4/U32x4/F32x4 conversions at its supported native layout; the shared
+  interpreter/C paths also handle other admitted integer widths and F64.
 
 Implementation map:
 
@@ -54,9 +60,13 @@ Implementation map:
 - [[file:../../src/self/interpreter.til][interpreter.til: h_cast]] operates on raw result storage/inline
   scalar words; the old ~Value.Sbyte~ / ~Value.Ushort~ implementation notes
   below describe history, not today's interpreter representation.
-- [[file:../../test/cast.til][test/cast.til]] covers all signed/unsigned width pairs, plain-call
-  syntax, and signed/unsigned widening. This review read the implementations
-  and existing tests; it did not rerun backend conformance tests.
+- [[file:../../test/cast.til][test/cast.til]] covers integer casts plus folded/runtime numeric
+  casts, precision loss, fractional bounds and 64-bit limits. The CLI tests
+  exercise invalid casts at every integer width and required macro aborts.
+  [[file:../../test/mlir.til][test/mlir.til]] compares all six vector conversion directions,
+  single evaluation/error propagation, and exact imported-source panic output
+  at O0/O2/O3. Discarded float-to-integer casts retain their possible panic;
+  the DCE builtin-purity rule no longer treats those casts as unobservable.
 
 Generic ~returns T~ is no longer absent from the language: see
 [[file:../../test/imports/generic_infer_public.til][generic_public_id]] and [[file:../fixed/328.org][#328]]. However, the ordinary generic mechanism
@@ -215,13 +225,10 @@ algorithm. Those are not casts and should not masquerade as one.
 
 *** Remaining open questions
 
-  - F32 <-> integer: deliberately kept as `.to_f32()` / `.to_i64()`
-    methods for now. It is the one machine conversion that genuinely
-    recomputes a value (rounding/truncation), not a bit reinterpret,
-    so keeping the cost visible in the name is the conservative
-    default. Folding it into `cast` (Jai-style: any primitive machine
-    conversion) is a coherent alternative -- file a follow-up if/when
-    that uniformity is wanted.
+  - Numeric-cast naming is settled: primitive machine conversions belong to
+    cast, including float/integer conversion; parsing and formatting use to_x.
+    The old decision to keep float/integer conversion method-only is superseded
+    by the contract above. Compatibility methods have not been removed.
   - General pointer / enum casts: decide whether additional conversions
     belong here, separately from the already-supported callable recovery.
     The builtin is no longer integer-only because of callable and SIMD use.

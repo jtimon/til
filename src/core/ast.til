@@ -627,6 +627,10 @@ FCallData := struct {
     propagates_error := false
     panic_on_error := false
     is_bang_check := false
+    // Numeric casts can diagnose a runtime range failure after evaluation has
+    // entered another unit. Retain the typing unit's path, like __LOC__ does.
+    // Appended to preserve existing bootstrap-visible field offsets.
+    cast_path : Sym = 0
 namespace:
     eq := func(_a: FCallData, _b: FCallData) returns Bool {
         return true

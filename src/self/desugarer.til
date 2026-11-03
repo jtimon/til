@@ -585,7 +585,15 @@ priv seed_local_type_from_stmt := func(mut scope: TypeScope, ctx: Context, stmt:
                 if rhs.children.len() > 0 {
                     switch rhs.children[0].node_type {
                     case .Ident(rhsn):
-                        if rhsn.ident_name(ctx.symbols.names).eq("array").and(rhs.children.len().gte(2)) {
+                        if rhsn.ident_name(ctx.symbols.names).eq("cast").and(rhs.children.len() == 3) {
+                            // cast's declared Dynamic result is a placeholder:
+                            // the explicit target controls later receiver/error
+                            // lowering, e.g. v:=cast(f,S4); v.get(0)!.
+                            switch rhs.children[2].node_type {
+                            case .Ident(target): tn = resolve_type_alias_for_name(ctx.scope, target.ident_name(ctx.symbols.names), ctx.symbols).clone()
+                            case:
+                            }
+                        } else if rhsn.ident_name(ctx.symbols.names).eq("array").and(rhs.children.len().gte(2)) {
                             et := resolve_type_alias_for_name(ctx.scope, array_vec_elem_type_name(rhs, ctx.symbols), ctx.symbols).clone()
                             if et.len() > 0 { tn = format("Array__", et) }
                         } else if rhsn.ident_name(ctx.symbols.names).eq("vec").and(rhs.children.len().gte(2)) {

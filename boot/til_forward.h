@@ -626,6 +626,7 @@ typedef struct FCallData {
     Bool propagates_error;
     Bool panic_on_error;
     Bool is_bang_check;
+    U32 cast_path;
 } FCallData;
 
 

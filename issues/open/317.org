@@ -159,6 +159,28 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Numeric casts (base 742677606)
+
+The shared language cast now includes integer/float numeric conversion, not
+just integer reinterpretation/widening and F32/F64 lane conversion. MLIR lowers
+I32x4/U32x4/F32x4 conversions and supported scalar conversions with signedness-
+correct LLVM operations. Integer sign reinterpretation preserves bits. Float
+results follow the normal rounding mode; float-to-integer truncates toward zero
+and panics for NaN, infinity or an out-of-range truncated result.
+
+MLIR checks every lane before executing fptosi/fptoui, so invalid inputs never
+reach a poison-producing conversion. Failures call the ordinary C-core panic
+ABI, not a new runtime implementation. The interpreter and C backend implement
+the same contract for all integer widths and F32/F64. Casts retain their source
+unit for diagnostics; DCE preserves potentially panicking discarded results.
+
+Tests cover all six vector directions, signed/unsigned boundaries, nearest-even
+rounding examples, fractions, scalar 64-bit limits, single evaluation and error
+propagation. Invalid scalar casts at every integer width and mandatory macro
+aborts run without LLVM tools. Native C/til consumers and failure subprocesses
+compare exact interpreter/C diagnostics at O0/O2/O3. MLIR verification uses
+USize64: the current master rejects compact-layout MLIR pending cage support.
+
 *** Min/max reductions (base bac208501)
 
 F32x4, I32x4 and U32x4 reduce_min/reduce_max now lower through the same

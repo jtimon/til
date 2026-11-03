@@ -422,6 +422,21 @@
   signed/unsigned boundary values, wraparound, zero/overflow division, all
   selection masks, and C/til consumers at both USize widths and O0/O2/O3.
 
+  ~cast(value,T)~ and ~value.cast(T)~ convert between I32x4, U32x4 and F32x4,
+  retaining lane count and evaluating the operand once. Integer sign casts
+  preserve bits; integer/float casts convert numeric values. Floating results
+  use the normal rounding mode (nearest-even by default), possibly losing
+  precision. Float-to-integer truncates toward zero and panics if that truncated
+  value is out of range, or the input is NaN/infinite. Checks precede LLVM
+  fptosi/fptoui so invalid inputs cannot produce poison. Any invalid lane
+  panics through ordinary core with the original cast's source location.
+  Scalar casts follow the same rules for the types supported by this backend;
+  the interpreter/C backend additionally supports all integer widths and F64.
+  Parsing and formatting retain named to_x methods. Existing numeric to_x
+  methods are retained for compatibility. Tests cover all six vector directions,
+  boundary/fractional values, rounding, single evaluation, discarded-result
+  panics and exact diagnostics from imported functions at O0/O2/O3.
+
   F32x4, I32x4 and U32x4 support ~reduce_min~ and ~reduce_max~. The operand
   is evaluated once, then the existing halving tree combines lanes (0,2),
   (1,3), and those two results. Integer comparisons retain signedness. Floating

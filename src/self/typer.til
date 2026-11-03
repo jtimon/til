@@ -2481,9 +2481,8 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
                 ref source_lane : Str = decl_type_name_ref(source_simd.fields[0], ctx.symbols)
                 source_t := type_from_name_init_name(source_lane, scope, ctx.symbols)
                 target_t := type_from_name_init_name(target_lane, scope, ctx.symbols)
-                float_pair := source_lane.eq("F32").and(target_lane.eq("F64")).or(source_lane.eq("F64").and(target_lane.eq("F32")))
-                if cast_pair_ok(source_t, target_t, ctx.symbols).or(float_pair).not() {
-                    e.type_error("SIMD cast supports scalar integer cast pairs and F32/F64 conversion", ctx)
+                if cast_pair_ok(source_t, target_t, ctx.symbols).not() {
+                    e.type_error("SIMD cast supports integer reinterpret/widening and numeric floating-point conversions", ctx)
                     e.set_til_type(Type.Unknown)
                     return true
                 }
@@ -2505,6 +2504,9 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
                 target.set_til_type(Type.EnumSym(ctx.symbols.intern("Type")))
                 e.add_child(own target)
                 e.set_til_type(Type.StructSym(ctx.symbols.intern(target_name)))
+                if numeric_cast_float(source_lane).and(numeric_cast_float(target_lane).not()) {
+                    fcall_of(e).cast_path = ctx.symbols.intern(ctx.path)
+                }
                 mark_fcall_direct(e)
                 return true
             }
@@ -3335,6 +3337,9 @@ priv cast_is_signed := func(t: Type, symbols: SymbolPool) returns Bool {
 priv cast_pair_ok := func(src: Type, target: Type, symbols: SymbolPool) returns Bool {
     src_size := cast_int_size(src, symbols)
     target_size := cast_int_size(target, symbols)
+    source_float := numeric_cast_float(til_type_name_c(src, symbols))
+    target_float := numeric_cast_float(til_type_name_c(target, symbols))
+    if source_float.and(target_float.or(target_size > 0)) || target_float.and(src_size > 0) { return true }
     if src_size.gt(0).and(target_size.gt(0)) {
         if src_size == target_size { return true }
         if src_size < target_size {
@@ -3377,6 +3382,9 @@ priv infer_cast_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
     }
     infer_expr(scope, e.children[1], in_func, ctx)
     ref src_type : Type = e.children[1].til_type()
+    if numeric_cast_float(til_type_name_c(src_type, ctx.symbols)) && fcall_of(e).cast_path == 0 {
+        fcall_of(e).cast_path = ctx.symbols.intern(ctx.path)
+    }
     mut tname := ""
     switch e.children[2].node_type {
     case .Ident(tn0): tname = Str.clone(tn0.ident_name(ctx.symbols.names))
@@ -3402,8 +3410,10 @@ priv infer_cast_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
         if source_simd.simd_width.gt(0).and(source_simd.simd_width == target_simd.simd_width) {
             ref source_lane : Str = decl_type_name_ref(source_simd.fields[0], ctx.symbols)
             ref target_lane : Str = decl_type_name_ref(target_simd.fields[0], ctx.symbols)
-            float_pair := source_lane.eq("F32").and(target_lane.eq("F64")).or(source_lane.eq("F64").and(target_lane.eq("F32")))
-            if cast_pair_ok(type_from_name_init_name(source_lane, scope, ctx.symbols), type_from_name_init_name(target_lane, scope, ctx.symbols), ctx.symbols).or(float_pair) {
+            if cast_pair_ok(type_from_name_init_name(source_lane, scope, ctx.symbols), type_from_name_init_name(target_lane, scope, ctx.symbols), ctx.symbols) {
+                if numeric_cast_float(source_lane).and(numeric_cast_float(target_lane).not()) && fcall_of(e).cast_path == 0 {
+                    fcall_of(e).cast_path = ctx.symbols.intern(ctx.path)
+                }
                 e.children[2].set_til_type(Type.EnumSym(ctx.symbols.intern("Type")))
                 e.set_til_type(target_type)
                 return
@@ -3413,7 +3423,7 @@ priv infer_cast_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
     if cast_pair_ok(src_type, target_type, ctx.symbols).not() {
         e.type_error(format(
             "cast only supports same-size integer reinterpret ",
-            "(any signedness) and same-signedness widening; ",
+            "(any signedness), same-signedness widening and numeric floating-point conversions; ",
             "cannot cast ", til_type_name_c(src_type, ctx.symbols), " to ", tname,
         ), ctx)
         e.set_til_type(Type.Unknown)

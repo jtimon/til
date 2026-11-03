@@ -1219,15 +1219,38 @@ priv dce_expr_is_pure := func(e: Expr, scope: TypeScope, symbols: SymbolPool, de
 }
 
 // `cast` is a compiler BUILTIN, not a declaration: every backend lowers
-// `x.cast(T)` to a conversion of the value already in hand, so it is pure
-// by construction and there is no FunctionDef for the resolver to read.
-priv dce_is_pure_builtin := func(e: Expr, symbols: SymbolPool) returns Bool {
+// `x.cast(T)` normally only converts the value in hand. Float-to-integer
+// casts can panic, though, so discarding their result must retain the call.
+priv dce_is_pure_builtin := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
     if e.children.len() == 0 { return false }
+    mut is_cast := false
     switch e.children[0].node_type {
-    case .FieldAccess(dpb_fa): return dpb_fa.field_access_name(symbols.names).eq("cast")
-    case .Ident(dpb_id): return dpb_id.ident_name(symbols.names).eq("cast")
-    case: return false
+    case .FieldAccess(dpb_fa): is_cast = dpb_fa.field_access_name(symbols.names).eq("cast")
+    case .Ident(dpb_id): is_cast = dpb_id.ident_name(symbols.names).eq("cast")
+    case:
     }
+    if is_cast.not() { return false }
+    if e.children.len() == 3 {
+        source_name := type_name_ref(e.children[1].til_type(), symbols).clone()
+        mut source_float := numeric_cast_float(source_name)
+        if is_struct_type(e.children[1].til_type()) {
+            source_def := scope.get_struct(source_name, symbols)
+            if source_def.is_some() {
+                ref definition : Expr = source_def.unwrap()
+                if definition.node_type.is(NodeType.StructDef) { if structdef_of(definition).simd_width > 0 { source_float = numeric_cast_float(decl_type_name_ref(structdef_of(definition).fields[0], symbols)) } }
+            }
+        }
+        if source_float.not() { return true }
+        target_name := ident_of(e.children[2]).ident_name(symbols.names).clone()
+        mut target_float := numeric_cast_float(resolve_type_alias(scope, target_name, symbols))
+        target_def := scope.get_struct(target_name, symbols)
+        if target_def.is_some() {
+            ref definition : Expr = target_def.unwrap()
+            if definition.node_type.is(NodeType.StructDef) { if structdef_of(definition).simd_width > 0 { target_float = numeric_cast_float(decl_type_name_ref(structdef_of(definition).fields[0], symbols)) } }
+        }
+        return target_float
+    }
+    return true
 }
 
 // Cloning a POD is a value copy -- that is what POD means for the COPY
@@ -1260,7 +1283,7 @@ priv dce_pod_clone_call := func(e: Expr, scope: TypeScope, symbols: SymbolPool) 
 // Is this call observable at all? The three shapes with no body to read
 // come first; everything else is settled by reading the callee's.
 priv dce_call_is_pure := func(e: Expr, scope: TypeScope, symbols: SymbolPool, depth: USize) returns Bool {
-    if dce_is_pure_builtin(e, symbols) { return true }
+    if dce_is_pure_builtin(e, scope, symbols) { return true }
     if dce_pod_clone_call(e, scope, symbols) { return true }
     if dce_noop_delete_call(e, scope, symbols) { return true }
     // Constructing a struct whose delete does nothing builds a value and

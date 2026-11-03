@@ -4214,6 +4214,18 @@ priv builder_simd_chunk_lanes := func(simd: StructDef, ctx: Context) returns USi
     return lanes
 }
 
+priv emit_numeric_cast_check := proc(f: File, value: Str, target: Str, e: Expr, ctx: Context) {
+    width := numeric_cast_integer_bits(target)
+    mut exponent := width
+    mut lower := "0.0L"
+    if target.starts_with("I") { exponent = width-1; lower = format("-0x1p", exponent.to_str(), "L") }
+    // Check the truncated mathematical value before any C integer conversion.
+    // In particular, do not round MAX to a floating upper bound and use <=.
+    f.write("{ long double til_cast_truncated = __builtin_truncl((long double)(").write(value).write(")); if (!(til_cast_truncated >= ")
+        .write(lower).write(" && til_cast_truncated < 0x1p").write(exponent.to_str()).write("L)) { fprintf(stdout, \"%s: panic: invalid numeric cast\\n\", \"")
+        .write(str_to_source_form(numeric_cast_location(e, ctx))).write("\"); exit(1); } } ")
+}
+
 priv emit_simd_core := proc(f: File, e: Expr, sname: Str, op: Str, flat: Str, depth: I32, mut ctx: Context) returns Bool {
     definition := ctx.scope.get_struct(sname, ctx.symbols)
     if definition.is_none() { return false }
@@ -4833,10 +4845,16 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                 ref target_simd : StructDef = structdef_of(target_def.unwrap())
                 if target_simd.simd_width > 0 {
                     source_name := expr_type_name_ref(e.children[1], ctx.symbols).unwrap().clone()
+                    ref source_simd : StructDef = structdef_of(ctx.scope.get_struct(source_name, ctx.symbols).unwrap())
+                    ref source_lane : Str = decl_type_name_ref(source_simd.fields[0], ctx.symbols)
+                    ref target_lane : Str = decl_type_name_ref(target_simd.fields[0], ctx.symbols)
                     f.write("({ ").write(source_name).write(" til_simd_source = ")
                     emit_deref(f, e.children[1], depth, ctx)
                     f.write("; ").write(target_name).write(" til_simd_result; ")
                     for i in 0..target_simd.simd_width {
+                        if numeric_cast_float(source_lane).and(numeric_cast_float(target_lane).not()) {
+                            emit_numeric_cast_check(f, format("til_simd_source.lane", i.to_str()), target_lane, e, ctx)
+                        }
                         f.write("til_simd_result.lane").write(i.to_str()).write(" = (").write(decl_type_name_ref(target_simd.fields[0], ctx.symbols)).write(")til_simd_source.lane").write(i.to_str()).write("; ")
                     }
                     f.write("til_simd_result; })")
@@ -4863,6 +4881,14 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                     if target_t.is(Type.Unknown).not() { cast_c_type = til_type_name_c(target_t, ctx.symbols) }
                 case:
                 }
+            }
+            if numeric_cast_float(til_type_name_c(e.children[1].til_type(), ctx.symbols)).and(numeric_cast_float(cast_c_type).not()) {
+                f.write("({ ").write(til_type_name_c(e.children[1].til_type(), ctx.symbols)).write(" til_cast_source = ")
+                emit_deref(f, e.children[1], depth, ctx)
+                f.write("; ")
+                emit_numeric_cast_check(f, "til_cast_source", cast_c_type, e, ctx)
+                f.write("(").write(cast_c_type).write(")til_cast_source; })")
+                return f
             }
             // Issue #58: cast-to-FuncSig. til_type_name_c yields "Fn",
             // which is not a C type. For Dynamic -> FuncPtr the source

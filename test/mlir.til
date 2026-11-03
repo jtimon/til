@@ -151,6 +151,71 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_casts := proc(compiler: Str, work: Str) {
+    File.writefile(format(work,"/conversions.til"),format(
+        "mode pure\nF4:=Simd(F32,4)\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\n",
+        "to_unsigned:=func(v:S4) returns U4 {return v.cast(U32)}\nto_signed:=func(v:U4) returns S4 {return v.cast(I32)}\n",
+        "signed_float:=func(v:S4) returns F4 {return v.cast(F32)}\nunsigned_float:=func(v:U4) returns F4 {return v.cast(F32)}\n",
+        "float_signed:=func(v:F4) returns S4 {return cast(v,S4)}\nfloat_unsigned:=func(v:F4) returns U4 {return v.cast(U32)}\n",
+        "scalar_signed:=func(v:I32) returns F32 {return v.cast(F32)}\nscalar_unsigned:=func(v:U32) returns F32 {return v.cast(F32)}\n",
+        "scalar_i:=func(v:F32) returns I32 {return cast(v,I32)}\nscalar_u:=func(v:F32) returns U32 {return v.cast(U32)}\n",
+        "scalar_i64:=func(v:F32) returns I64 {return v.cast(I64)}\nscalar_u64:=func(v:F32) returns U64 {return v.cast(U64)}\n",
+        "make_float:=func(a:F32,b:F32,c:F32,d:F32) returns F4 {return F4.new(a,b,c,d)}\n",
+        "priv counted:=func(mut trace:Array(I32),v:S4) returns S4 throws OutOfBounds {ref mut c:I32=trace.get(0)?;c=c+1;return v.clone()}\n",
+        "once:=func(mut trace:Array(I32),v:S4) returns F4 throws OutOfBounds {return counted(trace,v)?.cast(F32)}\n",
+        "forward:=func(v:S4) returns U4 {return to_unsigned(v)}\n"))
+    File.writefile(format(work,"/conversion_caller.c"),format(
+        "#include <assert.h>\n#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n#ifdef COUNT32\ntypedef uint32_t Count;\n#else\ntypedef uint64_t Count;\n#endif\n",
+        "typedef struct{float v[4];}F4;typedef struct{int32_t v[4];}S4;typedef struct{uint32_t v[4];}U4;typedef struct{int32_t *data;Count cap;}Buffer;extern U4 to_unsigned(S4),float_unsigned(F4),forward(S4);extern S4 to_signed(U4),float_signed(F4);extern F4 signed_float(S4),unsigned_float(U4),once(Buffer*,S4,int64_t*);extern float scalar_signed(int32_t),scalar_unsigned(uint32_t);extern int32_t scalar_i(float);extern uint32_t scalar_u(float);extern int64_t scalar_i64(float);extern uint64_t scalar_u64(float);\n",
+        "int main(int argc,char**argv){if(argc>1){uint32_t patterns[]={0x7fc01234,0x7f800000,0xff800000,0x4f000000,0xcf000001,0x4f800000,0xbf800000};uint32_t raw=patterns[atoi(argv[1])];float f;memcpy(&f,&raw,4);F4 v={{1,2,3,4}};unsigned kind=(unsigned)atoi(argv[2]);unsigned lane=(unsigned)atoi(argv[3]);v.v[lane]=f;if(kind==0)float_signed(v);else if(kind==1)float_unsigned(v);else if(kind==2)scalar_i(f);else scalar_u(f);return 99;}\n",
+        "const uint32_t integers[]={0,1,0xffffffff,0x80000000,0x7fffffff,16777215,16777216,16777217,16777219,0x80000001,0xffffff00};for(unsigned i=0;i<11;i++){U4 u;for(unsigned k=0;k<4;k++)u.v[k]=integers[(i+k)%11];S4 s;memcpy(&s,&u,16);U4 r=to_unsigned(s),q=forward(s);S4 t=to_signed(u);assert(memcmp(&r,&u,16)==0 && memcmp(&q,&u,16)==0 && memcmp(&t,&s,16)==0);F4 a=signed_float(s),b=unsigned_float(u);for(unsigned k=0;k<4;k++){float expected_s=(float)s.v[k],expected_u=(float)u.v[k];assert(memcmp(&a.v[k],&expected_s,4)==0 && memcmp(&b.v[k],&expected_u,4)==0);assert(scalar_signed(s.v[k])==expected_s && scalar_unsigned(u.v[k])==expected_u);}}\n",
+        "const float sv[]={0,-0.0f,1.75f,-1.75f,-0.75f,-2147483648.0f,2147483520.0f,0x1p-149f,-0x1p-149f};const float uv[]={0,-0.0f,1.75f,-0.75f,4294967040.0f,2147483648.0f,0x1p-149f};for(unsigned i=0;i<9;i++){F4 f;for(unsigned k=0;k<4;k++)f.v[k]=sv[(i+k)%9];S4 s=float_signed(f);for(unsigned k=0;k<4;k++)assert(s.v[k]==(int32_t)f.v[k] && scalar_i(f.v[k])==s.v[k]);}for(unsigned i=0;i<7;i++){F4 f;for(unsigned k=0;k<4;k++)f.v[k]=uv[(i+k)%7];U4 u=float_unsigned(f);for(unsigned k=0;k<4;k++)assert(u.v[k]==(uint32_t)f.v[k] && scalar_u(f.v[k])==u.v[k]);}\n",
+        "assert(scalar_i64(-0x1p63f)==INT64_MIN);assert(scalar_i64(0x1.fffffep62f)==(int64_t)0x1.fffffep62f);assert(scalar_u64(0x1.fffffep63f)==(uint64_t)0x1.fffffep63f);int32_t count=0;Buffer b={&count,1},empty={0,0};S4 v={{1,2,3,4}};int64_t error=0;F4 result=once(&b,v,&error);assert(error==0 && count==1 && result.v[3]==4);once(&empty,v,&error);assert(error==1);return 0;}\n"))
+    checks:="main:=proc(){v:=make_float(-1.75,1.75,-0.75,2147483520);s:=float_signed(v);assert_eq(I32,s[0],-1);assert_eq(I32,s[1],1);assert_eq(I32,s[2],0);u:=to_unsigned(s);assert_eq(U32,u[0],U32.MAX);back:=to_signed(u);assert_eq(I32,back[0],-1);f:=unsigned_float(u);assert_eq(F32,f[0],4294967296);positive:=float_unsigned(make_float(4294967040,2147483648,-0.75,1.75));assert_eq(U32,positive[0],4294967040);mut trace:=array(I32,0);converted:=once(trace,s)!;assert_eq(I32,trace[0],1);assert_eq(F32,converted[0],-1);println(\"conversions PASS\")}\n"
+    File.writefile(format(work,"/conversion_reference.til"),format("mode cli\nimport(\"conversions\")\n",checks))
+    File.writefile(format(work,"/conversion_consumer.til"),format(
+        "mode cli\nlink(\"gen/lib/libconversions.so\")\nF4:=Simd(F32,4)\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\n",
+        "make_float:=ext_func(shallow a:F32,shallow b:F32,shallow c:F32,shallow d:F32) returns shallow F4 {}\nfloat_signed:=ext_func(shallow v:F4) returns shallow S4 {}\nfloat_unsigned:=ext_func(shallow v:F4) returns shallow U4 {}\nto_unsigned:=ext_func(shallow v:S4) returns shallow U4 {}\nto_signed:=ext_func(shallow v:U4) returns shallow S4 {}\nunsigned_float:=ext_func(shallow v:U4) returns shallow F4 {}\nonce:=ext_func(mut trace:Array(I32),shallow v:S4) returns shallow F4 throws OutOfBounds {}\n",checks))
+    File.writefile(format(work,"/conversion_panic.til"),format(
+        "mode cli\nimport(\"conversions\")\nmain:=proc(pattern:I64,kind:I64,lane:I64){mut raw:U32=0x7fc01234;if pattern==1 {raw=0x7f800000};if pattern==2 {raw=0xff800000};if pattern==3 {raw=0x4f000000};if pattern==4 {raw=0xcf000001};if pattern==5 {raw=0x4f800000};if pattern==6 {raw=0xbf800000};mut f:F32=0;memcpy(to_ptr(f),to_ptr(raw),4);mut v:=make_float(1,2,3,4);v.set(lane.to_usize(),own f.clone())!;if kind==0 {float_signed(v)} else if kind==1 {float_unsigned(v)} else if kind==2 {scalar_i(f)} else {scalar_u(f)}}\n"))
+    for width in array(Str,"64") {
+        flag:=format("--usize=",width)
+        for command in array(Str,"interpret","run") {reference:=Cmd.new(compiler,command,flag,"conversion_reference.til");checked(reference,work)}
+        mut failures:=Vec(Str).new()
+        // NaN and infinities in every lane; signed/unsigned boundaries and scalars.
+        for spec in array(Str,"0 0 0","0 0 1","1 0 2","2 0 3","3 0 1","4 0 2","0 1 0","1 1 1","2 1 2","5 1 3","6 1 0","0 2 0","3 2 0","5 3 0","6 3 0") {
+            args:=spec.split(" ")
+            native_reference:=Cmd.new(compiler,"run",flag,"conversion_panic.til",args[0],args[1],args[2])
+            native_reference.cwd(work).capture()
+            status:=native_reference.run()
+            expect(status==1 && native_reference.err().len()==0,native_reference.out(),native_reference.err())
+            expect(native_reference.out().contains(": panic: invalid numeric cast\n"),native_reference.out())
+            interpreted:=Cmd.new(compiler,"interpret",flag,"conversion_panic.til",args[0],args[1],args[2])
+            interpreted.cwd(work).capture()
+            interpreted_status:=interpreted.run()
+            expect(interpreted_status==1,interpreted.out(),interpreted.err())
+            assert_eq(Str,interpreted.out(),native_reference.out())
+            assert_eq(Str,interpreted.err(),native_reference.err())
+            failures.push(own native_reference.out())
+        }
+        for level in array(Str,"0","2","3") {
+            build:=Cmd.new(compiler,"build","--backend=mlir",flag,format("--opt=",level),"./conversions.til");checked(build,work)
+            cc:=Cmd.new("clang-18","-O2","-fsanitize=address","-Wall","-Wextra","-Werror","conversion_caller.c","gen/lib/libconversions.a","-lm","-o","conversion_caller")
+            if width=="32" {cc.arg("-DCOUNT32")};checked(cc,work)
+            native:=Cmd.new("./conversion_caller");checked(native,work)
+            consumer:=Cmd.new(compiler,"run","--asan",flag,"conversion_consumer.til");checked(consumer,work)
+            mut i:USize=0
+            for spec in array(Str,"0 0 0","0 0 1","1 0 2","2 0 3","3 0 1","4 0 2","0 1 0","1 1 1","2 1 2","5 1 3","6 1 0","0 2 0","3 2 0","5 3 0","6 3 0") {
+                args:=spec.split(" ")
+                failure:=Cmd.new("./conversion_caller",args[0],args[1],args[2]);failure.cwd(work).capture()
+                status:=failure.run()
+                expect(status==1,failure.out(),failure.err())
+                assert_eq(Str,failure.out(),failures[i]);assert_eq(Str,failure.err(),"");i++
+            }
+        }
+    }
+}
+
 priv check_extrema := proc(compiler: Str, work: Str) {
     File.writefile(format(work,"/extrema.til"),format(
         "mode pure\nF4:=Simd(F32,4)\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\n",
@@ -642,5 +707,6 @@ main := proc(compiler_arg: Str) {
     check_runtime(compiler, work)
     check_integer_vectors(compiler, work)
     check_extrema(compiler, work)
+    check_casts(compiler, work)
     println("mlir PASS")
 }

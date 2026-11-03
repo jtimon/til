@@ -29,6 +29,24 @@ simd_instance_name := func(elem: Str, width: USize) returns Str {
     return format("Simd__", elem, "_n", text.len().to_str(), "_", text)
 }
 
+numeric_cast_float := func(name: Str) returns Bool { return name.eq("F32").or(name.eq("F64")) }
+
+numeric_cast_integer_bits := func(name: Str) returns USize {
+    switch name {
+    case "I8", "U8": return 8
+    case "I16", "U16": return 16
+    case "I32", "U32": return 32
+    case "I64", "U64": return 64
+    case: panic("not a resolved integer cast target: ", name)
+    }
+}
+
+numeric_cast_location := func(e: Expr, ctx: Context) returns Str {
+    path := fcall_of(e).cast_path
+    if path == 0 { panic("numeric cast has no source path") }
+    return format(ctx.symbols.resolve(path), ":", e.line.to_str(), ":", e.col.to_str())
+}
+
 display_path := func(p: Str, cwd: Str) returns Str {
     prefix := format(cwd, "/")
     rel := p.strip_prefix(prefix)

@@ -720,6 +720,105 @@ priv mlir_checked_lane := proc(e: Expr, t: Str, store: Bool, mut state: MlirStat
     return value
 }
 
+priv mlir_cast_failure := func(e: Expr, mut state: MlirState, lp: LoadedProgram) {
+    str_type := mlir_type(type_from_name_init_name("Str", lp.ctx.scope, lp.ctx.symbols), lp)
+    array_type := mlir_type(type_from_name_init_name("Array__Str", lp.ctx.scope, lp.ctx.symbols), lp)
+    count_type := mlir_count_type(lp)
+    new_name := format(lp.ctx.builder_core_c_prefix, lp.ctx.builder_core_c_names["Array__Str_new"])
+    set_name := format(lp.ctx.builder_core_c_prefix, lp.ctx.builder_core_c_names["Array__Str_set"])
+    panic_name := format(lp.ctx.builder_core_c_prefix, lp.ctx.builder_core_c_names["panic"])
+    state.externals.set(new_name, own format("  llvm.func @\"", new_name, "\"(", count_type, ") -> ", array_type, "\n"))
+    state.externals.set(set_name, own format("  llvm.func @\"", set_name, "\"(!llvm.ptr, ", count_type, ", !llvm.ptr, !llvm.ptr)\n"))
+    state.externals.set(panic_name, own format("  llvm.func @\"", panic_name, "\"(!llvm.ptr, !llvm.ptr)\n"))
+    state.externals.set("malloc", own "  llvm.func @malloc(i64) -> !llvm.ptr\n")
+    one := mlir_value(state, format("arith.constant 1 : ", count_type))
+    array := mlir_value(state, format("llvm.call @\"", new_name, "\"(", one, ") : (", count_type, ") -> ", array_type))
+    wrapper_size := mlir_value(state, "arith.constant 16 : i64")
+    parts := mlir_value(state, format("llvm.call @malloc(", wrapper_size, ") : (i64) -> !llvm.ptr"))
+    mlir_store(parts, array, array_type, state)
+    message := mlir_string_literal("invalid numeric cast", state, lp)
+    owned_message := mlir_owned_record(message, str_type, state)
+    mut bytes := "16"
+    if mlir_sret(str_type) { bytes = "24" }
+    size := mlir_value(state, format("arith.constant ", bytes, " : i64"))
+    message_box := mlir_value(state, format("llvm.call @malloc(", size, ") : (i64) -> !llvm.ptr"))
+    mlir_store(message_box, owned_message, str_type, state)
+    index := mlir_value(state, format("arith.constant 0 : ", count_type))
+    error := mlir_slot("i64", state)
+    zero := mlir_value(state, "arith.constant 0 : i64")
+    mlir_store(error, zero, "i64", state)
+    state.text = format(state.text, "    llvm.call @\"", set_name, "\"(", parts, ", ", index, ", ", message_box, ", ", error, ") : (!llvm.ptr, ", count_type, ", !llvm.ptr, !llvm.ptr) -> ()\n")
+    location := mlir_string_literal(str_to_source_form(numeric_cast_location(e, lp.ctx)), state, lp)
+    location_slot := mlir_slot(str_type, state)
+    mlir_store(location_slot, location, str_type, state)
+    state.text = format(state.text, "    llvm.call @\"", panic_name, "\"(", parts, ", ", location_slot, ") : (!llvm.ptr, !llvm.ptr) -> ()\n    llvm.unreachable\n")
+    state.terminated = true
+}
+
+priv mlir_cast := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram) returns Str {
+    ref source_type : Type = e.children[1].til_type()
+    target_type := type_from_name_init_name(ident_of(e.children[2]).ident_name(lp.ctx.symbols.names), lp.ctx.scope, lp.ctx.symbols)
+    source := mlir_type(source_type, lp)
+    target := mlir_type(target_type, lp)
+    if source.len().eq(0).or(target.len().eq(0)) { return mlir_error(e, "unsupported cast type", lp) }
+    value := mlir_expr(e.children[1], state, lp)
+    mut converted := value.clone()
+    mut signed_source := mlir_signed(source_type)
+    mut signed_target := mlir_signed(target_type)
+    if source == "vector<4xi32>" { signed_source = mlir_unsigned_vector(source_type, lp).not() }
+    if target == "vector<4xi32>" { signed_target = mlir_unsigned_vector(target_type, lp).not() }
+    if source != target {
+        float_source := source.eq("f32").or(source.eq("vector<4xf32>"))
+        float_target := target.eq("f32").or(target.eq("vector<4xf32>"))
+        if float_source {
+            if target != "i32" && target != "i64" && target != "vector<4xi32>" { return mlir_error(e, "unsupported floating cast", lp) }
+            mut bits : U32 = 32
+            if target == "i64" { bits = 64 }
+            mut exponent := bits
+            if signed_target { exponent = bits-1 }
+            bound_bits := (exponent+127).shl(23)
+            mut hex := ""
+            digits := "0123456789ABCDEF"
+            for i in 0..8 { hex = format(hex, digits.substr(bound_bits.shr(((7-i)*4).to_u32()).band(15).to_usize(), 1)) }
+            mut upper_literal := format("0x", hex)
+            mut lower_literal := "0.0"
+            if signed_target {
+                sign_bits := bound_bits.bor(0x80000000)
+                hex = ""
+                for i in 0..8 { hex = format(hex, digits.substr(sign_bits.shr(((7-i)*4).to_u32()).band(15).to_usize(), 1)) }
+                lower_literal = format("0x", hex)
+            }
+            if source == "vector<4xf32>" {
+                upper_literal = format("dense<", upper_literal, ">")
+                lower_literal = format("dense<", lower_literal, ">")
+            }
+            truncated := mlir_value(state, format("llvm.intr.trunc(", value, ") : (", source, ") -> ", source))
+            lower := mlir_value(state, format("arith.constant ", lower_literal, " : ", source))
+            upper := mlir_value(state, format("arith.constant ", upper_literal, " : ", source))
+            above := mlir_value(state, format("arith.cmpf oge, ", truncated, ", ", lower, " : ", source))
+            below := mlir_value(state, format("arith.cmpf olt, ", truncated, ", ", upper, " : ", source))
+            mut predicate_type := "i1"
+            if source == "vector<4xf32>" { predicate_type = "vector<4xi1>" }
+            mut valid := mlir_value(state, format("arith.andi ", above, ", ", below, " : ", predicate_type))
+            if predicate_type != "i1" { valid = mlir_value(state, format("vector.reduction <and>, ", valid, " : vector<4xi1> into i1")) }
+            success := mlir_label(state)
+            failure := mlir_label(state)
+            state.text = format(state.text, "    llvm.cond_br ", valid, ", ^", success, ", ^", failure, "\n")
+            mlir_block(failure, state)
+            mlir_cast_failure(e, state, lp)
+            mlir_block(success, state)
+            mut operation := "fptoui"
+            if signed_target { operation = "fptosi" }
+            converted = mlir_value(state, format("arith.", operation, " ", value, " : ", source, " to ", target))
+        } else if float_target {
+            mut operation := "uitofp"
+            if signed_source { operation = "sitofp" }
+            converted = mlir_value(state, format("arith.", operation, " ", value, " : ", source, " to ", target))
+        } else { converted = mlir_convert(value, source, target, signed_source, e, state, lp) }
+    }
+    return mlir_convert(converted, target, mlir_type(e.til_type(), lp), signed_target, e, state, lp)
+}
+
 priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, borrow: Bool = false) returns Str {
     if borrow && e.node_type.is(NodeType.Literal) {
         value := mlir_expr(e, state, lp)
@@ -969,6 +1068,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             }
         case .Ident(id):
             ref name : Str = id.ident_name(lp.ctx.symbols.names)
+            if name == "cast" && e.children.len() == 3 { return mlir_cast(e, state, lp) }
             primitive := resolve_direct_fcall(e, lp.ctx.scope, lp.ctx.symbols)
             if primitive.is_some() {
                 if funcdef_of(primitive.unwrap()).sig.func_type.is_core() {
