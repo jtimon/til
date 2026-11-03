@@ -1,0 +1,3 @@
+mode lib
+
+cast_from_import := func(value: F64) returns I8 { return value.cast(I8) }

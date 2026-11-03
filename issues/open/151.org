@@ -1354,6 +1354,37 @@
   cases pass at both USize widths. Alias-step bounds and ref-returning receiver
   evaluation remain covered; this follow-up does not rerun the full guest matrix.
 
+**** Scalar numeric casts
+
+  HolyC implements the scalar numeric cast contract added in #212: integers
+  to F32/F64, float-width conversion, and checked F32/F64 to every integer
+  width plus USize/UPtr aliases. It uses the existing conversion helpers for
+  integer/float and float-width casts. Checked float-to-integer conversion
+  decodes the IEEE significand, truncates, then checks the exact destination
+  bounds. This accepts -0.75 -> unsigned zero and handles valid U64 values
+  above I64.MAX without overflowing an intermediate signed conversion.
+
+  NaN, infinity and out-of-range truncated values report the existing exact
+  source-located ~invalid numeric cast~ panic. Diagnostics use the retained
+  typing-unit path, including when the cast executes in an imported helper.
+  The operand is evaluated once; checked casts add no allocation, and the
+  other numeric casts retain the same helper operations as their to_x forms.
+
+  ~test/holyc_numeric_cast.til~ covers integer-source widths, fractional and
+  64-bit bounds, rounding, signed zero, float narrowing overflow, NaN/infinity,
+  borrowed operands, explicit target-before-widening, aliases and single
+  evaluation. ~test/holyc_cast_invalid.til~ contains 31 failing cases, including
+  discarded direct casts and imported-source failures. The reference helper
+  compares exact diagnostics from separate interpreter and ASAN C O0/O2
+  processes. The native harness catches each panic outside Til source so the
+  full failure transcript can be checked in one VM per USize layout.
+
+  Verification on master ~e9c9d59e7~: clean hosted suite 524/524, including
+  clang validation. Four focused TempleOS programs pass at USize32/64: the
+  valid matrix and exact 31-failure transcript at each width. Generated-code
+  inspection confirms integer/float casts use the existing primitive helpers;
+  only checked float-to-integer casts use the new range-checking helper.
+
 **** Manual GUI testing in one VM
 
   The task worktree already has the existing ~til-templeos-test~ Docker image,

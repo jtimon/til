@@ -1229,9 +1229,10 @@ main := proc(args: ..Str) returns I64 {
                 " -c gen/c/holyc_terminal_model_support_", bits, ".HC test/holyc_terminal_model_support.til"))
     }
     for bits : Str in array(Str, "32", "64") {
-        for fixture : Str in array(Str, "holyc_primitives", "holyc_float_primitives") {
+        for fixture : Str in array(Str, "holyc_primitives", "holyc_float_primitives", "holyc_numeric_cast") {
             mut message := "Primitive integers and Booleans passed"
             if fixture == "holyc_float_primitives" { message = "Primitive floating-point passed" }
+            if fixture == "holyc_numeric_cast" { message = "HolyC numeric casts passed" }
             name := format(fixture, "_", bits)
             source := format("test/", fixture, ".til")
             add_count(tests, format(name, "_interp"), "build", message, 1,
@@ -1246,6 +1247,8 @@ main := proc(args: ..Str) returns I64 {
                 format(til_bin, " translate --target=templeos --usize=", bits,
                     " -c gen/c/", name, ".HC ", source))
         }
+        add_count(tests,format("numeric_cast_failures_",bits),"build","Numeric cast failures passed",1,
+            format(til_bin," test/numeric_cast_errors.til ",bits))
     }
     add_counts(tests, "holyc_gui_keyboard_translate", "build",
         format(til_bin, " translate --target=templeos -c gen/c/gui_keyboard.HC examples/gui_keyboard.til '&&' cat gen/c/gui_keyboard.HC"),

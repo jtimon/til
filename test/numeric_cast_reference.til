@@ -1,0 +1,32 @@
+mode lib
+import("../src/std/sys")
+
+// Each checked failure runs as a separate host process. Compare exact source
+// diagnostics across interpretation and C O0/O2, then use the same transcript
+// as the native guest reference.
+numeric_cast_failure_output := proc(bits: Str) returns Str {
+    mut expected := ""
+    for phase : Str in array(Str,"interp","0","2") {
+        executable := format("tmp/numeric_cast_invalid_",bits,"_",phase)
+        if phase != "interp" {
+            Cmd.new("bin/til","build","--asan",format("--opt=",phase),format("--usize=",bits),
+                "-o",executable,"-c",format(executable,".c"),"test/holyc_cast_invalid.til").run_checked()
+        }
+        mut transcript := ""
+        for index in 0..31 {
+            mut command := Cmd.new(executable,index.to_str())
+            if phase == "interp" {
+                command = Cmd.new("bin/til","interpret",format("--usize=",bits),"test/holyc_cast_invalid.til",index.to_str())
+            }
+            command.capture()
+            status := command.run()
+            if status != 1 || command.err().len() != 0 || command.out().contains(": panic: invalid numeric cast\n").not() {
+                panic("numeric cast failure ",phase,":",index.to_str(),": ",command.out(),command.err())
+            }
+            transcript = format(transcript,command.out())
+        }
+        if phase == "interp" { expected = transcript }
+        else if transcript != expected { panic("numeric cast diagnostics differ at C opt=",phase) }
+    }
+    return expected
+}

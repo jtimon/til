@@ -1,0 +1,8 @@
+mode cli
+import("numeric_cast_reference")
+
+main := proc(bits: Str) {
+    transcript := numeric_cast_failure_output(bits)
+    if transcript.len() == 0 { panic("missing numeric cast diagnostics") }
+    println("Numeric cast failures passed")
+}

@@ -1,0 +1,126 @@
+mode script
+import("holyc_cast_helper")
+
+integer_to_float := func(T: Type, input: T, expected32: F32, expected64: F64) {
+    if input.cast(F32) != expected32 || cast(input,F64) != expected64 { panic("integer numeric float cast") }
+}
+float_to_integer := func(S: Type, T: Type, input: S, expected: T) {
+    if input.cast(T) != expected || cast(input,T) != expected { panic("checked numeric integer cast") }
+}
+float32_bits := func(value: F32) returns U32 { ref bits : U32 = to_ptr(value); return bits.clone() }
+float64_bits := func(value: F64) returns U64 { ref bits : U64 = to_ptr(value); return bits.clone() }
+counted_float := func(mut calls: I64, value: F64) returns F64 { calls++; return value }
+counted_integer := func(mut calls: I64, value: U64) returns U64 { calls++; return value }
+accept_integer := func(value: I64) returns I64 { return value }
+
+mut signed8 : I8 = I8.MIN
+mut unsigned8 : U8 = U8.MAX
+mut signed16 : I16 = I16.MIN
+mut unsigned16 : U16 = U16.MAX
+mut signed32 : I32 = I32.MIN
+mut unsigned32 : U32 = U32.MAX
+mut signed64 : I64 = I64.MIN
+mut unsigned64 : U64 = U64.MAX
+integer_to_float(I8,signed8,-128.0,-128.0)
+integer_to_float(U8,unsigned8,255.0,255.0)
+integer_to_float(I16,signed16,-32768.0,-32768.0)
+integer_to_float(U16,unsigned16,65535.0,65535.0)
+integer_to_float(I32,signed32,-2147483648.0,-2147483648.0)
+integer_to_float(U32,unsigned32,4294967296.0,4294967295.0)
+integer_to_float(I64,signed64,-9223372036854775808.0,-9223372036854775808.0)
+integer_to_float(U64,unsigned64,18446744073709551616.0,18446744073709551616.0)
+
+mut midpoint : I64 = 16777217
+if midpoint.cast(F32) != 16777216.0 { panic("numeric cast even rounding") }
+midpoint = 16777219
+if midpoint.cast(F32) != 16777220.0 { panic("numeric cast odd rounding") }
+midpoint = -9007199254740993
+if midpoint.cast(F64) != -9007199254740992.0 { panic("numeric double rounding") }
+
+mut single : F32 = -128.99
+float_to_integer(F32,I8,single,-128)
+single = 255.99
+float_to_integer(F32,U8,single,255)
+single = -32768.99
+float_to_integer(F32,I16,single,-32768)
+single = 65535.99
+float_to_integer(F32,U16,single,65535)
+single = -2147483648.0
+float_to_integer(F32,I32,single,I32.MIN)
+single = 2147483520.0
+float_to_integer(F32,I32,single,2147483520)
+single = 4294967040.0
+float_to_integer(F32,U32,single,4294967040)
+single = -9223372036854775808.0
+float_to_integer(F32,I64,single,I64.MIN)
+single = 9223371487098961920.0
+float_to_integer(F32,I64,single,9223371487098961920)
+single = 18446742974197923840.0
+float_to_integer(F32,U64,single,18446742974197923840)
+single = -0.75
+float_to_integer(F32,U32,single,0)
+single = 1.0e-45
+float_to_integer(F32,U64,single,0)
+
+mut wide_float : F64 = -128.99
+float_to_integer(F64,I8,wide_float,-128)
+wide_float = 255.99
+float_to_integer(F64,U8,wide_float,255)
+wide_float = -32768.99
+float_to_integer(F64,I16,wide_float,-32768)
+wide_float = 65535.99
+float_to_integer(F64,U16,wide_float,65535)
+wide_float = -2147483648.99
+float_to_integer(F64,I32,wide_float,I32.MIN)
+wide_float = 4294967295.99
+float_to_integer(F64,U32,wide_float,U32.MAX)
+wide_float = -9223372036854775808.0
+float_to_integer(F64,I64,wide_float,I64.MIN)
+wide_float = 9223372036854774784.0
+float_to_integer(F64,I64,wide_float,9223372036854774784)
+wide_float = 18446744073709549568.0
+float_to_integer(F64,U64,wide_float,18446744073709549568)
+wide_float = 9223372036854775808.0
+float_to_integer(F64,U64,wide_float,9223372036854775808)
+wide_float = -0.75
+float_to_integer(F64,U8,wide_float,0)
+float_to_integer(F64,U16,wide_float,0)
+float_to_integer(F64,U32,wide_float,0)
+float_to_integer(F64,U64,wide_float,0)
+borrowed_values := array(F64,-128.99,255.99)
+if borrowed_values[0].cast(I8) != -128 || borrowed_values[1].cast(U8) != 255 { panic("numeric cast borrowed value") }
+
+single = -0.0
+wide_float = -0.0
+if float32_bits(single) != 0x80000000 || float64_bits(single.cast(F64)) != 0x8000000000000000 { panic("single numeric cast signed zero") }
+if float32_bits(wide_float.cast(F32)) != 0x80000000 || float64_bits(wide_float) != 0x8000000000000000 { panic("double numeric cast signed zero") }
+wide_float = 16777217.0
+if wide_float.cast(F32).cast(F64) != 16777216.0 { panic("numeric cast target before widening") }
+wide_float = -128.99
+if accept_integer(wide_float.cast(I8).cast(I64)) != -128 || cast_from_import(wide_float) != -128 { panic("numeric cast narrow result") }
+single = 1.25
+if single.cast(F64).cast(F32) != single { panic("numeric float width conversion") }
+wide_float = F64.MAX
+if wide_float.cast(F32).to_repr() != "inf" { panic("numeric float narrowing overflow") }
+wide_float = "nan".to_f64()
+narrow_nan := wide_float.cast(F32)
+if narrow_nan == narrow_nan { panic("numeric float narrowing NaN") }
+single = "inf".to_f32()
+if single.cast(F64).to_repr() != "inf" { panic("numeric float widening infinity") }
+
+SizeAlias := USize
+wide_float = 42.75
+if wide_float.cast(SizeAlias) != 42 || wide_float.cast(UPtr) != 42 { panic("numeric cast width aliases") }
+if USize.size() == 4 {
+    wide_float = 4294967295.99
+    if wide_float.cast(USize) != USize.MAX { panic("numeric cast USize32 limit") }
+} else {
+    wide_float = 18446744073709549568.0
+    if wide_float.cast(USize).to_u64() != 18446744073709549568 { panic("numeric cast USize64 limit") }
+}
+
+mut calls := 0
+if counted_float(calls,-128.99).cast(I8) != -128 || calls != 1 { panic("checked cast operand evaluation") }
+if counted_integer(calls,U64.MAX).cast(F32) != 18446744073709551616.0 || calls != 2 { panic("float cast operand evaluation") }
+if counted_float(calls,1.25).cast(F32) != 1.25 || calls != 3 { panic("float width operand evaluation") }
+println("HolyC numeric casts passed")

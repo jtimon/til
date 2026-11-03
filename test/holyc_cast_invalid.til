@@ -1,0 +1,46 @@
+mode cli
+import("holyc_cast_helper")
+
+runtime_value := func(T: Type, value: T, salt: I64) returns T { return value + salt.cast(T)*0.0 }
+
+main := proc(case_index: I64) {
+    switch case_index {
+    case 0: value := runtime_value(F64,128.0,case_index); value.cast(I8)
+    case 1: value := runtime_value(F64,-129.0,case_index); value.cast(I8)
+    case 2: value := runtime_value(F64,256.0,case_index); value.cast(U8)
+    case 3: value := runtime_value(F64,-1.0,case_index); value.cast(U8)
+    case 4: value := runtime_value(F64,32768.0,case_index); value.cast(I16)
+    case 5: value := runtime_value(F64,-32769.0,case_index); value.cast(I16)
+    case 6: value := runtime_value(F64,65536.0,case_index); value.cast(U16)
+    case 7: value := runtime_value(F64,-1.0,case_index); value.cast(U16)
+    case 8: value := runtime_value(F64,2147483648.0,case_index); value.cast(I32)
+    case 9: value := runtime_value(F64,-2147483649.0,case_index); value.cast(I32)
+    case 10: value := runtime_value(F64,4294967296.0,case_index); value.cast(U32)
+    case 11: value := runtime_value(F64,-1.0,case_index); value.cast(U32)
+    case 12: value := runtime_value(F64,9223372036854775808.0,case_index); value.cast(I64)
+    case 13: value := runtime_value(F64,-9223372036854777856.0,case_index); value.cast(I64)
+    case 14: value := runtime_value(F64,18446744073709551616.0,case_index); value.cast(U64)
+    case 15: value := runtime_value(F64,-1.0,case_index); value.cast(U64)
+    case 16: value := runtime_value(F64,"nan".to_f64(),case_index); value.cast(I32)
+    case 17: value := runtime_value(F64,"inf".to_f64(),case_index); value.cast(I64)
+    case 18: value := runtime_value(F64,"-inf".to_f64(),case_index); value.cast(U64)
+    case 19: value := runtime_value(F32,128.0,case_index); value.cast(I8)
+    case 20: value := runtime_value(F32,-129.0,case_index); value.cast(I8)
+    case 21: value := runtime_value(F32,4294967296.0,case_index); value.cast(U32)
+    case 22: value := runtime_value(F32,9223372036854775808.0,case_index); value.cast(I64)
+    case 23: value := runtime_value(F32,18446744073709551616.0,case_index); value.cast(U64)
+    case 24: value := runtime_value(F32,"nan".to_f32(),case_index); value.cast(U8)
+    case 25: value := runtime_value(F32,"inf".to_f32(),case_index); value.cast(I16)
+    case 26: value := runtime_value(F64,128.0,case_index); println(cast_from_import(value).to_str())
+    case 27: value := runtime_value(F64,-1.0,case_index); value.cast(USize)
+    case 28: value := runtime_value(F64,-1.0,case_index); value.cast(UPtr)
+    case 29:
+        if USize.size() == 4 {
+            value := runtime_value(F64,4294967296.0,case_index); value.cast(USize)
+        } else {
+            value := runtime_value(F64,18446744073709551616.0,case_index); value.cast(USize)
+        }
+    case 30: value := runtime_value(F64,18446744073709551616.0,case_index); value.cast(UPtr)
+    }
+    println("invalid numeric cast unexpectedly returned")
+}

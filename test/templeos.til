@@ -3,6 +3,7 @@ mode cli
 import("../src/std/file")
 import("../src/std/sys")
 import("checkers_fixture")
+import("numeric_cast_reference")
 
 get_cwd_str := ext_proc() returns Str {}
 
@@ -433,6 +434,22 @@ gui_checkers_checks := proc(identity: Str, bits: Str) {
     run_guest(identity, format("gui_shapes_", bits), "GUI shapes passed\n", "pass")
 }
 
+numeric_cast_checks := proc(identity: Str, bits: Str) {
+    Cmd.new("bin/til","translate","--target=templeos",format("--usize=",bits),
+        "-c",format(WORK,"/TILTEST.HC"),"test/holyc_numeric_cast.til").run_checked()
+    run_guest(identity,format("numeric_cast_",bits),"HolyC numeric casts passed\n","pass")
+    expected := numeric_cast_failure_output(bits)
+    Cmd.new("bin/til","translate","--target=templeos",format("--usize=",bits),
+        "-c",format(WORK,"/TILTEST.HC"),"test/holyc_cast_invalid.til").run_checked()
+    // Catch each test panic at the native harness boundary, not in Til source.
+    // This keeps the full invalid-cast matrix in one VM and checks its exact
+    // transcript against separate interpreter/C processes.
+    File.appendfile(format(WORK,"/TILTEST.HC"),format(
+        "\nU0 NumericCastFailures() { I64 index; Bool failed; for (index=0;index<31;index++) { failed=FALSE; try { TilMain(index); } catch { if (Fs->except_ch!='TILPANIC') { Fs->catch_except=TRUE; throw('CASTERR'); } Fs->catch_except=TRUE; failed=TRUE; } if (!failed) TilPanicZ(\"numeric cast unexpectedly returned\\n\"); } }\n",
+        "NumericCastFailures;\n"))
+    run_guest(identity,format("numeric_cast_failures_",bits),expected,"pass")
+}
+
 main := proc() {
     if mkdir_p(WORK) != 0 { panic("could not create ", WORK) }
     uid := captured(Cmd.new("id", "-u")).replace("\n", "")
@@ -469,6 +486,7 @@ main := proc() {
             File.appendfile(format(WORK, "/TILTEST.HC"), width_checks(bits))
             run_guest(identity, format("corpus_", i.to_str(), "_", bits), expected, "pass")
         }
+        numeric_cast_checks(identity,bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), "test/holyc_terminal_model_support.til").run_checked()
         run_guest(identity, format("terminal_model_support_", bits), "Terminal model support passed\n", "pass")

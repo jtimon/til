@@ -3459,12 +3459,38 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
         case .Ident(id):
             ref name : Str = id.ident_name(ctx.symbols.names)
             if name == "cast" {
-                if e.children.len() != 3 { error = "invalid integer cast"; return "" }
+                if e.children.len() != 3 { error = "invalid scalar cast"; return "" }
                 ref target_name : Str = ident_of(e.children[2]).ident_name(ctx.symbols.names)
                 target_type := type_from_name_init_name(target_name, ctx.scope, ctx.symbols)
                 mut target := holyc_storage_type_name(til_type_name_c(target_type, ctx.symbols), state)
                 if target_name == "USize" { target = state.usize_ctype.clone() }
                 source := holyc_storage_type_name(til_type_name_c(e.children[1].til_type(), ctx.symbols), state)
+                source_float := numeric_cast_float(source)
+                target_float := numeric_cast_float(target)
+                if source_float.or(target_float) {
+                    value := holyc_expr(e.children[1], ctx, state, locals, error)
+                    if error.len() > 0 { return "" }
+                    if source_float.and(target_float) {
+                        if source == target { return value }
+                        if source == "F32" { return format("TilF32Load(", value, ")") }
+                        return format("TilF32Round(", value, ")")
+                    }
+                    if target_float {
+                        if source == "U64" { return format("Til", target, "FromU64(", value, ")") }
+                        if target == "F32" { return format("TilF32FromI64(", value, ")") }
+                        return format("ToF64(", value, ")")
+                    }
+                    mut bits := value
+                    mut source_width := "32"
+                    if source == "F64" { bits = format("TilF64Word(", value, ")"); source_width = "64" }
+                    mut signed_flag := "FALSE"
+                    if target.starts_with("I") { signed_flag = "TRUE" }
+                    message := str_to_source_form(format(numeric_cast_location(e, ctx), ": panic: invalid numeric cast\n"))
+                    converted := format("TilFloatCastInteger(", bits, ", ", source_width, ", ",
+                        numeric_cast_integer_bits(target).to_str(), ", ", signed_flag, ", \"", holyc_literal_text(message), "\")")
+                    if target.starts_with("I") { return format("(", converted, ")(I64)") }
+                    return converted
+                }
                 if holyc_scalar_type_name(source).and(source.starts_with("I").or(source.starts_with("U")))
                     .and(holyc_scalar_type_name(target)).and(target.starts_with("I").or(target.starts_with("U"))).not() {
                     error = format("unsupported cast from '", source, "' to '", target, "'")

@@ -290,6 +290,45 @@ public U0 TilPanicZ(U8 *message)
   throw('TILPANIC');
 }
 
+// Decode and truncate before checking the integer range. Floating upper
+// bounds rounded from MAX are not exact, particularly for I64/U64. Working
+// with the IEEE significand also avoids an overflowing signed conversion
+// when a valid U64 result has its high bit set.
+public U64 TilFloatCastInteger(U64 bits,I64 source_width,I64 target_width,Bool target_signed,U8 *error_message)
+{
+  I64 fraction_bits=52,bias=1023,exponent_max=2047,exponent;
+  U64 fraction_mask=0x000FFFFFFFFFFFFF,sign_bit=0x8000000000000000;
+  U64 magnitude,limit;
+  Bool negative;
+  if (source_width==32) {
+    fraction_bits=23; bias=127; exponent_max=255;
+    fraction_mask=0x007FFFFF; sign_bit=0x80000000;
+  }
+  negative=(bits&sign_bit)!=0;
+  exponent=(bits>>fraction_bits)&exponent_max;
+  if (exponent==exponent_max) TilPanicZ(error_message);
+  exponent-=bias;
+  // All fractions with magnitude below one truncate to zero, including
+  // negative fractions cast to an unsigned integer and signed zero.
+  if (exponent<0) return 0;
+  if (exponent>63) TilPanicZ(error_message);
+  magnitude=(bits&fraction_mask)|(fraction_mask+1);
+  if (exponent>=fraction_bits) magnitude<<=exponent-fraction_bits;
+  else magnitude>>=fraction_bits-exponent;
+  if (target_signed) {
+    limit=1(U64)<<(target_width-1);
+    if (negative) {
+      if (magnitude>limit) TilPanicZ(error_message);
+      return 0-magnitude;
+    }
+    if (magnitude>=limit) TilPanicZ(error_message);
+  } else {
+    if (negative) TilPanicZ(error_message);
+    if (target_width<64 && magnitude>=(1(U64)<<target_width)) TilPanicZ(error_message);
+  }
+  return magnitude;
+}
+
 public I64 TilNativeCount(U64 count)
 {
   if (count>I64_MAX)
