@@ -415,6 +415,12 @@ TyperFuncState := struct {
     // scopes exist, so every child scope shares the function root's tables.
     throw_used_local_names := Set(Str).new()
     lowering_param_types := Map(Str, Str).new()
+    // #476: a `?` call to a generic whose throws depend on a type
+    // parameter was deferred (it is rejected at infer time with "requires
+    // explicit type application"). Its throw types are unknown, so a later
+    // catch in the function is not judged against them -- one focused
+    // diagnostic, no cascade.
+    deferred_dependent_throw := false
 }
 
 // A Sym-keyed registry: the dense `keys`/`values` pair every scope walker

@@ -947,6 +947,7 @@ typedef struct TyperFuncState {
     I32 auto_gen_depth;
     Set__Str throw_used_local_names;
     Map__Str_Str lowering_param_types;
+    Bool deferred_dependent_throw;
 } TyperFuncState;
 
 

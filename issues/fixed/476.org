@@ -1,0 +1,105 @@
+# priority: medium
+# category: bugs
+** FIXED #476 `throw x` types a shadowing local from the outer same-named declaration
+
+*** Post-mortem
+
+  Root cause: the throw pre-pass in ~src/self/desugarer.til~ typed a thrown
+  identifier with ~guess_local_type~ over the WHOLE function, which returns
+  the first same-named declaration in depth-first order, shadowed or not.
+  ~annotate_throw_types_in~ stamped that type on the Throw (the lowering
+  reads it first), its own same-body backward scan never ran because the
+  whole-function guess had already answered, and
+  ~annotate_throw_ident_expr_types~ / ~throw_type_name_for_with_body~ /
+  ~subtree_has_throw_type~ repeated the same lookup.
+
+  Fix: one lexical pre-pass. ~annotate_throw_types_in~ now carries the
+  visible local declarations: a body's declarations enter from the
+  statement after them (an initializer still sees the outer binding) and
+  leave when the body ends, the same scope rule #471 gave the lowering's
+  receiver map. It stamps both the Throw and the thrown Ident.
+  ~throw_value_type_name~ (was ~throw_type_name_for_with_body~) answers a
+  thrown Ident from that stamp instead of scanning, so the
+  ~subtree_has_throw_type~ / ~has_prior_throw_type_in_vec~ catch matching
+  and the lowering's Throw case agree with it; a parameter stays
+  unannotated and is still resolved by the lowering's parameter map.
+  ~annotate_throw_ident_expr_types~ is gone, and the now-unused body
+  parameters with it. A declaration's type is the validated guess #471
+  introduced (~validated_local_guess~): a constructor names its struct, a
+  function call its declared return type -- ~src/std/tilvm.til~'s
+  ~err := tilvm_error(...); throw err~ had only worked because the
+  whole-function scan happened to hit an earlier ~TilVmError(...)~
+  declaration of the same name.
+
+  The old lookup was also hiding a cascade: ~test/typer_errors.til~'s
+  #328 case (a ~?~ call to a generic whose throws depend on a type
+  parameter, then ~catch (e: I64)~) was silent only because
+  ~subtree_has_throw_type~ descended into the generic's body and typed its
+  ~throw v~ (a parameter) from an unrelated program-level ~v~. That call's
+  validation is deferred to infer time, which rejects it ("requires
+  explicit type application"), so its throw types are unknown here; the
+  new ~TyperFuncState.deferred_dependent_throw~ records the deferral and
+  the catch check no longer judges later catches in that function against
+  them -- the one focused diagnostic the test pins. Explicitly applied
+  calls are instances, not deferred, and are still checked.
+
+  Regression test: ~test/bug476.til~ (inner error / outer scalar, outer
+  error / inner scalar, two error types, a shadowed parameter, a throw
+  caught in the same function).
+
+Found while fixing [[../fixed/471.org][#471]]. The throw lowering types
+the value of ~throw x~ by name with ~guess_local_type~, which returns the
+FIRST declaration of ~x~ anywhere in the function, ignoring nested-body
+scopes. When a nested-body ~x~ shadows an outer ~x~ of another type, the
+throw is typed as the outer one.
+
+*** Reproduction
+
+  ~tmp/bug476.til~:
+
+  #+begin_src til
+  mode cli
+  Oops := struct { code: I64 = 0 }
+  fail := proc(flag: Bool) throws Oops {
+      e := 10
+      if flag {
+          e := Oops(code=7)
+          throw e
+      }
+      println(e.to_str())
+  }
+  main := proc() {
+      fail(true)?
+      catch (err: Oops) { println(format("caught ", err.code.to_str())) }
+  }
+  #+end_src
+
+  Observed on master ~e523e73~, interpreter and C, USize32 and USize64:
+
+  #+begin_src text
+  tmp/bug476.til:4:5: error: function may throw 'I64' but it is not in the throws clause; declare 'throws I64' or catch it
+  tmp/bug476.til:4:5: error: 'throws Oops' is declared but 'Oops' is never thrown -- remove it from the throws clause
+  tmp/bug476.til:7:9: error: '_err_I64' assignment type mismatch
+  3 type error(s) found
+  #+end_src
+
+  Expected: prints ~caught 7~. Renaming the outer ~e~ (no shadowing)
+  prints ~caught 7~ on both backends.
+
+*** Notes
+
+  Every whole-function lookup of a thrown identifier's type in
+  ~src/self/desugarer.til~ has this flaw:
+  - ~throw_type_name_for_with_body~ (its ~.Ident~ arm calls
+    ~guess_local_type(ctx.scope, body, ...)~), called from
+    ~subtree_has_throw_type~, the throws validation/collection sites, and
+    the Throw case of ~process_throw_catch_in_body~ -- where it runs
+    BEFORE the lexical ~lowering_param_types~ map #471 introduced, so
+    that map never gets a say for this shape;
+  - ~annotate_throw_ident_expr_types~
+    (~guess_local_type(scope, root_body, ...)~).
+
+  The #471 lexical map (a declaration enters at the next statement,
+  untypable ones shadow as "", dropped at body end) is the model; the
+  passes that run outside ~process_throw_catch_in_body~ have no lexical
+  state and need their own scoped walk.

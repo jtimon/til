@@ -675,50 +675,36 @@ priv collect_throw_ident_names := proc(e: Expr, mut names: Set(Str), symbols: Sy
     }
 }
 
-priv annotate_throw_ident_expr_types := proc(scope: TypeScope, mut e: Expr, root_body: Expr, mut symbols: SymbolPool) {
-    if e.node_type.is(NodeType.FuncDef)
-        .or(e.node_type.is(NodeType.StructDef))
-        .or(e.node_type.is(NodeType.EnumDef)) { return }
+priv subtree_has_throw_type := proc(ctx: Context, e: Expr, type_name: Str) returns Bool {
     if e.node_type.is(NodeType.Throw).and(e.children.len().eq(1)) {
-        switch e.children[0].node_type {
-        case .Ident(idn):
-            tn := guess_local_type(scope, root_body, idn.ident_name(symbols.names), symbols)
-            if tn.len() > 0 {
-                e.children[0].set_til_type(Type.CustomSym(symbols.intern(tn)))
-            }
-        case:
-        }
-    }
-    for mut c : Expr in e.children {
-        annotate_throw_ident_expr_types(scope, c, root_body, symbols)
-    }
-}
-
-priv subtree_has_throw_type := proc(ctx: Context, e: Expr, root_body: Expr, type_name: Str) returns Bool {
-    if e.node_type.is(NodeType.Throw).and(e.children.len().eq(1)) {
-        thrown_name := throw_type_name_for_with_body(ctx, e.children[0], root_body)
+        thrown_name := throw_value_type_name(ctx, e.children[0])
         if thrown_name == type_name { return true }
     }
     for c : Expr in e.children {
-        if subtree_has_throw_type(ctx, c, root_body, type_name) { return true }
+        if subtree_has_throw_type(ctx, c, type_name) { return true }
     }
     return false
 }
 
-priv has_prior_throw_type_in_vec := proc(ctx: Context, stmts: Vec(Expr), root_body: Expr, upto: USize, type_name: Str) returns Bool {
+priv has_prior_throw_type_in_vec := proc(ctx: Context, stmts: Vec(Expr), upto: USize, type_name: Str) returns Bool {
     if stmts.len().eq(0).or(upto.eq(0)) { return false }
     mut limit := upto
     if limit > stmts.len() { limit = stmts.len() }
     mut i : USize = 0
     while i < limit {
         ref stmt : Expr = stmts[i]
-        if subtree_has_throw_type(ctx, stmt, root_body, type_name) { return true }
+        if subtree_has_throw_type(ctx, stmt, type_name) { return true }
         i++
     }
     return false
 }
 
-priv throw_type_name_for_with_body := func(ctx: Context, e: Expr, body: Expr) returns Str {
+// The type a `throw` value names syntactically. A thrown identifier is
+// answered by the type annotate_throw_types_in stamped on it from the
+// declaration lexically visible at the throw (#476); an unannotated one
+// (a parameter, or a declaration whose type cannot be guessed) is "",
+// left to the lowering's own parameter / lexical-map lookups.
+priv throw_value_type_name := func(ctx: Context, e: Expr) returns Str {
     switch e.node_type {
     case .Literal(Literal.Str): return "Str"
     case .Literal(Literal.Num): return "I64"
@@ -745,7 +731,10 @@ priv throw_type_name_for_with_body := func(ctx: Context, e: Expr, body: Expr) re
             }
         case: return ""
         }
-    case .Ident(idn): return guess_local_type(ctx.scope, body, idn.ident_name(ctx.symbols.names), ctx.symbols)
+    case .Ident:
+        ref annotated : Type = e.til_type()
+        if annotated.is(Type.Unknown).or(annotated.is(Type.None)) { return "" }
+        return type_to_name(annotated, ctx.symbols)
     case .FieldAccess(member):
         // A payload-free enum variant is a value without a constructor call.
         // Its nominal enum type still supplies the declared throw identity.
@@ -887,80 +876,49 @@ subtree_has_bang := func(e: Expr) returns Bool {
 // Walk e and annotate each Throw node's til_type with the
 // syntactically-resolved type of the thrown expression. Lookups
 // run BEFORE any destructive mutation by the lowering pass, so
-// the lowering can read each Throw's til_type directly. This
-// also handles `throw <Ident>` by walking to the Ident's Decl.
-priv annotate_throw_types_in := proc(mut ctx: Context, mut e: Expr, root_body: Expr) {
+// the lowering can read each Throw's til_type directly.
+//
+// #476: `throw <Ident>` is resolved LEXICALLY. `locals` maps each local
+// declaration visible here to its guessed type: a body's declarations
+// enter it from the statement after them (an initializer still sees the
+// outer binding) and leave it when the body ends, so a nested-body local
+// shadows an outer one of the same name. The thrown Ident is stamped too;
+// throw_value_type_name reads that stamp. A name not in `locals` (a
+// parameter) stays unannotated.
+priv annotate_throw_types_in := proc(mut ctx: Context, mut e: Expr, mut locals: Map(Str, Str)) {
     if e.node_type.is(NodeType.FuncDef)
         .or(e.node_type.is(NodeType.StructDef))
         .or(e.node_type.is(NodeType.EnumDef)) { return }
     if e.node_type.is(NodeType.Body) {
-        for bi in 0..e.children.len() {
-            ref mut stmt : Expr = e.children[bi]
-            if stmt.node_type.is(NodeType.Throw) {
-                if stmt.children.len() == 1 {
-                    mut tn := throw_type_name_for_with_body(ctx, stmt.children[0], root_body)
-                    switch stmt.children[0].node_type {
-                    case .Ident(idn):
-                        mut scan := bi
-                        while true {
-                            ref prior_stmt : Expr = e.children[scan]
-                            if prior_stmt.node_type.is(NodeType.Decl) {
-                                switch prior_stmt.node_type {
-                                case .Decl(dd):
-                                    if dd.name == idn.ident_name(ctx.symbols.names) {
-                                        if dd.til_type.is(Type.Unknown).not() {
-                                            tn = decl_type_name(dd, ctx.symbols)
-                                        } else if prior_stmt.children.len() > 0 {
-                                            switch prior_stmt.children[0].node_type {
-                                            case .FCall:
-                                                if prior_stmt.children[0].children.len() > 0 {
-                                                    switch prior_stmt.children[0].children[0].node_type {
-                                                    case .Ident(rhsn): tn = Str.clone(rhsn.ident_name(ctx.symbols.names))
-                                                    case .FieldAccess(_rhsfa3):
-                                                        if prior_stmt.children[0].children[0].children.len() > 0 {
-                                                            switch prior_stmt.children[0].children[0].children[0].node_type {
-                                                            case .Ident(rhsty3): tn = Str.clone(rhsty3.ident_name(ctx.symbols.names))
-                                                            case:
-                                                            }
-                                                        }
-                                                    case:
-                                                    }
-                                                }
-                                            case .Literal(Literal.Str):
-                                                tn = "Str"
-                                            case .Literal(Literal.Num):
-                                                tn = "I64"
-                                            case:
-                                            }
-                                        }
-                                    }
-                                case:
-                                }
-                            }
-                            if tn.len().gt(0).or(scan.eq(0)) { break }
-                            scan--
-                        }
-                    case:
-                    }
-                    if tn.len() > 0 {
-                        stmt.set_til_type(Type.CustomSym(ctx.symbols.intern(tn)))
-                    }
-                }
+        outer := locals.clone()
+        for mut stmt : Expr in e.children {
+            annotate_throw_types_in(ctx, stmt, locals)
+            switch stmt.node_type {
+            // Validated: a constructor names its struct, a function call its
+            // declared return type (`err := make_error(...)`).
+            case .Decl(dd): locals.set(dd.name, own validated_local_guess(ctx, stmt, dd.name))
+            case:
             }
-            annotate_throw_types_in(ctx, stmt, root_body)
         }
+        locals = outer
         return
     }
-    if e.node_type.is(NodeType.Throw) {
-        if e.children.len() == 1 {
-            tn := throw_type_name_for_with_body(ctx, e.children[0], root_body)
-            if tn.len() > 0 {
-                e.set_til_type(Type.CustomSym(ctx.symbols.intern(tn)))
+    if e.node_type.is(NodeType.Throw).and(e.children.len() == 1) {
+        ref mut thrown : Expr = e.children[0]
+        mut tn := ""
+        switch thrown.node_type {
+        case .Ident(idn):
+            ref name : Str = idn.ident_name(ctx.symbols.names)
+            if locals.has(name) {
+                tn = locals[name].clone()
+                if tn.len() > 0 { thrown.set_til_type(Type.CustomSym(ctx.symbols.intern(tn))) }
             }
+        case: tn = throw_value_type_name(ctx, thrown)
         }
+        if tn.len() > 0 { e.set_til_type(Type.CustomSym(ctx.symbols.intern(tn))) }
     }
     for mut sub : Expr in e.children {
-        annotate_throw_types_in(ctx, sub, root_body)
+        annotate_throw_types_in(ctx, sub, locals)
     }
 }
 
@@ -1334,7 +1292,7 @@ extend_throwing_func_sigs := proc(mut ctx: Context, mut e: Expr) {
     // throws (not in any throws clause) still get a stable tag.
     if e.node_type.is(NodeType.Throw) {
         if e.children.len() == 1 {
-            tn := throw_type_name_for_with_body(ctx, e.children[0], e)
+            tn := throw_value_type_name(ctx, e.children[0])
             if tn.len() > 0 { register_throw_type(ctx, tn) }
         }
     }
@@ -1931,6 +1889,8 @@ priv validate_and_inject_expr_consolidated := proc(
             switch e.node_type {
             case .FCall(fcd):
                 if fcd.does_throw {
+                    ref mut deferring_state : TyperFuncState = scope.typer_func_state()
+                    deferring_state.deferred_dependent_throw = true
                     key := find_callee_throws_key(scope, ctx, e, body)
                     inject_err_args_on_one_fcall_consolidated(ctx, e, key)
                 }
@@ -2851,7 +2811,7 @@ priv process_throw_catch_in_body := proc(
                     tn = type_to_name(throw_t, ctx.symbols)
                 }
                 if tn.len() == 0 {
-                    tn = throw_type_name_for_with_body(ctx, stmt.children[0], root_body)
+                    tn = throw_value_type_name(ctx, stmt.children[0])
                 }
                 switch stmt.children[0].node_type {
                 case .Ident(idn):
@@ -3014,9 +2974,10 @@ priv process_throw_catch_in_body := proc(
                 }
                 if ctype.len() > 0 {
                     mut matched := pending_remove_all_matching(pending, ctype)
-                    if matched.not().and(has_prior_throw_type_in_vec(ctx, old_snapshot, root_body, j, ctype)) {
+                    if matched.not().and(has_prior_throw_type_in_vec(ctx, old_snapshot, j, ctype)) {
                         matched = true
                     }
+                    if func_state.deferred_dependent_throw { matched = true }
                     if matched.not() {
                         type_error_at(path, stmt_line, stmt_col,
                             format("trying to catch '", ctype, "', but it is not among the thrown types"), ctx)
@@ -3182,8 +3143,8 @@ process_throw_catch_in_func_body := proc(
     // Pre-pass: annotate every Throw with its resolved type so the
     // body walk can read stmt.til_type() directly during rewriting.
     if has_body_throw_catch {
-        annotate_throw_types_in(ctx, body, body)
-        annotate_throw_ident_expr_types(ctx.scope, body, body, ctx.symbols)
+        mut throw_locals := Map(Str, Str).new()
+        annotate_throw_types_in(ctx, body, throw_locals)
     }
 
     mut pending := Vec(Str).new()

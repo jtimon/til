@@ -6306,6 +6306,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             // Seed the receiver-type map so the walk's type-qualified
             // throws lookup can resolve `param.method(...)` receivers.
             func_scope.typer_func.lowering_param_types = Map(Str, Str).new()
+            func_scope.typer_func.deferred_dependent_throw = false
             for lpi in 0..fdef.sig.params.len() {
                 ref lpp : Declaration = fdef.sig.params[lpi]
                 mut lptn := decl_type_name(lpp, ctx.symbols)
@@ -9474,6 +9475,7 @@ priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope,
     if toplevel_needs_throw_lowering(program) {
         unit_no_throws := Vec(Str).new()
         scope.typer_func.lowering_param_types = Map(Str, Str).new()
+        scope.typer_func.deferred_dependent_throw = false
         collect_switch_case_bindings(scope, ctx, program, program)
         process_throw_catch_in_func_body(scope, ctx, program, unit_no_throws, "", OwnType.Shallow, true)
     }

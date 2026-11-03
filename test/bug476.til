@@ -1,0 +1,71 @@
+mode cli
+
+// Issue #476: `throw x` typed x from the first same-named declaration in
+// the function, ignoring nested-body scopes, so a nested local shadowing
+// an outer one of another type was thrown as the outer type. The throw
+// annotation pre-pass now resolves the identifier lexically.
+
+Oops := struct { code: I64 = 0 }
+Other := struct { text: Str = "" }
+
+inner_error_outer_scalar := proc(flag: Bool) throws Oops {
+    e := 10
+    if flag {
+        e := Oops(code=7)
+        throw e
+    }
+    println(e.to_str())
+}
+
+outer_error_inner_scalar := proc() throws Oops {
+    e := Oops(code=1)
+    {
+        e := 5
+        println(e.to_str())
+    }
+    throw e
+}
+
+two_error_types := func(pick_other: Bool) throws Oops, Other {
+    e := Oops(code=2)
+    if pick_other {
+        e := Other(text="other")
+        throw e
+    }
+    throw e
+}
+
+shadowed_param := proc(e: Oops) throws Other {
+    println(e.code.to_str())
+    {
+        e := Other(text="param shadow")
+        throw e
+    }
+}
+
+caught_locally := func() returns I64 {
+    e := 3
+    {
+        e := Oops(code=e + 40)
+        throw e
+    }
+    catch (err: Oops) { return err.code }
+    return e
+}
+
+main := proc() {
+    inner_error_outer_scalar(true)?
+    catch (err: Oops) { assert(err.code == 7) }
+    outer_error_inner_scalar()?
+    catch (err: Oops) { assert(err.code == 1) }
+    two_error_types(true)?
+    catch (err: Other) { assert(err.text.eq("other")) }
+    catch (err: Oops) { panic("wrong type thrown") }
+    two_error_types(false)?
+    catch (err: Other) { panic("wrong type thrown") }
+    catch (err: Oops) { assert(err.code == 2) }
+    shadowed_param(Oops(code=9))?
+    catch (err: Other) { assert(err.text.eq("param shadow")) }
+    assert(caught_locally() == 43)
+    println("lexical throw types passed")
+}
