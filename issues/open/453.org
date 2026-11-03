@@ -234,6 +234,52 @@ existing C and MLIR backends.
   drivers passed against the freshly built ~bin/til~, exercising both USize
   widths. These runs used master's current non-ASAN test configuration (#464).
 
+**** Enum lowering
+
+  On base ~c721fbbf2~, FASM now supports tag-only enums, tagged payloads and
+  borrowed/owned niche representations. Tag widths, explicit values, variant
+  identity and payload layout come from shared definitions/target queries.
+  Niche discrimination maps null/non-null to the actual declared variants,
+  including a Some-first enum with explicit nonzero tags.
+
+  Enum constructors move inline payload contents or retain the niche pointer
+  according to shared ownership. get_payload/deref distinguish inline union
+  storage, tagged borrowed-pointer slots and niche payload pointers. Switches
+  emit native dispatch over the prepared arms; nested patterns/guards retain
+  their common lowered control flow. Payload aliases are write-through places,
+  and namespace constants are not field places that retarget a reference.
+
+  Namespace methods are indexed for EnumDef as well as StructDef. Generated
+  clone/delete/eq/cmp/to_str bodies run normally, rather than duplicating their
+  resource semantics in a second runtime. Precomputed enum values (including
+  clone-wrapped values and owned-niche array elements) are immutable templates
+  cloned through those methods. The internal aggregate address/boxed-return
+  convention applies to enum calls; no external enum ABI is introduced.
+
+  ~test/aggregate_control.til::check_enums~ is shared by interpretation/C and
+  the native FASM driver at both USize widths. It covers explicit/wide tags,
+  narrow and Bool/USize payloads, returned enums, payload mutation, nested and
+  multi-pattern matches, scalar ranges and loop exits, enum-valued fields,
+  ref payloads, Option unwrap/take, independent tagged/owned-niche templates,
+  and custom payload destructor counts across clone, replacement and transfer.
+  The existing options test translates this expanded corpus without FASM.
+
+  Investigation also exposed common lowering limitations, not fixed here:
+  switching directly on a side-effecting enum-returning call with a payload
+  binder called it twice under both interpretation and C. The fixture binds
+  the result before switching and verifies one call. Assigning a namespace
+  variant through a normal enum reference also exposed C's retargeting branch
+  after old-payload deletion; an owning array element can then retain a freed
+  payload pointer. The shared template test uses the Array.set value-replacement
+  path instead. FASM's field-place classifier now excludes namespace constants;
+  this does not claim to repair the C emitter or shared call reevaluation.
+
+  Verification: ~make clean && make test~ passed 517/517, including the expanded
+  shared corpus and assembler-free translation. Both optional FASM native/runtime
+  drivers passed against the fresh ~bin/til~ at both USize widths. These runs
+  used master's current non-ASAN test configuration (#464); native assembly is
+  not ASAN-instrumented.
+
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
   repeated work. In-process code allocation, relocation, lifetime management

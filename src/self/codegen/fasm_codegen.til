@@ -79,6 +79,7 @@ priv fasm_global_body := proc(root: Expr, phase: USize, mut program: FasmProgram
                     for position : I64 in ns_const_eval_order(decl_of(stmt).name, value, lp.ctx.symbols) {
                         i := position.to_usize()
                         ref member : Declaration = members[i]
+                        if value.node_type.is(NodeType.EnumDef) && enum_variant_index(value, def_ns_name_at(value, i)) >= 0 { continue }
                         if member.default_value.is_none() { continue }
                         ref initial : Expr = member.default_expr()
                         if initial.node_type.is(NodeType.FuncDef).or(initial.node_type.is(NodeType.StructDef)).or(initial.node_type.is(NodeType.EnumDef)) { continue }
@@ -162,10 +163,10 @@ priv fasm_bind := func(name: Str, shallow t: Type, own slot: Str, address: Bool,
 }
 
 priv fasm_aggregate := func(shallow t: Type, lp: LoadedProgram) returns Bool {
-    if is_struct_type(t).not() { return false }
+    if is_struct_type(t).or(is_enum_type(t)).not() { return false }
     definition := lp.ctx.scope.get_struct(type_name_ref(t, lp.ctx.symbols), lp.ctx.symbols)
     if definition.is_none() { return false }
-    if definition.unwrap().node_type.is(NodeType.StructDef).not() { return false }
+    if definition.unwrap().node_type.is(NodeType.EnumDef) { return true }
     ref sd : StructDef = structdef_of(definition.unwrap())
     return sd.simd_width.eq(0).and(sd.is_interface.not())
 }
@@ -183,6 +184,109 @@ priv fasm_type_size := func(shallow t: Type, lp: LoadedProgram) returns USize {
         }
     case: return target_value_size(type_name_ref(t, lp.ctx.symbols), lp.ctx.scope, lp.ctx)
     }
+}
+
+priv fasm_enum_def := func(shallow t: Type, lp: LoadedProgram) returns ref Expr {
+    return lp.ctx.scope.get_struct(type_name_ref(t, lp.ctx.symbols), lp.ctx.symbols).unwrap()
+}
+
+priv fasm_variant_index := func(e: Expr, name: Str, definition: Expr, lp: LoadedProgram) returns I32 {
+    switch e.node_type {
+    case .FCall: return fasm_variant_index(e.children[0], name, definition, lp)
+    case .FieldAccess(field): return enum_variant_index(definition, field.field_access_name(lp.ctx.symbols.names))
+    case .Ident(id):
+        prefix := format(name, "_")
+        ref value : Str = id.ident_name(lp.ctx.symbols.names)
+        if value.starts_with(prefix) { return enum_variant_index(definition, value.strip_prefix(prefix)) }
+    case:
+    }
+    return -1
+}
+
+priv fasm_enum_literal_index := func(e: Expr, lp: LoadedProgram) returns I32 {
+    if is_enum_type(e.til_type()).not().or(fa_is_ns(e, lp.ctx.scope, lp.ctx.symbols).not()) { return -1 }
+    return fasm_variant_index(e, type_name_ref(e.til_type(), lp.ctx.symbols), fasm_enum_def(e.til_type(), lp), lp)
+}
+
+// Tagged unions include the pointer-alignment member in the shared layout.
+// Niche enums instead contain one native pointer and have no separate tag.
+priv fasm_enum_payload_offset := func(definition: Expr, lp: LoadedProgram) returns USize {
+    mut alignment : USize = 8
+    ref ed : EnumDef = enumdef_of(definition)
+    for i in 0..ed.variants.len() {
+        payload := enum_variant_type(definition, i.to_i32())
+        if payload.len() == 0 || enum_variant_payload_ref(definition, i.to_i32()) { continue }
+        mut bytes : USize = 0
+        mut field_alignment : USize = 1
+        target_value_size_align(payload, lp.ctx.scope, lp.ctx, bytes, field_alignment)
+        if field_alignment > alignment { alignment = field_alignment }
+    }
+    return align_up(enum_tag_size(definition), alignment)
+}
+
+priv fasm_enum_tag := proc(e: Expr, shallow t: Type, mut state: FasmState, mut lp: LoadedProgram) {
+    ref definition : Expr = fasm_enum_def(t, lp)
+    variant := fasm_enum_literal_index(e, lp)
+    if variant >= 0 {
+        fasm_emit(state, format("mov rax, ", enum_variant_tag_at(definition, variant).to_str()))
+        return
+    }
+    fasm_pointer(e, state, lp)
+    if enum_is_niche(definition) {
+        // Expose the declared tag, not a 0/1 surrogate: explicit values and
+        // a payload variant declared before the empty variant are legal.
+        some := enum_niche_some_index(definition)
+        mut none : I32 = 0
+        if some == 0 { none = 1 }
+        fasm_emit(state, format("cmp qword [rax], 0\n    mov rax, ", enum_variant_tag_at(definition, none).to_str(),
+            "\n    mov rcx, ", enum_variant_tag_at(definition, some).to_str(), "\n    cmovne rax, rcx"))
+    } else {
+        fasm_load_scalar(type_from_name_init_name(enum_tag_type(definition), lp.ctx.scope, lp.ctx.symbols), state)
+    }
+}
+
+priv fasm_enum_is := proc(e: Expr, shallow t: Type, mut state: FasmState, mut lp: LoadedProgram) {
+    fasm_enum_tag(e.children[1], t, state, lp)
+    left := fasm_slot(state)
+    fasm_emit(state, format("mov ", left, ", rax"))
+    fasm_enum_tag(e.children[2], t, state, lp)
+    fasm_emit(state, format("cmp rax, ", left, "\n    sete al\n    movzx eax, al"))
+}
+
+priv fasm_enum_constructor := proc(e: Expr, shallow t: Type, variant: I32, mut state: FasmState, mut lp: LoadedProgram) {
+    ref definition : Expr = fasm_enum_def(t, lp)
+    size := fasm_type_size(t, lp)
+    destination := fasm_slot(state)
+    fasm_emit(state, format("mov edi, 1\n    mov rsi, ", size.to_str(), "\n    call rt_calloc\n    mov ", destination, ", rax"))
+    payload := enum_variant_type(definition, variant)
+    niche := enum_is_niche(definition)
+    if niche.not() {
+        fasm_emit(state, format("mov rcx, rax\n    mov rax, ", enum_variant_tag_at(definition, variant).to_str()))
+        fasm_store_scalar(type_from_name_init_name(enum_tag_type(definition), lp.ctx.scope, lp.ctx.symbols), state)
+    }
+    if payload.len() > 0 {
+        pt := type_from_name_init_name(payload, lp.ctx.scope, lp.ctx.symbols)
+        if fasm_scalar(pt).or(fasm_aggregate(pt, lp)).not() { fasm_error(e, "unsupported enum payload type", lp); return }
+        ref value : Expr = e.children[1]
+        if niche {
+            if enum_variant_payload_ref(definition, variant) { fasm_pointer(value, state, lp) }
+            else { fasm_owned(value, state, lp) }
+            fasm_emit(state, format("mov rcx, ", destination, "\n    mov [rcx], rax"))
+        } else if enum_variant_payload_ref(definition, variant) {
+            fasm_pointer(value, state, lp)
+            fasm_emit(state, format("mov rcx, ", destination, "\n    mov [rcx+", fasm_enum_payload_offset(definition, lp).to_str(), "], rax"))
+        } else if fasm_aggregate(pt, lp) {
+            snapshot := fasm_snapshot(value, pt, state, lp)
+            fasm_emit(state, format("mov rdi, ", destination, "\n    add rdi, ", fasm_enum_payload_offset(definition, lp).to_str(),
+                "\n    lea rsi, ", snapshot.strip_prefix("qword "), "\n    mov rdx, ", fasm_type_size(pt, lp).to_str(), "\n    call rt_memcpy"))
+        } else {
+            fasm_expr(value, state, lp)
+            fasm_emit(state, format("mov rcx, ", destination, "\n    add rcx, ", fasm_enum_payload_offset(definition, lp).to_str()))
+            if pt.is(Type.Dynamic) { fasm_emit(state, "mov [rcx], rax") }
+            else { fasm_store_scalar(pt, state) }
+        }
+    }
+    fasm_emit(state, format("mov rax, ", destination))
 }
 
 // ctx.struct_layouts belongs to the HOST interpreter. Native layout must use
@@ -219,12 +323,12 @@ priv fasm_collect := func(e: Expr, path: Str, mut program: FasmProgram) {
             ref value : Expr = stmt.children[0]
             if value.node_type.is(NodeType.FuncDef) {
                 program.definitions.set(dd.name, own FasmDefinition(path=path.clone(), declaration=position))
-            } else if value.node_type.is(NodeType.StructDef) {
-                ref sd : StructDef = structdef_of(value)
-                for i in 0..sd.ns_decls.len() {
-                    ref member : Declaration = sd.member_at(i)
+            } else if value.node_type.is(NodeType.StructDef).or(value.node_type.is(NodeType.EnumDef)) {
+                ref members : Vec(Declaration) = def_ns_decls(value)
+                for i in 0..members.len() {
+                    ref member : Declaration = members[i]
                     if member.default_value.is_some() && member.default_expr().node_type.is(NodeType.FuncDef) {
-                        name := format(dd.name, "_", sd.member_name_at(i))
+                        name := format(dd.name, "_", def_ns_name_at(value, i))
                         program.definitions.set(name, own FasmDefinition(path=path.clone(), declaration=position, member=i.to_i64()))
                     }
                 }
@@ -239,7 +343,7 @@ priv fasm_definition := func(name: Str, program: FasmProgram, lp: LoadedProgram)
     ref declaration : Expr = unit.ast.children.unsafe_get(location.declaration)
     ref value : Expr = declaration.children.unsafe_get(0)
     if location.member < 0 { return value }
-    return structdef_of(value).member_at(location.member.to_usize()).default_expr()
+    return def_ns_decls(value)[location.member.to_usize()].default_expr()
 }
 
 priv fasm_request := func(name: Str, mut program: FasmProgram) returns Str {
@@ -265,6 +369,7 @@ priv fasm_callee_name := func(e: Expr, lp: LoadedProgram) returns Str {
 // True only for an owned outer wrapper. References and inline field storage
 // must not be released merely because their address carries an aggregate.
 priv fasm_boxed := func(e: Expr, state: FasmState, lp: LoadedProgram) returns Bool {
+    if fasm_enum_literal_index(e, lp) >= 0 { return false }
     global_name := fasm_namespace_name(e, lp)
     if global_name.len() > 0 { return state.boxes.has(global_name) }
     switch e.node_type {
@@ -310,6 +415,41 @@ priv fasm_static_box := proc(e: Expr, shallow t: Type, mut state: FasmState, mut
 // read-only template and invoke its real til clone method, as the C backend
 // does, so owned elements are never shared accidentally with the template.
 priv fasm_static_value := proc(e: Expr, shallow t: Type, mut state: FasmState, mut lp: LoadedProgram) returns Str {
+    if is_enum_type(t) {
+        if rhs_is_clone_fcall(e, lp.ctx.symbols) { return fasm_static_value(e.children[1], t, state, lp) }
+        ref definition : Expr = fasm_enum_def(t, lp)
+        mut variant := fasm_variant_index(e, type_name_ref(t, lp.ctx.symbols), definition, lp)
+        switch e.node_type {
+        case .Literal(Literal.Num(n)): variant = enum_variant_index_for_tag(definition, n.to_u64().to_i64())
+        case:
+        }
+        if variant < 0 { fasm_error(e, "unsupported precomputed enum value", lp); return "" }
+        payload := enum_variant_type(definition, variant)
+        mut text := ""
+        mut used : USize = 0
+        if enum_is_niche(definition) {
+            if payload.len() == 0 { return "dq 0\n" }
+            pt := type_from_name_init_name(payload, lp.ctx.scope, lp.ctx.symbols)
+            return format("dq ", fasm_static_box(e.children[1], pt, state, lp), "\n")
+        }
+        text = fasm_static_number(enum_variant_tag_at(definition, variant).cast(U64), enum_tag_size(definition))
+        used = enum_tag_size(definition)
+        if payload.len() > 0 {
+            offset := fasm_enum_payload_offset(definition, lp)
+            if offset > used { text = format(text, "db ", (offset - used).to_str(), " dup(0)\n") }
+            pt := type_from_name_init_name(payload, lp.ctx.scope, lp.ctx.symbols)
+            if enum_variant_payload_ref(definition, variant) {
+                text = format(text, "dq ", fasm_static_box(e.children[1], pt, state, lp), "\n")
+                used = offset + 8
+            } else {
+                text = format(text, fasm_static_value(e.children[1], pt, state, lp))
+                used = offset + fasm_type_size(pt, lp)
+            }
+        }
+        size := fasm_type_size(t, lp)
+        if size > used { text = format(text, "db ", (size - used).to_str(), " dup(0)\n") }
+        return text
+    }
     switch e.node_type {
     case .Literal(Literal.Num(n)):
         if fasm_scalar(t).not() { fasm_error(e, "unsupported precomputed scalar", lp); return "" }
@@ -399,6 +539,11 @@ priv fasm_box_copy := func(shallow t: Type, mut state: FasmState, lp: LoadedProg
 priv fasm_owned := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
     if fasm_boxed(e, state, lp) { fasm_pointer(e, state, lp); return }
     mut t := e.til_type().clone()
+    if fasm_enum_literal_index(e, lp) >= 0 {
+        fasm_pointer(e, state, lp)
+        fasm_box_copy(t, state, lp)
+        return
+    }
     global_name := fasm_namespace_name(e, lp)
     if global_name.len() > 0 {
         fasm_pointer(e, state, lp)
@@ -627,6 +772,7 @@ priv fasm_load_scalar := func(shallow t: Type, mut state: FasmState) {
 }
 
 priv fasm_pointer := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
+    if fasm_enum_literal_index(e, lp) >= 0 { fasm_expr(e, state, lp, true); return }
     global_name := fasm_namespace_name(e, lp)
     if global_name.len() > 0 {
         if state.values.has(global_name).not() { fasm_error(e, "unsupported namespace global", lp); return }
@@ -837,6 +983,16 @@ priv fasm_register := func(index: USize) returns Str {
 }
 
 priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_pointer: Bool = false) {
+    variant_literal := fasm_enum_literal_index(e, lp)
+    if variant_literal >= 0 {
+        if enum_variant_type(fasm_enum_def(e.til_type(), lp), variant_literal).len() > 0 { fasm_error(e, "enum variant requires a payload", lp); return }
+        fasm_emit(state, format("mov rax, ", fasm_static_box(e, e.til_type(), state, lp)))
+        return
+    }
+    if e.node_type.is(NodeType.FCall).and(is_enum_type(e.til_type())) {
+        variant := fasm_variant_index(e.children[0], type_name_ref(e.til_type(), lp.ctx.symbols), fasm_enum_def(e.til_type(), lp), lp)
+        if variant >= 0 { fasm_enum_constructor(e, e.til_type(), variant, state, lp); return }
+    }
     global_name := fasm_namespace_name(e, lp)
     if global_name.len() > 0 {
         if state.values.has(global_name).not() { fasm_error(e, "unsupported namespace global", lp); return }
@@ -898,6 +1054,13 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
                     if fasm_scalar(owner) || (state.program.definitions.has(method) && funcdef_of(fasm_definition(method, state.program, lp)).auto_generated) {
                         if fasm_scalar(owner).or(fasm_aggregate(owner, lp)).not() { fasm_error(e, "unsupported size query", lp); return }
                         fasm_emit(state, format("mov rax, ", fasm_type_size(owner, lp).to_str()))
+                        return
+                    }
+                }
+                if is_enum_type(owner) && op == "is" {
+                    method := fasm_callee_name(e, lp)
+                    if state.program.definitions.has(method) && funcdef_of(fasm_definition(method, state.program, lp)).sig.func_type.is(FuncType.CoreFunc) {
+                        fasm_enum_is(e, owner, state, lp)
                         return
                     }
                 }
@@ -975,6 +1138,21 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
                 return
             }
             if state.program.source_names.has(name).not() {
+                if name == "is_n" { fasm_enum_is(e, e.children[1].til_type(), state, lp); return }
+                if name == "get_payload" {
+                    ref definition : Expr = fasm_enum_def(e.children[1].til_type(), lp)
+                    fasm_pointer(e.children[1], state, lp)
+                    if enum_is_niche(definition) { fasm_emit(state, "mov rax, [rax]") }
+                    else { fasm_emit(state, format("add rax, ", fasm_enum_payload_offset(definition, lp).to_str())) }
+                    if as_pointer.not().and(fasm_scalar(e.til_type())).and(e.til_type().is(Type.Dynamic).not()) { fasm_load_scalar(e.til_type(), state) }
+                    return
+                }
+                if name == "deref" {
+                    fasm_pointer(e.children[1], state, lp)
+                    fasm_emit(state, "mov rax, [rax]")
+                    if as_pointer.not().and(fasm_scalar(e.til_type())).and(e.til_type().is(Type.Dynamic).not()) { fasm_load_scalar(e.til_type(), state) }
+                    return
+                }
                 if (name == "and" || name == "or") && e.children.len() == 3 {
                     label := state.labels.to_str()
                     state.labels++
@@ -1039,6 +1217,54 @@ priv fasm_binding_value := func(name: Str, shallow t: Type, as_pointer: Bool, mu
     }
 }
 
+priv fasm_switch := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
+    ref subject : Expr = e.children[0]
+    t := subject.til_type().clone()
+    is_enum := is_enum_type(t)
+    if is_enum { fasm_enum_tag(subject, t, state, lp) }
+    else if fasm_scalar(t) { fasm_expr(subject, state, lp) }
+    else { fasm_error(e, "unsupported switch subject", lp); return }
+    value := fasm_slot(state)
+    fasm_emit(state, format("mov ", value, ", rax"))
+    label := format(".switch", state.labels.to_str())
+    state.labels++
+    mut fallback := format(label, "done")
+    for ci in 1..e.children.len() {
+        ref arm : Expr = e.children[ci]
+        count := case_pattern_count(arm)
+        target := format(label, "case", ci.to_str())
+        if count == 0 { fallback = target.clone() }
+        for pi in 0..count {
+            ref pattern : Expr = arm.children[pi]
+            if is_enum {
+                ref definition : Expr = fasm_enum_def(t, lp)
+                variant := fasm_variant_index(pattern, type_name_ref(t, lp.ctx.symbols), definition, lp)
+                if variant < 0 { fasm_error(pattern, "unsupported enum case", lp); continue }
+                fasm_emit(state, format("mov rax, ", enum_variant_tag_at(definition, variant).to_str()))
+            } else if is_range_new_call(pattern, lp.ctx.symbols) {
+                next := format(label, "next", ci.to_str(), "p", pi.to_str())
+                mut below := "jl"
+                mut above := "jg"
+                if fasm_unsigned(t) { below = "jb"; above = "ja" }
+                fasm_expr(pattern.children[1], state, lp)
+                fasm_emit(state, format("cmp ", value, ", rax\n    ", below, " ", next))
+                fasm_expr(pattern.children[2], state, lp)
+                fasm_emit(state, format("cmp ", value, ", rax\n    ", above, " ", next, "\n    jmp ", target, "\n", next, ":"))
+                continue
+            } else { fasm_expr(pattern, state, lp) }
+            fasm_emit(state, format("cmp rax, ", value, "\n    je ", target))
+        }
+    }
+    fasm_emit(state, format("jmp ", fallback))
+    for ci in 1..e.children.len() {
+        ref arm : Expr = e.children[ci]
+        fasm_emit(state, format(label, "case", ci.to_str(), ":"))
+        fasm_body(arm.children[arm.children.len() - 1], state, lp)
+        fasm_emit(state, format("jmp ", label, "done"))
+    }
+    fasm_emit(state, format(label, "done:"))
+}
+
 priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram, global_scope: Bool = false) {
     saved_values := state.values.clone()
     saved_types := state.value_types.clone()
@@ -1085,8 +1311,8 @@ priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram, 
             ref mut rhs : Expr = stmt.children[0]
             if dd.is_move && rhs_is_clone_fcall(rhs, lp.ctx.symbols) { rhs = rhs.children[1] }
             t := state.value_types[dd.name].clone()
-            if state.references.has(dd.name) {
-                mut rebind := rhs.node_type.is(NodeType.FieldAccess)
+            if state.references.has(dd.name).and(dd.is_payload_alias.not()) {
+                mut rebind := rhs.node_type.is(NodeType.FieldAccess).and(fa_is_ns(rhs, lp.ctx.scope, lp.ctx.symbols).not())
                 switch rhs.node_type {
                 case .FCall:
                     rebind = fcall_returns_ref(rhs, lp.ctx.scope, lp.ctx.symbols) != 0
@@ -1196,6 +1422,7 @@ priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram, 
                 fasm_destroy(stmt.til_type(), true, state, lp)
             }
         case .Body: fasm_body(stmt, state, lp)
+        case .Switch: fasm_switch(stmt, state, lp)
         case .While:
             label := state.labels.to_str()
             state.labels++

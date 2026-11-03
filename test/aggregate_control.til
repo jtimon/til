@@ -68,6 +68,142 @@ track_lifetimes := func(mut counts: Counts, source: Str) {
     assert(tracked_array[0].active)
 }
 
+EnumTag := enum(U16) { First = 17, Second = 513 }
+EnumWideTag := enum(U64) { First = 0, Second = 4294967296 }
+EnumScalar := enum(U16) { Empty = 5, Byte: U8 = 19, Flag: Bool = 37, Count: USize = 601 }
+EnumValue := enum { Empty, Number: I64, Text: Str, Item: Record }
+EnumBorrow := enum { Empty, One: ref Record, Other: ref Record }
+EnumRef := enum(U16) { Some: ref Record = 19, None = 37 }
+EnumOwned := enum { Some: Tracked, None }
+EnumDrop := enum { Empty, Value: Tracked, Text: Str }
+EnumNested := enum { Empty, Inner: EnumScalar, Text: Str }
+EnumHolder := struct { mark: U8 = 0; value: EnumValue = EnumValue.Empty; tail: USize = 0 }
+EnumTemplate := enum { Some: Record, None }
+
+enum_value := func(n: I64) returns EnumValue {
+    if n == 0 { return EnumValue.Empty }
+    return EnumValue.Number(n)
+}
+enum_wide_tag := func(n: I64) returns EnumWideTag {
+    if n == 0 { return EnumWideTag.First }
+    return EnumWideTag.Second
+}
+consume_enum := func(own value: EnumDrop) { assert(value.is(EnumDrop.Value)) }
+consume_niche := func(own value: EnumOwned) { assert(value.is(EnumOwned.Some)) }
+enum_constants := func() returns Array(EnumValue) {
+    return array(EnumValue, EnumValue.Number(3), EnumValue.Text("constant enum"), EnumValue.Empty)
+}
+enum_owned_constants := func() returns Array(EnumTemplate) {
+    return array(EnumTemplate, EnumTemplate.Some(Record(number=3,text="owned enum")), EnumTemplate.None)
+}
+enum_once := func(mut calls: I64, seed: I64) returns EnumValue {
+    calls++
+    return EnumValue.Number(seed)
+}
+check_enums := func(seed: I64, counts: Counts) {
+    tag := EnumTag.Second
+    assert(tag.is(EnumTag.Second))
+    assert(tag.eq(EnumTag.First).not())
+    assert(EnumTag.First.cmp(tag) < 0)
+    assert(tag.to_str().eq("Second"))
+    assert(EnumTag.size() == 2)
+    wide := enum_wide_tag(seed)
+    assert(wide.is(EnumWideTag.Second))
+    assert(EnumWideTag.First.cmp(wide) < 0)
+    switch tag { case .First, .Second: assert(tag.is(EnumTag.Second)) }
+    switch wide { case .First: panic("wrong wide tag"); case .Second: assert(wide.is(EnumWideTag.Second)) }
+
+    mut narrow := EnumScalar.Byte(seed.to_u8())
+    switch narrow {
+    case .Byte(byte): byte = byte + 1
+    case: panic("wrong narrow enum variant")
+    }
+    switch narrow {
+    case .Byte(byte): assert(byte.to_i64() == seed + 1)
+    case: panic("lost narrow enum payload")
+    }
+    narrow = EnumScalar.Flag(true)
+    switch narrow { case .Flag(flag): assert(flag); case: panic("wrong Bool payload") }
+    narrow = EnumScalar.Count(seed.to_usize())
+    switch narrow { case .Count(count): assert(count == seed.to_usize()); case: panic("wrong USize payload") }
+    nested := EnumNested.Inner(narrow.clone())
+    switch nested { case EnumNested.Inner(EnumScalar.Count(count)): assert(count == seed.to_usize()); case: panic("wrong nested pattern") }
+    mut calls := 0
+    selected := enum_once(calls,seed)
+    switch selected { case .Number(n): assert(n == seed); case: panic("wrong switch result") }
+    expect(calls == 1, "enum scrutinee calls: ", calls.to_str())
+    mut matched := false
+    switch seed { case 0..5: panic("wrong range arm"); case 6..8: matched = true; case: panic("missing range arm") }
+    assert(matched)
+    mut loop_hits := 0
+    for i in 0..4 {
+        switch i { case 0: continue; case 2: break; case: loop_hits++ }
+    }
+    assert(loop_hits == 1)
+
+    mut value := enum_value(seed)
+    switch value { case .Number(n): assert(n == seed); case: panic("wrong returned enum") }
+    value = EnumValue.Text(format("enum", seed.to_str()))
+    switch value { case .Text(text): text = format(text,"!"); case: panic("wrong Str payload") }
+    copy := value.clone()
+    value = EnumValue.Item(make_record(seed,"record"))
+    assert(copy.to_str().eq(format("Text(enum",seed.to_str(),"!)")))
+    switch value { case .Item(record): assert(record.text.eq("record")); case: panic("wrong record payload") }
+    mut record := make_record(seed,"borrow")
+    mut borrowed_value := EnumBorrow.One(record)
+    switch borrowed_value { case .One(borrowed): borrowed.number = borrowed.number + 1; case: panic("wrong borrowed payload") }
+    assert(record.number == seed + 1)
+
+    some := EnumRef.Some(record)
+    assert(some.is(EnumRef.Some))
+    assert(EnumRef.None.is(EnumRef.Some).not())
+    switch some { case .Some(borrowed): assert(borrowed.text.eq("borrow")); case .None: panic("lost niche pointer") }
+    option := safe_ref(record)
+    assert(option.is_some())
+    assert(option.unwrap().number == seed + 1)
+    mut number := seed
+    number_option := safe_ref(number)
+    ref mut number_alias : I64 = number_option.unwrap()
+    number_alias = number_alias + 2
+    assert(number == seed + 2)
+    empty_number := Option(ref I64).None
+    assert(empty_number.is_none())
+    assert(empty_number.unwrap_or(number) == seed + 2)
+    owned_option := Option(Record).Some(make_record(seed,"taken"))
+    taken := Option(Record).take(own owned_option)
+    assert(taken.number == seed && taken.text.eq("taken"))
+
+    mut holder := EnumHolder(mark=9,value=copy.clone(),tail=17)
+    holder.value = EnumValue.Number(seed)
+    switch holder.value { case .Number(n): assert(n == seed); case: panic("wrong enum field") }
+    assert(holder.mark == 9 && holder.tail == 17)
+    mut constants := enum_constants()
+    constants[0] = EnumValue.Number(seed)
+    original := enum_constants()
+    switch original[0] { case .Number(n): assert(n == 3); case: panic("mutated enum template") }
+    switch constants[1] { case .Text(text): assert(text.eq("constant enum")); case: panic("wrong template payload") }
+    mut owned_constants := enum_owned_constants()
+    own_constant_copy := enum_owned_constants()
+    owned_constants[0] = EnumTemplate.None
+    switch own_constant_copy[0] { case .Some(item): assert(item.text.eq("owned enum")); case: panic("mutated owned niche template") }
+
+    before := counts.drops
+    mut dropped := EnumDrop.Value(make_tracked(counts,"tagged"))
+    dropped_copy := dropped.clone()
+    dropped = EnumDrop.Empty
+    assert(counts.drops == before + 1)
+    consume_enum(own dropped_copy)
+    assert(counts.drops == before + 2)
+    assert(dropped.is(EnumDrop.Empty))
+    mut owned := EnumOwned.Some(make_tracked(counts,"niche"))
+    owned_copy := owned.clone()
+    owned = EnumOwned.None
+    assert(counts.drops == before + 3)
+    consume_niche(own owned_copy)
+    assert(counts.drops == before + 4)
+    assert(owned.is(EnumOwned.None))
+}
+
 mut seed : I64 = 6
 seed++
 make_plain(seed)
@@ -136,4 +272,5 @@ contents := File.readfile("tmp/aggregate_control_file")
 assert(contents.eq("alpha!"))
 File.remove("tmp/aggregate_control_file")
 assert(File.exists("tmp/aggregate_control_file").not())
+check_enums(seed,counts)
 println("aggregate control passed")

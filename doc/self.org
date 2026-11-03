@@ -665,6 +665,28 @@
   assembly output. The ordinary til clone method creates each runtime value,
   so nested owned buffers are not shared with the template.
 
+  Enums use the shared variant/tag definitions and target-size queries. Plain
+  tags retain their declared integer width and explicit discriminant values.
+  Tagged payloads use the shared union alignment; borrowed payloads contain
+  pointers, while value payloads are inline. Niche enums, including borrowed
+  and owned forms of Option, contain a single native pointer: null selects
+  the empty variant, and a non-null pointer selects the payload variant,
+  regardless of declaration order or explicit tag values.
+
+  Constructors, tag tests, switch dispatch and get_payload/deref bindings lower
+  to native operations. Nested patterns and guards use the shared lowered
+  control flow; switch arms do not fall through, and lowered loop transfers
+  retain their enclosing loop targets. Payload-alias assignments write through
+  the payload storage instead of retargeting a local reference. Enum values use
+  the internal address/boxed-return convention above, including small tag-only
+  and niche values; this is not an exported C enum ABI.
+
+  Generated/user enum clone, delete, comparison and formatting methods are
+  emitted from their prepared til bodies. Tagged and owned-niche payloads
+  therefore run their actual lifecycle methods; borrowed payloads are not
+  destroyed by the carrier. Precomputed arrays can contain tagged or owned-niche
+  enums and are cloned through the same methods, keeping templates immutable.
+
   Supported module and namespace globals have stable, zero-filled storage in
   the executable's writable segment. Scalars use addressable slots; aggregates
   use target-sized inline storage or pointer slots according to their prepared
@@ -712,7 +734,7 @@
     Removal follows ext.c's unlink contract: a missing path is harmless, but
     directories and other failures are errors.
 
-  Payload enums, interfaces, indirect calls/closures, floating-point operations,
+  Interfaces, indirect calls/closures, floating-point operations,
   unsupported external runtime services and mode test remain outside this
   subset. Array methods are no longer restricted to compiler-generated
   variadic collectors.
@@ -737,6 +759,14 @@
   discarded results, precomputed arrays, checked indexing and ordinary File
   wrappers. The existing imported-call and bang-panic fixtures run unchanged.
   Aggregate translation also runs in the assembler-free options test.
+
+  The same corpus covers enum tags (including U64 values above 32 bits),
+  narrow/Bool/USize payloads, mutable payload bindings, nested patterns,
+  multi-pattern arms, scalar ranges and loop transfers. It checks enum fields,
+  returned values, tagged/ref/owned-niche cloning, custom destructor counts,
+  immutable precomputed templates, Option(ref I64)/Option(ref Record), and
+  taking an owned Record from Option. Resource-bearing cases execute with a
+  runtime seed rather than relying solely on folded enum literals.
 
   ~test/reference_rebinding.til~ now runs unchanged through the interpreter,
   C and FASM at both USize widths. Reference rebinding retargets the borrow
