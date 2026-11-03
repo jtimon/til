@@ -1,0 +1,74 @@
+# priority: medium
+# category: bugs
+** OPEN #467 C copies a non-mut struct parameter, losing destructor writes through ref fields built from it
+
+Found while writing the [[../fixed/466.org][#466]] regression test. A
+non-~mut~ struct parameter is passed BY VALUE in C (~static void
+drop_one(Drops drops)~), while a callee taking the same kind of parameter
+may be passed a pointer (~static Tracked make_tracked(Drops * drops)~).
+A ~ref~ field built from that parameter then points into the callee's
+copy, so writes through it (here from a custom ~delete~) never reach the
+caller's value. The interpreter shares the caller's storage, so the two
+backends disagree.
+
+*** Reproduction
+
+  Save this as ~tmp/bug467.til~:
+
+  #+begin_src til
+  mode cli
+  Drops := struct { count: I64 = 0 }
+  Tracked := struct {
+      ref drops: Drops
+      active := false
+  namespace:
+      delete := func(own self: Tracked, call_free: Bool = true) {
+          if self.active { self.drops.count++ }
+          if call_free { free(own self) }
+      }
+  }
+  make_tracked := func(drops: Drops) returns Tracked {
+      return Tracked(drops=drops, active=true)
+  }
+  drop_one := func(drops: Drops) {
+      mut tracked := make_tracked(drops)
+      tracked = Tracked(drops=drops)
+      assert(tracked.active.not())
+      assert(drops.count == 1)
+  }
+  main := proc() {
+      drops := Drops()
+      drop_one(drops)
+      assert(drops.count == 1)
+      println("caller observed destructor write")
+  }
+  #+end_src
+
+  #+begin_src sh
+  bin/til interpret --usize=32 tmp/bug467.til
+  bin/til interpret --usize=64 tmp/bug467.til
+  bin/til run --backend=c --usize=32 tmp/bug467.til
+  bin/til run --backend=c --usize=64 tmp/bug467.til
+  #+end_src
+
+  Observed on master ~7426776~ + the #466 fix: the interpreter prints
+  ~caller observed destructor write~ at both widths; C panics with
+  ~tmp/bug467.til:24:5: panic: assert failed~ (the caller's assert) at
+  both widths. The callee's own assert passes in C, so the write landed
+  in the copy.
+
+*** Notes
+
+  - Writing ~counter.count++~ through a ~ref~ field of a local holder
+    built from a non-~mut~ parameter is rejected by the typer ("'counter'
+    is an immutable binding"); the destructor path is not, so either the
+    typer has a hole (a non-~mut~ parameter's storage is mutated through a
+    stored ~ref~) or C's by-value lowering is wrong for a parameter whose
+    address escapes into a ~ref~ field. Decide which semantics is
+    intended before fixing.
+  - Making the parameter ~mut~ is rejected as "redundant 'mut' ... never
+    written through", so the user cannot opt into the shared semantics
+    either. ~test/aggregate_control.til~'s ~check_enums~ only checks
+    deltas inside the callee, which is why it does not catch this.
+  - FASM was not checked (vendor/fasm not bootstrapped in the session that
+    found it).

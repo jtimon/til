@@ -1,6 +1,31 @@
 # priority: high
 # category: bugs
-** OPEN #466 C enum-reference assignment to a namespace variant leaves stale payload storage
+** FIXED #466 C enum-reference assignment to a namespace variant leaves stale payload storage
+
+*** Post-mortem
+
+  Root cause: the ~is_ref_local~ arm of the Assign case in ~emit_stmt~
+  (~src/self/codegen/c_codegen.til~) treated every FieldAccess RHS as a
+  borrowed field place and emitted a pointer rebind (~alias = &...~). The
+  typer's ~reference_assignment_rebinds~ excludes namespace accesses (and
+  literal-rooted ones), so the garbager emitted the old pointee's delete
+  for a value replacement while the C emitter retargeted the local pointer:
+  the referenced slot kept the freed payload pointer and was destroyed
+  again by its owner's cleanup.
+
+  Fix: the C arm now mirrors the typer's rule. A namespace (or
+  literal-rooted) FieldAccess assigned to a reference local writes the new
+  value THROUGH the reference (~*alias = _new~); the old value's teardown
+  still follows the garbager's decision (standalone delete, or
+  ~save_old_delete~), so it is destroyed exactly once. Ref-to-ref,
+  borrowed field and ref-returning-call rebinding are unchanged.
+
+  Regression test: ~namespace_variant_through_reference~ in
+  ~test/reference_rebinding.til~ (owned-niche array element, tagged array
+  element, and a local tagged enum; custom destructor counts across the
+  replacement and the enclosing owner's replacement). That file already
+  runs interpreter/C/FASM at USize32 and USize64 via ~test/fasm_native.til~
+  and under ASAN via ~make test~.
 
 Found during the FASM enum work in [[./453.org][#453]], on investigated base
 ~c721fbbf2~. Assigning a namespace variant value such as ~Choice.None~

@@ -1,0 +1,43 @@
+# priority: medium
+# category: bugs
+** OPEN #468 A throwing call inside a bare block makes the block's locals undefined
+
+Found while writing the [[../fixed/466.org][#466]] regression test. Inside
+a bare ~{ ... }~ block, an implicit or explicit ~!~ (bang) on a throwing
+call that uses a local declared in that block fails to type-check: the
+local is reported undefined, and so is the hoisted ~_bang_ret_N~
+temporary. The same body inside ~if true { ... }~ works, as does a
+non-throwing use (~v.len()~) inside the bare block.
+
+*** Reproduction
+
+  #+begin_src til
+  mode cli
+  main := proc() {
+      {
+          v := Array(I64).new(1)
+          println(v[0].to_str())
+      }
+  }
+  #+end_src
+
+  Observed on master ~7426776~ + the #466 fix:
+
+  #+begin_src text
+  tmp/b.til:5:17: error: undefined symbol 'v'
+  ...
+  error: undefined symbol '_bang_ret_1'
+  #+end_src
+
+  Also fails with an explicit bang (~x := v.get(0)!~), with ~Vec~
+  indexing, in a non-main ~proc~, and at script top level (~mode script~
+  with a bare block). Expected: prints ~0~, as the ~if true { ... }~
+  form does.
+
+*** Notes
+
+  The symptoms suggest the bang desugaring hoists the throwing call (and
+  its ~_bang_ret_N~ temporary) to the enclosing statement list instead of
+  the bare block's own body, i.e. before the block's local declarations.
+  Look at how the bang/throw hoisting pass walks a bare Body statement
+  versus an ~if~ body.
