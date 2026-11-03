@@ -11731,7 +11731,7 @@ priv emit_reflect_not_found_tail := proc(f: File, who: Str) {
 // Issue #56/#58: emit one struct's branch for a struct_field_* function.
 // kind 0 = count (return field count), 1 = name, 2 = is_mut, 3 = type,
 // 4 = ownership (private query used by struct_def_of).
-priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ctx: Context) {
+priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, type_id: USize, shared_lookup: Bool, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len() == 0 { return }
     if stmt.children[0].node_type.is(NodeType.StructDef).not() { return }
@@ -11742,8 +11742,12 @@ priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, m
     }
     switch stmt.children[0].node_type {
     case .StructDef(sd):
-        tlen := sname.len()
-        f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(sname).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) {\n")
+        if shared_lookup {
+            f.write("    case "); emit_usize(f, type_id); f.write("LL: {\n")
+        } else {
+            tlen := sname.len()
+            f.write("    if (type_name->count == "); emit_usize(f, tlen); f.write("ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), \"").write(sname).write("\", "); emit_usize(f, tlen); f.write("ULL) == 0) {\n")
+        }
         if kind == 0 {
             f.write("        return "); emit_usize(f, sd.fields.len()); f.write("LL;\n")
         } else {
@@ -11764,50 +11768,83 @@ priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, m
                 i = i + 1
             }
         }
+        if shared_lookup.and(kind.neq(0)) { f.write("        break;\n") }
         f.write("    }\n")
     case:
     }
 }
 
-priv emit_struct_field_branches := proc(f: File, kind: I32, mut lp: LoadedProgram) {
+// Several struct queries need the identical type-name search. Share that C
+// code instead of repeating its comparisons and ASAN instrumentation in each
+// dispatcher. IDs follow the same unit/declaration walk as the query bodies;
+// -1 is a real lookup miss, diagnosed by their existing not-found tails.
+priv emit_struct_reflect_lookup := proc(f: File, lp: LoadedProgram) {
+    f.write("static I64 _til_struct_reflect_id(Str *type_name) {\n")
+    mut type_id : USize = 0
+    for upath : Str in lp.unit_paths() {
+        for stmt : Expr in lp.ctx.imported[upath].ast.children {
+            if is_struct_or_enum(stmt).not() { continue }
+            if stmt.children[0].node_type.is(NodeType.StructDef).not() { continue }
+            emit_dyn_name_return_branch(f, decl_of(stmt).name, type_id.to_str())
+            type_id = type_id.add(1)
+        }
+    }
+    if type_id == 0 { f.write("    (void)type_name;\n") }
+    f.write("    return -1;\n}\n\n")
+}
+
+priv emit_struct_field_branches := proc(f: File, kind: I32, shared_lookup: Bool, mut lp: LoadedProgram) {
+    if shared_lookup { f.write("    switch (_til_struct_reflect_id(type_name)) {\n") }
+    mut type_id : USize = 0
     for upath : Str in lp.unit_paths() {
         ref iu : ImportUnit = lp.ctx.imported[upath]
         for stmt : Expr in iu.ast.children {
-            emit_struct_field_branch_for_stmt(f, stmt, kind, lp.ctx)
+            if is_struct_or_enum(stmt).not() { continue }
+            if stmt.children[0].node_type.is(NodeType.StructDef).not() { continue }
+            emit_struct_field_branch_for_stmt(f, stmt, kind, type_id, shared_lookup, lp.ctx)
+            type_id = type_id.add(1)
         }
     }
+    if shared_lookup { f.write("    default: break;\n    }\n") }
 }
 
 // Issue #56/#58: emit the C bodies for the struct_field_* introspection
-// primitives, mirroring rstil's emit_introspection_metadata. Each is a
-// strcmp chain over every loaded struct type.
+// primitives, mirroring rstil's emit_introspection_metadata. Multiple
+// queries share the type-name lookup; one query keeps its direct chain.
 // Each member is gated on ITS OWN name (see the prototype block): the
 // family key says the metadata is needed, not that all five bodies are.
 priv emit_struct_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
+    mut queries : USize = 0
+    for name : Str in array(Str, "struct_field_count", "struct_field_name", "struct_field_type", "struct_field_is_mut", "struct_field_own_type") {
+        if builder_needs_reflect(name, lp.ctx) { queries = queries.add(1) }
+    }
+    shared_lookup := queries > 1
+    // A single query keeps its original direct chain, with no extra helper.
+    if shared_lookup { emit_struct_reflect_lookup(f, lp) }
     if builder_needs_reflect("struct_field_own_type", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 ").write(priv_c_name(lp.ctx.scope.get_binding_name("struct_def_of", lp.ctx.symbols).unwrap().path, "struct_field_own_type"))
             .write("(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
-        emit_struct_field_branches(f, 4, lp)
+        emit_struct_field_branches(f, 4, shared_lookup, lp)
         emit_reflect_index_tails(f, "struct_field_own_type")
     }
     if builder_needs_reflect("struct_field_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 struct_field_count(Str *type_name) {\n")
-        emit_struct_field_branches(f, 0, lp)
+        emit_struct_field_branches(f, 0, shared_lookup, lp)
         emit_reflect_not_found_tail(f, "struct_field_count")
     }
     if builder_needs_reflect("struct_field_name", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("Str *struct_field_name(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
-        emit_struct_field_branches(f, 1, lp)
+        emit_struct_field_branches(f, 1, shared_lookup, lp)
         emit_reflect_index_tails(f, "struct_field_name")
     }
     if builder_needs_reflect("struct_field_is_mut", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 struct_field_is_mut(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
-        emit_struct_field_branches(f, 2, lp)
+        emit_struct_field_branches(f, 2, shared_lookup, lp)
         emit_reflect_index_tails(f, "struct_field_is_mut")
     }
     if builder_needs_reflect("struct_field_type", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("Str *struct_field_type(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
-        emit_struct_field_branches(f, 3, lp)
+        emit_struct_field_branches(f, 3, shared_lookup, lp)
         emit_reflect_index_tails(f, "struct_field_type")
     }
 }
