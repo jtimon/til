@@ -330,3 +330,104 @@ Keep backend/optimization changes and strict output-equality gates after
 that first milestone. Independent functional CI improvements in #473 need
 not wait. This plan has no basis for a fixed time estimate
 until the observation cost and first cross-layout failure are measured.
+
+*** Next-session execution plan: first frontend milestone
+
+This is the concrete handoff for the next implementation session. The
+inventory above describes older source revisions; re-check each finding on
+the session's actual master base before editing. The objective is determinism
+from lexing through the return from ~prepare_program~, BEFORE codegen. The
+session is not implementing the whole cross-platform/build/JIT roadmap.
+
+**** Read and establish the baseline
+
+- Read AGENTS.md and the build skill. Before touching compiler preparation,
+  read ~doc/self.org~ and ~doc/bots/lessons_learned.org~ for bootstrap rules.
+- Read ~test/lexing.til~, ~test/parsing.til~, ~test/doc_block_comments.til~,
+  their registrations in ~src/tests.til~, and ~src/self/lexer.til~'s Token.
+  Confirm whether the disabled lexer test still uses obsolete fields/tags.
+- Trace ~src/til.til~ from ~load_program~ through target/backend/layout
+  configuration and ~prepare_program~. Read ~loader.til::type_program_errors~,
+  ~finish_init_and_type_program~, ~finish_prepare_program~ and ~cmd_ast~.
+- Read ~src/core/ast.til~'s node payloads/printer, ~parser.til::SymbolPool~,
+  ~context.til::size_intrinsics_emit_sizeof~ / ~constfolder_classify_stmt~,
+  ~typer.til::target_value_size_align~, and their current callers. Do not
+  infer the state contract just from the printer or the names of helpers.
+
+**** A. Restore existing lexer coverage
+
+- Repair the existing lexer tests against the current token representation:
+  check kind, start/length, source slice, line/column and EOF. Cover escapes,
+  numeric forms, comments and invalid input where the current lexer supports
+  collecting diagnostics. Preserve current language semantics.
+- Register meaningful coverage in the existing suite using the applicable
+  compile/interpreter mode. A stale comment is not evidence that a former
+  interpreter failure still exists; use the actual test result.
+- Repeat tokenization/parsing with fresh state and different input-buffer
+  allocations. Check source-order symbol/counter behavior using real nodes.
+  These existing-test repairs can proceed before a new output surface is
+  approved; they alone do not finish the frontend determinism milestone.
+
+**** B. Establish a trustworthy pre-codegen comparison
+
+- The observation-driver proposal above is a proposal, not an implemented
+  facility. Obtain explicit approval for that exact new test-output surface
+  before creating it; a general request to work on #472 does not select a
+  serialization format or approve public flags. Ask in plain chat.
+- Once approved, build observations from the real frontend's current state.
+  Exercise the same target/backend/layout and compile-mode setup as the CLI,
+  including target_cptr32 and ABI options. Do not accidentally compare an
+  interpreter-mode load with a compile-mode preparation or duplicate the
+  compiler pipeline inside a test implementation.
+- Work in increasing checkpoints: complete tokens; complete parsed module
+  graph; typing/expansion results; ownership lowering; final preparation.
+  Cover core, modes, user imports and backend-consumed side state, not just
+  the entrypoint's child list. Document field coverage and why each omitted
+  field is host-only/transient and cannot affect subsequent compilation.
+- Preserve declaration/child order and synthesized names. Resolve references
+  by stable declaration identity; never hash pointers, allocator capacities,
+  struct padding or raw Context memory. Preserve exact literal bytes and
+  numeric type/value information with unambiguous boundaries/escaping.
+- Prove sensitivity by changing a type, signature, ownership flag, literal
+  or order without relying on changes visible in today's pretty-printer.
+  A partial comparison must be labelled partial, not "frontend deterministic".
+
+**** C. Reproduce and fix the same-target host-layout difference
+
+- Build compiler/test-driver variants at USize32 and USize64 from the SAME
+  source revision using the repository's documented build paths. Record
+  which binary executes each comparison; do not confuse installed til,
+  bin/til, til_boot or target USize with the executing compiler's USize.
+- Start on Linux x64 with backend C, explicit target linux-x64 and target
+  USize32, then repeat at target USize64. Within EACH comparison group vary
+  the executing compiler's layout, not the target/configuration.
+- Use a small layout-sensitive program (struct/container/own-field size
+  queries and their use in expressions), not src/til.til first. Find the
+  earliest differing frontend checkpoint. Record the actual before/after
+  state and command, rather than treating the old source comment as a repro.
+- Fix target-query/folding decisions at their source. Host interpreter/FFI
+  storage must remain host-shaped. Audit target layout query coverage before
+  replacing host-size answers, including compression and alignment. Do not
+  globally disable folding, change optimization defaults, scrub observations
+  or weaken the existing self-translation checks to obtain equality.
+- Extend with fresh-process and repeated-load cases. Path identity, effectful
+  macros and floating-point folding remain explicit follow-ups unless also
+  demonstrated fixed; this milestone must not claim all-host reproducibility.
+
+**** Verification and handoff
+
+- Run focused lexer/parser and comparison tests, including the intentional
+  mutations and both executing-compiler layouts with fixed target inputs.
+  Then run the required clean full suite (or two-pass suite when required by
+  the actual compiler change) before committing. Follow the current local
+  memory-limit/foreground/logging rules; do not overlap builds.
+- If bootstrap staging is required, apply the documented preparation/use
+  process and name the required master merge. Do not rewrite boot/ manually
+  or declare a pass-1 conflict impossible without reading the real error.
+- Update this issue with commands, checkpoints covered, actual failures/fixes
+  and remaining limits in the implementation commit. Leave it open while
+  other determinism work remains. CI expansion is #473; JIT replacement is
+  #474; TempleOS hosting is #151. None is required to repair local lexer and
+  same-target frontend determinism.
+- Report the exact tested master base, commit/worktree, test results and any
+  concrete approval or bootstrap dependency for the next step.
