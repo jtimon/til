@@ -231,6 +231,12 @@ output in tmp/build.log or tmp/test.log. Do not guess what the error
 might be, retry without reading, or revert changes hoping it goes
 away. Read what it says, understand it, THEN fix it.
 
+For GUI/headless failures such as `exit=139 expected=124`, inspect
+`xvfb-run` stderr. `X11: Failed to open display` together with Xvfb's
+`Owner of /tmp/.X11-unix should be set to root` or `Cannot establish any
+listening sockets` points to display setup or namespace ownership, not
+necessarily a compiler bug. Diagnose that environment before rerunning.
+
 ## Root Cause, Not Band-Aids; No Defensive Guards, No Silent Fallbacks
 
 Fix the actual cause of a problem, never paper over its symptom. Not
@@ -601,14 +607,6 @@ Monitor tool is denied, and the .claude/hooks/block-background-bash.sh
 hook refuses a trailing `&` and `nohup` / `disown` / `setsid`, which
 would leave an untracked orphan process. `git stash` is denied there
 as well.
-
-Antigravity exception (a LOCAL session type): Antigravity
-auto-backgrounds any command slower than its 10-second maximum block
-time and, unlike the cloud harness, DOES automatically notify you the
-moment the task completes. There too, do NOT poll with `manage_task`
-and do NOT set timers: stop calling tools to yield your turn, wait
-quietly for the notification, then read the captured log file
-(`tmp/build.log`).
 
 ### Jorge's rant on the background-task hell (read it and take it to heart)
 
