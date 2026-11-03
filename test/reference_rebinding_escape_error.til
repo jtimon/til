@@ -1,4 +1,90 @@
 mode cli
+
+// Global retention must keep the referent alive, not just copy/move its carrier.
+GlobalEscapeRef := enum { None, Some: ref I64 }
+GlobalEscapeRecord := struct { ref value: I64 }
+global_escape_owner := vec(I64, 0)
+mut global_escape_saved := GlobalEscapeRef.None
+mut global_escape_record := GlobalEscapeRecord(value = global_escape_owner.unsafe_get(0))
+mut global_escape_many: Vec(GlobalEscapeRef) = Vec(GlobalEscapeRef).new()
+
+forward_global := proc(value: GlobalEscapeRef) { store_global_clone(value) }
+store_global_clone := proc(value: GlobalEscapeRef) { noop_proc(); global_escape_saved = value.clone() }
+store_global_owned := proc(own value: GlobalEscapeRef) { noop_proc(); global_escape_saved = value }
+store_global_number := proc(value: I64) { noop_proc(); global_escape_record.value = value }
+store_global_alias := proc(value: GlobalEscapeRef) {
+    ref mut target: GlobalEscapeRecord = global_escape_record
+    noop_proc()
+    switch value {
+    case .Some(n): target.value = n
+    case:
+    }
+}
+global_record_target := func() returns ref GlobalEscapeRecord { return global_escape_record }
+store_global_getter := proc(value: GlobalEscapeRef) {
+    ref mut target: GlobalEscapeRecord = global_record_target()
+    noop_proc()
+    switch value {
+    case .Some(n): target.value = n
+    case:
+    }
+}
+append_global := proc(own value: GlobalEscapeRef) { noop_proc(); global_escape_many.push(own value) }
+store_global_generic := proc<T: Type>(value: T) { store_global_clone(value) }
+store_global_runtime_type := proc(kind: Type, value: GlobalEscapeRef) {
+    assert(kind.is(Type.Primitive))
+    store_global_clone(value)
+}
+
+GlobalEscapeNamespace := namespace {
+    mut saved := GlobalEscapeRef.None
+    store := proc(value: GlobalEscapeRef) { noop_proc(); GlobalEscapeNamespace.saved = value.clone() }
+}
+
+bad_global_clone := proc(n: I64) {
+    local := vec(I64, n)
+    store_global_clone(GlobalEscapeRef.Some(local.unsafe_get(0)))
+}
+bad_global_owned := proc(n: I64) {
+    local := vec(I64, n)
+    carrier := GlobalEscapeRef.Some(local.unsafe_get(0))
+    store_global_owned(own carrier)
+}
+bad_global_forward := proc(n: I64) {
+    local := vec(I64, n)
+    forward_global(GlobalEscapeRef.Some(local.unsafe_get(0)))
+}
+bad_global_generic := proc(n: I64) {
+    local := vec(I64, n)
+    store_global_generic(GlobalEscapeRef)(GlobalEscapeRef.Some(local.unsafe_get(0)))
+}
+bad_global_namespace := proc(n: I64) {
+    local := vec(I64, n)
+    GlobalEscapeNamespace.store(GlobalEscapeRef.Some(local.unsafe_get(0)))
+}
+bad_global_container := proc(n: I64) {
+    local := vec(I64, n)
+    append_global(own GlobalEscapeRef.Some(local.unsafe_get(0)))
+}
+bad_global_direct := proc(n: I64) {
+    local := vec(I64, n)
+    noop_proc()
+    global_escape_saved = GlobalEscapeRef.Some(local.unsafe_get(0))
+}
+bad_global_temporary := proc() { store_global_number(41) }
+bad_global_alias := proc(n: I64) {
+    local := vec(I64, n)
+    store_global_alias(GlobalEscapeRef.Some(local.unsafe_get(0)))
+}
+bad_global_getter := proc(n: I64) {
+    local := vec(I64, n)
+    store_global_getter(GlobalEscapeRef.Some(local.unsafe_get(0)))
+}
+bad_global_runtime_type := proc(n: I64) {
+    local := vec(I64, n)
+    store_global_runtime_type(I64, GlobalEscapeRef.Some(local.unsafe_get(0)))
+}
+
 Cell := struct { number: I64 = 0 }
 borrow := func(cell: Cell) returns ref Cell { return cell }
 main := proc() {

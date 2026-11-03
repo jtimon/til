@@ -49,7 +49,12 @@ main := proc(compiler: Str) {
         "    println(\"REPL272_FULL_RAN\")\n",
         "}\n",
         "println(\"REPL272_FULL_SURVIVED\")\n",
-        "println(format(\"REPL272_FULL_KEPT=\", kept272))\n"))
+        "println(format(\"REPL272_FULL_KEPT=\", kept272))\n",
+        "ReplBorrow := enum { None, Some: ref I64 }\n",
+        "mut retained_borrow := ReplBorrow.None\n",
+        "retain_borrow := proc(value: ReplBorrow) { noop_proc(); retained_borrow = value.clone() }\n",
+        "escape_borrow := proc(n: I64) { local := vec(I64, n); retain_borrow(ReplBorrow.Some(local.unsafe_get(0))) }\n",
+        "println(\"REPL_GLOBAL_ESCAPE_REJECTED\")\n"))
     cmd := format("XDG_STATE_HOME=tmp/repl_ownership_state HOME=tmp/repl_ownership_home '",
         compiler, "' < tmp/repl_ownership_input > tmp/repl_ownership_output 2>&1")
     status := wait_cmd(spawn_cmd(cmd))
@@ -68,6 +73,8 @@ main := proc(compiler: Str) {
     require_count(output, "REPL272_FULL_RAN", 0)
     require_count(output, "proc println(parts: ..Str)", 1)
     require_count(output, "refresh272 is a I64", 1)
-    require_count(output, "error:", 0)
+    require_count(output, "cannot store a borrow of local 'local' in global storage", 1)
+    require_count(output, "REPL_GLOBAL_ESCAPE_REJECTED", 1)
+    require_count(output, "error:", 1)
     println("repl_ownership PASS")
 }

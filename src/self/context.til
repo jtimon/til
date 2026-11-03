@@ -70,6 +70,31 @@ resolve_import_abs := proc(import_path: Str, base_dir: Str, lib_dir: Str, suppor
     return abs
 }
 
+// Parameter-relative borrow relations, shared by return/deposit analysis and
+// global-escape effects. Keeping sparse global effects on Context avoids
+// widening FunctionDef, and therefore every Expr, for this relation.
+RootBits := struct {
+    alias : U64 = 0
+    into : U64 = 0
+    carried : U64 = 0
+    // Global-effect entries also record a ref result's global storage origin.
+    global_storage := false
+namespace:
+    eq := func(a: RootBits, b: RootBits) returns Bool {
+        return a.alias.eq(b.alias).and(a.into == b.into).and(a.carried == b.carried).and(a.global_storage == b.global_storage)
+    }
+    to_str := func(_self: RootBits) returns Str { return "RootBits" }
+    bor := func(self: RootBits, other: RootBits) returns RootBits {
+        return RootBits(alias = self.alias.bor(other.alias),
+            into = self.into.bor(other.into),
+            carried = self.carried.bor(other.carried), global_storage = self.global_storage.or(other.global_storage))
+    }
+    all := func(self: RootBits) returns U64 {
+        return self.alias.bor(self.into).bor(self.carried)
+    }
+    is_zero := func(self: RootBits) returns Bool { return self.all().neq(0).or(self.global_storage).not() }
+}
+
 // #344: one storage that a borrow reaches. A ref binding -- or a binding
 // whose value carries a borrowed payload -- records the bindings its value
 // aliases, so a write through the alias can be credited to them. Identity
@@ -1000,34 +1025,36 @@ generic_param_is_type := func(param: Declaration, symbols: SymbolPool) returns B
 
 init_func_is_generic := func(rhs: Expr, symbols: SymbolPool) returns Bool {
     switch rhs.node_type {
-    case .FuncDef(fd):
-        gok := fd.sig.func_type.is_plain()
-        if gok.not() { return false }
-        // A `P: Type` param is a generic TYPE-PARAMETER only if its name
-        // is actually USED as a type elsewhere in the signature -- as
-        // another param's declared type, or as the return type. A plain
-        // `func(t: Type) returns Str` (where `t` is a runtime Type VALUE
-        // never used to type anything, e.g. til_type_name_c) is NOT a
-        // generic and must be left untouched.
-        for p : Declaration in fd.sig.params {
-            if generic_param_is_type(p, symbols).not() { continue }
-            tname := p.name
-            // Directly (`v: T`, `returns T`), or as a SEGMENT of a
-            // generated instance name: the parser mangles an annotation
-            // `v: Vec(T)` to `Vec__T` before any expansion runs, and
-            // init_subst_ident_name already rewrites that segment to the
-            // concrete argument. Recognising it here is what makes such a
-            // function a template at all -- without it `Vec__T` was just
-            // an undefined type and `T` an unused parameter.
-            if type_name_mentions_param(fd.sig.return_type, tname) { return true }
-            for q : Declaration in fd.sig.params {
-                if type_name_mentions_param(decl_type_name_ref(q, symbols), tname) { return true }
-            }
-        }
-        return false
-    case:
-        return false
+    case .FuncDef(fd): return function_has_generic_params(fd, symbols)
+    case: return false
     }
+}
+
+function_has_generic_params := func(fd: FunctionDef, symbols: SymbolPool) returns Bool {
+    gok := fd.sig.func_type.is_plain()
+    if gok.not() { return false }
+    // A `P: Type` param is a generic TYPE-PARAMETER only if its name
+    // is actually USED as a type elsewhere in the signature -- as
+    // another param's declared type, or as the return type. A plain
+    // `func(t: Type) returns Str` (where `t` is a runtime Type VALUE
+    // never used to type anything, e.g. til_type_name_c) is NOT a
+    // generic and must be left untouched.
+    for p : Declaration in fd.sig.params {
+        if generic_param_is_type(p, symbols).not() { continue }
+        tname := p.name
+        // Directly (`v: T`, `returns T`), or as a SEGMENT of a
+        // generated instance name: the parser mangles an annotation
+        // `v: Vec(T)` to `Vec__T` before any expansion runs, and
+        // init_subst_ident_name already rewrites that segment to the
+        // concrete argument. Recognising it here is what makes such a
+        // function a template at all -- without it `Vec__T` was just
+        // an undefined type and `T` an unused parameter.
+        if type_name_mentions_param(fd.sig.return_type, tname) { return true }
+        for q : Declaration in fd.sig.params {
+            if type_name_mentions_param(decl_type_name_ref(q, symbols), tname) { return true }
+        }
+    }
+    return false
 }
 
 // #434: the interfaces a struct or enum declares with `implements A, B`, as
@@ -1627,6 +1654,15 @@ Context := struct {
     // (mirrors type_gen_synths): the first unit to need `assert_eq__I64`
     // emits the concrete decl; later units only rewrite their calls to it.
     generic_funcs := Map(Str, Expr).new()
+    // Type-analysis effects only, keyed by the live FunctionDef's address.
+    // A missing entry means no known escape/global-ref-result effect. Populated by the
+    // same monotone pass as return/deposit summaries; never read by evaluation.
+    global_borrow_escapes := Map(UPtr, RootBits).new()
+    // Source globals are not bound until their declarations are typed. The
+    // pre-typing effect pass still needs their names and declared/constructor
+    // types, without making forward value references visible to the language.
+    global_escape_names := Set(Str).new()
+    global_escape_types := Map(Str, Type).new()
     generic_func_synths := Set(Str).new()
     // Emitted monomorphization names parallel generic_func_synths' path-keyed
     // dedup registry. Binding generation needs to distinguish these internal

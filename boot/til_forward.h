@@ -273,6 +273,7 @@ typedef struct Vec__Bool Vec__Bool;
 typedef struct EvalHeap EvalHeap;
 typedef struct Vec__I64 Vec__I64;
 typedef struct Vec__U64 Vec__U64;
+typedef struct RootBits RootBits;
 typedef struct BorrowRoot BorrowRoot;
 typedef struct TypeBinding TypeBinding;
 typedef struct ScopeFind ScopeFind;
@@ -318,6 +319,8 @@ typedef struct Option__ComptimePreparation Option__ComptimePreparation;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
 typedef struct Option__Scope Option__Scope;
 typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
+typedef struct Map__UPtr_RootBits Map__UPtr_RootBits;
+typedef struct Map__Str_Type Map__Str_Type;
 typedef struct Map__Str_StructLayout Map__Str_StructLayout;
 typedef struct Set__U32 Set__U32;
 typedef struct Map__Str_I64 Map__Str_I64;
@@ -336,6 +339,8 @@ typedef struct Vec__ForeignPlace Vec__ForeignPlace;
 typedef struct Vec__Mode Vec__Mode;
 typedef struct Vec__FuncType Vec__FuncType;
 typedef struct Vec__ImportUnit Vec__ImportUnit;
+typedef struct Vec__RootBits Vec__RootBits;
+typedef struct Vec__Type Vec__Type;
 typedef struct Vec__StructLayout Vec__StructLayout;
 typedef struct Option__ref_Mode Option__ref_Mode;
 typedef struct GenericSources GenericSources;
@@ -367,7 +372,6 @@ typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__Cto
 typedef struct priv___src_self_typer_til__ComptimeFunction priv___src_self_typer_til__ComptimeFunction;
 typedef struct priv___src_self_typer_til__ReturnEscapeRoots priv___src_self_typer_til__ReturnEscapeRoots;
 typedef struct FactIndex FactIndex;
-typedef struct RootBits RootBits;
 typedef struct DepositAcc DepositAcc;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
 typedef struct Vec__priv___src_self_typer_til__CtorArg Vec__priv___src_self_typer_til__CtorArg;
@@ -376,7 +380,6 @@ typedef struct Set__UPtr Set__UPtr;
 typedef struct Option__ref_Scope Option__ref_Scope;
 typedef struct Map__Str_RootBits Map__Str_RootBits;
 typedef struct Vec__priv___src_self_typer_til__CoverageNode Vec__priv___src_self_typer_til__CoverageNode;
-typedef struct Vec__RootBits Vec__RootBits;
 typedef struct PendingRefBinding PendingRefBinding;
 typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds priv___src_self_desugarer_til__StmtDesugarNeeds;
 typedef struct Vec__I32 Vec__I32;
@@ -450,10 +453,8 @@ typedef struct priv___src_self_codegen_fasm_codegen_til__FasmProgram priv___src_
 typedef struct priv___src_self_codegen_fasm_codegen_til__FasmState priv___src_self_codegen_fasm_codegen_til__FasmState;
 typedef struct Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
 typedef struct Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
-typedef struct Map__Str_Type Map__Str_Type;
 typedef struct Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
 typedef struct Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
-typedef struct Vec__Type Vec__Type;
 typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState priv___src_self_codegen_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCLocalState priv___src_self_codegen_holyc_codegen_til__HolyCLocalState;
 typedef struct Map__Str_call_Map_Str_Bool Map__Str_call_Map_Str_Bool;
@@ -913,6 +914,14 @@ typedef struct Vec__U64 {
 } Vec__U64;
 
 
+typedef struct RootBits {
+    U64 alias;
+    U64 into;
+    U64 carried;
+    Bool global_storage;
+} RootBits;
+
+
 typedef struct BorrowRoot {
     Str name;
     Str path;
@@ -1150,6 +1159,20 @@ typedef struct Vec__ImportUnit {
 } Vec__ImportUnit;
 
 
+typedef struct Vec__RootBits {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__RootBits;
+
+
+typedef struct Vec__Type {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__Type;
+
+
 typedef struct Vec__StructLayout {
     TIL_OWN_PTR(U8) data;
     USize count;
@@ -1200,18 +1223,14 @@ typedef struct priv___src_self_typer_til__ReturnEscapeRoots {
 } priv___src_self_typer_til__ReturnEscapeRoots;
 
 
-typedef struct RootBits {
-    U64 alias;
-    U64 into;
-    U64 carried;
-} RootBits;
-
-
 typedef struct DepositAcc {
     U64 m;
     U64 borrowed;
     U64 retained;
     U64 retain_mask;
+    RootBits global;
+    Vec__Str locals;
+    Set__Str global_aliases;
 } DepositAcc;
 
 
@@ -1240,18 +1259,17 @@ struct Option__ref_Scope {
     Scope *data;
 };
 
+typedef struct Map__Str_RootBits {
+    Vec__Str keys;
+    Vec__RootBits values;
+} Map__Str_RootBits;
+
+
 typedef struct Vec__priv___src_self_typer_til__CoverageNode {
     TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
 } Vec__priv___src_self_typer_til__CoverageNode;
-
-
-typedef struct Vec__RootBits {
-    TIL_OWN_PTR(U8) data;
-    USize count;
-    USize cap;
-} Vec__RootBits;
 
 
 typedef struct PendingRefBinding {
@@ -1647,13 +1665,6 @@ typedef struct Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal {
     USize count;
     USize cap;
 } Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
-
-
-typedef struct Vec__Type {
-    TIL_OWN_PTR(U8) data;
-    USize count;
-    USize cap;
-} Vec__Type;
 
 
 typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCLocalState {
@@ -2263,6 +2274,18 @@ typedef struct Map__Str_ImportUnit {
 } Map__Str_ImportUnit;
 
 
+typedef struct Map__UPtr_RootBits {
+    Vec__UPtr keys;
+    Vec__RootBits values;
+} Map__UPtr_RootBits;
+
+
+typedef struct Map__Str_Type {
+    Vec__Str keys;
+    Vec__Type values;
+} Map__Str_Type;
+
+
 typedef struct Map__Str_StructLayout {
     Vec__Str keys;
     Vec__StructLayout values;
@@ -2286,12 +2309,6 @@ typedef struct priv___src_self_typer_til__CoverageNode {
     Vec__Str sub_names;
     Vec__priv___src_self_typer_til__CoverageNode sub_nodes;
 } priv___src_self_typer_til__CoverageNode;
-
-
-typedef struct Map__Str_RootBits {
-    Vec__Str keys;
-    Vec__RootBits values;
-} Map__Str_RootBits;
 
 
 typedef struct priv___src_self_garbager_til__ReferenceNameChange {
@@ -2326,6 +2343,29 @@ typedef struct Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding {
 } Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 
 
+typedef struct priv___src_self_codegen_fasm_codegen_til__FasmState {
+    priv___src_self_codegen_fasm_codegen_til__FasmProgram *program;
+    Str text;
+    USize slots;
+    USize labels;
+    Map__Str_Str values;
+    Map__Str_Type value_types;
+    Set__Str addresses;
+    Set__Str pointers;
+    Set__Str boxes;
+    Set__Str no_free;
+    Set__Str references;
+    Set__Str parameters;
+    Type return_type;
+    Bool return_ref;
+    Str data;
+    Str prefix;
+    USize literals;
+    Str break_label;
+    Str continue_label;
+} priv___src_self_codegen_fasm_codegen_til__FasmState;
+
+
 typedef struct Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition {
     Vec__Str keys;
     Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition values;
@@ -2336,12 +2376,6 @@ typedef struct Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal {
     Vec__Str keys;
     Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal values;
 } Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
-
-
-typedef struct Map__Str_Type {
-    Vec__Str keys;
-    Vec__Type values;
-} Map__Str_Type;
 
 
 typedef struct Map__Str_call_Map_Str_Bool {
@@ -2524,6 +2558,9 @@ typedef struct Context {
     Bool infer_struct_fields_only;
     Set__Str type_gen_synths;
     Map__Str_Expr generic_funcs;
+    Map__UPtr_RootBits global_borrow_escapes;
+    Set__Str global_escape_names;
+    Map__Str_Type global_escape_types;
     Set__Str generic_func_synths;
     Set__Str generic_func_synth_names;
     Map__Str_Expr generic_type_deps;
@@ -2661,29 +2698,6 @@ typedef struct priv___src_self_codegen_fasm_codegen_til__FasmProgram {
     Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal globals;
     Str global_data;
 } priv___src_self_codegen_fasm_codegen_til__FasmProgram;
-
-
-typedef struct priv___src_self_codegen_fasm_codegen_til__FasmState {
-    priv___src_self_codegen_fasm_codegen_til__FasmProgram *program;
-    Str text;
-    USize slots;
-    USize labels;
-    Map__Str_Str values;
-    Map__Str_Type value_types;
-    Set__Str addresses;
-    Set__Str pointers;
-    Set__Str boxes;
-    Set__Str no_free;
-    Set__Str references;
-    Set__Str parameters;
-    Type return_type;
-    Bool return_ref;
-    Str data;
-    Str prefix;
-    USize literals;
-    Str break_label;
-    Str continue_label;
-} priv___src_self_codegen_fasm_codegen_til__FasmState;
 
 
 typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState {

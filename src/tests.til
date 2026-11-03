@@ -2936,12 +2936,12 @@ main := proc(args: ..Str) returns I64 {
     add_count(tests, "capture_global_field_escape_error_build", "typer",
         "borrows captured local", 1,
         format(til_bin, " build", asan_flag, " test/capture_global_field_escape_error.til"))
-    // #54: a callee that STORES a parameter globally must own it.
+    // #54: retaining a closure must not outlive its borrowed captures.
     add_count(tests, "capture_callee_escape_error_interp", "typer",
-        "is stored where it outlives this call", 1,
+        "cannot store a borrow of local 'local' in global storage", 1,
         format(til_bin, " interpret test/capture_callee_escape_error.til"))
     add_count(tests, "capture_callee_escape_error_build", "typer",
-        "is stored where it outlives this call", 1,
+        "cannot store a borrow of local 'local' in global storage", 1,
         format(til_bin, " build", asan_flag, " test/capture_callee_escape_error.til"))
     add_count(tests, "capture_own_arg_escape_error_interp", "typer",
         "own argument closure borrows captured local", 1,
@@ -2955,12 +2955,15 @@ main := proc(args: ..Str) returns I64 {
     add_count(tests, "capture_mut_escape_error_build", "typer",
         "returned closure borrows captured local", 1,
         format(til_bin, " build", asan_flag, " test/capture_mut_escape_error.til"))
-    add_count(tests, "reference_rebinding_escape_interp", "typer",
-        "source does not outlive the reference binding", 1,
-        format(til_bin, " interpret test/reference_rebinding_escape_error.til"))
-    add_count(tests, "reference_rebinding_escape_build", "typer",
-        "source does not outlive the reference binding", 1,
-        format(til_bin, " build", asan_flag, " test/reference_rebinding_escape_error.til"))
+    global_escape_checks := array(CountCheck,
+        CountCheck(needle = "source does not outlive the reference binding", expected_count = 1),
+        CountCheck(needle = "cannot store a borrow of local", expected_count = 10),
+        CountCheck(needle = "cannot store a borrow of a temporary in global storage", expected_count = 1),
+        CountCheck(needle = "12 type error(s) found", expected_count = 1))
+    add_counts(tests, "reference_rebinding_escape_interp", "typer",
+        format(til_bin, " interpret test/reference_rebinding_escape_error.til"), ..global_escape_checks)
+    add_counts(tests, "reference_rebinding_escape_build", "typer",
+        format(til_bin, " build", asan_flag, " test/reference_rebinding_escape_error.til"), ..global_escape_checks)
     add_count(tests, "reference_rebinding_readonly_interp", "typer",
         "'source' is an immutable binding", 1,
         format(til_bin, " interpret test/reference_rebinding_readonly_error.til"))

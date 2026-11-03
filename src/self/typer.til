@@ -1938,6 +1938,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
         }
         // Record deposits after coercion: an interface box may introduce a
         // concrete borrow, or own a temporary and carry no such borrow.
+        check_global_escape_call(scope, e, fdef_data, ctx)
         if fdef_data.deposit_matrix != 0 {
             for dsink in 0..DEPOSIT_PARAMS {
                 for dsrc in 0..DEPOSIT_PARAMS {
@@ -5747,6 +5748,18 @@ priv fdef_deposits_param := func(fdef: FunctionDef, name: Str) returns Bool {
     panic("missing function parameter: ", name)
 }
 
+priv fdef_global_borrows_param := func(fdef: FunctionDef, name: Str, ctx: Context) returns Bool {
+    key := word_bits(to_ptr(fdef)).to_uptr()
+    if ctx.global_borrow_escapes.has(key).not() { return false }
+    ref effect : RootBits = ctx.global_borrow_escapes[key]
+    for pi in 0..fdef.sig.params.len() {
+        if fdef.sig.params[pi].name == name {
+            return effect.alias.bor(effect.into).band(summary_param_bit(pi)) != 0
+        }
+    }
+    panic("missing global-borrow parameter: ", name)
+}
+
 priv fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeScope, symbols: SymbolPool) returns Bool {
     if fdef.sig.return_own_type.is(OwnType.Ref) { return true }
     if fdef.sig.return_type.len() == 0 { return false }
@@ -5879,83 +5892,8 @@ priv closure_lvalue_root_sym := func(e: Expr) returns Sym {
     return 0
 }
 
-// #54: does this function body STORE the parameter named `pname` somewhere
-// that outlives the call -- a global, or a global's field? Whole-program
-// compilation makes the callee visible, so the escape is decidable here with
-// no annotation on the signature. `root` is the callee's own root scope; a
-// name it does not know is not a global of ours.
-priv body_stores_param_globally := func(e: Expr, pname: Str, root: TypeScope, mut locals: Vec(Str), depth: I32, symbols: SymbolPool) returns Bool {
-    if depth > 128 { return false }
-    switch e.node_type {
-    case .FuncDef: return false          // nested def: its own params
-    case .Body:
-        // A Decl shadows from the next statement to the end of its block.
-        mark := locals.len()
-        for c : Expr in e.children {
-            if body_stores_param_globally(c, pname, root, locals, depth + 1, symbols) {
-                locals.truncate(mark)
-                return true
-            }
-            switch c.node_type {
-            case .Decl(cd): locals.push(own cd.name.clone())
-            case:
-            }
-        }
-        locals.truncate(mark)
-        return false
-    case .Assign(sad):
-        if assign_target_is_global(sad.name, locals, root, symbols).and(e.children.len().gt(0)) {
-            switch e.children[0].node_type {
-            case .Ident(sid):
-                if sid.ident_name(symbols.names) == pname { return true }
-            case:
-            }
-        }
-    case .FieldAssign:
-        if e.children.len() > 1 {
-            froot := closure_lvalue_root_sym(e.children[0])
-            if (froot != 0).and(assign_target_is_global(symbols.resolve(froot), locals, root, symbols)) {
-                switch e.children[1].node_type {
-                case .Ident(fid):
-                    if fid.ident_name(symbols.names) == pname { return true }
-                case:
-                }
-            }
-        }
-    case:
-    }
-    for c : Expr in e.children {
-        if body_stores_param_globally(c, pname, root, locals, depth + 1, symbols) { return true }
-    }
-    return false
-}
-
-// #54: a function that STORES a parameter somewhere outliving the call must
-// own it. Storing a BORROWED parameter globally keeps a reference the caller
-// still owns and destroys: for a closure argument the caller emits
-// `drop(env); free(til_closure)` right after the call, so the global is left
-// pointing at freed memory (ASAN: heap-use-after-free). Declaring the
-// parameter `own` transfers it instead, and the caller stops freeing --
-// verified: the same program runs correctly with `own f`. Checked on the
-// DEFINITION, so it holds no matter who calls it.
-priv check_param_stored_globally := proc(fdef: Expr, func_scope: TypeScope, mut ctx: Context) {
-    if fdef.children.len() == 0 { return }
-    ref pfd : FunctionDef = funcdef_of(fdef)
-    if pfd.sig.variadic_index >= 0 { return }
-    ref pbody : Expr = fdef.children[0]
-    ref proot : TypeScope = scope_root_ref(func_scope)
-    for pp : Declaration in pfd.sig.params {
-        if pp.own_type.is(OwnType.Ref).not() { continue }
-        if pp.name.len() == 0 { continue }
-        mut locals := Vec(Str).new()
-        push_param_names(fdef, locals)
-        if body_stores_param_globally(pbody, pp.name, proot, locals, 0, ctx.symbols).not() { continue }
-        fdef.type_error(format("parameter '", pp.name,
-            "' is stored where it outlives this call, but it is only borrowed; ",
-            "declare it 'own ", pp.name, "' so the caller transfers ownership ",
-            "instead of destroying it after the call"), ctx)
-    }
-}
+// Global stores use parameter-relative borrow effects checked at call sites.
+// Owning the stored carrier is not proof that its borrowed referents survive.
 
 priv check_returned_borrowed_closure_captures_in := proc(e: Expr, func_scope: TypeScope, root: TypeScope, mut locals: Vec(Str), mut ctx: Context) {
     switch e.node_type {
@@ -6206,7 +6144,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         in_main_def := top_func_name.eq("main").and(scope.parent.is_none())
         for i in 0..fdef.sig.params.len() {
             ref mut param : Declaration = fdef.sig.params[i]
-            if param.auto_shallow.and(fdef_deposits_param(fdef, param.name)) {
+            if param.auto_shallow.and(fdef_deposits_param(fdef, param.name).or(fdef_global_borrows_param(fdef, param.name, ctx))) {
                 param.own_type = OwnType.Ref
                 param.auto_shallow = false
             }
@@ -6305,7 +6243,8 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
                 // hand a param back by reference (e.g. min(a, b) returns ref I64),
                 // so its params must stay borrowed pointers -- skip auto-shallow
                 // there.
-                if auto_shallow_ok.and(fdef_return_carries_borrow(fdef, scope, ctx.symbols).or(fdef_deposits_param(fdef, param.name)).not()).and(param.own_type.is(OwnType.Ref)).and(pmut.not()).and(is_auto_shallow_type(pt, ptn, scope, ctx)) {
+                if auto_shallow_ok.and(fdef_return_carries_borrow(fdef, scope, ctx.symbols).or(fdef_deposits_param(fdef, param.name))
+                    .or(fdef_global_borrows_param(fdef, param.name, ctx)).not()).and(param.own_type.is(OwnType.Ref)).and(pmut.not()).and(is_auto_shallow_type(pt, ptn, scope, ctx)) {
                     param.own_type = OwnType.Shallow
                     param.auto_shallow = true
                 }
@@ -6427,7 +6366,6 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             update_ref_return_summary(expr, ctx.scope, func_scope.active_type_name(), ctx)
             check_ref_function_returns(func_scope, expr, ctx)
             check_returned_borrowed_closure_captures(func_scope, expr, ctx)
-            check_param_stored_globally(expr, func_scope, ctx)
             check_all_paths_return(expr, ctx)
             check_unused_params(func_scope, expr, ctx)
             check_unused_mut_params(func_scope, expr, ctx.path, ctx)
@@ -7281,7 +7219,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
     // #393: a borrow-carrying value assigned into a field parks its
     // borrows in the base binding's storage -- the direct-assign form of
     // the deposit a call performs through its pairs.
-    if type_carries_borrow_t(scope, rhs.til_type(), ctx.symbols) {
+    if stmt.fa_own_type(scope, ctx.symbols).is(OwnType.Ref).or(type_carries_borrow_t(scope, rhs.til_type(), ctx.symbols)) {
         field_borrow := stmt.fa_own_type(scope, ctx.symbols).is(OwnType.Ref)
         apply_call_deposit(scope, obj, rhs, stmt, field_borrow, field_borrow, ctx)
     }
@@ -9966,6 +9904,9 @@ priv comptime_check_storage_domains := func(function: Expr, mut prep: ComptimePr
 eval_generator_condition := proc(mut condition: Expr, mut scope: TypeScope, mut ctx: Context) returns I32 {
     saved_throw_types := ctx.throw_type_registry.clone()
     saved_throws := ctx.throws_global.clone()
+    saved_global_escapes := ctx.global_borrow_escapes.clone()
+    saved_global_names := ctx.global_escape_names.clone()
+    saved_global_types := ctx.global_escape_types.clone()
     saved_owner := ctx.synth_owner.clone()
     saved_hoist := ctx.hoist_counter
     saved_va := ctx.va_counter
@@ -10032,6 +9973,11 @@ eval_generator_condition := proc(mut condition: Expr, mut scope: TypeScope, mut 
     ctx.bang_counter = saved_bang
     ctx.throw_type_registry = saved_throw_types
     ctx.throws_global = saved_throws
+    // Prepared definitions are about to die. Do not retain address-keyed
+    // effects for those temporary clones in the surrounding source analysis.
+    ctx.global_borrow_escapes = saved_global_escapes
+    ctx.global_escape_names = saved_global_names
+    ctx.global_escape_types = saved_global_types
     mut finished_preparation := Option(ComptimePreparation).None
     swap(Option(ComptimePreparation), ctx.comptime_preparation, finished_preparation)
     swap(Option(ComptimePreparation), ctx.comptime_preparation, saved_preparation)
@@ -10476,6 +10422,9 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
             if db_o.is_some() {
                 ref mut db : TypeBinding = db_o.unwrap()
                 if binding_is_storage(scope, db, ctx.symbols) {
+                    if root_is_global(scope, borrow_root_of_binding(db), ctx.symbols) {
+                        check_interface_deposit_lifetimes(scope, db, deposited_393, stmt, ctx)
+                    }
                     if type_is_interface(rhs.til_type(), scope, ctx.symbols) {
                         check_interface_deposit_lifetimes(scope, db, deposited_393, stmt, ctx)
                     }
@@ -11983,6 +11932,47 @@ priv report_local_return_roots := proc(scope: TypeScope, stmt: Expr, tn: Str, ro
     }
 }
 
+priv report_global_escape_roots := proc(scope: TypeScope, site: Expr, roots: Vec(BorrowRoot), mut reported: Set(Str), mut ctx: Context) {
+    for root : BorrowRoot in roots {
+        if reported.has(root.name) { continue }
+        binding := lookup_binding_at(scope, root, ctx.symbols)
+        if binding.is_none() { continue }
+        ref owner : TypeBinding = binding.unwrap()
+        // Borrowed parameters/native sources are checked at their typed call
+        // sites. An owned parameter, however, dies with this invocation.
+        if owner.own_type.is(OwnType.Ref).or(owner.is_alias).or(owner.is_builtin) { continue }
+        if owner.is_param.and(owner.own_type.is(OwnType.Own).not()) { continue }
+        if owner.type.is(Type.Dynamic) { continue }
+        if root_is_global(scope, root, ctx.symbols) { continue }
+        site.type_error(format("cannot store a borrow of local '", owner.name,
+            "' in global storage: its owner dies with this call; owning or cloning the carrier does not own its referents"), ctx)
+        reported.add(own root.name.clone())
+    }
+}
+
+priv check_global_escape_call := proc(scope: TypeScope, e: Expr, fd: FunctionDef, mut ctx: Context) {
+    key := word_bits(to_ptr(fd)).to_uptr()
+    if ctx.global_borrow_escapes.has(key).not() { return }
+    effect := ctx.global_borrow_escapes[key].clone()
+    mut reported := Set(Str).new()
+    for pi in 0..fd.sig.params.len() {
+        bit := summary_param_bit(pi)
+        if effect.all().band(bit) == 0 { continue }
+        arg := summary_fcall_arg_for_param(e, fd, pi, scope, ctx.symbols)
+        if arg.is_none() { continue }
+        if effect.alias.bor(effect.into).band(bit) != 0 {
+            roots := expr_borrow_roots(scope, arg.unwrap(), ctx.symbols)
+            if roots.len() == 0 && arg.unwrap().til_type().is(Type.Dynamic).not() {
+                e.type_error("cannot store a borrow of a temporary in global storage", ctx)
+            }
+            report_global_escape_roots(scope, e, roots, reported, ctx)
+        }
+        if effect.carried.band(bit) != 0 {
+            report_global_escape_roots(scope, e, deposit_src_roots(scope, arg.unwrap(), ctx.symbols), reported, ctx)
+        }
+    }
+}
+
 priv check_carried_borrow_of_local_return := proc(scope: TypeScope, stmt: Expr, raw_ref_return: Bool, mut ctx: Context) {
     ref ret_val : Expr = stmt.children[0]
     mut tn := ""
@@ -12787,11 +12777,9 @@ fcall_arg_for_param := func(fcall: Expr, pi: USize, scope: TypeScope, symbols: S
 }
 
 priv summary_fcall_arg_for_param := func(fcall: Expr, cfd: FunctionDef, pi: USize, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
-    mut has_type_param := false
-    for p : Declaration in cfd.sig.params {
-        if generic_param_is_type(p, symbols) { has_type_param = true }
-    }
-    if has_type_param.not().or(generic_call_is_explicit(scope, fcall, cfd, symbols)) {
+    // Runtime Type-valued operands are real argument positions, not omitted
+    // generic type arguments. Use init's actual generic classification rule.
+    if function_has_generic_params(cfd, symbols).not().or(generic_call_is_explicit(scope, fcall, cfd, symbols)) {
         return fcall_arg_for_param(fcall, pi, scope, symbols)
     }
     if pi >= cfd.sig.params.len() { return Option(ref Expr).None }
@@ -13611,7 +13599,8 @@ priv apply_call_deposit := proc(scope: TypeScope, sink: Expr, src: Expr, site: E
         }
     }
     if deposited.len() == 0 { return }
-    if type_is_interface(src.til_type(), scope, ctx.symbols).or(retains_source)
+    if root_is_global(scope, borrow_root_of_binding(b), ctx.symbols)
+        .or(type_is_interface(src.til_type(), scope, ctx.symbols)).or(retains_source)
         .or(aggregate_borrows_type(scope, sink.til_type(), "", ctx))
         .or(aggregate_borrows_type(scope, b.type, "", ctx)) {
         check_interface_deposit_lifetimes(scope, b, deposited, site, ctx)
@@ -13629,25 +13618,8 @@ priv apply_call_deposit := proc(scope: TypeScope, sink: Expr, src: Expr, site: E
 // reaches. alias: the value IS (part of) the parameter's storage. into:
 // the value carries a pointer INTO the parameter's storage. carried: the
 // value carries pointers to what the parameter itself carries.
-RootBits := struct {
-    alias : U64 = 0
-    into : U64 = 0
-    carried : U64 = 0
-namespace:
-    eq := func(a: RootBits, b: RootBits) returns Bool {
-        return a.alias.eq(b.alias).and(a.into == b.into).and(a.carried == b.carried)
-    }
-    to_str := func(_self: RootBits) returns Str { return "RootBits" }
-    bor := func(self: RootBits, other: RootBits) returns RootBits {
-        return RootBits(alias = self.alias.bor(other.alias),
-            into = self.into.bor(other.into),
-            carried = self.carried.bor(other.carried))
-    }
-    all := func(self: RootBits) returns U64 {
-        return self.alias.bor(self.into).bor(self.carried)
-    }
-    is_zero := func(self: RootBits) returns Bool { return self.all() == 0 }
-}
+// RootBits lives in context.til so Context's sparse global effects use the
+// same three relations without adding fields to the AST's widest payload.
 
 // #354: reduce a value's roots to the storages IT CARRIES: keep roots
 // already marked carried, and for a directly-rooted binding chase what
@@ -13790,6 +13762,8 @@ priv summary_receiver_type := func(recv: Expr, scope: TypeScope, self_type: Str,
         for p : Declaration in params {
             if p.name == rn { return summary_base_type_name(decl_type_name_ref(p, symbols)) }
         }
+        binding := scope.get_binding_name(rn, symbols)
+        if binding.is_some() { return summary_base_type_name(type_name_ref(binding.unwrap().type, symbols)) }
     case .FieldAccess(fad):
         if recv.children.len() == 0 { return "" }
         base := summary_receiver_type(recv.children[0], scope, self_type, params, symbols)
@@ -14005,6 +13979,13 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
     case .FCall:
         // #432: an interface clone is a deep copy; it reaches nothing.
         if fcall_is_interface_clone(e, scope, symbols) { return RootBits() }
+        // Missing generated methods are materialized during body typing. Their
+        // clone contract is already known before then, unlike a custom clone.
+        generated_clone := summary_generated_clone_arg(e, scope, self_type, params, symbols)
+        if generated_clone.is_some() {
+            source := summary_expr_bits(generated_clone.unwrap(), roots, scope, self_type, params, symbols, ctx)
+            return RootBits(into = source.into, carried = source.alias.bor(source.carried))
+        }
         rso := raw_borrow_source(e, symbols)
         if rso.is_some() { return summary_expr_bits(rso.unwrap(), roots, scope, self_type, params, symbols, ctx) }
         mut enum_arg_o := enum_ref_payload_ctor_arg(e, scope, symbols)
@@ -14095,6 +14076,33 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
     return RootBits()
 }
 
+priv summary_generated_clone_arg := func(e: Expr, scope: TypeScope, self_type: Str, params: Vec(Declaration), symbols: SymbolPool) returns Option(ref Expr) {
+    if rhs_is_clone_fcall(e, symbols).not() { return Option(ref Expr).None }
+    ref callee : Expr = e.children[0]
+    if callee.children.len() == 0 { return Option(ref Expr).None }
+    mut owner := ""
+    mut arg := safe_ref(callee.children[0])
+    if fa_is_ns(callee, scope, symbols) {
+        if e.children.len() < 2 { return Option(ref Expr).None }
+        arg = safe_ref(e.children[1])
+        switch callee.children[0].node_type {
+        case .Ident(id): owner = id.ident_name(symbols.names).clone()
+        case: return Option(ref Expr).None
+        }
+    } else {
+        owner = summary_receiver_type(callee.children[0], scope, self_type, params, symbols)
+    }
+    def := scope.get_struct(owner, symbols)
+    if def.is_none() { return Option(ref Expr).None }
+    if name_is_interface(owner, scope, symbols) { return Option(ref Expr).None }
+    if type_carries_borrow(scope, owner, symbols).not() { return Option(ref Expr).None }
+    clone := find_namespace_func(def.unwrap(), "clone", scope, symbols)
+    if clone.is_some() {
+        if funcdef_of(clone.unwrap()).auto_generated.not() { return Option(ref Expr).None }
+    }
+    return arg
+}
+
 // --- #393: parameter-pair deposit summaries -----------------------------
 
 // Bit (sink * 8 + src) of a deposit matrix. Eight parameters is the cap
@@ -14140,6 +14148,9 @@ DepositAcc := struct {
     // Candidates worth tracking (summary_retain_candidates); with none,
     // the walk skips the per-call retained work entirely.
     retain_mask : U64 = 0
+    global := RootBits()
+    locals := Vec(Str).new()
+    global_aliases := Set(Str).new()
 namespace:
     eq := func(a: DepositAcc, b: DepositAcc) returns Bool { return a.m.eq(b.m).and(a.borrowed == b.borrowed).and(a.retained == b.retained) }
     to_str := func(self: DepositAcc) returns Str { return self.m.to_str() }
@@ -14232,7 +14243,7 @@ priv summary_note_deposit_target := func(target: Expr, src_bits: RootBits, mut r
 // arguments -- which is what carries Vec.push's pair up through Map.set.
 priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: DepositAcc, scope: TypeScope, self_type: Str, params: Vec(Declaration), receivers: Vec(Declaration), symbols: SymbolPool, ctx: Context) {
     if e.node_type.is(NodeType.FCall).not() { return }
-    if e.children.len() < 2 { return }
+    if e.children.len() == 0 { return }
     switch e.children[0].node_type {
     case .Ident(hid):
         ref hn : Str = hid.ident_name(symbols.names)
@@ -14250,7 +14261,7 @@ priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut 
         }
         if dest_i > 0 {
             if e.children.len() < dest_i + 2 { return }
-            sink_bits := summary_expr_bits(e.children[dest_i], roots, scope, self_type, params, symbols, ctx)
+            sink_bits := summary_effect_sink_bits(e.children[dest_i], roots, scope, self_type, receivers, symbols, ctx)
             mut src_bits := summary_expr_bits(e.children[dest_i + 1], roots, scope, self_type, params, symbols, ctx)
             if hn.eq("memcpy").or(hn == "memmove").or(hn == "adopt_from") {
                 // Copying ref-qualified element slots retains the referents,
@@ -14267,17 +14278,29 @@ priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut 
             }
             acc.m = acc.m.bor(deposit_cross(sink_bits.all(), src_bits.all()))
             if is_raw_ptr_store_name(hn) { acc.borrowed = acc.borrowed.bor(deposit_cross(sink_bits.all(), src_bits.alias)) }
+            // Typed adopt transfers a managed value. Raw byte/pointer stores
+            // remain the explicit erased boundary (whose escape handling owns
+            // that responsibility), not proof of a managed global borrow.
+            if hn.eq("adopt").or(hn.starts_with("adopt__")) {
+                if summary_target_expr_global(e.children[dest_i], acc, scope, self_type, receivers, ctx) {
+                    acc.global = acc.global.bor(RootBits(into = src_bits.into, carried = src_bits.alias.bor(src_bits.carried)))
+                }
+            }
             summary_note_deposit_target(e.children[dest_i], src_bits, roots, scope, self_type, receivers, symbols)
             return
         }
     case:
     }
-    mut fd_o := fcall_callee_fdef(e, scope, symbols)
-    if fd_o.is_none() { fd_o = summary_self_method(e, scope, self_type, params, symbols) }
-    if fd_o.is_none() { fd_o = summary_param_method(e, scope, params, symbols) }
+    fd_o := summary_effect_callee(e, scope, self_type, receivers, symbols, ctx)
     if fd_o.is_none() { return }
     switch fd_o.unwrap().node_type {
     case .FuncDef(cfd):
+        key := word_bits(to_ptr(cfd)).to_uptr()
+        if ctx.global_borrow_escapes.has(key) {
+            mapped := summary_global_call_bits(e, cfd, ctx.global_borrow_escapes[key], roots,
+                scope, self_type, params, symbols, ctx)
+            acc.global = acc.global.bor(mapped)
+        }
         if cfd.deposit_matrix == 0 { return }
         for dsink in 0..DEPOSIT_PARAMS {
             for dsrc in 0..DEPOSIT_PARAMS {
@@ -14286,11 +14309,18 @@ priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut 
                 if sink_arg_o.is_none() { continue }
                 src_arg_o := summary_fcall_arg_for_param(e, cfd, dsrc, scope, symbols)
                 if src_arg_o.is_none() { continue }
-                sink_bits := summary_expr_bits(sink_arg_o.unwrap(), roots, scope, self_type, params, symbols, ctx)
+                sink_bits := summary_effect_sink_bits(sink_arg_o.unwrap(), roots, scope, self_type, receivers, symbols, ctx)
                 src_bits := summary_expr_bits(src_arg_o.unwrap(), roots, scope, self_type, params, symbols, ctx)
                 acc.m = acc.m.bor(deposit_cross(sink_bits.all(), src_bits.all()))
                 if cfd.deposit_borrow_matrix.band(deposit_bit(dsink, dsrc)) != 0 {
                     acc.borrowed = acc.borrowed.bor(deposit_cross(sink_bits.all(), src_bits.alias))
+                }
+                if summary_target_expr_global(sink_arg_o.unwrap(), acc, scope, self_type, receivers, ctx) {
+                    if cfd.deposit_borrow_matrix.band(deposit_bit(dsink, dsrc)) != 0 {
+                        acc.global = acc.global.bor(summary_ctor_wrap(src_bits))
+                    } else {
+                        acc.global = acc.global.bor(RootBits(into = src_bits.into, carried = src_bits.alias.bor(src_bits.carried)))
+                    }
                 }
                 summary_note_deposit_target(sink_arg_o.unwrap(), src_bits, roots, scope, self_type, receivers, symbols)
             }
@@ -14330,14 +14360,211 @@ priv summary_fieldassign_targets_ref := func(e: Expr, scope: TypeScope, self_typ
     }
 }
 
+// Writing a local owned carrier does not write the owners it merely borrows.
+// Follow parameter storage, ref aliases and explicit pointer/ref accessors,
+// rather than treating every carried root as a possible deposit destination.
+priv summary_name_sink_bits := func(name: Str, roots: Map(Str, RootBits), receivers: Vec(Declaration)) returns RootBits {
+    for decl : Declaration in receivers {
+        if decl.name != name { continue }
+        if decl.own_type.is(OwnType.Ref).and(roots.has(name)) { return roots[name].clone() }
+        return RootBits()
+    }
+    return RootBits()
+}
+
+priv summary_effect_sink_bits := func(target: Expr, roots: Map(Str, RootBits), scope: TypeScope, self_type: Str,
+    receivers: Vec(Declaration), symbols: SymbolPool, ctx: Context) returns RootBits {
+    switch target.node_type {
+    case .Ident(id):
+        return summary_name_sink_bits(id.ident_name(symbols.names), roots, receivers)
+    case .FieldAccess:
+        if summary_global_ref_field(target, scope, self_type, receivers, symbols, ctx) {
+            return summary_expr_bits(target, roots, scope, self_type, receivers, symbols, ctx)
+        }
+        if target.children.len() > 0 {
+            return summary_effect_sink_bits(target.children[0], roots, scope, self_type, receivers, symbols, ctx)
+        }
+    case .FCall:
+        raw := raw_borrow_source(target, symbols)
+        if raw.is_some() { return summary_effect_sink_bits(raw.unwrap(), roots, scope, self_type, receivers, symbols, ctx) }
+        fd := summary_effect_callee(target, scope, self_type, receivers, symbols, ctx)
+        if fd.is_some() {
+            if funcdef_of(fd.unwrap()).sig.return_own_type.is(OwnType.Ref) {
+                return summary_expr_bits(target, roots, scope, self_type, receivers, symbols, ctx)
+            }
+        }
+    case:
+    }
+    return RootBits()
+}
+
+// Effects need global/local receiver declarations before expression typing,
+// just as parameter deposits already use declared receiver types.
+priv summary_effect_callee := func(e: Expr, scope: TypeScope, self_type: Str, receivers: Vec(Declaration), symbols: SymbolPool, ctx: Context) returns Option(ref Expr) {
+    mut fd := fcall_callee_fdef(e, scope, symbols)
+    if fd.is_none() { fd = summary_self_method(e, scope, self_type, receivers, symbols) }
+    if fd.is_none() { fd = summary_param_method(e, scope, receivers, symbols) }
+    if fd.is_some() { return fd }
+    if e.children.len() == 0 { return fd }
+    ref callee : Expr = e.children[0]
+    if callee.node_type.is(NodeType.FieldAccess).not().or(callee.children.len() == 0) { return fd }
+    mut owner := summary_receiver_type(callee.children[0], scope, self_type, receivers, symbols)
+    if owner.len() == 0 { owner = summary_source_global_type(callee.children[0], ctx) }
+    def := scope.get_struct(owner, symbols)
+    if def.is_none() { return fd }
+    switch callee.node_type {
+    case .FieldAccess(method): return find_namespace_func(def.unwrap(), method.field_access_name(symbols.names), scope, symbols)
+    case: return fd
+    }
+}
+
+priv summary_target_is_global := func(name: Str, locals: Vec(Str), aliases: Set(Str), scope: TypeScope, ctx: Context) returns Bool {
+    if aliases.has(name) { return true }
+    for local : Str in locals { if local == name { return false } }
+    return ctx.global_escape_names.has(name).or(scope_root_ref(scope).has_local_binding_name(name, ctx.symbols))
+}
+
+// A ref accessor can name global storage without spelling the global at the
+// store site. Retain that origin through getter wrappers and local ref aliases.
+priv summary_target_expr_global := func(e: Expr, acc: DepositAcc, scope: TypeScope, self_type: Str,
+    receivers: Vec(Declaration), ctx: Context) returns Bool {
+    switch e.node_type {
+    case .Ident(id): return summary_target_is_global(id.ident_name(ctx.symbols.names), acc.locals, acc.global_aliases, scope, ctx)
+    case .FieldAccess:
+        if e.children.len() > 0 { return summary_target_expr_global(e.children[0], acc, scope, self_type, receivers, ctx) }
+    case:
+    }
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    // A raw pointer value read from a global slot need not point at global
+    // storage (scope_new's pooled pointer is one example). Pointer erasure
+    // does not establish a managed global origin.
+    if raw_borrow_source(e, ctx.symbols).is_some() { return false }
+    fd_o := summary_effect_callee(e, scope, self_type, receivers, ctx.symbols, ctx)
+    if fd_o.is_none() { return false }
+    ref fd : FunctionDef = funcdef_of(fd_o.unwrap())
+    if fd.sig.return_own_type.is(OwnType.Ref).not() { return false }
+    key := word_bits(to_ptr(fd)).to_uptr()
+    if ctx.global_borrow_escapes.has(key) {
+        if ctx.global_borrow_escapes[key].global_storage { return true }
+    }
+    for pi in 0..fd.sig.params.len() {
+        if fd.ref_return_params.bor(fd.ref_return_into_params).band(summary_param_bit(pi)) == 0 { continue }
+        arg := summary_fcall_arg_for_param(e, fd, pi, scope, ctx.symbols)
+        if arg.is_some() {
+            if summary_target_expr_global(arg.unwrap(), acc, scope, self_type, receivers, ctx) { return true }
+        }
+    }
+    return false
+}
+
+priv summary_source_global_type := func(e: Expr, ctx: Context) returns Str {
+    switch e.node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name(ctx.symbols.names)
+        if ctx.global_escape_types.has(name) { return type_to_name(ctx.global_escape_types[name], ctx.symbols) }
+    case:
+    }
+    return ""
+}
+
+priv summary_global_call_bits := func(e: Expr, fd: FunctionDef, effect: RootBits, roots: Map(Str, RootBits),
+    scope: TypeScope, self_type: Str, params: Vec(Declaration), symbols: SymbolPool, ctx: Context) returns RootBits {
+    mut bits := RootBits()
+    for pi in 0..fd.sig.params.len() {
+        bit := summary_param_bit(pi)
+        if effect.all().band(bit) == 0 { continue }
+        arg := summary_fcall_arg_for_param(e, fd, pi, scope, symbols)
+        if arg.is_none() { continue }
+        source := summary_expr_bits(arg.unwrap(), roots, scope, self_type, params, symbols, ctx)
+        if effect.alias.band(bit) != 0 { bits = bits.bor(source) }
+        if effect.into.band(bit) != 0 { bits = bits.bor(summary_ctor_wrap(source)) }
+        if effect.carried.band(bit) != 0 {
+            bits = bits.bor(RootBits(into = source.into, carried = source.alias.bor(source.carried)))
+        }
+    }
+    return bits
+}
+
+priv summary_global_candidate := func(e: Expr, scope: TypeScope, self_type: Str, params: Vec(Declaration), ctx: Context) returns Bool {
+    switch e.node_type {
+    case .FuncDef: return false
+    case .Assign(ad):
+        if ctx.global_escape_names.has(ad.name).or(scope_root_ref(scope).has_local_binding_name(ad.name, ctx.symbols)) { return true }
+    case .FieldAssign:
+        root := summary_deposit_base_name(e.children[0], ctx.symbols)
+        if ctx.global_escape_names.has(root).or(scope_root_ref(scope).has_local_binding_name(root, ctx.symbols)) { return true }
+    case .Decl(d):
+        if d.own_type.is(OwnType.Ref).and(e.children.len() > 0) {
+            root := summary_deposit_base_name(e.children[0], ctx.symbols)
+            if ctx.global_escape_names.has(root).or(scope_root_ref(scope).has_local_binding_name(root, ctx.symbols)) { return true }
+        }
+    case .FCall:
+        fd := summary_effect_callee(e, scope, self_type, params, ctx.symbols, ctx)
+        if fd.is_some() {
+            key := word_bits(to_ptr(funcdef_of(fd.unwrap()))).to_uptr()
+            if ctx.global_borrow_escapes.has(key) { return true }
+            if funcdef_of(fd.unwrap()).deposit_matrix != 0 {
+                for i in 1..e.children.len() {
+                    root := summary_deposit_base_name(e.children[i], ctx.symbols)
+                    if ctx.global_escape_names.has(root).or(scope_root_ref(scope).has_local_binding_name(root, ctx.symbols)) { return true }
+                }
+            }
+        }
+    case:
+    }
+    for child : Expr in e.children { if summary_global_candidate(child, scope, self_type, params, ctx) { return true } }
+    return false
+}
+
+priv summary_global_ref_field := func(e: Expr, scope: TypeScope, self_type: Str, receivers: Vec(Declaration), symbols: SymbolPool, ctx: Context) returns Bool {
+    if e.fa_own_type(scope, symbols).is(OwnType.Ref) { return true }
+    mut owner := summary_receiver_type(e.children[0], scope, self_type, receivers, symbols)
+    if owner.len() == 0 { owner = summary_source_global_type(e.children[0], ctx) }
+    if owner.len() == 0 && e.children[0].node_type.is(NodeType.FCall) {
+        fd := summary_effect_callee(e.children[0], scope, self_type, receivers, symbols, ctx)
+        if fd.is_some() { owner = funcdef_of(fd.unwrap()).sig.return_type.clone() }
+    }
+    def := scope.get_struct(owner, symbols)
+    if def.is_none() { return false }
+    switch def.unwrap().node_type {
+    case .StructDef(sd):
+        switch e.node_type {
+        case .FieldAssign(fa):
+            field := member_get(sd.fields_index, sd.fields, fa.name)
+            if field.is_some() { return field.unwrap().own_type.is(OwnType.Ref) }
+        case .FieldAccess(fa):
+            field := member_get(sd.fields_index, sd.fields, fa.field_access_name(symbols.names))
+            if field.is_some() { return field.unwrap().own_type.is(OwnType.Ref) }
+        case:
+        }
+    case:
+    }
+    return false
+}
+
 // Walk one body, collecting the parameter bits every `return` can hand
 // back. Nested FuncDefs are skipped: their returns belong to them.
 priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: DepositAcc, scope: TypeScope, self_type: Str, params: Vec(Declaration), receivers: Vec(Declaration), symbols: SymbolPool, ctx: Context) returns RootBits {
     switch e.node_type {
     case .FuncDef:
         return RootBits()
+    case .Body:
+        mark := acc.locals.len()
+        saved_aliases := acc.global_aliases.clone()
+        mut bits := RootBits()
+        for child : Expr in e.children {
+            bits = bits.bor(summary_walk(child, roots, acc, scope, self_type, params, receivers, symbols, ctx))
+            switch child.node_type {
+            case .Decl(d): acc.locals.push(own d.name.clone())
+            case:
+            }
+        }
+        acc.locals.truncate(mark)
+        acc.global_aliases = saved_aliases
+        return bits
     case .Return:
         if e.children.len() == 0 { return RootBits() }
+        if summary_target_expr_global(e.children[0], acc, scope, self_type, receivers, ctx) { acc.global.global_storage = true }
         summary_fcall_deposits(e.children[0], roots, acc, scope, self_type, params, receivers, symbols, ctx)
         summary_note_retained(e.children[0], roots, acc, scope, self_type, params, symbols, ctx)
         return summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)
@@ -14349,6 +14576,9 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         // same pointers, so parking a borrow in a local and returning it
         // no longer drops the provenance on the floor.
         if e.children.len() > 0 {
+            global_alias := d.own_type.is(OwnType.Ref).and(summary_target_expr_global(e.children[0], acc, scope, self_type, receivers, ctx))
+            acc.global_aliases.remove(d.name)
+            if global_alias { acc.global_aliases.add(own d.name.clone()) }
             summary_fcall_deposits(e.children[0], roots, acc, scope, self_type, params, receivers, symbols, ctx)
             summary_note_retained(e.children[0], roots, acc, scope, self_type, params, symbols, ctx)
             if d.own_type.is(OwnType.Ref) {
@@ -14392,9 +14622,13 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         // target; a parameter target is a deposit the caller can observe.
         if e.children.len() > 0 {
             src_bits := summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)
+            if summary_target_is_global(ad.name, acc.locals, acc.global_aliases, scope, ctx) {
+                // Assignment/clone owns the carrier, not its borrowed contents.
+                acc.global = acc.global.bor(RootBits(into = src_bits.into, carried = src_bits.alias.bor(src_bits.carried)))
+            }
             if src_bits.is_zero().not() {
                 if roots.has(ad.name) {
-                    sink := roots[ad.name].clone()
+                    sink := summary_name_sink_bits(ad.name, roots, receivers)
                     acc.m = acc.m.bor(deposit_cross(sink.all(), src_bits.all()))
                 }
                 summary_note_local_deposit(ad.name, src_bits, roots)
@@ -14410,7 +14644,14 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
                 if acc.retain_mask.neq(0).and(summary_fieldassign_targets_ref(e, scope, self_type, receivers, symbols)) {
                     acc.retained = acc.retained.bor(summary_ctor_wrap(src_bits).into)
                 }
-                sink_bits := summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)
+                sink_bits := summary_effect_sink_bits(e.children[0], roots, scope, self_type, receivers, symbols, ctx)
+                if summary_target_expr_global(e.children[0], acc, scope, self_type, receivers, ctx) {
+                    if summary_global_ref_field(e, scope, self_type, receivers, symbols, ctx) {
+                        acc.global = acc.global.bor(summary_ctor_wrap(src_bits))
+                    } else {
+                        acc.global = acc.global.bor(RootBits(into = src_bits.into, carried = src_bits.alias.bor(src_bits.carried)))
+                    }
+                }
                 acc.m = acc.m.bor(deposit_cross(sink_bits.all(), src_bits.all()))
                 summary_note_local_deposit(summary_deposit_base_name(e.children[0], symbols), src_bits, roots)
             }
@@ -14450,6 +14691,7 @@ priv summary_receiver_declarations := func(body: Expr, params: Vec(Declaration),
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref d : Declaration = decl_of(stmt)
         mut name := decl_type_name(d, symbols)
+        if name.is_empty() { name = decl_annotation_name_ref(d, symbols).clone() }
         if name.is_empty().and(stmt.children.len() > 0) {
             ref rhs : Expr = stmt.children[0]
             if rhs.node_type.is(NodeType.FCall) {
@@ -14471,7 +14713,7 @@ priv summary_receiver_declarations := func(body: Expr, params: Vec(Declaration),
         if definition_o.unwrap().node_type.is(NodeType.StructDef).not() { continue }
         if structdef_of(definition_o.unwrap()).fields.len() == 0 { continue }
         if summary_decl_count(body, d.name) != 1 { continue }
-        declarations.push(own Declaration(name = d.name.clone(), til_type = Type.Custom(name)))
+        declarations.push(own Declaration(name = d.name.clone(), til_type = Type.Custom(name), own_type = d.own_type))
     }
     return declarations
 }
@@ -14532,7 +14774,7 @@ priv update_retained_params := func(mut fd_expr: Expr, scope: TypeScope, self_ty
 // OR this function's freshly computed summary into the recorded one.
 // Monotone by construction, so the fixed point below terminates; the
 // return value is its progress signal.
-priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self_type: Str, ctx: Context) returns Bool {
+priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self_type: Str, mut ctx: Context) returns Bool {
     switch fd_expr.node_type {
     case .FuncDef(fd):
         if fd_expr.children.len() == 0 {
@@ -14595,7 +14837,8 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
         // a second parameter to come from; anything else cannot move a
         // borrow across the call boundary.
         wants_dep := fdef_may_deposit(fd)
-        if wants_ret.or(wants_dep).not() { return false }
+        wants_global := summary_global_candidate(fd_expr.children[0], scope, self_type, fd.sig.params, ctx)
+        if wants_ret.or(wants_dep).or(wants_global).not() { return false }
         mut roots := Map(Str, RootBits).new()
         for pi in 0..fd.sig.params.len() {
             ref p : Declaration = fd.sig.params[pi]
@@ -14603,9 +14846,48 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
             roots.set(p.name, own RootBits(alias = summary_param_bit(pi)))
         }
         mut acc := DepositAcc()
+        for p : Declaration in fd.sig.params { acc.locals.push(own p.name.clone()) }
         receiver_declarations := summary_receiver_declarations(fd_expr.children[0], fd.sig.params, scope, ctx.symbols)
-        rb := summary_walk(fd_expr.children[0], roots, acc, scope, self_type, fd.sig.params, receiver_declarations, ctx.symbols, ctx)
+        mut rb := summary_walk(fd_expr.children[0], roots, acc, scope, self_type, fd.sig.params, receiver_declarations, ctx.symbols, ctx)
+        // Generated clones copy their owner's borrowed contents, never borrow
+        // the source carrier's own storage. Their tag-only case patterns use
+        // raw payload loads that cannot establish that distinction by syntax.
+        mut generated_copy := false
+        if fd.auto_generated.and(self_type.len() > 0) {
+            owner := scope.get_struct(self_type, ctx.symbols)
+            if owner.is_some() {
+                clone := find_namespace_func(owner.unwrap(), "clone", scope, ctx.symbols)
+                if clone.is_some() { generated_copy = clone.unwrap().ptr_eq(fd_expr) }
+            }
+        }
+        if generated_copy { rb = RootBits(carried = summary_param_bit(0)) }
         mut changed := false
+        if fd.sig.return_own_type.is(OwnType.Ref) {
+            rt := type_from_name_init_name(fd.sig.return_type, scope, ctx.symbols)
+            acc.global.global_storage = acc.global.global_storage.and(type_is_null_quarantine(rt).not())
+        } else { acc.global.global_storage = false }
+        if acc.global.is_zero().not().and(init_func_is_generic(fd_expr, ctx.symbols).not()) {
+            mut carrying : U64 = 0
+            mut managed : U64 = 0
+            for pi in 0..fd.sig.params.len() {
+                declared := decl_type_name(fd.sig.params[pi], ctx.symbols)
+                if declared != "Dynamic" { managed = managed.bor(summary_param_bit(pi)) }
+                if type_carries_borrow(scope, declared, ctx.symbols) {
+                    carrying = carrying.bor(summary_param_bit(pi))
+                }
+            }
+            acc.global.carried = acc.global.carried.band(carrying)
+            acc.global.alias = acc.global.alias.band(managed)
+            acc.global.into = acc.global.into.band(managed)
+            key := word_bits(to_ptr(fd)).to_uptr()
+            mut prior := RootBits()
+            if ctx.global_borrow_escapes.has(key) { prior = ctx.global_borrow_escapes[key] }
+            merged := prior.bor(acc.global)
+            if merged != prior {
+                ctx.global_borrow_escapes.set(key, own merged.clone())
+                changed = true
+            }
+        }
         // Deposits describe writes visible to the caller. A readonly input
         // cannot become a destination merely because a local result carries
         // references originally copied from it.
@@ -14626,9 +14908,10 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
             changed = true
         }
         if wants_ret {
-            merged_a := fd.ref_return_params.bor(rb.alias)
-            merged_i := fd.ref_return_into_params.bor(rb.into)
+            mut merged_a := fd.ref_return_params.bor(rb.alias)
+            mut merged_i := fd.ref_return_into_params.bor(rb.into)
             merged_c := fd.ref_return_carried_params.bor(rb.carried)
+            if generated_copy { merged_a = 0; merged_i = 0 }
             if merged_a.neq(fd.ref_return_params).or(merged_i != fd.ref_return_into_params).or(merged_c != fd.ref_return_carried_params) {
                 fd.ref_return_params = merged_a
                 fd.ref_return_into_params = merged_i
@@ -14647,7 +14930,7 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
 // they need their own descent; a FuncDef is never descended into, because
 // init_declarations_unit hoists nested definitions to file scope and
 // typer_lift_lambdas has already lifted the anonymous ones.
-priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, retained_pass: Bool, ctx: Context) returns Bool {
+priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, retained_pass: Bool, mut ctx: Context) returns Bool {
     mut changed := false
     switch e.node_type {
     case .FuncDef:
@@ -14690,9 +14973,40 @@ priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, 
 // lattice (bits are only ever ORed in, 64 per function, finitely many
 // functions), so a round that reports a change has set at least one bit
 // that can never be unset -- `changed` is the termination proof.
-// Instantiated generics need no separate pass -- their FunctionDef is
-// cloned from the template, summary included.
-priv compute_ref_return_summaries := func(mut program: Expr, scope: TypeScope, ctx: Context) {
+// Instantiated generics also run this pass before their bodies are typed;
+// their concrete global effects live on Context, not on the template AST.
+priv compute_ref_return_summaries := func(mut program: Expr, scope: TypeScope, mut ctx: Context) {
+    for stmt : Expr in program.children {
+        if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len() == 0) { continue }
+        ref decl : Declaration = decl_of(stmt)
+        ref rhs : Expr = stmt.children[0]
+        if rhs.node_type.is(NodeType.FuncDef) { continue }
+        ctx.global_escape_names.add(own decl.name.clone())
+        mut name := decl_type_name(decl, ctx.symbols)
+        if name.len() == 0 { name = decl_annotation_name_ref(decl, ctx.symbols).clone() }
+        if name.len() == 0 {
+            switch rhs.node_type {
+            case .FCall:
+                fd := fcall_callee_fdef(rhs, scope, ctx.symbols)
+                if fd.is_some() { name = funcdef_of(fd.unwrap()).sig.return_type.clone() }
+                else {
+                    switch rhs.children[0].node_type {
+                    case .Ident(id): name = id.ident_name(ctx.symbols.names).clone()
+                    case:
+                    }
+                }
+            case .FieldAccess:
+                if rhs.children.len() > 0 {
+                    switch rhs.children[0].node_type {
+                    case .Ident(id): name = id.ident_name(ctx.symbols.names).clone()
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+        if name.len() > 0 { ctx.global_escape_types.set(decl.name, own decl_type_from_name(name, ctx.symbols)) }
+    }
     mut changed := true
     while changed {
         changed = summarize_unit_walk(program, scope, "", false, ctx)

@@ -67,6 +67,73 @@ test_own_carrier_keeps_borrowed_referent := test() {
     assert(caught && values[0] == 43)
 }
 
+GlobalSafeRef := enum { None, Some: ref I64 }
+global_safe_owner := vec(I64, 41)
+mut global_safe_saved := GlobalSafeRef.None
+mut global_safe_holder := RefOwnedCarrier(value = global_safe_owner.unsafe_get(0))
+mut global_safe_many: Vec(GlobalSafeRef) = Vec(GlobalSafeRef).new()
+store_safe_clone := proc(value: GlobalSafeRef) { noop_proc(); global_safe_saved = value.clone() }
+store_safe_owned := proc(own value: GlobalSafeRef) { noop_proc(); global_safe_saved = value }
+store_safe_number := proc(value: I64) { noop_proc(); global_safe_holder.value = value }
+global_safe_target := func() returns ref RefOwnedCarrier { return global_safe_holder }
+store_safe_getter := proc(value: GlobalSafeRef) {
+    ref mut target: RefOwnedCarrier = global_safe_target()
+    noop_proc()
+    switch value {
+    case .Some(n): target.value = n
+    case:
+    }
+}
+forward_safe := proc(value: GlobalSafeRef) { store_safe_clone(value) }
+append_safe := proc(own value: GlobalSafeRef) { noop_proc(); global_safe_many.push(own value) }
+forward_safe_generic := proc<T: Type>(value: T) { forward_safe(value) }
+forward_safe_runtime_type := proc(kind: Type, value: GlobalSafeRef) {
+    assert(kind.is(Type.Primitive))
+    forward_safe(value)
+}
+
+test_global_retention_uses_referent_owner := test() {
+    local_carrier := GlobalSafeRef.Some(global_safe_owner.unsafe_get(0))
+    store_safe_owned(own local_carrier)
+    forward_safe_generic(GlobalSafeRef)(GlobalSafeRef.Some(global_safe_owner.unsafe_get(0)))
+    forward_safe_runtime_type(I64, GlobalSafeRef.Some(global_safe_owner.unsafe_get(0)))
+    append_safe(own GlobalSafeRef.Some(global_safe_owner.unsafe_get(0)))
+    store_safe_number(global_safe_owner.unsafe_get(0))
+    store_safe_getter(GlobalSafeRef.Some(global_safe_owner.unsafe_get(0)))
+    switch global_safe_saved {
+    case .Some(value): assert(value == 41)
+    case: panic("global borrow was lost")
+    }
+    ref value: I64 = global_safe_holder.value
+    assert(ptr_eq(value, global_safe_owner.unsafe_get(0)) && value == 41)
+    assert(global_safe_many.len() == 1)
+    global_safe_many.clear()
+}
+
+test_local_shadow_is_not_a_global_escape := test() {
+    local_owner := vec(I64, 99)
+    mut global_safe_saved := GlobalSafeRef.None
+    global_safe_saved = GlobalSafeRef.Some(local_owner.unsafe_get(0))
+    switch global_safe_saved {
+    case .Some(value): assert(value == 99)
+    case: panic("local borrow was lost")
+    }
+}
+
+SafeGlobalThunk := func() returns I64
+safe_global_zero := func() returns I64 { return 0 }
+mut safe_global_function: SafeGlobalThunk = safe_global_zero
+stash_safe_function := func(f: SafeGlobalThunk) { safe_global_function = f }
+send_owned_capture := func(n: I64) {
+    stash_safe_function(func() returns I64 [own n] { return n })
+}
+
+test_retained_closure_owns_its_capture := test() {
+    send_owned_capture(42)
+    assert(safe_global_function() == 42)
+    safe_global_function = safe_global_zero
+}
+
 RefPoint := struct {
     x := 0
     y := 0

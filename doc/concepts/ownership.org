@@ -101,6 +101,30 @@ retained references. The callback boundary does not enforce a separate
 VM-address whitelist or perform borrowed-mutation copy-back. Details are in
 [[../ffi.org][FFI: retained guest callbacks and mutable native configuration records]].
 
+*** Global retention follows the referent's owner
+
+Copying or moving a reference-bearing enum, record or closure into a global
+does not extend the lifetime of what it borrows. A helper can own its carrier
+and still retain a dangling reference to a caller's local. The typer checks
+the actual source owners at typed call sites, following global-retention
+effects through helpers, generic instances, namespace members and container
+deposits. It also checks direct stores of local borrows into global storage.
+
+For example, a helper storing ~value.clone()~ in a global may accept a carrier
+that borrows a global owner, but rejects a carrier borrowing a local Vec that
+dies with its caller. ~own value~ does not change that decision. A closure with
+an owned capture is likewise valid; cloning a borrowed capture of a local is
+not. A local that shadows a global name is still local storage.
+
+This is shared compiler analysis for compiled Til, interpret and the REPL,
+not a VM runtime check. Native/erased boundaries still require their callers
+to uphold referent lifetimes. The compiler's effects are temporary analysis
+data, kept separate from the AST node payload and cleared with their Context.
+
+Regressions: ~test/reference_rebinding_escape_error.til~,
+~test/capture_callee_escape_error.til~, the global-retention cases in
+~test/ref.til~, and ~test/repl_ownership.til~.
+
 ** Destruction by context and qualifier
 
 Read this together with qualifiers.org's identical four-context split. "Who

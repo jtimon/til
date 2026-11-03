@@ -1,15 +1,9 @@
 mode test
 
-// Negative test (issue #54): a function that STORES a parameter somewhere
-// outliving the call must OWN it. Storing a borrowed parameter globally keeps
-// a reference the caller still owns and destroys -- for a closure argument the
-// caller emits `drop(env); free(til_closure)` right after the call, leaving
-// the global pointing at freed memory (ASAN: heap-use-after-free; it
-// segfaulted before this was rejected, even with a `shallow` capture, which
-// is what the other escape diagnostics recommend).
-//
-// The fix the message names does work: with `own f` the caller transfers
-// ownership and stops freeing, and the stored closure stays valid.
+// Negative test (issue #54): globally retaining a closure must not outlive
+// its captured referents. Cloning or owning the closure is not ownership of
+// a borrowed capture. Check the actual caller's local, not just whether the
+// callee owns its closure parameter; an owned capture would be valid here.
 
 Thunk := func() returns I64
 zero := func() returns I64 { return 0 }

@@ -272,6 +272,13 @@ promise that the incomplete language escape analysis catches every dangling
 reference. Ordinary use-after-free is invalid in every execution path; neither
 pointer compression nor owning a reference-bearing carrier makes it valid.
 
+The common typer checks known global-retention effects at typed call sites:
+cloning or moving a carrier through a helper cannot retain a borrow of a local
+whose owner dies with the call. Long-lived global owners and owned captures
+remain valid. Native/erased callback invocation does not provide the typer
+with a host referent's lifetime, so that boundary keeps the caller-owned
+lifetime contract above rather than introducing a separate runtime policy.
+
 ~vm.shared_i64() returns ref I64~ exposes one shared scalar per VM, initially
 zero and allocated lazily. Repeated calls return the same storage. The host
 reference borrows its VM; it cannot escape a local VM, survive deletion or
