@@ -3370,7 +3370,11 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         // bounds check alone, #444) splices to a bare conditional
         // expression; clang's -Wunused-value flags that where gcc stays
         // quiet, and the macos cross corpus builds with clang -Werror.
-        if builder_stmt_is_inline_checked_get(e, ctx) { f.write("(void)") }
+        // A cast evaluated only for its range check (`value.cast(U8)` as a
+        // statement, test/holyc_cast_invalid.til) is the same shape: a
+        // float source emits a GNU statement expression whose last
+        // expression is the cast value (#212).
+        if builder_stmt_is_inline_checked_get(e, ctx).or(builder_stmt_is_cast(e, ctx)) { f.write("(void)") }
         emit_expr(f, e, depth, ctx); f.write(";\n")
     case .Return:
         emit_stmt_return(f, e, depth, ctx)
@@ -14153,6 +14157,17 @@ priv builder_splice_hoisted_temps := proc(mut body: Expr, symbols: SymbolPool) {
 
 // The statement emitter's view of the gate above: does this direct method
 // call splice to emit_inline_checked_get's conditional expression?
+// The statement emitter's view of the expression emitter's `cast` branch:
+// a direct call of the cast builtin, whatever its source and target.
+priv builder_stmt_is_cast := func(e: Expr, ctx: Context) returns Bool {
+    if e.node_type.is(NodeType.FCall).not() { return false }
+    if fcall_is_direct(e).not() { return false }
+    switch e.children[0].node_type {
+    case .Ident(id): return id.ident_name(ctx.symbols.names).eq("cast")
+    case: return false
+    }
+}
+
 priv builder_stmt_is_inline_checked_get := func(e: Expr, ctx: Context) returns Bool {
     if fcall_is_direct(e).not() { return false }
     ref callee : Expr = e.children[0]

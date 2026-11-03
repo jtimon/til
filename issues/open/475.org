@@ -1,0 +1,74 @@
+# priority: medium
+# category: cleanups
+** OPEN #475 CI: fold the small macOS jobs into the native mac job of their architecture
+
+*** Problem
+
+Every push asks for five macOS runners:
+
+| runner           | job                                          | work           |
+|------------------+----------------------------------------------+----------------|
+| macos-latest     | macos-arm64 (native)                         | about 40 min   |
+| macos-latest     | macos host (cross-build for windows + linux) | about 5 min    |
+| macos-latest     | macos-arm64 (run cross binary on mac)        | under 1 min    |
+| macos-15-intel   | macos-x64 (native)                           | about 25 min   |
+| macos-15-intel   | macos-x64 (run cross binary on mac)          | under 1 min    |
+
+GitHub runs only a few macOS jobs of an account at once (believed to be
+5 across Intel and Apple Silicon on the free plan; not verified for this
+repository). A burst of pushes therefore queues: six master pushes
+between 14:30 and 15:05 on 2026-11-03 queued 18 macos-latest jobs, jobs
+waited up to two hours for a runner, and GitHub cancelled the rest with
+no runner assigned and no steps run. Runs 2920, 2921, 2924 and 2925 went
+red with every job that ran green, and some commits (e9c9d59, 17bbf26)
+never got the arm64 mac jobs at all.
+
+Cancelling superseded master runs (a workflow concurrency group) removes
+the queue but gives a full run only to the last commit of a burst; it
+was merged and reverted (20de38e) for that reason. Per-commit runs stay.
+
+*** Plan
+
+Run the small mac jobs as extra steps inside the native job of the same
+architecture, so each push needs two macOS runners instead of five and
+every step that runs today still runs, on the same kind of machine:
+
+- ~macos-arm64~ (native) gains the steps of ~macos-host-cross-build~
+  (brew cross toolchains, cross-build hello_script for windows-x64 and
+  linux-x64, the linux-x64 std/crypto program, upload) and of
+  ~macos-arm64-cross-run~ (download and run the linux-cross-built arm64
+  binaries, libffi and til interpreter checks).
+- ~macos-x64~ (native) gains the steps of ~macos-x64-cross-run~.
+- ~macos-host-cross-win-run~ and ~macos-host-cross-linux-run~ change
+  their ~needs:~ from ~macos-host-cross-build~ to ~macos-arm64~.
+- Both native jobs ~need:~ ~macos-cross-build~ (the linux job that
+  produces the cross binaries).
+
+*** Costs
+
+- The native mac jobs start only after ~macos (cross-compile on linux)~,
+  about 10 minutes later, and the arm64 one runs about 6 minutes longer:
+  mac results arrive roughly 15 minutes later than today.
+- A failing folded step turns the native job red; the job name no longer
+  names the folded check (the failing step's name in the log does).
+  Consider ordering the folded steps so a native-suite failure does not
+  hide them, e.g. ~if: always()~ on the cross steps.
+- A large enough burst still queues, at two mac runners per push instead
+  of five, so GitHub can still cancel a starved job.
+
+*** Acceptance
+
+- [ ] Each push requests at most one macos-latest and one macos-15-intel
+  runner.
+- [ ] Every step of the five current mac jobs still runs on the same
+  runner type, with the same commands and checks.
+- [ ] The two downstream jobs (run the mac-built .exe on windows, run the
+  mac-built ELF on linux) still run and pass.
+- [ ] A CI run is green, and a deliberate failure in a folded cross step
+  turns the run red.
+
+*** Related
+
+- [[./473.org][#473]] adds per-host cross builds of every target; its extra
+  mac work lands in these same two jobs and should follow this layout.
+- [[./472.org][#472]] owns the deterministic compilation those builds check.
