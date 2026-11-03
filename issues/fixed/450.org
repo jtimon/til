@@ -1,6 +1,31 @@
 # priority: high
 # category: bugs
-** OPEN #450 A struct field named like a global function shadows it inside the struct's methods
+** FIXED #450 A struct field named like a global function shadows it inside the struct's methods
+
+*** Post-mortem
+
+  Root cause: ~infer_type_def_expr~ (~src/self/typer.til~) bound a
+  struct's fields, via ~type_struct_fields~, in the same ~inner~ scope it
+  then typed the namespace methods in, so a bare ~format~ inside a method
+  resolved to the field. The garbager's ~garbager_walk_type_def~ mirrors
+  that scope and had the same layout, so once the typer was fixed it still
+  resolved ~format~ to the field there: the call's variadic array was not
+  seen as transferred and was deleted again (a double free in C, a moved
+  binding in the interpreter).
+
+  Fix: both now bind the fields in their own child scope of the type
+  scope. Field defaults are still inferred there (they see earlier fields
+  exactly as before); the namespace constants and method bodies are
+  typed / walked in the type scope, which has no field bindings. Fields
+  are reached only through a value (~self.format~).
+
+  The related observation -- a plain value next to a function of the same
+  name (~foo := 0~ beside a global ~foo~) calls the function -- is
+  unchanged: ~TypeScope.any_func_def~ still keeps the not-callable
+  diagnostic out of that case, and its comment now names that case only.
+
+  Regression test: ~test/bug450.til~ (fields named ~format~, ~len~ and
+  ~println~; methods calling the globals; the generated ~to_str~).
 
 ~infer_type_def_expr~ binds a struct's FIELDS as bare names in the very
 scope its namespace methods are typed in. A field named ~format~ (or
