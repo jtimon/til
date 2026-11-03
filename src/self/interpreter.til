@@ -7458,7 +7458,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
         if lp.ctx.imported[lp.path].prelude_import.len() == 0 {
             if ffi_init_link_libs(lp.link_flags_for_target(), lp.ctx) != 0 { return 1 }
         } else {
-            root_dir := compiler_root_of(lp.ext_c_path)
+            root_dir := lp.ctx.import_support_dir.clone()
             for unit : ProgramUnit in lp.units {
                 ref iu : ImportUnit = lp.ctx.imported[unit.path]
                 mut link_root := root_dir.clone()
@@ -7491,8 +7491,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
         ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags_for_target(), lp.ctx)
         if ffi_rc.eq(0).not() { return ffi_rc }
     }
-    runtime_ext_path := realpath_str(lp.ext_c_path)
-    runtime_src_prefix := format(compiler_root_of(runtime_ext_path), "/src/")
+    runtime_src_prefix := compiler_src_prefix(lp.ctx)
     // Layouts can refer to types in sibling units, including cyclic imports.
     // Register the complete aggregate inventory before preparing any CIF.
     for upath : Str in lp.unit_paths() {

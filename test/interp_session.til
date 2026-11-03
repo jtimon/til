@@ -50,7 +50,7 @@ collected_text := func(result: InterpRunResult, stream: InterpOutputStream) retu
 run_guest := proc(root: Str, cwd: Str, name: Str, source: Str) returns InterpRunResult {
     path := format("tmp/interp_session_", name, ".til")
     File.writefile(path, source)
-    mut lp := load_program(path, root, cwd, format(root, "/src/self/codegen/ext.c"), Vec(Str).new(), "", true)
+    mut lp := load_program(path, root, cwd, Vec(Str).new(), "", true)
     assert(lp.load_errors == 0)
     assert(init_and_type_program_errors(lp, false) == 0)
     mut raw : Dynamic = interp_program_to_heap(own lp)
@@ -97,7 +97,7 @@ main := proc() {
     assert(runtime_tokens.len() > 0 && runtime_diagnostics.len() == 1)
     assert(runtime_diagnostics[0].render() == "runtime.til:1:1: error: unterminated string")
     File.writefile("tmp/interp_session_type_error.til", "mode lib\nvalue: I64 = \"wrong\"\n")
-    mut bad := load_program("tmp/interp_session_type_error.til", root, cwd, format(root, "/src/self/codegen/ext.c"), Vec(Str).new())
+    mut bad := load_program("tmp/interp_session_type_error.til", root, cwd, Vec(Str).new())
     bad.ctx.collect_diagnostics = true
     assert(type_program_errors(bad, false) > 0)
     assert(bad.ctx.diagnostics.len() > 0)

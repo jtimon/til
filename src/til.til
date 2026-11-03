@@ -363,7 +363,7 @@ repl_ast_updates_doc_cache := func(e: Expr, symbols: SymbolPool) returns Bool {
     return false
 }
 
-repl_refresh_user_doc_cache := proc(mode_str: Str, accum: Str, tmp_path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec(Str), mut user_info_cache: Str, mut user_docs_cache: Str) {
+repl_refresh_user_doc_cache := proc(mode_str: Str, accum: Str, tmp_path: Str, bin_dir: Str, cwd: Str, extra_modes: Vec(Str), mut user_info_cache: Str, mut user_docs_cache: Str) {
     if accum.len() == 0 {
         user_info_cache = ""
         user_docs_cache = ""
@@ -378,7 +378,7 @@ repl_refresh_user_doc_cache := proc(mode_str: Str, accum: Str, tmp_path: Str, bi
     combined = combined.format(accum)
     File.writefile(tmp_path, combined)
 
-    mut doc_lp := load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes, cwd)
+    mut doc_lp := load_program(tmp_path, bin_dir, cwd, extra_modes, cwd)
     // accum holds only turns that already loaded, so a failure here means an
     // imported file moved or was edited mid-session. help() loses the user's
     // own symbols for this turn rather than the session losing everything.
@@ -413,7 +413,6 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
 
     bin_dir := get_bin_dir()
     cwd := get_cwd_str()
-    ext_c_path := compiler_runtime_c_path(bin_dir)
     // std/doc no longer lives in core, but help() must stay ambient in the
     // REPL, so every program the REPL loads imports it explicitly. The path
     // is absolute (the loader resolves those as-is) because tmp_path's
@@ -443,7 +442,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
     tmp_path := format("tmp/repl_", process_id().to_str(), ".til")
     out_path := format("tmp/repl_", process_id().to_str(), ".out")
     File.writefile(tmp_path, format("mode ", mode_str, "\n", doc_import_line))
-    mut cached_lp := load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes, cwd)
+    mut cached_lp := load_program(tmp_path, bin_dir, cwd, extra_modes, cwd)
     // The base program is `mode X` plus the injected std/doc import, so a
     // failure here is a broken install, not anything the user typed.
     if cached_lp.load_errors > 0 { panic("REPL base program failed to load") }
@@ -521,7 +520,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
         current_has_known_variadic_call := repl_ast_has_known_variadic_call(peek_ast, peek_symbols)
         init_docs_this_turn := current_has_help.and(docs_active.not().or(user_docs_dirty))
         if current_has_help.and(user_docs_dirty) {
-            repl_refresh_user_doc_cache(mode_str, accum, tmp_path, bin_dir, cwd, ext_c_path, extra_modes, user_info_cache, user_docs_cache)
+            repl_refresh_user_doc_cache(mode_str, accum, tmp_path, bin_dir, cwd, extra_modes, user_info_cache, user_docs_cache)
         }
         mut doc_line := ""
         if init_docs_this_turn {
@@ -575,7 +574,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
             mut run_lp := LoadedProgram()
             if use_full_load {
                 File.writefile(tmp_path, combined)
-                run_lp = load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes, cwd)
+                run_lp = load_program(tmp_path, bin_dir, cwd, extra_modes, cwd)
             } else {
                 ref committed_lp : LoadedProgram = to_ptr(committed_raw)
                 run_lp = repl_clone_loaded_program(committed_lp)
@@ -647,7 +646,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
             mut typed_lp := LoadedProgram()
             if use_full_load {
                 File.writefile(tmp_path, combined2)
-                typed_lp = load_program(tmp_path, bin_dir, cwd, ext_c_path, extra_modes, cwd)
+                typed_lp = load_program(tmp_path, bin_dir, cwd, extra_modes, cwd)
             } else {
                 ref committed_lp2 : LoadedProgram = to_ptr(committed_raw)
                 typed_lp = repl_clone_loaded_program(committed_lp2)
@@ -1140,7 +1139,6 @@ main := proc(args: ..Str) {
 
     bin_dir := get_bin_dir()
     cwd := get_cwd_str()
-    ext_c_path := compiler_runtime_c_path(bin_dir)
 
     mut target := detect_current_target()
     if cli.target_str.len() > 0 { target = target_from_str(cli.target_str) }
@@ -1172,7 +1170,7 @@ main := proc(args: ..Str) {
         }
     }
 
-    mut lp := load_program(cli.path, bin_dir, cwd, ext_c_path, cli.extra_modes)
+    mut lp := load_program(cli.path, bin_dir, cwd, cli.extra_modes)
     lp.compiler_revision = COMPILER_REVISION.clone()
     lp.asan_build = cli.asan
     // An unresolvable / unparsable import used to panic inside load_program.

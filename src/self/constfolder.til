@@ -34,7 +34,7 @@ constfolder_eval_generator_function := proc(mut scope: Scope, mut function: Expr
     swap(Set(Str), ctx.constfolder_assigned, saved_assigned)
     mut saved_ffi := FfiState()
     swap(FfiState, ctx.ffi, saved_ffi)
-    runtime_prefix := format(realpath_str(format(ctx.import_support_dir, "/src")), "/")
+    runtime_prefix := compiler_src_prefix(ctx)
     for program : Expr in definitions.values { ffi_init_struct_defs_append(program, ctx) }
     for program : Expr in definitions.values {
         ref stmt : Expr = program.children[0]

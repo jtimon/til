@@ -623,8 +623,7 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
         // 2b) Init FFI for the interpreter used by constfolder.
         // Scan per-file ASTs directly to avoid merged-AST cloning.
         ffi_reset(lp.ctx)
-        runtime_ext_path := realpath_str(lp.ext_c_path)
-        runtime_src_prefix := format(compiler_root_of(runtime_ext_path), "/src/")
+        runtime_src_prefix := compiler_src_prefix(lp.ctx)
         for upath : Str in lp.unit_paths() {
             ref iu : ImportUnit = lp.ctx.imported[upath]
             ffi_init_struct_defs_append(iu.ast, lp.ctx)
@@ -704,8 +703,7 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, mut delta: Expr) {
         interpreter_init_ns(lp.ctx, global, delta)
 
         ffi_reset(lp.ctx)
-        runtime_ext_path := realpath_str(lp.ext_c_path)
-        runtime_src_prefix := format(compiler_root_of(runtime_ext_path), "/src/")
+        runtime_src_prefix := compiler_src_prefix(lp.ctx)
         for upath : Str in lp.unit_paths() {
             ref iu6 : ImportUnit = lp.ctx.imported[upath]
             ffi_init_struct_defs_append(iu6.ast, lp.ctx)
@@ -920,23 +918,11 @@ priv validate_cli_main := proc(lp: LoadedProgram) {
     }
 }
 
-// The C runtime lives beside the C backend, in src/self/codegen/, under
-// the compiler root (a checkout or <prefix>/lib/til).
-compiler_runtime_c_path := func(root: Str) returns Str {
-    return format(root, "/src/self/codegen/ext.c")
-}
-
-// The compiler root (checkout or <prefix>/lib/til) that holds ext_c_path.
-compiler_root_of := func(ext_c_path: Str) returns Str {
-    if ext_c_path.ends_with("/src/self/codegen/ext.c") { return ext_c_path.strip_suffix("/src/self/codegen/ext.c") }
-    panic(__LOC__, ": ext_c_path is not a compiler runtime path: '", ext_c_path, "'")
-}
-
 // Scan program AST for link()/link_macos()/link_c() directives; fill
 // link_flags, include_flags, target_links, macos_frameworks and
 // link_c_paths on the given LoadedProgram.
 priv extract_link_info := proc(mut lp: LoadedProgram) {
-    root_dir := compiler_root_of(lp.ext_c_path)
+    root_dir := lp.ctx.import_support_dir.clone()
     // Remove link()/link_c() directives in-place from every user file so the
     // interpreter never evaluates them. Move iu.ast.children into a local Vec
     // and move directives to their module's non-executable directive list.
@@ -1164,7 +1150,7 @@ priv load_mode_file := proc(mut lp: LoadedProgram, path: Str, cwd: Str,
 // REPL passes the user's cwd so its tmp/ scratch file does not leak into the
 // paths the user types. Check `load_errors` on the result: non-zero means the
 // program is unusable because an import could not be resolved or parsed.
-load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_modes: Vec(Str), import_base: Str = "", embedded: Bool = false,
+load_program := proc(path: Str, bin_dir: Str, cwd: Str, extra_modes: Vec(Str), import_base: Str = "", embedded: Bool = false,
     prelude_source: Str = "", prelude_name: Str = "", prelude_base: Str = "") returns LoadedProgram {
     mut lp := LoadedProgram()
     lp.ctx.collect_diagnostics = embedded
@@ -1205,7 +1191,8 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, ext_c_path: Str, extra_m
     lp.ctx.import_cwd = cwd.clone()
     lp.ctx.import_support_dir = bin_dir.clone()
     lp.path = path.clone()
-    lp.ext_c_path = ext_c_path.clone()
+    // The C runtime lives beside the C backend under the compiler root.
+    lp.ext_c_path = format(bin_dir, "/src/self/codegen/ext.c")
     lp.target = detect_current_target()
 
     core_path := format(bin_dir, "/src/core/core.til")

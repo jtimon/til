@@ -255,7 +255,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
 // A user mode may import gui through another support file, and an unrelated
 // support file named gui must not turn a wasm program into an HTML build.
 priv loads_gui_module := proc(lp: LoadedProgram) returns Bool {
-    root := compiler_root_of(lp.ext_c_path)
+    root := lp.ctx.import_support_dir.clone()
     gui_path := realpath_str(format(root, "/src/modes/gui.til"))
     for unit_path : Str in lp.unit_paths() {
         if realpath_str(unit_path) == gui_path { return true }
@@ -269,12 +269,11 @@ priv loads_gui_module := proc(lp: LoadedProgram) returns Bool {
 // project directory. Same candidate order as the loader's
 // resolve_link_path: the cwd spelling wins when it exists (a checkout's
 // vendor/ keeps shadowing any installed one), then the compiler root
-// (<prefix>/lib/til, derived from ext_c_path exactly like the loader's
-// root_dir), and an archive found in neither keeps its name. Only ".a"
+// (<prefix>/lib/til, the same root the loader's root_dir uses), and an
+// archive found in neither keeps its name. Only ".a"
 // tokens are touched; -l flags pass through.
-priv resolve_target_archives := proc(flags: Str, ext_c_path: Str) returns Str {
+priv resolve_target_archives := proc(flags: Str, root: Str) returns Str {
     if flags.find(".a").lt(0) { return flags }
-    root := compiler_root_of(ext_c_path)
     mut out := ""
     for tok : Str in flags.split(" ") {
         if tok.len() == 0 { continue }
@@ -728,7 +727,7 @@ priv report_missing_target_archives := proc(lp: LoadedProgram) returns I32 {
         if target_list_has(tl.targets, lp.target).not() { continue }
         archive := tl.flag.trim()
         if archive.ends_with(".a").not() { continue }
-        if realpath_str(resolve_target_archives(archive, lp.ext_c_path)).len() > 0 { continue }
+        if realpath_str(resolve_target_archives(archive, lp.ctx.import_support_dir)).len() > 0 { continue }
         println(format("error: this program links ", tl.written, " for --target=",
             target_to_str(lp.target), ", and it is not built"))
         if lp.cur_mode.build_hint.len() > 0 {
@@ -879,7 +878,7 @@ cmd_build := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target:
 }
 
 priv builder_compiler_root := func(lp: LoadedProgram) returns Str {
-    return compiler_root_of(lp.ext_c_path)
+    return lp.ctx.import_support_dir.clone()
 }
 
 priv is_compiler_install := func(lp: LoadedProgram, paths: BuildPaths) returns Bool {
