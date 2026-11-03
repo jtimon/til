@@ -1,0 +1,73 @@
+# priority: medium
+# category: backends
+** OPEN #472 Deterministic builds: every host builds every target, CI checks they hash the same
+
+*** Goal
+
+A til build is a function of its inputs (source tree, target, flags), not
+of the machine it ran on. Every CI platform job keeps running the suite
+with its own native build, and additionally builds the same artifacts for
+every OTHER target it can build for. A final CI job collects all of those
+artifacts from all the hosts and checks that, for each target, every copy
+hashes to the same value, whichever host built it. A mismatch fails the
+job and names the artifact, the target and the hosts that disagree.
+
+Today nothing checks this. The closest is ~self_translate~ (two
+translations of src/til.til on ONE host must be byte-identical) and the
+cross jobs, which only check that a cross-built binary runs.
+
+*** Two levels, in order
+
+1. *The translator's output.* ~til translate~ for a target (the .c and
+   _forward.h for C targets, .HC for TempleOS, .java for the JVM, ...)
+   is produced by til alone, so it must be byte-identical across hosts
+   with no conditions. This is entirely til's responsibility and is the
+   first level to make blocking. Run it on every host for every target.
+2. *The binaries.* A compiled artifact also depends on the C toolchain
+   and the sysroot. Two hosts can only agree when they use the same
+   compiler version, linker, headers and libraries for that target. On
+   macOS the native jobs use Apple's clang and ld, while the linux cross
+   job uses upstream clang, lld and the vendored SDK-less headers
+   (vendor/macos), so those two will not produce the same bytes and
+   should not be expected to. The binary level therefore compares only
+   hosts that use the SAME pinned toolchain for a target, and the issue
+   should record which pairs those are.
+
+*** Known sources of nondeterminism to remove (binary level)
+
+- Absolute paths. ~__LOC__~ strings and debug info carry the path the
+  sources were read from; an installed til bakes its install path into
+  libtilcore (see CLAUDE.md, "Compiler versions, installs, and shared
+  core"). Builds from different checkout paths differ for that reason
+  alone. Candidates: -ffile-prefix-map / -fdebug-prefix-map, or emitting
+  repo-relative locations.
+- Archive metadata. ~ar rcs~ records timestamps, uids and modes; use
+  deterministic mode (~ar D~ / ~-D~) wherever til or make.til builds an
+  archive.
+- Build ids and linker-chosen identifiers (--build-id, Mach-O LC_UUID).
+- Code signatures (Mach-O ad-hoc signing by lld or codesign) -- check
+  whether they are stable for identical input.
+- Vendored libraries (libffi, nng, raylib, secp256k1, ...) built by
+  their own build systems, which may embed paths or dates; either pin
+  their flags or exclude them from the comparison and say so.
+
+*** CI shape
+
+- Each existing platform job, after its normal suite, builds a fixed set
+  of programs (hello_script, the compiler itself, a std/crypto program,
+  ...) for every target it supports, at every USize width it supports,
+  and uploads them as one artifact named after the host.
+- A new job ~needs:~ all of them, downloads every artifact, and compares
+  the hashes per (target, artifact). It reports the full matrix, not just
+  the first mismatch.
+- Start with level 1 only, blocking. Add level 2 per target once a pinned
+  toolchain pair exists for it, initially non-blocking until it is green.
+
+*** Open questions
+
+- Which hosts build which targets today: linux builds every target; the
+  mac host builds windows and linux (macos-host-cross-build); windows as
+  a host builds windows only. The matrix decides what can be compared.
+- How much CI time and how many runner slots this adds, especially on
+  the macOS pool, which is already the bottleneck (runs 2920-2925 lost
+  mac jobs to queueing).

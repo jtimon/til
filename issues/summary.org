@@ -61,6 +61,7 @@
 ** Medium
 *** [[./open/383.org][#383]] Coordinate alternative backend runtimes and conformance tests
 *** [[./open/453.org][#453]] Add a FASM native assembly backend
+*** [[./open/472.org][#472]] Deterministic builds: every host builds every target, CI checks they hash the same
 ** Low
 *** [[./open/151.org][#151]] TempleOS target
 *** [[./open/317.org][#317]] MLIR backend alongside the C backend
