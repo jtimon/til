@@ -945,6 +945,13 @@ main := proc(args: ..Str) returns I64 {
     add_single(tests, "interp_session", "build", 0, "test/interp_session.expected",
         format(til_bin, " run", asan_flag, " -o bin/c/interp_session -c gen/c/interp_session.c test/interp_session.til"))
 
+    // The CLI example's test() entries exercise the kernels without running
+    // its timing main. Keep its generated output separate from normal runs.
+    // Start early so its optimized build overlaps the rest of the suite.
+    add_count(tests, "preann_example", "test", "2/2 tests passed", 2,
+        format(til_bin, " test", asan_flag, " --opt=2 -c gen/c/preann_example.c",
+            " -o bin/c/preann_example examples/preann.til"))
+
     // #332: the REPL line editor's real-terminal half. Drives bin/til
     // through a pseudo-terminal with actual escape/control bytes and an
     // isolated XDG_STATE_HOME, and self-checks like repl_help does. The
@@ -2545,11 +2552,6 @@ main := proc(args: ..Str) returns I64 {
     add_count(tests, "til_test_cmd", "test", "tests passed", 2,
         format(til_bin, " test", asan_flag, " -c gen/c/til_test_cmd.c",
             " test/test_in_namespace.til"))
-    // The CLI example's test() entries exercise the kernels without running
-    // its timing main. Keep its generated output separate from normal runs.
-    add_count(tests, "preann_example", "test", "2/2 tests passed", 2,
-        format(til_bin, " test", asan_flag, " --opt=2 -c gen/c/preann_example.c",
-            " -o bin/c/preann_example examples/preann.til"))
 
     // === parser / typer diagnostics ===
     //
