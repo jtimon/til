@@ -213,7 +213,7 @@ Related: [[./245.org][#245]] catalogs an ownership-model gap on
 
   Fresh scan command:
 
-  - ~systemd-run --user --scope -p MemoryMax=64G bash -lc 'make test_asan_full' > tmp/test_asan_full.log 2>&1~
+  - ~make test_asan_full > tmp/test_asan_full.log 2>&1~
 
   Result: ~make test_asan_full~ passes ~138/162~. The 24 failures split
   into remaining leaks and non-leak ASAN correctness failures.

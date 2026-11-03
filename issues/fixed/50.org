@@ -18,7 +18,7 @@
     - ~U32 _fi_USize_304 = 0;~
     - ~U32 _rc_U32_492 = 0;~
   - ordinary locals/globals no longer use the old heap-wrapper model
-  - ~systemd-run --user --scope -p MemoryMax=64G make test~ passes
+  - ~make test~ passes
     (~82/82~)
 
   Remaining ownership/leak work now belongs under ~[[./109.org][#109]]~ / ~[[./110.org][#110]]~, not as a

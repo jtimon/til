@@ -30,5 +30,5 @@
 
   Validation:
   - ~make clean~
-  - ~systemd-run --user --scope -p MemoryMax=64G make test~
+  - ~make test~
   - final result: ~82/82~ passed

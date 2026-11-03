@@ -30,7 +30,7 @@
 
   Validation:
   - ~make clean~
-  - ~systemd-run --user --scope -p MemoryMax=64G make test~
+  - ~make test~
   - result: ~82/82~ passed
   - direct C consumption of til globals now works through generated
     declarations in ~boot/modes.h~

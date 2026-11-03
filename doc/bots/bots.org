@@ -317,16 +317,9 @@ self-applied, and `make test_two_pass` adds the full suite.
 depends on `bin/til`, so the initial build runs implicitly. See
 doc/self.org for the build workflow.
 
-Local sessions only: use
-`systemd-run --user --scope -p MemoryMax=64G make clean && make test`
-to limit memory usage (prevents OOM from memory leaks killing the
-system).
-
-Session type rule: OpenCode/Codex CLI and Antigravity sessions
-working on a local workspace count as LOCAL sessions -- Antigravity
-is a hosted AI agent but operates directly on the user's local
-worktree/system. "Remote" sessions at the moment just mean Claude in
-the cloud (CI or hosted bot runs on assigned bot branches).
+Session type rule: OpenCode runs locally on the user's worktree/system
+and counts as a LOCAL session. "Remote" sessions mean Claude in the
+cloud (CI or hosted bot runs on assigned bot branches).
 
 Remote sessions: long commands work. `.claude/settings.json` sets
 `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, which removes the

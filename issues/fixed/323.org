@@ -253,7 +253,7 @@ session should take these.
   instrumented; self_ms is inflated for small hot functions, so read
   CALL COUNTS and inclusive total_ms, per #214 step 3.)
 - Local-session conventions from CLAUDE.md apply: dedicated worktree,
-  `systemd-run --user --scope -p MemoryMax=64G make clean && make test`,
+  `make clean && make test`,
   commit in the worktree, do NOT push.
 
 **** Decision rule per candidate

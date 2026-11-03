@@ -61,8 +61,8 @@ to avoid re-discovering the same things.
   ~make > tmp/build.log 2>&1~.
 - ~bin/til build~ does translate + C compile; ~bin/til translate~ does
   just the til->C step (faster iteration).
-- ~systemd-run --user --scope -p MemoryMax=64G sh -c 'make clean && make test'
-  > tmp/test.log 2>&1~ prevents OOM during the full suite and records one log.
+- ~make clean && make test > tmp/test.log 2>&1~ runs the full suite and
+  records one log.
 
 ** Conventions
 - UPPERCASE for module-level constants (~INIT_POS~, ~KEY_W~, ~MENU_*~).

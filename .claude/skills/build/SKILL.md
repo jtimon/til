@@ -16,16 +16,14 @@ Makefile, which now owns only the bootstrap (bin/til_boot and bin/make).
 
 ## Step 1: Build and test
 
-For code, test, build or configuration changes in a local session:
+For code, test, build or configuration changes in local and remote sessions:
 
 ```bash
-systemd-run --user --scope -p MemoryMax=64G bash -c 'make clean && make test' > tmp/test.log 2>&1
+make clean && make test > tmp/test.log 2>&1
 ```
 
-Remote sessions use the same clean/test targets without the local systemd scope.
-
 For a commit depending on self-applied compiler output, use `make clean &&
-make test_two_pass` inside the same scoped command instead, and prefix the
+make test_two_pass > tmp/test.log 2>&1` instead, and prefix the
 commit subject with `Two-pass: `. Do not build first and then clean it away.
 
 A documentation-only commit has surviving non-generated changes only in

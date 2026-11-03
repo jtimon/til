@@ -35,7 +35,7 @@ main := proc(args: ..Str) {
     run(format("xargs -0 -r rm -rf -- < ", added_list))
 
     print("Rebuilding bin/til with make clean && make...\n")
-    ec = run("systemd-run --user --scope -p MemoryMax=64G bash -c 'make clean > tmp/cleanup_failed_merge_build.log 2>&1 && make >> tmp/cleanup_failed_merge_build.log 2>&1'")
+    ec = run("make clean > tmp/cleanup_failed_merge_build.log 2>&1 && make >> tmp/cleanup_failed_merge_build.log 2>&1")
     if ec.neq(0) {
         eprint_single("make clean && make failed; see tmp/cleanup_failed_merge_build.log\n")
         exit(ec)

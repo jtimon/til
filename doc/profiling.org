@@ -48,7 +48,7 @@ changes. Read the CSV when comparing particular changes.
 Create ~tmp/~ before capturing logs. Keep commands foreground and sequential.
 For the normal clean verification run on the local machine:
 
-  : systemd-run --user --scope -p MemoryMax=64G bash -c 'make clean && make test' > tmp/test.log 2>&1
+  : make clean && make test > tmp/test.log 2>&1
 
 The compiler macro-benchmark is ~time bin/til build src/til.til~. Keep its
 time distinct from the suite's translation-only ~self~ measurement. See

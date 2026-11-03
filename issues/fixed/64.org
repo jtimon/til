@@ -20,7 +20,7 @@
 
   Re-checked after the fix:
 
-  - ~systemd-run --user --scope -p MemoryMax=64G make test~ passes
+  - ~make test~ passes
     (~79/79~)
   - ~bin/til build~ works for minimal ~mode pure~ and ~mode lib~ files
   - Generated ~I64 *~ for ~returns I64~ is expected per

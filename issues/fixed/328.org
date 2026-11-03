@@ -628,7 +628,7 @@
       ~bin/til interpret test/typer_errors.til~ and require updating the exact
       error count in ~src/tests.til~.
    4. Before any commit containing til source, use the build workflow and run
-      ~systemd-run --user --scope -p MemoryMax=64G make clean && make test~.
+      ~make clean && make test~.
       Never edit ~boot/~ manually.
    5. Record completed checkpoints by changing their ~[ ]~ to ~[X]~. When
       implementation begins, change this issue's title from OPEN to WIP.

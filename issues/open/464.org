@@ -79,6 +79,26 @@ ASAN rows, including the nested drivers and selected-compiler self check,
 passed. This is an existing failure on the rebased master, not a disabled
 or newly unsanitized test.
 
+*** Memory safeguard removal
+
+The ~systemd-run --user --scope -p MemoryMax=64G~ safeguard has been removed
+everywhere. It dates from when memory leaks, including leaks inside loops,
+could exhaust system memory; it is no longer necessary. Commands now run
+directly, with their existing logs and failure handling preserved.
+
+Removal locations, retained here in case the safeguard needs revisiting:
+
+- ~doc/bots/bots.org~ (shared by the ~AGENTS.md~ and ~CLAUDE.md~ symlinks).
+- ~.claude/skills/build/SKILL.md~ (normal and two-pass build instructions).
+- ~doc/bots/opencode.org~ (full-suite command).
+- ~doc/profiling.org~ (clean verification command).
+- ~examples/cleanup_failed_merge.til~ (post-failure clean rebuild). The human
+  still runs this recovery script manually when ~merge_commit~ fails.
+- Command examples in ~issues/fixed/50.org~, ~issues/fixed/64.org~,
+  ~issues/fixed/104.org~, ~issues/fixed/109.org~, ~issues/fixed/112.org~,
+  ~issues/fixed/323.org~, and ~issues/fixed/328.org~. Only the obsolete wrappers
+  were removed; the historical test results are unchanged.
+
 *** Restoration, once #313 is settled
 
 - make.til: ~run_test~ calls ~run_test_asan~'s body again (or simply
