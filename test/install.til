@@ -44,7 +44,8 @@ binding_dependency := func(binding: Str, field: Str) returns Str {
 }
 
 rebuild_install := proc(prefix: Str) {
-    install := Cmd.new("bin/til", "install", "--usize=32", format("--prefix=", prefix), "src/til.til")
+    // Use Clang to reduce C compilation time in this full compiler rebuild.
+    install := Cmd.new("bin/til", "install", "--usize=32", "--cc=clang", format("--prefix=", prefix), "src/til.til")
     install.run_checked()
 }
 

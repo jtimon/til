@@ -87,7 +87,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri clang
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build and run tests
@@ -118,7 +118,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri clang
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Suite through the native-layout compiler
@@ -154,7 +154,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri clang
       - name: Create test tmp directory
         run: mkdir -p tmp
       - name: Build and run tests
