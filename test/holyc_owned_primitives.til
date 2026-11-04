@@ -1,0 +1,63 @@
+mode script
+import("../src/std/hashmap")
+
+take_value := func(T: Type, own value: T) returns T { return value }
+drop_value := func(T: Type, own value: T) { free(own value) }
+drop_with_delete := func(T: Type, own value: T) { own value.delete() }
+check_owned := func(T: Type, input: T) {
+    value := take_value(T,own input.clone())
+    if value != input { panic("owned primitive argument/return") }
+    drop_with_delete(T,own value.clone())
+    drop_value(T,own value)
+    // Moving a heap-backed primitive into the value ABI releases its outer
+    // box at the call site; the callee receives just the scalar value.
+    mut boxed : T = malloc(T.size().to_uptr())
+    boxed = input.clone()
+    unboxed := take_value(T,own boxed)
+    if unboxed != input { panic("owned heap primitive transfer") }
+}
+
+mut signed8 : I8 = -12
+mut unsigned8 : U8 = 250
+mut signed16 : I16 = -30000
+mut unsigned16 : U16 = 60000
+mut signed32 : I32 = I32.MIN
+mut unsigned32 : U32 = U32.MAX
+mut signed64 : I64 = I64.MIN
+mut unsigned64 : U64 = U64.MAX
+mut boolean := true
+mut single : F32 = -12.75
+mut wide : F64 = 12.75
+check_owned(I8,signed8)
+check_owned(U8,unsigned8)
+check_owned(I16,signed16)
+check_owned(U16,unsigned16)
+check_owned(I32,signed32)
+check_owned(U32,unsigned32)
+check_owned(I64,signed64)
+check_owned(U64,unsigned64)
+check_owned(Bool,boolean)
+check_owned(F32,single)
+check_owned(F64,wide)
+
+// A nested allocation shadows an owned value parameter. Its actual heap
+// storage must still be freed rather than inheriting the caller-slot rule.
+shadow_owned := func(own value: I64) {
+    free(own value)
+    {
+        mut value : I64 = malloc(8)
+        value = 42
+        if value != 42 { panic("shadowed primitive allocation") }
+        free(own value)
+    }
+}
+shadow_owned(own signed64.clone())
+// Imported globals used by the shared library methods must live outside
+// script TilMain, just as they do for a CLI entrypoint.
+script_globals := func() {
+    mut script_map := HashMap(I64,I64).new()
+    script_map.set(256,own 42)
+    if script_map.get(256)! != 42 { panic("script HashMap globals") }
+}
+script_globals()
+println("Owned primitive calls passed")

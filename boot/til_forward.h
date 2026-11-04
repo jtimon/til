@@ -1698,6 +1698,7 @@ typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCLocalState {
     Str ref_return_type;
     Str continue_label;
     Set__Str param_pointer_names;
+    Set__Str scalar_slot_params;
     Map__Str_Str payload_names;
     Map__Str_Str pointer_types;
     Set__Str str_names;
@@ -2786,6 +2787,9 @@ typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState {
     Set__Str inline_indirect;
     priv___src_self_codegen_holyc_codegen_til__HolyCLocalState global_locals;
     Set__Str source_functions;
+    Map__Str_Str namespace_fields;
+    Str namespace_prototypes;
+    Str namespace_initializers;
     Bool needs_take_word;
     Bool gui_enabled;
 } priv___src_self_codegen_holyc_codegen_til__HolyCEmitState;

@@ -5458,7 +5458,10 @@ priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_c
     if needs_delete.and(stmt.node_type.is(NodeType.FieldAssign)) {
         if field_assign_needs_delete(stmt, scope, ctx.symbols) {
             ref rhs : Expr = stmt.children[1]
-            if type_to_name(rhs.til_type(), ctx.symbols).len() > 0 {
+            // A named function has an unnamed FuncPtr type, but replacing a
+            // callable slot with it must still drop the previous closure.
+            if type_to_name(rhs.til_type(), ctx.symbols).len().gt(0)
+                .or(type_is_callable_storage(rhs.til_type())) {
                 switch stmt.node_type {
                 case .FieldAssign(fad):
                     fad.save_old_delete = true

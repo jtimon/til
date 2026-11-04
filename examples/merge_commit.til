@@ -124,6 +124,30 @@ trim_quotes := func(s: Str) returns Str {
     return s.substr(start, end.sub(start)).clone()
 }
 
+report_hashmap_benchmarks := proc() {
+    // Run after the suite has finished, outside its parallel test workers.
+    // Both compilers build the same source with matching options. During the
+    // merge soft reset, til_boot is the parent and til is the tested compiler.
+    for bits : Str in array(Str, "32", "64") {
+        for opt : Str in array(Str, "0", "2") {
+            for compiler : Str in array(Str, "bin/til_boot", "bin/til") {
+                command := Cmd.new(compiler, "run", format("--usize=", bits),
+                    format("--opt=", opt), "examples/bench_hashmap.til")
+                command.capture()
+                status := command.run()
+                report := format("\nHashMap benchmark: ", compiler, " USize", bits,
+                    " O", opt, "\n", command.out(), command.err())
+                File.appendfile("tmp/build.log", report)
+                if status != 0 {
+                    eprint_single("HashMap benchmark failed; see tmp/build.log\n")
+                    exit(status)
+                }
+            }
+        }
+    }
+    print("HashMap benchmarks: tmp/build.log\n")
+}
+
 main := proc(args: ..Str) {
     mut hash := "HEAD"
     mut force := false
@@ -198,6 +222,7 @@ main := proc(args: ..Str) {
         exit(1)
     }
     print("Tests: PASSED\n")
+    report_hashmap_benchmarks()
 
     // ---- Step 6: commit ----
     run("git add -A")

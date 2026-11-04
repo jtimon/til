@@ -450,6 +450,32 @@ numeric_cast_checks := proc(identity: Str, bits: Str) {
     run_guest(identity,format("numeric_cast_failures_",bits),expected,"pass")
 }
 
+owned_collection_checks := proc(identity: Str, bits: Str) {
+    runtime := File.readfile("src/self/codegen/ext.HC")
+    // Count Til's allocations, including realloc's raw allocate/free pair.
+    // Kernel allocations inside the native allocator are outside this ledger.
+    ledger := format(
+        "I64 TilTestLiveAllocs=0;\n",
+        "U8 *TilTestMAlloc(I64 count) { U8 *p=MAlloc(count); if (p) TilTestLiveAllocs++; return p; }\n",
+        "U8 *TilTestCAlloc(I64 count) { U8 *p=CAlloc(count); if (p) TilTestLiveAllocs++; return p; }\n",
+        "U0 TilTestFree(U8 *p) { if (p) TilTestLiveAllocs--; Free(p); }\n",
+        runtime.replace("=MAlloc(", "=TilTestMAlloc(")
+            .replace("=CAlloc(", "=TilTestCAlloc(").replace(" Free(", " TilTestFree("))
+    File.writefile(format(WORK, "/Ext.HC"), ledger)
+    for fixture : Str in array(Str, "holyc_owned_primitives", "holyc_hashmap") {
+        Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+            "-c", format(WORK, "/TILTEST.HC"), format("test/", fixture, ".til")).run_checked()
+        program := File.readfile(format(WORK, "/TILTEST.HC"))
+        File.writefile(format(WORK, "/TILTEST.HC"), program.replace("\nTilMain;\n", "\n"))
+        File.appendfile(format(WORK, "/TILTEST.HC"),
+            "\nTilMain; if (TilTestLiveAllocs) TilPanicZ(\"owned allocation ledger not empty\\n\");\n")
+        mut expected := "HolyC HashMap passed\n"
+        if fixture == "holyc_owned_primitives" { expected = "Owned primitive calls passed\n" }
+        run_guest(identity, format(fixture, "_", bits), expected, "pass")
+    }
+    File.writefile(format(WORK, "/Ext.HC"), runtime)
+}
+
 main := proc() {
     if mkdir_p(WORK) != 0 { panic("could not create ", WORK) }
     uid := captured(Cmd.new("id", "-u")).replace("\n", "")
@@ -487,6 +513,7 @@ main := proc() {
             run_guest(identity, format("corpus_", i.to_str(), "_", bits), expected, "pass")
         }
         numeric_cast_checks(identity,bits)
+        owned_collection_checks(identity, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), "test/holyc_terminal_model_support.til").run_checked()
         run_guest(identity, format("terminal_model_support_", bits), "Terminal model support passed\n", "pass")

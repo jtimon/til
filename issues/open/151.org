@@ -1501,6 +1501,61 @@
   inspection confirms integer/float casts use the existing primitive helpers;
   only checked float-to-integer casts use the new range-checking helper.
 
+**** Generic owned primitives and shared HashMap
+
+  Ordinary generic functions accept and return owned primitive values through
+  the native value ABI. Their cleanup does not free a caller-frame slot; a
+  consumed heap-backed scalar uses the existing take-word helper to release
+  its outer box at the call site. The ordinary stack/value path adds no box.
+  Native adopt copies the moved value into uninitialized destination storage
+  without dropping its resources or freeing caller-frame storage.
+
+  The existing ~src/std/hashmap.til~ bodies now run on TempleOS: integer and
+  string keys, owned scalar/string/aggregate values, cached hashes, bucket
+  growth/rehash, forced collisions, replacement, dense-swap removal, missing-key
+  catches, cloning, clear and reuse. Mutable callable namespace storage supports
+  the existing per-specialization hasher, including capturing closures. Imported
+  library globals are initialized at module load for scripts as well as CLI,
+  so methods can reference HASHMAP_INIT_BUCKETS and hash constants.
+
+  The native hang was heap corruption: emitted Vec storage is typed, but shared
+  methods expose its data as Dynamic and add BYTE offsets. Returning the typed
+  pointer scaled those offsets again. The emitter now restores byte-pointer
+  semantics at that field read, retaining typed indexing in the native helpers.
+
+  Two shared defects surfaced in the comparison with C:
+
+  - Primitive hash generation used the empty StructDef layout, now one byte,
+    rather than the primitive's storage width. Primitive widths now take
+    precedence regardless of the empty-layout size. Keys differing only above
+    the low byte no longer collapse to the same hash.
+  - Replacing a capturing callable field/namespace value with a named function
+    skipped old-value teardown because the unnamed FuncPtr type has no name.
+    The shared lowering now retains callable cleanup even without a type name.
+
+  ~test/holyc_owned_primitives.til~ and ~test/holyc_hashmap.til~ are registered
+  for interpreter, ASAN C O0/O2, and HolyC translation at USize32/64. The native
+  driver wraps the existing runtime allocators for these fixtures and requires
+  zero outstanding allocations after source-frame cleanup. This covers owned
+  boxes and repeated aggregate/string replacement/removal as well as hasher
+  closure replacement. ~examples/bench_hashmap.til~ translates unchanged at
+  both widths.
+
+  Timings taken while other sessions were running are discarded as performance
+  evidence. ~examples/merge_commit.til~ runs the existing HashMap benchmark
+  AFTER the full suite, outside its parallel workers, with the parent boot
+  compiler and the tested compiler at matching C O0/O2 and USize32/64. It writes
+  results only to ~tmp/build.log~, printing one log-path line. There are no
+  timing thresholds; the human runs merges with other sessions stopped.
+
+  Verification on master ~fb396378f~: clean two-pass hosted suite 556/556,
+  including clang validation. Sixteen focused TempleOS programs pass across
+  USize32/64: the four new ownership/HashMap allocation-ledger cases, plus
+  integer/float primitives, terminal-model support, imported script calls,
+  numeric casts and exact invalid-cast transcripts. The imported-calls golden
+  reflects module-load initialization; its guest output is unchanged. The merge
+  benchmark hook is compile-checked; timed measurements are left to the merge.
+
 **** Manual GUI testing in one VM
 
   The task worktree already has the existing ~til-templeos-test~ Docker image,
