@@ -126,3 +126,165 @@ this entire issue; #472's initial frontend work and [[./473.org][#473]]'s functi
 CI improvements can proceed independently. New APIs, generated artifacts,
 dependencies, install surfaces or persistent caches require their concrete
 design approval before implementation.
+
+*** First JIT milestone: implementation handoff
+
+Planning baseline: master ~5c5675e91~. This is a source-reviewed proposal,
+not an implemented JIT or measured speedup. Recheck the implementation on the
+next session's actual base. The deliverable is one function compiled from
+til source and called repeatedly IN the test process on Linux x64, followed
+by correct release of its code. It is not yet a REPL, interpreter replacement,
+TempleOS port or new default backend.
+
+**** Existing code to reuse and boundaries to change
+
+- ~src/self/codegen/fasm_codegen.til::fasm_codegen_translate~ currently emits
+  ~format ELF64 executable 3~, a process entry, global initializers, the
+  included ~ext.fasm~ runtime, and a final jump to ~rt_exit~. Mapping that
+  executable and calling its entry would execute process-level behavior, not
+  a callable JIT module.
+- ~fasm_function~, ~fasm_user_call~, ~fasm_request~ and the prepared-definition
+  index already provide function lowering and reachable direct-call discovery.
+  Reuse them behind a suitable module wrapper; do not copy the expression
+  emitter or implement a second scalar language in the test driver.
+- ~fasm_call_argument~ and ~fasm_function~ consult the shared parameter ABI
+  analysis. Some arguments travel by address rather than scalar value.
+  Capturing callables additionally carry their environment in R10. Therefore
+  "uses SysV registers" does NOT make every emitted function a C-ABI function.
+- ~builder.til::compile_fasm~ / ~fasm_build.til~ run the vendored assembler as
+  a process, produce an executable and chmod it. Keep that AOT path intact.
+  Using the assembler process to create code, then executing that code inside
+  the caller, is an adequate initial JIT; embedding the assembler itself is
+  a later startup-cost optimization.
+- ~test/fasm_native.til~ already compares interpretation/C/FASM using shared
+  inputs, checks runtime arithmetic was not folded away and covers both USize
+  widths. Reuse that style. These process-execution tests do not already
+  validate in-process entry, register preservation or code lifetime.
+
+**** Proposed first output/entry contract -- approve before implementing
+
+Use FASM's existing ELF64 relocatable-object support, rather than inventing a
+raw-code container. Proposed test artifacts are
+~tmp/fasm_jit/module.fasm~ and ~tmp/fasm_jit/module.o~: the til emitter writes
+the former, the existing assembler writes the latter, and a test-only loader
+reads the object and maps its callable code. Each run regenerates them; they
+are not installed, cached or loaded as compiler source state. The existing
+AOT ELF executable includes startup/exit machinery and has no suitable
+callable-module contract, which is why it is insufficient.
+
+Propose ~test/fasm_jit.til~ as the driver, an internal callable-emission entry
+reusing the current emitter, and a narrow host bridge for code memory and
+typed calls in the existing runtime boundary. No public JIT CLI flag or TilVm
+API is selected by this plan. Before implementation, agree the exact helper
+signatures, ownership and artifact contract in plain chat. Standard ELF avoids
+a proprietary format, but a bounded object loader/relocator is real new code
+to maintain; this proposal does not assume a new libelf/LLVM dependency.
+
+Initial logical function contract: two I64 inputs and an I64 result, no
+captures, global initialization, allocation, external calls, exceptions or
+aggregate values. Include arithmetic using the runtime inputs, a conditional
+and a direct call to another supported scalar function. Verify it is not
+reduced to a precomputed result. Select and retain this function as an explicit
+compilation root before scavenging; do not depend on an uncalled function
+surviving an executable's main-root reachability pass.
+
+**** Entry ABI and module lifetime
+
+- Export one internal entry symbol (proposed ~til_jit_entry~) whose external
+  convention is exactly SysV ~I64(I64, I64)~: RDI/RSI inputs, RAX result,
+  normal stack alignment and preservation of callee-saved registers. Generate
+  an adapter to the actual prepared til function ABI, including address slots
+  when required by the shared analysis. No hidden closure environment is part
+  of this first entry. Do not cast a raw address to til's managed callable
+  descriptor representation.
+- Call through a host bridge with that exact signature. The initial driver
+  and host bridge may still be built using today's C toolchain; the generated
+  function itself must be assembled by FASM. This is not GCC/Clang retirement.
+- Let one owner hold the mapped region, symbol/entry metadata and any memory
+  needed through invocation. Calls borrow the owner synchronously; no callback
+  or executable pointer escapes it in this slice. Release the mapping after
+  the final call, including failure cleanup. Do not deliberately call freed
+  code as a lifetime test.
+- Code allocation uses native addresses, not compressed til-own-pointer slots.
+  Write/relocate while writable, make code executable before publishing the
+  entry, then keep it immutable during calls. Propagate mapping/protection/
+  unmapping failures explicitly. Keep any later writable data distinct from
+  executable code. The API must make ownership and lengths explicit.
+
+**** Loading, relocation and runtime symbols
+
+- Inspect objects actually emitted by the small corpus before choosing the
+  relocation subset. Read ELF class/machine/type, sections, symbols and the
+  designated entry; reject unsupported required sections/relocations and
+  unresolved symbols. Check referenced offsets and sizes before mapping or
+  patching. Do not silently skip relocations or reinterpret an executable as
+  a relocatable module.
+- Map at an ordinary allocator-selected address. For each supported
+  relocation, honor its addend, field width and signed range; a relative call
+  is not repaired by truncating an arbitrary 64-bit address to 32 bits.
+  If the first same-section scalar functions need no relocations, document
+  that deliberately narrow contract rather than claiming a general loader.
+- The first slice has NO external runtime symbols. Reject any unexpected
+  dependency, including ~rt_exit~ or allocation helpers; never include the
+  entire process runtime just to make unresolved names disappear.
+- Next, add a deliberately chosen host callback/runtime function with an
+  explicit typed resolver and a tested relocation/indirection strategy. Account
+  for code/data sections and branch reach before extending to strings, globals
+  and closures. No dynamic symbol-name fallback to unrelated process exports.
+  Recoverable errors and panic behavior must be defined before importing
+  runtime routines that currently terminate a standalone process.
+
+**** Concrete verification
+
+| Check | Required evidence |
+|-------+-------------------|
+| Runtime input changes | Multiple input pairs produce correct distinct I64 results without recompiling |
+| Differential behavior | Interpreter, C, standalone FASM and in-process JIT agree on the same logical functions/inputs |
+| Widths and signed arithmetic | Both driver USize layouts work; negative values, boundaries and defined wrapping agree |
+| Direct calls and branches | Untaken/taken branches and a reachable helper execute as emitted code |
+| Entry ABI | Stack alignment and callee-saved registers survive calls; argument/result transport matches the declared bridge |
+| Actual in-process execution | The driver reads full return values and continues after the call; no subprocess exit-code substitute |
+| Independent modules | Two live modules with the same entry spelling keep separate code/owners; freeing one does not invalidate the other |
+| Failure paths | Missing entry, unresolved symbol, unsupported relocation and assembler failure report the actual error and clean owned resources |
+| Repeated lifetime | Repeated compile/load/call/release cycles release mappings; validate without invoking a dangling entry |
+
+Keep fixtures under repository ~tmp/~ and make execution synchronous. Add
+focused ABI/lifetime checks to the native driver and preserve existing AOT
+tests. ASAN can check the driver/host bridge but does not instrument emitted
+assembly; do not describe it as coverage of generated machine-code memory
+accesses. Follow the required full/two-pass verification before committing.
+
+**** Cost measurements before optimizing
+
+Measure source preparation, assembly emission, assembler subprocess, object
+load/relocation/protection, first call, repeated-call total and teardown
+separately. Compare cold prepare-plus-execute and warm repeated execution
+against the interpreter; report ordinary AOT execution separately from its
+build cost. Use runtime-varying inputs and consume results so optimization
+cannot remove the work. Report memory/code size too. Tiny function tests
+establish correctness, not a representative compiler speedup; add a realistic
+repeated computation after the ABI/lifetime slice passes. No persistent code
+cache or timing-based fallback is selected here.
+
+**** Bootstrap and later integration
+
+The first JIT runs AFTER ordinary preparation, which still uses the existing
+interpreter for macros/generators/folding. It makes no attempt to replace that
+evaluator in the same commit. Later, inventory each compile-time entry and
+compile only sufficiently resolved dependency closures: requesting a fully
+prepared program from the evaluator needed to prepare it would be a cycle.
+Keep host execution ABI and target semantic/layout queries separate, following
+#472. Apply ~doc/self.org~'s preparation/use sequence when the seed compiler
+must learn an interface before its replacement can use it.
+
+After the scalar entry passes, progress through one explicit runtime bridge,
+owned values/closures and session lifetime, then REPL/TilVm and compile-time
+evaluation. TempleOS uses the HolyC engine outlined above; the reduced
+MLIR-style engine and GCC/Clang retirement remain later milestones. Do not
+close #474 on completion of this first slice.
+
+The implementation handoff should report approved interfaces/artifacts,
+supported ABI and relocations, commands and actual differential/lifetime
+results, separately measured costs, bootstrap requirements and remaining
+limitations. Current code supports planning this milestone; it does not yet
+provide the callable object emitter or loader described here.
