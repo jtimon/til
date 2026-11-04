@@ -125,9 +125,9 @@ start with a smaller fixture. Kcachegrind provides a call-graph view.
 compiler (#397). Check the raw ~fn=~, ~cfn=~, and ~calls=~ records when caller
 attribution matters.
 
-Current direct ~translate~, ~build~, and ~run~ commands regenerate outputs
-(#406). Older revisions with #170's timestamp shortcut require
-~--force-rebuild~ when measuring compilation rather than cache hits.
+Direct ~translate~, ~build~, and ~run~ commands reuse current outputs by
+timestamp (#442); pass ~--force-rebuild~ when measuring compilation rather
+than reuse.
 
 Use these profiles to identify concrete Map/Vec/Str and AST call sites before
 changing them. ~examples/bench_hashmap.til~ is the focused Map/HashMap

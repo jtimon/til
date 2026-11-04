@@ -2048,6 +2048,7 @@ typedef struct CliArgs {
     Bool early_return;
     Bool asan;
     Bool prof;
+    Bool force_rebuild;
     I64 usize_bits;
     Bool check_unused_imports;
     TIL_OWN_PTR(Vec__Str) extra_modes;
@@ -2726,6 +2727,8 @@ typedef struct LoadedProgram {
     Str macos_frameworks;
     Str link_c_paths;
     Str compiler_revision;
+    Str translation_stamp;
+    Str executable_stamp;
     Bool asan_build;
     Bool mlir_runtime;
     Bool run_tests;

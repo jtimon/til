@@ -50,11 +50,22 @@
 
 ** Command output paths and freshness
 
-  ~translate~, ~build~ and ~run~ always regenerate their outputs. Existing
-  timestamps cannot establish which program, compiler or options produced
-  a file (#406). ~--force-rebuild~ remains accepted for compatibility.
-  The build program's explicit dependency graph is separate from this CLI
-  behavior and still decides which build steps need to run.
+  ~translate~, ~build~ and ~run~ of a C-backend executable reuse existing
+  outputs (#442). The emitted C and its forward header are current when
+  newer than every loaded unit, mode file and the compiler binary, and the
+  C ends with this invocation's translation stamp (compiler, source,
+  output path, target, layout, CPU profile, loaded units); a current
+  translation skips preparation and emission. The executable is current
+  when newer than that C, the C runtime, link_c sources and the headers
+  they include, linked archives and the compiler, and it carries this
+  invocation's executable stamp (ext.c's ~til_build_stamp~: the
+  translation stamp plus every compile option). A timestamp alone cannot
+  establish which program or options produced a file (#406); the stamps
+  do. An input as new as its output (whole-second mtimes) counts as newer.
+  Programs declaring a value macro, libraries, themes, other backends and
+  ~test~ always regenerate, and ~--force-rebuild~ skips reuse. The build
+  program's explicit dependency graph is separate from this CLI behavior
+  and still decides which build steps need to run.
 
   Default executable and backend-source paths preserve source directories:
   ~foo/main.til~ produces ~bin/foo/main~ and ~gen/til/foo/main.c~ (plus its

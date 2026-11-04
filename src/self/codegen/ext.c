@@ -24,6 +24,15 @@
 #define CAP_LIT ((USize)-1)
 #define CAP_VIEW ((USize)-2)
 
+/* #442: what produced this executable. The builder defines TIL_BUILD_STAMP
+ * for an executable it may reuse, and later reads the marker back from the
+ * file, so the constant stays in the image although nothing references it. */
+#ifdef TIL_BUILD_STAMP
+#define TIL_BUILD_STAMP_STR2(x) #x
+#define TIL_BUILD_STAMP_STR(x) TIL_BUILD_STAMP_STR2(x)
+__attribute__((used)) const char til_build_stamp[] = "til-build-stamp:" TIL_BUILD_STAMP_STR(TIL_BUILD_STAMP) ";";
+#endif
+
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 // The process environment (ccmd_env's child block). macOS does not

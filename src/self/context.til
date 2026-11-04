@@ -8,6 +8,10 @@ import("../std/file")
 // Filesystem canonicalization is shared by loader discovery and the later
 // per-file phase walks that resolve import calls directly from each AST.
 realpath_str := ext_proc(path: Str) returns Str {}
+// The running executable's path, "" when the host cannot say; the macos
+// FFI module link names it as its -bundle_loader (ffi_init_user_so), and a
+// build reusing its outputs (#442) counts the compiler as an input.
+get_exe_path := ext_proc() returns Str {}
 
 // "<realpath of the compiler root>/src/": the prefix shared by every source
 // file of the compiler's own support tree (core, std, modes, ...), whose

@@ -1640,7 +1640,7 @@ main := proc(args: ..Str) returns I64 {
     if host_os() == "linux" {
         // Keep --force-rebuild for runs against older compilers: #170's
         // shortcut could reuse tmp/prof_static across instrumentation changes.
-        // Current compilers rebuild it unconditionally (#406).
+        // Current compilers stamp --prof into the executable (#442).
         add_count(tests, "prof_resolves_static_symbols", "build", "adopt__Str", 2,
             format(til_bin, " build --prof --force-rebuild -o tmp/prof_static examples/hello_script.til '&&' TIL_PROF_TOP=0 tmp/prof_static"))
     }

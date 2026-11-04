@@ -768,8 +768,10 @@ usage := proc() {
     println("              64-bit C targets, also stores own pointer fields as 32-bit")
     println("              offsets into a 4GB allocation cage; 64 is the native layout.")
     println("              UPtr always follows pointer width.")
-    println("  --force-rebuild  Accepted for compatibility; translate/build/run")
-    println("              always regenerate their outputs.")
+    println("  --force-rebuild  For translate/build/run: regenerate even when the")
+    println("              existing C or executable is newer than every input and")
+    println("              was produced by the same compiler, program and options")
+    println("              (that check otherwise reuses it).")
     println("")
     println("bindings audit -- the generated file is a starting point, not a finished")
     println("binding: C headers cannot express three til-side qualifier axes, so the")
@@ -816,6 +818,8 @@ CliArgs := struct {
     early_return := false
     asan := false
     prof := false
+    // #442: skip the timestamp reuse check; always translate and compile.
+    force_rebuild := false
     // #309: --usize overrides the target-native USize alias. 0 follows the
     // target pointer width; 32/64 force that width independently of UPtr.
     usize_bits : I64 = 0
@@ -986,7 +990,7 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             cli.asan = true
             cli.path_idx++
         } else if flag == "--force-rebuild" {
-            // Compatibility with older callers; outputs are always rebuilt.
+            cli.force_rebuild = true
             cli.path_idx++
         } else if flag == "--prof" {
             cli.prof = true
@@ -1254,8 +1258,18 @@ main := proc(args: ..Str) {
         .or(cli.command.eq("ast"))
         .or(cli.command.eq("doc")).not()
 
-    // An output's mtime cannot establish its source, compiler or options.
-    // Always prepare and emit the requested program, including explicit paths.
+    // #442: placed between load_program and prepare_program -- loading
+    // resolved every import, so the dependency set is known, and the
+    // expensive half (init, type, constfold, emit, cc) is still ahead.
+    set_reuse_stamps(lp, cli.command, cli.custom_bin, cli.custom_c, target, cli.backend, cli.cc, cli.asan, cli.prof)
+    if cli.force_rebuild.not().and(translation_is_current(lp, cli.command, cli.custom_bin, cli.custom_c, target)) {
+        reused := reuse_translation(lp, cli.command, cli.custom_bin, cli.custom_c, user_argv, target, cli.cc, cli.asan, cli.prof)
+        ffi_cleanup(lp.ctx)
+        lexer_cleanup()
+        if reused != 0 { exit(reused.cast(I64)) }
+        return
+    }
+
     mut backend_functions := Set(Str).new()
     if cli.backend == "mlir" {
         backend_functions = mlir_source_declarations(lp)

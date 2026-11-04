@@ -11,6 +11,7 @@ import("targets")
 import("install")
 import("../std/sys")
 import("../std/file")
+import("../std/hash")
 // Context's evaluation state needs interpreter-defined scopes and FFI records.
 _ := import("interpreter")
 
@@ -300,7 +301,7 @@ priv resolve_target_archives := proc(flags: Str, root: Str) returns Str {
     return out
 }
 
-priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, has_gui: Bool, asan: Bool, prof: Bool, usize64: Bool, cptr32: Bool, build_flags: Str) returns I32 {
+priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path: Str, link_flags: Str, include_flags: Str, target: Target, cc_override: Str, has_gui: Bool, asan: Bool, prof: Bool, usize64: Bool, cptr32: Bool, build_flags: Str, build_stamp: Str) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -472,7 +473,12 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         if wasm_gui { wasm_js_flags = " -sSINGLE_FILE --shell-file vendor/raylib/src/shell.html" }
     }
 
-    cmd := compiler.format(extra, werr, asan_flags, prof_flags, usize_flags, prof_link_flags, target_link_extra_args(target), wasm_js_flags, " -g", dyn_flag, " -I", ext_dir,
+    // #442: what produced this executable, for a later reuse check. Only
+    // the main compile defines it: ext.c holds the constant.
+    mut stamp_flag := ""
+    if build_stamp.len() > 0 { stamp_flag = format(" -DTIL_BUILD_STAMP=", build_stamp) }
+
+    cmd := compiler.format(extra, werr, asan_flags, prof_flags, usize_flags, stamp_flag, prof_link_flags, target_link_extra_args(target), wasm_js_flags, " -g", dyn_flag, " -I", ext_dir,
         " -o ", bin_path, " ", c_path,
         " ", ext_c_path, user_part, lf,
         " ", sys_libs)
@@ -706,7 +712,7 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
             lp.runtime_stem(), lp.runtime_shared_basename(),
             lp.core_stem(), lp.core_shared_basename(), build_flags)
     }
-    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, link_flags, include_flags, target, cc_override, loads_gui_module(lp), asan, prof, usize64, lp.cptr32, build_flags)
+    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, link_flags, include_flags, target, cc_override, loads_gui_module(lp), asan, prof, usize64, lp.cptr32, build_flags, lp.executable_stamp)
 }
 
 // A target-restricted link() archive (issue #422) is one target's own
@@ -956,6 +962,7 @@ priv build_program := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str,
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths, target, functions)
     if result != 0 { return result }
+    stamp_translation(lp, paths)
     if command == "translate" { print_translate_success(paths); return 0 }
     if backend == "mlir" && command == "run" && paths.do_lib {
         println("error: cannot run an MLIR library")
@@ -975,6 +982,296 @@ priv build_program := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str,
         }
     }
     if command == "run" || command == "test" { return run_artifact(paths, argv, target, asan) }
+    return 0
+}
+
+// --- #442: reuse unchanged outputs ---
+//
+// Like make, by timestamp, plus a stamp of what produced each output. The
+// two phases are separate. The emitted C (and its forward header) is
+// current when newer than every loaded unit, every mode file and the
+// compiler binary, AND it ends with this invocation's translation stamp: a
+// hash of the compiler (revision and executable), the canonical source,
+// the C output path, the target and layout, the CPU profile, the loaded
+// units and the environment that changes emission. The executable is
+// current when newer than that C, the C runtime, link_c sources, the
+// headers they include, the linked archives and the compiler, AND it
+// carries this invocation's executable stamp: the translation stamp plus
+// every compile option (ext.c's til_build_stamp, defined only through
+// -DTIL_BUILD_STAMP). Another program, another compiler or another option
+// at the same path therefore misses. A current translation skips
+// preparation entirely; a stale executable is then compiled from it.
+//
+// The stamp closes the C only after a translation succeeded, so a failed
+// or interrupted one is never reused. An output whose stamp a target does
+// not keep (an Emscripten bundle may drop the unreferenced constant) is
+// simply rebuilt.
+//
+// mtimes are whole seconds, so an input as new as the output counts as
+// newer (stricter than make.til's needs_rebuild): a source rewritten in the
+// same second as the output it invalidates must not look current. The cost
+// is one extra rebuild of an output written in the same second as an input.
+
+// A VALUE macro puts the emitted bytes outside what mtimes can prove: its
+// body runs at translate time, procs included -- the compiler's own
+// get_compiler_revision shells out to git -- so the output depends on state
+// no input file carries. TYPE-GEN macros (returns StructDef / EnumDef /
+// FuncDef) are expanded by substitution, so their output is a function of
+// the sources; core's Option is one, so every program declares one.
+priv macro_is_type_gen := func(fd: FunctionDef) returns Bool {
+    rt := fd.sig.return_type
+    return rt.eq("StructDef").or(rt.eq("EnumDef")).or(rt.eq("FuncDef"))
+}
+
+priv is_value_macro := func(fd: FunctionDef) returns Bool {
+    return fd.sig.func_type.is(FuncType.Macro).and(macro_is_type_gen(fd).not())
+}
+
+priv program_declares_value_macro := func(lp: LoadedProgram) returns Bool {
+    for path : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[path]
+        for stmt : Expr in iu.ast.children {
+            if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).not() { continue }
+            switch stmt.children[0].node_type {
+            case .FuncDef(fd):
+                if is_value_macro(fd) { return true }
+            case .StructDef(sdd):
+                for nsd : Declaration in sdd.ns_decls {
+                    if nsd.default_value.is_none() { continue }
+                    switch nsd.default_expr().node_type {
+                    case .FuncDef(nfd):
+                        if is_value_macro(nfd) { return true }
+                    case:
+                    }
+                }
+            case .EnumDef(edd):
+                for nsd : Declaration in edd.ns_decls {
+                    if nsd.default_value.is_none() { continue }
+                    switch nsd.default_expr().node_type {
+                    case .FuncDef(nfd):
+                        if is_value_macro(nfd) { return true }
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+    }
+    return false
+}
+
+// Does output exist, strictly newer than every input?
+priv output_outranks_inputs := proc(output: Str, inputs: Vec(Str)) returns Bool {
+    out_time := file_mtime(output)
+    // REM A missing output must be built.
+    if out_time < 0 { return false }
+    for input : Str in inputs {
+        in_time := file_mtime(input)
+        // REM A vanished input cannot be shown older; the rebuild reports it.
+        if in_time < 0 { return false }
+        if in_time >= out_time { return false }
+    }
+    return true
+}
+
+// The C headers `path` includes, transitively, that exist under the
+// including file's directory (quoted form) or one of `include_dirs`. A
+// header found in neither is a system header, which, as with make, is not
+// tracked.
+priv collect_c_includes := proc(path: Str, include_dirs: Vec(Str), mut seen: Set(Str), mut out: Vec(Str)) {
+    canonical := realpath_str(path)
+    if seen.has(canonical) { return }
+    seen.add(own canonical.clone())
+    mut dir := "."
+    slash := path.rfind("/")
+    if slash >= 0 { dir = path.substr(0, slash.to_usize()) }
+    for raw_line : Str in File.readfile(path).split("\n") {
+        line := raw_line.trim()
+        if line.starts_with("#").not() { continue }
+        directive := line.strip_prefix("#").trim()
+        if directive.starts_with("include").not() { continue }
+        spelled := directive.strip_prefix("include").trim()
+        mut name := ""
+        mut quoted := false
+        if spelled.starts_with("\"") {
+            close := spelled.substr(1, spelled.len() - 1).find("\"")
+            if close < 0 { continue }
+            name = spelled.substr(1, close.to_usize())
+            quoted = true
+        } else if spelled.starts_with("<") {
+            close := spelled.find(">")
+            if close < 0 { continue }
+            name = spelled.substr(1, close.to_usize() - 1)
+        } else { continue }
+        mut candidates := Vec(Str).new()
+        if quoted { candidates.push(own format(dir, "/", name)) }
+        for include_dir : Str in include_dirs { candidates.push(own format(include_dir, "/", name)) }
+        for candidate : Str in candidates {
+            if File.is_file(candidate) {
+                out.push(own candidate.clone())
+                collect_c_includes(candidate, include_dirs, seen, out)
+                break
+            }
+        }
+    }
+}
+
+priv compiler_executable := proc() returns Str {
+    return get_exe_path()
+}
+
+priv translation_inputs := proc(lp: LoadedProgram) returns Vec(Str) {
+    mut inputs := lp.unit_paths()
+    for mode_file : Str in lp.mode_files { inputs.push(own mode_file.clone()) }
+    inputs.push(own compiler_executable())
+    return inputs
+}
+
+priv executable_inputs := proc(lp: LoadedProgram, paths: BuildPaths) returns Vec(Str) {
+    mut inputs := Vec(Str).new()
+    inputs.push(own paths.c_path.clone())
+    inputs.push(own paths.fwd_path.clone())
+    inputs.push(own compiler_executable())
+    mut include_dirs := Vec(Str).new()
+    ext_slash := lp.ext_c_path.rfind("/")
+    if ext_slash >= 0 { include_dirs.push(own lp.ext_c_path.substr(0, ext_slash.to_usize())) }
+    for flag : Str in lp.include_flags_for_target().split(" ") {
+        if flag.starts_with("-I") { include_dirs.push(own flag.strip_prefix("-I").clone()) }
+    }
+    mut sources := Vec(Str).new()
+    sources.push(own lp.ext_c_path.clone())
+    for file : Str in lp.link_c_paths.split(" ") {
+        if file.len() > 0 { sources.push(own file.clone()) }
+    }
+    mut seen := Set(Str).new()
+    for source : Str in sources {
+        inputs.push(own source.clone())
+        // REM A missing link_c source fails output_outranks_inputs, and the
+        // compile then reports it.
+        if File.is_file(source) { collect_c_includes(source, include_dirs, seen, inputs) }
+    }
+    // Linked files the program names by path (archives, objects); -l
+    // libraries are system ones, untracked as with make.
+    linked := resolve_target_archives(lp.link_flags_for_target(), builder_compiler_root(lp))
+    for token : Str in linked.split(" ") {
+        if token.len() == 0 { continue }
+        if token.starts_with("-") { continue }
+        if File.is_file(token) { inputs.push(own token.clone()) }
+    }
+    return inputs
+}
+
+// The outputs a reuse check talks about: the same derivation build_program
+// uses. Non-theme translate ignores -o.
+priv reuse_paths := proc(lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str, target: Target) returns BuildPaths {
+    mut bin_override := custom_bin.clone()
+    if command == "translate" { bin_override = "" }
+    return derive_build_paths(lp, bin_override, custom_c, target)
+}
+
+priv stamp_of := func(parts: Vec(Str)) returns Str {
+    mut text := ""
+    for part : Str in parts { text = format(text, part, "\n") }
+    return hash_str(text).to_str()
+}
+
+priv translation_stamp_line := func(stamp: Str) returns Str {
+    return format("/* til-translation-stamp: ", stamp, " */\n")
+}
+
+priv executable_stamp_marker := func(stamp: Str) returns Str {
+    return format("til-build-stamp:", stamp, ";")
+}
+
+// Decide whether this invocation's outputs may be reused, and if so record
+// what produces them in lp.translation_stamp / lp.executable_stamp. Only
+// C-backend executables are reused; libraries, themes, other backends and
+// `test` always regenerate, and so does a program declaring a value macro.
+// Runs before prepare_program: the stamps describe the loaded program.
+set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str,
+    target: Target, backend: Str, cc_override: Str, asan: Bool, prof: Bool) {
+    if command != "translate" && command != "build" && command != "run" { return }
+    if backend != "c" { return }
+    if lp.mode_str == "theme" || lp.cur_mode.is_library { return }
+    if target_lang(target).is(Lang.C).not() { return }
+    compiler := compiler_executable()
+    // REM A compiler that cannot name its own executable cannot show it is
+    // older than the outputs.
+    if compiler.len() == 0 { return }
+    if program_declares_value_macro(lp) { return }
+    paths := reuse_paths(lp, command, custom_bin, custom_c, target)
+    mut translation := Vec(Str).new()
+    translation.push(own "translation")
+    translation.push(own lp.compiler_revision.clone())
+    translation.push(own realpath_str(compiler))
+    translation.push(own realpath_str(lp.path))
+    translation.push(own paths.c_path.clone())
+    translation.push(own target_to_str(target))
+    translation.push(own lp.usize_override_bits.to_str())
+    translation.push(own lp.cptr32.to_str())
+    translation.push(own lp.cpu.name.clone())
+    translation.push(own lp.ctx.check_unused_imports.to_str())
+    // The garbager's decision audit prints while translating.
+    translation.push(own get_env("TIL_GC_AUDIT"))
+    for unit_path : Str in lp.unit_paths() { translation.push(own realpath_str(unit_path)) }
+    for mode_file : Str in lp.mode_files { translation.push(own realpath_str(mode_file)) }
+    lp.translation_stamp = stamp_of(translation)
+    mut executable := Vec(Str).new()
+    executable.push(own "executable")
+    executable.push(own lp.translation_stamp.clone())
+    executable.push(own paths.bin_path.clone())
+    executable.push(own cc_override.clone())
+    executable.push(own asan.to_str())
+    executable.push(own prof.to_str())
+    executable.push(own lp.opt_level.to_str())
+    executable.push(own lp.cpu.c_flags.clone())
+    executable.push(own lp.link_flags_for_target())
+    executable.push(own macos_framework_flags(lp))
+    executable.push(own lp.include_flags_for_target())
+    executable.push(own lp.link_c_paths.clone())
+    executable.push(own lp.ext_c_path.clone())
+    executable.push(own loads_gui_module(lp).to_str())
+    lp.executable_stamp = stamp_of(executable)
+}
+
+// Is the program's existing C translation current, so translate/build/run
+// can skip preparing and emitting it?
+translation_is_current := proc(lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str,
+    target: Target) returns Bool {
+    // REM No stamp: set_reuse_stamps ruled reuse out.
+    if lp.translation_stamp.len() == 0 { return false }
+    paths := reuse_paths(lp, command, custom_bin, custom_c, target)
+    inputs := translation_inputs(lp)
+    if output_outranks_inputs(paths.c_path, inputs).not() { return false }
+    if output_outranks_inputs(paths.fwd_path, inputs).not() { return false }
+    return File.readfile(paths.c_path).ends_with(translation_stamp_line(lp.translation_stamp))
+}
+
+priv executable_is_current := proc(lp: LoadedProgram, paths: BuildPaths) returns Bool {
+    if output_outranks_inputs(paths.bin_path, executable_inputs(lp, paths)).not() { return false }
+    return File.readfile(paths.bin_path).contains(executable_stamp_marker(lp.executable_stamp))
+}
+
+// Close a successful C translation with its stamp (#442).
+priv stamp_translation := proc(lp: LoadedProgram, paths: BuildPaths) {
+    // REM No stamp: this program's outputs are never reused.
+    if lp.translation_stamp.len() == 0 { return }
+    File.appendfile(paths.c_path, translation_stamp_line(lp.translation_stamp))
+}
+
+// Finish translate/build/run from a current translation: compile it only
+// when the executable is stale, then run it for `run`.
+reuse_translation := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str,
+    argv: Vec(Str), target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
+    paths := reuse_paths(lp, command, custom_bin, custom_c, target)
+    if command == "translate" { print_translate_success(paths); return 0 }
+    if executable_is_current(lp, paths).not() {
+        register_target_int_aliases(lp)
+        make_build_dirs(paths)
+        result := compile_ast(lp, paths, target, cc_override, asan, prof)
+        if result != 0 { return result }
+    }
+    if command == "run" { return run_artifact(paths, argv, target, asan) }
     return 0
 }
 

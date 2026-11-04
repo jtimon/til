@@ -361,6 +361,12 @@ LoadedProgram := struct {
     macos_frameworks := ""
     link_c_paths := ""
     compiler_revision := ""
+    // #442: what produces a reusable output (set_reuse_stamps). Empty for
+    // a program whose outputs are never reused. The builder closes a
+    // successful C translation with the translation stamp; the executable
+    // stamp is compiled into the executable (ext.c's til_build_stamp).
+    translation_stamp := ""
+    executable_stamp := ""
     asan_build := false
     // Temporary MLIR-to-C core bridge; not a source-language mode or cache.
     mlir_runtime := false
@@ -473,6 +479,8 @@ namespace:
         Str.delete(own self.macos_frameworks, false)
         Str.delete(own self.link_c_paths, false)
         Str.delete(own self.compiler_revision, false)
+        Str.delete(own self.translation_stamp, false)
+        Str.delete(own self.executable_stamp, false)
         if call_free { free(own self) }
     }
 }
@@ -4619,6 +4627,13 @@ priv check_unused_imports_collected := proc(entries: Vec(ImportCheckEntry), mut 
     return found
 }
 
+// Stamp the target's USize/UPtr widths into the context. Typing does it
+// before any resolution; a build that compiles an existing translation
+// without typing it (#442) does it too, so its -DTIL_USIZE* flag matches.
+register_target_int_aliases := func(mut lp: LoadedProgram) {
+    context_register_target_int_alias_types(lp.ctx, target_int_alias_name(lp, "USize", target_usize_name(lp.target)), target_int_alias_name(lp, "UPtr", target_uptr_name(lp.target)))
+}
+
 type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 {
     lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
     lp.cpu = resolve_target_cpu(lp.target, lp.cpu.name)
@@ -4630,7 +4645,7 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // init/typer resolution, so every position resolves them uniformly
     // to the per-target primitive. lp.target is final here (after any
     // --target override).
-    context_register_target_int_alias_types(lp.ctx, target_int_alias_name(lp, "USize", target_usize_name(lp.target)), target_int_alias_name(lp, "UPtr", target_uptr_name(lp.target)))
+    register_target_int_aliases(lp)
 
     // #154 prototype: snapshot every explicit import stmt per user unit
     // before the namespace-import desugar below removes the alias binding.
@@ -4885,7 +4900,7 @@ repl_type_delta_program := proc(mut lp: LoadedProgram, mut delta: Expr) returns 
     lp.ctx.target_simd_bits = lp.cpu.simd_bits
     lp.ctx.target_scalar64_align = 8
     if lp.target.is(Target.LinuxX86) { lp.ctx.target_scalar64_align = 4 }
-    context_register_target_int_alias_types(lp.ctx, target_int_alias_name(lp, "USize", target_usize_name(lp.target)), target_int_alias_name(lp, "UPtr", target_uptr_name(lp.target)))
+    register_target_int_aliases(lp)
     ref root : ProgramUnit = lp.units[lp.units.len() - 1]
     ref iu : ImportUnit = lp.ctx.imported[root.path]
     lp.ctx.mode = iu.mode.clone()

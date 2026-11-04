@@ -18,6 +18,31 @@ check_command := proc(command: Cmd, expected: Str) {
     }
 }
 
+mtime := proc(path: Str) returns I64 {
+    return file_mtime(format(WORK, "/", path))
+}
+
+expect_same := proc(path: Str, before: I64, why: Str) {
+    if mtime(path) != before { panic(why, ": ", path, " was rewritten") }
+}
+
+expect_newer := proc(path: Str, before: I64, why: Str) {
+    if mtime(path) <= before { panic(why, ": ", path, " was not rewritten") }
+}
+
+// mtimes have whole-second granularity, and #442 treats an input as new as
+// its output as newer. A rebuild must land in a later second to show, and
+// an edit is followed by a second so the rebuild it causes is settled.
+next_second := proc() {
+    sleep_ms(1100)
+}
+
+edit := proc(path: Str, content: Str) {
+    next_second()
+    File.writefile(path, content)
+    next_second()
+}
+
 main := proc(args: ..Str) {
     compiler := realpath_str(args[0])
     File.remove_tree(WORK)
@@ -31,6 +56,17 @@ main := proc(args: ..Str) {
     File.writefile(format(WORK, "/value.c"), "#include <stdint.h>\nint64_t value(void) { return 17; }\n")
     File.writefile(format(WORK, "/foo/linked.til"), File.readfile(format(WORK, "/linked.til")))
     File.writefile(format(WORK, "/foo/value.c"), "#include <stdint.h>\nint64_t value(void) { return 41; }\n")
+    // #442: a target whose own source never changes, with a direct and a
+    // transitive import and a link_c source whose result is in a header.
+    mkdir_p(format(WORK, "/deps"))
+    File.writefile(format(WORK, "/deps/main.til"),
+        "mode script\nimport(\"direct\")\nlink_c(\"probe.c\")\nprobe := ext_proc() returns shallow I64 {}\nprintln(direct_word(), \" \", probe().to_str())\n")
+    File.writefile(format(WORK, "/deps/direct.til"),
+        "mode lib\nimport(\"transitive\")\ndirect_word := func() returns Str { return format(\"direct1-\", transitive_word()) }\n")
+    File.writefile(format(WORK, "/deps/transitive.til"),
+        "mode lib\ntransitive_word := func() returns Str { return \"transitive1\" }\n")
+    File.writefile(format(WORK, "/deps/probe.c"), "#include <stdint.h>\n#include \"probe.h\"\nint64_t probe(void) { return PROBE; }\n")
+    File.writefile(format(WORK, "/deps/probe.h"), "#define PROBE 1\n")
     // Make every later output strictly newer than its .til dependencies, so
     // the old timestamp shortcut really would take the wrong fast path.
     sleep_ms(1100)
@@ -103,8 +139,91 @@ main := proc(args: ..Str) {
         }
         check_command(Cmd.new(compiler, command, "foo/linked.til"), "41\n")
     }
-    File.writefile(format(WORK, "/value.c"), "#include <stdint.h>\nint64_t value(void) { return 29; }\n")
+    // A link_c edit invalidates the executable, not the translation.
+    linked_c := mtime("gen/til/linked.c")
+    edit(format(WORK, "/value.c"), "#include <stdint.h>\nint64_t value(void) { return 29; }\n")
     check_command(Cmd.new(compiler, "run", "linked.til"), "29\n")
+    expect_same("gen/til/linked.c", linked_c, "link_c edit retranslated")
+
+    // #442: an identical second invocation reuses the C and the executable.
+    // The first build may compile in the second its C was written, which
+    // costs one recompile; settle that before comparing.
+    deps_bin := format("bin/deps/main", ext)
+    check_command(Cmd.new(compiler, "run", "deps/main.til"), "direct1-transitive1 1\n")
+    next_second()
+    check_command(Cmd.new(compiler, "run", "deps/main.til"), "direct1-transitive1 1\n")
+    mut c_time := mtime("gen/til/deps/main.c")
+    mut bin_time := mtime(deps_bin)
+    next_second()
+    check_command(Cmd.new(compiler, "run", "deps/main.til"), "direct1-transitive1 1\n")
+    check_command(Cmd.new(compiler, "build", "deps/main.til"), "")
+    check_command(Cmd.new(compiler, "translate", "deps/main.til"),
+        "Generated: gen/til/deps/main.c\nGenerated: gen/til/deps/main_forward.h\n")
+    expect_same("gen/til/deps/main.c", c_time, "unchanged run retranslated")
+    expect_same(deps_bin, bin_time, "unchanged run recompiled")
+
+    // A header the link_c source includes: compile only.
+    edit(format(WORK, "/deps/probe.h"), "#define PROBE 2\n")
+    check_command(Cmd.new(compiler, "run", "deps/main.til"), "direct1-transitive1 2\n")
+    expect_same("gen/til/deps/main.c", c_time, "header edit retranslated")
+    expect_newer(deps_bin, bin_time, "header edit")
+    bin_time = mtime(deps_bin)
+
+    // A direct import edit, the target source untouched: both phases.
+    edit(format(WORK, "/deps/direct.til"),
+        "mode lib\nimport(\"transitive\")\ndirect_word := func() returns Str { return format(\"direct2-\", transitive_word()) }\n")
+    check_command(Cmd.new(compiler, "run", "deps/main.til"), "direct2-transitive1 2\n")
+    expect_newer("gen/til/deps/main.c", c_time, "direct import edit")
+    expect_newer(deps_bin, bin_time, "direct import edit")
+    c_time = mtime("gen/til/deps/main.c")
+    bin_time = mtime(deps_bin)
+
+    // A transitive import edit: translate alone rewrites only the C.
+    edit(format(WORK, "/deps/transitive.til"),
+        "mode lib\ntransitive_word := func() returns Str { return \"transitive2\" }\n")
+    check_command(Cmd.new(compiler, "translate", "deps/main.til"),
+        "Generated: gen/til/deps/main.c\nGenerated: gen/til/deps/main_forward.h\n")
+    expect_newer("gen/til/deps/main.c", c_time, "transitive import edit")
+    expect_same(deps_bin, bin_time, "translate compiled")
+    c_time = mtime("gen/til/deps/main.c")
+    check_command(Cmd.new(compiler, "run", "deps/main.til"), "direct2-transitive2 2\n")
+    expect_same("gen/til/deps/main.c", c_time, "current translation retranslated")
+    expect_newer(deps_bin, bin_time, "stale executable after retranslation")
+
+    // A missing executable is compiled from the current translation.
+    File.remove(format(WORK, "/", deps_bin))
+    check_command(Cmd.new(compiler, "run", "deps/main.til"), "direct2-transitive2 2\n")
+    expect_same("gen/til/deps/main.c", c_time, "missing executable retranslated")
+    bin_time = mtime(deps_bin)
+
+    // An option stamps the phase it shapes (#442): --opt the executable
+    // only, --usize the translation too.
+    next_second()
+    check_command(Cmd.new(compiler, "run", "--opt=2", "deps/main.til"), "direct2-transitive2 2\n")
+    expect_same("gen/til/deps/main.c", c_time, "--opt retranslated")
+    expect_newer(deps_bin, bin_time, "--opt")
+    bin_time = mtime(deps_bin)
+    next_second()
+    check_command(Cmd.new(compiler, "run", "--usize=64", "deps/main.til"), "direct2-transitive2 2\n")
+    expect_newer("gen/til/deps/main.c", c_time, "--usize")
+    expect_newer(deps_bin, bin_time, "--usize")
+    c_time = mtime("gen/til/deps/main.c")
+    bin_time = mtime(deps_bin)
+    // A translation that does not end in its stamp (an interrupted one, or
+    // a file someone else wrote) is regenerated, however new it is.
+    c_text := File.readfile(format(WORK, "/gen/til/deps/main.c"))
+    next_second()
+    File.writefile(format(WORK, "/gen/til/deps/main.c"), c_text.substr(0, c_text.len() / 2))
+    check_command(Cmd.new(compiler, "run", "--usize=64", "deps/main.til"), "direct2-transitive2 2\n")
+    expect_newer("gen/til/deps/main.c", c_time, "truncated translation")
+    c_time = mtime("gen/til/deps/main.c")
+    bin_time = mtime(deps_bin)
+
+    // --force-rebuild regenerates both phases with nothing changed.
+    next_second()
+    check_command(Cmd.new(compiler, "run", "--force-rebuild", "--usize=64", "deps/main.til"), "direct2-transitive2 2\n")
+    expect_newer("gen/til/deps/main.c", c_time, "--force-rebuild")
+    expect_newer(deps_bin, bin_time, "--force-rebuild")
     if detect_current_target().is(Target.LinuxX64) {
         File.writefile(format(WORK, "/foo/backend.til"), "mode cli\nmain := proc() { println(\"first backend\") }\n")
         File.writefile(format(WORK, "/bar/backend.til"), "mode cli\nmain := proc() { println(\"second backend\") }\n")

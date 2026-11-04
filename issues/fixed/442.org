@@ -1,0 +1,83 @@
+# priority: medium
+# category: optimizations
+** FIXED #442 Reuse unchanged generated C and binaries using timestamp checks
+
+*** Post-mortem
+
+#406 removed #170's timestamp shortcut because an mtime cannot say which
+program, compiler or options wrote a file, so every direct translate,
+build and run regenerated everything. Reuse is back, with both a
+timestamp test and a record of what produced each output, kept inside
+the output itself (no sidecar file).
+
+~set_reuse_stamps~, ~translation_is_current~ and ~reuse_translation~ in
+src/self/builder.til run between load_program and prepare_program, for
+C-backend executables. The emitted C and its forward header are current
+when strictly newer than every loaded unit, mode file and the compiler
+binary, and the C ends with this invocation's translation stamp: a hash
+of the compiler revision and executable, the canonical source, the C
+path, target, ~--usize~ layout, ~--cpu~ profile, unused-import checking,
+~TIL_GC_AUDIT~ and every loaded unit. The builder appends it only after a
+translation succeeded, so an interrupted or foreign file never matches.
+The executable is current when strictly newer than that C, the C runtime,
+link_c sources, the headers they include (quoted beside the file or under
+the runtime / ~-I~ directories), path-linked archives and the compiler,
+and it contains this invocation's executable stamp: the translation
+stamp plus the output path, ~--cc~, ~--asan~, ~--prof~, ~--opt~, CPU
+flags, link, include and framework flags, link_c files and GUI linking.
+The compile passes it as ~-DTIL_BUILD_STAMP~ and ext.c keeps it as the
+~til_build_stamp~ constant, which the check finds by scanning the file.
+A current translation skips preparation and emission; a stale executable
+is compiled from it. Whole-second mtimes, so an input as new as its
+output counts as newer. Programs declaring a value macro (the compiler's
+git revision and the like), libraries, themes, MLIR/FASM and ~test~
+always regenerate. ~--force-rebuild~ bypasses reuse again.
+
+Regression: test/build_outputs.til (suite row ~build_outputs~) keeps
+#406's shared-path, overwritten-output, USize, C-compiler and link_c
+cases without ~--force-rebuild~, and adds an identical second
+invocation leaving C and executable mtimes unchanged, a link_c edit and
+an included-header edit recompiling without retranslating, direct and
+transitive import edits with the target source untouched, a missing
+executable, ~--opt~ (executable only) and ~--usize~ (both phases), a
+truncated translation and ~--force-rebuild~. Measured: ~run hello.til~
+0.90s cold, 0.03s repeated; ~run test/strings.til~ 1.3-1.6s cold, 0.05s
+repeated (reading the stamps costs about 0.02s over timestamps alone);
+~translate src/til.til~ 28s, always regenerated (value macro).
+
+*** Original report
+
+Direct ~til translate~, ~til build~, and ~til run~ currently regenerate their
+outputs on every invocation. Restore reuse of existing .c files and binaries
+when nothing relevant has changed, using file modification times to decide
+whether translation or compilation is needed.
+
+~make.til~ already uses ~needs_rebuild~ to compare output timestamps with its
+declared inputs, but direct compiler commands do not use that build graph.
+Repeated commands therefore repeat work even when source and outputs are
+unchanged. Treat translation and compilation separately: current generated C
+can be reused even when the executable still needs to be compiled or linked.
+
+*** Correctness requirements
+
+- Analyze the full transitive dependency graph, not just the target source
+  file: recursively imported modules, their imports, mode/core/std sources,
+  compiler, linked C files, included headers, linked libraries, and other
+  relevant build inputs. Compare dependency timestamps with the outputs;
+  an unchanged target file is insufficient if any dependency changed.
+  Missing outputs require regeneration.
+- Reuse must also correspond to the same source, target and build options.
+  A newer output written by another program or compiler is not a cache hit.
+  Explicit ~-o~ / ~-c~ paths need the same correctness guarantees.
+- Preserve an explicit rebuild path through ~--force-rebuild~.
+- Account for compile-time inputs such as the compiler's embedded git revision;
+  source timestamps alone do not capture a change of HEAD.
+
+The old timestamp shortcut was removed in [[../fixed/406.org][#406]] because it
+accepted outputs belonging to another program and ignored compiler/options and
+linked-C changes. Retain ~test/build_outputs.til~'s stale-output regressions
+while adding checks that an identical second invocation leaves generated C
+and binary timestamps unchanged, and that changed inputs invalidate the
+appropriate phase. Include a dependency-only edit and a transitive-dependency
+edit with the target source left untouched. Measure cold and repeated-command
+times.

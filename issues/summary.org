@@ -23,7 +23,6 @@
 *** [[./open/449.org][#449]] Map and set literal nodes have no type slot; the instance name lives on the Decl
 * Optimizations
 ** Medium
-*** [[./open/442.org][#442]] Reuse unchanged generated C and binaries using timestamp checks
 *** [[./open/461.org][#461]] Simplify borrow-aware last-use destruction and reduce analysis cost
 ** Low
 *** [[./open/405.org][#405]] Avoid owning Array(Str) and formatting allocations in panic
