@@ -99,11 +99,12 @@ ifeq ($(MAKECMDGOALS),)
 DELEGATED := all
 endif
 
-# Command-line variables reach the build program unchanged. J is passed
-# as the option bin/make spells it; the rest are read from the
-# environment (bin/make also takes --riscv32-cc=<path> and
-# --linux-x64-cc=<path> directly).
-export RISCV32_CC LINUX_X64_CC EMCC EMAR EMRANLIB
+# Command-line variables reach the build program unchanged. J and
+# NO_JVM are passed as the options bin/make spells them; the rest
+# (RISCV32_CC, LINUX_X64_CC, EMCC, EMAR, EMRANLIB) bin/make reads from
+# the environment, where make already puts every command-line variable
+# (bin/make also takes --riscv32-cc=<path> and --linux-x64-cc=<path>
+# directly).
 
 # A sudo invocation must bootstrap as the caller too: otherwise it leaves
 # root-owned bin/, gen/ and tmp/boot files before make.til can take over.
@@ -190,5 +191,5 @@ bin/til_boot: $(LIBFFI_HOST_DIR)/.built
 # mtime would recompile the build program every time for nothing.
 # Prerequisites otherwise mirror make.til's own self_sources(), so both
 # entry points agree on when bin/make is stale.
-bin/make: make.til src/self/install.til $(CORE) $(STD) $(EXT_C) | bin/til_boot
+bin/make: make.til src/self/install.til src/self/fasm_build.til src/self/targets.til $(CORE) $(STD) $(EXT_C) | bin/til_boot
 	bin/til_boot build -o bin/make make.til

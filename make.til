@@ -2444,6 +2444,8 @@ self_sources := proc() returns Vec(Str) {
     mut out := Vec(Str).new()
     out.push(own SELF_SRC.clone())
     out.push(own "src/self/install.til")
+    out.push(own "src/self/fasm_build.til")
+    out.push(own "src/self/targets.til")
     add_matching(out, "src/core", ".til")
     add_matching(out, "src/std", ".til")
     add_matching(out, "src/self/codegen", ".c")
