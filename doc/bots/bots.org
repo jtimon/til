@@ -323,6 +323,10 @@ self-applied, and `make test_two_pass` adds the full suite.
 depends on `bin/til`, so the initial build runs implicitly. See
 doc/self.org for the build workflow.
 
+TEMPORARY (#464): `make test` and `make test_two_pass` run without
+ASAN. `make test_asan` explicitly runs the full ASAN suite; the native
+Linux CI jobs use it. See `issues/open/464.org` for restoration steps.
+
 Session type rule: OpenCode runs locally on the user's worktree/system
 and counts as a LOCAL session. "Remote" sessions mean Claude in the
 cloud (CI or hosted bot runs on assigned bot branches).
@@ -341,8 +345,9 @@ redirected to a file (`make clean && make test > tmp/test.log 2>&1`),
 one at a time, per "Background vs Foreground" below. The full
 `make clean && make test` before committing til code applies to
 remote sessions exactly like local ones -- the smoke-only shortcut
-let a 13-test regression through once; it is dead. The human still
-runs the full ASAN suite at merge time; report exactly what you ran and saw.
+let a 13-test regression through once; it is dead. The human's merge-time
+run uses the same targets and temporary ASAN policy above; report exactly
+what you ran and saw.
 
 ## Worktrees (local sessions)
 
@@ -471,9 +476,9 @@ before ASAN:
     ulimit -d unlimited && bin/til_asan translate test/strings.til > tmp/asan.log 2>&1
     grep "SUMMARY" tmp/asan.log
 
-Remote sessions may report ASAN numbers for context, but the full
-ASAN suite is part of `make test`; do not maintain a separate leak
-baseline.
+Remote sessions may report ASAN numbers for context. The explicit full
+ASAN target is `make test_asan`; see Testing for the temporary #464
+defaults. Do not maintain a separate leak baseline.
 
 - NEVER edit boot/ files. Fix .til or src/self/codegen/ sources instead.
 - Use the `tmp/` dir for ad-hoc test files.

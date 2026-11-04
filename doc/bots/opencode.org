@@ -50,8 +50,9 @@ to avoid re-discovering the same things.
   stdout if output is missing.
 
 ** ASAN
-- ~make test~ includes the ASAN suite. Do not maintain or compare a separate
-  leak baseline.
+- Temporarily (#464), ~make test~ and ~make test_two_pass~ run without ASAN.
+  ~make test_asan~ explicitly runs the full ASAN suite; the native Linux CI
+  jobs use it. Do not maintain or compare a separate leak baseline.
 
 ** Build & debug workflow
 - Use ~tmp/~ for ad-hoc test files.
@@ -106,7 +107,9 @@ to avoid re-discovering the same things.
   generated file. The suite recreates them under ~tmp/tutorial_doctests/~ and
   runs all registered files sequentially in one job to cap peak memory.
 - *Source change*: any code change to ~.til~ files. Always requires
-  ~make clean && make test~ before committing; that target includes ASAN.
+  ~make clean && make test~ before committing; use ~make clean &&
+  make test_two_pass~ for ~Two-pass: ~ commits. ASAN coverage is explicit
+  until #464 is resolved (see above).
 
 ** git
 - ~git reset --soft HEAD~1~ keeps changes in worktree; followed by
