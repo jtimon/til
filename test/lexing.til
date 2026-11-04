@@ -1,131 +1,451 @@
-mode script
+mode test
+
+// Lexer contract (#472): every Token is a kind plus the byte range
+// [start, start+len) of its text inside the source and the 1-based
+// line/col where it begins. Tokens own no text: a literal's range is its
+// content span (string/char contents without quotes, /// text without the
+// prefix). The stream always ends with one zero-length Eof at src.len().
 
 import("../src/self/lexer")
+import("../src/self/parser")
 
-check_tok := proc(tokens: Vec, i: USize, expected_type: TokenType, expected_text: Str) {
-    ref t : Token = tokens.get(i)
+// Assert token i's kind, source slice and location.
+check_tok := func(src: Str, tokens: Vec(Token), i: USize, expected_type: TokenType, expected_text: Str, line: U32, col: U32) {
+    expect(i.lt(tokens.len()), "token ", i.to_str(), " missing: only ", tokens.len().to_str(), " tokens")
+    ref t : Token = tokens[i]
     tt := t.type
     expect(tt.eq(expected_type),
-        "token ", i.to_str(), " type: expected ", expected_type.to_str(),
-        " got ", tt.to_str())
-    assert_eq(Str, t.text, expected_text)
+        "token ", i.to_str(), " type: expected ", expected_type.to_str(), " got ", tt.to_str())
+    expect(t.start.add(t.len).lte(src.len()), "token ", i.to_str(), " span is outside the source")
+    got := src.substr(t.start, t.len).clone()
+    expect(got.eq(expected_text),
+        "token ", i.to_str(), " text: expected '", expected_text, "' got '", got, "'")
+    expect(t.line.eq(line), "token ", i.to_str(), " line: expected ", line.to_str(), " got ", t.line.to_str())
+    expect(t.col.eq(col), "token ", i.to_str(), " col: expected ", col.to_str(), " got ", t.col.to_str())
 }
 
-test_empty := proc() {
-    tokens := tokenize("", "test")
-    assert_eq(USize, tokens.len(), 1)
-    check_tok(tokens, 0, TokenType.Eof, "")
+// Assert the exact byte range, for spans the slice alone cannot pin down.
+check_span := func(tokens: Vec(Token), i: USize, start: USize, len: USize) {
+    ref t : Token = tokens[i]
+    assert_eq(USize, t.start, start)
+    assert_eq(USize, t.len, len)
 }
 
-test_singles := proc() {
-    tokens := tokenize("( ) { } [ ] , : . ? ! + - * /", "test")
-    check_tok(tokens, 0, TokenType.LParen, "(")
-    check_tok(tokens, 1, TokenType.RParen, ")")
-    check_tok(tokens, 2, TokenType.LBrace, "{")
-    check_tok(tokens, 3, TokenType.RBrace, "}")
-    check_tok(tokens, 4, TokenType.LBracket, "[")
-    check_tok(tokens, 5, TokenType.RBracket, "]")
-    check_tok(tokens, 6, TokenType.Comma, ",")
-    check_tok(tokens, 7, TokenType.Colon, ":")
-    check_tok(tokens, 8, TokenType.Dot, ".")
-    check_tok(tokens, 9, TokenType.Question, "?")
-    check_tok(tokens, 10, TokenType.Bang, "!")
-    check_tok(tokens, 11, TokenType.Plus, "+")
-    check_tok(tokens, 12, TokenType.Minus, "-")
-    check_tok(tokens, 13, TokenType.Star, "*")
-    check_tok(tokens, 14, TokenType.Slash, "/")
-    check_tok(tokens, 15, TokenType.Eof, "")
+// The stream ends with exactly one Eof, at the end of the source.
+check_eof := func(src: Str, tokens: Vec(Token), count: USize, line: U32, col: U32) {
+    assert_eq(USize, tokens.len(), count)
+    check_tok(src, tokens, count - 1, TokenType.Eof, "", line, col)
+    check_span(tokens, count - 1, src.len(), 0)
 }
 
-test_two_char := proc() {
-    tokens := tokenize(":= == != <= >= ..", "test")
-    check_tok(tokens, 0, TokenType.ColonEq, ":=")
-    check_tok(tokens, 1, TokenType.EqEq, "==")
-    check_tok(tokens, 2, TokenType.Neq, "!=")
-    check_tok(tokens, 3, TokenType.LtEq, "<=")
-    check_tok(tokens, 4, TokenType.GtEq, ">=")
-    check_tok(tokens, 5, TokenType.DotDot, "..")
-    check_tok(tokens, 6, TokenType.Eof, "")
+// Two token streams are equal field by field (kind, span, location).
+check_same_tokens := func(a: Vec(Token), b: Vec(Token)) {
+    assert_eq(USize, a.len(), b.len())
+    for i in 0..a.len() {
+        ref ta : Token = a[i]
+        ref tb : Token = b[i]
+        ta_type := ta.type
+        tb_type := tb.type
+        expect(ta_type.eq(tb_type), "token ", i.to_str(), " kind differs")
+        assert_eq(USize, ta.start, tb.start)
+        assert_eq(USize, ta.len, tb.len)
+        assert_eq(U32, ta.line, tb.line)
+        assert_eq(U32, ta.col, tb.col)
+    }
 }
 
-test_keywords := proc() {
-    tokens := tokenize("if else while return func proc struct enum test", "test")
-    check_tok(tokens, 0, TokenType.KwIf, "if")
-    check_tok(tokens, 1, TokenType.KwElse, "else")
-    check_tok(tokens, 2, TokenType.KwWhile, "while")
-    check_tok(tokens, 3, TokenType.KwReturn, "return")
-    check_tok(tokens, 4, TokenType.KwFunc, "func")
-    check_tok(tokens, 5, TokenType.KwProc, "proc")
-    check_tok(tokens, 6, TokenType.KwStruct, "struct")
-    check_tok(tokens, 7, TokenType.KwEnum, "enum")
-    check_tok(tokens, 8, TokenType.KwTest, "test")
+test_empty := test() {
+    src := ""
+    tokens := tokenize(src, "test")
+    check_eof(src, tokens, 1, 1, 1)
 }
 
-test_more_keywords := proc() {
-    tokens := tokenize("mode mut own ref shallow returns throws for in break continue defer NULL", "test")
-    check_tok(tokens, 0, TokenType.Ident, "mode")
-    check_tok(tokens, 1, TokenType.KwMut, "mut")
-    check_tok(tokens, 2, TokenType.KwOwn, "own")
-    check_tok(tokens, 3, TokenType.KwRef, "ref")
-    check_tok(tokens, 4, TokenType.KwShallow, "shallow")
-    check_tok(tokens, 5, TokenType.KwReturns, "returns")
-    check_tok(tokens, 6, TokenType.KwThrows, "throws")
-    check_tok(tokens, 7, TokenType.KwFor, "for")
-    check_tok(tokens, 8, TokenType.KwIn, "in")
-    check_tok(tokens, 9, TokenType.KwBreak, "break")
-    check_tok(tokens, 10, TokenType.KwContinue, "continue")
-    check_tok(tokens, 11, TokenType.KwDefer, "defer")
-    check_tok(tokens, 12, TokenType.KwNull, "NULL")
+test_whitespace_only := test() {
+    // Spaces, tabs, '\r' and ';' are skipped; '\n' advances the line.
+    src := " \t;\r\n  "
+    tokens := tokenize(src, "test")
+    check_eof(src, tokens, 1, 2, 3)
 }
 
-test_statement := proc() {
-    tokens := tokenize("x := 42", "test")
-    check_tok(tokens, 0, TokenType.Ident, "x")
-    check_tok(tokens, 1, TokenType.ColonEq, ":=")
-    check_tok(tokens, 2, TokenType.Number, "42")
-    check_tok(tokens, 3, TokenType.Eof, "")
+test_singles := test() {
+    src := "( ) { } [ ] , : . ? ! + - * / % & | ^ = < >"
+    tokens := tokenize(src, "test")
+    check_tok(src, tokens, 0, TokenType.LParen, "(", 1, 1)
+    check_tok(src, tokens, 1, TokenType.RParen, ")", 1, 3)
+    check_tok(src, tokens, 2, TokenType.LBrace, "{", 1, 5)
+    check_tok(src, tokens, 3, TokenType.RBrace, "}", 1, 7)
+    check_tok(src, tokens, 4, TokenType.LBracket, "[", 1, 9)
+    check_tok(src, tokens, 5, TokenType.RBracket, "]", 1, 11)
+    check_tok(src, tokens, 6, TokenType.Comma, ",", 1, 13)
+    check_tok(src, tokens, 7, TokenType.Colon, ":", 1, 15)
+    check_tok(src, tokens, 8, TokenType.Dot, ".", 1, 17)
+    check_tok(src, tokens, 9, TokenType.Question, "?", 1, 19)
+    check_tok(src, tokens, 10, TokenType.Bang, "!", 1, 21)
+    check_tok(src, tokens, 11, TokenType.Plus, "+", 1, 23)
+    check_tok(src, tokens, 12, TokenType.Minus, "-", 1, 25)
+    check_tok(src, tokens, 13, TokenType.Star, "*", 1, 27)
+    check_tok(src, tokens, 14, TokenType.Slash, "/", 1, 29)
+    check_tok(src, tokens, 15, TokenType.Percent, "%", 1, 31)
+    check_tok(src, tokens, 16, TokenType.Ampersand, "&", 1, 33)
+    check_tok(src, tokens, 17, TokenType.Pipe, "|", 1, 35)
+    check_tok(src, tokens, 18, TokenType.Caret, "^", 1, 37)
+    check_tok(src, tokens, 19, TokenType.Eq, "=", 1, 39)
+    check_tok(src, tokens, 20, TokenType.Lt, "<", 1, 41)
+    check_tok(src, tokens, 21, TokenType.Gt, ">", 1, 43)
+    check_eof(src, tokens, 23, 1, 44)
 }
 
-test_numbers := proc() {
-    tokens := tokenize("0 123 3.14", "test")
-    check_tok(tokens, 0, TokenType.Number, "0")
-    check_tok(tokens, 1, TokenType.Number, "123")
-    check_tok(tokens, 2, TokenType.Number, "3.14")
-    check_tok(tokens, 3, TokenType.Eof, "")
+test_multi_char := test() {
+    src := ":= == != <= >= ++ -- && || .. ..."
+    tokens := tokenize(src, "test")
+    check_tok(src, tokens, 0, TokenType.ColonEq, ":=", 1, 1)
+    check_tok(src, tokens, 1, TokenType.EqEq, "==", 1, 4)
+    check_tok(src, tokens, 2, TokenType.Neq, "!=", 1, 7)
+    check_tok(src, tokens, 3, TokenType.LtEq, "<=", 1, 10)
+    check_tok(src, tokens, 4, TokenType.GtEq, ">=", 1, 13)
+    check_tok(src, tokens, 5, TokenType.PlusPlus, "++", 1, 16)
+    check_tok(src, tokens, 6, TokenType.MinusMinus, "--", 1, 19)
+    check_tok(src, tokens, 7, TokenType.AmpAmp, "&&", 1, 22)
+    check_tok(src, tokens, 8, TokenType.PipePipe, "||", 1, 25)
+    check_tok(src, tokens, 9, TokenType.DotDot, "..", 1, 28)
+    check_tok(src, tokens, 10, TokenType.DotDotDot, "...", 1, 31)
+    check_eof(src, tokens, 12, 1, 34)
 }
 
-test_line_comment := proc() {
-    tokens := tokenize("x // ignored", "test")
-    check_tok(tokens, 0, TokenType.Ident, "x")
-    check_tok(tokens, 1, TokenType.Eof, "")
+test_adjacent_operators := test() {
+    // Longest match first: "a...b" is three tokens, "x:=-1" is four.
+    src := "a...b x:=-1 !x"
+    tokens := tokenize(src, "test")
+    check_tok(src, tokens, 0, TokenType.Ident, "a", 1, 1)
+    check_tok(src, tokens, 1, TokenType.DotDotDot, "...", 1, 2)
+    check_tok(src, tokens, 2, TokenType.Ident, "b", 1, 5)
+    check_tok(src, tokens, 3, TokenType.Ident, "x", 1, 7)
+    check_tok(src, tokens, 4, TokenType.ColonEq, ":=", 1, 8)
+    check_tok(src, tokens, 5, TokenType.Minus, "-", 1, 10)
+    check_tok(src, tokens, 6, TokenType.Number, "1", 1, 11)
+    check_tok(src, tokens, 7, TokenType.Bang, "!", 1, 13)
+    check_tok(src, tokens, 8, TokenType.Ident, "x", 1, 14)
+    check_eof(src, tokens, 10, 1, 15)
 }
 
-test_hash_comment := proc() {
-    tokens := tokenize("x # ignored", "test")
-    check_tok(tokens, 0, TokenType.Ident, "x")
-    check_tok(tokens, 1, TokenType.Eof, "")
+test_keywords := test() {
+    src := "mut const own ref shallow struct enum namespace interface implements func proc test macro ext_func ext_proc ext_struct lazy_func lazy_proc core_func core_proc core_lazy_func returns throws if else while for in switch match case default return throw catch break continue defer true false priv"
+    tokens := tokenize(src, "test")
+    mut expected := Vec(TokenType).new()
+    expected.push(own TokenType.KwMut)
+    expected.push(own TokenType.KwConst)
+    expected.push(own TokenType.KwOwn)
+    expected.push(own TokenType.KwRef)
+    expected.push(own TokenType.KwShallow)
+    expected.push(own TokenType.KwStruct)
+    expected.push(own TokenType.KwEnum)
+    expected.push(own TokenType.KwNamespace)
+    expected.push(own TokenType.KwInterface)
+    expected.push(own TokenType.KwImplements)
+    expected.push(own TokenType.KwFunc)
+    expected.push(own TokenType.KwProc)
+    expected.push(own TokenType.KwTest)
+    expected.push(own TokenType.KwMacro)
+    expected.push(own TokenType.KwExtFunc)
+    expected.push(own TokenType.KwExtProc)
+    expected.push(own TokenType.KwExtStruct)
+    expected.push(own TokenType.KwLazyFunc)
+    expected.push(own TokenType.KwLazyProc)
+    expected.push(own TokenType.KwCoreFunc)
+    expected.push(own TokenType.KwCoreProc)
+    expected.push(own TokenType.KwCoreLazyFunc)
+    expected.push(own TokenType.KwReturns)
+    expected.push(own TokenType.KwThrows)
+    expected.push(own TokenType.KwIf)
+    expected.push(own TokenType.KwElse)
+    expected.push(own TokenType.KwWhile)
+    expected.push(own TokenType.KwFor)
+    expected.push(own TokenType.KwIn)
+    expected.push(own TokenType.KwSwitch)
+    expected.push(own TokenType.KwMatch)
+    expected.push(own TokenType.KwCase)
+    expected.push(own TokenType.KwDefault)
+    expected.push(own TokenType.KwReturn)
+    expected.push(own TokenType.KwThrow)
+    expected.push(own TokenType.KwCatch)
+    expected.push(own TokenType.KwBreak)
+    expected.push(own TokenType.KwContinue)
+    expected.push(own TokenType.KwDefer)
+    expected.push(own TokenType.KwTrue)
+    expected.push(own TokenType.KwFalse)
+    expected.push(own TokenType.KwPriv)
+    assert_eq(USize, tokens.len(), expected.len() + 1)
+    for i in 0..expected.len() {
+        ref t : Token = tokens[i]
+        tt := t.type
+        ref want : TokenType = expected[i]
+        expect(tt.eq(want), "keyword ", i.to_str(), ": expected ", want.to_str(), " got ", tt.to_str())
+        // The keyword spelling and tok_name agree in both directions.
+        assert_eq(Str, tok_name(want), src.substr(t.start, t.len))
+    }
+    check_eof(src, tokens, expected.len() + 1, 1, src.len().to_u32() + 1)
 }
 
-test_tok_name := proc() {
+test_identifiers := test() {
+    // Not keywords: mode is a directive name, NULL is an ordinary
+    // identifier, and keyword prefixes/suffixes stay identifiers.
+    src := "mode NULL null iff if_ _x x1 Foo_Bar"
+    tokens := tokenize(src, "test")
+    check_tok(src, tokens, 0, TokenType.Ident, "mode", 1, 1)
+    check_tok(src, tokens, 1, TokenType.Ident, "NULL", 1, 6)
+    check_tok(src, tokens, 2, TokenType.Ident, "null", 1, 11)
+    check_tok(src, tokens, 3, TokenType.Ident, "iff", 1, 16)
+    check_tok(src, tokens, 4, TokenType.Ident, "if_", 1, 20)
+    check_tok(src, tokens, 5, TokenType.Ident, "_x", 1, 24)
+    check_tok(src, tokens, 6, TokenType.Ident, "x1", 1, 27)
+    check_tok(src, tokens, 7, TokenType.Ident, "Foo_Bar", 1, 30)
+    check_eof(src, tokens, 9, 1, 37)
+}
+
+test_numbers := test() {
+    src := "0 123 3.14 1_000 0x1F 0XaB_cd 0b1010 0B1_0 0o17 0O7 1e9 1E+3 1.5e-3"
+    tokens := tokenize(src, "test")
+    check_tok(src, tokens, 0, TokenType.Number, "0", 1, 1)
+    check_tok(src, tokens, 1, TokenType.Number, "123", 1, 3)
+    check_tok(src, tokens, 2, TokenType.Number, "3.14", 1, 7)
+    check_tok(src, tokens, 3, TokenType.Number, "1_000", 1, 12)
+    check_tok(src, tokens, 4, TokenType.Number, "0x1F", 1, 18)
+    check_tok(src, tokens, 5, TokenType.Number, "0XaB_cd", 1, 23)
+    check_tok(src, tokens, 6, TokenType.Number, "0b1010", 1, 31)
+    check_tok(src, tokens, 7, TokenType.Number, "0B1_0", 1, 38)
+    check_tok(src, tokens, 8, TokenType.Number, "0o17", 1, 44)
+    check_tok(src, tokens, 9, TokenType.Number, "0O7", 1, 49)
+    check_tok(src, tokens, 10, TokenType.Number, "1e9", 1, 53)
+    check_tok(src, tokens, 11, TokenType.Number, "1E+3", 1, 57)
+    check_tok(src, tokens, 12, TokenType.Number, "1.5e-3", 1, 62)
+    check_eof(src, tokens, 14, 1, 68)
+}
+
+test_number_boundaries := test() {
+    // A '.' not followed by a digit ends the number (ranges, methods); a
+    // prefix or exponent without its digits is not part of the number.
+    src := "1..2 3.foo 0x 1e 2e+"
+    tokens := tokenize(src, "test")
+    check_tok(src, tokens, 0, TokenType.Number, "1", 1, 1)
+    check_tok(src, tokens, 1, TokenType.DotDot, "..", 1, 2)
+    check_tok(src, tokens, 2, TokenType.Number, "2", 1, 4)
+    check_tok(src, tokens, 3, TokenType.Number, "3", 1, 6)
+    check_tok(src, tokens, 4, TokenType.Dot, ".", 1, 7)
+    check_tok(src, tokens, 5, TokenType.Ident, "foo", 1, 8)
+    check_tok(src, tokens, 6, TokenType.Number, "0", 1, 12)
+    check_tok(src, tokens, 7, TokenType.Ident, "x", 1, 13)
+    check_tok(src, tokens, 8, TokenType.Number, "1", 1, 15)
+    check_tok(src, tokens, 9, TokenType.Ident, "e", 1, 16)
+    check_tok(src, tokens, 10, TokenType.Number, "2", 1, 18)
+    check_tok(src, tokens, 11, TokenType.Ident, "e", 1, 19)
+    check_tok(src, tokens, 12, TokenType.Plus, "+", 1, 20)
+    check_eof(src, tokens, 14, 1, 21)
+}
+
+test_strings := test() {
+    // The span is the raw content between the quotes: escapes are kept
+    // verbatim for the parser to decode, and an escaped quote does not
+    // end the string. The location is the opening quote's.
+    src := "\"\" \"hi\" \"a\\nb\" \"q\\\"q\" x"
+    tokens := tokenize(src, "test")
+    check_tok(src, tokens, 0, TokenType.StringTok, "", 1, 1)
+    check_span(tokens, 0, 1, 0)
+    check_tok(src, tokens, 1, TokenType.StringTok, "hi", 1, 4)
+    check_span(tokens, 1, 4, 2)
+    check_tok(src, tokens, 2, TokenType.StringTok, "a\\nb", 1, 9)
+    check_tok(src, tokens, 3, TokenType.StringTok, "q\\\"q", 1, 16)
+    check_tok(src, tokens, 4, TokenType.Ident, "x", 1, 23)
+    check_eof(src, tokens, 6, 1, 24)
+}
+
+test_multiline_string := test() {
+    // A newline inside a string advances the line for what follows.
+    src := "\"a\nb\" y"
+    tokens := tokenize(src, "test")
+    ref t : Token = tokens[0]
+    tt := t.type
+    assert(tt.eq(TokenType.StringTok))
+    assert_eq(Str, src.substr(t.start, t.len), "a\nb")
+    check_tok(src, tokens, 1, TokenType.Ident, "y", 2, 4)
+    check_eof(src, tokens, 3, 2, 5)
+}
+
+test_chars := test() {
+    // The span is the character or escape sequence between the quotes.
+    src := "'a' '\\n' '\\'' '\"'"
+    tokens := tokenize(src, "test")
+    check_tok(src, tokens, 0, TokenType.Char, "a", 1, 1)
+    check_span(tokens, 0, 1, 1)
+    check_tok(src, tokens, 1, TokenType.Char, "\\n", 1, 5)
+    check_tok(src, tokens, 2, TokenType.Char, "\\'", 1, 10)
+    check_tok(src, tokens, 3, TokenType.Char, "\"", 1, 15)
+    check_eof(src, tokens, 5, 1, 18)
+}
+
+test_comments := test() {
+    // '#' and '//' run to end of line; '/* */' nests and counts lines.
+    src := "a # x\nb // y\nc /* p /* q */ r\n s */ d"
+    tokens := tokenize(src, "test")
+    check_tok(src, tokens, 0, TokenType.Ident, "a", 1, 1)
+    check_tok(src, tokens, 1, TokenType.Ident, "b", 2, 1)
+    check_tok(src, tokens, 2, TokenType.Ident, "c", 3, 1)
+    check_tok(src, tokens, 3, TokenType.Ident, "d", 4, 7)
+    check_eof(src, tokens, 5, 4, 8)
+}
+
+test_slash_at_eof := test() {
+    src := "a /"
+    tokens := tokenize(src, "test")
+    check_tok(src, tokens, 0, TokenType.Ident, "a", 1, 1)
+    check_tok(src, tokens, 1, TokenType.Slash, "/", 1, 3)
+    check_eof(src, tokens, 3, 1, 4)
+}
+
+test_doc_comments := test() {
+    // '///' yields its text minus the prefix and one optional space; the
+    // empty '/**/' is an ordinary block comment, not a doc block.
+    src := "/// hi there\n///tight\n/**/ x"
+    tokens := tokenize(src, "test")
+    check_tok(src, tokens, 0, TokenType.DocComment, "hi there", 1, 1)
+    check_span(tokens, 0, 4, 8)
+    check_tok(src, tokens, 1, TokenType.DocComment, "tight", 2, 1)
+    check_tok(src, tokens, 2, TokenType.Ident, "x", 3, 6)
+    check_eof(src, tokens, 4, 3, 7)
+}
+
+test_line_endings := test() {
+    // CRLF: '\r' is whitespace, so columns restart after the '\n'.
+    src := "a\r\n  b\n\nc"
+    tokens := tokenize(src, "test")
+    check_tok(src, tokens, 0, TokenType.Ident, "a", 1, 1)
+    check_tok(src, tokens, 1, TokenType.Ident, "b", 2, 3)
+    check_tok(src, tokens, 2, TokenType.Ident, "c", 4, 1)
+    check_eof(src, tokens, 4, 4, 2)
+}
+
+test_trailing_newline_eof := test() {
+    src := "x\n"
+    tokens := tokenize(src, "test")
+    check_tok(src, tokens, 0, TokenType.Ident, "x", 1, 1)
+    check_eof(src, tokens, 2, 2, 1)
+}
+
+test_errors := test() {
+    // Invalid input yields Error tokens and Lex diagnostics without
+    // printing (quiet); lexing continues after each error.
+    src := "a $ b \"open"
+    mut diags := Vec(SourceDiagnostic).new()
+    tokens := tokenize(src, "lexfile", true, diags)
+    check_tok(src, tokens, 0, TokenType.Ident, "a", 1, 1)
+    check_tok(src, tokens, 1, TokenType.Error, "$", 1, 3)
+    check_tok(src, tokens, 2, TokenType.Ident, "b", 1, 5)
+    check_tok(src, tokens, 3, TokenType.Error, "\"open", 1, 7)
+    check_eof(src, tokens, 5, 1, 12)
+    assert_eq(USize, diags.len(), 2)
+    ref d0 : SourceDiagnostic = diags[0]
+    assert(d0.phase.is(DiagnosticPhase.Lex))
+    assert_eq(Str, d0.render(), "lexfile:1:3: error: unexpected character")
+    ref d1 : SourceDiagnostic = diags[1]
+    assert_eq(Str, d1.render(), "lexfile:1:7: error: unterminated string")
+}
+
+test_unterminated_comment_and_char := test() {
+    src := "'ab\n/* never closed"
+    mut diags := Vec(SourceDiagnostic).new()
+    tokens := tokenize(src, "lexfile", true, diags)
+    check_tok(src, tokens, 0, TokenType.Error, "'a", 1, 1)
+    check_tok(src, tokens, 1, TokenType.Ident, "b", 1, 3)
+    check_eof(src, tokens, 3, 2, 16)
+    assert_eq(USize, diags.len(), 2)
+    ref d0 : SourceDiagnostic = diags[0]
+    assert_eq(Str, d0.render(), "lexfile:1:1: error: unterminated character literal")
+    ref d1 : SourceDiagnostic = diags[1]
+    assert_eq(Str, d1.render(), "lexfile:2:1: error: unterminated comment")
+}
+
+test_tok_name := test() {
+    assert_eq(Str, tok_name(TokenType.Eof), "eof")
     assert_eq(Str, tok_name(TokenType.LParen), "(")
+    assert_eq(Str, tok_name(TokenType.DotDotDot), "...")
+    assert_eq(Str, tok_name(TokenType.ColonEq), ":=")
     assert_eq(Str, tok_name(TokenType.Ident), "identifier")
     assert_eq(Str, tok_name(TokenType.StringTok), "string")
+    assert_eq(Str, tok_name(TokenType.Number), "number")
+    assert_eq(Str, tok_name(TokenType.Char), "char")
+    assert_eq(Str, tok_name(TokenType.DocComment), "doc_comment")
     assert_eq(Str, tok_name(TokenType.KwIf), "if")
-    assert_eq(Str, tok_name(TokenType.KwTest), "test")
-    assert_eq(Str, tok_name(TokenType.KwShallow), "shallow")
-    assert_eq(Str, tok_name(TokenType.KwNull), "NULL")
-    assert_eq(Str, tok_name(TokenType.Eof), "eof")
+    assert_eq(Str, tok_name(TokenType.KwCoreLazyFunc), "core_lazy_func")
+    assert_eq(Str, tok_name(TokenType.Error), "error")
 }
 
-test_empty()
-test_singles()
-test_two_char()
-test_keywords()
-test_more_keywords()
-test_statement()
-test_numbers()
-test_line_comment()
-test_hash_comment()
-test_tok_name()
+// The token stream is a function of the source bytes alone: the same
+// text in a different buffer (a fresh clone, or one assembled by
+// concatenation) and repeated runs give identical kinds, spans and
+// locations.
+test_repeat_tokenize := test() {
+    src := "f := func(a: I64) returns I64 {\n    /// doc\n    return a + 0x10 // c\n}\ns := \"x\\ty\" ; c := 'z'\n"
+    first := tokenize(src, "a.til")
+    again := tokenize(src, "a.til")
+    check_same_tokens(first, again)
+    copy := src.clone()
+    from_copy := tokenize(copy, "a.til")
+    check_same_tokens(first, from_copy)
+    built := format("f := func(a: I64) returns I64 {\n", "    /// doc\n    return a + 0x10 // c\n}\n",
+        "s := \"x\\ty\" ; c := 'z'\n")
+    assert_eq(Str, built, src)
+    from_built := tokenize(built, "other/path.til")
+    check_same_tokens(first, from_built)
+    assert_eq(USize, first.len(), 24)
+}
 
-println("lexing: ok")
+// Parsing the same source with fresh state twice interns the same names
+// in source order and synthesizes the same anonymous type names.
+parse_fresh := proc(src: Str, symbols: SymbolPool, mut counter: I64) returns Expr {
+    tokens := tokenize(src, "p.til")
+    mut mode_str := ""
+    return parse(tokens, src, "p.til", mode_str, counter, symbols)
+}
+
+test_repeat_parse := test() {
+    src := "zeta := struct { b : I64 = 0 }\nalpha := func(x: zeta) returns I64 { return x.b }\npair := enum { One, Two }\np := struct { q : I64 = 1 }(q=2)\nc := enum { Red, Green }.Green\nd := struct { q : I64 = 1 }(q=3)\ne := alpha(zeta(b=1))\n"
+    symbols1 := SymbolPool()
+    mut counter1 : I64 = 0
+    ast1 := parse_fresh(src, symbols1, counter1)
+    symbols2 := SymbolPool()
+    mut counter2 : I64 = 0
+    // A separate buffer holding the same bytes.
+    src_copy := src.clone()
+    ast2 := parse_fresh(src_copy, symbols2, counter2)
+    assert_eq(I64, counter1, counter2)
+    // Two distinct inline literals are lifted; the repeated struct shape
+    // reuses its first name.
+    assert_eq(I64, counter1, 2)
+    assert_eq(USize, symbols1.names.len(), symbols2.names.len())
+    for i in 0..symbols1.names.len() {
+        assert_eq(Str, symbols1.names[i], symbols2.names[i])
+    }
+    // Symbols are numbered by first reference in source order (lifted
+    // anonymous type names when they are lifted), not by spelling or by
+    // hash bucket.
+    mut order := Vec(Str).new()
+    order.push(own "zeta")
+    order.push(own "x")
+    order.push(own "b")
+    order.push(own "AnonStruct0")
+    order.push(own "AnonEnum1")
+    order.push(own "Green")
+    order.push(own "alpha")
+    assert_eq(USize, symbols1.names.len(), order.len())
+    for i in 0..order.len() {
+        assert_eq(Str, symbols1.names[i], order[i])
+    }
+    assert_eq(Str, ast1.to_str_with_symbols(symbols1.names), ast2.to_str_with_symbols(symbols2.names))
+    assert_eq(USize, ast1.children.len(), ast2.children.len())
+    for i in 0..ast1.children.len() {
+        ref c1 : Expr = ast1.children[i]
+        ref c2 : Expr = ast2.children[i]
+        assert_eq(U32, c1.line, c2.line)
+        assert_eq(U32, c1.col, c2.col)
+        assert_eq(Str, node_name(c1.node_type), node_name(c2.node_type))
+    }
+}

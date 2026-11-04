@@ -11324,6 +11324,9 @@ target_value_size_align := func(type_name: Str, scope: TypeScope, ctx: Context, 
         for field : Declaration in sd.fields {
             mut fs := word
             mut fa := word
+            // #313: a compact (--usize=32) C target stores an own pointer
+            // field as a 4-byte cage offset (TIL_OWN_PTR).
+            if ctx.target_cptr32.and(field_is_own_ptr(sd, field)) { fs = 4; fa = 4 }
             if field.own_type.is(OwnType.Shallow) {
                 target_value_size_align(decl_type_name(field, ctx.symbols), scope, ctx, fs, fa)
                 if fs == 0 { sz = 0; al = 1; return }

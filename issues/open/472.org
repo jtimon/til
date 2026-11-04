@@ -431,3 +431,116 @@ session is not implementing the whole cross-platform/build/JIT roadmap.
   same-target frontend determinism.
 - Report the exact tested master base, commit/worktree, test results and any
   concrete approval or bootstrap dependency for the next step.
+
+*** Progress: first frontend milestone, session 1 (base master 7a31d4d)
+
+Developed on fb396378f, rebased onto 7a31d4d (no changes there to the lexer,
+size intrinsics, constfolder, initer or target layout code) and re-verified:
+~make clean && make test~ 541/541, including the ~self_translate_native~
+fixed point (no two-pass needed); the reproduction in C below and the
+generator regression (HEAD's compiler still fails it) were re-run on the
+rebased source with identical results.
+
+**** A. Lexer coverage restored
+
+- ~test/lexing.til~ is rewritten against the zero-copy Token (kind,
+  start/len, line/col): every punctuation/operator token including ~...~,
+  the full keyword table (each spelling round-trips through ~tok_name~),
+  identifiers that are not keywords (~mode~, ~NULL~), all numeric forms and
+  their boundaries (~1..2~, ~3.foo~, ~0x~, ~1e~), string/char content spans
+  with escapes, ~#~ / ~//~ / nested ~/* */~ comments, ~///~ and ~/**/~,
+  CRLF, the Eof token's span/location, and quiet Lex diagnostics for an
+  unexpected character, unterminated string/char/comment.
+- Repetition: the same source in a fresh clone and in a buffer assembled by
+  concatenation (different path argument) tokenizes to field-identical
+  streams; two parses with fresh ~SymbolPool~s intern identical names in
+  first-reference order (asserted exactly) and lift the same ~AnonStructN~ /
+  ~AnonEnumN~ names (a repeated literal shape reuses its name).
+- Registered with ~add_both~ (interpreted and compiled). The old comment's
+  interpreter failure on U32 Token fields no longer reproduces, so
+  ~test/doc_block_comments.til~ is interpreted again too.
+- Observed, not changed: a multi-line string token carries the END line with
+  the START column (~tokenize~'s ~'"'~ case advances ~line~ before
+  ~push_tok~). The test pins only the following token's position.
+
+**** B. Pre-codegen observation surface
+
+Not implemented: the proposal above (~test/frontend_determinism.til~
+streaming field-tagged S-expression records) still awaits explicit approval.
+No comparison claims are made beyond the lexer/parser tests.
+
+**** C. Same-target host-layout divergence: reproduced
+
+Compilers from the same revision: ~bin/til~ (built ~--usize=32~, compact,
+own pointers caged) and ~tmp/til64~ (~bin/til build --usize=64 -o tmp/til64
+src/til.til~, native). Each translated the same fixture with
+~translate --target=linux-x64 --usize=32|64~. Fixture (direct queries):
+#+begin_src til
+Pair := struct { a : I64 = 0; b : USize = 0; own s : Str = "" }
+Shape := enum { Dot, Circle: I64, Named: Str }
+total := Pair.size() + Str.size() + Vec(I64).size() + Shape.size() + dyn_size_of("Str")
+#+end_src
+- Target 32: compact compiler folds ~total = 76~ and scavenges Pair, Shape and
+  Vec__I64; native compiler leaves ~Str_size()~ / ~dyn_size_of~ calls and
+  emits the types. Target 64: the mirror image (native folds 128, compact
+  emits sizeof). The generated C differs at the first type section.
+- Indirect query, ~twice := func() returns USize { return Pair.size() * 2 }~
+  folded at a call site: compact->32 bakes 32 (right), native->32 bakes 48
+  (WRONG: the target struct is 16 bytes), compact->64 bakes 32 (WRONG: 48),
+  native->64 bakes 48 (right). #309/#313 left only DIRECT size calls unfolded
+  on a cross-layout host; a folded caller still evaluates the host body. This
+  is a miscompile on cross-layout hosts, not only nondeterminism.
+
+**** Target layout model audit and fix
+
+- ~typer.til::target_value_size_align~ sized every own pointer field at the
+  pointer width; the compact C layout stores it as a 4-byte cage offset. It
+  now uses 4/4 for ~field_is_own_ptr~ fields when ~ctx.target_cptr32~.
+- Real consequence: generator conditions (the only ~target_size_queries~
+  consumer on C) saw a wrong size under the default compact layout. Regression:
+  ~Holder~ (U32 + own Str) in ~test/usize32_sizes.til~ (8; HEAD's compiler
+  answered 16 and picked the wrong branch) and ~test/usize64_sizes.til~ (16),
+  both built and run by ~layout_regressions~.
+- Audit with a temporary probe (not committed) comparing ~target_value_size~
+  with the host ~ctx.struct_layouts~ size of every struct/enum after typing, in
+  SAME-layout configurations: compact compiler at ~--usize=32~ over
+  src/til.til and all 225 test/*.til files that type cleanly; native compiler
+  at ~--usize=64~ over src/til.til and 227 test files. After the fix: zero
+  differences, other than the primitive/Dynamic placeholder entries, whose
+  size methods are written in core and never come from ~struct_layouts~.
+  Linux x64 only; other targets' ABIs (x86 scalar alignment, wasm32, Windows)
+  are not covered by this audit.
+
+**** Why the size-folding divergence is not fixed in this commit
+
+The prepared AST serves two consumers with different layouts. Generated
+~size~ bodies hold the HOST literal (~initer.til~ gen_*_size_method_for_stmt
+from ~ctx.struct_layouts~), and the compile-time interpreter runs them for
+host storage: core Vec/Array/Map/Set/mem and std ~hashmap~/~hashset~ compute
+host buffer offsets with ~T.size()~. Folding size queries to target values in
+the AST would corrupt compile-time storage on a cross-layout host (why #309
+left them unfolded); folding host values bakes wrong results (above). Neither
+choice can be made per unit: ~src/std/hashmap.til~ uses ~K.size()~ for
+storage outside core, and user code may too.
+
+Proposed design (needs approval: it changes core/std APIs and folding):
+separate the two roles at the source. Containers' byte arithmetic calls a
+dedicated storage-size query; the interpreter answers it from the host layout,
+codegen emits the target size, and the constfolder never folds it. Value
+queries (~X.size()~, ~dyn_size_of~) fold to the audited target model on every
+host, staying unfolded only when the model has no answer (a target fact).
+Generated size bodies stop carrying a host literal; every backend emits size
+methods from the target model. A compile-time evaluation that feeds a target
+size into host byte arithmetic must be diagnosed, as generator preparation
+already does (~comptime_check_storage_domains~). Costs: ~90 core/std call
+sites, interpreter/constfolder/C/HolyC/MLIR/FASM changes, boot churn, and one
+dispatch per interpreted storage query (to be measured).
+
+**** Remaining limitations
+
+- The direct and indirect size divergences above remain; the self_translate
+  accommodation in ~src/tests.til~ (check_usize64) stays.
+- Compile-time evaluation during typing (macros, generators) is outside the
+  above design's constfolder pass and needs the same role split.
+- Path identity/~__LOC__~, effectful macros, compiler revision queries and
+  floating-point folding are untouched.

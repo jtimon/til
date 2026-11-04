@@ -20,6 +20,22 @@ RefPair := struct {
     ref second : I64
 }
 
+// #472: a generator condition reads the TARGET layout (typer.til
+// target_value_size_align), which must model own pointer fields the way the
+// emitted struct stores them: here tag(4) + own name(4, a cage offset) = 8.
+Holder := struct {
+    tag : U32 = 0
+    own name : Str = ""
+}
+holder_size_gen := macro() returns FuncDef {
+    if Holder.size() == 8 {
+        return func() returns USize { return 8 }
+    } else {
+        return func() returns USize { return 0 }
+    }
+}
+holder_size := holder_size_gen()
+
 check := proc(label: Str, got: USize, want: USize) {
     if got.neq(want) {
         println(format("FAIL: ", label, " = ", got.to_str(), ", want ", want.to_str()))
@@ -33,6 +49,8 @@ check("Vec(I64).size()", Vec(I64).size(), 12)
 check("Map(Str, I64).size()", Map(Str, I64).size(), 24)
 check("dyn_size_of Str", dyn_size_of("Str"), 12)
 check("RefPair.size() (stored refs, still native)", RefPair.size(), 16)
+check("Holder.size()", Holder.size(), 8)
+check("generator Holder.size()", holder_size(), 8)
 
 // Elements stride at the compressed width: 3 pushes stay addressable.
 mut v := Vec(Str).new()
