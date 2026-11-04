@@ -1493,6 +1493,15 @@ EvalState := struct {
     // A flag rather than a check inside `.c_str` itself: core/str.til reads
     // c_str on views constantly and legitimately (memcmp, substr, hash).
     interp_cstr_arg := false
+    // One-shot "the field read about to happen is a callable argument that
+    // the callee only borrows". eval_user_func_call sets it for a field
+    // access passed to a non-own callable parameter, and eval_expr_field_raw
+    // consumes it at entry like interp_cstr_arg. The read then lends the
+    // field's own slot, as the compiled call passes the stored closure,
+    // instead of the clone a callable field read otherwise yields: nothing
+    // would free that clone, and the callee would see a copy of private
+    // closure state rather than the stored closure.
+    interp_callable_arg_borrow := false
     constfold_active := false
     // Definition-generating conditions query target layouts. Their actual
     // interpreter buffers still use the ordinary host layout tables.

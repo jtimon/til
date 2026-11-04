@@ -126,8 +126,13 @@ trim_quotes := func(s: Str) returns Str {
 
 main := proc(args: ..Str) {
     mut hash := "HEAD"
-    if args.len().gte(1) {
-        hash = args[0].clone()
+    mut force := false
+    for arg : Str in args {
+        if arg.eq("--force") {
+            force = true
+        } else {
+            hash = arg.clone()
+        }
     }
 
     // ---- Step 2: capture commit message + stat ----
@@ -142,6 +147,16 @@ main := proc(args: ..Str) {
     raw_subject := clean_msg.substr(0, count_subject_end(clean_msg)).clone()
     if clean_msg.len().lt(0) { }
     subject := trim_quotes(trim_spaces(raw_subject))
+
+    // A "Doc: " commit is documentation-only (CLAUDE.md "Commits"): it
+    // regenerates nothing, so re-running the suite and re-committing it
+    // only costs time. CI skips such pushes too (tests.yml doc-gate).
+    if subject.starts_with("Doc: ").and(force.not()) {
+        print("Skipped: '", subject, "' is a Doc: commit (documentation-only),\n",
+              "so it is left as is: no soft reset, no make clean && make test,\n",
+              "no re-commit. Run with --force to test and re-commit it anyway.\n")
+        return
+    }
 
     mut test_target := "make test"
     mut is_two_pass := false
