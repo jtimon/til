@@ -1,6 +1,4 @@
 * Bugs
-** High
-*** [[./open/450.org][#450]] A struct field named like a global function shadows it inside the struct's methods
 ** Medium
 *** [[./open/402.org][#402]] Coerce namespace constant refs to value arguments
 *** [[./open/430.org][#430]] Assigning a capturing closure to an existing function-pointer local leaks it

@@ -1,0 +1,26 @@
+mode script
+
+// Issue #450: a struct's fields were bound as bare names in the scope its
+// namespace methods are typed in, so a field named like a global function
+// shadowed the function inside every method -- the generated to_str
+// included (interpreter segfault, C compile error). Fields are now reached
+// only through a value.
+
+Rec := struct {
+    format: Str = "x"
+    len: I64 = 3
+    println: Bool = true
+namespace:
+    show := func(self: Rec) returns Str { return format("<", self.format, ">") }
+    sized := func(self: Rec, s: Str) returns I64 { return s.len().to_i64() + self.len }
+    report := proc(self: Rec) {
+        if self.println { println(self.show()) }
+    }
+}
+
+r := Rec()
+assert(r.show().eq("<x>"))
+assert(r.sized("ab") == 5)
+assert(r.to_str().eq("Rec(format=x, len=3, println=true)"))
+r.report()
+println(r.to_str())
