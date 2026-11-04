@@ -9756,18 +9756,78 @@ priv emit_jni_handle_class := proc(jf: File, cf: File, name: Str, def: Expr, typ
     jf.write(natives).write("\n")
 }
 
-// Why a FuncSig cannot be implemented from Java, or "" when it can. Its
-// parameters arrive as borrowed values (scalars, Str copies, borrowed
-// handles valid during the call); its result is handed to til by value.
-priv jni_callback_reason := func(sfd: FunctionDef, types: JniTypes, ctx: Context) returns Str {
-    if sfd.sig.throw_types.len() > 0 { return "throws" }
+// A throw type's payload as a callback builds it from a TilError: C setting
+// the slot lvalue to the type's default, the slot's Str `msg` lvalue the
+// TilError's detail replaces ("" when the type has none), or the reason the
+// bridge cannot build it.
+priv JniCbErr := struct {
+    code := ""
+    msg := ""
+    reason := ""
+}
+
+priv jni_cb_err := proc(tt: Str, place: Str, types: JniTypes, ctx: Context) returns JniCbErr {
+    mut out := JniCbErr()
+    if tt == "Str" {
+        out.code = format("    ", place, " = til_jni_str_lit(\"\", 0);\n")
+        out.msg = place.clone()
+        return out
+    }
+    if jni_scalar_java(tt, ctx).len() > 0 {
+        out.reason = format("a TilError carries no ", tt, " value")
+        return out
+    }
+    def_o := ctx.scope.get_struct(tt, ctx.symbols)
+    if def_o.is_none() { panic(__LOC__, "throw type without a definition: ", tt) }
+    ref def : Expr = def_o.unwrap()
+    switch def.node_type {
+    case .StructDef(sdd):
+        mut init := JniInit()
+        mut seq : I64 = 0
+        jni_init_fields(sdd, place, def, false, types, ctx, seq, init)
+        if init.reason.len() > 0 {
+            out.reason = init.reason.clone()
+            return out
+        }
+        out.code = init.code.clone()
+        for fi in 0..sdd.fields.len() {
+            ref fdd : Declaration = sdd.fields[fi]
+            if sdd.field_name_at(fi) != "msg" { continue }
+            if jni_decl_type(fdd, ctx) != "Str" { continue }
+            // jni_init_fields accepted the field: inline, or an own box.
+            if fdd.own_type.is(OwnType.Shallow) { out.msg = format(place, ".msg") }
+            else { out.msg = format("(*TIL_OWN_GET(TilJniStr, ", place, ".msg))") }
+        }
+        return out
+    case:
+    }
+    out.reason = "a TilError cannot carry its payload"
+    return out
+}
+
+// The index of a FuncSig's payload slot for throw type `tt`, or -1 when the
+// type has none.
+priv jni_cb_err_index := func(sfd: FunctionDef, tt: Str) returns I64 {
+    for i in 0..sfd.sig.params.len() {
+        if sfd.sig.params[i].name == format("_err_", tt) { return i.to_i64() }
+    }
+    return -1
+}
+
+// Why a FuncSig cannot be implemented from Java, or "" when it can. A
+// borrowed parameter arrives as a copy (scalar, Str, Vec of a scalar) or a
+// borrowed handle valid during the call; an `own` one is moved to Java (an
+// owned handle, or a copy whose til value the bridge then frees); a `mut` one
+// is a one-element array read back after the call (a mut struct or enum is
+// a borrowed handle, changed through its setters). Its result is handed to
+// til by value; a TilError naming a declared throw type becomes that throw.
+priv jni_callback_reason := proc(sfd: FunctionDef, types: JniTypes, ctx: Context) returns Str {
     if sfd.sig.variadic_index.gte(0).or(sfd.sig.kwargs_index.gte(0)) { return "variadic parameter" }
     for p : Declaration in sfd.sig.params {
+        if jni_param_is_err_slot(p) { continue }
         tn := jni_decl_type(p, ctx)
         kind := jni_kind(tn, types, ctx)
         if kind.len().eq(0).or(kind.eq("callback")).or(kind.eq("hvec")) { return format("parameter of type ", tn) }
-        if p.is_mut { return "mut parameter" }
-        if p.own_type.is(OwnType.Own).and(kind.neq("scalar")) { return format("own parameter of type ", tn) }
     }
     if sfd.sig.return_type.len() > 0 {
         rt := jni_resolve(sfd.sig.return_type, ctx)
@@ -9775,16 +9835,22 @@ priv jni_callback_reason := func(sfd: FunctionDef, types: JniTypes, ctx: Context
         if rkind.len().eq(0).or(rkind.eq("callback")).or(rkind.eq("hvec")) { return format("return type ", rt) }
         if func_returns_c_value(sfd).not() { return format("returns ref ", rt) }
     }
+    for tt : Str in sfd.sig.throw_types {
+        if jni_cb_err_index(sfd, tt) < 0 { continue }
+        err := jni_cb_err(tt, "(*e)", types, ctx)
+        if err.reason.len() > 0 { return format("throw type ", tt, ": ", err.reason) }
+    }
     return ""
 }
 
 // A public FuncSig as a Java functional interface, plus the C trampoline a
 // TilClosure calls and the Java adapter it calls back through. The adapter
-// does the Java-side conversions (String, handle wrapping), so C only
-// passes primitives, byte[] and jlong.
+// does the Java-side conversions (String, handle wrapping, mut holders), so
+// C only passes primitives, arrays and jlong.
 priv emit_jni_callback := proc(jf: File, cf: File, name: Str, sfd: FunctionDef, types: JniTypes, ctx: Context) {
     jname := jni_java_ident(name)
     adapter := format("cb_", name)
+    can_throw := sfd.sig.throw_types.len() > 0
     has_ret := sfd.sig.return_type.len() > 0
     mut rt := ""
     mut rkind := ""
@@ -9799,68 +9865,171 @@ priv emit_jni_callback := proc(jf: File, cf: File, name: Str, sfd: FunctionDef, 
     mut iface_params := ""
     mut adapter_params := format(jname, " f")
     mut adapter_args := ""
+    mut adapter_pre := ""
+    mut adapter_post := ""
     mut descriptor := format("(L", types.class_path, "$", jname, ";")
     mut c_params := "void *envp"
     mut c_pre := ""
     mut c_args := "    args[0].l = cb->fn;\n"
+    // After the call, on both paths: `c_back` reads mut values back, then
+    // `c_post` releases the bridge's references and the moved til values.
+    mut c_back := ""
     mut c_post := ""
+    mut err_kind := ""
+    mut nargs : USize = 1
     for i in 0..sfd.sig.params.len() {
         ref p : Declaration = sfd.sig.params[i]
+        x := format("x", i.to_str())
+        if p.name == "_err_kind" {
+            c_params = format(c_params, ", I64 *", x)
+            err_kind = x.clone()
+            continue
+        }
+        if jni_param_is_err_slot(p) {
+            c_params = format(c_params, ", ", jni_err_slot(jni_decl_type(p, ctx), x, ctx).c_type, " *", x)
+            continue
+        }
         tn := jni_decl_type(p, ctx)
         kind := jni_kind(tn, types, ctx)
         a := format("a", i.to_str())
-        x := format("x", i.to_str())
-        if i > 0 {
+        h := format("h", i.to_str())
+        if adapter_args.len() > 0 {
             iface_params = format(iface_params, ", ")
             adapter_args = format(adapter_args, ", ")
         }
         nt := jni_native_type(tn, types, ctx)
-        iface_params = format(iface_params, jni_java_type(tn, types, ctx), " ", a)
-        adapter_params = format(adapter_params, ", ", nt, " ", a)
-        descriptor = format(descriptor, jni_descriptor(nt))
+        jt := jni_java_type(tn, types, ctx)
         by_value := func_param_passes_c_value(sfd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+        is_own := p.own_type.is(OwnType.Own).and(p.is_mut.not())
+        stack_outer := func_param_has_stack_outer(sfd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
         ctv := jni_til_c_type(tn, types, ctx)
         if by_value { c_params = format(c_params, ", ", ctv, " ", x) }
         else { c_params = format(c_params, ", ", ctv, " *", x) }
         mut xv := x.clone()
         if by_value.not() { xv = format("(*", x, ")") }
-        slot := format("args[", (i + 1).to_str(), "]")
-        if jni_is_copied(kind) {
-            adapter_args = format(adapter_args, jni_java_out(kind, tn, a))
-            c_pre = format(c_pre, "    ", jni_c_type(tn, types, ctx), " s", i.to_str(), " = ", jni_c_out(kind, tn, format("&", xv)), ";\n",
-                "    til_jni_cb_check(env, \"", name, "\");\n")
-            c_args = format(c_args, "    ", slot, ".l = s", i.to_str(), ";\n")
-            c_post = format(c_post, "    (*env)->DeleteLocalRef(env, s", i.to_str(), ");\n")
-        } else if kind == "handle" {
-            // A borrowed view, valid only during the callback.
-            adapter_args = format(adapter_args, "new ", jni_java_type(tn, types, ctx), "(", a, ", false)")
-            c_args = format(c_args, "    ", slot, ".j = (jlong)(intptr_t)&", xv, ";\n")
-        } else {
+        slot := format("args[", nargs.to_str(), "]")
+        nargs = nargs + 1
+        // A moved value's box (not a by-value or stack-outer argument) is
+        // the bridge's to free once Java has its copy.
+        owns_box := is_own.and(by_value.not()).and(stack_outer.not())
+        if p.is_mut.and(kind.eq("scalar")) {
+            // The array C made is the holder itself.
+            infix := jni_prim_infix(nt)
+            v := format("v", i.to_str())
+            iface_params = format(iface_params, jt, "[] ", a)
+            adapter_params = format(adapter_params, ", ", nt, "[] ", a)
             adapter_args = format(adapter_args, a)
+            descriptor = format(descriptor, jni_descriptor(format(nt, "[]")))
+            c_pre = format(c_pre, "    j", nt, "Array ", h, " = (*env)->New", infix, "Array(env, 1);\n",
+                "    til_jni_cb_check(env, \"", name, "\");\n",
+                "    j", nt, " ", v, " = ", jni_c_scalar_out(tn, xv, types, ctx), ";\n",
+                "    (*env)->Set", infix, "ArrayRegion(env, ", h, ", 0, 1, &", v, ");\n")
+            c_args = format(c_args, "    ", slot, ".l = ", h, ";\n")
+            c_back = format(c_back, "    (*env)->Get", infix, "ArrayRegion(env, ", h, ", 0, 1, &", v, ");\n",
+                "    ", xv, " = ", jni_c_value_in(tn, v), ";\n")
+            c_post = format(c_post, "    (*env)->DeleteLocalRef(env, ", h, ");\n")
+        } else if p.is_mut.and(jni_is_copied(kind)) {
+            // C holds the native value in a one-element array; the adapter
+            // converts it to and from the Java holder the callback sees.
+            s := format("s", i.to_str())
+            n := format("n", i.to_str())
+            v := format("v", i.to_str())
+            jh := format("tilMut", i.to_str())
+            ct := jni_c_type(tn, types, ctx)
+            iface_params = format(iface_params, jt, "[] ", a)
+            adapter_params = format(adapter_params, ", ", nt, "[] ", a)
+            adapter_pre = format(adapter_pre, "        ", jt, "[] ", jh, " = { ", jni_java_out(kind, tn, format(a, "[0]")), " };\n")
+            adapter_post = format(adapter_post, "            ", a, "[0] = ", jni_java_in(kind, tn,
+                format("java.util.Objects.requireNonNull(", jh, "[0], \"", jh, "[0]\")")), ";\n")
+            adapter_args = format(adapter_args, jh)
+            descriptor = format(descriptor, jni_descriptor(format(nt, "[]")))
+            c_pre = format(c_pre, "    ", ct, " ", s, " = ", jni_c_out(kind, tn, format("&", xv)), ";\n",
+                "    til_jni_cb_check(env, \"", name, "\");\n",
+                "    jobjectArray ", h, " = til_jni_cb_holder(env, \"", name, "\", \"", jni_descriptor(nt), "\", ", s, ");\n",
+                "    (*env)->DeleteLocalRef(env, ", s, ");\n")
+            c_args = format(c_args, "    ", slot, ".l = ", h, ";\n")
+            c_back = format(c_back, "    ", ct, " ", n, " = (", ct, ")(*env)->GetObjectArrayElement(env, ", h, ", 0);\n",
+                "    til_jni_cb_check(env, \"", name, "\");\n",
+                "    ", ctv, " ", v, " = ", jni_c_in(kind, tn, n), ";\n",
+                "    ", jni_c_delete(kind, tn, xv, ctx), "\n",
+                "    ", xv, " = ", v, ";\n",
+                "    (*env)->DeleteLocalRef(env, ", n, ");\n")
+            c_post = format(c_post, "    (*env)->DeleteLocalRef(env, ", h, ");\n")
+        } else if jni_is_copied(kind) {
+            s := format("s", i.to_str())
+            iface_params = format(iface_params, jt, " ", a)
+            adapter_params = format(adapter_params, ", ", nt, " ", a)
+            adapter_args = format(adapter_args, jni_java_out(kind, tn, a))
+            descriptor = format(descriptor, jni_descriptor(nt))
+            c_pre = format(c_pre, "    ", jni_c_type(tn, types, ctx), " ", s, " = ", jni_c_out(kind, tn, format("&", xv)), ";\n",
+                "    til_jni_cb_check(env, \"", name, "\");\n")
+            c_args = format(c_args, "    ", slot, ".l = ", s, ";\n")
+            c_post = format(c_post, "    (*env)->DeleteLocalRef(env, ", s, ");\n")
+            // `own`: Java has its copy, so the til value is released.
+            if is_own { c_post = format(c_post, "    ", jni_c_delete(kind, tn, xv, ctx), "\n") }
+            if owns_box { c_post = format(c_post, "    free(", x, ");\n") }
+        } else if kind == "handle" {
+            iface_params = format(iface_params, jt, " ", a)
+            adapter_params = format(adapter_params, ", ", nt, " ", a)
+            descriptor = format(descriptor, jni_descriptor(nt))
+            if is_own {
+                // Moved to Java: an owned handle, in the caller's box or one
+                // the bridge moves the value into.
+                adapter_args = format(adapter_args, "new ", jt, "(", a, ", true)")
+                if owns_box { c_args = format(c_args, "    ", slot, ".j = (jlong)(intptr_t)", x, ";\n") }
+                else {
+                    b := format("b", i.to_str())
+                    c_pre = format(c_pre, "    ", ctv, " *", b, " = (", ctv, " *)malloc(TIL_JNI_BOX(", ctv, "));\n",
+                        "    if (", b, " == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n",
+                        "    *", b, " = ", xv, ";\n")
+                    c_args = format(c_args, "    ", slot, ".j = (jlong)(intptr_t)", b, ";\n")
+                }
+            } else {
+                // A borrowed view, valid only during the callback; a mut one
+                // is changed through its setters.
+                adapter_args = format(adapter_args, "new ", jt, "(", a, ", false)")
+                c_args = format(c_args, "    ", slot, ".j = (jlong)(intptr_t)&", xv, ";\n")
+            }
+        } else {
+            iface_params = format(iface_params, jt, " ", a)
+            adapter_params = format(adapter_params, ", ", nt, " ", a)
+            adapter_args = format(adapter_args, a)
+            descriptor = format(descriptor, jni_descriptor(nt))
             c_args = format(c_args, "    ", slot, ".", jni_jvalue_field(nt), " = ",
                 jni_c_scalar_out(tn, xv, types, ctx), ";\n")
+            if owns_box { c_post = format(c_post, "    free(", x, ");\n") }
         }
     }
+    if can_throw.and(err_kind.len().eq(0)) { panic(__LOC__, "throwing FuncSig without an error-kind slot: ", name) }
     descriptor = format(descriptor, ")", jni_descriptor(native_ret))
 
+    mut throws_clause := ""
+    if can_throw { throws_clause = " throws TilError" }
     jf.write("    /** Implements the til callback type ").write(name).write(". */\n")
     jf.write("    @FunctionalInterface\n")
     jf.write("    public interface ").write(jname).write(" {\n")
-    jf.write("        ").write(java_ret).write(" call(").write(iface_params).write(");\n")
+    jf.write("        ").write(java_ret).write(" call(").write(iface_params).write(")").write(throws_clause).write(";\n")
     jf.write("    }\n")
     mut adapter_call := jni_java_in(rkind, rt, format("f.call(", adapter_args, ")"))
     if rkind == "handle" { adapter_call = format(adapter_call, ".tilTake()") }
-    jf.write("    private static ").write(native_ret).write(" ").write(adapter).write("(").write(adapter_params).write(") {\n")
-    if has_ret { jf.write("        return ").write(adapter_call).write(";\n") }
-    else { jf.write("        ").write(adapter_call).write(";\n") }
+    mut stmt := format(adapter_call, ";")
+    if has_ret { stmt = format("return ", stmt) }
+    jf.write("    private static ").write(native_ret).write(" ").write(adapter).write("(").write(adapter_params).write(")")
+        .write(throws_clause).write(" {\n")
+    jf.write(adapter_pre)
+    if adapter_post.len() > 0 {
+        jf.write("        try {\n            ").write(stmt).write("\n        } finally {\n").write(adapter_post).write("        }\n")
+    } else {
+        jf.write("        ").write(stmt).write("\n")
+    }
     jf.write("    }\n\n")
 
     mut c_ret := "void"
     if has_ret { c_ret = jni_til_c_type(rt, types, ctx) }
-    nargs := sfd.sig.params.len() + 1
     cf.write("TIL_JNI_HELPER ").write(c_ret).write(" til_jni_cb_call_").write(name).write("(").write(c_params).write(") {\n")
     cf.write("    TilJniCallback *cb = (TilJniCallback *)envp;\n")
     cf.write("    JNIEnv *env = til_jni_cb_env(cb->vm);\n")
+    if can_throw { cf.write("    *").write(err_kind).write(" = 0;\n") }
     cf.write(c_pre)
     cf.write("    jvalue args[").write(nargs.to_str()).write("];\n")
     cf.write(c_args)
@@ -9876,8 +10045,63 @@ priv emit_jni_callback := proc(jf: File, cf: File, name: Str, sfd: FunctionDef, 
         else { cf.write("j").write(native_ret).write(" r = ") }
     }
     cf.write("(*env)->CallStatic").write(call_kind).write("MethodA(env, cb->cls, cb->adapter, args);\n")
-    cf.write("    til_jni_cb_check(env, \"").write(name).write("\");\n")
+    if can_throw {
+        cf.write("    jbyteArray detail;\n")
+        cf.write("    char *thrown = til_jni_cb_caught(env, \"").write(name).write("\", &detail);\n")
+    } else {
+        cf.write("    til_jni_cb_check(env, \"").write(name).write("\");\n")
+    }
+    cf.write(c_back)
     cf.write(c_post)
+    if can_throw {
+        cf.write("    if (thrown != NULL) {\n        ")
+        for tt : Str in sfd.sig.throw_types {
+            cf.write("if (strcmp(thrown, \"").write(tt).write("\") == 0) {\n")
+            cf.write("            *").write(err_kind).write(" = ").write(throw_type_tag(tt).to_str()).write("LL;\n")
+            ei := jni_cb_err_index(sfd, tt)
+            mut msg := ""
+            if ei >= 0 {
+                // The caller's slot holds nothing yet: it gets the type's
+                // default, as til's `T()` builds it.
+                slot := format("(*x", ei.to_str(), ")")
+                err := jni_cb_err(tt, slot, types, ctx)
+                if err.reason.len() > 0 { panic(__LOC__, "unbindable throw type ", tt, " in ", name, ": ", err.reason) }
+                cf.write("            memset(&").write(slot).write(", 0, sizeof ").write(slot).write(");\n")
+                cf.write("            {\n            ").write(err.code.replace("\n    ", "\n                "))
+                cf.write("            }\n")
+                msg = err.msg.clone()
+            }
+            if msg.len() > 0 {
+                cf.write("            if (detail != NULL) {\n")
+                cf.write("                TIL_JNI_STR_DELETE(&").write(msg).write(", 0);\n")
+                cf.write("                ").write(msg).write(" = til_jni_str_in(env, detail);\n")
+                cf.write("            }\n")
+            } else {
+                cf.write("            if (detail != NULL) {\n")
+                cf.write("                fprintf(stderr, \"til jni: callback ").write(name).write(" threw ").write(tt)
+                    .write(" with a detail, but ").write(tt).write(" has no msg to hold it\\n\");\n")
+                cf.write("                abort();\n")
+                cf.write("            }\n")
+            }
+            cf.write("        } else ")
+        }
+        cf.write("{\n")
+        cf.write("            fprintf(stderr, \"til jni: callback ").write(name)
+            .write(" threw TilError %s, which its til type does not declare\\n\", thrown);\n")
+        cf.write("            abort();\n")
+        cf.write("        }\n")
+        cf.write("        if (detail != NULL) (*env)->DeleteLocalRef(env, detail);\n")
+        cf.write("        free(thrown);\n")
+        // The error path's result is never read; it owns nothing.
+        if has_ret {
+            cf.write("        ").write(c_ret).write(" none;\n")
+            cf.write("        memset(&none, 0, sizeof none);\n")
+            cf.write("        return none;\n")
+        } else {
+            cf.write("        return;\n")
+        }
+        cf.write("    }\n")
+    }
     if has_ret {
         if jni_is_copied(rkind) {
             cf.write("    ").write(c_ret).write(" out = ").write(jni_c_in(rkind, rt, "r")).write(";\n")
@@ -10051,15 +10275,26 @@ priv build_jni_binding := proc(lp: LoadedProgram, jni_c_path: Str, java_path: St
     jf.write("public final class ").write(cls).write(" {\n")
     jf.write("    private ").write(cls).write("() {}\n\n")
     jf.write("    static { System.loadLibrary(\"").write(lib_name).write("_jni\"); }\n\n")
-    jf.write("    /** A til error thrown through the binding; type() is its til throw type. */\n")
+    jf.write("    /**\n")
+    jf.write("     * A til error crossing the binding; type() is its til throw type. A\n")
+    jf.write("     * callback whose til type throws raises one to throw in til: the type\n")
+    jf.write("     * must be one the callback declares, and the detail becomes its msg.\n")
+    jf.write("     */\n")
     jf.write("    public static final class TilError extends Exception {\n")
     jf.write("        private static final long serialVersionUID = 1L;\n")
     jf.write("        private final String type;\n")
-    jf.write("        TilError(String type, byte[] msg) {\n")
-    jf.write("            super(msg == null ? type : type + \": \" + tilStr(msg));\n")
-    jf.write("            this.type = type;\n")
+    jf.write("        private final String detail;\n")
+    jf.write("        TilError(String type, byte[] msg) { this(type, msg == null ? null : tilStr(msg)); }\n")
+    jf.write("        public TilError(String type) { this(type, (String) null); }\n")
+    jf.write("        public TilError(String type, String detail) {\n")
+    jf.write("            super(detail == null ? type : type + \": \" + detail);\n")
+    jf.write("            this.type = java.util.Objects.requireNonNull(type, \"type\");\n")
+    jf.write("            this.detail = detail;\n")
     jf.write("        }\n")
     jf.write("        public String type() { return type; }\n")
+    jf.write("        /** The til error's message, or null when it has none. */\n")
+    jf.write("        public String detail() { return detail; }\n")
+    jf.write("        byte[] tilDetail() { return detail == null ? null : tilUtf8(detail); }\n")
     jf.write("    }\n\n")
     jf.write("    private static byte[] tilUtf8(String s) { return s.getBytes(StandardCharsets.UTF_8); }\n")
     jf.write("    private static String tilStr(byte[] b) { return new String(b, StandardCharsets.UTF_8); }\n")
@@ -10467,6 +10702,53 @@ priv emit_jni_bridge_prelude := proc(cf: File, class_path: Str) {
     cf.write("        fprintf(stderr, \"til jni: exception in callback %s\\n\", name);\n")
     cf.write("        abort();\n")
     cf.write("    }\n")
+    cf.write("}\n")
+    cf.write("\n")
+    cf.write("// A callback whose til type throws: a pending TilError is taken off the\n")
+    cf.write("// JVM and its type name returned (malloc'd; the caller frees it), its\n")
+    cf.write("// detail in *detail (NULL when it has none). NULL when nothing is pending;\n")
+    cf.write("// any other exception ends the process as in til_jni_cb_check.\n")
+    cf.write("TIL_JNI_HELPER char *til_jni_cb_caught(JNIEnv *env, const char *name, jbyteArray *detail) {\n")
+    cf.write("    *detail = NULL;\n")
+    cf.write("    jthrowable ex = (*env)->ExceptionOccurred(env);\n")
+    cf.write("    if (ex == NULL) return NULL;\n")
+    cf.write("    (*env)->ExceptionClear(env);\n")
+    cf.write("    jclass ec = (*env)->FindClass(env, \"").write(class_path).write("$TilError\");\n")
+    cf.write("    til_jni_cb_check(env, name);\n")
+    cf.write("    if (!(*env)->IsInstanceOf(env, ex, ec)) {\n")
+    cf.write("        (*env)->Throw(env, ex);\n")
+    cf.write("        til_jni_cb_check(env, name);\n")
+    cf.write("    }\n")
+    cf.write("    jmethodID type_m = (*env)->GetMethodID(env, ec, \"type\", \"()Ljava/lang/String;\");\n")
+    cf.write("    til_jni_cb_check(env, name);\n")
+    cf.write("    jmethodID detail_m = (*env)->GetMethodID(env, ec, \"tilDetail\", \"()[B\");\n")
+    cf.write("    til_jni_cb_check(env, name);\n")
+    cf.write("    jstring jt = (jstring)(*env)->CallObjectMethod(env, ex, type_m);\n")
+    cf.write("    til_jni_cb_check(env, name);\n")
+    cf.write("    *detail = (jbyteArray)(*env)->CallObjectMethod(env, ex, detail_m);\n")
+    cf.write("    til_jni_cb_check(env, name);\n")
+    cf.write("    const char *chars = (*env)->GetStringUTFChars(env, jt, NULL);\n")
+    cf.write("    til_jni_cb_check(env, name);\n")
+    cf.write("    size_t n = strlen(chars);\n")
+    cf.write("    char *type = (char *)malloc(n + 1);\n")
+    cf.write("    if (type == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n")
+    cf.write("    memcpy(type, chars, n + 1);\n")
+    cf.write("    (*env)->ReleaseStringUTFChars(env, jt, chars);\n")
+    cf.write("    (*env)->DeleteLocalRef(env, jt);\n")
+    cf.write("    (*env)->DeleteLocalRef(env, ec);\n")
+    cf.write("    (*env)->DeleteLocalRef(env, ex);\n")
+    cf.write("    return type;\n")
+    cf.write("}\n")
+    cf.write("\n")
+    cf.write("// A mut callback argument of a copied type: the one-element array the\n")
+    cf.write("// callback writes its new value into. `cls` names the element's array class.\n")
+    cf.write("TIL_JNI_HELPER jobjectArray til_jni_cb_holder(JNIEnv *env, const char *name, const char *cls, jobject v) {\n")
+    cf.write("    jclass ec = (*env)->FindClass(env, cls);\n")
+    cf.write("    til_jni_cb_check(env, name);\n")
+    cf.write("    jobjectArray h = (*env)->NewObjectArray(env, 1, ec, v);\n")
+    cf.write("    til_jni_cb_check(env, name);\n")
+    cf.write("    (*env)->DeleteLocalRef(env, ec);\n")
+    cf.write("    return h;\n")
     cf.write("}\n")
     cf.write("\n")
     cf.write("TIL_JNI_HELPER void til_jni_cb_drop(void *envp) {\n")

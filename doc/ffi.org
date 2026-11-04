@@ -927,8 +927,8 @@ returned struct or enum is an owned handle. ~returns ref~ copies a scalar or
 ~Str~ out of the library's storage and gives a struct or enum as a borrowed
 handle onto it, valid while that storage lives. A function that ~throws~
 raises the checked ~<Cls>.TilError~, whose ~type()~ is the til throw type name
-and whose message carries the payload's ~msg: Str~ field (or a ~Str~
-payload) when it has one. An error kind the function does not declare aborts
+and whose ~detail()~ (also part of ~getMessage()~) is the payload's ~msg: Str~
+field (or a ~Str~ payload), ~null~ when it has none. An error kind the function does not declare aborts
 the process.
 
 *Handles.* Each public struct or enum ~T~ becomes ~<Cls>.T implements
@@ -957,16 +957,31 @@ frees nothing and cannot be moved.
 when ~mut~ and of a copied kind; a struct or enum global (or a ~ref~
 global) returns a borrowed handle onto the library's storage.
 
-*Callbacks.* A public FuncSig whose parameters are borrowed scalars, ~Str~,
-~Vec(Str)~ or handles and whose result (if any) is one of those by value
-becomes a ~@FunctionalInterface~, so a Java lambda can be passed where til
-takes the FuncSig. The bridge wraps the Java object in a ~TilClosure~ holding
-a JNI global reference: a borrowed callback is dropped after the call, an
-~own~ one when the library drops it. Handles a callback receives are borrowed
-for the duration of the call; a handle it returns is moved into til. A
-thread til starts is attached to the JVM on its first callback. Til cannot
-unwind a Java exception, so one thrown by a callback prints its stack trace
-and aborts.
+*Callbacks.* A public FuncSig whose parameters are scalars, ~Str~,
+~Vec(Str)~, ~Vec~s of scalars or handles and whose result (if any) is one of
+those by value becomes a ~@FunctionalInterface~, so a Java lambda can be
+passed where til takes the FuncSig. The bridge wraps the Java object in a
+~TilClosure~ holding a JNI global reference: a borrowed callback is dropped
+after the call, an ~own~ one when the library drops it. A thread til starts
+is attached to the JVM on its first callback.
+
+  - A borrowed parameter arrives as a copy, or as a handle borrowed for the
+    duration of the call. An ~own~ one moves to Java: a struct or enum as an
+    owned handle the callback must close (or keep), a copied kind as a copy
+    whose til value the bridge then deletes.
+  - A ~mut~ scalar or copied-kind parameter is a one-element array, as for
+    functions: the callback replaces ~a[0]~ and til sees the new value after
+    the call (also when the callback throws). A ~mut~ struct or enum is a
+    borrowed handle, changed through its setters.
+  - A handle the callback returns is moved into til.
+  - A FuncSig that ~throws~ declares ~throws <Cls>.TilError~. The callback
+    throws in til by raising ~new TilError("<Type>")~ or ~new
+    TilError("<Type>", detail)~ with one of the declared throw types: the
+    payload is the type's default (as til's ~T()~ builds it), with ~detail~
+    as its ~msg: Str~ (or as the ~Str~ payload). A detail for a type with no
+    ~msg~, or a type the FuncSig does not declare, aborts. Til cannot unwind
+    any other Java exception, so one thrown by a callback prints its stack
+    trace and aborts.
 
 *Memory.* The bridge allocates the boxes, strings and vectors it hands to
 til with the library runtime's allocator -- the cage under ~TIL_CPTR32~, the
@@ -976,8 +991,10 @@ layout.
 
 Anything else -- ~Dynamic~ (type-erased, nothing to marshal), ~shallow Str~
 parameters, other collections, ~mut~ and non-function uses of ~Vec~s of
-structs or enums, variadics, callbacks that throw or take
-~own~ / ~mut~ parameters, ~mut~ callback parameters -- is listed in the
+structs or enums, variadics, callbacks taking or returning ~Vec~s of
+structs or enums or other callbacks, throw types whose payload a ~TilError~
+cannot build (a scalar, an enum, a default the bridge cannot reproduce),
+~mut~ callback parameters of functions -- is listed in the
 class as a ~// <name>: not bound: <reason>~ comment, so the gap is visible
 in the generated source.
 

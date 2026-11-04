@@ -176,6 +176,32 @@ public class JniLibTest {
             check(JniLib.jni_oldest(loop).equals("y") && JniLib.jni_adopt(loop) == 2, "handle vec loop");
             for (JniLib.JniPerson p : loop) { p.close(); }
         }
+        // Callbacks that throw, write mut parameters back, and take own ones.
+        System.out.println(JniLib.jni_try(x -> x * 2, 21));
+        System.out.println(JniLib.jni_try(x -> { throw new JniLib.TilError("JniErr", "neg " + x); }, -1));
+        System.out.println(JniLib.jni_try(x -> { throw new JniLib.TilError("DivideByZero"); }, 0));
+        System.out.println(JniLib.jni_try(x -> { throw new JniLib.TilError("JniBad"); }, 0));
+        System.out.println(JniLib.jni_mut_cb((k, s, b, xs, ss) -> {
+            k[0] += 41;
+            s[0] = s[0] + "bc";
+            b[0] = !b[0];
+            long[] w = Arrays.copyOf(xs[0], xs[0].length + 1);
+            w[w.length - 1] = 9;
+            xs[0] = w;
+            ss[0] = new String[] { ss[0][0], "q" };
+        }));
+        System.out.println(JniLib.jni_mut_person(p -> { p.age(p.age() + 10); p.name("mm"); }));
+        JniLib.JniPerson[] kept = new JniLib.JniPerson[1];
+        System.out.println(JniLib.jni_own_cb((s, p, xs) -> { kept[0] = p; return s.length() * 100 + xs[0]; }));
+        System.out.println(kept[0].name() + " " + kept[0].age());
+        kept[0].close();
+        for (int i = 0; i < 100000; i++) {
+            check(JniLib.jni_try(x -> { throw new JniLib.TilError("JniErr", "e"); }, i).equals("JniErr e 7"),
+                "throw callback loop");
+            check(JniLib.jni_own_cb((s, p, xs) -> { p.close(); return 1; }) == 1, "own callback loop");
+            check(JniLib.jni_mut_cb((k, s, b, xs, ss) -> { s[0] = "z"; ss[0] = new String[0]; }).startsWith("1 z"),
+                "mut callback loop");
+        }
         // Repeated calls: borrowed temporaries, owned boxes and results are
         // all released by the bridge or the library, never by the JVM.
         for (int i = 0; i < 100000; i++) {

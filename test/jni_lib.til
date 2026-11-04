@@ -183,6 +183,52 @@ jni_team := func(names: Vec(Str)) returns JniTeam {
 
 jni_team_people := func(t: JniTeam) returns ref Vec(JniPerson) { return t.people }
 
+// Callbacks with throws, mut and own parameters.
+JniErr := struct {
+    msg : Str = ""
+    code : I64 = 7
+}
+
+JniTryFn := func(I64) returns I64 throws JniErr, DivideByZero, JniBad
+
+jni_try := func(f: JniTryFn, x: I64) returns Str {
+    r := f(x)?
+    catch (e1: JniErr) { return format("JniErr ", e1.msg, " ", e1.code.to_str()) }
+    catch (e2: DivideByZero) { return format("DivideByZero [", e2.msg, "]") }
+    catch (e3: JniBad) { return "JniBad" }
+    return r.to_str()
+}
+
+JniMutFn := func(mut I64, mut Str, mut Bool, mut Vec(I64), mut Vec(Str))
+
+jni_mut_cb := func(f: JniMutFn) returns Str {
+    mut n : I64 = 1
+    mut s := "a"
+    mut b := false
+    mut xs := Vec(I64).new()
+    xs.push(own 1)
+    mut ss := "p".split(",")
+    f(n, s, b, xs, ss)
+    return format(n.to_str(), " ", s, " ", b.to_str(), " ", xs.len().to_str(), ":", xs[xs.len() - 1].to_str(), " ",
+        join(ss, "|"))
+}
+
+JniMutPersonFn := func(mut JniPerson)
+
+jni_mut_person := func(f: JniMutPersonFn) returns Str {
+    mut p := JniPerson(name = "m", age = 1)
+    f(p)
+    return jni_person_describe(p)
+}
+
+JniOwnFn := func(own Str, own JniPerson, own Vec(I64)) returns I64
+
+jni_own_cb := func(f: JniOwnFn) returns I64 {
+    mut xs := Vec(I64).new()
+    xs.push(own 4)
+    return f(own "given", own JniPerson(name = "kept", age = 30), own xs)
+}
+
 JniSumFn := func(Vec(I64)) returns Vec(I64)
 
 jni_map_sum := func(f: JniSumFn) returns I64 {

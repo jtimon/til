@@ -45,6 +45,13 @@ check_text := proc() {
     require_contains(java, "public static void jni_scale(double[][] xs, double k) {")
     require_contains(java, "return JniPerson.tilArray(n_jni_people(tilUtf8All(names)));")
     require_contains(java, "// jni_age_all: not bound: mut Vec of handles parameter 'people'")
+    // Callbacks: a throwing one declares TilError; mut values cross in
+    // one-element holders, an own handle as one Java owns.
+    require_contains(java, "long call(long a0) throws TilError;")
+    require_contains(java, "void call(long[] a0, String[] a1, boolean[] a2, long[][] a3, String[][] a4);")
+    require_contains(java, "a1[0] = tilUtf8(java.util.Objects.requireNonNull(tilMut1[0], \"tilMut1[0]\"));")
+    require_contains(java, "return f.call(tilStr(a0), new JniPerson(a1, true), a2);")
+    require_contains(java, "public TilError(String type, String detail) {")
     if java.contains("JniCounter_delete") { panic("generated lifecycle member bound through JNI") }
     require_contains(java, "public static final class JniPerson implements AutoCloseable {")
     require_contains(java, "public JniPerson() { this(h_JniPerson_new(), true); }")
@@ -72,9 +79,15 @@ check_text := proc() {
     require_contains(c, "TIL_OWN_SET((*p).person, b1);")
     require_contains(c, "I64 r = til_jni_x5flib__jni_person_consume(p0);")
     require_contains(c, "til_jni_x5flib__JniPerson_delete((til_jni_x5flib__JniPerson *)(intptr_t)h, 1);")
+    // A TilError from a callback becomes the declared throw, its payload
+    // the type's default with the detail as msg.
+    require_contains(c, "char *thrown = til_jni_cb_caught(env, \"JniTryFn\", &detail);")
+    require_contains(c, "if (strcmp(thrown, \"DivideByZero\") == 0) {\n            *x1 = 3LL;")
+    require_contains(c, "(*x2).code = 7;")
+    require_contains(c, "threw TilError %s, which its til type does not declare")
 }
 
-EXPECTED := "127\n250\n-2000\n65000\n1999999999\n4294967295\n1099511627783\n18446744073709551615\n42\n1.5\n2.5\nfalse true\n42\n6\nhello, jvm\n<owned>\n42\ncaught DivideByZero / DivideByZero: b is zero\ncaught JniBad / JniBad\nada:36\ngrace:37 true\nanon 0 true\n5\nmoved: JniPerson handle is closed or moved\n42 false\nholder: n: a mut parameter takes a one-element array\n49 12 0\n7 own 0\npayload: JniShape is not Label\n2 held held\n5 renamed\nborrowed: cannot move a borrowed JniPerson\n90\n[cb]\n36\nmade:9\ntrue\nx|y||z\np|q\n303\nanon 0\n46\n[0, 1, 4, 9, 16] 0\n[3.0, 4.0, 2.0]\n2\n3 ccc 2 ccc\n3 a\nq [0, 1]\n[4, 5, 6]\n121\nloop ok\n"
+EXPECTED := "127\n250\n-2000\n65000\n1999999999\n4294967295\n1099511627783\n18446744073709551615\n42\n1.5\n2.5\nfalse true\n42\n6\nhello, jvm\n<owned>\n42\ncaught DivideByZero / DivideByZero: b is zero\ncaught JniBad / JniBad\nada:36\ngrace:37 true\nanon 0 true\n5\nmoved: JniPerson handle is closed or moved\n42 false\nholder: n: a mut parameter takes a one-element array\n49 12 0\n7 own 0\npayload: JniShape is not Label\n2 held held\n5 renamed\nborrowed: cannot move a borrowed JniPerson\n90\n[cb]\n36\nmade:9\ntrue\nx|y||z\np|q\n303\nanon 0\n46\n[0, 1, 4, 9, 16] 0\n[3.0, 4.0, 2.0]\n2\n3 ccc 2 ccc\n3 a\nq [0, 1]\n[4, 5, 6]\n121\n42\nJniErr neg -1 7\nDivideByZero []\nJniBad\n42 abc true 2:9 p|q\nmm:11\n504\nkept 30\nloop ok\n"
 
 main := proc(args: ..Str) {
     // TEMPORARY (#464): make test passes no sanitizer flag; test_asan does.

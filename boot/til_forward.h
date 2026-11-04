@@ -424,6 +424,7 @@ typedef struct priv___src_self_codegen_c_codegen_til__JniErrSlot priv___src_self
 typedef struct priv___src_self_codegen_c_codegen_til__JniTypes priv___src_self_codegen_c_codegen_til__JniTypes;
 typedef struct priv___src_self_codegen_c_codegen_til__JniInit priv___src_self_codegen_c_codegen_til__JniInit;
 typedef struct priv___src_self_codegen_c_codegen_til__JniMember priv___src_self_codegen_c_codegen_til__JniMember;
+typedef struct priv___src_self_codegen_c_codegen_til__JniCbErr priv___src_self_codegen_c_codegen_til__JniCbErr;
 typedef struct priv___src_self_codegen_c_codegen_til__CollectionInfo priv___src_self_codegen_c_codegen_til__CollectionInfo;
 typedef struct priv___src_self_codegen_c_codegen_til__DynCallInfo priv___src_self_codegen_c_codegen_til__DynCallInfo;
 typedef struct priv___src_self_codegen_c_codegen_til__BuilderFuncSites priv___src_self_codegen_c_codegen_til__BuilderFuncSites;
@@ -1553,6 +1554,13 @@ typedef struct priv___src_self_codegen_c_codegen_til__JniMember {
     Bool settable;
     Str guard;
 } priv___src_self_codegen_c_codegen_til__JniMember;
+
+
+typedef struct priv___src_self_codegen_c_codegen_til__JniCbErr {
+    Str code;
+    Str msg;
+    Str reason;
+} priv___src_self_codegen_c_codegen_til__JniCbErr;
 
 
 typedef struct priv___src_self_codegen_c_codegen_til__CollectionInfo {

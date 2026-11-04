@@ -83,6 +83,12 @@ compiling it does.
   - Vec(T) of a scalar as the primitive array (parameters, ~mut~ holders,
     results, fields, globals, callbacks) and of a struct or enum as a handle
     array (element clones in, owned handles or borrowed views out).
+  - Callbacks with ~own~ parameters (owned handles, copies the bridge then
+    deletes), ~mut~ parameters (one-element holders read back after the
+    call, borrowed handles for structs and enums) and ~throws~ (a Java
+    ~TilError~ naming a declared type becomes the til throw, its payload the
+    type's default with the detail as ~msg~); ~TilError~ gains public
+    constructors and ~detail()~.
   - Open: whether ~til build~ should compile the bridge, Java packaging (a
     jar), Android packaging (#462); then the BEAM half (NIFs).
 
@@ -94,4 +100,9 @@ compiling it does.
   - [ ] An Erlang caller does the same through a generated NIF module,
     including a long-running call that does not block a scheduler.
   - [ ] Unsupported signatures produce actionable diagnostics; existing
-    Python/C/til bindings keep working.
+    Python/C/til bindings keep working. JVM half done: every unbound
+    function, field, constructor, global or callback is listed in the
+    generated class as ~// <name>: not bound: <reason>~ (checked by
+    ~test/jni.til~), nothing is bound with changed semantics, and the
+    Python, C and til binding tests keep passing beside the JVM ones. Open:
+    the BEAM half.
