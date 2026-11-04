@@ -10,10 +10,47 @@ on:
   # branch instead of burning a master merge per attempt.
   workflow_dispatch:
 
+# Every job ends with "Cancel the rest of this run", which runs only when
+# one of its steps failed and cancels the whole run (actions: write), so a
+# failing commit stops holding runners. The failing job keeps its log and
+# its failure; the cancelled jobs report no result for that commit, and a
+# second, independent failure shows only once the first one is fixed.
+permissions:
+  contents: read
+  actions: write
+
 jobs:
+  # A push whose commits are all documentation-only ("Doc: " subject,
+  # CLAUDE.md "Commits") runs nothing else: every other root job needs
+  # this one, and jobs downstream of a skipped job are skipped too. Pull
+  # requests, manual runs and pushes with any non-Doc commit run the full
+  # workflow. github.event.commits is empty for some pushes (a branch
+  # creation, a push of more than 2048 commits); those run everything.
+  doc-gate:
+    name: 'Skip CI when every pushed commit is "Doc: "'
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.classify.outputs.code }}
+    steps:
+      - id: classify
+        env:
+          EVENT: ${{ github.event_name }}
+          COMMITS: ${{ toJSON(github.event.commits) }}
+        run: |
+          if [ "$EVENT" != push ]; then
+            code=true
+          else
+            printf '%s\n' "$COMMITS" | jq -r '.[] | .message | split("\n")[0]'
+            code=$(printf '%s' "$COMMITS" | jq -r 'if length == 0 then "true" elif all(.[]; .message | startswith("Doc: ")) then "false" else "true" end')
+          fi
+          echo "code=$code"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   # GL/X11 headers are vendored (#59, #92); GUI execution needs only
   # runtime libraries, Mesa and Xvfb, not graphics development packages.
   templeos:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: TempleOS guest (QEMU TCG, USize 32/64)
     runs-on: ubuntu-latest
     # The guest corpus runs every case at both widths under QEMU TCG,
@@ -35,8 +72,16 @@ jobs:
             tmp/templeos/*.log
             tmp/templeos/*.HC
             tmp/templeos/*.ppm
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   linux-x64:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: linux-x64
     runs-on: ubuntu-latest
     steps:
@@ -52,6 +97,12 @@ jobs:
           ./bin/til build --target=linux-x64 -o bin/hello_script_x64 examples/hello_script.til
           file bin/hello_script_x64 | grep -q "x86-64"
           ./bin/hello_script_x64
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   # One layout flag (doc/self.org): --usize=32, the compact layout (U32
   # widths, own pointers in the #313 cage), is the default on 64-bit C
@@ -60,6 +111,8 @@ jobs:
   # the whole suite through a compiler built --usize=64 (under ASAN), with
   # every program built --usize=64 too.
   linux-x64-usize64:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: linux-x64 (--usize=64)
     runs-on: ubuntu-latest
     steps:
@@ -70,12 +123,20 @@ jobs:
         run: mkdir -p tmp
       - name: Suite through the native-layout compiler
         run: make check_usize64
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   # Issue #25: aarch64-linux as a native HOST (GitHub's free arm64
   # runners), running the full suite. Blocking like every other linux
   # job: its bring-up failures (plain-char signedness) were fixed by
   # the -fsigned-char contract and the suite is green here.
   linux-arm64-native:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: linux-arm64 (native)
     runs-on: ubuntu-24.04-arm
     # GCC 13's libasan turns detect_stack_use_after_return on by default,
@@ -104,8 +165,16 @@ jobs:
           file bin/hello_script_arm64_native | grep -q "aarch64"
           ./bin/hello_script_arm64_native
           ./bin/hello_script_arm64_native | grep -q "Hello World"
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   linux-arm64:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: linux-arm64
     runs-on: ubuntu-latest
     steps:
@@ -162,8 +231,16 @@ jobs:
           make vendor/raylib/build-linux-arm64/libraylib.a vendor/tinyfiledialogs/build-linux-arm64/libtinyfd.a
           ./bin/til build --target=linux-arm64 -o bin/hello_gui_arm64 examples/hello_gui.til
           file bin/hello_gui_arm64 | grep -q "aarch64"
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   linux-riscv64:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: linux-riscv64
     runs-on: ubuntu-latest
     steps:
@@ -220,8 +297,16 @@ jobs:
           make vendor/raylib/build-linux-riscv64/libraylib.a vendor/tinyfiledialogs/build-linux-riscv64/libtinyfd.a
           ./bin/til build --target=linux-riscv64 -o bin/hello_gui_riscv64 examples/hello_gui.til
           file bin/hello_gui_riscv64 | grep -q "RISC-V"
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   linux-x86:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: linux-x86
     runs-on: ubuntu-latest
     steps:
@@ -307,8 +392,16 @@ jobs:
           file bin/hello_gui_x86 | grep -q "80386"
           rc=0; xvfb-run --auto-servernum timeout 3 qemu-i386 bin/hello_gui_x86 || rc=$?
           test "$rc" = "124"
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   linux-arm32:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: linux-arm32
     runs-on: ubuntu-latest
     steps:
@@ -367,8 +460,16 @@ jobs:
           make vendor/raylib/build-linux-arm32/libraylib.a vendor/tinyfiledialogs/build-linux-arm32/libtinyfd.a
           ./bin/til build --target=linux-arm32 -o bin/hello_gui_arm32 examples/hello_gui.til
           file bin/hello_gui_arm32 | grep -q "ARM"
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   linux-riscv32:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: linux-riscv32
     runs-on: ubuntu-latest
     steps:
@@ -449,6 +550,12 @@ jobs:
           ./bin/til build --target=linux-riscv32 --cc="$RISCV32_CC" \
             -o bin/hello_gui_riscv32 examples/hello_gui.til
           file bin/hello_gui_riscv32 | grep -q "RISC-V"
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   # Issue #424: wasm32 through the vendored emsdk. A non-gui program is a
   # single .js (wasm embedded) run under node; a mode gui program is a
@@ -456,6 +563,8 @@ jobs:
   # libsecp256k1 archive, so test/crypto.til -- the SHA-256 and BIP-340
   # vectors -- runs here as wasm too.
   wasm32:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: wasm32 (emscripten, run under node)
     runs-on: ubuntu-latest
     steps:
@@ -479,8 +588,16 @@ jobs:
           "$NODE" bin/crypto.js
           ./bin/til build --target=wasm32 --cc="$EMCC" -o bin/hello_gui.html examples/hello_gui.til
           grep -qi "<html" bin/hello_gui.html
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   windows-x64-build:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: windows-x64/x86 (cross-compile on linux)
     runs-on: ubuntu-latest
     steps:
@@ -563,6 +680,12 @@ jobs:
             bin/ffi_prep-x86.exe
             bin/nng_pair.exe
             bin/nng_pair-x86.exe
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   windows-x64-run:
     name: windows-x64/x86 (run .exe on windows)
@@ -597,6 +720,12 @@ jobs:
         run: |
           ./nng_pair.exe | grep -q "nng pair ok"
           ./nng_pair-x86.exe | grep -q "nng pair ok"
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   # Issue #25: til itself running on a windows HOST. bin/til.exe is the
   # compiler cross-built for windows (build_win_host) on linux, then run
@@ -609,6 +738,8 @@ jobs:
   # here proves nng works on real winsock -- wine's winsock is incomplete
   # and cannot, so this job IS the nng-on-windows proof.
   windows-x64-host-build:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: windows-x64 host (cross-build til.exe + nng on linux)
     runs-on: ubuntu-latest
     steps:
@@ -680,6 +811,12 @@ jobs:
             vendor/raylib/build-windows-x64/libraylib.a
             vendor/tinyfiledialogs/build-windows-x64/libtinyfd.dll
             vendor/tinyfiledialogs/build-windows-x64/libtinyfd.a
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   windows-x64-host-run:
     name: windows-x64 host (run til.exe + nng on windows)
@@ -820,6 +957,12 @@ jobs:
           fi
           cat tmp/link_objects.out
           grep -q "link_objects PASS" tmp/link_objects.out
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   # Issue #25 phase 1: native macOS. No continue-on-error anywhere: a
   # failed job fails the run, honestly red until the remaining darwin
@@ -846,6 +989,8 @@ jobs:
   # and the next lever is a smaller ASAN quarantine or running that one
   # test without ASAN.
   macos-arm64:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: macos-arm64 (native)
     runs-on: macos-latest
     steps:
@@ -932,8 +1077,16 @@ jobs:
           name: crash-macos-arm64
           path: tmp/crash/
           if-no-files-found: ignore
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   macos-x64:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: macos-x64 (native)
     runs-on: macos-15-intel
     steps:
@@ -1000,6 +1153,12 @@ jobs:
           name: crash-macos-x64
           path: tmp/crash/
           if-no-files-found: ignore
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   # Issue #25 phase 2: SDK-less cross-compilation from the canonical
   # linux-x64 host to both mac targets (vendored zig-derived headers +
@@ -1008,6 +1167,8 @@ jobs:
   # windows-x64. Keeping linux-x64 as the single cross host avoids a
   # combinatorial host-x-target explosion in CI.
   macos-cross-build:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: macos (cross-compile on linux)
     runs-on: ubuntu-latest
     steps:
@@ -1114,6 +1275,12 @@ jobs:
             bin/nng_pair-macos-x64
             bin/til-macos-arm64
             bin/til-macos-x64
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   macos-arm64-cross-run:
     name: macos-arm64 (run cross binary on mac)
@@ -1148,6 +1315,12 @@ jobs:
           ./machost/nng_pair-macos-arm64 | grep -q "nng pair ok"
           ./machost/til-macos-arm64 interpret examples/hello_script.til | grep -q "Hello World"
           ./machost/til-macos-arm64 interpret test/ext_libc.til
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   macos-x64-cross-run:
     name: macos-x64 (run cross binary on mac)
@@ -1182,6 +1355,12 @@ jobs:
           ./machost/nng_pair-macos-x64 | grep -q "nng pair ok"
           ./machost/til-macos-x64 interpret examples/hello_script.til | grep -q "Hello World"
           ./machost/til-macos-x64 interpret test/ext_libc.til
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   # Issue #25: macOS as a HOST cross-compiling to the OTHER OSes (the
   # last two matrix cells). The mac runner builds bin/til natively, then
@@ -1194,6 +1373,8 @@ jobs:
   # The artifacts run on real windows / linux runners -- the build/run
   # pair shape used by the windows and macos-cross jobs.
   macos-host-cross-build:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: macos host (cross-build for windows + linux)
     runs-on: macos-latest
     steps:
@@ -1239,6 +1420,12 @@ jobs:
             bin/hello_script-from-mac.exe
             bin/hello_script-from-mac-linux
             bin/crypto-from-mac-linux
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   macos-host-cross-win-run:
     name: macos host cross (run .exe on windows)
@@ -1254,6 +1441,12 @@ jobs:
         run: |
           ./hello_script-from-mac.exe
           ./hello_script-from-mac.exe | grep -q "Hello World"
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   macos-host-cross-linux-run:
     name: macos host cross (run ELF on linux)
@@ -1273,6 +1466,12 @@ jobs:
         run: |
           chmod +x crypto-from-mac-linux
           ./crypto-from-mac-linux
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   # Issue #25 phase 3 / #232: mac GUI cross from Linux end to end, with NO
   # mac and NO Apple SDK. raylib's RGFW desktop backend drives Cocoa through
@@ -1285,6 +1484,8 @@ jobs:
   # builds the whole chain on linux and asserts a valid Mach-O per arch --
   # the mac analogue of the mingw-cross windows gui, no prebuilt binaries.
   macos-gui-cross:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
     name: macos gui (cross-compile on linux)
     runs-on: ubuntu-latest
     steps:
@@ -1321,3 +1522,9 @@ jobs:
           path: |
             bin/hello_gui-macos-arm64
             bin/hello_gui-macos-x64
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"

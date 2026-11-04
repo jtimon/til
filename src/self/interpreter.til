@@ -1948,6 +1948,8 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
     // and a `.c_str` inside that callee is an ordinary borrowed read.
     cstr_arg := ctx.eval.interp_cstr_arg
     ctx.eval.interp_cstr_arg = false
+    callable_arg := ctx.eval.interp_callable_arg_borrow
+    ctx.eval.interp_callable_arg_borrow = false
     switch e.node_type {
     case .FieldAccess(fa):
         mut fallback_sname := ""
@@ -2019,7 +2021,10 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
         ref fdecl : Declaration = fdecl_o.unwrap()
         field_resolved_type := declaration_resolved_type(fdecl, ctx.scope, ctx.symbols)
         info.source_type_p = to_ptr(interp_intern_type(field_resolved_type, ctx))
-        info.is_ref = decl_is_funcsig(fdecl, ctx).not()
+        // A callable field is read as an owned clone (read_field), except
+        // as a borrowed callable argument: then the field's slot is lent.
+        callable_borrow := callable_arg.and(decl_is_funcsig(fdecl, ctx))
+        info.is_ref = decl_is_funcsig(fdecl, ctx).not().or(callable_borrow)
         if e.children[0].node_type.is_literal_str().and(fdecl.own_type.is(OwnType.Shallow)) { info.is_ref = false }
         info.is_word = info.is_ref.not().and(destination.is_null()).and(raw_type_is_prim(expr_type, ctx))
         base_o := field_access_base(scope, e.children[0], ctx)
@@ -2037,6 +2042,9 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
         if base_o.is_some() {
             ref base : Dynamic = base_o.unwrap()
             if cstr_arg { check_c_string_terminator(base, e, ctx) }
+            // The slot holding the closure pointer is what a callable
+            // binding points at, so it is lent as is, not loaded through.
+            if callable_borrow { return ptr_add(base, fl.offset) }
             if info.is_ref {
                 if fdecl.own_type.is(OwnType.Shallow).not() {
                     ref pointed : Dynamic = own_slot_load(ptr_add(base, fl.offset), fl.size)
@@ -3564,7 +3572,14 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
             }
         case:
             mut arg_info := raw_result_info_new()
+            // A stored closure passed to a parameter that only borrows it is
+            // lent, not cloned (see interp_callable_arg_borrow).
+            if arg_expr.node_type.is(NodeType.FieldAccess).and(arg_transfers.not())
+            .and(param.own_type.is(OwnType.Own).not()).and(decl_is_funcsig(param, ctx)) {
+                ctx.eval.interp_callable_arg_borrow = true
+            }
             mut arg_raw : Dynamic = eval_expr_raw_info(caller_scope, arg_expr, ctx, arg_info)
+            ctx.eval.interp_callable_arg_borrow = false
             ref arg_source_type : Type = raw_result_source_type(arg_info)
             if is_variadic_param.not().and(param.til_type.is(Type.Dynamic)) {
                 if arg_source_type.is(Type.Dynamic) {

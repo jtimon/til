@@ -2530,6 +2530,7 @@ typedef struct EvalState {
     Option__ref_Str interp_ret_type;
     OwnType interp_ret_own_type;
     Bool interp_cstr_arg;
+    Bool interp_callable_arg_borrow;
     Bool constfold_active;
     Bool target_size_queries;
     Bool eval_aborted;

@@ -291,6 +291,15 @@ check_callables := proc(seed: I64, counts: Counts) {
     assert(private(4) == seed + 4)
     assert(private(2) == seed + 6)
     assert(start == seed)
+    // A stored closure passed to a borrowing parameter is the stored one,
+    // not a copy: its private state persists across calls. The interpreter
+    // used to pass a clone of the field, losing the state and leaking it.
+    private_holder := ActionHolder(action=func(value: I64) returns I64 [shallow mut start] {
+        start = start + value
+        return start
+    })
+    assert(invoke_action(private_holder.action,4) == seed + 4)
+    assert(invoke_action(private_holder.action,2) == seed + 6)
     bias := seed
     six : SixAction = func(a: I64,b: I64,c: I64,d: I64,e: I64,f: I64) returns I64 [own bias] {
         return a+b+c+d+e+f+bias
