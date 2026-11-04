@@ -14691,6 +14691,29 @@ priv summary_global_ref_field := func(e: Expr, scope: TypeScope, self_type: Str,
     return false
 }
 
+// Pre-typing counterpart of reference_assignment_rebinds for local receivers.
+// Parameters are write-through places; only local ref declarations rebind.
+priv summary_local_ref_receiver := func(name: Str, params: Vec(Declaration), receivers: Vec(Declaration)) returns Bool {
+    for i in params.len()..receivers.len() {
+        if receivers[i].name == name { return receivers[i].own_type.is(OwnType.Ref) }
+    }
+    return false
+}
+
+priv summary_assignment_rebinds := func(name: Str, rhs: Expr, scope: TypeScope, self_type: Str,
+    params: Vec(Declaration), receivers: Vec(Declaration), ctx: Context) returns Bool {
+    if summary_local_ref_receiver(name, params, receivers).not() { return false }
+    switch rhs.node_type {
+    case .Ident(id): return summary_local_ref_receiver(id.ident_name(ctx.symbols.names), params, receivers)
+    case .FieldAccess: return fa_is_ns(rhs, scope, ctx.symbols).or(rhs.children[0].node_type.is_literal_str()).not()
+    case .FCall:
+        fd := summary_effect_callee(rhs, scope, self_type, receivers, ctx.symbols, ctx)
+        if fd.is_some() { return funcdef_of(fd.unwrap()).sig.return_own_type.is(OwnType.Ref) }
+    case:
+    }
+    return false
+}
+
 // Walk one body, collecting the parameter bits every `return` can hand
 // back. Nested FuncDefs are skipped: their returns belong to them.
 priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: DepositAcc, scope: TypeScope, self_type: Str, params: Vec(Declaration), receivers: Vec(Declaration), symbols: SymbolPool, ctx: Context) returns RootBits {
@@ -14699,7 +14722,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         return RootBits()
     case .Body:
         mark := acc.locals.len()
-        saved_aliases := acc.global_aliases.clone()
+        mut saved_aliases := acc.global_aliases.clone()
         mut bits := RootBits()
         for child : Expr in e.children {
             bits = bits.bor(summary_walk(child, roots, acc, scope, self_type, params, receivers, symbols, ctx))
@@ -14707,6 +14730,15 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
             case .Decl(d): acc.locals.push(own d.name.clone())
             case:
             }
+        }
+        // A branch can rebind an outer reference to global storage. Keep that
+        // possible destination after the block, but not its local shadows.
+        for i in 0..mark {
+            ref name : Str = acc.locals[i]
+            if acc.global_aliases.has(name).not() { continue }
+            mut shadowed := false
+            for j in mark..acc.locals.len() { if acc.locals[j] == name { shadowed = true } }
+            if shadowed.not() { saved_aliases.add(own name.clone()) }
         }
         acc.locals.truncate(mark)
         acc.global_aliases = saved_aliases
@@ -14771,11 +14803,19 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         // target; a parameter target is a deposit the caller can observe.
         if e.children.len() > 0 {
             src_bits := summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)
-            if summary_target_is_global(ad.name, acc.locals, acc.global_aliases, scope, ctx) {
+            rebinds := summary_assignment_rebinds(ad.name, e.children[0], scope, self_type, params, receivers, ctx)
+            if rebinds {
+                if summary_target_expr_global(e.children[0], acc, scope, self_type, receivers, ctx) {
+                    acc.global_aliases.add(own ad.name.clone())
+                }
+                mut prior := RootBits()
+                if roots.has(ad.name) { prior = roots[ad.name] }
+                roots.set(ad.name, own prior.bor(src_bits))
+            } else if summary_target_is_global(ad.name, acc.locals, acc.global_aliases, scope, ctx) {
                 // Assignment/clone owns the carrier, not its borrowed contents.
                 acc.global = acc.global.bor(RootBits(into = src_bits.into, carried = src_bits.alias.bor(src_bits.carried)))
             }
-            if src_bits.is_zero().not() {
+            if rebinds.not().and(src_bits.is_zero().not()) {
                 if roots.has(ad.name) {
                     sink := summary_name_sink_bits(ad.name, roots, receivers)
                     acc.m = acc.m.bor(deposit_cross(sink.all(), src_bits.all()))

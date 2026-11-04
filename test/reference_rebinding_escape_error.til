@@ -130,6 +130,37 @@ bad_global_getter_container := proc(n: I64) {
 }
 
 Cell := struct { number: I64 = 0 }
+store_through_rebound_getter := proc(value: I64) {
+    noop_proc()
+    mut holder := GlobalEscapeRecord(value = global_escape_owner.unsafe_get(0))
+    ref mut alias: GlobalEscapeRecord = holder
+    alias.value = global_escape_owner.unsafe_get(0)
+    alias = global_record_target()
+    alias.value = value
+}
+store_through_conditional_getter := proc(value: I64, change: Bool) {
+    noop_proc()
+    mut holder := GlobalEscapeRecord(value = global_escape_owner.unsafe_get(0))
+    ref mut alias: GlobalEscapeRecord = holder
+    alias.value = global_escape_owner.unsafe_get(0)
+    if change { alias = global_record_target() }
+    alias.value = value
+}
+store_through_rebound_alias := proc(value: I64) {
+    noop_proc()
+    mut holder := GlobalEscapeRecord(value = global_escape_owner.unsafe_get(0))
+    ref mut alias: GlobalEscapeRecord = holder
+    alias.value = global_escape_owner.unsafe_get(0)
+    ref mut global_alias: GlobalEscapeRecord = global_record_target()
+    alias = global_alias
+    alias.value = value
+}
+bad_global_helper_rebindings := proc(n: I64) {
+    local := vec(I64, n)
+    store_through_rebound_getter(local.unsafe_get(0))
+    store_through_conditional_getter(local.unsafe_get(0), true)
+    store_through_rebound_alias(local.unsafe_get(0))
+}
 borrow := func(cell: Cell) returns ref Cell { return cell }
 main := proc() {
     outer := Cell(number=1)

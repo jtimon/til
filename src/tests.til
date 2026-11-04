@@ -2962,9 +2962,9 @@ main := proc(args: ..Str) returns I64 {
         format(til_bin, " build", asan_flag, " test/capture_mut_escape_error.til"))
     global_escape_checks := array(CountCheck,
         CountCheck(needle = "source does not outlive the reference binding", expected_count = 1),
-        CountCheck(needle = "cannot store a borrow of local", expected_count = 16),
+        CountCheck(needle = "cannot store a borrow of local", expected_count = 19),
         CountCheck(needle = "cannot store a borrow of a temporary in global storage", expected_count = 1),
-        CountCheck(needle = "18 type error(s) found", expected_count = 1))
+        CountCheck(needle = "21 type error(s) found", expected_count = 1))
     add_counts(tests, "reference_rebinding_escape_interp", "typer",
         format(til_bin, " interpret test/reference_rebinding_escape_error.til"), ..global_escape_checks)
     add_counts(tests, "reference_rebinding_escape_build", "typer",

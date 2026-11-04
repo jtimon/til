@@ -142,6 +142,20 @@ test_global_getter_destination := test() {
 }
 
 SafeGlobalThunk := func() returns I64
+store_safe_rebound := proc(value: I64, change: Bool) {
+    noop_proc()
+    mut holder := RefOwnedCarrier(value = global_safe_owner.unsafe_get(0))
+    ref mut alias: RefOwnedCarrier = holder
+    alias.value = global_safe_owner.unsafe_get(0)
+    if change { alias = global_safe_target() }
+    alias.value = value
+}
+test_global_helper_rebinding := test() {
+    store_safe_rebound(global_safe_owner.unsafe_get(0), true)
+    ref value: I64 = global_safe_holder.value
+    assert(ptr_eq(value, global_safe_owner.unsafe_get(0)) && value == 41)
+}
+
 safe_global_zero := func() returns I64 { return 0 }
 mut safe_global_function: SafeGlobalThunk = safe_global_zero
 stash_safe_function := func(f: SafeGlobalThunk) { safe_global_function = f }
