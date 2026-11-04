@@ -689,6 +689,7 @@ typedef struct FieldLayout {
     Bool is_enum;
     Bool is_funcptr;
     Bool is_cptr;
+    USize owned_scalar_size;
 } FieldLayout;
 
 

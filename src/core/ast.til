@@ -897,6 +897,9 @@ FieldLayout := struct {
     // binary was built --usize=32 (field_is_own_ptr). Read and write the slot
     // with own_slot_load / own_slot_store, never deref / write_ptr.
     is_cptr := false
+    // Size of a separately owned scalar value. Zero for aggregates and raw
+    // pointer labels (U8/I8/Dynamic), whose buffers have their own contracts.
+    owned_scalar_size : USize = 0
 namespace:
     eq := func(a: FieldLayout, b: FieldLayout) returns Bool {
         return a.offset.eq(b.offset).and(a.size.eq(b.size)).and(a.struct_name.eq(b.struct_name))

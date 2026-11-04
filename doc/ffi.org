@@ -106,7 +106,9 @@ supported; variadic element and keyword entry counts are not limited to 63.
 Records and enums can borrow any supported scalar/Str/record/enum type, at
 any nesting depth, in arguments, results and declared errors. There is no
 VM-specific address or I64-only restriction. Explicit own-pointer record
-fields and callable payloads remain unsupported by this marshaller.
+fields are copied recursively, including boxed scalars, Str, records and
+enums. Raw owned byte buffers (U8/I8/Dynamic) have no field-level length
+contract and remain unsupported, as do callable payloads.
 Declared guest errors are supported through the typed
 adapter below. Native library functions can still use
 their ordinary FFI throws contracts, and records can cross through the native
@@ -351,9 +353,16 @@ even when the interpreter uses a wider standalone scratch slot.
 Recursive type graphs through owned optional boxes are supported. Validation
 visits each distinct schema once per traversal and checks all its members; this
 does not create a persistent schema cache. Copying follows the finite owned
-value tree, without traversing borrowed pointees. Nested borrowed references
-are supported; explicit own-pointer record fields and callable enum payloads
-remain outside this marshalling contract.
+value tree, without traversing borrowed pointees. Explicit own-pointer record
+fields preserve separate allocations, decoding and encoding the actual pointer
+slot width in both compact and native layouts. Nested borrowed references keep
+their original referents. Callable enum payloads remain unsupported.
+
+~test/tilvm_cases.til::owned_field_callback_tests~ covers nested owned fields,
+boxed scalars and narrow enums, borrowed mutation, independent owned inputs,
+variadic/keyword copies, declared errors, panic/exit cleanup and results read
+after VM teardown. Error output slots use the ordinary typed defaults before
+the guest replaces them; aborted calls have no result payload to destroy.
 
 ~test/tilvm.til::nested_callback_tests~ covers mixed nesting, a recursive
 owned-node schema, borrowed mutation on success/throw/panic/exit, owned-input
@@ -631,11 +640,12 @@ effects. Reload still requires the host's explicit staging/publication policy.
 The #370 embedding contract is complete. Its current boundaries leave these
 possible extensions:
 
-- Explicit own-pointer fields in user record schemas are not yet marshalled
-  through ~TilVmCallback.call(Tuple)~. Nested borrowed fields/payloads already
-  follow ordinary reference semantics in fixed, variadic and keyword inputs,
-  results and declared errors. The ~call_throwing(E)~ adapter supports the same
-  schemas, including multiple errors through its signature-based form.
+- Raw owned byte buffers need an explicit length/ownership contract before
+  they can cross ~TilVmCallback.call(Tuple)~. Typed own-pointer record fields
+  and nested borrowed fields/payloads follow ordinary ownership/reference
+  semantics in fixed, variadic and keyword inputs, results and declared errors.
+  The ~call_throwing(E)~ adapter supports the same schemas, including multiple
+  errors through its signature-based form.
 - Callable enum payloads cannot cross the native FFI boundary. Supporting them
   requires a defined native callable representation and capture/code lifetime
   contract, rather than treating interpreter closures as native function pointers.

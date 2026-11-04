@@ -2039,6 +2039,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
             mut field_is_enum := false
             mut field_is_funcptr := false
             mut field_is_cptr := false
+            mut owned_scalar_size : USize = 0
 
             if fd.own_type.is(OwnType.Shallow).not() {
                 // own/ref fields are pointers in the HOST binary the
@@ -2066,6 +2067,11 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                     mut opbi : Bool = false
                     o_is_prim : Bool = primitive_type_info(ftype, scope, oprim, opsz, opal, opbi)
                     ftype_resolved := type_from_name_init_name(ftype, scope, ctx.symbols)
+                    if fd.own_type.is(OwnType.Own).and(o_is_prim).and(oprim.is(Primitive.U8).or(oprim.is(Primitive.I8)).not()) {
+                        owned_scalar_size = opsz
+                        if ftype == "USize" { owned_scalar_size = USize.size() }
+                        if ftype == "UPtr" { owned_scalar_size = UPtr.size() }
+                    }
                     if ftype_resolved.is_funcptr().or(ftype_resolved.is(Type.Body)) {
                         field_is_funcptr = true
                     } else if o_is_prim.or(ftype.eq("Dynamic")).not() {
@@ -2167,7 +2173,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
             }
 
             offset = align_up(offset, falign)
-            sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name, own_type = fd.own_type, is_str = field_struct_name == "Str", is_enum = field_is_enum, is_funcptr = field_is_funcptr, is_cptr = field_is_cptr))
+            sl.fields.push(own FieldLayout(offset = offset, size = fsz, struct_name = field_struct_name, own_type = fd.own_type, is_str = field_struct_name == "Str", is_enum = field_is_enum, is_funcptr = field_is_funcptr, is_cptr = field_is_cptr, owned_scalar_size = owned_scalar_size))
             if falign > max_align { max_align = falign }
             offset = offset + fsz
         }

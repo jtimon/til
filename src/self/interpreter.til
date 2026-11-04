@@ -213,6 +213,12 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
                     continue
                 }
                 ref src_ptr : Dynamic = own_slot_load(ptr_add(data, hc_fl.offset), hc_fl.size)
+                if hc_fl.owned_scalar_size > 0 {
+                    mut copied : Dynamic = EvalHeap.heap_alloc(hc_fl.owned_scalar_size)
+                    memcpy(copied, src_ptr, hc_fl.owned_scalar_size)
+                    own_slot_store(ptr_add(dst_data, hc_fl.offset), copied, hc_fl.size)
+                    continue
+                }
                 if src_ptr.is_null().not() {
                     if nested_def_o.is_some() {
                         ref nested_def : Expr = nested_def_o.unwrap()
@@ -1562,11 +1568,10 @@ priv init_field_raw := func(mut inst_data: Dynamic, dd: Declaration, field_offse
     if is_struct_type(dd.til_type) {
         ref name : Str = type_name_ref(dd.til_type, ctx.symbols)
         if dd.own_type.is(OwnType.Own) {
-            if raw_is_ref.or(raw_is_place) {
-                own_slot_store(dst, heap_clone(name, raw, ctx), field_size)
-            } else {
-                own_slot_store(dst, raw, field_size)
-            }
+            mut stored : Dynamic = raw
+            if raw_is_ref.or(raw_is_place) { stored = heap_clone(name, raw, ctx) }
+            if name == "Str" { prepare_owned_str_wrapper(stored, ctx) }
+            own_slot_store(dst, stored, field_size)
         } else if dd.own_type.is(OwnType.Ref) {
             own_slot_store(dst, raw, field_size)
         } else {
@@ -3137,6 +3142,7 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
             }
             mut val_raw : Dynamic = 0
             mut val_is_ref := false
+            mut val_is_word := false
             mut val_source_type := val_expr.til_type().clone()
             if fad.transfers_own {
                 switch val_expr.node_type {
@@ -3146,6 +3152,7 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     mut val_info := raw_result_info_new()
                     val_raw = eval_expr_raw_info(scope, val_expr, ctx, val_info)
                     val_is_ref = val_info.is_ref
+                    val_is_word = val_info.is_word
                     val_source_type = raw_result_source_type(val_info).clone()
                 }
             } else {
@@ -3163,6 +3170,7 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     mut val_info := raw_result_info_new()
                     val_raw = eval_expr_raw_info(scope, val_expr, ctx, val_info)
                     val_is_ref = val_info.is_ref
+                    val_is_word = val_info.is_word
                     val_source_type = raw_result_source_type(val_info).clone()
                 }
             }
@@ -3244,7 +3252,18 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     }
                     drop_field = false
                 }
-                write_field(base, fdecl, wf_fl.offset, wf_fl.size, val_raw, val_source_type, val_is_ref, drop_field, ctx)
+                if wf_fl.owned_scalar_size > 0 {
+                    mut word : Dynamic = val_raw
+                    if val_is_word.not() { word = scalar_word_load(val_source_type, val_raw, ctx) }
+                    copied : Dynamic = scalar_block_from_word(fdecl.til_type, raw_widen_numeric(word, val_source_type, fdecl.til_type, ctx), ctx)
+                    if val_is_ref.or(val_is_word).not() { EvalHeap.heap_free(own val_raw) }
+                    ref mut slot : Dynamic = ptr_add(base, wf_fl.offset)
+                    ref old : Dynamic = own_slot_load(slot, wf_fl.size)
+                    if drop_field { mut owned_old : Dynamic = old; EvalHeap.heap_free(own owned_old) }
+                    own_slot_store(slot, copied, wf_fl.size)
+                } else {
+                    write_field(base, fdecl, wf_fl.offset, wf_fl.size, val_raw, val_source_type, val_is_ref, drop_field, ctx)
+                }
             }
         case .FCall(fcd):
             eval_fcall(scope, stmt, fcd, ctx)
@@ -4383,6 +4402,8 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                                 // field writer would store the block
                                 // ADDRESS as the scalar. #302 raw-alloc
                                 // pointer bindings keep the bare pointer.
+                                // An own field also keeps the block: its slot
+                                // stores the scalar's address, not its bits.
                                 // OWN, not merely non-Shallow: a `ref b : I8`
                                 // binding holds a POINTER to the scalar, the
                                 // same shape #302's raw allocations do, so
@@ -4391,7 +4412,8 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                                 // `Str(c_str = start, ...)` kept 'h' where the
                                 // address belonged, and every later read of
                                 // that field dereferenced 0x68 (#357).
-                                if raw_type_is_prim(hb_type(source_hb), ctx).and(source_hb.own_type.is(OwnType.Own)).and(source_hb.is_raw_alloc.or(arg_is_ref).not()) {
+                                if fdd.own_type.is(OwnType.Shallow).and(raw_type_is_prim(hb_type(source_hb), ctx))
+                                    .and(source_hb.own_type.is(OwnType.Own)).and(source_hb.is_raw_alloc.or(arg_is_ref).not()) {
                                     ctor_prim_word : Dynamic = scalar_word_load(hb_type(source_hb), arg_raw, ctx)
                                     EvalHeap.heap_free(own arg_raw)
                                     arg_raw = ctor_prim_word
@@ -4408,6 +4430,11 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                                 arg_raw = to_ptr(source_hb.ptr)
                                 arg_is_ref = true
                                 arg_is_place = true
+                            } else if fdd.own_type.is(OwnType.Own).and(raw_type_is_prim(hb_type(source_hb), ctx))
+                                .and(source_hb.is_raw_alloc.or(source_hb.own_type.is(OwnType.Ref)).not()) {
+                                word : Dynamic = scalar_word_load(hb_type(source_hb), source_hb.ptr, ctx)
+                                arg_raw = scalar_block_from_word(fdd.til_type, raw_widen_numeric(word, hb_type(source_hb), fdd.til_type, ctx), ctx)
+                                arg_source_type = fdd.til_type.clone()
                             } else {
                                 arg_raw = eval_expr_raw(scope, arg, ctx)
                                 arg_is_ref = source_hb.own_type.is(OwnType.Ref)
@@ -4419,6 +4446,10 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                             arg_is_ref = arg_info.is_ref
                             arg_source_type = raw_result_source_type(arg_info).clone()
                             arg_is_place = arg_is_ref
+                            if fdd.own_type.is(OwnType.Own).and(raw_type_is_prim(arg_source_type, ctx)).and(arg_info.is_word) {
+                                arg_raw = scalar_block_from_word(fdd.til_type, raw_widen_numeric(arg_raw, arg_source_type, fdd.til_type, ctx), ctx)
+                                arg_source_type = fdd.til_type.clone()
+                            }
                         }
                         // A SHALLOW prim field takes a value WORD: a
                         // ref/place arg is a bare source address, so load
@@ -4677,8 +4708,8 @@ priv clone_tuple_buffer := func(src_tuple: Dynamic, mut dst_tuple: Dynamic, ctx:
 // dangling struct_def, so it is safe at scope teardown. Frees own struct
 // fields' blocks (recursing first), Str fields' c_strs, recurses into inline
 // nested structs, and reclaims container data buffers. Enum
-// fields and own non-struct pointers stay shallow (their construction can
-// share a pointer, so freeing here would risk a double-free).
+// fields and boxed scalar values own their storage. Raw pointer fields retain
+// their buffer-specific lifecycle rather than implying a single scalar box.
 priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context) {
     if ffi_place_is_foreign(data, ctx) {
         mut local : Dynamic = EvalHeap.heap_alloc(ctx_total_size(struct_name, ctx))
@@ -4742,6 +4773,12 @@ priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context)
             continue
         }
         if fl.own_type.is(OwnType.Own) {
+            if fl.owned_scalar_size > 0 {
+                ref scalar_ref : Dynamic = own_slot_load(ptr_add(data, foff), fl.size)
+                mut scalar : Dynamic = scalar_ref
+                EvalHeap.heap_free(own scalar)
+                continue
+            }
             if fl.is_enum {
                 free_owned_enum_slot(ptr_add(data, foff), fl.size, fl.struct_name, ctx)
                 continue
@@ -6882,7 +6919,9 @@ priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut 
         if gn.len() == 0 { return false }
         if hf.name != gf.name || hf.type_name() != gn || hf.is_mut != gf.is_mut { return false }
         if hf.own_type != gf.own_type { return false }
-        if gf.own_type.is(OwnType.Shallow).or(gf.own_type.is(OwnType.Ref)).not() { return false }
+        // Raw owned byte pointers may describe buffers, not single values;
+        // their length/ownership cannot be inferred from a field's type.
+        if gf.own_type.is(OwnType.Own).and(gn.eq("U8").or(gn == "I8").or(gn == "Dynamic")) { return false }
         if interp_callback_schema_visit(gn, visited, ctx).not() { return false }
     }
     ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
@@ -6956,6 +6995,17 @@ priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Con
             continue
         }
         field_type := type_from_name_init_name(decl_type_name(field, ctx.symbols), ctx.scope, ctx.symbols)
+        if field.own_type.is(OwnType.Own) {
+            // An own field stores a pointer to a separately owned value, not
+            // inline bytes. Decode/encode its actual slot width (including a
+            // cage offset) and keep the copied box owned by the new record.
+            width := layout_slot_size(layout, i)
+            ref pointed : Dynamic = own_slot_load(ptr_add(source, offset.to_usize()), width)
+            mut copied : Dynamic = interp_callback_error_copy(decl_type_name(field, ctx.symbols), pointed, ctx, to_guest)
+            if resolved_type_name(field_type, ctx.symbols) == "Str" { prepare_owned_str_wrapper(copied, ctx) }
+            own_slot_store(ptr_add(out, offset.to_usize()), copied, width)
+            continue
+        }
         copied : Dynamic = interp_callback_error_copy(decl_type_name(field, ctx.symbols), ptr_add(source, offset.to_usize()), ctx, to_guest)
         // A narrow enum's interpreter scratch slot is wider than its inline
         // field. Copy the native field width, not the scratch allocation size.
@@ -7114,6 +7164,19 @@ priv interp_call_reset := func(mut ctx: Context) {
 
 // Both named internal calls and public retained handles use this marshaller.
 // callable is an existing evaluator slot; never resolve it by its source name.
+// Hidden error out-parameters have the same initialized defaults as a typed
+// caller's slots: throwing replaces (and destroys) the previous payload.
+// A zeroed record is not a valid default when it owns separately boxed fields.
+priv interp_callback_default := proc(name: Str, mut scope: Scope, mut ctx: Context) returns Dynamic {
+    mut value := make_default_value_expr(name, 0, 0, ctx.symbols)
+    mut types := TypeScope(parent = Option(ref TypeScope).Some(ctx.scope), is_func_root = true)
+    errors_before := ctx.errors
+    infer_expr(types, value, 0, ctx)
+    if ctx.errors != errors_before { panic("callback error default failed to type: ", name) }
+    raw : Dynamic = eval_expr_raw(scope, value, ctx)
+    return binding_block_from_word(value.til_type(), raw, false, ctx)
+}
+
 priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProgram,
     mut callable: Dynamic, expected: FuncSig, mut arguments: Tuple, mut error_value: Tuple = Tuple.new(), keywords: KwargsMap = KwargsMap.new()) returns Option(Tuple) {
     if lp.ctx.eval.embedded.not() { panic("guest invocation requires embedded evaluation policy") }
@@ -7224,8 +7287,12 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
         }
         mut arg_name := param.name.clone()
         if param.name.starts_with("_err_") {
-            mut storage : Dynamic = EvalHeap.heap_alloc(raw_type_size(t, lp.ctx))
-            memset(storage, 0, raw_type_size(t, lp.ctx))
+            mut storage : Dynamic = 0
+            if param.name == "_err_kind" {
+                storage = calloc(1, raw_type_size(t, lp.ctx))
+            } else {
+                storage = interp_callback_default(resolved_type_name(t, lp.ctx.symbols), temps, lp.ctx)
+            }
             scope_set_raw_owned(temps, arg_name, storage, interp_intern_type(t, lp.ctx), OwnType.Own, lp.ctx)
         } else {
             arg_name = format("TilVm.argument.", source_index.to_str())
@@ -7271,7 +7338,9 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
         values.push_type_name(own expected.return_type.clone(), own copied)
     }
     if destination.is_null().not() {
-        heap_drop_by_type(ret_type, destination, lp.ctx)
+        // Panic/exit never construct a result. A declared throw, however,
+        // returns the frontend's initialized default result, which we own.
+        if lp.ctx.eval.eval_aborted.not() { heap_drop_by_type(ret_type, destination, lp.ctx) }
         EvalHeap.heap_free(own destination)
     }
     scope_drop_owned_bindings(temps)
