@@ -92,9 +92,9 @@
   - ~run_artifact~ executes the produced artifact and propagates its status,
     including the existing Node/wasm and ASAN child-environment handling.
 
-  ~src/self/fasm_build.til~ prepares the optional vendored assembler for the
-  build/install workflows; it is tool preparation, not a separate builder for
-  til programs. Source lowering and emitted instructions remain in codegen.
+  ~builder.til::fasm_prepare~ prepares the optional vendored assembler for the
+  vendor/build/install workflows; there is no separate FASM build module.
+  Source lowering and emitted instructions remain in the codegen modules.
   Existing CLI restrictions, output names and backend-specific library reporting
   are preserved. The backend options and ~test/build_outputs.til~ check source
   hierarchy, generated-file reporting, MLIR bridge files and early rejection;
@@ -764,13 +764,13 @@
   ~src/core/str.til~, ~io.til~ and ~exit.til~ defining the language helpers.
 
   The ABI uses SysV integer argument registers, a 16-byte-aligned call stack
-  and RAX for scalar/pointer results. Str matches C: an eight-byte data pointer,
+  and RAX for scalar/pointer results. Str uses native pointer storage: an eight-byte data pointer,
   then USize count and capacity (16 bytes total for USize32, 24 for USize64).
   CAP_VIEW/CAP_LIT retain their width-specific -2/-1 meanings. Array(Str)
   uses inline Str elements and a {data pointer, USize capacity} header.
-  Runtime constructors return allocated wrappers; the emitter moves their
-  contents into value slots and frees only the wrapper. Borrowed references
-  retain pointer identity; cleanup calls distinguish buffers from wrappers.
+  Aggregate-producing runtime entries receive caller-provided descriptor
+  storage, just like generated functions. Character/element buffers retain
+  their own allocation lifetimes. Borrowed references retain pointer identity.
 
   User structs, nested inline/own/ref fields, arrays of supported values,
   aggregate returns and reassignment use the prepared declarations and
@@ -781,11 +781,29 @@
 
   The internal aggregate calling convention passes addresses in the integer
   registers. Shallow value parameters get independent outer slots; borrowed
-  and mut parameters preserve their addresses. Owned aggregate returns use
-  allocated wrappers in RAX, while ref returns retain the borrowed address.
-  Callers move values into stack slots or retain heap boxes according to
-  GcStorage, releasing only the wrappers they own. This is an internal til
-  convention, not a public C aggregate ABI.
+  and mut parameters preserve their addresses. A non-ref aggregate return
+  receives its caller's result address in RAX, saves it on entry, writes the
+  result there and returns that address. Direct/indirect calls, constructors,
+  enum values, clone methods and native runtime producers all use this rule.
+  The result buffer is distinct from borrowed inputs. Ref returns still return
+  the borrowed address rather than a copy.
+
+  Ordinary own aggregate parameters consume contents while borrowing the
+  caller's outer storage. If an argument already owns a heap outer, the caller
+  releases it after the call, preserving the result across cleanup. Lifecycle
+  methods retain the source call_free argument and receive outer-ownership
+  information in R11; frame storage is never passed to the allocator's free,
+  including through indirect calls and forwarding destructors. Moving such a
+  parameter into a result releases an actual heap outer after copying it.
+  RAX/R10/R11 are private ABI inputs, leaving all six integer argument registers
+  available.
+
+  Frame slots hold ordinary locals, constructed values and results. Heap
+  storage still supplies actual own fields, owned-niche payloads, escaping
+  private captures, raw allocations and opaque ownership transfers that may
+  outlive a call. Stack copies can still be needed for value semantics or
+  replacement ordering; there is no allocate/copy/free result-wrapper cycle.
+  This is an internal til convention, not a public C aggregate ABI.
 
   The emitter indexes canonical imported AST definitions and emits reachable
   methods, including generated and user-defined clone/delete functions.
@@ -813,7 +831,7 @@
   control flow; switch arms do not fall through, and lowered loop transfers
   retain their enclosing loop targets. Payload-alias assignments write through
   the payload storage instead of retargeting a local reference. Enum values use
-  the internal address/boxed-return convention above, including small tag-only
+  the internal address/caller-result convention above, including small tag-only
   and niche values; this is not an exported C enum ABI.
 
   Generated/user enum clone, delete, comparison and formatting methods are
@@ -836,7 +854,7 @@
   hidden environment and is saved on entry before other calls; the six existing
   integer argument registers remain available for explicit runtime arguments.
   This is a private invocation convention, not the C closure-call ABI. Aggregate
-  results retain the boxed-return convention; callable values return descriptor
+  results use caller-provided result storage; callable values return descriptor
   pointers, and ref-callable results return addresses of descriptor cells.
   Mutable callable parameters likewise receive cells for write-back.
 
@@ -941,6 +959,14 @@
   callable cells, borrowed/private/moved captures, Body values with owned nested
   captures, static templates, independent clones and custom destructor counts.
   It pins factory-before-argument evaluation and immediate-result destruction.
+  A captured six-argument function returning a resource-owning record checks
+  result storage and the hidden environment simultaneously. The runtime driver
+  checks direct/indirect lifecycle forwarding with a computed call_free flag.
+  Its allocation probes count native allocator calls in a temporary instrumented
+  runtime: value-only aggregate/enum calls and views need zero heap blocks,
+  numeric-to-string conversion needs only its character buffer, and returning
+  an explicitly heap-allocated aggregate frees its original outer once. See
+  [[file:./optimizations.org][Optimization measurements]] for the baseline and counts.
   Raw slot take/pop/clone/delete and immediate Dynamic casts are additionally
   compared between native C and FASM; the interpreter's owning Dynamic path
   requires its typed-container bookkeeping for these raw cells. The options test

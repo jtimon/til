@@ -206,6 +206,7 @@ check_enums := func(seed: I64, counts: Counts) {
 
 UnaryAction := func(value: I64) returns I64
 SixAction := func(a: I64,b: I64,c: I64,d: I64,e: I64,f: I64) returns I64
+SixRecordAction := func(a: I64,b: I64,c: I64,d: I64,e: I64,f: I64) returns Record
 BorrowAction := func(mut value: I64) returns ref I64
 SizeAction := func() returns USize
 SizeFactory := func(counts: Counts) returns SizeAction
@@ -305,6 +306,12 @@ check_callables := proc(seed: I64, counts: Counts) {
         return a+b+c+d+e+f+bias
     }
     assert(six(1,2,3,4,5,6) == seed + 21)
+    record_bias := seed
+    six_record : SixRecordAction = func(a: I64,b: I64,c: I64,d: I64,e: I64,f: I64) returns Record [own record_bias] {
+        return make_record(a+b+c+d+e+f+record_bias,"six record")
+    }
+    combined := six_record(1,2,3,4,5,6)
+    assert(combined.number == seed + 21 && combined.text.eq("six record"))
     mut number := seed
     by_reference : UnaryAction = func(value: I64) returns I64 [mut number] { number = number + value; return number }
     borrow_action : BorrowAction = action_borrow

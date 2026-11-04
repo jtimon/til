@@ -57,6 +57,85 @@ failure := proc(compiler: Str, work: Str, name: Str, source: Str) {
     }
 }
 
+check_allocations := proc(compiler: Str, work: Str, name: Str, source: Str, allocations: I64, frees: I64) {
+    check(compiler, work, name, source, "")
+    root := compiler.substr(0, compiler.rfind("/bin/").to_usize())
+    runtime_path := format(root,"/src/self/codegen/ext.fasm")
+    counted_path := format(realpath_str(work),"/counted-runtime.fasm")
+    runtime := File.readfile(runtime_path)
+        .replace("rt_malloc:\n", "rt_malloc:\n    inc qword [fasm_test_allocations]\n")
+        .replace("rt_free:\n", "rt_free:\n    inc qword [fasm_test_frees]\n")
+        .replace("rt_exit:\n", format(
+            "rt_exit:\n    test rdi,rdi\n    jnz .count_done\n",
+            "    mov rax,[fasm_test_allocations]\n    cmp rax,[fasm_test_expected_allocations]\n    je .check_frees\n",
+            "    lea rdi,[rax+80]\n    jmp .count_done\n.check_frees:\n",
+            "    mov rax,[fasm_test_frees]\n    cmp rax,[fasm_test_expected_frees]\n    je .count_done\n",
+            "    lea rdi,[rax+160]\n.count_done:\n"))
+    File.writefile(counted_path,runtime)
+    for width in array(Str,"32","64") {
+        translate := Cmd.new(compiler,"translate","--backend=fasm",format("--usize=",width),format(name,".til"))
+        translate.cwd(work).capture()
+        status := translate.run()
+        expect(status == 0,name,translate.out(),translate.err())
+        path := format(work,"/gen/fasm/",name,".fasm")
+        assembly := File.readfile(path).replace(runtime_path.replace("'","''"),counted_path.replace("'","''"))
+        instrumented := format(work,"/",name,"-counted-",width,".fasm")
+        artifact := format(work,"/",name,"-counted-",width)
+        File.writefile(instrumented,format(assembly,
+            "\nsegment readable writeable\nfasm_test_allocations dq 0\nfasm_test_frees dq 0\n",
+            "fasm_test_expected_allocations dq ",allocations.to_str(),"\nfasm_test_expected_frees dq ",frees.to_str(),"\n"))
+        assemble := Cmd.new(format(root,"/vendor/fasm/fasm"),instrumented,artifact)
+        assemble.capture()
+        assembled := assemble.run()
+        expect(assembled == 0,name,assemble.out(),assemble.err())
+        permissions := Cmd.new("chmod","+x",artifact)
+        expect(permissions.run() == 0,"chmod counted allocation probe")
+        run := Cmd.new(artifact)
+        run.capture()
+        result := run.run()
+        // Allocation mismatch returns 80+actual, free mismatch 160+actual.
+        expect(result == 0,name,width,"allocation probe status=",result.to_str(),run.out(),run.err())
+    }
+}
+
+check_unboxed := proc(compiler: Str, work: Str) {
+    check(compiler,work,"unboxed_lifecycle",format(
+        "mode cli\nCounts := struct { drops:I64=0; flags:I64=0 }\n",
+        "Value := struct { ref counts:Counts; text:Str=\"\"\nnamespace:\n",
+        "delete := func(own self:Value,call_free:Bool=true) { self.counts.drops++; if call_free { self.counts.flags++ }; Str.delete(own self.text,false); if call_free { free(own self) } }\n}\n",
+        "Drop := func(own value:Value,call_free:Bool)\n",
+        "drop_value := func(own value:Value,call_free:Bool) { Value.delete(own value,call_free) }\n",
+        "forward_value := func(own value:Value,call_free:Bool) returns Value { if call_free { assert(value.text.len()>0) }; return value }\n",
+        "flag := func(mut calls:I64) returns Bool { calls++; return true }\n",
+        "run := func(counts:Counts) { mut calls:I64=0; value:=Value(counts=counts,text=\"frame\"); Value.delete(own value,flag(calls));\n",
+        "assert(calls==1); assert(counts.drops==1); assert(counts.flags==0);\n",
+        "other:=Value(counts=counts,text=\"indirect\"); drop:Drop=drop_value; drop(own other,flag(calls));\n",
+        "assert(calls==2); assert(counts.drops==2); assert(counts.flags==1);\n",
+        "mut allocated:Value=calloc(1,Value.size().to_uptr()); allocated.counts=counts; allocated.text=\"heap return\";\n",
+        "returned:=forward_value(own allocated,true); assert(returned.text.eq(\"heap return\")); assert(counts.drops==3) }\n",
+        "main := proc() { counts:=Counts(); run(counts); println(\"unboxed lifecycle passed\") }\n"),"unboxed lifecycle passed\n")
+    check_allocations(compiler,work,"unboxed_values",format(
+        "mode cli\nPair := struct { first: I64 = 0; last: I64 = 0 }\n",
+        "Maker := func(a:I64,b:I64,c:I64,d:I64,e:I64,f:I64) returns Pair\n",
+        "make := func(a:I64,b:I64,c:I64,d:I64,e:I64,f:I64) returns Pair { return Pair(first=a+b+c,last=d+e+f) }\n",
+        "consume := func(own value:Pair) returns I64 { return value.first + value.last }\n",
+        "Wrapped := enum { Empty, Number:I64, PairValue:Pair }\n",
+        "main := proc() { mut n:I64=0; n++; maker:Maker=make; value:=maker(n,2,3,4,5,6);\n",
+        "assert(consume(own value)==21); wrapped:=Wrapped.PairValue(make(n,2,3,4,5,6));\n",
+        "switch wrapped { case .PairValue(pair): assert(pair.first==6 && pair.last==15); case: panic(\"wrong unboxed enum\") } }\n"),0,0)
+    check_allocations(compiler,work,"unboxed_views",format(
+        "mode cli\nmain := proc() { mut index:USize=0; index++; text:=\"abcdef\";\n",
+        "view:=text.substr(index,3); assert(view.eq(\"bcd\")); whole:=text.borrowed_view(); assert(whole.eq(text));\n",
+        "ref bytes:Dynamic=to_ptr(text.c_str); from_c:=Str.from_c_str(bytes); assert(from_c.eq(text));\n",
+        "empty:=Str.with_capacity(0); assert(empty.len()==0) }\n"),0,0)
+    check_allocations(compiler,work,"unboxed_string", "mode cli\nmain := proc() { mut n:I64=40; n=n+2; text:=n.to_str(); assert(text.eq(\"42\")) }\n",1,1)
+    check_allocations(compiler,work,"unboxed_heap_return",format(
+        "mode cli\nPair := struct { first:I64=0; last:I64=0 }\n",
+        "forward := func(own value:Pair,call_free:Bool) returns Pair { if call_free { assert(value.first==3) }; return value }\n",
+        "main := proc() { mut allocated:Pair=calloc(1,Pair.size().to_uptr()); allocated.first=3; allocated.last=4;\n",
+        "returned:=forward(own allocated,true); assert(returned.first+returned.last==7) }\n"),1,1)
+}
+
 check_globals := proc(compiler: Str, work: Str) {
     // A diamond import must initialize the shared state once, before either
     // dependent module. Resource-bearing values must outlive the init frames.
@@ -124,6 +203,7 @@ main := proc(compiler_arg: Str) {
     work := "tmp/fasm_runtime"
     mkdir_p(work)
     check_globals(compiler, work)
+    check_unboxed(compiler, work)
     check(compiler, work, "global_callables", format(
         "mode cli\nAction := func(value: I64) returns I64\nSaved := struct { action: Action }\n",
         "make := func(start: I64) returns Action { state := start; return func(value: I64) returns I64 [own mut state] { state = state + value; return state } }\n",

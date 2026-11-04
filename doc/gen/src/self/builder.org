@@ -1,6 +1,16 @@
 #+TITLE: src/self/builder.til
-#+SUBTITLE: til 0.0.1-e9c9d59
+#+SUBTITLE: til 0.0.1-5c5675e91
 #+OPTIONS: toc:t
+
+* fasm_prepare
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.builder.fasm_prepare
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc fasm_prepare(root: Str, required: Bool) returns I32
+#+end_src
 
 * cmd_translate
 :PROPERTIES:

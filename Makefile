@@ -191,5 +191,5 @@ bin/til_boot: $(LIBFFI_HOST_DIR)/.built
 # mtime would recompile the build program every time for nothing.
 # Prerequisites otherwise mirror make.til's own self_sources(), so both
 # entry points agree on when bin/make is stale.
-bin/make: make.til src/self/install.til src/self/fasm_build.til src/self/targets.til $(CORE) $(STD) $(EXT_C) | bin/til_boot
+bin/make: make.til $(wildcard src/self/*.til) $(wildcard src/self/codegen/*.til) $(wildcard examples/lib/*.til) $(wildcard vendor/bindings/*.til) $(CORE) $(STD) $(EXT_C) | bin/til_boot
 	bin/til_boot build -o bin/make make.til

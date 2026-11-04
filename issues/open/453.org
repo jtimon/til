@@ -303,8 +303,9 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   separate ~cmd_fasm~ / ~cmd_mlir~ command drivers and CLI cleanup branches are
   removed. C test compilation also uses the shared lifecycle.
 
-  FASM assembler preparation stays in ~fasm_build.til~, used by the vendor,
-  install and compile hooks. MLIR retains its existing C-core bridge and LLVM
+  FASM assembler preparation initially stayed in ~fasm_build.til~; it now
+  lives in ~builder.til~, shared by the vendor, install and compile hooks.
+  MLIR retains its existing C-core bridge and LLVM
   toolchain. Source locations, artifact paths, CLI restrictions and existing
   library/error reporting are preserved; no new invocation or artifact layout
   is introduced. ~doc/self.org~ describes the responsibilities of each hook.
@@ -375,6 +376,64 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   current non-ASAN suite configuration (#464). Both optional FASM drivers passed with
   the self-applied compiler at USize32/USize64. The expanded shared corpus also
   passed a focused C ~--asan --usize=64~ run with no sanitizer diagnostics.
+
+**** Unboxed aggregate call ABI
+
+  On base ~01dc23183~, FASM non-ref aggregate results use caller-provided
+  storage in RAX, saved before parameter/environment setup. Constructors and
+  enum values use frame storage; direct/indirect calls, static templates,
+  clone methods and bodyless runtime thunks follow the same result convention.
+  Str capacity/clone/view/substr/from-C, format, integer formatting and file-read
+  producers fill caller descriptors and allocate only their payload buffers.
+
+  Ordinary own aggregate parameters borrow the outer slot while consuming its
+  contents. A real heap argument outer is released by the caller after the
+  call. Lifecycle functions save R11 outer ownership, allowing computed
+  call_free values and indirect/forwarded destructors to keep their behavior
+  without freeing frame addresses or requiring temporary call boxes. The R10
+  closure environment and six explicit argument registers remain intact.
+  Returning an owning lifecycle parameter copies into the result buffer and
+  releases its original heap outer when present; a counted probe pins one
+  explicit allocation and one free at either width.
+
+  Actual persistent ownership (own fields, owned-niche payloads, private
+  captures, raw/opaque escaping storage) retains allocated storage. Its clone
+  helpers allocate the final owned destination directly. This change does not
+  combine closure allocations or implement interfaces; it removes the
+  transient aggregate allocate/copy/free convention.
+
+  ~fasm_runtime::check_unboxed~ compares semantics at both widths, then counts
+  native malloc/free calls using a temporary instrumented copy of ext.fasm.
+  The pair/inline-enum/six-argument indirect-call probe goes from 9 allocations
+  with the baseline boot emitter (USize32) to 0 at either width. View/empty-Str
+  paths allocate 0; numeric formatting allocates/frees only 1 character buffer.
+  ~aggregate_control~ additionally checks a capturing six-argument function
+  returning a heap-buffer-owning record, preserving both hidden inputs.
+  Details and measurement limits are in ~doc/optimizations.org~; the ABI is
+  documented in ~doc/self.org~.
+  Verification: ~make clean && make test~ passed 540/540 on this base. Both
+  FASM integration drivers passed at USize32/USize64, including the allocation
+  counters and lifecycle forwarding. The expanded shared corpus and the new
+  lifecycle fixture also passed focused C ~--asan --usize=64~ runs with no
+  sanitizer diagnostics. The full suite follows master's non-ASAN default (#464).
+
+**** Assembler preparation integrated into the builder
+
+  After rebasing on ~5c5675e91~, ~fasm_prepare~ lives in ~builder.til~ and the
+  separate ~fasm_build.til~ module is removed. Vendor preparation, installation,
+  program compilation and the native rebuild test all use that implementation.
+  The builder imports the interpreter declarations needed by Context so it can
+  also be imported by the build program and integration driver. Both Makefile
+  prerequisites and ~make.til::self_sources~ track that complete source graph.
+  Backend emission stays behind the existing codegen entry points; paths,
+  directory creation, tool invocation and execution stay in the shared builder.
+  Generated API/UML documentation reflects the module removal.
+
+  Verification on this base: ~make clean && make test~ passed 542/542. Both
+  FASM integration drivers passed at USize32/USize64, including stale/fresh
+  assembler handling, preservation after a failed rebuild and allocation
+  counters. Focused C ~--asan --usize=64~ runs of ~aggregate_control~ and
+  ~unboxed_lifecycle~ passed without sanitizer diagnostics; ~make doc~ passed.
 
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or

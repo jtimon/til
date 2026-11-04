@@ -785,7 +785,7 @@
      OS. The emitted ~ext.fasm~ Linux runtime runs only when the result is
      executed on Linux; it is not the runtime of the guest compiler/assembler.
    - [ ] Replace the Linux-host-only invocation assumptions in
-     ~builder.til::compile_fasm~ / ~fasm_build.til~ and the CLI host gate with
+      ~builder.til::compile_fasm~ / ~builder.til::fasm_prepare~ and the CLI host gate with
      the agreed native host adapter. Today the path uses Cmd/chmod and
      requires a Linux x64 host as well as target.
    - [ ] Export the resulting bytes using the guest/host exchange machinery

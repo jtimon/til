@@ -215,7 +215,7 @@ has its own editor-theme writer.
     ~mlir-translate~ and linked by ~clang~.
   - [[file:../src/self/codegen/fasm_codegen.til][src/self/codegen/fasm_codegen.til]] writes
     ~gen/fasm/<name>.fasm~, assembled by the vendored FASM
-    ([[file:../src/self/fasm_build.til][src/self/fasm_build.til]]) with its
+    ([[file:../src/self/builder.til][src/self/builder.til]]) with its
     own runtime (~src/self/codegen/ext.fasm~).
   - both use the Linux x86-64 SysV ABI of the C backend and grow their
     supported subset incrementally; unsupported constructs are

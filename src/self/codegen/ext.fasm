@@ -2,8 +2,8 @@
 ; core Str/Array(Str) definitions. SysV registers; rax is the result.
 ; The emitter defines USIZE_BYTES (4/8), STR_SIZE (16/24), STR_CAP (12/16).
 ; Str is {pointer, USize count, USize cap}; Array(Str) is {pointer,USize cap}.
-; Aggregate-producing entries return an allocated wrapper. The emitter moves
-; it into the caller's value slot and frees ONLY that wrapper.
+; Aggregate-producing entries receive caller-owned result storage in RAX and
+; return that address. R11 selects owned outer storage for lifecycle calls.
 
 macro load_size destination, address {
     if USIZE_BYTES = 4
@@ -310,22 +310,19 @@ rt_dynamic_delete:
     jnz rt_free
     ret
 
-; Allocate a descriptor and a NUL-terminated buffer with the given capacity.
+; Fill the caller's descriptor; only character storage is allocated.
 rt_str_capacity:
     test rdi, rdi
     jnz rt_str_allocate_owned
-    frame 0
-    mov edi, STR_SIZE
-    call rt_malloc
     mov rdx, rax
     mov qword [rdx], rt_empty
     store_size [rdx+8], 0
     store_size [rdx+STR_CAP], CAP_LIT
     mov rax, rdx
-    leave
     ret
 rt_str_allocate_owned:
     frame 32
+    mov [rbp-24], rax
     mov [rbp-8], rdi
     inc rdi
     jz .error
@@ -334,11 +331,7 @@ rt_str_allocate_owned:
     jz .error
     mov [rbp-16], rax
     mov byte [rax], 0
-    mov edi, STR_SIZE
-    call rt_malloc
-    test rax, rax
-    jz .error
-    mov rdx, rax
+    mov rdx, [rbp-24]
     mov rcx, [rbp-16]
     mov [rdx], rcx
     store_size [rdx+8], 0
@@ -351,8 +344,10 @@ rt_str_allocate_owned:
     jmp rt_fail
 rt_str_clone:
     frame 32
+    mov [rbp-24], rax
     mov [rbp-8], rdi
     load_size rdi, [rdi+8]
+    mov rax, [rbp-24]
     call rt_str_capacity
     mov [rbp-16], rax
     mov rdi, rax
@@ -399,9 +394,10 @@ rt_str_push:
     mov rdi, rt_capacity_error
     jmp rt_str_panic
 rt_str_delete:
-    frame 16
+    frame 32
     mov [rbp-8], rdi
     mov [rbp-16], rsi
+    mov [rbp-24], r11
     load_size rdx, [rdi+STR_CAP]
     mov r9, CAP_LIT
     cmp rdx, r9
@@ -414,6 +410,8 @@ rt_str_delete:
 .wrapper:
     cmp qword [rbp-16], 0
     je .done
+    cmp qword [rbp-24], 0
+    je .done
     mov rdi, [rbp-8]
     call rt_free
 .done:
@@ -422,8 +420,6 @@ rt_str_delete:
 rt_str_view:
     frame 16
     mov [rbp-8], rdi
-    mov edi, STR_SIZE
-    call rt_malloc
     mov [rbp-16], rax
     mov rdi, rax
     mov rsi, [rbp-8]
@@ -435,13 +431,12 @@ rt_str_view:
     leave
     ret
 rt_str_from_c:
-    frame 16
+    frame 32
     mov [rbp-8], rdi
+    mov [rbp-24], rax
     call rt_c_str_len
     mov [rbp-16], rax
-    mov edi, STR_SIZE
-    call rt_malloc
-    mov rdx, rax
+    mov rdx, [rbp-24]
     mov rcx, [rbp-8]
     mov [rdx], rcx
     store_size [rdx+8], [rbp-16]
@@ -451,6 +446,7 @@ rt_str_from_c:
     ret
 rt_str_substr:
     frame 32
+    mov [rbp-32], rax
     mov [rbp-8], rdi
     load_size r8, [rdi+8]
     cmp rsi, r8
@@ -467,6 +463,7 @@ rt_str_substr:
 .count:
     mov [rbp-16], rsi
     mov [rbp-24], rdx
+    mov rax, [rbp-32]
     call rt_str_view
     mov rdx, rax
     mov rcx, [rbp-16]
@@ -497,12 +494,11 @@ rt_str_eq:
 rt_parts_new:
     frame 32
     mov [rbp-8], rdi
+    mov [rbp-24], rax
     mov rsi, STR_SIZE
     call rt_calloc
     mov [rbp-16], rax
-    mov edi, 16
-    call rt_malloc
-    mov rdx, rax
+    mov rdx, [rbp-24]
     mov rcx, [rbp-16]
     mov [rdx], rcx
     store_size [rdx+8], [rbp-8]
@@ -581,6 +577,7 @@ rt_println:
     ret
 rt_format:
     frame 48
+    mov [rbp-40], rax
     mov [rbp-8], rdi
     mov qword [rbp-16], 0
     mov qword [rbp-24], 0
@@ -599,6 +596,7 @@ rt_format:
     jmp .count
 .allocate:
     mov rdi, [rbp-24]
+    mov rax, [rbp-40]
     call rt_str_capacity
     mov [rbp-32], rax
     mov qword [rbp-16], 0
@@ -687,6 +685,7 @@ rt_expect:
     mov edi, 1
     jmp rt_exit
 rt_i64_to_str:
+    mov r11, rax
     mov r8, rdi
     sar r8, 63
     mov rax, rdi
@@ -694,10 +693,12 @@ rt_i64_to_str:
     sub rax, r8
     jmp rt_integer_to_str
 rt_u64_to_str:
+    mov r11, rax
     xor r8d, r8d
     mov rax, rdi
 rt_integer_to_str:
     frame 64
+    mov [rbp-64], r11
     lea rsi, [rbp-32]
     xor ecx, ecx
     mov r9d, 10
@@ -719,6 +720,7 @@ rt_integer_to_str:
     mov [rbp-8], rsi
     mov [rbp-16], rcx
     mov rdi, rcx
+    mov rax, [rbp-64]
     call rt_str_capacity
     mov [rbp-24], rax
     mov rdi, [rax]
@@ -858,6 +860,7 @@ rt_cfile_remove:
     ret
 rt_cfile_read_n:
     frame 48
+    mov [rbp-40], rax
     test rdi, rdi
     jz rt_file_fail
     dec rdi
@@ -867,6 +870,7 @@ rt_cfile_read_n:
     cmovs rsi, rax
     mov [rbp-16], rsi
     mov rdi, rsi
+    mov rax, [rbp-40]
     call rt_str_allocate_owned
     mov [rbp-24], rax
     mov qword [rbp-32], 0
@@ -898,6 +902,7 @@ rt_cfile_read_n:
     ret
 rt_cfile_read_all:
     frame 48
+    mov [rbp-40], rax
     test rdi, rdi
     jz rt_file_fail
     dec rdi
@@ -908,6 +913,7 @@ rt_cfile_read_all:
     syscall
     ; As ext.c: failed rewind on a non-seekable stream leaves it in place.
     mov edi, 65535
+    mov rax, [rbp-40]
     call rt_str_capacity
     mov [rbp-16], rax
     mov qword [rbp-24], 0

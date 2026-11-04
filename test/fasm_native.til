@@ -1,7 +1,7 @@
 mode cli
 import("../src/std/sys")
 import("../src/std/file")
-import("../src/self/fasm_build")
+import("../src/self/builder")
 realpath_str := ext_proc(path: Str) returns Str {}
 
 // Optional native integration: bootstrap vendor/fasm/fasm first, then:

@@ -1,5 +1,5 @@
 #+TITLE: src/self/typer.til
-#+SUBTITLE: til 0.0.1-e9c9d59
+#+SUBTITLE: til 0.0.1-5c5675e91
 #+OPTIONS: toc:t
 
 * fa_is_ns
@@ -880,6 +880,36 @@ func expr_collect_flow_facts(e: Expr, scope: TypeScope, fi: FactIndex, base: USi
 func expr_collect_stmt_facts(e: Expr, scope: TypeScope, want_transfers: Bool, transfers_on: Bool, fi: FactIndex, base: USize, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64, symbols: SymbolPool)
 #+end_src
 
+* fact_zero_row
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.fact_zero_row
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func fact_zero_row(words: USize) returns Vec__U64
+#+end_src
+
+* fact_note_shadowing_decl
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.fact_note_shadowing_decl
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func fact_note_shadowing_decl(stmt: Expr, fi: FactIndex, words: USize, mut shadowed: Vec__U64)
+#+end_src
+
+* fact_row_merge_unshadowed
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.fact_row_merge_unshadowed
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func fact_row_merge_unshadowed(mut row: Vec__U64, base: USize, scratch: Vec__U64, shadowed: Vec__U64)
+#+end_src
+
 * summary_param_bit
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.typer.summary_param_bit
@@ -960,36 +990,6 @@ func expr_borrow_roots(scope: TypeScope, e: Expr, symbols: SymbolPool) returns V
 func deposit_src_roots(scope: TypeScope, src: Expr, symbols: SymbolPool) returns Vec__BorrowRoot
 #+end_src
 
-* RootBits
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.RootBits
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-struct RootBits {
-    mut alias : U64
-    mut into : U64
-    mut carried : U64
-namespace:
-    func eq(a: RootBits, b: RootBits) returns Bool
-    func to_str(_self: RootBits) returns Str
-    func bor(self: RootBits, other: RootBits) returns RootBits
-    func all(self: RootBits) returns U64
-    func is_zero(self: RootBits) returns Bool
-    func size() returns USize
-    func clone(self: RootBits) returns RootBits
-    func delete(own self: RootBits, call_free: Bool = true)
-    func hash(self: RootBits, hasher: HashFn) returns U64
-    func cmp(a: RootBits, b: RootBits) returns I64
-    func lt(a: RootBits, b: RootBits) returns Bool
-    func gt(a: RootBits, b: RootBits) returns Bool
-    func neq(a: RootBits, b: RootBits) returns Bool
-    func lte(a: RootBits, b: RootBits) returns Bool
-    func gte(a: RootBits, b: RootBits) returns Bool
-}
-#+end_src
-
 * DEPOSIT_PARAMS
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.typer.DEPOSIT_PARAMS
@@ -1010,6 +1010,11 @@ DEPOSIT_PARAMS is a USize
 struct DepositAcc {
     mut m : U64
     mut borrowed : U64
+    mut retained : U64
+    mut retain_mask : U64
+    mut global : RootBits
+    mut locals : Vec__Str
+    mut global_aliases : Set__Str
 namespace:
     func eq(a: DepositAcc, b: DepositAcc) returns Bool
     func to_str(self: DepositAcc) returns Str
@@ -1017,12 +1022,6 @@ namespace:
     func clone(self: DepositAcc) returns DepositAcc
     func delete(own self: DepositAcc, call_free: Bool = true)
     func hash(self: DepositAcc, hasher: HashFn) returns U64
-    func cmp(a: DepositAcc, b: DepositAcc) returns I64
-    func lt(a: DepositAcc, b: DepositAcc) returns Bool
-    func gt(a: DepositAcc, b: DepositAcc) returns Bool
-    func neq(a: DepositAcc, b: DepositAcc) returns Bool
-    func lte(a: DepositAcc, b: DepositAcc) returns Bool
-    func gte(a: DepositAcc, b: DepositAcc) returns Bool
 }
 #+end_src
 
@@ -2365,338 +2364,6 @@ Deep-copy the Vec and all its elements via elem_clone.
 func Vec__priv___src_self_typer_til__CoverageNode.clone(self: Vec__priv___src_self_typer_til__CoverageNode) returns Vec__priv___src_self_typer_til__CoverageNode
 #+end_src
 
-* Vec__RootBits
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-struct Vec__RootBits {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Vec__RootBits
-    func with_capacity(n: USize) returns Vec__RootBits
-    func len(self: Vec__RootBits) returns USize
-    func clear(mut self: Vec__RootBits)
-    func delete_marked(mut self: Vec__RootBits, marks: Dynamic)
-    func push(mut self: Vec__RootBits, own val: RootBits)
-    func append(mut self: Vec__RootBits, own other: Vec__RootBits)
-    func take(mut self: Vec__RootBits) returns Vec__RootBits
-    func move_to(own self: Vec__RootBits, mut dest: Vec__RootBits)
-    func move_from(mut self: Vec__RootBits, own other: Vec__RootBits)
-    func unsafe_get(self: Vec__RootBits, i: USize) returns ref RootBits
-    func get(self: Vec__RootBits, shallow i: USize) returns ref RootBits throws OutOfBounds
-    func pop(mut self: Vec__RootBits) returns RootBits
-    func remove_at(mut self: Vec__RootBits, i: USize) throws OutOfBounds
-    func take_prefix(mut self: Vec__RootBits, n: USize) returns Vec__RootBits
-    func truncate(mut self: Vec__RootBits, n: USize)
-    func unsafe_set(mut self: Vec__RootBits, i: USize, own val: RootBits)
-    func set(mut self: Vec__RootBits, i: USize, own val: RootBits) throws OutOfBounds
-    func push_take(mut self: Vec__RootBits, mut src: Vec__RootBits, i: USize)
-    func delete(own self: Vec__RootBits, call_free: Bool = true)
-    func clone(self: Vec__RootBits) returns Vec__RootBits
-    func size() returns USize
-}
-#+end_src
-
-* Vec__RootBits.new
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.new
-:group: Compiler frontend
-:END:
-
-Create a new empty Vec for elements of type T. Lazy: no allocation
-until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
-and the grow sites below seed cap 0->1 on the first insert. This keeps
-the many containers that stay empty (e.g. the unused maps in a fresh
-Scope) allocation-free, which is the dominant per-call interpreter cost.
-
-#+begin_src til
-func Vec__RootBits.new() returns Vec__RootBits
-#+end_src
-
-* Vec__RootBits.with_capacity
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.with_capacity
-:group: Compiler frontend
-:END:
-
-Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
-items reallocs zero times. Use at call sites where the final length is
-known up front (cloning a Vec of known length, building a fixed arg
-list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
-~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
-no allocation (the grow sites seed cap 0->1 on the first insert).
-
-#+begin_src til
-func Vec__RootBits.with_capacity(n: USize) returns Vec__RootBits
-#+end_src
-
-* Vec__RootBits.clear
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.clear
-:group: Compiler frontend
-:END:
-
-Drop all live elements via elem_delete but keep the allocated
-storage and element-type metadata so the Vec can be reused.
-
-#+begin_src til
-func Vec__RootBits.clear(mut self: Vec__RootBits)
-#+end_src
-
-* Vec__RootBits.delete_marked
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.delete_marked
-:group: Compiler frontend
-:END:
-
-Drop the elements flagged in ~marks~ (a byte-per-element buffer,
-nonzero = drop, at least self.count entries) via elem_delete, then
-compact the survivors forward and update count. This is the
-container home for the scavenger's mark/sweep/compact, which used
-to reach into data/count directly.
-
-#+begin_src til
-func Vec__RootBits.delete_marked(mut self: Vec__RootBits, marks: Dynamic)
-#+end_src
-
-* Vec__RootBits.push
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.push
-:group: Compiler frontend
-:END:
-
-Append an element to the end. ~val~ is owned: after this call the
-caller must not use the value passed -- clone it first if needed.
-
-#+begin_src til
-func Vec__RootBits.push(mut self: Vec__RootBits, own val: RootBits)
-#+end_src
-
-* Vec__RootBits.append
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.append
-:group: Compiler frontend
-:END:
-
-Consume the contents of ~other~ by appending them to ~self~.
-~other~ is taken by ownership and will be empty after the call.
-
-#+begin_src til
-func Vec__RootBits.append(mut self: Vec__RootBits, own other: Vec__RootBits)
-#+end_src
-
-* Vec__RootBits.take
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.take
-:group: Compiler frontend
-:END:
-
-Take the contents out: the returned Vec owns self's buffer and
-self is left lazy-empty. No element is copied or cloned.
-
-This is how a struct FIELD hands its contents over
-(~mut old := body.children.take()~): a field cannot be an ~own~
-argument or receiver, because the callee would then free the
-ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
-pointer" compiling itself. Everything the caller can give away
-uses the two move forms below instead.
-
-#+begin_src til
-func Vec__RootBits.take(mut self: Vec__RootBits) returns Vec__RootBits
-#+end_src
-
-* Vec__RootBits.move_to
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.move_to
-:group: Compiler frontend
-:END:
-
-Give self's contents to ~dest~, which drops whatever it held.
-SELF is consumed, so the receiver is the owned one and the call
-spells the type out: ~Vec(T).move_to(own src, dest)~.
-
-The three fields move as BYTES on purpose:
-~dest.data = self.data~ drops dest's old pointer (right) and then
-~self.data = 0~ drops the pointer dest just adopted -- a double
-free, which is what the emitted C does with field assignment.
-Blanking the source leaves a genuinely valid lazy-empty Vec, so
-a later push on it allocates afresh instead of reallocating a
-buffer that now belongs to someone else.
-
-#+begin_src til
-func Vec__RootBits.move_to(own self: Vec__RootBits, mut dest: Vec__RootBits)
-#+end_src
-
-* Vec__RootBits.move_from
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.move_from
-:group: Compiler frontend
-:END:
-
-Take ~other~'s contents, dropping whatever self held. OTHER is
-consumed -- it is the value being emptied, so it is the owned
-argument: ~dest.move_from(own src)~.
-
-#+begin_src til
-func Vec__RootBits.move_from(mut self: Vec__RootBits, own other: Vec__RootBits)
-#+end_src
-
-* Vec__RootBits.unsafe_get
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.unsafe_get
-:group: Compiler frontend
-:END:
-
-Unchecked element access: return a reference to the element at
-index ~i~ with NO bounds check. The caller must prove ~i < len()~.
-This is the unchecked core that ~get~ wraps; for-in uses it
-directly because its ~_fi < len()~ termination test already
-proves the index in bounds (issue #284).
-
-#+begin_src til
-func Vec__RootBits.unsafe_get(self: Vec__RootBits, i: USize) returns ref RootBits
-#+end_src
-
-* Vec__RootBits.get
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.get
-:group: Compiler frontend
-:END:
-
-Return a reference to the element at index ~i~. Throws
-OutOfBounds if ~i~ is past the end; call as ~vec[i]~
-to panic on a bad index. The reference is valid until the
-next mutation.
-
-#+begin_src til
-func Vec__RootBits.get(self: Vec__RootBits, shallow i: USize) returns ref RootBits throws OutOfBounds
-#+end_src
-
-* Vec__RootBits.pop
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.pop
-:group: Compiler frontend
-:END:
-
-Remove and return the last element. Panics if empty. The caller
-takes ownership of the returned value.
-
-#+begin_src til
-func Vec__RootBits.pop(mut self: Vec__RootBits) returns RootBits
-#+end_src
-
-* Vec__RootBits.remove_at
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.remove_at
-:group: Compiler frontend
-:END:
-
-Remove and drop the element at ~i~, shifting later elements left.
-
-#+begin_src til
-func Vec__RootBits.remove_at(mut self: Vec__RootBits, i: USize) throws OutOfBounds
-#+end_src
-
-* Vec__RootBits.take_prefix
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.take_prefix
-:group: Compiler frontend
-:END:
-
-Split off the first ~n~ elements into a new Vec. Panics if ~n~
-exceeds self.len(). The remaining elements shift to the front.
-
-#+begin_src til
-func Vec__RootBits.take_prefix(mut self: Vec__RootBits, n: USize) returns Vec__RootBits
-#+end_src
-
-* Vec__RootBits.truncate
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.truncate
-:group: Compiler frontend
-:END:
-
-Drop the elements from index ~n~ to the end, freeing each via
-elem_delete, and set count to ~n~ (the survivors [0, n) are left
-untouched). Panics if ~n~ exceeds len. This is the container home
-for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
-
-#+begin_src til
-func Vec__RootBits.truncate(mut self: Vec__RootBits, n: USize)
-#+end_src
-
-* Vec__RootBits.unsafe_set
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.unsafe_set
-:group: Compiler frontend
-:END:
-
-Overwrite the element at index ~i~ without a bounds check, dropping
-the old value. Caller guarantees ~i < self.count~; the write-side
-mirror of unsafe_get (issue #284).
-
-#+begin_src til
-func Vec__RootBits.unsafe_set(mut self: Vec__RootBits, i: USize, own val: RootBits)
-#+end_src
-
-* Vec__RootBits.set
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.set
-:group: Compiler frontend
-:END:
-
-Overwrite the element at index ~i~. ~val~ is owned. Throws
-OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
-(or ~vec.set(i, own val)!~) to panic on a bad index.
-
-#+begin_src til
-func Vec__RootBits.set(mut self: Vec__RootBits, i: USize, own val: RootBits) throws OutOfBounds
-#+end_src
-
-* Vec__RootBits.push_take
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.push_take
-:group: Compiler frontend
-:END:
-
-Move bytes of src[i] into self (push). Source slot is zeroed so that
-src's eventual elem_delete on it is a no-op (relies on the same
-count==0/data==NULL convention used by take_children and Vec.delete).
-
-#+begin_src til
-func Vec__RootBits.push_take(mut self: Vec__RootBits, mut src: Vec__RootBits, i: USize)
-#+end_src
-
-* Vec__RootBits.delete
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.delete
-:group: Compiler frontend
-:END:
-
-Drop each element via elem_delete, free storage, then free self
-unless ~call_free~ is false.
-
-#+begin_src til
-func Vec__RootBits.delete(own self: Vec__RootBits, call_free: Bool = true)
-#+end_src
-
-* Vec__RootBits.clone
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Vec__RootBits.clone
-:group: Compiler frontend
-:END:
-
-Deep-copy the Vec and all its elements via elem_clone.
-
-#+begin_src til
-func Vec__RootBits.clone(self: Vec__RootBits) returns Vec__RootBits
-#+end_src
-
 * swap__Option__ComptimePreparation
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.typer.swap__Option__ComptimePreparation
@@ -2725,16 +2392,6 @@ func adopt__priv___src_self_typer_til__CtorArg(mut dest: Dynamic, own src: priv_
 
 #+begin_src til
 func adopt__priv___src_self_typer_til__ComptimeFunction(mut dest: Dynamic, own src: priv___src_self_typer_til__ComptimeFunction)
-#+end_src
-
-* adopt__RootBits
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.adopt__RootBits
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-func adopt__RootBits(mut dest: Dynamic, own src: RootBits)
 #+end_src
 
 * adopt__priv___src_self_typer_til__CoverageNode

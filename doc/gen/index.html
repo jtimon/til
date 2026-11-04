@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e9c9d59</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-5c5675e91</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="src/core/str.html">src/core/str.til</a></li>
 <li><a href="src/core/dyn.html">src/core/dyn.til</a></li>
@@ -91,7 +91,6 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <h2>Ungrouped</h2><ul>
 <li><a href="src/self/codegen/mlir_codegen.html">src/self/codegen/mlir_codegen.til</a></li>
 <li><a href="src/self/codegen/fasm_codegen.html">src/self/codegen/fasm_codegen.til</a></li>
-<li><a href="src/self/fasm_build.html">src/self/fasm_build.til</a></li>
 <li><a href="src/self/codegen/holyc_codegen.html">src/self/codegen/holyc_codegen.til</a></li>
 <li><a href="src/self/codegen/theme_codegen.html">src/self/codegen/theme_codegen.til</a></li>
 <li><a href="src/self/install.html">src/self/install.til</a></li>
@@ -6829,6 +6828,31 @@ namespace:
 <pre><code class="language-til">proc (import_path: Str, base_dir: Str, lib_dir: Str, support_dir: Str) returns Str
 </code></pre>
 </li>
+<li><a href="src/self/context.html#til.src.self.context.RootBits">RootBits</a>
+<pre><code class="language-til">struct {
+    mut alias : U64
+    mut into : U64
+    mut carried : U64
+    mut global_storage : Bool
+namespace:
+    func eq(a: RootBits, b: RootBits) returns Bool
+    func to_str(_self: RootBits) returns Str
+    func bor(self: RootBits, other: RootBits) returns RootBits
+    func all(self: RootBits) returns U64
+    func is_zero(self: RootBits) returns Bool
+    func size() returns USize
+    func clone(self: RootBits) returns RootBits
+    func delete(own self: RootBits, call_free: Bool = true)
+    func hash(self: RootBits, hasher: HashFn) returns U64
+    func cmp(a: RootBits, b: RootBits) returns I64
+    func lt(a: RootBits, b: RootBits) returns Bool
+    func gt(a: RootBits, b: RootBits) returns Bool
+    func neq(a: RootBits, b: RootBits) returns Bool
+    func lte(a: RootBits, b: RootBits) returns Bool
+    func gte(a: RootBits, b: RootBits) returns Bool
+}
+</code></pre>
+</li>
 <li><a href="src/self/context.html#til.src.self.context.BorrowRoot">BorrowRoot</a>
 <pre><code class="language-til">struct {
     mut name : Str
@@ -6884,6 +6908,7 @@ namespace:
     mut declared_type_name : Str
     mut borrow_roots : Vec__BorrowRoot
     mut is_external_global : Bool
+    mut aliases_global_storage : Bool
 namespace:
     func eq(a: TypeBinding, b: TypeBinding) returns Bool
     func to_str(self: TypeBinding) returns Str
@@ -6951,6 +6976,7 @@ namespace:
     mut auto_gen_depth : I32
     mut throw_used_local_names : Set__Str
     mut lowering_param_types : Map__Str_Str
+    mut deferred_dependent_throw : Bool
 namespace:
     func size() returns USize
     func clone(self: TyperFuncState) returns TyperFuncState
@@ -7038,6 +7064,10 @@ namespace:
 </li>
 <li><a href="src/self/context.html#til.src.self.context.init_func_is_generic">init_func_is_generic</a>
 <pre><code class="language-til">func (rhs: Expr, symbols: SymbolPool) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.function_has_generic_params">function_has_generic_params</a>
+<pre><code class="language-til">func (fd: FunctionDef, symbols: SymbolPool) returns Bool
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.def_implements_names">def_implements_names</a>
@@ -7277,6 +7307,7 @@ namespace:
     mut interp_ret_type : Option__ref_Str
     mut interp_ret_own_type : OwnType
     mut interp_cstr_arg : Bool
+    mut interp_callable_arg_borrow : Bool
     mut constfold_active : Bool
     mut target_size_queries : Bool
     mut eval_aborted : Bool
@@ -7339,6 +7370,9 @@ namespace:
     mut infer_struct_fields_only : Bool
     mut type_gen_synths : Set__Str
     mut generic_funcs : Map__Str_Expr
+    mut global_borrow_escapes : Map__UPtr_RootBits
+    mut global_escape_names : Set__Str
+    mut global_escape_types : Map__Str_Type
     mut generic_func_synths : Set__Str
     mut generic_func_synth_names : Set__Str
     mut generic_type_deps : Map__Str_Expr
@@ -8968,6 +9002,102 @@ namespace:
 <pre><code class="language-til">func (mut self: Map__Str_ImportUnit, key: Str) returns Bool
 </code></pre>
 </li>
+<li><a href="src/self/context.html#til.src.self.context.Map__UPtr_RootBits">Map__UPtr_RootBits</a>
+<pre><code class="language-til">struct {
+    mut keys : Vec__UPtr
+    mut values : Vec__RootBits
+namespace:
+    func new() returns Map__UPtr_RootBits
+    func with_capacity(n: USize) returns Map__UPtr_RootBits
+    func len(self: Map__UPtr_RootBits) returns USize
+    func clear(mut self: Map__UPtr_RootBits)
+    func has(self: Map__UPtr_RootBits, key: UPtr) returns Bool
+    func get(self: Map__UPtr_RootBits, key: UPtr) returns ref RootBits throws KeyNotFound
+    func set(mut self: Map__UPtr_RootBits, key: UPtr, own val: RootBits)
+    func remove(mut self: Map__UPtr_RootBits, key: UPtr) returns Bool
+    func delete(own self: Map__UPtr_RootBits, call_free: Bool = true)
+    func clone(self: Map__UPtr_RootBits) returns Map__UPtr_RootBits
+    func size() returns USize
+    func hash(self: Map__UPtr_RootBits, hasher: HashFn) returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__UPtr_RootBits.new">Map__UPtr_RootBits.new</a>
+<pre><code class="language-til">func () returns Map__UPtr_RootBits
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__UPtr_RootBits.with_capacity">Map__UPtr_RootBits.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Map__UPtr_RootBits
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__UPtr_RootBits.clear">Map__UPtr_RootBits.clear</a>
+<pre><code class="language-til">func (mut self: Map__UPtr_RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__UPtr_RootBits.has">Map__UPtr_RootBits.has</a>
+<pre><code class="language-til">func (self: Map__UPtr_RootBits, key: UPtr) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__UPtr_RootBits.get">Map__UPtr_RootBits.get</a>
+<pre><code class="language-til">func (self: Map__UPtr_RootBits, key: UPtr) returns ref RootBits throws KeyNotFound
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__UPtr_RootBits.set">Map__UPtr_RootBits.set</a>
+<pre><code class="language-til">func (mut self: Map__UPtr_RootBits, key: UPtr, own val: RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__UPtr_RootBits.remove">Map__UPtr_RootBits.remove</a>
+<pre><code class="language-til">func (mut self: Map__UPtr_RootBits, key: UPtr) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Type">Map__Str_Type</a>
+<pre><code class="language-til">struct {
+    mut keys : Vec__Str
+    mut values : Vec__Type
+namespace:
+    func new() returns Map__Str_Type
+    func with_capacity(n: USize) returns Map__Str_Type
+    func len(self: Map__Str_Type) returns USize
+    func clear(mut self: Map__Str_Type)
+    func has(self: Map__Str_Type, key: Str) returns Bool
+    func get(self: Map__Str_Type, key: Str) returns ref Type throws KeyNotFound
+    func set(mut self: Map__Str_Type, key: Str, own val: Type)
+    func remove(mut self: Map__Str_Type, key: Str) returns Bool
+    func delete(own self: Map__Str_Type, call_free: Bool = true)
+    func clone(self: Map__Str_Type) returns Map__Str_Type
+    func size() returns USize
+    func hash(self: Map__Str_Type, hasher: HashFn) returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Type.new">Map__Str_Type.new</a>
+<pre><code class="language-til">func () returns Map__Str_Type
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Type.with_capacity">Map__Str_Type.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Map__Str_Type
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Type.clear">Map__Str_Type.clear</a>
+<pre><code class="language-til">func (mut self: Map__Str_Type)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Type.has">Map__Str_Type.has</a>
+<pre><code class="language-til">func (self: Map__Str_Type, key: Str) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Type.get">Map__Str_Type.get</a>
+<pre><code class="language-til">func (self: Map__Str_Type, key: Str) returns ref Type throws KeyNotFound
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Type.set">Map__Str_Type.set</a>
+<pre><code class="language-til">func (mut self: Map__Str_Type, key: Str, own val: Type)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Type.remove">Map__Str_Type.remove</a>
+<pre><code class="language-til">func (mut self: Map__Str_Type, key: Str) returns Bool
+</code></pre>
+</li>
 <li><a href="src/self/context.html#til.src.self.context.Map__Str_StructLayout">Map__Str_StructLayout</a>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
@@ -10343,6 +10473,228 @@ namespace:
 <pre><code class="language-til">func (self: Vec__ImportUnit) returns Vec__ImportUnit
 </code></pre>
 </li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits">Vec__RootBits</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__RootBits
+    func with_capacity(n: USize) returns Vec__RootBits
+    func len(self: Vec__RootBits) returns USize
+    func clear(mut self: Vec__RootBits)
+    func delete_marked(mut self: Vec__RootBits, marks: Dynamic)
+    func push(mut self: Vec__RootBits, own val: RootBits)
+    func append(mut self: Vec__RootBits, own other: Vec__RootBits)
+    func take(mut self: Vec__RootBits) returns Vec__RootBits
+    func move_to(own self: Vec__RootBits, mut dest: Vec__RootBits)
+    func move_from(mut self: Vec__RootBits, own other: Vec__RootBits)
+    func unsafe_get(self: Vec__RootBits, i: USize) returns ref RootBits
+    func get(self: Vec__RootBits, shallow i: USize) returns ref RootBits throws OutOfBounds
+    func pop(mut self: Vec__RootBits) returns RootBits
+    func remove_at(mut self: Vec__RootBits, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__RootBits, n: USize) returns Vec__RootBits
+    func truncate(mut self: Vec__RootBits, n: USize)
+    func unsafe_set(mut self: Vec__RootBits, i: USize, own val: RootBits)
+    func set(mut self: Vec__RootBits, i: USize, own val: RootBits) throws OutOfBounds
+    func push_take(mut self: Vec__RootBits, mut src: Vec__RootBits, i: USize)
+    func delete(own self: Vec__RootBits, call_free: Bool = true)
+    func clone(self: Vec__RootBits) returns Vec__RootBits
+    func size() returns USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.new">Vec__RootBits.new</a>
+<pre><code class="language-til">func () returns Vec__RootBits
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.with_capacity">Vec__RootBits.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Vec__RootBits
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.clear">Vec__RootBits.clear</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.delete_marked">Vec__RootBits.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, marks: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.push">Vec__RootBits.push</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, own val: RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.append">Vec__RootBits.append</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, own other: Vec__RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.take">Vec__RootBits.take</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits) returns Vec__RootBits
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.move_to">Vec__RootBits.move_to</a>
+<pre><code class="language-til">func (own self: Vec__RootBits, mut dest: Vec__RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.move_from">Vec__RootBits.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, own other: Vec__RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.unsafe_get">Vec__RootBits.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__RootBits, i: USize) returns ref RootBits
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.get">Vec__RootBits.get</a>
+<pre><code class="language-til">func (self: Vec__RootBits, shallow i: USize) returns ref RootBits throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.pop">Vec__RootBits.pop</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits) returns RootBits
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.remove_at">Vec__RootBits.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, i: USize) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.take_prefix">Vec__RootBits.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, n: USize) returns Vec__RootBits
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.truncate">Vec__RootBits.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, n: USize)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.unsafe_set">Vec__RootBits.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, i: USize, own val: RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.set">Vec__RootBits.set</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, i: USize, own val: RootBits) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.push_take">Vec__RootBits.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__RootBits, mut src: Vec__RootBits, i: USize)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.delete">Vec__RootBits.delete</a>
+<pre><code class="language-til">func (own self: Vec__RootBits, call_free: Bool = true)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__RootBits.clone">Vec__RootBits.clone</a>
+<pre><code class="language-til">func (self: Vec__RootBits) returns Vec__RootBits
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type">Vec__Type</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__Type
+    func with_capacity(n: USize) returns Vec__Type
+    func len(self: Vec__Type) returns USize
+    func clear(mut self: Vec__Type)
+    func delete_marked(mut self: Vec__Type, marks: Dynamic)
+    func push(mut self: Vec__Type, own val: Type)
+    func append(mut self: Vec__Type, own other: Vec__Type)
+    func take(mut self: Vec__Type) returns Vec__Type
+    func move_to(own self: Vec__Type, mut dest: Vec__Type)
+    func move_from(mut self: Vec__Type, own other: Vec__Type)
+    func unsafe_get(self: Vec__Type, i: USize) returns ref Type
+    func get(self: Vec__Type, shallow i: USize) returns ref Type throws OutOfBounds
+    func pop(mut self: Vec__Type) returns Type
+    func remove_at(mut self: Vec__Type, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__Type, n: USize) returns Vec__Type
+    func truncate(mut self: Vec__Type, n: USize)
+    func unsafe_set(mut self: Vec__Type, i: USize, own val: Type)
+    func set(mut self: Vec__Type, i: USize, own val: Type) throws OutOfBounds
+    func push_take(mut self: Vec__Type, mut src: Vec__Type, i: USize)
+    func delete(own self: Vec__Type, call_free: Bool = true)
+    func clone(self: Vec__Type) returns Vec__Type
+    func size() returns USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.new">Vec__Type.new</a>
+<pre><code class="language-til">func () returns Vec__Type
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.with_capacity">Vec__Type.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Vec__Type
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.clear">Vec__Type.clear</a>
+<pre><code class="language-til">func (mut self: Vec__Type)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.delete_marked">Vec__Type.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__Type, marks: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.push">Vec__Type.push</a>
+<pre><code class="language-til">func (mut self: Vec__Type, own val: Type)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.append">Vec__Type.append</a>
+<pre><code class="language-til">func (mut self: Vec__Type, own other: Vec__Type)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.take">Vec__Type.take</a>
+<pre><code class="language-til">func (mut self: Vec__Type) returns Vec__Type
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.move_to">Vec__Type.move_to</a>
+<pre><code class="language-til">func (own self: Vec__Type, mut dest: Vec__Type)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.move_from">Vec__Type.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__Type, own other: Vec__Type)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.unsafe_get">Vec__Type.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__Type, i: USize) returns ref Type
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.get">Vec__Type.get</a>
+<pre><code class="language-til">func (self: Vec__Type, shallow i: USize) returns ref Type throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.pop">Vec__Type.pop</a>
+<pre><code class="language-til">func (mut self: Vec__Type) returns Type
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.remove_at">Vec__Type.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__Type, i: USize) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.take_prefix">Vec__Type.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__Type, n: USize) returns Vec__Type
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.truncate">Vec__Type.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__Type, n: USize)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.unsafe_set">Vec__Type.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__Type, i: USize, own val: Type)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.set">Vec__Type.set</a>
+<pre><code class="language-til">func (mut self: Vec__Type, i: USize, own val: Type) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.push_take">Vec__Type.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__Type, mut src: Vec__Type, i: USize)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.delete">Vec__Type.delete</a>
+<pre><code class="language-til">func (own self: Vec__Type, call_free: Bool = true)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Vec__Type.clone">Vec__Type.clone</a>
+<pre><code class="language-til">func (self: Vec__Type) returns Vec__Type
+</code></pre>
+</li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__StructLayout">Vec__StructLayout</a>
 <pre><code class="language-til">struct {
     own mut data : U8
@@ -10500,6 +10852,14 @@ namespace:
 </li>
 <li><a href="src/self/context.html#til.src.self.context.adopt__ImportUnit">adopt__ImportUnit</a>
 <pre><code class="language-til">func (mut dest: Dynamic, own src: ImportUnit)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.adopt__RootBits">adopt__RootBits</a>
+<pre><code class="language-til">func (mut dest: Dynamic, own src: RootBits)
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.adopt__Type">adopt__Type</a>
+<pre><code class="language-til">func (mut dest: Dynamic, own src: Type)
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.adopt__StructLayout">adopt__StructLayout</a>
@@ -11245,6 +11605,18 @@ namespace:
 <pre><code class="language-til">func (e: Expr, scope: TypeScope, want_transfers: Bool, transfers_on: Bool, fi: FactIndex, base: USize, mut uses: Vec__U64, mut decls: Vec__U64, mut nested: Vec__U64, mut escapes: Vec__U64, mut transfers: Vec__U64, symbols: SymbolPool)
 </code></pre>
 </li>
+<li><a href="src/self/typer.html#til.src.self.typer.fact_zero_row">fact_zero_row</a>
+<pre><code class="language-til">func (words: USize) returns Vec__U64
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.fact_note_shadowing_decl">fact_note_shadowing_decl</a>
+<pre><code class="language-til">func (stmt: Expr, fi: FactIndex, words: USize, mut shadowed: Vec__U64)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.fact_row_merge_unshadowed">fact_row_merge_unshadowed</a>
+<pre><code class="language-til">func (mut row: Vec__U64, base: USize, scratch: Vec__U64, shadowed: Vec__U64)
+</code></pre>
+</li>
 <li><a href="src/self/typer.html#til.src.self.typer.summary_param_bit">summary_param_bit</a>
 <pre><code class="language-til">func (i: USize) returns U64
 </code></pre>
@@ -11277,30 +11649,6 @@ namespace:
 <pre><code class="language-til">func (scope: TypeScope, src: Expr, symbols: SymbolPool) returns Vec__BorrowRoot
 </code></pre>
 </li>
-<li><a href="src/self/typer.html#til.src.self.typer.RootBits">RootBits</a>
-<pre><code class="language-til">struct {
-    mut alias : U64
-    mut into : U64
-    mut carried : U64
-namespace:
-    func eq(a: RootBits, b: RootBits) returns Bool
-    func to_str(_self: RootBits) returns Str
-    func bor(self: RootBits, other: RootBits) returns RootBits
-    func all(self: RootBits) returns U64
-    func is_zero(self: RootBits) returns Bool
-    func size() returns USize
-    func clone(self: RootBits) returns RootBits
-    func delete(own self: RootBits, call_free: Bool = true)
-    func hash(self: RootBits, hasher: HashFn) returns U64
-    func cmp(a: RootBits, b: RootBits) returns I64
-    func lt(a: RootBits, b: RootBits) returns Bool
-    func gt(a: RootBits, b: RootBits) returns Bool
-    func neq(a: RootBits, b: RootBits) returns Bool
-    func lte(a: RootBits, b: RootBits) returns Bool
-    func gte(a: RootBits, b: RootBits) returns Bool
-}
-</code></pre>
-</li>
 <li><a href="src/self/typer.html#til.src.self.typer.DEPOSIT_PARAMS">DEPOSIT_PARAMS</a>
 <pre><code class="language-til"> is a USize
 </code></pre>
@@ -11309,6 +11657,11 @@ namespace:
 <pre><code class="language-til">struct {
     mut m : U64
     mut borrowed : U64
+    mut retained : U64
+    mut retain_mask : U64
+    mut global : RootBits
+    mut locals : Vec__Str
+    mut global_aliases : Set__Str
 namespace:
     func eq(a: DepositAcc, b: DepositAcc) returns Bool
     func to_str(self: DepositAcc) returns Str
@@ -11316,12 +11669,6 @@ namespace:
     func clone(self: DepositAcc) returns DepositAcc
     func delete(own self: DepositAcc, call_free: Bool = true)
     func hash(self: DepositAcc, hasher: HashFn) returns U64
-    func cmp(a: DepositAcc, b: DepositAcc) returns I64
-    func lt(a: DepositAcc, b: DepositAcc) returns Bool
-    func gt(a: DepositAcc, b: DepositAcc) returns Bool
-    func neq(a: DepositAcc, b: DepositAcc) returns Bool
-    func lte(a: DepositAcc, b: DepositAcc) returns Bool
-    func gte(a: DepositAcc, b: DepositAcc) returns Bool
 }
 </code></pre>
 </li>
@@ -11797,117 +12144,6 @@ namespace:
 <pre><code class="language-til">func (self: Vec__priv___src_self_typer_til__CoverageNode) returns Vec__priv___src_self_typer_til__CoverageNode
 </code></pre>
 </li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits">Vec__RootBits</a>
-<pre><code class="language-til">struct {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Vec__RootBits
-    func with_capacity(n: USize) returns Vec__RootBits
-    func len(self: Vec__RootBits) returns USize
-    func clear(mut self: Vec__RootBits)
-    func delete_marked(mut self: Vec__RootBits, marks: Dynamic)
-    func push(mut self: Vec__RootBits, own val: RootBits)
-    func append(mut self: Vec__RootBits, own other: Vec__RootBits)
-    func take(mut self: Vec__RootBits) returns Vec__RootBits
-    func move_to(own self: Vec__RootBits, mut dest: Vec__RootBits)
-    func move_from(mut self: Vec__RootBits, own other: Vec__RootBits)
-    func unsafe_get(self: Vec__RootBits, i: USize) returns ref RootBits
-    func get(self: Vec__RootBits, shallow i: USize) returns ref RootBits throws OutOfBounds
-    func pop(mut self: Vec__RootBits) returns RootBits
-    func remove_at(mut self: Vec__RootBits, i: USize) throws OutOfBounds
-    func take_prefix(mut self: Vec__RootBits, n: USize) returns Vec__RootBits
-    func truncate(mut self: Vec__RootBits, n: USize)
-    func unsafe_set(mut self: Vec__RootBits, i: USize, own val: RootBits)
-    func set(mut self: Vec__RootBits, i: USize, own val: RootBits) throws OutOfBounds
-    func push_take(mut self: Vec__RootBits, mut src: Vec__RootBits, i: USize)
-    func delete(own self: Vec__RootBits, call_free: Bool = true)
-    func clone(self: Vec__RootBits) returns Vec__RootBits
-    func size() returns USize
-}
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.new">Vec__RootBits.new</a>
-<pre><code class="language-til">func () returns Vec__RootBits
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.with_capacity">Vec__RootBits.with_capacity</a>
-<pre><code class="language-til">func (n: USize) returns Vec__RootBits
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.clear">Vec__RootBits.clear</a>
-<pre><code class="language-til">func (mut self: Vec__RootBits)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.delete_marked">Vec__RootBits.delete_marked</a>
-<pre><code class="language-til">func (mut self: Vec__RootBits, marks: Dynamic)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.push">Vec__RootBits.push</a>
-<pre><code class="language-til">func (mut self: Vec__RootBits, own val: RootBits)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.append">Vec__RootBits.append</a>
-<pre><code class="language-til">func (mut self: Vec__RootBits, own other: Vec__RootBits)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.take">Vec__RootBits.take</a>
-<pre><code class="language-til">func (mut self: Vec__RootBits) returns Vec__RootBits
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.move_to">Vec__RootBits.move_to</a>
-<pre><code class="language-til">func (own self: Vec__RootBits, mut dest: Vec__RootBits)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.move_from">Vec__RootBits.move_from</a>
-<pre><code class="language-til">func (mut self: Vec__RootBits, own other: Vec__RootBits)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.unsafe_get">Vec__RootBits.unsafe_get</a>
-<pre><code class="language-til">func (self: Vec__RootBits, i: USize) returns ref RootBits
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.get">Vec__RootBits.get</a>
-<pre><code class="language-til">func (self: Vec__RootBits, shallow i: USize) returns ref RootBits throws OutOfBounds
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.pop">Vec__RootBits.pop</a>
-<pre><code class="language-til">func (mut self: Vec__RootBits) returns RootBits
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.remove_at">Vec__RootBits.remove_at</a>
-<pre><code class="language-til">func (mut self: Vec__RootBits, i: USize) throws OutOfBounds
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.take_prefix">Vec__RootBits.take_prefix</a>
-<pre><code class="language-til">func (mut self: Vec__RootBits, n: USize) returns Vec__RootBits
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.truncate">Vec__RootBits.truncate</a>
-<pre><code class="language-til">func (mut self: Vec__RootBits, n: USize)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.unsafe_set">Vec__RootBits.unsafe_set</a>
-<pre><code class="language-til">func (mut self: Vec__RootBits, i: USize, own val: RootBits)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.set">Vec__RootBits.set</a>
-<pre><code class="language-til">func (mut self: Vec__RootBits, i: USize, own val: RootBits) throws OutOfBounds
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.push_take">Vec__RootBits.push_take</a>
-<pre><code class="language-til">func (mut self: Vec__RootBits, mut src: Vec__RootBits, i: USize)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.delete">Vec__RootBits.delete</a>
-<pre><code class="language-til">func (own self: Vec__RootBits, call_free: Bool = true)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__RootBits.clone">Vec__RootBits.clone</a>
-<pre><code class="language-til">func (self: Vec__RootBits) returns Vec__RootBits
-</code></pre>
-</li>
 <li><a href="src/self/typer.html#til.src.self.typer.swap__Option__ComptimePreparation">swap__Option__ComptimePreparation</a>
 <pre><code class="language-til">func (mut a: Option__ComptimePreparation, mut b: Option__ComptimePreparation)
 </code></pre>
@@ -11918,10 +12154,6 @@ namespace:
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.adopt__priv___src_self_typer_til__ComptimeFunction">adopt__priv___src_self_typer_til__ComptimeFunction</a>
 <pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_typer_til__ComptimeFunction)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.adopt__RootBits">adopt__RootBits</a>
-<pre><code class="language-til">func (mut dest: Dynamic, own src: RootBits)
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.adopt__priv___src_self_typer_til__CoverageNode">adopt__priv___src_self_typer_til__CoverageNode</a>
@@ -14803,6 +15035,10 @@ namespace:
 <pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_codegen_c_codegen_til__BuilderFuncSites)
 </code></pre>
 </li>
+<li><a href="src/self/builder.html#til.src.self.builder.fasm_prepare">fasm_prepare</a>
+<pre><code class="language-til">proc (root: Str, required: Bool) returns I32
+</code></pre>
+</li>
 <li><a href="src/self/builder.html#til.src.self.builder.cmd_translate">cmd_translate</a>
 <pre><code class="language-til">proc (mut lp: LoadedProgram, custom_output: Str, custom_c: Str, target: Target, backend: Str = &quot;c&quot;, functions: Set__Str = Set__Str.new(), argv: Vec__Str = Vec__Str.new()) returns I32
 </code></pre>
@@ -17478,6 +17714,14 @@ namespace:
 <pre><code class="language-til">proc (mut lp: LoadedProgram, path: Str, source_functions: Set__Str) returns I32
 </code></pre>
 </li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.mlir_llvm_call_attributes">mlir_llvm_call_attributes</a>
+<pre><code class="language-til">func (text: Str) returns Str
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Option__MlirLlvmSignature">Option__MlirLlvmSignature</a>
+<pre><code class="language-til"> is a None
+</code></pre>
+</li>
 <li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding">Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding</a>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
@@ -17642,6 +17886,33 @@ namespace:
 </li>
 <li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Option__Bool.take">Option__Bool.take</a>
 <pre><code class="language-til">func (own self: Option__Bool) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature">Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature</a>
+<pre><code class="language-til">enum {
+    None
+    Some: priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+namespace:
+    func is_some(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns Bool
+    func is_none(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns Bool
+    func unwrap_or(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature, default_v: priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+    func unwrap(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+    func take(own self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+    ext_func None() returns Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+    ext_func Some(own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+    core_func is(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature, other: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns Bool
+    func delete(own self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature, call_free: Bool = true)
+    func clone(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+    func size() returns USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature.unwrap">Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature.unwrap</a>
+<pre><code class="language-til">func (self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature.take">Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature.take</a>
+<pre><code class="language-til">func (own self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
 </code></pre>
 </li>
 <li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding">Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding</a>
@@ -17861,54 +18132,6 @@ namespace:
 </li>
 <li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal.remove">Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal.remove</a>
 <pre><code class="language-til">func (mut self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal, key: Str) returns Bool
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Map__Str_Type">Map__Str_Type</a>
-<pre><code class="language-til">struct {
-    mut keys : Vec__Str
-    mut values : Vec__Type
-namespace:
-    func new() returns Map__Str_Type
-    func with_capacity(n: USize) returns Map__Str_Type
-    func len(self: Map__Str_Type) returns USize
-    func clear(mut self: Map__Str_Type)
-    func has(self: Map__Str_Type, key: Str) returns Bool
-    func get(self: Map__Str_Type, key: Str) returns ref Type throws KeyNotFound
-    func set(mut self: Map__Str_Type, key: Str, own val: Type)
-    func remove(mut self: Map__Str_Type, key: Str) returns Bool
-    func delete(own self: Map__Str_Type, call_free: Bool = true)
-    func clone(self: Map__Str_Type) returns Map__Str_Type
-    func size() returns USize
-    func hash(self: Map__Str_Type, hasher: HashFn) returns U64
-}
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Map__Str_Type.new">Map__Str_Type.new</a>
-<pre><code class="language-til">func () returns Map__Str_Type
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Map__Str_Type.with_capacity">Map__Str_Type.with_capacity</a>
-<pre><code class="language-til">func (n: USize) returns Map__Str_Type
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Map__Str_Type.clear">Map__Str_Type.clear</a>
-<pre><code class="language-til">func (mut self: Map__Str_Type)
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Map__Str_Type.has">Map__Str_Type.has</a>
-<pre><code class="language-til">func (self: Map__Str_Type, key: Str) returns Bool
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Map__Str_Type.get">Map__Str_Type.get</a>
-<pre><code class="language-til">func (self: Map__Str_Type, key: Str) returns ref Type throws KeyNotFound
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Map__Str_Type.set">Map__Str_Type.set</a>
-<pre><code class="language-til">func (mut self: Map__Str_Type, key: Str, own val: Type)
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Map__Str_Type.remove">Map__Str_Type.remove</a>
-<pre><code class="language-til">func (mut self: Map__Str_Type, key: Str) returns Bool
 </code></pre>
 </li>
 <li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition">Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition</a>
@@ -18133,131 +18356,12 @@ namespace:
 <pre><code class="language-til">func (self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal) returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal
 </code></pre>
 </li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type">Vec__Type</a>
-<pre><code class="language-til">struct {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Vec__Type
-    func with_capacity(n: USize) returns Vec__Type
-    func len(self: Vec__Type) returns USize
-    func clear(mut self: Vec__Type)
-    func delete_marked(mut self: Vec__Type, marks: Dynamic)
-    func push(mut self: Vec__Type, own val: Type)
-    func append(mut self: Vec__Type, own other: Vec__Type)
-    func take(mut self: Vec__Type) returns Vec__Type
-    func move_to(own self: Vec__Type, mut dest: Vec__Type)
-    func move_from(mut self: Vec__Type, own other: Vec__Type)
-    func unsafe_get(self: Vec__Type, i: USize) returns ref Type
-    func get(self: Vec__Type, shallow i: USize) returns ref Type throws OutOfBounds
-    func pop(mut self: Vec__Type) returns Type
-    func remove_at(mut self: Vec__Type, i: USize) throws OutOfBounds
-    func take_prefix(mut self: Vec__Type, n: USize) returns Vec__Type
-    func truncate(mut self: Vec__Type, n: USize)
-    func unsafe_set(mut self: Vec__Type, i: USize, own val: Type)
-    func set(mut self: Vec__Type, i: USize, own val: Type) throws OutOfBounds
-    func push_take(mut self: Vec__Type, mut src: Vec__Type, i: USize)
-    func delete(own self: Vec__Type, call_free: Bool = true)
-    func clone(self: Vec__Type) returns Vec__Type
-    func size() returns USize
-}
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.new">Vec__Type.new</a>
-<pre><code class="language-til">func () returns Vec__Type
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.with_capacity">Vec__Type.with_capacity</a>
-<pre><code class="language-til">func (n: USize) returns Vec__Type
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.clear">Vec__Type.clear</a>
-<pre><code class="language-til">func (mut self: Vec__Type)
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.delete_marked">Vec__Type.delete_marked</a>
-<pre><code class="language-til">func (mut self: Vec__Type, marks: Dynamic)
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.push">Vec__Type.push</a>
-<pre><code class="language-til">func (mut self: Vec__Type, own val: Type)
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.append">Vec__Type.append</a>
-<pre><code class="language-til">func (mut self: Vec__Type, own other: Vec__Type)
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.take">Vec__Type.take</a>
-<pre><code class="language-til">func (mut self: Vec__Type) returns Vec__Type
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.move_to">Vec__Type.move_to</a>
-<pre><code class="language-til">func (own self: Vec__Type, mut dest: Vec__Type)
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.move_from">Vec__Type.move_from</a>
-<pre><code class="language-til">func (mut self: Vec__Type, own other: Vec__Type)
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.unsafe_get">Vec__Type.unsafe_get</a>
-<pre><code class="language-til">func (self: Vec__Type, i: USize) returns ref Type
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.get">Vec__Type.get</a>
-<pre><code class="language-til">func (self: Vec__Type, shallow i: USize) returns ref Type throws OutOfBounds
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.pop">Vec__Type.pop</a>
-<pre><code class="language-til">func (mut self: Vec__Type) returns Type
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.remove_at">Vec__Type.remove_at</a>
-<pre><code class="language-til">func (mut self: Vec__Type, i: USize) throws OutOfBounds
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.take_prefix">Vec__Type.take_prefix</a>
-<pre><code class="language-til">func (mut self: Vec__Type, n: USize) returns Vec__Type
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.truncate">Vec__Type.truncate</a>
-<pre><code class="language-til">func (mut self: Vec__Type, n: USize)
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.unsafe_set">Vec__Type.unsafe_set</a>
-<pre><code class="language-til">func (mut self: Vec__Type, i: USize, own val: Type)
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.set">Vec__Type.set</a>
-<pre><code class="language-til">func (mut self: Vec__Type, i: USize, own val: Type) throws OutOfBounds
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.push_take">Vec__Type.push_take</a>
-<pre><code class="language-til">func (mut self: Vec__Type, mut src: Vec__Type, i: USize)
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.delete">Vec__Type.delete</a>
-<pre><code class="language-til">func (own self: Vec__Type, call_free: Bool = true)
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.Vec__Type.clone">Vec__Type.clone</a>
-<pre><code class="language-til">func (self: Vec__Type) returns Vec__Type
-</code></pre>
-</li>
 <li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.adopt__priv___src_self_codegen_fasm_codegen_til__FasmDefinition">adopt__priv___src_self_codegen_fasm_codegen_til__FasmDefinition</a>
 <pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_codegen_fasm_codegen_til__FasmDefinition)
 </code></pre>
 </li>
 <li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.adopt__priv___src_self_codegen_fasm_codegen_til__FasmGlobal">adopt__priv___src_self_codegen_fasm_codegen_til__FasmGlobal</a>
 <pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_codegen_fasm_codegen_til__FasmGlobal)
-</code></pre>
-</li>
-<li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.adopt__Type">adopt__Type</a>
-<pre><code class="language-til">func (mut dest: Dynamic, own src: Type)
-</code></pre>
-</li>
-<li><a href="src/self/fasm_build.html#til.src.self.fasm_build.fasm_prepare">fasm_prepare</a>
-<pre><code class="language-til">proc (root: Str, required: Bool) returns I32
 </code></pre>
 </li>
 <li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.holyc_codegen_translate">holyc_codegen_translate</a>

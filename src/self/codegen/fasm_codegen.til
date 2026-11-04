@@ -145,6 +145,9 @@ priv FasmState := struct {
     signatures := Map(Str, Str).new()
     return_type := Type.None
     return_ref := false
+    return_buffer := ""
+    outer_parameter := ""
+    outer_heap := ""
     data := ""
     prefix := ""
     literals : USize = 0
@@ -263,8 +266,10 @@ priv fasm_enum_is := proc(e: Expr, shallow t: Type, mut state: FasmState, mut lp
 priv fasm_enum_constructor := proc(e: Expr, shallow t: Type, variant: I32, mut state: FasmState, mut lp: LoadedProgram) {
     ref definition : Expr = fasm_enum_def(t, lp)
     size := fasm_type_size(t, lp)
+    storage := fasm_value_slot(t, state, lp)
     destination := fasm_slot(state)
-    fasm_emit(state, format("mov edi, 1\n    mov rsi, ", size.to_str(), "\n    call rt_calloc\n    mov ", destination, ", rax"))
+    fasm_emit(state, format("lea rax, ", storage.strip_prefix("qword "), "\n    mov ", destination,
+        ", rax\n    mov rdi, rax\n    xor esi, esi\n    mov rdx, ", size.to_str(), "\n    call rt_memset\n    mov rax, ", destination))
     payload := enum_variant_type(definition, variant)
     niche := enum_is_niche(definition)
     if niche.not() {
@@ -529,7 +534,10 @@ priv fasm_environment_function := func(name: Str, clone: Bool, mut program: Fasm
             } else if type_is_callable_storage(cap.til_type) {
                 fasm_emit(state, "mov rdi, rax\n    call rt_til_closure_slot_clone")
             } else if fasm_aggregate(cap.til_type, lp) {
-                fasm_emit(state, "mov rdi, rax")
+                input := fasm_slot(state)
+                output := fasm_slot(state)
+                fasm_emit(state, format("mov ", input, ", rax\n    mov rdi, ", fasm_type_size(cap.til_type, lp).to_str(),
+                    "\n    call rt_malloc\n    mov ", output, ", rax\n    mov rdi, ", input, "\n    mov rax, ", output))
                 if fasm_is_str(cap.til_type, lp) { fasm_emit(state, "call rt_str_clone") }
                 else {
                     target := fasm_request(format(type_name_ref(cap.til_type, lp.ctx.symbols), "_clone"), program)
@@ -597,7 +605,13 @@ priv fasm_indirect_call := proc(e: Expr, mut state: FasmState, mut lp: LoadedPro
     for i in 0..arguments.len() { fasm_emit(state, format("mov ", fasm_register(i), ", ", arguments[i])) }
     // R10 carries the private environment without reducing the existing six
     // integer argument slots. The callee saves it before making any calls.
-    fasm_emit(state, format("mov r11, ", callable, "\n    mov r10, [r11+8]\n    call qword [r11]"))
+    code := fasm_slot(state)
+    fasm_emit(state, format("mov r11, ", callable, "\n    mov r10, [r11+8]\n    mov r11, [r11]\n    mov ", code, ", r11"))
+    fasm_call_outer(e, fd, state, lp)
+    result := fasm_call_result(fd, state, lp)
+    if result.len() > 0 { fasm_emit(state, format("lea rax, ", result.strip_prefix("qword "))) }
+    fasm_emit(state, format("call ", code))
+    fasm_release_arguments(e, fd, arguments, state, lp)
     fasm_finish_call(e, fd, state, lp, as_pointer)
 }
 
@@ -621,8 +635,11 @@ priv fasm_boxed := func(e: Expr, state: FasmState, lp: LoadedProgram) returns Bo
     global_name := fasm_namespace_name(e, lp)
     if global_name.len() > 0 { return state.boxes.has(global_name) }
     switch e.node_type {
-    case .Ident(id): return state.boxes.has(id.ident_name(lp.ctx.symbols.names))
-    case .PrecomputedSequence: return true
+    case .Ident(id):
+        ref name : Str = id.ident_name(lp.ctx.symbols.names)
+        if state.outer_heap.len() > 0 && name == state.outer_parameter { return false }
+        return state.boxes.has(name)
+    case .PrecomputedSequence: return false
     case .FieldAccess(field):
         return fasm_field_decl(e.children[0], field.field_access_name(lp.ctx.symbols.names), lp).own_type.is(OwnType.Own)
     case .FCall:
@@ -636,7 +653,7 @@ priv fasm_boxed := func(e: Expr, state: FasmState, lp: LoadedProgram) returns Bo
                 if fd.sig.return_type == "Dynamic" && fd.sig.return_own_type.is(OwnType.Own) { return true }
             }
         }
-        return fasm_aggregate(e.til_type(), lp).or(rhs_is_allocator_call(e, lp.ctx.symbols))
+        return rhs_is_allocator_call(e, lp.ctx.symbols)
     case: return false
     }
 }
@@ -780,12 +797,29 @@ priv fasm_static_value := proc(e: Expr, shallow t: Type, mut state: FasmState, m
 }
 
 priv fasm_release_outer := func(slot: Str, mut state: FasmState) {
-    // fasm_boxed proved ownership of this wrapper. Even a by-value empty
-    // Str result can carry CAP_LIT inside a newly allocated return wrapper.
+    // Release actual owned outer storage after moving its contents. Ordinary
+    // aggregate results live in caller frames and never take this path.
     fasm_emit(state, format("mov rdi, ", slot, "\n    call rt_free"))
 }
 
-// RAX is a value's address. Copy the outer value into a new owned wrapper.
+priv fasm_release_value_outer := func(e: Expr, slot: Str, mut state: FasmState, lp: LoadedProgram) {
+    switch e.node_type {
+    case .Ident(id):
+        if state.outer_heap.len() > 0 && id.ident_name(lp.ctx.symbols.names) == state.outer_parameter {
+            done := format(".moved_outer", state.labels.to_str())
+            state.labels++
+            fasm_emit(state, format("cmp ", state.outer_heap, ", 0\n    je ", done, "\n    mov ", state.outer_heap, ", 0"))
+            fasm_release_outer(slot, state)
+            fasm_emit(state, format(done, ":"))
+            return
+        }
+    case:
+    }
+    if fasm_boxed(e, state, lp) { fasm_release_outer(slot, state) }
+}
+
+// RAX is a value's address. Allocate storage for an escaping/explicit owner,
+// such as an own field or a private closure capture, not a call's result.
 priv fasm_box_copy := func(shallow t: Type, mut state: FasmState, lp: LoadedProgram) {
     source := fasm_slot(state)
     dest := fasm_slot(state)
@@ -807,6 +841,19 @@ priv fasm_owned := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
         fasm_emit(state, format("mov ", slot, ", rax\n    lea rax, ", slot.strip_prefix("qword ")))
         fasm_box_copy(e.til_type(), state, lp)
         return
+    }
+    switch e.node_type {
+    case .Ident(id):
+        if state.outer_heap.len() > 0 && id.ident_name(lp.ctx.symbols.names) == state.outer_parameter {
+            fasm_pointer(e, state, lp)
+            done := format(".owned_outer", state.labels.to_str())
+            state.labels++
+            fasm_emit(state, format("cmp ", state.outer_heap, ", 0\n    jne ", done))
+            fasm_box_copy(state.value_types[state.outer_parameter], state, lp)
+            fasm_emit(state, format(done, ":"))
+            return
+        }
+    case:
     }
     if fasm_boxed(e, state, lp) { fasm_pointer(e, state, lp); return }
     mut t := e.til_type().clone()
@@ -843,7 +890,7 @@ priv fasm_snapshot := proc(e: Expr, shallow t: Type, mut state: FasmState, mut l
     destination := fasm_value_slot(t, state, lp)
     fasm_emit(state, format("mov ", source, ", rax\n    mov rsi, rax\n    lea rdi, ", destination.strip_prefix("qword "),
         "\n    mov rdx, ", fasm_type_size(t, lp).to_str(), "\n    call rt_memcpy"))
-    if fasm_boxed(e, state, lp) { fasm_release_outer(source, state) }
+    fasm_release_value_outer(e, source, state, lp)
     return destination
 }
 
@@ -865,12 +912,9 @@ priv fasm_call_argument := proc(e: Expr, i: USize, fd: FunctionDef, mut state: F
         else { fasm_expr(argument, state, lp) }
     } else if fasm_aggregate(t, lp) {
         if p.own_type.is(OwnType.Own) && get_keep_outer_arg(e, i).not() {
-            if func_param_has_stack_outer(fd, i - 1, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols) {
-                if fasm_boxed(argument, state, lp) {
-                    snapshot := fasm_snapshot(argument, t, state, lp)
-                    fasm_emit(state, format("lea rax, ", snapshot.strip_prefix("qword ")))
-                } else { fasm_pointer(argument, state, lp) }
-            } else { fasm_owned(argument, state, lp) }
+            opaque_result := fd.sig.return_type.eq("Dynamic").and(fd.sig.return_own_type.is(OwnType.Own))
+            if fasm_param_stack_outer(fd, i - 1, lp).or(fasm_outer_selector(fd, lp).and(opaque_result.not())) { fasm_pointer(argument, state, lp) }
+            else { fasm_owned(argument, state, lp) }
         } else { fasm_pointer(argument, state, lp) }
     } else if t.is(Type.Dynamic) {
         if p.own_type.is(OwnType.Own) && get_keep_outer_arg(e, i).not() {
@@ -890,6 +934,80 @@ priv fasm_call_argument := proc(e: Expr, i: USize, fd: FunctionDef, mut state: F
     } else { fasm_pointer(argument, state, lp) }
 }
 
+// All ordinary aggregate arguments lend their outer storage. A lifecycle
+// method's call_free parameter still selects actual owned heap storage.
+priv fasm_param_stack_outer := func(fd: FunctionDef, index: USize, lp: LoadedProgram) returns Bool {
+    ref param : Declaration = fd.sig.params[index]
+    if param.own_type.is(OwnType.Own).not() { return false }
+    if fasm_aggregate(fasm_parameter_type(fd, index, lp), lp).not() { return false }
+    if index == 0 && fd.sig.params.len() > 1 && fd.sig.params[1].name == "call_free" { return false }
+    // Owned opaque results may transfer this storage beyond the call.
+    if fd.sig.return_type == "Dynamic" && fd.sig.return_own_type.is(OwnType.Own) { return false }
+    return true
+}
+
+priv fasm_outer_selector := func(fd: FunctionDef, lp: LoadedProgram) returns Bool {
+    if fd.sig.params.len() < 2 { return false }
+    return fd.sig.params[1].name.eq("call_free").and(fd.sig.params[0].own_type.is(OwnType.Own))
+        .and(fasm_aggregate(fasm_parameter_type(fd, 0, lp), lp))
+}
+
+priv fasm_call_outer := func(e: Expr, fd: FunctionDef, mut state: FasmState, lp: LoadedProgram) {
+    // An indirect signature can use different parameter names from its
+    // implementation, so initialize the bit for every owning first aggregate.
+    if fd.sig.params.len() == 0 { return }
+    if fd.sig.params[0].own_type.is(OwnType.Own).not().or(fasm_aggregate(fasm_parameter_type(fd, 0, lp), lp).not()) { return }
+    if fasm_param_stack_outer(fd, 0, lp) { fasm_emit(state, "xor r11d, r11d"); return }
+    if fd.sig.return_type == "Dynamic" && fd.sig.return_own_type.is(OwnType.Own) && get_keep_outer_arg(e, 1).not() {
+        fasm_emit(state, "mov r11d, 1")
+        return
+    }
+    ref arg : Expr = e.children[1]
+    switch arg.node_type {
+    case .Ident(id):
+        if state.outer_heap.len() > 0 && id.ident_name(lp.ctx.symbols.names) == state.outer_parameter {
+            fasm_emit(state, format("mov r11, ", state.outer_heap))
+            return
+        }
+    case:
+    }
+    if fasm_boxed(arg, state, lp) { fasm_emit(state, "mov r11d, 1") }
+    else { fasm_emit(state, "xor r11d, r11d") }
+}
+
+priv fasm_release_arguments := func(e: Expr, fd: FunctionDef, arguments: Vec(Str), mut state: FasmState, lp: LoadedProgram) {
+    mut result := ""
+    for i in 1..e.children.len() {
+        if fasm_param_stack_outer(fd, i - 1, lp).not().or(get_keep_outer_arg(e, i)) { continue }
+        ref arg : Expr = e.children[i]
+        mut dynamic_outer := false
+        switch arg.node_type {
+        case .Ident(id): dynamic_outer = state.outer_heap.len().gt(0).and(id.ident_name(lp.ctx.symbols.names).eq(state.outer_parameter))
+        case:
+        }
+        if fasm_boxed(arg, state, lp).or(dynamic_outer).not() { continue }
+        if result.len() == 0 {
+            result = fasm_slot(state)
+            fasm_emit(state, format("mov ", result, ", rax"))
+        }
+        mut done := ""
+        if dynamic_outer {
+            done = format(".argument_outer", state.labels.to_str())
+            state.labels++
+            fasm_emit(state, format("cmp ", state.outer_heap, ", 0\n    je ", done, "\n    mov ", state.outer_heap, ", 0"))
+        }
+        fasm_emit(state, format("mov rdi, ", arguments[i - 1], "\n    call rt_free"))
+        if done.len() > 0 { fasm_emit(state, format(done, ":")) }
+    }
+    if result.len() > 0 { fasm_emit(state, format("mov rax, ", result)) }
+}
+
+priv fasm_call_result := func(fd: FunctionDef, mut state: FasmState, lp: LoadedProgram) returns Str {
+    ret := type_from_name_init_name(fd.sig.return_type, lp.ctx.scope, lp.ctx.symbols)
+    if fd.sig.return_own_type.is(OwnType.Ref).or(fasm_aggregate(ret, lp).not()) { return "" }
+    return fasm_value_slot(ret, state, lp)
+}
+
 priv fasm_user_call := proc(e: Expr, name: Str, mut state: FasmState, mut lp: LoadedProgram, as_pointer: Bool = false) {
     if state.program.definitions.has(name).not() { fasm_error(e, format("unsupported call '", name, "'"), lp); return }
     ref definition : Expr = fasm_definition(name, state.program, lp)
@@ -905,7 +1023,11 @@ priv fasm_user_call := proc(e: Expr, name: Str, mut state: FasmState, mut lp: Lo
         arguments.push(own slot)
     }
     for i in 0..arguments.len() { fasm_emit(state, format("mov ", fasm_register(i), ", ", arguments[i])) }
+    fasm_call_outer(e, fd, state, lp)
+    result := fasm_call_result(fd, state, lp)
+    if result.len() > 0 { fasm_emit(state, format("lea rax, ", result.strip_prefix("qword "))) }
     fasm_emit(state, format("call ", target))
+    fasm_release_arguments(e, fd, arguments, state, lp)
     fasm_finish_call(e, fd, state, lp, as_pointer)
 }
 
@@ -951,7 +1073,8 @@ priv fasm_destroy := func(shallow t: Type, outer: Bool, mut state: FasmState, lp
     }
     name := format(type_name_ref(t, lp.ctx.symbols), "_delete")
     target := fasm_request(name, state.program)
-    if outer { fasm_emit(state, "mov esi, 1") } else { fasm_emit(state, "xor esi, esi") }
+    if outer { fasm_emit(state, "mov esi, 1\n    mov r11d, 1") }
+    else { fasm_emit(state, "xor esi, esi\n    xor r11d, r11d") }
     fasm_emit(state, format("call ", target))
 }
 
@@ -979,8 +1102,10 @@ priv fasm_field_address := proc(owner: Expr, name: Str, mut state: FasmState, mu
 priv fasm_constructor := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
     ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(type_name_ref(e.til_type(), lp.ctx.symbols), lp.ctx.symbols).unwrap())
     size := fasm_type_size(e.til_type(), lp)
+    storage := fasm_value_slot(e.til_type(), state, lp)
     destination := fasm_slot(state)
-    fasm_emit(state, format("mov edi, 1\n    mov rsi, ", size.to_str(), "\n    call rt_calloc\n    mov ", destination, ", rax"))
+    fasm_emit(state, format("lea rax, ", storage.strip_prefix("qword "), "\n    mov ", destination,
+        ", rax\n    mov rdi, rax\n    xor esi, esi\n    mov rdx, ", size.to_str(), "\n    call rt_memset"))
     // Typed constructor arguments are in field order. A throw-default
     // constructor may deliberately leave all fields zero-initialized.
     for i in 0..e.children.len() - 1 {
@@ -1242,12 +1367,32 @@ priv fasm_runtime_call := proc(e: Expr, name: Str, mut state: FasmState, mut lp:
         case:
         }
     }
+    mut free_label := ""
+    if name == "rt_free" && state.outer_heap.len() > 0 {
+        switch e.children[1].node_type {
+        case .Ident(id):
+            if id.ident_name(lp.ctx.symbols.names) == state.outer_parameter {
+                free_label = format(".outer_free", state.labels.to_str())
+                state.labels++
+                fasm_emit(state, format("cmp ", state.outer_heap, ", 0\n    je ", free_label))
+            }
+        case:
+        }
+    }
     source_name := fasm_callee_name(e, lp)
     if state.program.definitions.has(source_name).not() { fasm_error(e, format("missing runtime declaration '", source_name, "'"), lp); return }
     ref fd : FunctionDef = funcdef_of(fasm_definition(source_name, state.program, lp))
     mut args := Vec(Str).new()
     for i in 1..e.children.len() {
-        if name == "rt_til_closure_delete" || (name == "rt_til_closure_slot_take" && i == 2 && type_is_callable_storage(e.children[i].til_type())) {
+        mut outer_free := false
+        if name == "rt_free" && state.outer_heap.len() > 0 {
+            switch e.children[i].node_type {
+            case .Ident(id): outer_free = id.ident_name(lp.ctx.symbols.names) == state.outer_parameter
+            case:
+            }
+        }
+        if outer_free { fasm_pointer(e.children[i], state, lp) }
+        else if name == "rt_til_closure_delete" || (name == "rt_til_closure_slot_take" && i == 2 && type_is_callable_storage(e.children[i].til_type())) {
             fasm_expr(e.children[i], state, lp)
         } else { fasm_call_argument(e, i, fd, state, lp) }
         slot := fasm_slot(state)
@@ -1255,7 +1400,12 @@ priv fasm_runtime_call := proc(e: Expr, name: Str, mut state: FasmState, mut lp:
         args.push(own slot)
     }
     for i in 0..args.len() { fasm_emit(state, format("mov ", fasm_register(i), ", ", args[i])) }
+    fasm_call_outer(e, fd, state, lp)
+    result := fasm_call_result(fd, state, lp)
+    if result.len() > 0 { fasm_emit(state, format("lea rax, ", result.strip_prefix("qword "))) }
     fasm_emit(state, format("call ", name))
+    fasm_release_arguments(e, fd, args, state, lp)
+    if free_label.len() > 0 { fasm_emit(state, format(free_label, ":")) }
     if name == "rt_til_closure_slot_clone" && type_is_callable_storage(e.til_type()) {
         value := fasm_slot(state)
         fasm_emit(state, format("mov rdi, rax\n    mov rax, [rax]\n    mov ", value, ", rax\n    call rt_free\n    mov rax, ", value))
@@ -1357,7 +1507,8 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
         method := format(type_name_ref(e.til_type(), lp.ctx.symbols), "_clone")
         if state.program.definitions.has(method).not() { fasm_error(e, "missing precomputed sequence clone", lp); return }
         target := fasm_request(method, state.program)
-        fasm_emit(state, format("mov rdi, ", label, "\n    call ", target))
+        result := fasm_value_slot(e.til_type(), state, lp)
+        fasm_emit(state, format("mov rdi, ", label, "\n    lea rax, ", result.strip_prefix("qword "), "\n    call ", target))
     case .Literal(Literal.Str(value)):
         ref bytes : Str = value
         label := format(state.prefix, "s", state.literals.to_str())
@@ -1771,7 +1922,14 @@ priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram, 
         case .Return:
             if stmt.children.len() > 0 {
                 if state.return_ref { fasm_pointer(stmt.children[0], state, lp) }
-                else if fasm_aggregate(state.return_type, lp) { fasm_owned(stmt.children[0], state, lp) }
+                else if fasm_aggregate(state.return_type, lp) {
+                    fasm_pointer(stmt.children[0], state, lp)
+                    source := fasm_slot(state)
+                    fasm_emit(state, format("mov ", source, ", rax\n    mov rsi, rax\n    mov rdi, ", state.return_buffer,
+                        "\n    mov rdx, ", fasm_type_size(state.return_type, lp).to_str(), "\n    call rt_memcpy"))
+                    fasm_release_value_outer(stmt.children[0], source, state, lp)
+                    fasm_emit(state, format("mov rax, ", state.return_buffer))
+                }
                 else { fasm_expr(stmt.children[0], state, lp) }
             }
             fasm_emit(state, "leave\n    ret")
@@ -1798,6 +1956,9 @@ priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram, 
             } else if fasm_boxed(stmt, state, lp) {
                 fasm_emit(state, "mov rdi, rax")
                 fasm_destroy(stmt.til_type(), true, state, lp)
+            } else if fasm_aggregate(stmt.til_type(), lp).and(fasm_call_returns_ref(stmt, state, lp).not()) {
+                fasm_emit(state, "mov rdi, rax")
+                fasm_destroy(stmt.til_type(), false, state, lp)
             }
         case .Body: fasm_body(stmt, state, lp)
         case .CaptureBlock: fasm_body(stmt.children[0], state, lp)
@@ -1874,6 +2035,15 @@ priv fasm_function := proc(name: Str, mut program: FasmProgram, mut lp: LoadedPr
     state.prefix = program.labels[name].clone()
     state.return_type = ret.clone()
     state.return_ref = fd.sig.return_own_type.is(OwnType.Ref)
+    if fasm_aggregate(ret, lp).and(state.return_ref.not()) {
+        state.return_buffer = fasm_slot(state)
+        fasm_emit(state, format("mov ", state.return_buffer, ", rax"))
+    }
+    if fasm_outer_selector(fd, lp) {
+        state.outer_parameter = fd.sig.params[0].name.clone()
+        state.outer_heap = fasm_slot(state)
+        fasm_emit(state, format("mov ", state.outer_heap, ", r11"))
+    }
     mut environment := ""
     if fd.captures.len() > 0 {
         environment = fasm_slot(state)
@@ -1895,7 +2065,7 @@ priv fasm_function := proc(name: Str, mut program: FasmProgram, mut lp: LoadedPr
         }
         mut slot := incoming[i].clone()
         by_value := func_param_passes_c_value(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
-        stack_outer := func_param_has_stack_outer(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
+        stack_outer := fasm_param_stack_outer(fd, i, lp)
         if aggregate && by_value {
             slot = fasm_value_slot(t, state, lp)
             fasm_emit(state, format("mov rsi, ", incoming[i], "\n    lea rdi, ", slot.strip_prefix("qword "),
@@ -1944,6 +2114,10 @@ priv fasm_function := proc(name: Str, mut program: FasmProgram, mut lp: LoadedPr
         }
         mark_fcall_direct(call)
         fasm_expr(call, state, lp, state.return_ref)
+        if state.return_buffer.len() > 0 {
+            fasm_emit(state, format("mov rsi, rax\n    mov rdi, ", state.return_buffer,
+                "\n    mov rdx, ", fasm_type_size(ret, lp).to_str(), "\n    call rt_memcpy\n    mov rax, ", state.return_buffer))
+        }
         fasm_emit(state, "leave\n    ret")
     } else if expr.children.len() == 0 {
         fasm_error(expr, "a function signature is not a callable implementation", lp)

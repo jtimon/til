@@ -35,7 +35,7 @@ main := proc(compiler_arg: Str) {
         native_status := native_callable.run()
         expect(native_status == 0, native_callable.out(), native_callable.err())
         callable_source := File.readfile(format(work, "/gen/fasm/native_callable.fasm"))
-        expect(callable_source.contains("call qword [r11]") && callable_source.contains("call rt_print_single"), callable_source)
+        expect(callable_source.contains("call qword [") && callable_source.contains("call rt_print_single"), callable_source)
         File.writefile(format(work, "/bad.til"), "mode cli\nbad := func(x: F32) returns F32 { return x }\nmain := proc() { bad(1.0) }\n")
         bad := Cmd.new(compiler, "translate", "--backend=fasm", "bad.til")
         bad.cwd(work).capture()

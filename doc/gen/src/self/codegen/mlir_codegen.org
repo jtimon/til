@@ -1,5 +1,5 @@
 #+TITLE: src/self/codegen/mlir_codegen.til
-#+SUBTITLE: til 0.0.1-e9c9d59
+#+SUBTITLE: til 0.0.1-5c5675e91
 #+OPTIONS: toc:t
 
 * mlir_source_declarations
@@ -18,6 +18,24 @@ func mlir_source_declarations(lp: LoadedProgram) returns Set__Str
 
 #+begin_src til
 proc mlir_codegen_translate(mut lp: LoadedProgram, path: Str, source_functions: Set__Str) returns I32
+#+end_src
+
+* mlir_llvm_call_attributes
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.mlir_llvm_call_attributes
+:END:
+
+#+begin_src til
+func mlir_llvm_call_attributes(text: Str) returns Str
+#+end_src
+
+* Option__MlirLlvmSignature
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Option__MlirLlvmSignature
+:END:
+
+#+begin_src til
+Option__MlirLlvmSignature is a None
 #+end_src
 
 * Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding
@@ -366,6 +384,64 @@ a clone would copy a whole subtree and break node identity.
 
 #+begin_src til
 func Option__Bool.take(own self: Option__Bool) returns Bool
+#+end_src
+
+* Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+:END:
+
+#+begin_src til
+enum Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature {
+    None
+    Some: priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+namespace:
+    func is_some(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns Bool
+    func is_none(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns Bool
+    func unwrap_or(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature, default_v: priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+    func unwrap(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+    func take(own self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+    ext_func None() returns Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+    ext_func Some(own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+    core_func is(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature, other: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns Bool
+    func delete(own self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature, call_free: Bool = true)
+    func clone(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+    func size() returns USize
+}
+#+end_src
+
+* Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature.unwrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature.unwrap
+:END:
+
+The contained value; PANICS on None, ala Rust's unwrap. For the
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.
+
+#+begin_src til
+func Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature.unwrap(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+#+end_src
+
+* Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature.take
+:END:
+
+The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.
+
+#+begin_src til
+func Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature.take(own self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
 #+end_src
 
 * Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding

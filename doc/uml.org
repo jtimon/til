@@ -307,6 +307,11 @@
 *** source := ""
 *** ref symbols : SymbolPool
 * context
+** RootBits: StructDef
+*** alias : U64 = 0
+*** into : U64 = 0
+*** carried : U64 = 0
+*** global_storage := false
 ** BorrowRoot: StructDef
 *** name := ""
 *** path := ""
@@ -343,7 +348,7 @@
 *** dynvec_elem := ""
 *** declared_type_name := ""
 *** borrow_roots := Vec(BorrowRoot).new()
-*** is_external_global := false
+*** ... (2 more)
 ** ScopeFind: EnumDef
 *** NotFound
 *** Found:TypeBinding }
@@ -355,6 +360,7 @@
 *** auto_gen_depth : I32 = 0
 *** throw_used_local_names := Set(Str).new()
 *** lowering_param_types := Map(Str, Str).new()
+*** deferred_dependent_throw := false
 ** TypeScope: StructDef
 *** bindings := SymMap(TypeBinding).new()
 *** target_usize_pname := "U64"
@@ -447,6 +453,7 @@
 *** interp_ret_type := Option(ref Str).None
 *** interp_ret_own_type := OwnType.Shallow
 *** interp_cstr_arg := false
+*** interp_callable_arg_borrow := false
 *** constfold_active := false
 *** target_size_queries := false
 *** eval_aborted := false
@@ -490,7 +497,7 @@
 *** import_cwd := ""
 *** import_support_dir := ""
 *** check_unused_imports := false
-*** ... (78 more)
+*** ... (81 more)
 ** HostOwnPtrProbe: StructDef
 *** own p : U8 = 0
 * targets
@@ -580,13 +587,14 @@
 ** FactIndex: StructDef
 *** filt : U64 = 0
 *** idx := Map(Str, USize).new()
-** RootBits: StructDef
-*** alias : U64 = 0
-*** into : U64 = 0
-*** carried : U64 = 0
 ** DepositAcc: StructDef
 *** m : U64 = 0
 *** borrowed : U64 = 0
+*** retained : U64 = 0
+*** retain_mask : U64 = 0
+*** global := RootBits()
+*** locals := Vec(Str).new()
+*** global_aliases := Set(Str).new()
 ** CoverageNode: StructDef
 *** fully_covered := false
 *** sub_names := Vec(Str).new()
@@ -666,6 +674,8 @@
 *** callbacks := Set(Str).new()
 *** class_path := ""
 *** has_strvec := false
+*** vecs := Set(Str).new()
+*** hvecs := Set(Str).new()
 ** JniInit: StructDef
 *** code := ""
 *** reason := ""
@@ -676,6 +686,10 @@
 *** place := ""
 *** settable := false
 *** guard := ""
+** JniCbErr: StructDef
+*** code := ""
+*** msg := ""
+*** reason := ""
 ** CollectionInfo: StructDef
 *** ref type_name : Str
 *** is_vec : I32 = 0

@@ -25,7 +25,7 @@ mode cli
 import("src/std/sys")
 import("src/std/file")
 import("src/self/install")
-import("src/self/fasm_build")
+import("src/self/builder")
 
 // The working directory, for the absolute paths some vendored build
 // systems insist on. Same bridge src/til.til binds; not in std/sys
@@ -2443,9 +2443,10 @@ self_backup := func(host: Host) returns Str {
 self_sources := proc() returns Vec(Str) {
     mut out := Vec(Str).new()
     out.push(own SELF_SRC.clone())
-    out.push(own "src/self/install.til")
-    out.push(own "src/self/fasm_build.til")
-    out.push(own "src/self/targets.til")
+    add_matching(out, "src/self", ".til")
+    add_matching(out, "src/self/codegen", ".til")
+    add_matching(out, "examples/lib", ".til")
+    add_matching(out, "vendor/bindings", ".til")
     add_matching(out, "src/core", ".til")
     add_matching(out, "src/std", ".til")
     add_matching(out, "src/self/codegen", ".c")

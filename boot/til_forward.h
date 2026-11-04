@@ -475,10 +475,6 @@ typedef struct Vec__call_Set_USize Vec__call_Set_USize;
 typedef struct priv___src_self_codegen_theme_codegen_til__ThemeColorSpec priv___src_self_codegen_theme_codegen_til__ThemeColorSpec;
 typedef struct priv___src_self_codegen_theme_codegen_til__ThemeSpec priv___src_self_codegen_theme_codegen_til__ThemeSpec;
 typedef struct Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec;
-typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
-typedef struct DocEntry DocEntry;
-typedef struct DocCatalog DocCatalog;
-typedef struct Vec__DocEntry Vec__DocEntry;
 typedef struct _ffi_type ffi_type;
 typedef struct InterpCallableBox InterpCallableBox;
 typedef struct HeapBinding HeapBinding;
@@ -504,6 +500,10 @@ typedef struct Vec__priv___src_self_interpreter_til__InterpAlias Vec__priv___src
 typedef struct Option__ref_ffi_type Option__ref_ffi_type;
 typedef struct Array__U64 Array__U64;
 typedef struct Vec__HeapBinding Vec__HeapBinding;
+typedef struct priv___src_self_builder_til__BuildPaths priv___src_self_builder_til__BuildPaths;
+typedef struct DocEntry DocEntry;
+typedef struct DocCatalog DocCatalog;
+typedef struct Vec__DocEntry Vec__DocEntry;
 typedef struct priv___src_self_binder_til__BinderState priv___src_self_binder_til__BinderState;
 typedef struct priv___src_self_binder_til__AuditedDecl priv___src_self_binder_til__AuditedDecl;
 typedef struct Map__Str_priv___src_self_binder_til__AuditedDecl Map__Str_priv___src_self_binder_til__AuditedDecl;
@@ -1789,44 +1789,6 @@ typedef struct Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec {
 } Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec;
 
 
-typedef struct priv___src_self_builder_til__BuildPaths {
-    Str backend;
-    Str name;
-    Str c_path;
-    Str runtime_c_path;
-    Str runtime_fwd_path;
-    Str bin_path;
-    Str fwd_path;
-    Str h_path;
-    Str til_path;
-    Str py_path;
-    Str jni_c_path;
-    Str java_path;
-    Str theme_path;
-    Bool do_lib;
-} priv___src_self_builder_til__BuildPaths;
-
-
-typedef struct DocEntry {
-    Str name;
-    Str id;
-    Str unit_path;
-    Str group;
-    Str page;
-    Str body;
-    Str info;
-    Str since;
-    Str deprecated;
-} DocEntry;
-
-
-typedef struct Vec__DocEntry {
-    TIL_OWN_PTR(U8) data;
-    USize count;
-    USize cap;
-} Vec__DocEntry;
-
-
 typedef struct _ffi_type {
     U64 size;
     U16 alignment;
@@ -1977,6 +1939,44 @@ typedef struct Vec__HeapBinding {
     USize count;
     USize cap;
 } Vec__HeapBinding;
+
+
+typedef struct priv___src_self_builder_til__BuildPaths {
+    Str backend;
+    Str name;
+    Str c_path;
+    Str runtime_c_path;
+    Str runtime_fwd_path;
+    Str bin_path;
+    Str fwd_path;
+    Str h_path;
+    Str til_path;
+    Str py_path;
+    Str jni_c_path;
+    Str java_path;
+    Str theme_path;
+    Bool do_lib;
+} priv___src_self_builder_til__BuildPaths;
+
+
+typedef struct DocEntry {
+    Str name;
+    Str id;
+    Str unit_path;
+    Str group;
+    Str page;
+    Str body;
+    Str info;
+    Str since;
+    Str deprecated;
+} DocEntry;
+
+
+typedef struct Vec__DocEntry {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__DocEntry;
 
 
 typedef struct priv___src_self_binder_til__BinderState {
@@ -2423,6 +2423,9 @@ typedef struct priv___src_self_codegen_fasm_codegen_til__FasmState {
     Map__Str_Str signatures;
     Type return_type;
     Bool return_ref;
+    Str return_buffer;
+    Str outer_parameter;
+    Str outer_heap;
     Str data;
     Str prefix;
     USize literals;
@@ -2483,11 +2486,6 @@ typedef struct priv___src_self_codegen_theme_codegen_til__ThemeSpec {
 } priv___src_self_codegen_theme_codegen_til__ThemeSpec;
 
 
-typedef struct DocCatalog {
-    Vec__DocEntry entries;
-} DocCatalog;
-
-
 typedef struct HeapBinding {
     U8 *ptr;
     U8 *til_type_p;
@@ -2523,6 +2521,11 @@ typedef struct Map__Str_HeapBinding {
     Vec__Str keys;
     Vec__HeapBinding values;
 } Map__Str_HeapBinding;
+
+
+typedef struct DocCatalog {
+    Vec__DocEntry entries;
+} DocCatalog;
 
 
 typedef struct Map__Str_priv___src_self_binder_til__AuditedDecl {
