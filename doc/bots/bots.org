@@ -611,8 +611,9 @@ foreground (a timed-out command is stopped, not backgrounded), the
 Monitor and Workflow tools are denied, and the
 .claude/hooks/block-background-bash.sh hook refuses a trailing `&`
 (also inside a subshell, `(cmd &)`) and `nohup` / `disown` / `setsid`, which
-would leave an untracked orphan process. `git stash` is denied there
-as well.
+would leave an untracked orphan process. It checks every line of the
+command, skipping quoted strings, comments and heredoc bodies.
+`git stash` is denied there as well.
 
 ### Jorge's rant on the background-task hell (read it and take it to heart)
 
