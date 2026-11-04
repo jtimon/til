@@ -362,7 +362,7 @@
   locals may be mutable. Borrowed ~Array(F32)~, ~Array(I32)~ and ~Array(U32)~ parameters support read-only
   inputs and ~mut~ outputs. Arithmetic includes addition, subtraction and
   multiplication (integer operations wrap), integer increment/decrement,
-  scalar comparisons, Boolean logic, cloning, literals, same-file direct
+  scalar comparisons, Boolean logic, cloning, literals, cross-unit direct
   calls and returns. Scalar integer division, shifts and other unsupported
   operations still produce diagnostics. SIMD ~new~,
   ~splat~, ~zero~, fixed-order ~reduce_add~ and checked lane
@@ -379,6 +379,29 @@
   initializers still execute at the source declaration. Lexical bindings
   are restored after each block, while stores to an outer local persist.
   LLVM/Clang may promote these non-escaping slots to SSA values when optimizing.
+
+  Direct calls resolve the actual prepared FunctionDef across user/imported
+  units, including functions and procedures declared inside a namespace.
+  Namespace membership does not add a receiver ABI: static calls and UFCS use
+  the same formal parameter list after the shared frontend rewrites the call.
+  A namespace can contain scalar-only callables without constructing an owner
+  value. Functions named main inside namespaces are ordinary callables, not
+  executable entrypoints. Source-defined namespace bodies take precedence over
+  intrinsic-name shortcuts, including user add and clone implementations.
+
+  Executables emit main and its transitive direct-call dependencies. Libraries
+  root public source callables in all user units and public type namespaces,
+  matching the shared library export policy. Private helpers stay internal;
+  concrete generics use the frontend's registered identities and declaring
+  source paths. Emission follows unit/declaration order, not pointer ordering.
+  Source contexts are restored per body for diagnostics and runtime literals.
+
+  Public namespace symbols use the C spelling Owner_member; collisions with
+  another source callable are diagnosed. Imported unsupported bodies that are
+  not reachable in an executable need not be emitted. Retained namespace values
+  and indirect callable values remain unsupported; a FuncSig declaration alone
+  is type metadata, not an executable body. Existing core/runtime entries still
+  use the temporary C-core bridge where they are not emitted as concrete bodies.
 
   Scalar-aligned four-F32 storage retains the C backend's Linux SysV ABI:
   each value argument is split into two ~vector<2xf32>~ arguments, and the
@@ -480,7 +503,7 @@
   ~select~ accepts masks and F32x4, I32x4, U32x4 or Boolx4 values and preserves the
   selected lane's bits, including signed zero and NaN payloads. Mask operands
   are values; these operations do not introduce scalar short-circuiting or
-  masked memory access. Mutable mask locals and same-file calls retain the
+  masked memory access. Mutable mask locals and direct calls retain the
   same representation conversions as exported functions.
 
   F32x4, I32x4, U32x4 and Boolx4 lane reads and local updates accept runtime indices.
@@ -533,8 +556,9 @@
   field lowering. Mutable locals, whole-value assignment, field reads/writes,
   nested field aliases, auto-generated clone and size are supported. These
   values have no owning/reference/raw-pointer fields or nontrivial destructor;
-  SIMD fields, empty structs and custom clone implementations are not yet
-  supported in this increment. Heap-outer owning parameters and borrowed user
+  SIMD fields and empty runtime structs are not yet supported in this increment.
+  Source-defined clone functions can be emitted through the normal namespace
+  callable path when their bodies use the supported subset. Heap-outer owning parameters and borrowed user
   returns remain outside this slice.
 
   The existing typer decides whether an ordinary parameter borrows or is an

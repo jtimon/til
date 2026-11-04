@@ -434,6 +434,7 @@ typedef struct Vec__priv___src_self_codegen_c_codegen_til__DynCallInfo Vec__priv
 typedef struct Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites;
 typedef struct Vec__priv___src_self_codegen_c_codegen_til__BuilderFuncSites Vec__priv___src_self_codegen_c_codegen_til__BuilderFuncSites;
 typedef struct priv___src_self_codegen_mlir_codegen_til__MlirBinding priv___src_self_codegen_mlir_codegen_til__MlirBinding;
+typedef struct priv___src_self_codegen_mlir_codegen_til__MlirCallable priv___src_self_codegen_mlir_codegen_til__MlirCallable;
 typedef struct priv___src_self_codegen_mlir_codegen_til__MlirState priv___src_self_codegen_mlir_codegen_til__MlirState;
 typedef struct priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature;
 typedef struct Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding;
@@ -448,6 +449,9 @@ enum {
     Option__Bool_TAG_Some
 };
 typedef struct Option__Bool Option__Bool;
+typedef struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable;
+typedef struct Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable;
+typedef struct Map__Str_UPtr Map__Str_UPtr;
 typedef struct Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature;
 typedef struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 typedef struct priv___src_self_codegen_fasm_codegen_til__FasmDefinition priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
@@ -1620,6 +1624,17 @@ typedef struct priv___src_self_codegen_mlir_codegen_til__MlirBinding {
 } priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 
 
+typedef struct priv___src_self_codegen_mlir_codegen_til__MlirCallable {
+    Str path;
+    Str source_path;
+    USize declaration;
+    I64 member;
+    Str name;
+    Str symbol;
+    Bool exported;
+} priv___src_self_codegen_mlir_codegen_til__MlirCallable;
+
+
 typedef struct priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature {
     Str name;
     USize open;
@@ -1648,6 +1663,25 @@ struct Option__Bool {
         void *_til_payload_align;
     } data;
 };
+
+typedef struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable;
+
+
+typedef struct Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable {
+    Vec__UPtr keys;
+    Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable values;
+} Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable;
+
+
+typedef struct Map__Str_UPtr {
+    Vec__Str keys;
+    Vec__UPtr values;
+} Map__Str_UPtr;
+
 
 struct Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature {
     priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature *data;
@@ -2710,7 +2744,7 @@ typedef struct priv___src_self_codegen_mlir_codegen_til__MlirState {
     Str continue_label;
     Bool has_break;
     Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding values;
-    Set__Str functions;
+    Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable functions;
     Str error_parameter;
     Bool error_known_clear;
     USize error_version;

@@ -159,6 +159,39 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Imported and namespace functions/procedures (base 0cffc6cfc)
+
+Direct calls now select the actual prepared FunctionDef across user units and
+namespace declarations. A namespace function/procedure uses the same ABI and
+formal parameter list as any other callable; UFCS is frontend call syntax,
+not a receiver/object ABI. Namespace-only containers and static callables need
+no owner instance. User add/clone bodies are selected before intrinsic shortcuts.
+
+Source capture covers every user unit and namespace before preparation adds
+core-generated helpers. The per-translation callable lookup identifies actual
+definitions, preserves private/internal linkage, and follows direct-call
+dependencies, including recursion and concrete cross-unit generics. Generic
+instances retain their registered declaring source context even when queued
+in the calling unit. Output order follows source units/declarations, never
+the address keys used for lookup. Public namespace symbols use Owner_member;
+symbol collisions are diagnosed rather than silently picking one definition.
+
+Executable roots are main and its dependencies; library roots are public
+source callables across user units/namespaces, as in the shared export policy.
+Unreached unsupported imported bodies can be omitted in executable mode.
+FuncSig declarations are metadata, not zero-body functions to emit. Namespace
+callable values/other retained namespace data and indirect calls are outside
+this increment. Existing core runtime calls continue through the C bridge.
+
+Regression coverage includes multi-unit import aliases, private same-spelling
+helpers, public/private generic instances, namespace functions and procedures,
+static calls, free/namespace UFCS, custom POD clone, recursion, namespaces with
+a non-entry main function, cross-unit sret/SIMD stack calls and OutOfBounds.
+Interpreter/C references and native C/til consumers compare results and exact
+panic diagnostics at O0/O2/O3. Repeated emission checks deterministic IR;
+tool-independent tests check private linkage, imported-source errors, namespace
+data rejection and C-symbol collision diagnostics.
+
 *** Scalar/nested POD structs and LLVM 18 ABI export (base 959dff083)
 
 POD structs with Bool, I32/U32, I64/U64, F32 and nested scalar POD fields now

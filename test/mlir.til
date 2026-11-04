@@ -151,6 +151,90 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_modules := proc(compiler: Str, work: Str) {
+    File.writefile(format(work,"/module_left.til"),format(
+        "mode lib\nF4:=Simd(F32,4)\npriv bias:=func(x:I32) returns I32{return x+3}\n",
+        "left_value:=func(x:I32) returns I32{return bias(x)}\nidentity:=func(T:Type,value:T) returns T{return value}\nidentity_left:=func(x:I32) returns I32{return identity(I32,x)}\n",
+        "Counter:=struct{n:I32=0;step:I32=1;tag:I32=2\nnamespace:\n",
+        "add:=func(self:Counter,x:I32) returns I32{return bias(self.n)+x}\n",
+        "bump:=func(mut self:Counter,x:I32){self.n=self.n+x}\n",
+        "static_value:=func(x:I32) returns I32{return left_value(x)*2}\n",
+        "clone:=func(self:Counter) returns Counter{return Counter(n=self.n+100,step=self.step,tag=self.tag)}\n",
+        "read_value:=func(a:Array(I32),i:USize) returns I32 throws OutOfBounds {ref value:I32=a.get(i)?;return value.clone()}\n",
+        "sum_vectors:=func(a:F4,b:F4,c:F4,d:F4,e:F4) returns F4{return a+b+c+d+e}\n",
+        "recurse:=func(n:I32) returns I32{if n<=0{return 0};return n+Counter.recurse(n-1)}\n}\n",
+        "Plain:=namespace{main:=func(x:I32) returns I32{return x+5};banner:=proc(){println(\"namespace proc\")};stop:=func(){panic(\"namespace stop\")}}\n",
+        "fail_cast:=func(value:F32) returns I32{return value.cast(I32)}\n"))
+    File.writefile(format(work,"/module_right.til"),format(
+        "mode lib\nl:=import(\"module_left\")\npriv bias:=func(x:I32) returns I32{return x+7}\npriv private_id:=func(T:Type,value:T) returns T{return value}\n",
+        "right_value:=func(x:I32) returns I32{return private_id(I32,bias(x))}\nscale:=func(x:I32) returns I32{return (l.left_value(x)+bias(x))*2}\n",
+        "Big:=struct{a:I64=1;b:I64=2;c:I64=3\nnamespace:\nnew_value:=func(x:I32) returns Big{return Big(a=x.cast(I64))}\n}\n"))
+    File.writefile(format(work,"/module_entry.til"),format(
+        "mode lib\nl:=import(\"module_left\")\nr:=import(\"module_right\")\nBigType:=r.Big\nVector:=l.F4\n",
+        "compute:=func(x:I32) returns I32{mut c:=l.Counter(n=x);c.bump(4);copy:=c.clone();return c.add(l.left_value(x))+l.Counter.static_value(x)+r.right_value(x)+l.Plain.main(x)+r.scale(l.identity(I32,x))+copy.n}\n",
+        "global_adjust:=func(x:I32) returns I32{return r.right_value(x)*3}\nfree_ufcs:=func(x:I32) returns I32{return x.global_adjust()}\n",
+        "pass_big:=func(x:I32) returns BigType{return r.Big.new_value(x)}\n",
+        "sum_proxy:=func(a:Vector,b:Vector,c:Vector,d:Vector,e:Vector) returns Vector{return l.Counter.sum_vectors(a,b,c,d,e)}\n",
+        "bang_read:=func(a:Array(I32),i:USize) returns I32{return l.Counter.read_value(a,i)!}\n",
+        "cast_proxy:=func(value:F32) returns I32{return l.fail_cast(value)}\nstop_proxy:=func(){l.Plain.stop()}\n"))
+    File.writefile(format(work,"/module_unused.til"),"mode lib\ngood:=func(x:I32) returns I32{return x+1}\npriv dead_bad:=func(a:I32,b:I32) returns I32{return a/b}\nbad_unused:=func(a:I32,b:I32) returns I32{return dead_bad(a,b)}\n")
+    checks:="main:=proc(){mut x:I32=5;x=x+0;println(entry.compute(x).to_str());println(entry.free_ufcs(x).to_str());mut c:=left.Counter(n=x);c.bump(2);println(c.add(1).to_str());copy:=c.clone();println(copy.n.to_str());println(left.Counter.static_value(x).to_str());println(left.Plain.main(x).to_str());left.Plain.banner();big:=right.Big.new_value(x);println(big.a.to_str());}\n"
+    File.writefile(format(work,"/module_reference.til"),format("mode cli\nentry:=import(\"module_entry\")\nleft:=import(\"module_left\")\nright:=import(\"module_right\")\n",checks))
+    consumer:=format(
+        "mode cli\nlink(\"gen/lib/libmodule_entry.so\")\n",
+        "Counter:=struct{n:I32=0;step:I32=1;tag:I32=2}\nCounter_add:=ext_func(self:Counter,shallow x:I32) returns shallow I32 {}\nCounter_bump:=ext_func(mut self:Counter,shallow x:I32){}\nCounter_clone:=ext_func(self:Counter) returns shallow Counter {}\nCounter_static_value:=ext_func(shallow x:I32) returns shallow I32 {}\n",
+        "Big:=struct{a:I64=1;b:I64=2;c:I64=3}\nBig_new_value:=ext_func(shallow x:I32) returns shallow Big {}\n",
+        "Plain_main:=ext_func(shallow x:I32) returns shallow I32 {}\nPlain_banner:=ext_proc(){}\n",
+        "compute:=ext_func(shallow x:I32) returns shallow I32 {}\nfree_ufcs:=ext_func(shallow x:I32) returns shallow I32 {}\n",
+        checks.replace("entry.","").replace("left.","").replace("right.","")
+            .replace("c.bump(2)","Counter_bump(c,2)").replace("c.add(1)","Counter_add(c,1)").replace("c.clone()","Counter_clone(c)")
+            .replace("Counter.static_value(","Counter_static_value(").replace("Plain.main(","Plain_main(")
+            .replace("Plain.banner()","Plain_banner()").replace("Big.new_value(","Big_new_value("))
+    File.writefile(format(work,"/module_consumer.til"),consumer)
+    File.writefile(format(work,"/module_cli.til"),format(
+        "mode cli\nentry:=import(\"module_entry\")\nunused:=import(\"module_unused\")\nmain:=proc(){mut x:I32=5;x=x+0;println(entry.compute(x).to_str());println(unused.good(x).to_str())}\n"))
+    File.writefile(format(work,"/module_panic.til"),format(
+        "mode cli\nentry:=import(\"module_entry\")\nmain:=proc(which:I64){if which==0{empty:=Array(I32).new(0);entry.bang_read(empty,0)}else if which==1{mut raw:U32=0x7fc01234;mut value:F32=0;memcpy(to_ptr(value),to_ptr(raw),4);entry.cast_proxy(value)}else{entry.stop_proxy()}}\n"))
+    File.writefile(format(work,"/module_caller.c"),format(
+        "#include <assert.h>\n#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\ntypedef struct{int32_t n,step,tag;}Counter;typedef struct{int64_t a,b,c;}Big;typedef struct{float v[4];}F4;typedef struct{int32_t *data;uint64_t cap;}Buffer;\n",
+        "extern int32_t compute(int32_t),free_ufcs(int32_t),left_value(int32_t),right_value(int32_t),identity_left(int32_t),Counter_add(const Counter*,int32_t),Counter_static_value(int32_t),Counter_recurse(int32_t),Plain_main(int32_t),bang_read(const Buffer*,uint64_t),Counter_read_value(const Buffer*,uint64_t,int64_t*),cast_proxy(float);extern void Counter_bump(Counter*,int32_t),stop_proxy(void);extern Counter Counter_clone(const Counter*);extern Big Big_new_value(int32_t),pass_big(int32_t);extern F4 Counter_sum_vectors(F4,F4,F4,F4,F4),sum_proxy(F4,F4,F4,F4,F4);\n",
+        "int main(int argc,char **argv){if(argc>1){if(atoi(argv[1])==0){Buffer empty={0,0};bang_read(&empty,0);}else if(atoi(argv[1])==1){uint32_t raw=0x7fc01234;float value;memcpy(&value,&raw,4);cast_proxy(value);}else stop_proxy();return 99;}for(int32_t n=-20;n<=20;n++){assert(compute(n)==11*n+152 && free_ufcs(n)==3*n+21);assert(left_value(n)==n+3 && right_value(n)==n+7 && identity_left(n)==n);Counter c={n,1,2};Counter_bump(&c,2);assert(c.n==n+2 && Counter_add(&c,1)==n+6 && Counter_static_value(n)==2*n+6 && Plain_main(n)==n+5);Counter copy=Counter_clone(&c);assert(copy.n==n+102 && c.n==n+2 && copy.step==1 && copy.tag==2);Big a=Big_new_value(n),b=pass_big(n);assert(a.a==n && a.b==2 && a.c==3 && memcmp(&a,&b,sizeof a)==0);}for(int32_t n=0;n<8;n++)assert(Counter_recurse(n)==n*(n+1)/2);F4 a={{1,2,3,4}},b=Counter_sum_vectors(a,a,a,a,a),c=sum_proxy(a,a,a,a,a);for(unsigned i=0;i<4;i++)assert(b.v[i]==5*a.v[i] && c.v[i]==b.v[i]);int32_t values[]={7,8};Buffer data={values,2};int64_t error=0;assert(Counter_read_value(&data,1,&error)==8 && error==0);return 0;}\n"))
+    reference:=Cmd.new(compiler,"run","--usize=64","module_reference.til");checked(reference,work)
+    interpreted:=Cmd.new(compiler,"interpret","--usize=64","module_reference.til");checked(interpreted,work)
+    assert_eq(Str,reference.out(),interpreted.out())
+    cli_reference:=Cmd.new(compiler,"run","--usize=64","module_cli.til");checked(cli_reference,work)
+    mut messages:=Vec(Str).new()
+    for which in array(Str,"0","1","2") {
+        failure:=Cmd.new(compiler,"run","--usize=64","module_panic.til",which);failure.cwd(work).capture()
+        status:=failure.run();expect(status==1,failure.out(),failure.err())
+        interpreted_failure:=Cmd.new(compiler,"interpret","--usize=64","module_panic.til",which);interpreted_failure.cwd(work).capture()
+        interpreted_status:=interpreted_failure.run();expect(interpreted_status==1,interpreted_failure.out(),interpreted_failure.err())
+        assert_eq(Str,failure.out(),interpreted_failure.out());assert_eq(Str,failure.err(),"");assert_eq(Str,interpreted_failure.err(),"")
+        messages.push(own failure.out())
+    }
+    for level in array(Str,"0","2","3") {
+        build:=Cmd.new(compiler,"build","--backend=mlir",format("--opt=",level),"./module_entry.til");checked(build,work)
+        ir:=File.readfile(format(work,"/gen/mlir/module_entry.mlir"))
+        expect(ir.contains("Counter_bump") && ir.contains("Counter_clone") && ir.contains("Plain_main") && ir.contains("Big_new_value"),ir)
+        expect(ir.contains("llvm.func internal @\"priv__") && ir.contains("llvm.func internal @\"identity__I32\""),ir)
+        cc:=Cmd.new("clang-18","-O2","-fsanitize=address","-Wall","-Wextra","-Werror","module_caller.c","gen/lib/libmodule_entry.a","-lm","-o","module_caller");checked(cc,work)
+        native:=Cmd.new("./module_caller");checked(native,work)
+        client:=Cmd.new(compiler,"run","--usize=64","--asan","module_consumer.til");checked(client,work)
+        assert_eq(Str,client.out(),reference.out())
+        for i in 0..3 {
+            failure:=Cmd.new("./module_caller",i.to_str());failure.cwd(work).capture()
+            status:=failure.run();expect(status==1,failure.out(),failure.err())
+            assert_eq(Str,failure.out(),messages[i.to_usize()]);assert_eq(Str,failure.err(),"")
+        }
+        cli:=Cmd.new(compiler,"run","--backend=mlir",format("--opt=",level),"module_cli.til");checked(cli,work)
+        assert_eq(Str,cli.out(),cli_reference.out())
+        cli_ir:=File.readfile(format(work,"/gen/mlir/module_cli.mlir"))
+        expect(cli_ir.contains("bad_unused").or(cli_ir.contains("dead_bad")).not(),cli_ir)
+        translate:=Cmd.new(compiler,"translate","--backend=mlir","module_cli.til");checked(translate,work)
+        assert_eq(Str,cli_ir,File.readfile(format(work,"/gen/mlir/module_cli.mlir")))
+    }
+}
+
 priv check_pods := proc(compiler: Str, work: Str) {
     // This exercises the LLVM 18 export adapter's balanced-type parsing and
     // idempotence, independently of the native ABI matrix below.
@@ -882,5 +966,6 @@ main := proc(compiler_arg: Str) {
     check_casts(compiler, work)
     check_stack_abi(compiler, work)
     check_pods(compiler, work)
+    check_modules(compiler, work)
     println("mlir PASS")
 }
