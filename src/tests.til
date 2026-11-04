@@ -910,6 +910,11 @@ main := proc(args: ..Str) returns I64 {
             " '&&' cmp tmp/self_native.c boot/til.c",
             " '&&' cmp tmp/self_native_forward.h boot/til_forward.h"))
 
+    if host_os() == "linux" {
+        add_single(tests, "rss_address_spaces", "build", 0, "",
+            format(til_bin, " run test/rss.til"))
+    }
+
     // Full Unicode rule conformance plus focused navigation contracts. Start
     // early so its interpreted work overlaps the rest of the suite.
     add_both(tests, "test/unicode.til", flags)

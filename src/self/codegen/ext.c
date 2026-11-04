@@ -11,6 +11,10 @@
 #include <errno.h>
 #include <math.h>
 #include <fcntl.h>
+#if defined(__linux__)
+#include <linux/kcmp.h>
+#include <sys/syscall.h>
+#endif
 
 /* A shared runtime cannot retain relocations to one generated library's
  * CAP globals. These are ABI constants, already emitted as TIL_CAP_* in
@@ -4428,13 +4432,65 @@ static int is_process_leader(pid_t tid) {
     return leader;
 }
 
-static U64 proc_tree_rss_bytes(pid_t pid) {
-    U64 total = proc_rss_bytes(pid);
+typedef struct {
+    pid_t pid;
+    U64 rss;
+} ProcRssSpace;
+
+typedef struct {
+    ProcRssSpace *spaces;
+    size_t count;
+    size_t cap;
+    U64 total;
+} ProcRssSample;
+
+static void proc_sample_rss(pid_t pid, ProcRssSample *sample) {
+    size_t i = 0;
+    while (i < sample->count) {
+        long same_vm = syscall(SYS_kcmp, pid, sample->spaces[i].pid,
+                               KCMP_VM, 0UL, 0UL);
+        if (same_vm == 0) return;
+        if (same_vm < 0) {
+            if (errno == EINTR) continue;
+            // Processes may exit while /proc is sampled. Remove a departed
+            // representative rather than counting its surviving sharer twice.
+            if (errno == ESRCH) {
+                if (proc_rss_bytes(sample->spaces[i].pid) == 0) {
+                    sample->total -= sample->spaces[i].rss;
+                    sample->spaces[i] = sample->spaces[--sample->count];
+                    continue;
+                }
+                if (proc_rss_bytes(pid) == 0) return;
+                continue;
+            }
+            perror("current_rss_bytes: kcmp(KCMP_VM)");
+            exit(1);
+        }
+        i++;
+    }
+    // Compare address spaces BEFORE reading RSS: a posix_spawn/vfork child
+    // may exec between those operations. Reading first could retain its large
+    // shared RSS and then mistake its new, independent address space for it.
+    U64 rss = proc_rss_bytes(pid);
+    if (rss == 0) return; // Exited, or a zombie with no address space.
+    if (sample->count == sample->cap) {
+        sample->cap = sample->cap ? sample->cap * 2 : 16;
+        sample->spaces = realloc(sample->spaces, sample->cap * sizeof(*sample->spaces));
+    }
+    sample->spaces[sample->count++] = (ProcRssSpace){pid, rss};
+    sample->total += rss;
+}
+
+static void proc_tree_rss_bytes(pid_t pid, ProcRssSample *sample) {
+    // CLONE_VM without CLONE_THREAD creates distinct process leaders sharing
+    // ONE address space (notably posix_spawn's pre-exec child). Tgid alone
+    // cannot deduplicate them. Still walk their children: those may have exec'd.
+    proc_sample_rss(pid, sample);
     char path[96];
     snprintf(path, sizeof(path), "/proc/%lld/task/%lld/children",
              (long long)pid, (long long)pid);
     FILE *f = fopen(path, "rb");
-    if (!f) return total;
+    if (!f) return;
     char buf[4096];
     size_t n = fread(buf, 1, sizeof(buf) - 1, f);
     fclose(f);
@@ -4447,17 +4503,20 @@ static U64 proc_tree_rss_bytes(pid_t pid) {
         long long child = strtoll(p, &end, 10);
         if (end == p) break;
         if (child > 0 && is_process_leader((pid_t)child)) {
-            total += proc_tree_rss_bytes((pid_t)child);
+            proc_tree_rss_bytes((pid_t)child, sample);
         }
         p = end;
     }
-    return total;
 }
 #endif  // __linux__
 
 U64 current_rss_bytes(I64 pid) {
 #if defined(__linux__)
-    return proc_tree_rss_bytes((pid_t)pid);
+    ProcRssSample sample = {0};
+    proc_tree_rss_bytes((pid_t)pid, &sample);
+    U64 total = sample.total;
+    free(sample.spaces);
+    return total;
 #else
     (void)pid;
     return 0;

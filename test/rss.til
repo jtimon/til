@@ -1,0 +1,7 @@
+mode script
+
+link_c("rss.c")
+
+rss_regression := ext_proc() {}
+rss_regression()
+println("RSS counts each address space once")
