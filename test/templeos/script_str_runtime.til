@@ -1,7 +1,7 @@
 mode script
 
-import("../src/std/file")
-import("../src/std/sys")
+import("../../src/std/file")
+import("../../src/std/sys")
 
 str_runtime_middle := func(s: Str) returns Str {
     return s.substr(1, 3).clone()

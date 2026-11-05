@@ -27,7 +27,7 @@
      a "" entry from the live typer scope.
 
      This also corrected a latent wrong panic check the golden
-     ~test/templeos_struct_runtime.expected~ had recorded: a ~Map.get~ on
+     ~test/templeos/templeos_struct_runtime.expected~ had recorded: a ~Map.get~ on
      a local built by ~.clone()~ was typed by the whole-body scan's
      suffix fallback as ~Array.get~, so its bang checked tag
      ~OutOfBounds~ instead of ~KeyNotFound~ -- a missing key would have

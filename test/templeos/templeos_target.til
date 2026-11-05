@@ -1,6 +1,6 @@
 mode cli
 
-import("../src/self/targets")
+import("../../src/self/targets")
 
 main := proc() {
     target := target_from_str("templeos")

@@ -1164,35 +1164,35 @@ main := proc(args: ..Str) returns I64 {
     // compiler/runtime. The first accepted subset is the fully lowered shape
     // of examples/hello_script.til. CLI output exposes a typed TilMain;
     // build still stops before looking for a host `holyc` executable.
-    add_single(tests, "holyc_hello_translate", "build", 0, "test/hello_templeos.expected",
+    add_single(tests, "holyc_hello_translate", "build", 0, "test/templeos/hello_templeos.expected",
         format(til_bin, " translate --target=templeos examples/hello_script.til '&&' cat gen/til/examples/hello_script.HC"))
-    add_single(tests, "holyc_fizzbuzz_translate", "build", 0, "test/fizzbuzz_templeos.expected",
+    add_single(tests, "holyc_fizzbuzz_translate", "build", 0, "test/templeos/fizzbuzz_templeos.expected",
         format(til_bin, " translate --target=templeos examples/fizzbuzz.til '&&' cat gen/til/examples/fizzbuzz.HC"))
-    add_single(tests, "holyc_imported_direct_calls_translate", "build", 0, "test/templeos_calls.expected",
+    add_single(tests, "holyc_imported_direct_calls_translate", "build", 0, "test/templeos/templeos_calls.expected",
         format(til_bin, " translate --target=templeos examples/templeos_calls.til '&&' cat gen/til/examples/templeos_calls.HC"))
-    add_single(tests, "holyc_scalar_semantics_translate", "build", 0, "test/templeos_scalars.expected",
+    add_single(tests, "holyc_scalar_semantics_translate", "build", 0, "test/templeos/templeos_scalars.expected",
         format(til_bin, " translate --target=templeos examples/templeos_scalars.til '&&' cat gen/til/examples/templeos_scalars.HC"))
-    add_single(tests, "holyc_shared_raw_alloc_translate", "build", 0, "test/templeos_raw_alloc.expected",
-        format(til_bin, " translate --target=templeos -c gen/c/templeos_raw_alloc.HC test/script_raw_alloc.til '&&' cat gen/c/templeos_raw_alloc.HC"))
-    add_single(tests, "holyc_shared_dynamic_free_translate", "build", 0, "test/templeos_dynamic_free.expected",
-        format(til_bin, " translate --target=templeos -c gen/c/templeos_dynamic_free.HC test/script_dynamic_free.til '&&' cat gen/c/templeos_dynamic_free.HC"))
-    add_single(tests, "holyc_shared_str_runtime_translate", "build", 0, "test/templeos_str_runtime.expected",
-        format(til_bin, " translate --target=templeos -c gen/c/templeos_str_runtime.HC test/script_str_runtime.til '&&' cat gen/c/templeos_str_runtime.HC"))
-    add_single(tests, "holyc_shared_struct_runtime_translate", "build", 0, "test/templeos_struct_runtime.expected",
-        format(til_bin, " translate --target=templeos -c gen/c/templeos_struct_runtime.HC test/script_struct_runtime.til '&&' cat gen/c/templeos_struct_runtime.HC"))
-    add_single(tests, "holyc_continue_translate", "build", 0, "test/holyc_continue.expected",
-        format(til_bin, " translate --target=templeos -c gen/c/holyc_continue.HC test/holyc_continue.til '&&' cat gen/c/holyc_continue.HC"))
-    add_single(tests, "holyc_f64_translate", "build", 0, "test/holyc_f64.expected",
-        format(til_bin, " translate --target=templeos -c gen/c/holyc_f64.HC test/holyc_f64.til '&&' cat gen/c/holyc_f64.HC"))
-    add_single(tests, "holyc_percent_is_data", "build", 0, "test/holyc_percent.expected",
-        format(til_bin, " translate --target=templeos -c gen/c/holyc_percent.HC test/holyc_percent.til '&&' cat gen/c/holyc_percent.HC"))
-    add_single(tests, "holyc_rejects_unsupported_mode", "build", 1, "test/holyc_mode.expected",
+    add_single(tests, "holyc_shared_raw_alloc_translate", "build", 0, "test/templeos/templeos_raw_alloc.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/templeos_raw_alloc.HC test/templeos/script_raw_alloc.til '&&' cat gen/c/templeos_raw_alloc.HC"))
+    add_single(tests, "holyc_shared_dynamic_free_translate", "build", 0, "test/templeos/templeos_dynamic_free.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/templeos_dynamic_free.HC test/templeos/script_dynamic_free.til '&&' cat gen/c/templeos_dynamic_free.HC"))
+    add_single(tests, "holyc_shared_str_runtime_translate", "build", 0, "test/templeos/templeos_str_runtime.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/templeos_str_runtime.HC test/templeos/script_str_runtime.til '&&' cat gen/c/templeos_str_runtime.HC"))
+    add_single(tests, "holyc_shared_struct_runtime_translate", "build", 0, "test/templeos/templeos_struct_runtime.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/templeos_struct_runtime.HC test/templeos/script_struct_runtime.til '&&' cat gen/c/templeos_struct_runtime.HC"))
+    add_single(tests, "holyc_continue_translate", "build", 0, "test/templeos/holyc_continue.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_continue.HC test/templeos/holyc_continue.til '&&' cat gen/c/holyc_continue.HC"))
+    add_single(tests, "holyc_f64_translate", "build", 0, "test/templeos/holyc_f64.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_f64.HC test/templeos/holyc_f64.til '&&' cat gen/c/holyc_f64.HC"))
+    add_single(tests, "holyc_percent_is_data", "build", 0, "test/templeos/holyc_percent.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_percent.HC test/templeos/holyc_percent.til '&&' cat gen/c/holyc_percent.HC"))
+    add_single(tests, "holyc_rejects_unsupported_mode", "build", 1, "test/templeos/holyc_mode.expected",
         format(til_bin, " translate --target=templeos -c gen/c/hello_pure.HC examples/hello_pure.til"))
-    add_single(tests, "holyc_external_declarations_translate", "build", 0, "test/holyc_shape.expected",
-        format(til_bin, " translate --target=templeos -c gen/c/holyc_shape.HC test/holyc_unsupported.til '&&' cat gen/c/holyc_shape.HC"))
-    add_single(tests, "holyc_counted_nul", "build", 0, "test/holyc_nul.expected",
-        format(til_bin, " translate --target=templeos -c gen/c/holyc_nul.HC test/holyc_nul.til '&&' cat gen/c/holyc_nul.HC"))
-    add_single(tests, "holyc_records_link_flags", "build", 0, "test/holyc_link.expected",
+    add_single(tests, "holyc_external_declarations_translate", "build", 0, "test/templeos/holyc_shape.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_shape.HC test/templeos/holyc_unsupported.til '&&' cat gen/c/holyc_shape.HC"))
+    add_single(tests, "holyc_counted_nul", "build", 0, "test/templeos/holyc_nul.expected",
+        format(til_bin, " translate --target=templeos -c gen/c/holyc_nul.HC test/templeos/holyc_nul.til '&&' cat gen/c/holyc_nul.HC"))
+    add_single(tests, "holyc_records_link_flags", "build", 0, "test/templeos/holyc_link.expected",
         format(til_bin, " translate --target=templeos -c gen/c/holyc_link.HC examples/hello_script.til -lunsupported '&&' cat gen/c/holyc_link.HC"))
     add_counts(tests, "holyc_cli_globals_translate", "build",
         format(til_bin, " translate --target=templeos -c gen/c/holyc_cli_globals.HC test/globals_cli.til '&&' cat gen/c/holyc_cli_globals.HC"),
@@ -1216,22 +1216,22 @@ main := proc(args: ..Str) returns I64 {
     add_count(tests, "holyc_checkers_translate", "build", "TilGuiDrawCircle(", 5,
         format(til_bin, " translate --target=templeos -c gen/c/checkers.HC examples/checkers.til '&&' cat gen/c/checkers.HC"))
     add_single(tests, "holyc_gui_shapes_translate", "build", 0, "",
-        format(til_bin, " translate --target=templeos -c gen/c/gui_shapes.HC test/gui_shapes.til"))
+        format(til_bin, " translate --target=templeos -c gen/c/gui_shapes.HC test/templeos/gui_shapes.til"))
     add_count(tests, "holyc_i32_divmod_interp", "build", "I32 divmod passed", 1,
-        format(til_bin, " interpret test/holyc_i32_divmod.til"))
+        format(til_bin, " interpret test/templeos/holyc_i32_divmod.til"))
     add_count(tests, "holyc_i32_divmod_compile", "build", "I32 divmod passed", 1,
-        format(til_bin, " run", asan_flag, " -o bin/c/holyc_i32_divmod -c gen/c/holyc_i32_divmod.c test/holyc_i32_divmod.til"))
+        format(til_bin, " run", asan_flag, " -o bin/c/holyc_i32_divmod -c gen/c/holyc_i32_divmod.c test/templeos/holyc_i32_divmod.til"))
     // Interpreter aggregates use the compiler host layout. Check its matching
     // width here; compiled C and HolyC exercise both target layouts below.
     add_count(tests, "holyc_terminal_model_support_interp", "build", "Terminal model support passed", 1,
-        format(til_bin, " interpret --usize=32 test/holyc_terminal_model_support.til"))
+        format(til_bin, " interpret --usize=32 test/templeos/holyc_terminal_model_support.til"))
     for bits : Str in array(Str, "32", "64") {
         add_count(tests, format("holyc_terminal_model_support_compile_", bits), "build", "Terminal model support passed", 1,
             format(til_bin, " run", asan_flag, " --usize=", bits, " -o bin/c/holyc_terminal_model_support_", bits,
-                " -c gen/c/holyc_terminal_model_support_", bits, ".c test/holyc_terminal_model_support.til"))
+                " -c gen/c/holyc_terminal_model_support_", bits, ".c test/templeos/holyc_terminal_model_support.til"))
         add_single(tests, format("holyc_terminal_model_support_translate_", bits), "build", 0, "",
             format(til_bin, " translate --target=templeos --usize=", bits,
-                " -c gen/c/holyc_terminal_model_support_", bits, ".HC test/holyc_terminal_model_support.til"))
+                " -c gen/c/holyc_terminal_model_support_", bits, ".HC test/templeos/holyc_terminal_model_support.til"))
     }
     for bits : Str in array(Str, "32", "64") {
         for fixture : Str in array(Str, "holyc_primitives", "holyc_float_primitives", "holyc_numeric_cast",
@@ -1242,7 +1242,7 @@ main := proc(args: ..Str) returns I64 {
             if fixture == "holyc_owned_primitives" { message = "Owned primitive calls passed" }
             if fixture == "holyc_hashmap" { message = "HolyC HashMap passed" }
             name := format(fixture, "_", bits)
-            source := format("test/", fixture, ".til")
+            source := format("test/templeos/", fixture, ".til")
             add_count(tests, format(name, "_interp"), "build", message, 1,
                 format(til_bin, " interpret --usize=", bits, " ", source))
             for opt : Str in array(Str, "0", "2") {
@@ -1256,7 +1256,7 @@ main := proc(args: ..Str) returns I64 {
                     " -c gen/c/", name, ".HC ", source))
         }
         add_count(tests,format("numeric_cast_failures_",bits),"build","Numeric cast failures passed",1,
-            format(til_bin," test/numeric_cast_errors.til ",bits, driver_asan_arg))
+            format(til_bin," test/templeos/numeric_cast_errors.til ",bits, driver_asan_arg))
     }
     add_counts(tests, "holyc_gui_keyboard_translate", "build",
         format(til_bin, " translate --target=templeos -c gen/c/gui_keyboard.HC examples/gui_keyboard.til '&&' cat gen/c/gui_keyboard.HC"),
@@ -1265,10 +1265,10 @@ main := proc(args: ..Str) returns I64 {
         CountCheck(needle = "TilGuiWindowShouldClose(", expected_count = 1),
         CountCheck(needle = "TYPE ASCII ($$)", expected_count = 1),
         CountCheck(needle = "#$$%&", expected_count = 1))
-    add_single(tests, "holyc_build_requires_guest", "build", 1, "test/holyc_build.expected",
+    add_single(tests, "holyc_build_requires_guest", "build", 1, "test/templeos/holyc_build.expected",
         format(til_bin, " build --target=templeos -c gen/c/hello_build.HC examples/hello_script.til"))
     add_single(tests, "templeos_target_width", "build", 0, "",
-        format(til_bin, " interpret test/templeos_target.til"))
+        format(til_bin, " interpret test/templeos/templeos_target.til"))
     // #379: needs_main modes require a proc entrypoint even when its body is
     // pure. Ordinary procs retain the existing purity diagnostic.
     add_single(tests, "entrypoint_no_proc_cli", "typer", 0, "",
@@ -2117,13 +2117,13 @@ main := proc(args: ..Str) returns I64 {
         add_count(tests, "gui_scissor_pixels", "build", "GUI scissor passed", 1,
             format(til_bin, " run -o bin/c/gui_scissor -c gen/c/gui_scissor.c examples/gui_scissor.til"))
         add_count(tests, "gui_keyboard_input", "build", "GUI keyboard acceptance passed", 1,
-            format(til_bin, " run -o bin/c/gui_keyboard_test -c gen/c/gui_keyboard_test.c test/gui_keyboard.til"))
+            format(til_bin, " run -o bin/c/gui_keyboard_test -c gen/c/gui_keyboard_test.c test/templeos/gui_keyboard.til"))
         add_count(tests, "gui_mouse_input", "build", "GUI mouse acceptance passed", 1,
-            format(til_bin, " run -o bin/c/gui_mouse_test -c gen/c/gui_mouse_test.c test/gui_mouse.til"))
+            format(til_bin, " run -o bin/c/gui_mouse_test -c gen/c/gui_mouse_test.c test/templeos/gui_mouse.til"))
         add_count(tests, "gui_shapes_pixels", "build", "GUI shapes passed", 1,
-            format(til_bin, " run -o bin/c/gui_shapes -c gen/c/gui_shapes.c test/gui_shapes.til"))
+            format(til_bin, " run -o bin/c/gui_shapes -c gen/c/gui_shapes.c test/templeos/gui_shapes.til"))
         add_count(tests, "gui_checkers_interaction", "build", "Checkers interaction passed", 1,
-            format(til_bin, " test/gui_checkers.til"))
+            format(til_bin, " test/templeos/gui_checkers.til"))
         for gf : Str in gui_files {
             bn := test_basename(gf)
             mut run_args := ""
@@ -3141,24 +3141,24 @@ main := proc(args: ..Str) returns I64 {
     // storage like the function-local form; as a value global the
     // memset/ptr_add writes ran past a one-byte object (ASAN:
     // global-buffer-overflow).
-    add_cli_pair(tests, "script_raw_alloc", "test/script_raw_alloc.til",
-        "", 0, format(exp, "script_raw_alloc.expected"), til_bin, asan_flag)
+    add_cli_pair(tests, "script_raw_alloc", "test/templeos/script_raw_alloc.til",
+        "", 0, format(exp, "templeos/script_raw_alloc.expected"), til_bin, asan_flag)
 
     // An owned Dynamic declared from an erased-dynamic source (a deref()
     // result bound by ref) must copy the pointer word; the interpreter's
     // clone path deref'd the raw allocation itself and later freed a
     // garbage word (interpreter-only segfault; compiled mode was correct).
-    add_cli_pair(tests, "script_dynamic_free", "test/script_dynamic_free.til",
-        "", 0, format(exp, "script_dynamic_free.expected"), til_bin, asan_flag)
+    add_cli_pair(tests, "script_dynamic_free", "test/templeos/script_dynamic_free.til",
+        "", 0, format(exp, "templeos/script_dynamic_free.expected"), til_bin, asan_flag)
 
     // The shared Str/filesystem script mutates one test directory. Keep its
     // interpreter and native run in one serial row rather than racing them.
-    add_both(tests, "test/script_str_runtime.til", format(" --til-bin ", til_bin, asan_flag))
+    add_both(tests, "test/templeos/script_str_runtime.til", format(" --til-bin ", til_bin, asan_flag))
 
     // Shared POD struct semantics used by HolyC: nested inline definitions,
     // constructor defaults/named args, scalar field mutation, and nested reads.
-    add_cli_pair(tests, "script_struct_runtime", "test/script_struct_runtime.til",
-        "", 0, format(exp, "script_struct_runtime.expected"), til_bin, asan_flag)
+    add_cli_pair(tests, "script_struct_runtime", "test/templeos/script_struct_runtime.til",
+        "", 0, format(exp, "templeos/script_struct_runtime.expected"), til_bin, asan_flag)
 
     // A `ref` ext_global binds a C POINTER variable and borrows through it:
     // the compiled program reads the variable on every use and the

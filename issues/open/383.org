@@ -79,6 +79,6 @@ explicitly rather than acquire silent substitutes.
   backends do not inherit C runtime reachability by accident.
 
   #151's pointer slice demonstrates the shared-test convention: HolyC runs the
-  existing ~test/script_raw_alloc.til~ and ~test/script_dynamic_free.til~
+  existing ~test/templeos/script_raw_alloc.til~ and ~test/templeos/script_dynamic_free.til~
   sources unchanged, adding only target translation goldens. New backends
   should prefer the same progression over copied backend-specific test bodies.

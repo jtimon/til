@@ -1,5 +1,5 @@
 mode script
-import("../src/std/hashmap")
+import("../../src/std/hashmap")
 
 take_value := func(T: Type, own value: T) returns T { return value }
 drop_value := func(T: Type, own value: T) { free(own value) }

@@ -29,4 +29,4 @@ Acceptance:
 - An ordinary proc with no proc/ext_proc calls still receives the existing
   diagnostic.
 - Remove the ~noop_proc()~ workaround marked ~TODO #379~ in
-  ~test/templeos_target.til~.
+  ~test/templeos/templeos_target.til~.

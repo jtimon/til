@@ -1,5 +1,5 @@
 mode lib
-import("../src/std/sys")
+import("../../src/std/sys")
 
 // Each checked failure runs as a separate host process. Compare exact source
 // diagnostics across interpretation and C O0/O2, then use the same transcript
@@ -12,14 +12,14 @@ numeric_cast_failure_output := proc(bits: Str, asan: Bool = true) returns Str {
             build := Cmd.new("bin/til", "build")
             if asan { build.arg("--asan") }
             build.args(format("--opt=",phase),format("--usize=",bits),
-                "-o",executable,"-c",format(executable,".c"),"test/holyc_cast_invalid.til")
+                "-o",executable,"-c",format(executable,".c"),"test/templeos/holyc_cast_invalid.til")
             build.run_checked()
         }
         mut transcript := ""
         for index in 0..31 {
             mut command := Cmd.new(executable,index.to_str())
             if phase == "interp" {
-                command = Cmd.new("bin/til","interpret",format("--usize=",bits),"test/holyc_cast_invalid.til",index.to_str())
+                command = Cmd.new("bin/til","interpret",format("--usize=",bits),"test/templeos/holyc_cast_invalid.til",index.to_str())
             }
             command.capture()
             status := command.run()

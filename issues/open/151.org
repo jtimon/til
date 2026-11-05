@@ -245,8 +245,8 @@
   HolyC expressions or ~Ext.HC~ entrypoints. Scalar arguments used as raw
   memory sources pass their address instead of being mistaken for pointers.
   ~TilReAlloc~ preserves bytes with TempleOS ~MSize~ and ~TilWritePtr~ owns
-  pointer-slot mutation. The existing ~test/script_raw_alloc.til~ and
-  ~test/script_dynamic_free.til~ sources now serve as HolyC translation
+  pointer-slot mutation. The existing ~test/templeos/script_raw_alloc.til~ and
+  ~test/templeos/script_dynamic_free.til~ sources now serve as HolyC translation
   fixtures without backend-specific source copies. Both ran under TempleOS
   5.03 and reported ~TILTEST:PASS~; a self-checking guest probe also covered
   calloc, overlap-safe memmove, memcmp, realloc, null tests, pointer equality,
@@ -259,7 +259,7 @@
   parsing/formatting, and counted output. The existing lowered one-element
   ~println~ scaffold now builds and writes a real Str instead of treating its
   contents as a TempleOS format string, so embedded NUL bytes and percent signs
-  remain data. ~test/script_str_runtime.til~ is shared unchanged by the
+  remain data. ~test/templeos/script_str_runtime.til~ is shared unchanged by the
   interpreter, C backend, and HolyC translation; TempleOS 5.03 compiled and ran
   it with ~TILTEST:PASS~. A guest self-check additionally covered clone buffer
   independence, view pointer identity, prefixed integer parsing, and I64_MIN
@@ -272,7 +272,7 @@
   caller-owned out parameter because TempleOS cannot return class values.
   Returning a literal converts its cap sentinel to a non-owning view, and
   deleting an owned parameter frees its payload but never its caller-owned
-  stack wrapper. The expanded shared ~test/script_str_runtime.til~ covers all
+  stack wrapper. The expanded shared ~test/templeos/script_str_runtime.til~ covers all
   of these paths; TempleOS 5.03 and a self-checking guest probe both reported
   ~TILTEST:PASS~.
 
@@ -290,7 +290,7 @@
   independent of source declaration order. Constructor calls recursively
   initialize caller-owned destinations, including nested constructors, without
   class returns or compound literals; scalar fields support nested reads and
-  direct assignment. ~test/script_struct_runtime.til~ is shared by the
+  direct assignment. ~test/templeos/script_struct_runtime.til~ is shared by the
   interpreter, C backend, and HolyC translation, and deliberately declares its
   outer struct before its inline dependency. TempleOS 5.03 compiled and ran it
   with ~TILTEST:PASS~; a self-checking guest probe verified every nested field.
@@ -301,7 +301,7 @@
   and field replacement initializes the new Str before deleting the old value.
   Struct parameters use pointers and struct returns use caller-owned out
   parameters, avoiding HolyC class-valued returns. The expanded shared
-  ~test/script_struct_runtime.til~ exercises dynamic managed-field construction,
+  ~test/templeos/script_struct_runtime.til~ exercises dynamic managed-field construction,
   function parameters, a non-folded struct return, clone independence, field
   replacement, and recursive deletion. The interpreter, C backend, and HolyC
   translation passed the shared test; TempleOS 5.03 compiled and ran the
@@ -313,7 +313,7 @@
   nested structs; ~eq~ and ~neq~ calls pass caller-owned values by pointer.
   Custom ~eq~ or ~cmp~ methods remain explicit unsupported shapes rather than
   being silently replaced with structural semantics. The expanded shared
-  ~test/script_struct_runtime.til~ covers equal and unequal nested POD and
+  ~test/templeos/script_struct_runtime.til~ covers equal and unequal nested POD and
   managed structs on the interpreter and C backend. TempleOS 5.03 compiled and
   ran the same generated program with ~TILTEST:PASS~.
 
@@ -327,7 +327,7 @@
   depend on HolyC's dense jump-table range. Payload enums and custom methods
   are rejected explicitly.
 
-  The shared ~test/script_struct_runtime.til~ covers all four tag widths,
+  The shared ~test/templeos/script_struct_runtime.til~ covers all four tag widths,
   inferred width, U32_MAX, U64 tags with identical low 32 bits, mutation,
   non-folded function returns, and single-evaluation/nested switches. Its
   U32_MAX case also exposed and fixes a shared interpreter tag-reader bug:
@@ -352,7 +352,7 @@
   size against HolyC sizeof. At this stage pointer/ref payloads and custom
   lifecycle methods remained explicit unsupported shapes.
 
-  The expanded ~test/script_struct_runtime.til~ checks independent managed
+  The expanded ~test/templeos/script_struct_runtime.til~ checks independent managed
   clones after mutation/deletion, U8 and I64 payloads, empty values, nested
   payloads and shadowing, multiple return paths, and mutable-parameter/payload
   replacement. Interpreter and generated C output match. TempleOS 5.03 under
@@ -382,7 +382,7 @@
   demotes a moved literal Str in an own field from CAP_LIT to CAP_VIEW: the
   characters remain static, while deleting the owned heap wrapper no longer
   leaks it.
-  The shared ~test/script_struct_runtime.til~ exercises these paths, including
+  The shared ~test/templeos/script_struct_runtime.til~ exercises these paths, including
   forwarding and self-referential classes, in the interpreter and C backend;
   TempleOS 5.03 under QEMU TCG produced the same 65 output lines and
   ~TILTEST:PASS~.
@@ -401,7 +401,7 @@
   both collection representations. Checked accesses set the shared error slot,
   and a tested out-of-bounds guest call throws with the expected message.
 
-  The expanded shared ~test/script_struct_runtime.til~ covers scalar, Str,
+  The expanded shared ~test/templeos/script_struct_runtime.til~ covers scalar, Str,
   struct, payload-enum and nested-Vec elements with host interpreter/compiled
   C parity. TempleOS 5.03 under QEMU TCG produced the same 80 output lines and
   ~TILTEST:PASS~. Dynamic/F64 elements and custom aggregate lifecycle remain
@@ -416,7 +416,7 @@
   Map overwrite, pre-sizing, clear, deep clone, and ownership-aware delete.
   Map values include scalar, Str, struct, and nested Vec types; specializations
   use the already-lowered storage field types, including nested type names.
-  The shared ~test/script_struct_runtime.til~ checks literals, mutations,
+  The shared ~test/templeos/script_struct_runtime.til~ checks literals, mutations,
   misses, overwrites, deep clone independence, pre-sizing, and nested values
   in the interpreter and compiled C. TempleOS 5.03 under QEMU TCG produced
   the same 102 output lines and ~TILTEST:PASS~. Aggregate keys and custom
@@ -433,7 +433,7 @@
   scalar and Str payloads. Custom enum comparators can override tag order.
   Aggregate insertion and duplicate Set disposal retain the shared ownership
   behavior, and borrowed enum keys use their concrete tag width. The expanded
-  shared ~test/script_struct_runtime.til~ exercises
+  shared ~test/templeos/script_struct_runtime.til~ exercises
   generated, nested, and custom comparisons on both Map and Set, including
   deep cloning, replacement, removal, and enum order. TempleOS 5.03 under
   QEMU TCG produced the same 118 output lines and ~TILTEST:PASS~.
@@ -444,7 +444,7 @@
   substring view cannot expose trailing bytes as part of the filename.
   Imported external declarations are not emitted as HolyC functions;
   unsupported external calls still fail explicitly. The shared
-  ~test/script_str_runtime.til~ now checks existing files and directories,
+  ~test/templeos/script_str_runtime.til~ now checks existing files and directories,
   absent files, and non-NUL-terminated views. It uses the existing
   ~src/self/codegen/ext.HC~ on the host and the injected ~/Home/Ext.HC~ in the
   guest. Interpreter and compiled C output match; TempleOS 5.03 under
@@ -456,7 +456,7 @@
   ordinary Str teardown. The path is copied from counted Str storage so
   substring views work, and unrepresentably large files and failed reads
   throw rather than returning partial or empty content. The shared
-  ~test/script_str_runtime.til~ reads the same ~ext.HC~ bytes on host and
+  ~test/templeos/script_str_runtime.til~ reads the same ~ext.HC~ bytes on host and
   guest, checking the prefix and byte count. Interpreter and compiled C
   output match; TempleOS 5.03 produced the same 15 lines and
   ~TILTEST:PASS~. A missing-file guest probe emitted
@@ -467,7 +467,7 @@
   call, while content is passed with its byte count, including embedded NULs.
   A zero result reports a failed write and throws with the path; the native
   whole-file operation needs no persistent handle. The shared
-  ~test/script_str_runtime.til~ writes a longer file, replaces it with
+  ~test/templeos/script_str_runtime.til~ writes a longer file, replaces it with
   three binary bytes, then writes an empty file and reads both results back.
   A parent-directory preflight preserves the host API's failure behavior:
   TempleOS ~FileWrite~ would otherwise create missing parent directories.
@@ -481,7 +481,7 @@
   existing ~cpath_is_file~ / ~cpath_is_dir~ primitives. The TempleOS
   ~FileFind~ wrapper now shares counted-path conversion among all three
   lookup operations and applies ~FUF_JUST_FILES~ or ~FUF_JUST_DIRS~ for
-  kind-specific queries. The shared ~test/script_str_runtime.til~ checks
+  kind-specific queries. The shared ~test/templeos/script_str_runtime.til~ checks
   file, directory, wrong-kind, missing, and substring-view paths through
   both public and primitive calls. Interpreter and compiled C output match;
   TempleOS 5.03 under QEMU TCG produced the same 24 lines and
@@ -489,8 +489,8 @@
 
 *** Milestone 1: reproducible guest validation and runtime ABI
 
-  ~make test_templeos~ builds and runs ~test/templeos.til~. Docker supplies
-  QEMU TCG, mtools, fdisk, curl, and Expect via ~test/templeos.Dockerfile~;
+  ~make test_templeos~ builds and runs ~test/templeos/templeos.til~. Docker supplies
+  QEMU TCG, mtools, fdisk, curl, and Expect via ~test/templeos/templeos.Dockerfile~;
   its Debian base is digest-pinned. The driver downloads TempleOS 5.03 and
   verifies SHA-256
   ~5d0fc944e5d89c155c0fc17c148646715bc1db6fa5750c0b913772cfec19ba26~.
@@ -499,7 +499,7 @@
   FAT32 disk with no retained guest files. There is no installed VM or
   dependency on the old session-local fixture.
 
-  ~test/templeos.HC~ frames counted output and distinguishes successful
+  ~test/templeos/templeos.HC~ frames counted output and distinguishes successful
   execution, Til panic, and compiler/native exceptions. The host requires
   exact output and the corresponding QEMU exit status. Expect owns and
   reaps QEMU synchronously; a hard deadline captures a screenshot and stops
@@ -547,7 +547,7 @@
   atomic replacement; it preserves raw .Z bytes and supports directory
   moves onto absent or empty destinations.
 
-  The shared ~test/script_str_runtime.til~ exercises the entire workflow,
+  The shared ~test/templeos/script_str_runtime.til~ exercises the entire workflow,
   including explicit and automatic teardown, cross-sector updates, short
   reads, multi-sector sparse gaps, directory moves, and cleanup. Its hosted
   interpreter and compiled run occupy one serial suite row so they cannot
@@ -605,7 +605,7 @@
   through the existing allocation, matching C, while Dynamic assignments keep
   pointer-transfer semantics. Raw write-through requires its live allocation;
   it does not silently manufacture storage after consumption. The shared
-  ~test/script_raw_alloc.til~ regression covers F32/F64/I64 values, borrowed
+  ~test/templeos/script_raw_alloc.til~ regression covers F32/F64/I64 values, borrowed
   RHSs, call results, local bindings, and explicit deallocation under ASAN.
 
   F32/F64 ~to_str~ and ~to_repr~ initialize owned Str values with the same
@@ -948,7 +948,7 @@
   368 bytes in three Mesa/LLVM driver allocations at context teardown. The
   compiler and the required hosted suite retain their ASAN checks. Native
   acceptance runs the same source on TempleOS 5.03 at USize 32 and 64 and is
-  included in the existing test/templeos.til matrix.
+  included in the existing test/templeos/templeos.til matrix.
   The clean hosted suite passes 473/473, including the raylib POC and clang
   validation. The two focused native POC cases pass at both USize widths;
   this small sprint did not rerun the entire guest regression matrix.
@@ -1017,7 +1017,7 @@
   and literal runtime-lookup paths. The translation regression covers both a
   Str literal and raw c_str; guest typing includes a dollar sign.
 
-  Hosted test/gui_keyboard.til drives raylib's registered GLFW callbacks through
+  Hosted test/templeos/gui_keyboard.til drives raylib's registered GLFW callbacks through
   a test-only C helper using the existing dependency. It checks initial, held,
   repeat and released states, queue consumption/order, frame expiry and exit
   policy. Native task-message checks cover those boundaries, physical key
@@ -1053,7 +1053,7 @@
   does not turn into a new GUI press on refocus. IsKeyReleased observes the
   transition for one frame, and genuine queued key/text events are retained.
 
-  gui_keyboard_focus_checks in test/templeos.til uses real QEMU input and a
+  gui_keyboard_focus_checks in test/templeos/templeos.til uses real QEMU input and a
   second native task: Shift+A loses focus while held, releases elsewhere, B
   stays held across refocus without becoming a GUI press, C is a fresh press,
   and D releases during a complete focus round-trip between polls. The original
@@ -1125,10 +1125,10 @@
   Mouse cell arithmetic exposed missing native I32 div/mod lowering. It now
   uses the signed division helpers and narrows the result, preserving signed
   truncation and the zero-divisor rule. Bool.to_str is also lowered with the
-  ordinary returned-string ownership convention. test/holyc_i32_divmod.til
+  ordinary returned-string ownership convention. test/templeos/holyc_i32_divmod.til
   checks runtime signed div/mod, zero divisors and both Boolean spellings.
 
-  Hosted test/gui_mouse.til drives raylib's GLFW callbacks. Native acceptance
+  Hosted test/templeos/gui_mouse.til drives raylib's GLFW callbacks. Native acceptance
   checks client coordinates, Vector2 ABI, holds/edges/chords, focus changes,
   same-frame taps, window-policy restoration and reopen. Real PS/2 injection
   clicks/drags both panes, checks selection pixels and calls the loaded module
@@ -1243,7 +1243,7 @@
   hardcoded U32, which had made the first USize64 native probe fail Str.get's
   bounds check. The shared frontend/ownership plan remains authoritative.
 
-  ~test/holyc_terminal_model_support.til~ permanently checks these language
+  ~test/templeos/holyc_terminal_model_support.til~ permanently checks these language
   paths without requiring another checkout: owned nested-field replacement,
   byte-reference reads/writes, signedness casts, embedded NUL/high bytes,
   multibyte/incomplete UTF-8, target-sized fields, single-evaluation switches,
@@ -1350,16 +1350,16 @@
   The existing 640x480 examples retain their one-to-one coordinate mapping.
   Native colors are quantized to the OS palette and text uses its bitmap font.
 
-  ~test/checkers_fixture.til~ instruments the actual example with a finite
+  ~test/templeos/checkers_fixture.til~ instruments the actual example with a finite
   loop and input/pixel checks. The same game and acceptance logic verify its
   initial board, the default depth-one AI move, switching to two-player mode,
   restart, selecting a red piece, making a legal move, and restarting again.
   Hosted input uses the existing GLFW callback test helpers; native input uses
   TempleOS mouse state/messages. The pointer is moved away before composited
-  board samples so the cursor cannot hide a piece. ~test/gui_checkers.til~ runs
-  the hosted case; ~test/templeos.til~ registers it at USize32/64.
+  board samples so the cursor cannot hide a piece. ~test/templeos/gui_checkers.til~ runs
+  the hosted case; ~test/templeos/templeos.til~ registers it at USize32/64.
 
-  ~test/gui_shapes.til~ separately checks transparent/partially transparent
+  ~test/templeos/gui_shapes.til~ separately checks transparent/partially transparent
   rectangles, circle fill/bounds/scissoring, and 14/20-pixel bitmap text through
   the same GUI calls on both systems. No additional public GUI API is needed.
 
@@ -1417,7 +1417,7 @@
     and binary/octal tokens consistently with compiled literals. HolyC also
     normalizes its literal spelling and escapes character-literal dollars.
 
-  ~test/holyc_primitives.til~ and ~test/holyc_float_primitives.til~ run through
+  ~test/templeos/holyc_primitives.til~ and ~test/templeos/holyc_float_primitives.til~ run through
   the interpreter, ASAN C at opt=0/2, and native TempleOS at USize32/64. They
   cover arithmetic/bounds, source methods, local catches, primitive allocation
   and deletion, byte/reference mutation, Boolean short-circuit/evaluation order,
@@ -1486,10 +1486,10 @@
   The operand is evaluated once; checked casts add no allocation, and the
   other numeric casts retain the same helper operations as their to_x forms.
 
-  ~test/holyc_numeric_cast.til~ covers integer-source widths, fractional and
+  ~test/templeos/holyc_numeric_cast.til~ covers integer-source widths, fractional and
   64-bit bounds, rounding, signed zero, float narrowing overflow, NaN/infinity,
   borrowed operands, explicit target-before-widening, aliases and single
-  evaluation. ~test/holyc_cast_invalid.til~ contains 31 failing cases, including
+  evaluation. ~test/templeos/holyc_cast_invalid.til~ contains 31 failing cases, including
   discarded direct casts and imported-source failures. The reference helper
   compares exact diagnostics from separate interpreter and ASAN C O0/O2
   processes. The native harness catches each panic outside Til source so the
@@ -1533,7 +1533,7 @@
     skipped old-value teardown because the unnamed FuncPtr type has no name.
     The shared lowering now retains callable cleanup even without a type name.
 
-  ~test/holyc_owned_primitives.til~ and ~test/holyc_hashmap.til~ are registered
+  ~test/templeos/holyc_owned_primitives.til~ and ~test/templeos/holyc_hashmap.til~ are registered
   for interpreter, ASAN C O0/O2, and HolyC translation at USize32/64. The native
   driver wraps the existing runtime allocators for these fixtures and requires
   zero outstanding allocations after source-frame cleanup. This covers owned
@@ -1561,7 +1561,7 @@
   The task worktree already has the existing ~til-templeos-test~ Docker image,
   ~tmp/templeos/TempleOS.ISO~ and FAT32 ~tmp/templeos/guest.raw~ used by the
   native tests. Use that prepared worktree for these commands. A fresh checkout
-  needs the setup at the start of ~test/templeos.til~ first.
+  needs the setup at the start of ~test/templeos/templeos.til~ first.
 
   Stop the VM before staging files. The test runner recreates ~guest.raw~ for
   each case, so it is test storage, not a place to keep personal files. Re-stage
@@ -1625,7 +1625,7 @@ HC
 
   The repository driver formats an isolated FAT32 data disk per case and
   boots the checksum-pinned live ISO. It injects the Linux-generated HolyC
-  file and ~test/templeos.HC~ as ~C:/Home/Once.HC~.
+  file and ~test/templeos/templeos.HC~ as ~C:/Home/Once.HC~.
   The runner mounts the data disk in the first user task and executes
   ~Once.HC~, which compiles and executes the generated file with ~ExeFile2~,
   catches exceptions, reports

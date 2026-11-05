@@ -11929,7 +11929,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g168_936, "uncaught throw 'OutOfBounds'", 28);
         TilStrArraySet(&_va_Array_g45_933, hoisted__U64_g167_935, &hoisted__Str_g168_936);
         TilStr hoisted__Str_g169_937;
-        TilStrInitLit(&hoisted__Str_g169_937, "test/script_struct_runtime.til:351:14", 37);
+        TilStrInitLit(&hoisted__Str_g169_937, "test/templeos/script_struct_runtime.til:351:14", 46);
         TilPanicParts(&_va_Array_g45_933, &hoisted__Str_g169_937);
     }
     U64 hoisted__U64_g577_938 = 1;
@@ -11949,7 +11949,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g173_947, "uncaught throw 'OutOfBounds'", 28);
         TilStrArraySet(&_va_Array_g46_944, hoisted__U64_g172_946, &hoisted__Str_g173_947);
         TilStr hoisted__Str_g174_948;
-        TilStrInitLit(&hoisted__Str_g174_948, "test/script_struct_runtime.til:352:14", 37);
+        TilStrInitLit(&hoisted__Str_g174_948, "test/templeos/script_struct_runtime.til:352:14", 46);
         TilPanicParts(&_va_Array_g46_944, &hoisted__Str_g174_948);
     }
     Array__I64 fixed_copy_949;
@@ -11973,7 +11973,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g178_962, "uncaught throw 'OutOfBounds'", 28);
         TilStrArraySet(&_va_Array_g47_959, hoisted__U64_g177_961, &hoisted__Str_g178_962);
         TilStr hoisted__Str_g179_963;
-        TilStrInitLit(&hoisted__Str_g179_963, "test/script_struct_runtime.til:355:22", 37);
+        TilStrInitLit(&hoisted__Str_g179_963, "test/templeos/script_struct_runtime.til:355:22", 46);
         TilPanicParts(&_va_Array_g47_959, &hoisted__Str_g179_963);
     }
     U64 hoisted__U64_g586_964 = 0;
@@ -11992,7 +11992,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g183_974, "uncaught throw 'OutOfBounds'", 28);
         TilStrArraySet(&_va_Array_g48_971, hoisted__U64_g182_973, &hoisted__Str_g183_974);
         TilStr hoisted__Str_g184_975;
-        TilStrInitLit(&hoisted__Str_g184_975, "test/script_struct_runtime.til:355:51", 37);
+        TilStrInitLit(&hoisted__Str_g184_975, "test/templeos/script_struct_runtime.til:355:51", 46);
         TilPanicParts(&_va_Array_g48_971, &hoisted__Str_g184_975);
     }
     U64 hoisted__U64_g589_976 = 3;
@@ -12032,7 +12032,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g188_997, "uncaught throw 'OutOfBounds'", 28);
         TilStrArraySet(&_va_Array_g49_994, hoisted__U64_g187_996, &hoisted__Str_g188_997);
         TilStr hoisted__Str_g189_998;
-        TilStrInitLit(&hoisted__Str_g189_998, "test/script_struct_runtime.til:358:60", 37);
+        TilStrInitLit(&hoisted__Str_g189_998, "test/templeos/script_struct_runtime.til:358:60", 46);
         TilPanicParts(&_va_Array_g49_994, &hoisted__Str_g189_998);
     }
     U64 hoisted__U64_g599_999 = 3;
@@ -12070,7 +12070,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g193_1018, "uncaught throw 'OutOfBounds'", 28);
         TilStrArraySet(&_va_Array_g50_1015, hoisted__U64_g192_1017, &hoisted__Str_g193_1018);
         TilStr hoisted__Str_g194_1019;
-        TilStrInitLit(&hoisted__Str_g194_1019, "test/script_struct_runtime.til:359:12", 37);
+        TilStrInitLit(&hoisted__Str_g194_1019, "test/templeos/script_struct_runtime.til:359:12", 46);
         TilPanicParts(&_va_Array_g50_1015, &hoisted__Str_g194_1019);
     }
     U64 hoisted__U64_g611_1020 = 1;
@@ -12089,7 +12089,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g198_1030, "uncaught throw 'OutOfBounds'", 28);
         TilStrArraySet(&_va_Array_g51_1027, hoisted__U64_g197_1029, &hoisted__Str_g198_1030);
         TilStr hoisted__Str_g199_1031;
-        TilStrInitLit(&hoisted__Str_g199_1031, "test/script_struct_runtime.til:360:19", 37);
+        TilStrInitLit(&hoisted__Str_g199_1031, "test/templeos/script_struct_runtime.til:360:19", 46);
         TilPanicParts(&_va_Array_g51_1027, &hoisted__Str_g199_1031);
     }
     U64 hoisted__U64_g614_1032 = 1;
@@ -12205,7 +12205,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g203_1093, "uncaught throw 'OutOfBounds'", 28);
         TilStrArraySet(&_va_Array_g52_1090, hoisted__U64_g202_1092, &hoisted__Str_g203_1093);
         TilStr hoisted__Str_g204_1094;
-        TilStrInitLit(&hoisted__Str_g204_1094, "test/script_struct_runtime.til:388:5", 36);
+        TilStrInitLit(&hoisted__Str_g204_1094, "test/templeos/script_struct_runtime.til:388:5", 45);
         TilPanicParts(&_va_Array_g52_1090, &hoisted__Str_g204_1094);
     }
     U64 hoisted__U64_g652_1095 = 1;
@@ -12496,7 +12496,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g214_1261, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g55_1258, hoisted__U64_g213_1260, &hoisted__Str_g214_1261);
         TilStr hoisted__Str_g215_1262;
-        TilStrInitLit(&hoisted__Str_g215_1262, "test/script_struct_runtime.til:466:64", 37);
+        TilStrInitLit(&hoisted__Str_g215_1262, "test/templeos/script_struct_runtime.til:466:64", 46);
         TilPanicParts(&_va_Array_g55_1258, &hoisted__Str_g215_1262);
     }
     U64 hoisted__U64_g748_1263 = 3;
@@ -12543,7 +12543,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g219_1287, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g56_1284, hoisted__U64_g218_1286, &hoisted__Str_g219_1287);
         TilStr hoisted__Str_g220_1288;
-        TilStrInitLit(&hoisted__Str_g220_1288, "test/script_struct_runtime.til:469:21", 37);
+        TilStrInitLit(&hoisted__Str_g220_1288, "test/templeos/script_struct_runtime.til:469:21", 46);
         TilPanicParts(&_va_Array_g56_1284, &hoisted__Str_g220_1288);
     }
     TilStr hoisted__Str_g762_1289;
@@ -12563,7 +12563,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g224_1299, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g57_1296, hoisted__U64_g223_1298, &hoisted__Str_g224_1299);
         TilStr hoisted__Str_g225_1300;
-        TilStrInitLit(&hoisted__Str_g225_1300, "test/script_struct_runtime.til:469:56", 37);
+        TilStrInitLit(&hoisted__Str_g225_1300, "test/templeos/script_struct_runtime.til:469:56", 46);
         TilPanicParts(&_va_Array_g57_1296, &hoisted__Str_g225_1300);
     }
     U64 hoisted__U64_g765_1301 = 3;
@@ -12810,7 +12810,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g260_1424, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g65_1421, hoisted__U64_g259_1423, &hoisted__Str_g260_1424);
         TilStr hoisted__Str_g261_1425;
-        TilStrInitLit(&hoisted__Str_g261_1425, "test/script_struct_runtime.til:507:20", 37);
+        TilStrInitLit(&hoisted__Str_g261_1425, "test/templeos/script_struct_runtime.til:507:20", 46);
         TilPanicParts(&_va_Array_g65_1421, &hoisted__Str_g261_1425);
     }
     I64 hoisted__I64_g823_1426 = 1;
@@ -12829,7 +12829,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g265_1436, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g66_1433, hoisted__U64_g264_1435, &hoisted__Str_g265_1436);
         TilStr hoisted__Str_g266_1437;
-        TilStrInitLit(&hoisted__Str_g266_1437, "test/script_struct_runtime.til:507:46", 37);
+        TilStrInitLit(&hoisted__Str_g266_1437, "test/templeos/script_struct_runtime.til:507:46", 46);
         TilPanicParts(&_va_Array_g66_1433, &hoisted__Str_g266_1437);
     }
     U64 hoisted__U64_g826_1438 = 3;
@@ -12918,7 +12918,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g273_1484, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g68_1481, hoisted__U64_g272_1483, &hoisted__Str_g273_1484);
         TilStr hoisted__Str_g274_1485;
-        TilStrInitLit(&hoisted__Str_g274_1485, "test/script_struct_runtime.til:521:5", 36);
+        TilStrInitLit(&hoisted__Str_g274_1485, "test/templeos/script_struct_runtime.til:521:5", 45);
         TilPanicParts(&_va_Array_g68_1481, &hoisted__Str_g274_1485);
     }
     U64 hoisted__U64_g854_1486 = 3;
@@ -12992,7 +12992,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g284_1524, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g71_1521, hoisted__U64_g283_1523, &hoisted__Str_g284_1524);
         TilStr hoisted__Str_g285_1525;
-        TilStrInitLit(&hoisted__Str_g285_1525, "test/script_struct_runtime.til:533:5", 36);
+        TilStrInitLit(&hoisted__Str_g285_1525, "test/templeos/script_struct_runtime.til:533:5", 45);
         TilPanicParts(&_va_Array_g71_1521, &hoisted__Str_g285_1525);
     }
     U64 hoisted__U64_g870_1526 = 1;
@@ -13037,7 +13037,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g289_1549, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g72_1546, hoisted__U64_g288_1548, &hoisted__Str_g289_1549);
         TilStr hoisted__Str_g290_1550;
-        TilStrInitLit(&hoisted__Str_g290_1550, "test/script_struct_runtime.til:539:23", 37);
+        TilStrInitLit(&hoisted__Str_g290_1550, "test/templeos/script_struct_runtime.til:539:23", 46);
         TilPanicParts(&_va_Array_g72_1546, &hoisted__Str_g290_1550);
     }
     U64 hoisted__U64_g882_1551 = 1;
@@ -13126,7 +13126,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g294_1592, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g73_1589, hoisted__U64_g293_1591, &hoisted__Str_g294_1592);
         TilStr hoisted__Str_g295_1593;
-        TilStrInitLit(&hoisted__Str_g295_1593, "test/script_struct_runtime.til:587:23", 37);
+        TilStrInitLit(&hoisted__Str_g295_1593, "test/templeos/script_struct_runtime.til:587:23", 46);
         TilPanicParts(&_va_Array_g73_1589, &hoisted__Str_g295_1593);
     }
     I64 hoisted__I64_g909_1594 = 1;
@@ -13148,7 +13148,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g299_1605, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g74_1602, hoisted__U64_g298_1604, &hoisted__Str_g299_1605);
         TilStr hoisted__Str_g300_1606;
-        TilStrInitLit(&hoisted__Str_g300_1606, "test/script_struct_runtime.til:588:24", 37);
+        TilStrInitLit(&hoisted__Str_g300_1606, "test/templeos/script_struct_runtime.til:588:24", 46);
         TilPanicParts(&_va_Array_g74_1602, &hoisted__Str_g300_1606);
     }
     U64 hoisted__U64_g913_1607 = 3;
@@ -13410,7 +13410,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g324_1735, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g81_1732, hoisted__U64_g323_1734, &hoisted__Str_g324_1735);
         TilStr hoisted__Str_g325_1736;
-        TilStrInitLit(&hoisted__Str_g325_1736, "test/script_struct_runtime.til:625:18", 37);
+        TilStrInitLit(&hoisted__Str_g325_1736, "test/templeos/script_struct_runtime.til:625:18", 46);
         TilPanicParts(&_va_Array_g81_1732, &hoisted__Str_g325_1736);
     }
     U64 hoisted__U64_g988_1737 = 3;
@@ -13488,7 +13488,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g335_1777, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g84_1774, hoisted__U64_g334_1776, &hoisted__Str_g335_1777);
         TilStr hoisted__Str_g336_1778;
-        TilStrInitLit(&hoisted__Str_g336_1778, "test/script_struct_runtime.til:637:21", 37);
+        TilStrInitLit(&hoisted__Str_g336_1778, "test/templeos/script_struct_runtime.til:637:21", 46);
         TilPanicParts(&_va_Array_g84_1774, &hoisted__Str_g336_1778);
     }
     U64 hoisted__U64_g1006_1779 = 1;
@@ -13569,7 +13569,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g348_1818, "uncaught throw 'KeyNotFound'", 28);
         TilStrArraySet(&_va_Array_g87_1815, hoisted__U64_g347_1817, &hoisted__Str_g348_1818);
         TilStr hoisted__Str_g349_1819;
-        TilStrInitLit(&hoisted__Str_g349_1819, "test/script_struct_runtime.til:654:21", 37);
+        TilStrInitLit(&hoisted__Str_g349_1819, "test/templeos/script_struct_runtime.til:654:21", 46);
         TilPanicParts(&_va_Array_g87_1815, &hoisted__Str_g349_1819);
     }
     U64 hoisted__U64_g1024_1820 = 1;
@@ -13711,7 +13711,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g353_1900, "uncaught throw 'OutOfBounds'", 28);
         TilStrArraySet(&_va_Array_g88_1897, hoisted__U64_g352_1899, &hoisted__Str_g353_1900);
         TilStr hoisted__Str_g354_1901;
-        TilStrInitLit(&hoisted__Str_g354_1901, "test/script_struct_runtime.til:711:5", 36);
+        TilStrInitLit(&hoisted__Str_g354_1901, "test/templeos/script_struct_runtime.til:711:5", 45);
         TilPanicParts(&_va_Array_g88_1897, &hoisted__Str_g354_1901);
     }
     U64 hoisted__U64_g1071_1902 = 1;
@@ -13744,7 +13744,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g358_1920, "uncaught throw 'OutOfBounds'", 28);
         TilStrArraySet(&_va_Array_g89_1917, hoisted__U64_g357_1919, &hoisted__Str_g358_1920);
         TilStr hoisted__Str_g359_1921;
-        TilStrInitLit(&hoisted__Str_g359_1921, "test/script_struct_runtime.til:715:5", 36);
+        TilStrInitLit(&hoisted__Str_g359_1921, "test/templeos/script_struct_runtime.til:715:5", 45);
         TilPanicParts(&_va_Array_g89_1917, &hoisted__Str_g359_1921);
     }
     U64 hoisted__U64_g1079_1922 = 1;
@@ -13790,7 +13790,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g365_1946, "uncaught throw 'CallableError'", 30);
         TilStrArraySet(&_va_Array_g90_1943, hoisted__U64_g364_1945, &hoisted__Str_g365_1946);
         TilStr hoisted__Str_g366_1947;
-        TilStrInitLit(&hoisted__Str_g366_1947, "test/script_struct_runtime.til:731:9", 36);
+        TilStrInitLit(&hoisted__Str_g366_1947, "test/templeos/script_struct_runtime.til:731:9", 45);
         TilPanicParts(&_va_Array_g90_1943, &hoisted__Str_g366_1947);
     }
     U64 hoisted__U64_g1090_1948 = 1;
@@ -14182,7 +14182,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g380_2175, "uncaught throw 'OutOfBounds'", 28);
         TilStrArraySet(&_va_Array_g93_2172, hoisted__U64_g379_2174, &hoisted__Str_g380_2175);
         TilStr hoisted__Str_g381_2176;
-        TilStrInitLit(&hoisted__Str_g381_2176, "test/script_struct_runtime.til:820:5", 36);
+        TilStrInitLit(&hoisted__Str_g381_2176, "test/templeos/script_struct_runtime.til:820:5", 45);
         TilPanicParts(&_va_Array_g93_2172, &hoisted__Str_g381_2176);
     }
     U64 hoisted__U64_g1214_2177 = 1;
@@ -14346,7 +14346,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g391_2265, "uncaught throw 'OutOfBounds'", 28);
         TilStrArraySet(&_va_Array_g96_2262, hoisted__U64_g390_2264, &hoisted__Str_g391_2265);
         TilStr hoisted__Str_g392_2266;
-        TilStrInitLit(&hoisted__Str_g392_2266, "test/script_struct_runtime.til:873:5", 36);
+        TilStrInitLit(&hoisted__Str_g392_2266, "test/templeos/script_struct_runtime.til:873:5", 45);
         TilPanicParts(&_va_Array_g96_2262, &hoisted__Str_g392_2266);
     }
     I64 *ref_value_2268 = ref_value_2257;
@@ -14376,7 +14376,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g396_2284, "uncaught throw 'OutOfBounds'", 28);
         TilStrArraySet(&_va_Array_g97_2281, hoisted__U64_g395_2283, &hoisted__Str_g396_2284);
         TilStr hoisted__Str_g397_2285;
-        TilStrInitLit(&hoisted__Str_g397_2285, "test/script_struct_runtime.til:877:5", 36);
+        TilStrInitLit(&hoisted__Str_g397_2285, "test/templeos/script_struct_runtime.til:877:5", 45);
         TilPanicParts(&_va_Array_g97_2281, &hoisted__Str_g397_2285);
     }
     I64 *ref_value_2287 = ref_value_2276;

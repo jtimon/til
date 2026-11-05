@@ -942,7 +942,7 @@
   ~test/fasm_native.til~ explicitly exercises the assembler and compares
   native exit results with interpretation and C execution. It runs the original
   ~examples/fizzbuzz.til~, ~examples/templeos_scalars.til~,
-  ~test/holyc_continue.til~ and ~test/scalar_control.til~ sources at both USize
+  ~test/templeos/holyc_continue.til~ and ~test/scalar_control.til~ sources at both USize
   widths, with bounded execution time for loop regressions. The scalar control
   file also runs in the ordinary interpreter/C suite. The same driver checks
   source/include freshness, no-op rebuilds and preserving a working assembler

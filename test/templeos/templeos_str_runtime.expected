@@ -1986,7 +1986,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g166_505, "could not create filesystem test directory", 42);
         TilStrArraySet(&_va_Array_g24_502, hoisted__U64_g165_504, &hoisted__Str_g166_505);
         TilStr hoisted__Str_g167_506;
-        TilStrInitLit(&hoisted__Str_g167_506, "test/script_str_runtime.til:126:27", 34);
+        TilStrInitLit(&hoisted__Str_g167_506, "test/templeos/script_str_runtime.til:126:27", 43);
         TilPanicParts(&_va_Array_g24_502, &hoisted__Str_g167_506);
     }
     File_remove(&fs_data_491);
@@ -2382,7 +2382,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g257_693, "could not create tree source", 28);
         TilStrArraySet(&_va_Array_g41_690, hoisted__U64_g256_692, &hoisted__Str_g257_693);
         TilStr hoisted__Str_g258_694;
-        TilStrInitLit(&hoisted__Str_g258_694, "test/script_str_runtime.til:203:29", 34);
+        TilStrInitLit(&hoisted__Str_g258_694, "test/templeos/script_str_runtime.til:203:29", 43);
         TilPanicParts(&_va_Array_g41_690, &hoisted__Str_g258_694);
     }
     I32 hoisted__I32_g762_695 = TilMakeDirs(&tree_dst_677);
@@ -2398,7 +2398,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g261_702, "could not create tree destination", 33);
         TilStrArraySet(&_va_Array_g42_699, hoisted__U64_g260_701, &hoisted__Str_g261_702);
         TilStr hoisted__Str_g262_703;
-        TilStrInitLit(&hoisted__Str_g262_703, "test/script_str_runtime.til:204:29", 34);
+        TilStrInitLit(&hoisted__Str_g262_703, "test/templeos/script_str_runtime.til:204:29", 43);
         TilPanicParts(&_va_Array_g42_699, &hoisted__Str_g262_703);
     }
     TilStr hoisted__Str_g765_704;
@@ -2676,7 +2676,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g317_830, "uncaught throw 'LanguageError'", 30);
         TilStrArraySet(&_va_Array_g50_827, hoisted__U64_g316_829, &hoisted__Str_g317_830);
         TilStr hoisted__Str_g318_831;
-        TilStrInitLit(&hoisted__Str_g318_831, "test/script_str_runtime.til:277:1", 33);
+        TilStrInitLit(&hoisted__Str_g318_831, "test/templeos/script_str_runtime.til:277:1", 42);
         TilPanicParts(&_va_Array_g50_827, &hoisted__Str_g318_831);
     }
     U64 hoisted__U64_g796_832 = 1;
@@ -2770,7 +2770,7 @@ I64 TilMain()
                         TilStrInitLit(&hoisted__Str_g330_874, "wrong loop guard", 16);
                         TilStrArraySet(&_va_Array_g51_871, hoisted__U64_g329_873, &hoisted__Str_g330_874);
                         TilStr hoisted__Str_g331_875;
-                        TilStrInitLit(&hoisted__Str_g331_875, "test/script_str_runtime.til:291:36", 34);
+                        TilStrInitLit(&hoisted__Str_g331_875, "test/templeos/script_str_runtime.til:291:36", 43);
                         TilPanicParts(&_va_Array_g51_871, &hoisted__Str_g331_875);
                     }
                     LanguageGuard_Delete(&guard_867, FALSE);
@@ -2831,7 +2831,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g342_901, "uncaught throw 'LanguageError'", 30);
         TilStrArraySet(&_va_Array_g52_898, hoisted__U64_g341_900, &hoisted__Str_g342_901);
         TilStr hoisted__Str_g343_902;
-        TilStrInitLit(&hoisted__Str_g343_902, "test/script_str_runtime.til:304:5", 33);
+        TilStrInitLit(&hoisted__Str_g343_902, "test/templeos/script_str_runtime.til:304:5", 42);
         TilPanicParts(&_va_Array_g52_898, &hoisted__Str_g343_902);
     }
     I64 hoisted__I64_g817_903 = 7;
@@ -2846,7 +2846,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g346_909, "wrong successful throwing return", 32);
         TilStrArraySet(&_va_Array_g53_906, hoisted__U64_g345_908, &hoisted__Str_g346_909);
         TilStr hoisted__Str_g347_910;
-        TilStrInitLit(&hoisted__Str_g347_910, "test/script_str_runtime.til:305:25", 34);
+        TilStrInitLit(&hoisted__Str_g347_910, "test/templeos/script_str_runtime.til:305:25", 43);
         TilPanicParts(&_va_Array_g53_906, &hoisted__Str_g347_910);
     }
     I64 hoisted__I64_g819_911 = -1;
@@ -2906,7 +2906,7 @@ I64 TilMain()
         TilStrInitLit(&hoisted__Str_g355_942, "uncaught throw 'LanguageError'", 30);
         TilStrArraySet(&_va_Array_g55_939, hoisted__U64_g354_941, &hoisted__Str_g355_942);
         TilStr hoisted__Str_g356_943;
-        TilStrInitLit(&hoisted__Str_g356_943, "test/script_str_runtime.til:315:5", 33);
+        TilStrInitLit(&hoisted__Str_g356_943, "test/templeos/script_str_runtime.til:315:5", 42);
         TilPanicParts(&_va_Array_g55_939, &hoisted__Str_g356_943);
     }
     Bool _m_Bool_g357_944 = FALSE;
@@ -3665,7 +3665,7 @@ I64 TilMain()
                 TilStrInitLit(&hoisted__Str_g534_1347, "F32 repr did not round-trip", 27);
                 TilStrArraySet(&_va_Array_g71_1344, hoisted__U64_g533_1346, &hoisted__Str_g534_1347);
                 TilStr hoisted__Str_g535_1348;
-                TilStrInitLit(&hoisted__Str_g535_1348, "test/script_str_runtime.til:409:62", 34);
+                TilStrInitLit(&hoisted__Str_g535_1348, "test/templeos/script_str_runtime.til:409:62", 43);
                 TilPanicParts(&_va_Array_g71_1344, &hoisted__Str_g535_1348);
             }
             Bool _m_Bool_g536_1349 = FALSE;
@@ -3693,7 +3693,7 @@ I64 TilMain()
                 TilStrInitLit(&hoisted__Str_g545_1360, "F64 repr did not round-trip", 27);
                 TilStrArraySet(&_va_Array_g72_1357, hoisted__U64_g544_1359, &hoisted__Str_g545_1360);
                 TilStr hoisted__Str_g546_1361;
-                TilStrInitLit(&hoisted__Str_g546_1361, "test/script_str_runtime.til:410:62", 34);
+                TilStrInitLit(&hoisted__Str_g546_1361, "test/templeos/script_str_runtime.til:410:62", 43);
                 TilPanicParts(&_va_Array_g72_1357, &hoisted__Str_g546_1361);
             }
         loop_continue_1306:

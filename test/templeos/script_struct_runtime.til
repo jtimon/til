@@ -1,5 +1,5 @@
 mode script
-import("../src/std/dyn_vec")
+import("../../src/std/dyn_vec")
 
 StructSegment := struct {
     start := StructPoint()

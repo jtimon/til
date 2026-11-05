@@ -1,6 +1,6 @@
 // Exercise the callbacks raylib installed using its existing GLFW dependency.
 #define GLFW_INCLUDE_NONE
-#include "../vendor/raylib/src/external/glfw/include/GLFW/glfw3.h"
+#include "../../vendor/raylib/src/external/glfw/include/GLFW/glfw3.h"
 #include <stdlib.h>
 
 void gui_mouse_move(int x, int y)

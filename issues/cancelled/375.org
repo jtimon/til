@@ -330,7 +330,7 @@ Found while auditing the JVM output for #326. At master ~a0a3c3b~,
 ~til run --target=jvm~ fails in javac for all six JVM fixtures --
 ~examples/hello_script.til~, ~test/jvm_scalar_smoke.til~,
 ~test/jvm_stage_d.til~, ~test/jvm_stage_e.til~, ~test/jvm_stage_f.til~ and
-~test/script_raw_alloc.til~ -- although Stages C-F below recorded verified
+~test/templeos/script_raw_alloc.til~ -- although Stages C-F below recorded verified
 JVM runs of them. The default suite cannot see it: its JVM rows translate
 and grep the generated Java but never invoke a JDK, which is the gap
 Stage G's ~make test_jvm~ is meant to close. Checked with javac 21.0.10 and

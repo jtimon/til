@@ -1,5 +1,5 @@
 mode cli
-import("../src/std/hashmap")
+import("../../src/std/hashmap")
 
 collision_hash := func(data: Dynamic, n: USize) returns U64 { return fnv1a(data,n).band(0) }
 hash_width := func(_: Dynamic, n: USize) returns U64 { return n.to_u64() }

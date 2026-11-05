@@ -134,7 +134,7 @@ other nng examples and ~check~'s error path. This is what is left
 between the nng twin fix and interpreted nng examples actually running.
 
 The suite never sees the shape: the tests that exercise ~ptr_add~
-interpreted (test/script_raw_alloc.til, test/eval_heap.til) type their
+interpreted (test/templeos/script_raw_alloc.til, test/eval_heap.til) type their
 buffers ~U8~ or go through EvalHeap -- none route a raw pointer through
 ~Dynamic~.
 

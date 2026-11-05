@@ -1,6 +1,6 @@
 mode cli
-import("../src/std/file")
-import("../src/std/sys")
+import("../../src/std/file")
+import("../../src/std/sys")
 import("checkers_fixture")
 
 main := proc() {

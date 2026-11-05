@@ -8,7 +8,7 @@ checkers_acceptance_source := func(game: Str) returns Str {
         .replace("        EndDrawing()", "        checkers_frame()")
         .replace("    CloseWindow()", "    checkers_finish()\n    CloseWindow()")
     return format(instrumented, "\n",
-        "link_c(\"../test/gui_mouse.c\")\n",
+        "link_c(\"../test/templeos/gui_mouse.c\")\n",
         "gui_mouse_move := ext_proc(shallow x: I32, shallow y: I32) {}\n",
         "gui_mouse_button := ext_proc(shallow button: I32, shallow action: I32) {}\n",
         "mut checkers_frames : I64 = 0\nmut checkers_stage : I64 = 0\n",

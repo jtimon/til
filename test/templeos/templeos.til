@@ -1,7 +1,7 @@
 mode cli
 
-import("../src/std/file")
-import("../src/std/sys")
+import("../../src/std/file")
+import("../../src/std/sys")
 import("checkers_fixture")
 import("numeric_cast_reference")
 
@@ -272,7 +272,7 @@ gui_mouse_input := func() returns Str {
 
 gui_mouse_checks := proc(identity: Str, bits: Str) {
     Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
-        "-c", format(WORK, "/TILTEST.HC"), "test/holyc_i32_divmod.til").run_checked()
+        "-c", format(WORK, "/TILTEST.HC"), "test/templeos/holyc_i32_divmod.til").run_checked()
     run_guest(identity, format("i32_divmod_", bits), "I32 divmod passed\n", "pass")
     Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
         "-c", format(WORK, "/TILTEST.HC"), "examples/gui_mouse.til").run_checked()
@@ -428,7 +428,7 @@ gui_checkers_checks := proc(identity: Str, bits: Str) {
         "Bool checkers_old_ac=AutoComplete(OFF); MsSet(0,0); TilMain; AutoComplete(checkers_old_ac);\n"))
     run_guest(identity, format("gui_checkers_", bits), "Checkers interaction passed\n", "pass")
     Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
-        "-c", format(WORK, "/TILTEST.HC"), "test/gui_shapes.til").run_checked()
+        "-c", format(WORK, "/TILTEST.HC"), "test/templeos/gui_shapes.til").run_checked()
     File.appendfile(format(WORK, "/TILTEST.HC"),
         "\nBool shapes_old_ac=AutoComplete(OFF); MsSet(0,0); TilMain; AutoComplete(shapes_old_ac);\n")
     run_guest(identity, format("gui_shapes_", bits), "GUI shapes passed\n", "pass")
@@ -436,11 +436,11 @@ gui_checkers_checks := proc(identity: Str, bits: Str) {
 
 numeric_cast_checks := proc(identity: Str, bits: Str) {
     Cmd.new("bin/til","translate","--target=templeos",format("--usize=",bits),
-        "-c",format(WORK,"/TILTEST.HC"),"test/holyc_numeric_cast.til").run_checked()
+        "-c",format(WORK,"/TILTEST.HC"),"test/templeos/holyc_numeric_cast.til").run_checked()
     run_guest(identity,format("numeric_cast_",bits),"HolyC numeric casts passed\n","pass")
     expected := numeric_cast_failure_output(bits)
     Cmd.new("bin/til","translate","--target=templeos",format("--usize=",bits),
-        "-c",format(WORK,"/TILTEST.HC"),"test/holyc_cast_invalid.til").run_checked()
+        "-c",format(WORK,"/TILTEST.HC"),"test/templeos/holyc_cast_invalid.til").run_checked()
     // Catch each test panic at the native harness boundary, not in Til source.
     // This keeps the full invalid-cast matrix in one VM and checks its exact
     // transcript against separate interpreter/C processes.
@@ -464,7 +464,7 @@ owned_collection_checks := proc(identity: Str, bits: Str) {
     File.writefile(format(WORK, "/Ext.HC"), ledger)
     for fixture : Str in array(Str, "holyc_owned_primitives", "holyc_hashmap") {
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
-            "-c", format(WORK, "/TILTEST.HC"), format("test/", fixture, ".til")).run_checked()
+            "-c", format(WORK, "/TILTEST.HC"), format("test/templeos/", fixture, ".til")).run_checked()
         program := File.readfile(format(WORK, "/TILTEST.HC"))
         File.writefile(format(WORK, "/TILTEST.HC"), program.replace("\nTilMain;\n", "\n"))
         File.appendfile(format(WORK, "/TILTEST.HC"),
@@ -481,23 +481,23 @@ main := proc() {
     uid := captured(Cmd.new("id", "-u")).replace("\n", "")
     gid := captured(Cmd.new("id", "-g")).replace("\n", "")
     identity := format(uid, ":", gid)
-    Cmd.new("docker", "build", "-f", "test/templeos.Dockerfile", "-t", IMAGE, "test").run_checked()
+    Cmd.new("docker", "build", "-f", "test/templeos/templeos.Dockerfile", "-t", IMAGE, "test/templeos").run_checked()
     container(identity, "curl", "--fail", "--location", "--connect-timeout", "30", "--max-time", "180", "--retry", "3",
         "-o", "TempleOS.ISO", ISO_URL).run_checked()
     digest := captured(container(identity, "sha256sum", "TempleOS.ISO"))
     if digest.starts_with(ISO_SHA).not() { panic("TempleOS ISO checksum mismatch: ", digest) }
-    File.writefile(format(WORK, "/Once.HC"), File.readfile("test/templeos.HC"))
+    File.writefile(format(WORK, "/Once.HC"), File.readfile("test/templeos/templeos.HC"))
     File.writefile(format(WORK, "/Ext.HC"), File.readfile("src/self/codegen/ext.HC"))
 
     sources := array(Str, "examples/hello_script.til", "examples/fizzbuzz.til",
         "examples/templeos_calls.til", "examples/templeos_scalars.til",
-        "test/script_raw_alloc.til", "test/script_dynamic_free.til",
-        "test/script_str_runtime.til", "test/script_struct_runtime.til",
-        "test/holyc_f64.til", "test/holyc_continue.til",
-        "test/holyc_primitives.til", "test/holyc_float_primitives.til")
+        "test/templeos/script_raw_alloc.til", "test/templeos/script_dynamic_free.til",
+        "test/templeos/script_str_runtime.til", "test/templeos/script_struct_runtime.til",
+        "test/templeos/holyc_f64.til", "test/templeos/holyc_continue.til",
+        "test/templeos/holyc_primitives.til", "test/templeos/holyc_float_primitives.til")
     goldens := array(Str, "", "test/fizzbuzz.expected", "", "",
-        "test/script_raw_alloc.expected", "test/script_dynamic_free.expected",
-        "test/script_str_runtime.expected", "test/script_struct_runtime.expected", "", "", "", "")
+        "test/templeos/script_raw_alloc.expected", "test/templeos/script_dynamic_free.expected",
+        "test/templeos/script_str_runtime.expected", "test/templeos/script_struct_runtime.expected", "", "", "", "")
     for bits : Str in array(Str, "32", "64") {
         for i, source in sources {
             host := Cmd.new("timeout", "120", "bin/til", "interpret", format("--usize=", bits), source)
@@ -515,7 +515,7 @@ main := proc() {
         numeric_cast_checks(identity,bits)
         owned_collection_checks(identity, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
-            "-c", format(WORK, "/TILTEST.HC"), "test/holyc_terminal_model_support.til").run_checked()
+            "-c", format(WORK, "/TILTEST.HC"), "test/templeos/holyc_terminal_model_support.til").run_checked()
         run_guest(identity, format("terminal_model_support_", bits), "Terminal model support passed\n", "pass")
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), "test/globals_cli.til").run_checked()
@@ -555,7 +555,7 @@ main := proc() {
         gui_middle_checks(identity, bits)
         gui_checkers_checks(identity, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
-            "-c", format(WORK, "/TILTEST.HC"), "test/script_str_runtime.til").run_checked()
+            "-c", format(WORK, "/TILTEST.HC"), "test/templeos/script_str_runtime.til").run_checked()
         redsea_program := File.readfile(format(WORK, "/TILTEST.HC"))
         redsea_setup := format(
             "TilStr ext_path,ext_bytes; TilStrInitLit(&ext_path,\"Ext.HC\",6); TilFileRead(&ext_bytes,&ext_path);\n",
@@ -563,7 +563,7 @@ main := proc() {
             "if (Fs->cur_dv->fs_type!=FSt_REDSEA) TilPanicZ(\"RedSea format failed\\n\");\n",
             "TilFileWrite(&ext_path,&ext_bytes); TilStrDelete(&ext_bytes,FALSE);\nTilMain;\n")
         File.writefile(format(WORK, "/TILTEST.HC"), redsea_program.replace("\nTilMain;\n", format("\n", redsea_setup)))
-        run_guest(identity, format("redsea_filesystem_", bits), File.readfile("test/script_str_runtime.expected"), "pass")
+        run_guest(identity, format("redsea_filesystem_", bits), File.readfile("test/templeos/script_str_runtime.expected"), "pass")
         File.writefile(format(WORK, "/boundary.til"), "mode script\nprintln(\"boundary checks\")\n")
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), format(WORK, "/boundary.til")).run_checked()

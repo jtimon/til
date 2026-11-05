@@ -908,7 +908,7 @@ run_test_templeos := proc(mut b: Build) {
     if b.begin("test_templeos").not() { return }
     build_til(b)
     if mkdir_p("tmp/templeos") != 0 { panic("could not create TempleOS test directory") }
-    run(TIL, "run", "-o", "tmp/templeos/runner", "-c", "tmp/templeos/runner.c", "test/templeos.til")
+    run(TIL, "run", "-o", "tmp/templeos/runner", "-c", "tmp/templeos/runner.c", "test/templeos/templeos.til")
 }
 
 /// doc/gen/ and the UML outputs. On demand: doc generation over
