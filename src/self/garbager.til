@@ -2524,11 +2524,22 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
     return edges
 }
 
-priv propagate_borrow_edges := func(edges: Vec(GcBorrowEdge), mut locals: Vec(LocalInfo)) {
+// #484: at program scope a binding the pass never deletes -- a global, or
+// a desugarer temp like _va_Array -- and never hands off lives until the
+// program ends, not until its last textual use in this body: a function
+// body or a later REPL turn can still read it. An owner it borrows from
+// (a hoisted format() result behind a stored trim() view) must outlive it,
+// so it is never deleted either. Tracked beside the reaches, not as a
+// reach: last_use stays textual for the use-after-transfer check.
+priv propagate_borrow_edges := func(edges: Vec(GcBorrowEdge), mut locals: Vec(LocalInfo), is_program_scope: Bool) {
     // Include nested reference nodes as well as owning locals, so a borrow
     // rebound through an inner block can keep its outer owner alive later.
     mut reaches := Map(Str, I64).new()
-    for local : LocalInfo in locals { reaches.set(local.name, own local.last_use.clone()) }
+    mut forever := Set(Str).new()
+    for local : LocalInfo in locals {
+        reaches.set(local.name, own local.last_use.clone())
+        if is_program_scope.and(local.skip_scope_delete).and(local.has_transfer.not()) { forever.add(own local.name.clone()) }
+    }
     mut changed := true
     while changed {
         changed = false
@@ -2539,15 +2550,22 @@ priv propagate_borrow_edges := func(edges: Vec(GcBorrowEdge), mut locals: Vec(Lo
                 reaches.set(e.owner, own reach.clone())
                 changed = true
             }
+            if forever.has(e.borrower).and(forever.has(e.owner).not()) {
+                forever.add(own e.owner.clone())
+                changed = true
+            }
         }
     }
-    for mut local : LocalInfo in locals { local.last_use = reaches[local.name] }
+    for mut local : LocalInfo in locals {
+        local.last_use = reaches[local.name]
+        if forever.has(local.name) { local.skip_scope_delete = true }
+    }
 }
 
 priv extend_ref_local_lifetimes := proc(body: Expr, mut locals: Vec(LocalInfo), scope: TypeScope, facts: BodyFacts, fi: FactIndex, mut ctx: Context) {
     edges := collect_borrow_edges(body, scope, facts, fi, ctx.symbols, ctx)
     if edges.len() == 0 { return }
-    propagate_borrow_edges(edges, locals)
+    propagate_borrow_edges(edges, locals, scope.parent.is_none())
     for i in 0..body.children.len() {
         ref stmt : Expr = body.children[i]
         switch stmt.node_type {
@@ -2647,7 +2665,7 @@ priv extend_hoist_view_lifetimes := func(body: Expr, mut locals: Vec(LocalInfo),
         }
         if view_last >= 0 { gc_add_borrow_edge(edges, local.name, "", view_last) }
     }
-    propagate_borrow_edges(edges, locals)
+    propagate_borrow_edges(edges, locals, false)
 }
 
 // A while body that can transfer `name` on an iteration -- i.e. the
