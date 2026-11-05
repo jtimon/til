@@ -30,17 +30,18 @@ expect_newer := proc(path: Str, before: I64, why: Str) {
     if mtime(path) <= before { panic(why, ": ", path, " was not rewritten") }
 }
 
-// mtimes have whole-second granularity, and #442 treats an input as new as
-// its output as newer. A rebuild must land in a later second to show, and
-// an edit is followed by a second so the rebuild it causes is settled.
-next_second := proc() {
-    sleep_ms(1100)
+// file_mtime has sub-second resolution, but writes take their mtime from a
+// coarse kernel clock, and #442 treats an input as new as its output as
+// newer. A short pause puts an edit in a later tick than the outputs around
+// it, so the rebuild it causes is settled before the next comparison.
+next_tick := proc() {
+    sleep_ms(50)
 }
 
 edit := proc(path: Str, content: Str) {
-    next_second()
+    next_tick()
     File.writefile(path, content)
-    next_second()
+    next_tick()
 }
 
 main := proc(args: ..Str) {
@@ -69,7 +70,7 @@ main := proc(args: ..Str) {
     File.writefile(format(WORK, "/deps/probe.h"), "#define PROBE 1\n")
     // Make every later output strictly newer than its .til dependencies, so
     // the old timestamp shortcut really would take the wrong fast path.
-    sleep_ms(1100)
+    next_tick()
 
     check_command(Cmd.new(compiler, "run", "foo/main.til"), "first406\n")
     check_command(Cmd.new(compiler, "run", "bar/main.til"), "second406\n")
@@ -145,16 +146,16 @@ main := proc(args: ..Str) {
     check_command(Cmd.new(compiler, "run", "linked.til"), "29\n")
     expect_same("gen/til/linked.c", linked_c, "link_c edit retranslated")
 
-    // #442: an identical second invocation reuses the C and the executable.
-    // The first build may compile in the second its C was written, which
-    // costs one recompile; settle that before comparing.
+    // #442: an identical second invocation reuses the C and the executable,
+    // run straight after the first: nanosecond mtimes order an output and
+    // the inputs written within the same second.
     deps_bin := format("bin/deps/main", ext)
-    check_command(Cmd.new(compiler, "run", "deps/main.til"), "direct1-transitive1 1\n")
-    next_second()
     check_command(Cmd.new(compiler, "run", "deps/main.til"), "direct1-transitive1 1\n")
     mut c_time := mtime("gen/til/deps/main.c")
     mut bin_time := mtime(deps_bin)
-    next_second()
+    if c_time % 1000000000 == 0 && bin_time % 1000000000 == 0 {
+        panic("file_mtime lost sub-second resolution")
+    }
     check_command(Cmd.new(compiler, "run", "deps/main.til"), "direct1-transitive1 1\n")
     check_command(Cmd.new(compiler, "build", "deps/main.til"), "")
     check_command(Cmd.new(compiler, "translate", "deps/main.til"),
@@ -198,12 +199,12 @@ main := proc(args: ..Str) {
 
     // An option stamps the phase it shapes (#442): --opt the executable
     // only, --usize the translation too.
-    next_second()
+    next_tick()
     check_command(Cmd.new(compiler, "run", "--opt=2", "deps/main.til"), "direct2-transitive2 2\n")
     expect_same("gen/til/deps/main.c", c_time, "--opt retranslated")
     expect_newer(deps_bin, bin_time, "--opt")
     bin_time = mtime(deps_bin)
-    next_second()
+    next_tick()
     check_command(Cmd.new(compiler, "run", "--usize=64", "deps/main.til"), "direct2-transitive2 2\n")
     expect_newer("gen/til/deps/main.c", c_time, "--usize")
     expect_newer(deps_bin, bin_time, "--usize")
@@ -212,15 +213,29 @@ main := proc(args: ..Str) {
     // A translation that does not end in its stamp (an interrupted one, or
     // a file someone else wrote) is regenerated, however new it is.
     c_text := File.readfile(format(WORK, "/gen/til/deps/main.c"))
-    next_second()
+    next_tick()
     File.writefile(format(WORK, "/gen/til/deps/main.c"), c_text.substr(0, c_text.len() / 2))
     check_command(Cmd.new(compiler, "run", "--usize=64", "deps/main.til"), "direct2-transitive2 2\n")
     expect_newer("gen/til/deps/main.c", c_time, "truncated translation")
     c_time = mtime("gen/til/deps/main.c")
     bin_time = mtime(deps_bin)
 
+    // TIL_GC_AUDIT prints while translating, so an audited translation is
+    // never reused: the second identical command must print the dump too.
+    for attempt in 0..2 {
+        audit := Cmd.new(compiler, "translate", "deps/main.til")
+        audit.env("TIL_GC_AUDIT", "deps/main.til")
+        audit.cwd(WORK)
+        audit.capture()
+        if audit.run() != 0 { panic(audit.render(), ": ", audit.out(), audit.err()) }
+        if format(audit.out(), audit.err()).contains("GC-CFG body").not() {
+            panic("TIL_GC_AUDIT translation ", attempt.to_str(), " printed no audit: ", audit.out(), audit.err())
+        }
+    }
+    c_time = mtime("gen/til/deps/main.c")
+
     // --force-rebuild regenerates both phases with nothing changed.
-    next_second()
+    next_tick()
     check_command(Cmd.new(compiler, "run", "--force-rebuild", "--usize=64", "deps/main.til"), "direct2-transitive2 2\n")
     expect_newer("gen/til/deps/main.c", c_time, "--force-rebuild")
     expect_newer(deps_bin, bin_time, "--force-rebuild")

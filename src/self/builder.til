@@ -1116,10 +1116,12 @@ priv build_program := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str,
 // not keep (an Emscripten bundle may drop the unreferenced constant) is
 // simply rebuilt.
 //
-// mtimes are whole seconds, so an input as new as the output counts as
+// file_mtime has the file system's resolution (nanoseconds), but the kernel
+// stamps writes from a coarse clock, so two writes a few milliseconds apart
+// can share one mtime. An input as new as its output therefore counts as
 // newer (stricter than make.til's needs_rebuild): a source rewritten in the
-// same second as the output it invalidates must not look current. The cost
-// is one extra rebuild of an output written in the same second as an input.
+// same tick as the output it invalidates must not look current. The cost
+// is one extra rebuild of an output written in the same tick as an input.
 
 // A VALUE macro puts the emitted bytes outside what mtimes can prove: its
 // body runs at translate time, procs included -- the compiler's own
@@ -1295,7 +1297,8 @@ priv executable_stamp_marker := func(stamp: Str) returns Str {
 // Decide whether this invocation's outputs may be reused, and if so record
 // what produces them in lp.translation_stamp / lp.executable_stamp. Only
 // C-backend executables are reused; libraries, themes, other backends and
-// `test` always regenerate, and so does a program declaring a value macro.
+// `test` always regenerate, and so does a program declaring a value macro
+// or a translation under TIL_GC_AUDIT.
 // Runs before prepare_program: the stamps describe the loaded program.
 set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str,
     target: Target, backend: Str, cc_override: Str, asan: Bool, prof: Bool) {
@@ -1308,6 +1311,9 @@ set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, c
     // older than the outputs.
     if compiler.len() == 0 { return }
     if program_declares_value_macro(lp) { return }
+    // The garbager's decision audit prints while translating: a reused
+    // translation would print nothing.
+    if get_env("TIL_GC_AUDIT").len() > 0 { return }
     paths := reuse_paths(lp, command, custom_bin, custom_c, target)
     mut translation := Vec(Str).new()
     translation.push(own "translation")
@@ -1320,8 +1326,6 @@ set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, c
     translation.push(own lp.cptr32.to_str())
     translation.push(own lp.cpu.name.clone())
     translation.push(own lp.ctx.check_unused_imports.to_str())
-    // The garbager's decision audit prints while translating.
-    translation.push(own get_env("TIL_GC_AUDIT"))
     for unit_path : Str in lp.unit_paths() { translation.push(own realpath_str(unit_path)) }
     for mode_file : Str in lp.mode_files { translation.push(own realpath_str(mode_file)) }
     lp.translation_stamp = stamp_of(translation)

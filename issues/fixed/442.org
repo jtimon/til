@@ -16,8 +16,8 @@ C-backend executables. The emitted C and its forward header are current
 when strictly newer than every loaded unit, mode file and the compiler
 binary, and the C ends with this invocation's translation stamp: a hash
 of the compiler revision and executable, the canonical source, the C
-path, target, ~--usize~ layout, ~--cpu~ profile, unused-import checking,
-~TIL_GC_AUDIT~ and every loaded unit. The builder appends it only after a
+path, target, ~--usize~ layout, ~--cpu~ profile, unused-import checking
+and every loaded unit. The builder appends it only after a
 translation succeeded, so an interrupted or foreign file never matches.
 The executable is current when strictly newer than that C, the C runtime,
 link_c sources, the headers they include (quoted beside the file or under
@@ -28,10 +28,13 @@ flags, link, include and framework flags, link_c files and GUI linking.
 The compile passes it as ~-DTIL_BUILD_STAMP~ and ext.c keeps it as the
 ~til_build_stamp~ constant, which the check finds by scanning the file.
 A current translation skips preparation and emission; a stale executable
-is compiled from it. Whole-second mtimes, so an input as new as its
-output counts as newer. Programs declaring a value macro (the compiler's
-git revision and the like), libraries, themes, MLIR/FASM and ~test~
-always regenerate. ~--force-rebuild~ bypasses reuse again.
+is compiled from it. ~file_mtime~ reports nanoseconds (it was whole
+seconds, which cost a rebuild for any output written in its input's
+second); an input as new as its output, one coarse kernel clock tick,
+still counts as newer. Programs declaring a value macro (the compiler's
+git revision and the like), translations under ~TIL_GC_AUDIT~ (a reused
+one would print no dump), libraries, themes, MLIR/FASM and ~test~ always
+regenerate. ~--force-rebuild~ bypasses reuse again.
 
 Regression: test/build_outputs.til (suite row ~build_outputs~) keeps
 #406's shared-path, overwritten-output, USize, C-compiler and link_c
@@ -40,7 +43,9 @@ invocation leaving C and executable mtimes unchanged, a link_c edit and
 an included-header edit recompiling without retranslating, direct and
 transitive import edits with the target source untouched, a missing
 executable, ~--opt~ (executable only) and ~--usize~ (both phases), a
-truncated translation and ~--force-rebuild~. Measured: ~run hello.til~
+truncated translation, a repeated ~TIL_GC_AUDIT~ translation still
+printing its dump, sub-second ~file_mtime~ values, and ~--force-rebuild~.
+Measured: ~run hello.til~
 0.90s cold, 0.03s repeated; ~run test/strings.til~ 1.3-1.6s cold, 0.05s
 repeated (reading the stamps costs about 0.02s over timestamps alone);
 ~translate src/til.til~ 28s, always regenerated (value macro).
