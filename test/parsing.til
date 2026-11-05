@@ -37,6 +37,36 @@ test_builtin_primitive_name_dispatch := test() {
     assert(builtin_primitive_from_name("Dynamic", out).not())
 }
 
+test_symbol_pool_collision_wrap_and_growth := test() {
+    mut symbols := SymbolPool()
+    assert(symbols.lookup("wrap_symbol_2121").is_none())
+    // These four names hash to bucket 1023 in the initial table. Inserting
+    // three crosses its end; the fourth checks a miss through that chain.
+    first := symbols.intern("wrap_symbol_293")
+    second := symbols.intern("wrap_symbol_709")
+    third := symbols.intern("wrap_symbol_1245")
+    assert_eq(U32, first, 1)
+    assert_eq(U32, second, 2)
+    assert_eq(U32, third, 3)
+    assert_eq(U32, symbols.intern("wrap_symbol_709"), second)
+    assert(symbols.lookup("wrap_symbol_2121").is_none())
+    ref remembered : Str = symbols.resolve(first)
+
+    // Force both bucket rehashing and growth of the stable spelling buffers.
+    for i in 0..900 {
+        assert_eq(U32, symbols.intern(format("growth_symbol_", i.to_str())), i.to_u32() + 4)
+    }
+    for i in 0..900 {
+        assert_eq(U32, symbols.lookup(format("growth_symbol_", i.to_str())).unwrap(), i.to_u32() + 4)
+    }
+    assert_eq(Str, remembered, "wrap_symbol_293")
+    assert_eq(U32, symbols.lookup("wrap_symbol_293").unwrap(), first)
+    assert_eq(U32, symbols.lookup("wrap_symbol_709").unwrap(), second)
+    assert_eq(U32, symbols.lookup("wrap_symbol_1245").unwrap(), third)
+    assert_eq(U32, symbols.intern("wrap_symbol_709"), second)
+    assert(symbols.lookup("wrap_symbol_2121").is_none())
+}
+
 test_empty := test() {
     symbols := SymbolPool()
     root := parse_src("", symbols)

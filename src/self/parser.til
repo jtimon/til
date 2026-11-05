@@ -15,31 +15,35 @@ SymbolPool := struct {
     // that intern new ones -- still reads a live header.
     retired_names := Vec(Vec(Str)).new()
     // Open-addressed slots hold symbols; zero is the empty marker. Keeping
-    // only IDs here avoids a second owned copy of every spelling.
+    // only IDs here avoids a second owned copy of every spelling. Capacity
+    // starts at 1024 and doubles, so bucket reduction uses a bit mask.
     buckets := Vec(Sym).new()
     next : Sym = 1
 namespace:
     rebuild := func(mut self: SymbolPool, count: USize) {
         self.buckets.clear()
         for _ in 0..count { self.buckets.push(own 0) }
+        mask := count - 1
         for i in 0..self.names.len() {
             sym := (i + 1).to_u32()
             ref name : Str = self.names.unsafe_get(i)
-            mut bi := fnv1a(name.c_str, name.len()).to_usize().mod(count)
-            while self.buckets.unsafe_get(bi) != 0 { bi = (bi + 1).mod(count) }
+            mut bi := fnv1a(name.c_str, name.len()).to_usize().band(mask)
+            while self.buckets.unsafe_get(bi) != 0 { bi = (bi + 1).band(mask) }
             self.buckets.unsafe_set(bi, own sym)
         }
     }
 
     lookup := func(self: SymbolPool, name: Str) returns Option(Sym) {
         if self.buckets.len() == 0 { return Option(Sym).None }
-        mut bi := fnv1a(name.c_str, name.len()).to_usize().mod(self.buckets.len())
-        while self.buckets.unsafe_get(bi) != 0 {
-            ref sym : Sym = self.buckets.unsafe_get(bi)
+        mask := self.buckets.len() - 1
+        mut bi := fnv1a(name.c_str, name.len()).to_usize().band(mask)
+        mut sym : Sym = self.buckets.unsafe_get(bi).clone()
+        while sym != 0 {
             if self.names.unsafe_get(sym.cast(USize) - 1) == name {
                 return Option(Sym).Some(sym)
             }
-            bi = (bi + 1).mod(self.buckets.len())
+            bi = (bi + 1).band(mask)
+            sym = self.buckets.unsafe_get(bi).clone()
         }
         return Option(Sym).None
     }
@@ -48,11 +52,13 @@ namespace:
         // Core alone exceeds the tiny-table growth ladder; one 4 KB seed
         // avoids repeated rehashes without making an unused pool allocate.
         if self.buckets.len() == 0 { self.rebuild(1024) }
-        mut bi := fnv1a(name.c_str, name.len()).to_usize().mod(self.buckets.len())
-        while self.buckets.unsafe_get(bi) != 0 {
-            ref sym : Sym = self.buckets.unsafe_get(bi)
-            if self.names.unsafe_get(sym.cast(USize) - 1) == name { return sym.clone() }
-            bi = (bi + 1).mod(self.buckets.len())
+        mask := self.buckets.len() - 1
+        mut bi := fnv1a(name.c_str, name.len()).to_usize().band(mask)
+        mut existing : Sym = self.buckets.unsafe_get(bi).clone()
+        while existing != 0 {
+            if self.names.unsafe_get(existing.cast(USize) - 1) == name { return existing }
+            bi = (bi + 1).band(mask)
+            existing = self.buckets.unsafe_get(bi).clone()
         }
 
         sym := self.next

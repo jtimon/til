@@ -5,6 +5,34 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** Symbol-pool probe arithmetic (2026-11-05)
+
+Base: ~2e5baf973~. A forced self-translation function profile recorded about
+12.85M SymbolPool.lookup calls and 6.21M SymbolPool.intern calls. Instruction
+profiling also put symbol hashing/comparison among the major costs. Iterative
+scope lookup and a HashMap-based ownership-fact index were tried and discarded:
+their uninstrumented timings did not establish an improvement.
+
+The retained change uses the existing power-of-two bucket capacity for mask
+reduction and carries each probe's symbol instead of loading its bucket twice.
+The hash, growth threshold, insertion order and stable spelling buffers are
+unchanged. GCC -O0 disassembly has zero integer-division sites in lookup,
+intern and rebuild, versus two in each baseline function.
+
+Both uninstrumented compilers were built from this base, varying only the
+symbol-pool implementation, and translated the same final ~src/til.til~ inputs
+with ~--force-rebuild --usize=32~ into the same output paths. Baseline/candidate/
+candidate/baseline times were 14.443/14.388/14.493/14.295 seconds. Every generated
+C file and forward header was byte-identical. These samples do NOT establish
+an elapsed-time speedup; other sessions were not controlled.
+
+~test/parsing.til::test_symbol_pool_collision_wrap_and_growth~ exercises a
+collision chain across the end of the initial bucket table, misses, repeated
+interning, rehashing and spelling references retained across buffer growth.
+The clean suite passed 558/558; the parsing program also passed all 18 tests
+under ASAN. Candidate suite wall/self were 39.04/26.15 seconds, not a paired
+whole-suite comparison.
+
 ** FASM consolidated closure storage (2026-11-04, #453)
 
 Base: ~4a621551f~. Capturing closures and Body values now allocate their
