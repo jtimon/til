@@ -192,6 +192,17 @@ compressed references, or treat its removal as completing reference compression.
     targets, programs included) is U32 widths with the cage, ~--usize=64~
     is native. MLIR has the native layout only. Details in doc/self.org,
     "Decided: one layout flag".
+  - Windows, verified on CI (run 2891, every job green). The one Windows
+    failure since the flip, the real-winsock nng step dying in
+    nng_version() with "an own pointer outside the cage cannot be
+    compressed", was the nng mode library's read_cstr building a Str view
+    by hand over nng's own string inside the exe image; it and the two gui
+    file-dialog helpers go through Str.from_c_str now, which copies under
+    the cage (test/nng_pair.til reads nng's version string on every host).
+    The cage attaches across copies on Windows through a module walk
+    (GetProcAddress), and its leak report is Linux-only: Windows has no
+    ASAN build, so there is nothing to report there, and no half-right
+    live count waits for one.
 
 *** Open follow-ups
 
