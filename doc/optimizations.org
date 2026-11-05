@@ -33,6 +33,33 @@ The clean suite passed 558/558; the parsing program also passed all 18 tests
 under ASAN. Candidate suite wall/self were 39.04/26.15 seconds, not a paired
 whole-suite comparison.
 
+** FASM inline interface handles (2026-11-05, #453)
+
+Base: ~2e5baf973~. FASM interfaces use the existing lowered
+~{Str iface_type_name, native pointer iface_val}~ layout as an ordinary inline
+aggregate, including fields and caller-provided result storage. Native
+dispatchers invoke the prepared concrete methods. Clone writes directly into
+the final owned concrete payload and stamps immutable literal type metadata;
+neither operation allocates an extra interface-handle wrapper or type-name buffer.
+
+~test/fasm_runtime.til::check_interface_allocations~ compares each source with
+interpretation and C, then applies the existing temporary runtime malloc/free
+counters to FASM at both USize widths. All counts below hold at both widths.
+
+| Probe              | Native malloc | Native free | Owned storage                         |
+|--------------------+---------------+-------------+---------------------------------------|
+| interface_borrowed |             0 |           0 | Borrowed concrete remains in its frame |
+| interface_owned    |             2 |           2 | Two concrete payloads                  |
+| interface_fields   |             2 |           2 | Two concrete payloads                  |
+| interface_captured |             4 |           4 | Two payloads and two closure blocks    |
+
+The owned probe includes a Self-valued return, multiple Self arguments and a
+consuming receiver; field and capture probes check independent cloning/drop.
+The native integration driver also runs all 61 current ~test/interfaces.til~
+cases unchanged apart from CLI entry markers, comparing interpreter/C/FASM
+behavior at both widths. The original interface paths were unsupported by FASM;
+these are acceptance allocation counts, not before/after timing measurements.
+
 ** FASM consolidated closure storage (2026-11-04, #453)
 
 Base: ~4a621551f~. Capturing closures and Body values now allocate their

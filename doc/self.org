@@ -917,6 +917,28 @@
   destroyed by the carrier. Precomputed arrays can contain tagged or owned-niche
   enums and are cloned through the same methods, keeping templates immutable.
 
+  Interfaces use the frontend's existing synthetic fields, inline:
+  ~{Str iface_type_name, native pointer iface_val}~ (24 bytes at USize32,
+  32 at USize64). Locals, fields and results follow the ordinary aggregate
+  value/caller-result convention. Borrowing a concrete needs no allocation;
+  an owning interface retains its independently owned concrete payload.
+  The immutable type name is emitted as literal metadata, including on clone.
+
+  Signature-preserving native dispatchers select prepared implementations by
+  that type name, including copied defaults and overrides. They preserve normal
+  argument evaluation, mut/ref parameters, owned arguments, borrowed returns and
+  lowered throw slots. Self arguments must carry the same concrete type, with
+  the same diagnostic as C on a mismatch. An owned Self parameter moves its
+  payload out and leaves null behind; generated delete recognizes that moved-out
+  state. Concrete clone results write directly into their final owned payload
+  storage; returned Self values fill the caller's inline interface handle.
+
+  The generated interface lifecycle uses native concrete clone/delete methods.
+  Nested Self applications retain the frontend's prepared/default-body lowering.
+  Typed ~dyn_fn~ with a known type/method can materialize the same dispatcher as
+  a static callable. This uses existing declarations and runtime primitives;
+  it adds no runtime reflection registry or alternate metadata artifact.
+
   Callable values are native pointers to four-word descriptors
   ~{code, environment, drop, clone}~. Static named functions share read-only
   descriptors with no environment/drop/clone; reference bindings can name
@@ -1010,7 +1032,7 @@
     Removal follows ext.c's unlink contract: a missing path is harmless, but
     directories and other failures are errors.
 
-  Interfaces, floating-point operations, dynamic method/reflection lookup,
+  Floating-point operations, general runtime-selected method/reflection lookup,
   unsupported external runtime services and mode test remain outside this
   subset. Array methods are no longer restricted to compiler-generated
   variadic collectors.
@@ -1035,6 +1057,21 @@
   discarded results, precomputed arrays, checked indexing and ordinary File
   wrappers. The existing imported-call and bang-panic fixtures run unchanged.
   Aggregate translation also runs in the assembler-free options test.
+
+  ~fasm_native::check_interfaces~ runs every case in ~test/interfaces.til~
+  through interpretation, C and FASM at both widths. Its temporary CLI harness
+  replaces test entry markers with proc/noop_proc markers and invokes the
+  original assertions in source order; it does not duplicate their bodies or
+  require native mode-test entry support. The corpus covers struct/enum dispatch,
+  defaults/overrides, owned receivers, mutation, borrowed returns, throws,
+  multiple Self arguments, returned Self, defaults/varargs, callable methods,
+  nested Self applications, collections and bounded generators. Interface
+  translation is also checked without an assembler in ~fasm_options~.
+
+  ~fasm_runtime::check_interface_allocations~ verifies zero native allocations
+  for borrowed interface handles, two payload allocations/frees for owned
+  copies and fields, and four for two closures with owned interface captures.
+  A mismatched-Self fixture checks native C/FASM diagnostic parity.
 
   The same corpus covers enum tags (including U64 values above 32 bits),
   narrow/Bool/USize payloads, mutable payload bindings, nested patterns,

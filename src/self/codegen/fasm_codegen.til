@@ -148,6 +148,7 @@ priv FasmState := struct {
     return_buffer := ""
     outer_parameter := ""
     outer_heap := ""
+    interface_name := ""
     data := ""
     prefix := ""
     literals : USize = 0
@@ -178,7 +179,29 @@ priv fasm_aggregate := func(shallow t: Type, lp: LoadedProgram) returns Bool {
     if definition.is_none() { return false }
     if definition.unwrap().node_type.is(NodeType.EnumDef) { return true }
     ref sd : StructDef = structdef_of(definition.unwrap())
-    return sd.simd_width.eq(0).and(sd.is_interface.not())
+    return sd.simd_width.eq(0)
+}
+
+priv fasm_interface_owner := func(name: Str, program: FasmProgram, lp: LoadedProgram) returns Str {
+    ref location : FasmDefinition = program.definitions.get(name)!
+    if location.member < 0 || location.nested.len() > 0 { return "" }
+    ref unit : ImportUnit = lp.ctx.imported.get(location.path)!
+    ref declaration : Expr = unit.ast.children.unsafe_get(location.declaration)
+    ref definition : Expr = declaration.children[0]
+    if definition.node_type.is(NodeType.StructDef).not() { return "" }
+    if structdef_of(definition).is_interface.not() { return "" }
+    return decl_of(declaration).name.clone()
+}
+
+priv fasm_interface_dispatchable := func(name: Str, program: FasmProgram, lp: LoadedProgram) returns Bool {
+    owner := fasm_interface_owner(name, program, lp)
+    if owner.len() == 0 { return false }
+    ref fd : FunctionDef = funcdef_of(fasm_definition(name, program, lp))
+    if fd.auto_generated && name.eq(format(owner,"_clone")).not() { return false }
+    if fd.sig.params.len() == 0 { return false }
+    if decl_type_name_ref(fd.sig.params[0], lp.ctx.symbols) != owner { return false }
+    if fd.sig.return_type.eq(owner).and(fd.sig.return_own_type.is(OwnType.Ref)) { return false }
+    return interface_method_requires_concrete_types(fd, owner, lp.ctx).not()
 }
 
 priv fasm_type_size := func(shallow t: Type, lp: LoadedProgram) returns USize {
@@ -692,6 +715,8 @@ priv fasm_callee_name := func(e: Expr, lp: LoadedProgram) returns Str {
         ref owner : Expr = e.children[0].children[0]
         ref id : IdentData = ident_of(owner)
         ref name : Str = resolve_type_alias_for_name(lp.ctx.scope, id.ident_name(lp.ctx.symbols.names), lp.ctx.symbols)
+        if name == "USize" { return format(lp.ctx.target_usize_pname,"_",field.field_access_name(lp.ctx.symbols.names)) }
+        if name == "UPtr" { return format(lp.ctx.target_uptr_pname,"_",field.field_access_name(lp.ctx.symbols.names)) }
         return format(name, "_", field.field_access_name(lp.ctx.symbols.names))
     case: return ""
     }
@@ -1078,11 +1103,191 @@ priv fasm_call_result := func(fd: FunctionDef, mut state: FasmState, lp: LoadedP
     return fasm_value_slot(ret, state, lp)
 }
 
-priv fasm_user_call := proc(e: Expr, name: Str, mut state: FasmState, mut lp: LoadedProgram, as_pointer: Bool = false) {
+priv fasm_interface_literal := proc(value: Str, mut state: FasmState, mut lp: LoadedProgram) {
+    mut literal := Expr.new(own NodeType.Literal(Literal.Str(value.clone())), 0, 0)
+    literal.set_til_type(type_from_name_init_name("Str", lp.ctx.scope, lp.ctx.symbols))
+    fasm_expr(literal, state, lp)
+}
+
+priv fasm_interface_fail := proc(message: Str, mut state: FasmState, mut lp: LoadedProgram) {
+    fasm_interface_literal(format(message,"\n"), state, lp)
+    fasm_emit(state, "mov rdi, [rax]\n    jmp rt_fail")
+}
+
+priv fasm_interface_ident := func(name: Str, shallow t: Type, site: Expr, mut lp: LoadedProgram) returns Expr {
+    mut value := Expr.new(own ident_node(lp.ctx.symbols.intern(name)), site.line, site.col)
+    value.set_til_type(t.clone())
+    return value
+}
+
+// Keep the shared synthetic {iface_type_name, iface_val} fields inline. Only
+// the concrete owned payload needs persistent storage, never a return wrapper.
+priv fasm_interface_result := proc(concrete: Str, payload: Str, mut state: FasmState, mut lp: LoadedProgram) {
+    fasm_interface_literal(concrete, state, lp)
+    fasm_emit(state, format("mov rsi, rax\n    mov rdi, ", state.return_buffer,
+        "\n    mov rdx, ", fasm_type_size(type_from_name_init_name("Str", lp.ctx.scope, lp.ctx.symbols), lp).to_str(),
+        "\n    call rt_memcpy\n    mov rax, ", state.return_buffer, "\n    mov rdx, ", payload,
+        "\n    mov [rax+", fasm_field_layout(state.return_type,"iface_val",lp).offset.to_str(), "], rdx"))
+}
+
+priv fasm_interface_dispatch := proc(name: Str, expr: Expr, mut state: FasmState, mut lp: LoadedProgram) {
+    ref fd : FunctionDef = funcdef_of(expr)
+    ref location : FasmDefinition = state.program.definitions.get(name)!
+    ref unit : ImportUnit = lp.ctx.imported.get(location.path)!
+    ref declaration : Expr = unit.ast.children.unsafe_get(location.declaration)
+    ref owner : Str = decl_of(declaration).name
+    ref method : Str = def_ns_name_at(declaration.children[0], location.member.to_usize())
+    returns_self := fd.sig.return_type == owner
+    mut handles := Vec(Str).new()
+    for i in 0..fd.sig.params.len() {
+        ref param : Declaration = fd.sig.params[i]
+        mut handle := ""
+        if decl_type_name_ref(param, lp.ctx.symbols) == owner {
+            value := fasm_interface_ident(param.name, state.value_types[param.name], expr, lp)
+            fasm_pointer(value, state, lp)
+            handle = fasm_slot(state)
+            fasm_emit(state, format("mov ", handle, ", rax"))
+        }
+        handles.push(own handle)
+    }
+    for path : Str in lp.unit_paths() {
+        for stmt : Expr in lp.ctx.imported[path].ast.children {
+            if is_struct_or_enum(stmt).not() { continue }
+            ref definition : Expr = stmt.children[0]
+            if type_def_implements_iface(definition, owner, lp.ctx.scope, lp.ctx.symbols).not() { continue }
+            ref concrete : Str = decl_of(stmt).name
+            concrete_type := type_from_name_init_name(concrete, lp.ctx.scope, lp.ctx.symbols)
+            target_name := format(concrete,"_",method)
+            ref target : FunctionDef = funcdef_of(fasm_definition(target_name, state.program, lp))
+            next := format(".interface_next",state.labels.to_str())
+            state.labels++
+            fasm_interface_literal(concrete, state, lp)
+            tag := fasm_slot(state)
+            fasm_emit(state, format("mov ",tag,", rax\n    mov rdi, ",handles[0],"\n    mov rsi, rax\n    call rt_str_eq\n    test rax, rax\n    jz ",next))
+            mut call := Expr.new(own NodeType.FCall(FCallData()), expr.line, expr.col)
+            call.add_child(own Expr.new(own ident_node(lp.ctx.symbols.intern(target_name)), expr.line, expr.col))
+            call.set_til_type(type_from_name_init_name(target.sig.return_type, lp.ctx.scope, lp.ctx.symbols))
+            for i in 0..fd.sig.params.len() {
+                ref param : Declaration = fd.sig.params[i]
+                if handles[i].len() > 0 {
+                    if i > 0 {
+                        matched := format(".interface_same",state.labels.to_str())
+                        state.labels++
+                        fasm_emit(state,format("mov rdi, ",handles[i],"\n    mov rsi, ",tag,"\n    call rt_str_eq\n    test rax, rax\n    jnz ",matched))
+                        fasm_interface_fail("interface dispatch: Self arguments have different runtime types", state, lp)
+                        fasm_emit(state,format(matched,":"))
+                    }
+                    value := fasm_slot(state)
+                    offset := fasm_field_layout(state.value_types[param.name],"iface_val",lp).offset.to_str()
+                    fasm_emit(state,format("mov rdx, ",handles[i],"\n    mov rax, [rdx+",offset,"]\n    mov ",value,", rax"))
+                    if param.own_type.is(OwnType.Own) { fasm_emit(state,format("mov qword [rdx+",offset,"], 0")) }
+                    binding := format("@interface",state.slots.to_str())
+                    fasm_bind(binding, concrete_type, own value, false, false, param.own_type.is(OwnType.Own), false, state)
+                    call.add_child(own fasm_interface_ident(binding, concrete_type, expr, lp))
+                } else { call.add_child(own fasm_interface_ident(param.name, state.value_types[param.name], expr, lp)) }
+                if param.own_type.is(OwnType.Own) { set_own_arg(call,i+1) }
+            }
+            mark_fcall_direct(call)
+            mut result_pointer := ""
+            if returns_self {
+                result_pointer = fasm_slot(state)
+                fasm_emit(state,format("mov rdi, ",fasm_type_size(concrete_type,lp).to_str(),"\n    call rt_malloc\n    mov ",result_pointer,", rax"))
+            } else if state.return_buffer.len() > 0 { result_pointer = state.return_buffer.clone() }
+            fasm_user_call(call,target_name,state,lp,as_pointer=state.return_ref,result_pointer=result_pointer)
+            result := fasm_slot(state)
+            fasm_emit(state,format("mov ",result,", rax"))
+            for i in 0..fd.sig.params.len() {
+                ref param : Declaration = fd.sig.params[i]
+                if handles[i].len().gt(0).and(param.own_type.is(OwnType.Own)) {
+                    fasm_emit(state,format("mov rdi, ",handles[i]))
+                    fasm_destroy(state.value_types[param.name],false,state,lp)
+                    value := fasm_interface_ident(param.name,state.value_types[param.name],expr,lp)
+                    fasm_release_value_outer(value,handles[i],state,lp)
+                }
+            }
+            if returns_self { fasm_interface_result(concrete,result_pointer,state,lp) }
+            else { fasm_emit(state,format("mov rax, ",result)) }
+            fasm_emit(state,"leave\n    ret")
+            fasm_emit(state,format(next,":"))
+        }
+    }
+    fasm_interface_fail(format("interface dispatch: no implementation of ",owner,".",method),state,lp)
+}
+
+// The shared frontend inserts these calls for concrete-to-interface coercions
+// and for generated interface destruction. This is native lifecycle dispatch,
+// using the same prepared concrete methods, not a second reflection registry.
+priv fasm_interface_dynamic := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
+    mut concrete := ""
+    switch e.children[1].node_type {
+    case .Literal(Literal.Str(value)): concrete = value.clone()
+    case:
+    }
+    mut method := ""
+    switch e.children[2].node_type {
+    case .Literal(Literal.Str(value)): method = value.clone()
+    case:
+    }
+    if method.eq("clone").or(method.eq("delete")).not().or(concrete.len().eq(0).and(state.interface_name.len().eq(0))) {
+        fasm_error(e,"dynamic runtime lookup is not supported",lp)
+        return
+    }
+    fasm_pointer(e.children[1],state,lp)
+    tag := fasm_slot(state)
+    fasm_emit(state,format("mov ",tag,", rax"))
+    fasm_pointer(e.children[4],state,lp)
+    payload := fasm_slot(state)
+    fasm_emit(state,format("mov ",payload,", rax"))
+    mut types := Vec(Str).new()
+    if concrete.len() > 0 { types.push(own concrete.clone()) }
+    else {
+        for path : Str in lp.unit_paths() {
+            for stmt : Expr in lp.ctx.imported[path].ast.children {
+                if is_struct_or_enum(stmt).not() { continue }
+                if type_def_implements_iface(stmt.children[0],state.interface_name,lp.ctx.scope,lp.ctx.symbols) {
+                    types.push(own decl_of(stmt).name.clone())
+                }
+            }
+        }
+    }
+    done := format(".interface_dynamic_done",state.labels.to_str())
+    state.labels++
+    for type_name : Str in types {
+        t := type_from_name_init_name(type_name,lp.ctx.scope,lp.ctx.symbols)
+        next := format(".interface_dynamic_next",state.labels.to_str())
+        state.labels++
+        if concrete.len() == 0 {
+            fasm_interface_literal(type_name,state,lp)
+            fasm_emit(state,format("mov rdi, ",tag,"\n    mov rsi, rax\n    call rt_str_eq\n    test rax, rax\n    jz ",next))
+        }
+        binding := format("@interfacePayload",state.slots.to_str())
+        fasm_bind(binding,t,own payload.clone(),false,false,true,false,state)
+        target_name := format(type_name,"_",method)
+        mut call := Expr.new(own NodeType.FCall(FCallData()),e.line,e.col)
+        call.add_child(own Expr.new(own ident_node(lp.ctx.symbols.intern(target_name)),e.line,e.col))
+        call.add_child(own fasm_interface_ident(binding,t,e,lp))
+        mut result_pointer := ""
+        if method == "clone" {
+            call.set_til_type(t.clone())
+            result_pointer = fasm_slot(state)
+            fasm_emit(state,format("mov rdi, ",fasm_type_size(t,lp).to_str(),"\n    call rt_malloc\n    mov ",result_pointer,", rax"))
+        } else {
+            set_own_arg(call,1)
+            call.add_child(own e.children[5].clone())
+        }
+        mark_fcall_direct(call)
+        fasm_user_call(call,target_name,state,lp,as_pointer=true,result_pointer=result_pointer)
+        fasm_emit(state,format("jmp ",done,"\n",next,":"))
+    }
+    fasm_interface_fail("interface dispatch: unknown concrete payload type",state,lp)
+    fasm_emit(state,format(done,":"))
+}
+
+priv fasm_user_call := proc(e: Expr, name: Str, mut state: FasmState, mut lp: LoadedProgram, as_pointer: Bool = false, result_pointer: Str = "") {
     if state.program.definitions.has(name).not() { fasm_error(e, format("unsupported call '", name, "'"), lp); return }
     ref definition : Expr = fasm_definition(name, state.program, lp)
     ref fd : FunctionDef = funcdef_of(definition)
-    if fd.sig.func_type.is_bodyless() { fasm_error(e, format("unsupported external operation '", name, "'"), lp); return }
+    if fd.sig.func_type.is_bodyless().and(fasm_interface_dispatchable(name,state.program,lp).not()) { fasm_error(e, format("unsupported external operation '", name, "'"), lp); return }
     if e.children.len() > 7 { fasm_error(e, "at most six arguments are supported", lp); return }
     target := fasm_request(name, state.program)
     mut arguments := Vec(Str).new()
@@ -1094,8 +1299,11 @@ priv fasm_user_call := proc(e: Expr, name: Str, mut state: FasmState, mut lp: Lo
     }
     for i in 0..arguments.len() { fasm_emit(state, format("mov ", fasm_register(i), ", ", arguments[i])) }
     fasm_call_outer(e, fd, state, lp)
-    result := fasm_call_result(fd, state, lp)
-    if result.len() > 0 { fasm_emit(state, format("lea rax, ", result.strip_prefix("qword "))) }
+    if result_pointer.len() > 0 { fasm_emit(state,format("mov rax, ",result_pointer)) }
+    else {
+        result := fasm_call_result(fd, state, lp)
+        if result.len() > 0 { fasm_emit(state, format("lea rax, ", result.strip_prefix("qword "))) }
+    }
     fasm_emit(state, format("call ", target))
     fasm_release_arguments(e, fd, arguments, state, lp)
     fasm_finish_call(e, fd, state, lp, as_pointer)
@@ -1752,6 +1960,31 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
                     case: fasm_error(e, "cast target must be a concrete type", lp); return
                     }
                 }
+                if name == "noop_proc" { return }
+                if name == "dyn_call" || name == "dyn_call_ret" {
+                    fasm_interface_dynamic(e,state,lp)
+                    return
+                }
+                if name == "dyn_fn" && type_is_callable_storage(e.til_type()) {
+                    mut owner := ""
+                    mut member := ""
+                    switch e.children[1].node_type {
+                    case .Literal(Literal.Str(value)): owner = value.clone()
+                    case:
+                    }
+                    switch e.children[2].node_type {
+                    case .Literal(Literal.Str(value)): member = value.clone()
+                    case:
+                    }
+                    target := format(owner,"_",member)
+                    if owner.len().eq(0).or(member.len().eq(0)).or(state.program.definitions.has(target).not()) {
+                        fasm_error(e,"native method lookup requires a known type and method",lp)
+                        return
+                    }
+                    label := fasm_static_callable(target,false,state.program)
+                    fasm_emit(state,format("mov rax, ",label))
+                    return
+                }
                 runtime := fasm_runtime_name(name)
                 if runtime.len() > 0 { fasm_runtime_call(e, runtime, state, lp); return }
                 if name == "ptr_add" || name == "is_null" || name == "to_ptr" {
@@ -2107,6 +2340,7 @@ priv fasm_function := proc(name: Str, mut program: FasmProgram, mut lp: LoadedPr
     mut state := FasmState(program = program)
     fasm_bind_globals(state)
     state.prefix = program.labels[name].clone()
+    state.interface_name = fasm_interface_owner(name,program,lp)
     state.return_type = ret.clone()
     state.return_ref = fd.sig.return_own_type.is(OwnType.Ref)
     if fasm_aggregate(ret, lp).and(state.return_ref.not()) {
@@ -2166,7 +2400,9 @@ priv fasm_function := proc(name: Str, mut program: FasmProgram, mut lp: LoadedPr
             state.signatures.set(cap.name, own program.definitions[name].capture_signatures[cap.name].clone())
         } else if is_funcptr_sig(cap.til_type) { state.signatures.set(cap.name, own type_name_ref(cap.til_type, lp.ctx.symbols).clone()) }
     }
-    if fd.sig.func_type.is_bodyless() {
+    if fasm_interface_dispatchable(name,program,lp) {
+        fasm_interface_dispatch(name,expr,state,lp)
+    } else if fd.sig.func_type.is_bodyless() {
         ref location : FasmDefinition = program.definitions[name]
         mut callee := Expr.new(own ident_node(lp.ctx.symbols.intern(name)), expr.line, expr.col)
         if location.member >= 0 {

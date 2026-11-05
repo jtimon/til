@@ -177,6 +177,41 @@ check_closure_allocations := proc(compiler: Str, work: Str) {
         "assert(original.action(true).not()); assert(copy.action(false)); assert(original.action(false).not()) }\n"),4,4)
 }
 
+check_interface_allocations := proc(compiler: Str, work: Str) {
+    contract := format(
+        "mode cli\nView := interface { value:=func(self:View) returns I64;\n",
+        "copy:=func(self:View) returns View { return self.clone() }; consume:=func(own self:View) returns I64;\n",
+        "same:=func(self:View,other:View) returns Bool }\n",
+        "Number := struct implements View { n:I64=0\nnamespace:\n",
+        "value:=func(self:Number) returns I64 { return self.n }\n",
+        "consume:=func(own self:Number) returns I64 { return self.n }\n",
+        "same:=func(self:Number,other:Number) returns Bool { return self.n==other.n }\n}\n",
+        "make:=func(n:I64) returns View { return Number(n=n) }\n")
+    check_allocations(compiler,work,"interface_borrowed",format(contract,
+        "relay:=func(view:View) returns I64 { return view.value() }\n",
+        "main:=proc() { mut n:I64=6; n++; source:=Number(n=n); ref view:View=source;\n",
+        "assert(view.value()==7); assert(relay(view)==7); assert(source.n==7) }\n"),0,0)
+    check_allocations(compiler,work,"interface_owned",format(contract,
+        "main:=proc() { mut n:I64=6; n++; view:=make(n); copy:=view.copy();\n",
+        "assert(view.same(copy)); assert(View.consume(own copy)==7); assert(view.value()==7) }\n"),2,2)
+    check_allocations(compiler,work,"interface_fields",format(contract,
+        "Holder:=struct { view:View }\n",
+        "main:=proc() { mut n:I64=6; n++; original:=Holder(view=make(n)); copy:=original.clone();\n",
+        "assert(original.view.value()==7); assert(copy.view.value()==7) }\n"),2,2)
+    check_allocations(compiler,work,"interface_captured",format(contract,
+        "Action:=func() returns I64\nHolder:=struct { action:Action }\n",
+        "capture:=func(n:I64) returns Action { view:=make(n); return func() returns I64 [own view] { return view.value() } }\n",
+        "main:=proc() { mut n:I64=6; n++; original:=Holder(action=capture(n)); copy:=original.clone();\n",
+        "assert(original.action()==7); assert(copy.action()==7) }\n"),4,4)
+    check(compiler,work,"interface_mismatched_self",format(contract,
+        "Different:=struct implements View { n:I64=0\nnamespace:\n",
+        "value:=func(self:Different) returns I64 { return self.n }\n",
+        "consume:=func(own self:Different) returns I64 { return self.n }\n",
+        "same:=func(self:Different,other:Different) returns Bool { return self.n==other.n }\n}\n",
+        "main:=proc() { first:View=Number(n=1); second:View=Different(n=1); first.same(second) }\n"),
+        "","interface dispatch: Self arguments have different runtime types\n",1,interpret_source=false)
+}
+
 check_globals := proc(compiler: Str, work: Str) {
     // A diamond import must initialize the shared state once, before either
     // dependent module. Resource-bearing values must outlive the init frames.
@@ -246,6 +281,7 @@ main := proc(compiler_arg: Str) {
     check_globals(compiler, work)
     check_unboxed(compiler, work)
     check_closure_allocations(compiler, work)
+    check_interface_allocations(compiler,work)
     check(compiler, work, "global_callables", format(
         "mode cli\nAction := func(value: I64) returns I64\nSaved := struct { action: Action }\n",
         "make := func(start: I64) returns Action { state := start; return func(value: I64) returns I64 [own mut state] { state = state + value; return state } }\n",

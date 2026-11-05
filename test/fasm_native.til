@@ -29,6 +29,26 @@ check_shared := proc(compiler: Str, work: Str, source: Str, expected_exit: I64 =
     }
 }
 
+check_interfaces := proc(compiler: Str, work: Str) {
+    // Reuse every original interface assertion. Only the test entry markers
+    // change: this CLI harness calls the cases in source order at both widths.
+    source := File.readfile("test/interfaces.til")
+    mut calls := "\nmain := proc() {\n"
+    mut cases:USize=0
+    for line:Str in source.split("\n") {
+        if line.starts_with("test_").and(line.contains(" := test() {")) {
+            name := line.substr(0,line.find(" := ").to_usize())
+            calls = format(calls,"println(\"",name,"\"); ",name,"()\n")
+            cases++
+        }
+    }
+    expect(cases>0,"no shared interface tests discovered")
+    path := format(work,"/interfaces.til")
+    File.writefile(path,format(source.replace("mode test\n","mode cli\n")
+        .replace(":= test() {",":= proc() { noop_proc()"),calls,"}\n"))
+    check_shared(compiler,work,path)
+}
+
 check_rebuild := proc(compiler: Str, work: Str) {
     root := compiler.substr(0, compiler.rfind("/bin/").to_usize())
     stage := format(work, "/rebuild tools")
@@ -111,6 +131,7 @@ main := proc(compiler_arg: Str) {
     }
     check_shared(compiler, work, "test/script_bang_panic_msg.til", 1)
     check_shared(compiler, work, "test/script_bang_store_panic_msg.til", 1)
+    check_interfaces(compiler,work)
     check_rebuild(compiler, work)
     println("fasm_native PASS")
 }

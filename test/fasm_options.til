@@ -64,6 +64,11 @@ main := proc(compiler_arg: Str) {
         File.writefile(format(work, "/aggregates.til"), File.readfile("test/aggregate_control.til"))
         File.writefile(format(work, "/globals_lib.til"), "mode lib\nmut count : I64 = 1\nadvance := func() returns I64 { count++; return count }\n")
         File.writefile(format(work, "/globals.til"), "mode cli\nimport(\"./globals_lib\")\nmut value := advance()\nmain := proc() { value = advance(); println(value.to_str()) }\n")
+        File.writefile(format(work,"/interfaces.til"),format(
+            "mode cli\nView:=interface { value:=func(self:View) returns I64 }\n",
+            "Number:=struct implements View { n:I64=0\nnamespace:\nvalue:=func(self:Number) returns I64 { return self.n }\n}\n",
+            "USize_probe:=func(value:I64) returns I64 { return value+1 }\n",
+            "main:=proc() { mut n:I64=1; n++; view:View=Number(n=n); copy:=view.clone(); assert(copy.value()==2); assert(view.value()==2); assert(USize_probe(n)==3) }\n"))
         for width in array(Str, "32", "64") {
             aggregates := Cmd.new(compiler, "translate", "--backend=fasm", format("--usize=", width), "aggregates.til")
             aggregates.cwd(work).capture()
@@ -77,6 +82,12 @@ main := proc(compiler_arg: Str) {
             expect(globals_status == 0, globals.out(), globals.err())
             global_source := File.readfile(format(work, "/gen/fasm/globals.fasm"))
             expect(global_source.contains("segment readable writeable") && global_source.contains("qword [global"), global_source)
+            interfaces := Cmd.new(compiler,"translate","--backend=fasm",format("--usize=",width),"interfaces.til")
+            interfaces.cwd(work).capture()
+            interface_status := interfaces.run()
+            expect(interface_status==0,interfaces.out(),interfaces.err())
+            interface_source := File.readfile(format(work,"/gen/fasm/interfaces.fasm"))
+            expect(interface_source.contains("call rt_str_eq"),"interface dispatch was not emitted",interface_source)
         }
         File.writefile(format(work, "/bad_field.til"), "mode cli\nBad := struct { value: F32 = 0.0 }\nmain := proc() { mut b := Bad(); b.value = 1.0; println(b.value.to_str()) }\n")
         bad_field := Cmd.new(compiler, "translate", "--backend=fasm", "bad_field.til")

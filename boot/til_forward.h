@@ -2451,6 +2451,7 @@ typedef struct priv___src_self_codegen_fasm_codegen_til__FasmState {
     Str return_buffer;
     Str outer_parameter;
     Str outer_heap;
+    Str interface_name;
     Str data;
     Str prefix;
     USize literals;

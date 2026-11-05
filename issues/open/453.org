@@ -467,6 +467,42 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   passed focused C ~--asan --usize=64~ checks without sanitizer diagnostics.
   Native emitted assembly is not ASAN-instrumented.
 
+**** By-value interface handles and native dispatch
+
+  On base ~2e5baf973~, interfaces use the shared synthetic type-name/payload
+  fields as inline values, including fields and caller-provided aggregate
+  results. Native dispatchers select the prepared concrete implementation,
+  retaining copied defaults/overrides and the normal ownership/ref/throw ABI.
+  Owned receivers move the payload out, leaving the expected null moved-out
+  state; clone and Self-valued results write into final owned concrete storage
+  and return inline handles with immutable literal type metadata.
+
+  Typed constant ~dyn_fn~ lookup materializes the same native callable.
+  Nested Self applications use the existing prepared/default-body lowering.
+  General runtime reflection remains outside this slice. The implementation
+  also lowers the noop_proc effect marker and resolves target-width method
+  aliases needed by the shared USize assertions.
+
+  ~fasm_native::check_interfaces~ builds a temporary CLI entry harness for all
+  61 existing ~test/interfaces.til~ cases. Only test entry markers change;
+  the original assertions run in source order through interpretation/C/FASM
+  at USize32/USize64. This includes borrowed/owned lifetimes, custom cleanup,
+  struct/enum and default/override selection, mutation, ref/throw results,
+  Self values/arguments, varargs/defaults, method callables, collections and
+  nested/bounded applications. An assembler-free interface translation check
+  joins ~fasm_options~; no mode-test entry support is implied by the harness.
+
+  Native allocation probes at both widths verify 0 malloc/free calls for
+  borrowed handles, 2/2 for owned copies and fields (payloads only), and 4/4
+  for cloned closures with owned interface captures (two payloads/two blocks).
+  A negative Self-type fixture matches C's exact stderr diagnostic and exit.
+  See ~doc/self.org~ for the ABI and ~doc/optimizations.org~ for the counts.
+
+  Verification: ~make clean && make test~ passed 558/558; both optional FASM
+  drivers passed at both widths. The full 61-case CLI interface corpus and
+  four allocation-probe sources passed focused C ~--asan --usize=64~ runs
+  without sanitizer diagnostics. Native emitted assembly is not ASAN-instrumented.
+
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
   repeated work. In-process code allocation, relocation, lifetime management
