@@ -1,19 +1,50 @@
 # priority: low
 # category: features
-** WIP #463 Call til from the JVM and BEAM through generated bindings
+** FIXED #463 Call til from the JVM through generated bindings
+
+*** Post-mortem
+
+The JVM half is done and the BEAM half is split into #479. Every ~mode lib~
+build generates a plain-Java class (Java 8 source level, so every JVM
+language and Android's toolchain take it) and a C bridge against ~jni.h~;
+~til build --jni~ / ~til install --jni~ compile the bridge and jar the class
+with the host JDK. Scalars of every width, Str, Vec(Str), Vecs of scalars
+(primitive arrays) and of structs or enums (handle arrays), structs and
+enums (AutoCloseable handle classes), globals, throws (~TilError~) and
+FuncSigs (functional interfaces both ways: Java lambdas called from til,
+til closures as ~<F>.Til~ called from Java) cross in every ownership mode
+-- borrowed, ~own~, ~mut~, ~returns ref~ -- as parameters, results, fields,
+payloads, globals and callback arguments. What stays unbound (Dynamic,
+shallow Str, other collections, variadics, a FuncSig global or field, a
+throw type a ~TilError~ cannot build) is a comment in the generated class
+and a ~note:~ on stderr when the library is built. The tests are
+~test/jni.til~ (jni_lib, with ~test/JniLibTest.java~),
+~test/library_namespace.til~ (the library the Python binding checks) and
+~test/install.til~ (an installed compiler's ~install --jni~), each with a
+Linux ASAN leak run; ~make test NO_JVM=1~ skips the JDK runs. Android
+packaging stays with #462.
+
+Along the way the leak runs found two compiler bugs, fixed in the commits
+that exposed them: an ~own~ closure parameter was never dropped
+(~test_own_closure_param_dropped~), and assigning a closure to a ~mut~
+closure parameter emitted invalid C (~test_mut_closure_param_assigned~,
+both in test/closures_compile_escape.til). Still open in til itself, outside
+the binding: a ~mut~ local initialised with a capture-free ~func~ is lifted
+to a top-level function (so it cannot be reassigned or passed ~mut~), and
+passing a struct's closure field as a closure argument crashes the compiler.
 
 Make til libraries usable from the JVM (Java and every JVM language, Android
-included) and from BEAM
-(Erlang, Elixir) the way Python already uses them: a native ~mode lib~
-library plus generated bindings, without translating til to those VMs. The
-managed backends are cancelled (JVM #375, BEAM #374): til's raw-memory and
-ownership model maps down to machine targets and fights managed VMs, while a
-binding keeps til native and lets each VM keep what it is good at.
+included) the way Python already uses them: a native ~mode lib~ library plus
+generated bindings, without translating til to the VM. The managed backend
+is cancelled (JVM #375): til's raw-memory and ownership model maps down to
+machine targets and fights managed VMs, while a binding keeps til native
+and lets the VM keep what it is good at. The BEAM (Erlang, Elixir) half,
+originally part of this issue, is #479.
 
 *** The bridge each VM needs
 
 Python's bindings use ~ctypes~: plain source that loads the library at run
-time, nothing compiled. Neither VM has a portable equivalent:
+time, nothing compiled. The JVM has no portable equivalent:
 
 - JVM: JNI is the bridge that works on desktop JVMs and Android alike (the
   JDK's FFM, ~java.lang.foreign~, is desktop-only; ART has none). JNI needs a
@@ -21,27 +52,22 @@ time, nothing compiled. Neither VM has a portable equivalent:
   NDK provides. The generated side is plain Java, which every JVM language
   (Kotlin, Scala, Clojure, ...) calls natively, so no language gets wrappers
   of its own ([[../cancelled/454.org][#454]], cancelled).
-- BEAM: NIFs (native implemented functions), a C bridge compiled against
-  ERTS's ~erl_nif.h~ and loaded by an Erlang module. NIFs run on scheduler
-  threads, so long calls must be marked dirty or yield, and a crash takes
-  the VM down -- the bindings must say which calls are safe to call
-  directly.
 
 Til already emits C, so the bridge itself can be generated C compiled into
-the library (or beside it). Generating its sources needs no JDK or OTP;
-compiling it does.
+the library (or beside it). Generating its sources needs no JDK; compiling
+it does.
 
 *** Scope
 
   - Reuse the library's exported interface and native ABI as the single
     source of truth, as the Python bindings do; no hand-maintained
     declarations per language.
-  - Specify, per VM: numeric widths (unsigned types included), strings,
+  - Specify numeric widths (unsigned types included), strings,
     aggregates, enums, borrowed and mutable references, owned results and
     explicit release, callbacks, and throws. Reject unsupported signatures
     with diagnostics rather than changing their semantics.
   - Keep generating binding sources separate from compiling the bridge, so a
-    default build never needs a JDK, the NDK or OTP.
+    default build never needs a JDK or the NDK.
 
 *** Decisions needing approval before implementation
 
@@ -110,21 +136,27 @@ compiling it does.
     an ~own~ closure parameter (every capturing closure passed ~own~ leaked
     its environment and box); fixed, with
     ~test_own_closure_param_dropped~ in test/closures_compile_escape.til.
-  - Open: Android packaging (#462); then the BEAM half (NIFs).
+  - ~mut~ FuncSig parameters (functions: a holder whose replaced closure
+    comes back as an owned ~<F>.Til~, an untouched one leaving the caller's
+    object; callbacks: the slot as a borrowed ~<F>.Til~ in a holder whose
+    replacement moves into til), ~returns ref~ of a FuncSig (a borrowed
+    ~<F>.Til~), and Vecs of structs or enums as fields, payloads and
+    globals (borrowed views). Assigning a closure to a ~mut~ closure
+    parameter emitted invalid C; fixed in the codegen, with
+    ~test_mut_closure_param_assigned~.
+  - Android packaging stays with #462; the BEAM half is #479.
 
 *** Acceptance
 
   - [X] A JVM caller (desktop) loads a til ~mode lib~ library through the
     generated JNI bridge and exercises values, ownership/release and errors
     against the same interface the Python bindings test.
-  - [ ] An Erlang caller does the same through a generated NIF module,
-    including a long-running call that does not block a scheduler.
-  - [ ] Unsupported signatures produce actionable diagnostics; existing
-    Python/C/til bindings keep working. JVM half done: every unbound
-    function, field, constructor, global or callback is reported when the
-    library is built (~note: JNI binding <class>: <item> not bound:
-    <reason>~ on stderr) and listed in the generated class as a comment
-    (both checked by ~test/jni.til~), nothing is bound with changed
-    semantics, and the
-    Python, C and til binding tests keep passing beside the JVM ones. Open:
-    the BEAM half.
+  - [X] Unsupported signatures produce actionable diagnostics; existing
+    Python/C/til bindings keep working: every unbound function, field,
+    constructor, global or callback is reported when the library is built
+    (~note: JNI binding <class>: <item> not bound: <reason>~ on stderr) and
+    listed in the generated class as a comment (both checked by
+    ~test/jni.til~), nothing is bound with changed semantics, and the
+    Python, C and til binding tests keep passing beside the JVM ones.
+  - The BEAM acceptance item (an Erlang caller through a generated NIF
+    module) moved to #479.

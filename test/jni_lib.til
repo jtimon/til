@@ -292,6 +292,45 @@ jni_try_outer := func(f: JniTryOuterFn) returns Str {
     })
 }
 
+// mut closure parameters, a closure returned by ref, and Vecs of handles
+// as fields and payloads.
+jni_swap_fn := func(mut f: JniMapFn, k: I64) {
+    kk := k
+    f = func(x: I64) returns I64 [own kk] { return x * kk }
+}
+
+jni_maybe_swap := func(mut f: JniMapFn, k: I64) returns I64 {
+    if k > 0 { jni_swap_fn(f, k) }
+    if k > 100 { jni_swap_fn(f, k - 100) }
+    return f(2)
+}
+
+JniMutFnFn := func(mut JniMapFn)
+
+jni_forward_fn := func(g: JniMutFnFn, mut f: JniMapFn) { g(f) }
+
+JniFnBox := struct {
+    k : I64 = 0
+    f : JniMapFn = func(x: I64) returns I64 { return x + 100 }
+}
+
+jni_fn_box := func(k: I64) returns JniFnBox { return JniFnBox(k = k) }
+
+jni_box_fn := func(b: JniFnBox) returns ref JniMapFn { return b.f }
+
+JniPeople := Vec(JniPerson)
+
+JniGroup := enum {
+    Nobody,
+    Crew: JniPeople,
+}
+
+jni_group := func(names: Vec(Str)) returns JniGroup {
+    mut crew := Vec(JniPerson).new()
+    for i in 0..names.len() { crew.push(own JniPerson(name = names[i].clone(), age = 50)) }
+    return JniGroup.Crew(own crew)
+}
+
 JniSumFn := func(Vec(I64)) returns Vec(I64)
 
 jni_map_sum := func(f: JniSumFn) returns I64 {

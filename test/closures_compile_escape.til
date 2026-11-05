@@ -34,6 +34,28 @@ test_closure_return_owns_str := test() {
 // report catches it).
 take_supplier := func(own f: StrSupplier) returns Str { return f() }
 
+// Assigning a fresh closure to a `mut` closure parameter writes the
+// caller's slot and drops the closure it held (it used to emit invalid C).
+swap_unary := func(mut f: UnaryOp, k: I64) {
+    kk := k
+    f = func(x: I64) returns I64 [own kk] { return x.mul(kk) }
+}
+
+swap_and_call := func(mut f: UnaryOp, k: I64, x: I64) returns I64 {
+    swap_unary(f, k)
+    return f(x)
+}
+
+UnaryHolder := struct {
+    f : UnaryOp = func(x: I64) returns I64 { return x }
+}
+
+test_mut_closure_param_assigned := test() {
+    mut h := UnaryHolder()
+    assert_eq(I64, swap_and_call(h.f, 3, 5), 15)
+    assert_eq(I64, swap_and_call(h.f, 4, 5), 20)
+}
+
 test_own_closure_param_dropped := test() {
     for _ in 0..3 { assert_eq(Str, take_supplier(own make_str_supplier()), "hello") }
     assert_eq(Str, take_supplier(own func() returns Str { return "static" }), "static")

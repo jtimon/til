@@ -296,6 +296,49 @@ public class JniLibTest {
             check(JniLib.jni_maker(tag -> s -> s).equals("x"), "maker java loop");
             check(JniLib.jni_take_fn(JniLib.jni_prefixer("m")).equals("mown"), "take fn loop");
         }
+        // mut closure parameters: a replaced closure comes back as an owned
+        // F.Til, an untouched one leaves the caller's own object in place.
+        JniLib.JniMapFn[] fn = { x -> x + 1 };
+        JniLib.JniMapFn fnOrig = fn[0];
+        JniLib.jni_swap_fn(fn, 3);
+        System.out.println((fn[0] != fnOrig) + " " + fn[0].call(5));
+        fn[0].close();
+        JniLib.JniMapFn[] keep = { x -> x * 100 };
+        JniLib.JniMapFn keepOrig = keep[0];
+        System.out.println(JniLib.jni_maybe_swap(keep, 0) + " " + (keep[0] == keepOrig));
+        System.out.println(JniLib.jni_maybe_swap(keep, 104) + " " + keep[0].call(2));
+        keep[0].close();
+        JniLib.JniMapFn[] fwd = { x -> x };
+        JniLib.jni_forward_fn(h -> { h[0] = x -> x * 7; }, fwd);
+        System.out.println(fwd[0].call(3));
+        fwd[0].close();
+        JniLib.JniMapFn[] same = { x -> x + 2 };
+        JniLib.JniMapFn sameOrig = same[0];
+        JniLib.jni_forward_fn(h -> check(h[0].call(1) == 3, "slot view"), same);
+        System.out.println(same[0] == sameOrig);
+        // A closure returned by ref is a borrowed view of the library's slot.
+        try (JniLib.JniFnBox box = JniLib.jni_fn_box(5)) {
+            System.out.println(JniLib.jni_box_fn(box).call(1) + " " + box.k());
+        }
+        // Vecs of handles as a field and a payload: borrowed views.
+        try (JniLib.JniTeam tm = JniLib.jni_team(new String[] { "u", "v" });
+             JniLib.JniGroup grp = JniLib.jni_group(new String[] { "w" })) {
+            System.out.println(tm.people().length + " " + tm.people()[1].name() + " " + grp.Crew()[0].name());
+        }
+        for (int i = 0; i < 100000; i++) {
+            JniLib.JniMapFn[] s = { x -> x };
+            JniLib.jni_swap_fn(s, 2);
+            check(s[0].call(4) == 8, "swap fn loop");
+            s[0].close();
+            JniLib.JniMapFn[] w = { x -> x };
+            JniLib.jni_forward_fn(h -> { h[0] = x -> x + 1; }, w);
+            check(w[0].call(1) == 2, "forward fn loop");
+            w[0].close();
+            JniLib.JniMapFn[] k2 = { x -> x };
+            check(JniLib.jni_maybe_swap(k2, 0) == 2, "keep fn loop");
+            check(JniLib.jni_maybe_swap(k2, 103) == 6, "swap twice loop");
+            k2[0].close();
+        }
         // Repeated calls: borrowed temporaries, owned boxes and results are
         // all released by the bridge or the library, never by the JVM.
         for (int i = 0; i < 100000; i++) {

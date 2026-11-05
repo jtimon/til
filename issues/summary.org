@@ -52,7 +52,7 @@
 *** [[./open/419.org][#419]] mode const_time: a constant-time dialect for cryptographic primitives
 *** [[./open/438.org][#438]] Packed BitMap container for boolean storage
 *** [[./open/459.org][#459]] Research bulk directory imports and package entry points
-*** [[./open/463.org][#463]] Call til from the JVM and BEAM through generated bindings
+*** [[./open/479.org][#479]] Call til from BEAM (Erlang, Elixir) through generated NIF bindings
 * Backends
 ** Medium
 *** [[./open/383.org][#383]] Coordinate alternative backend runtimes and conformance tests
