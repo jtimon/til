@@ -977,12 +977,31 @@ when ~mut~ and of a copied kind; a struct or enum global (or a ~ref~
 global) returns a borrowed handle onto the library's storage.
 
 *Callbacks.* A public FuncSig whose parameters are scalars, ~Str~,
-~Vec(Str)~, ~Vec~s of scalars, structs or enums, or handles and whose result
-(if any) is one of those by value becomes a ~@FunctionalInterface~, so a Java lambda can be
-passed where til takes the FuncSig. The bridge wraps the Java object in a
-~TilClosure~ holding a JNI global reference: a borrowed callback is dropped
-after the call, an ~own~ one when the library drops it. A thread til starts
-is attached to the JVM on its first callback.
+~Vec(Str)~, ~Vec~s of scalars, structs or enums, handles or other bound
+FuncSigs and whose result (if any) is one of those by value becomes a
+~@FunctionalInterface~, so a Java lambda can be passed where til takes the
+FuncSig. The bridge wraps the Java object in a ~TilClosure~ holding a JNI
+global reference: a borrowed callback is dropped after the call, an ~own~
+one when the library drops it. A thread til starts is attached to the JVM
+on its first callback. FuncSigs may refer to each other in any order, even
+mutually; one that refers to a FuncSig the binding cannot express is not
+bound either.
+
+Til closures reach Java too, as the interface's nested ~<F>.Til~ class:
+~call()~ runs the closure in til, with the same conversions as a function.
+Every callback interface extends ~AutoCloseable~ with a no-op default
+~close()~, which ~<F>.Til~ overrides to drop an owned closure, so code
+holding an ~F~ it owns closes it with try-with-resources whatever it is.
+
+  - A callback's FuncSig parameter arrives as an ~<F>.Til~: borrowed during
+    the call, or owned (~own~) and Java's to close.
+  - A FuncSig the callback returns, or that Java passes to an ~own~
+    parameter, moves into til: an owned ~<F>.Til~ gives up its closure
+    (a borrowed or closed one throws ~IllegalStateException~ before a
+    function call, and aborts from a callback); any other object is
+    wrapped. A borrowed parameter wraps either kind for the call.
+  - A function returning a FuncSig returns an owned ~<F>.Til~.
+  - A ~mut~ FuncSig parameter is not bound.
 
   - A borrowed parameter arrives as a copy, or as a handle borrowed for the
     duration of the call (a ~Vec~ of structs or enums: an array of such
@@ -1016,10 +1035,9 @@ layout.
 
 Anything else -- ~Dynamic~ (type-erased, nothing to marshal), ~shallow Str~
 parameters, other collections, non-function uses of ~Vec~s of structs or
-enums (fields, globals, payloads), variadics, callbacks taking or returning
-other callbacks, throw types whose payload a ~TilError~ cannot build (a
-scalar, an enum, a default the bridge cannot reproduce), ~mut~ callback
-parameters of functions -- is listed in the class as a ~// <name>: not
+enums (fields, globals, payloads), variadics, ~mut~ FuncSig parameters,
+~returns ref~ of a FuncSig, throw types whose payload a ~TilError~ cannot build (a
+scalar, an enum, a default the bridge cannot reproduce) -- is listed in the class as a ~// <name>: not
 bound: <reason>~ comment, and every translation of the library reports it
 on stderr as ~note: JNI binding <class>: <item> not bound: <reason>~, so
 the gap shows at build time as well as in the generated source.

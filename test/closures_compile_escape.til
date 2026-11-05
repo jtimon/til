@@ -29,6 +29,16 @@ test_closure_return_owns_str := test() {
     assert_eq(Str, get_msg(), "hello")
 }
 
+// An `own` closure parameter is the callee's to drop: a capturing closure
+// passed this way used to leak its environment and box (the --asan cage
+// report catches it).
+take_supplier := func(own f: StrSupplier) returns Str { return f() }
+
+test_own_closure_param_dropped := test() {
+    for _ in 0..3 { assert_eq(Str, take_supplier(own make_str_supplier()), "hello") }
+    assert_eq(Str, take_supplier(own func() returns Str { return "static" }), "static")
+}
+
 make_box_supplier := func() returns BoxSupplier {
     box := WordBox(text = "boxed")
     return func() returns WordBox [own box] { return box.clone() }

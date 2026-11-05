@@ -254,6 +254,44 @@ jni_mut_people_cb := func(f: JniMutPeopleFn) returns Str {
     return format(ps.len().to_str(), " ", jni_oldest(ps))
 }
 
+// Callbacks taking and returning callbacks, and functions taking and
+// returning til closures.
+JniOuterFn := func(JniStrFn, I64) returns Str
+JniOwnOuterFn := func(own JniStrFn) returns Str
+JniMakerFn := func(Str) returns JniStrFn
+JniTryOuterFn := func(JniTryFn) returns Str
+
+jni_outer := func(f: JniOuterFn, tag: Str) returns Str {
+    t := tag.clone()
+    return f(func(s: Str) returns Str [own t] { return format(t, s) }, 2)
+}
+
+jni_own_outer := func(f: JniOwnOuterFn, tag: Str) returns Str {
+    t := tag.clone()
+    return f(own func(s: Str) returns Str [own t] { return format(s, t) })
+}
+
+jni_maker := func(f: JniMakerFn) returns Str {
+    g := f("pre-")
+    return g("x")
+}
+
+jni_prefixer := func(tag: Str) returns JniStrFn {
+    t := tag.clone()
+    return func(s: Str) returns Str [own t] { return format(t, s) }
+}
+
+jni_take_fn := func(own f: JniStrFn) returns Str { return f("own") }
+
+jni_try_outer := func(f: JniTryOuterFn) returns Str {
+    return f(func(x: I64) returns I64 throws JniErr, DivideByZero, JniBad {
+        if x < 0 { throw JniErr(msg = "neg") }
+        if x == 0 { throw DivideByZero(msg = "zero") }
+        if x > 1000 { throw JniBad() }
+        return x * 2
+    })
+}
+
 JniSumFn := func(Vec(I64)) returns Vec(I64)
 
 jni_map_sum := func(f: JniSumFn) returns I64 {

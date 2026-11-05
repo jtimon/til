@@ -1955,6 +1955,13 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         li.is_heap = b.own_type.is(OwnType.Own)
             .and(b.type.is(Type.Dynamic).or(b.is_param.and(decl_idx.lt(0)).and(stack_own_param.not())))
         if type_is_callable_storage(b.type).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = false }
+        // An `own` callable parameter is the callee's closure to drop, as an
+        // owned callable local is (til_closure_delete; a capture-free one
+        // has no drop and stays). Left non-heap, every capturing closure
+        // passed `own` leaked its environment and box.
+        if b.is_param.and(decl_idx.lt(0)).and(b.own_type.is(OwnType.Own)).and(type_is_callable_storage(b.type)) {
+            li.is_heap = true
+        }
         if decl_idx >= 0 {
             ref li_stmt : Expr = body.children[decl_idx.to_usize()]
             if li_stmt.node_type.is(NodeType.Decl).and(li_stmt.children.len().gt(0)) {

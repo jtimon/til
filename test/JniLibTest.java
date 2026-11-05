@@ -250,6 +250,52 @@ public class JniLibTest {
             check(JniLib.jni_mut_people_cb(xs -> { xs[0][1].close(); xs[0] = new JniLib.JniPerson[] { xs[0][0] }; })
                 .equals("1 a"), "mut vec callback loop");
         }
+        // Callbacks taking and returning callbacks: til closures reach Java as
+        // <F>.Til (borrowed, or owned and closed), Java objects and owned
+        // <F>.Til values go back into til.
+        System.out.println(JniLib.jni_outer((g, k) -> g.call("a") + k, "t:"));
+        System.out.println(JniLib.jni_own_outer(g -> {
+            try (JniLib.JniStrFn owned = g) { return owned.call("b"); }
+        }, "!"));
+        try (JniLib.JniStrFn.Til made = JniLib.jni_prefixer("p-")) {
+            System.out.println(made.call("q"));
+            System.out.println(JniLib.jni_apply_str(made, "r"));
+        }
+        System.out.println(JniLib.jni_maker(tag -> s -> tag + s));
+        System.out.println(JniLib.jni_maker(tag -> JniLib.jni_prefixer("til-" + tag)));
+        System.out.println(JniLib.jni_try_outer(g -> {
+            try {
+                return Long.toString(g.call(-1));
+            } catch (JniLib.TilError e) {
+                return e.type() + " " + e.detail();
+            }
+        }));
+        JniLib.JniStrFn.Til spent = JniLib.jni_prefixer("s");
+        spent.close();
+        try {
+            spent.call("x");
+            System.out.println("closed closure still callable");
+        } catch (IllegalStateException e) {
+            System.out.println("closed: " + e.getMessage());
+        }
+        System.out.println(JniLib.jni_outer((g, k) -> {
+            try {
+                return JniLib.jni_take_fn(g);
+            } catch (IllegalStateException e) {
+                return "borrowed: " + e.getMessage();
+            }
+        }, "t"));
+        System.out.println(JniLib.jni_take_fn(JniLib.jni_prefixer("m-")));
+        for (int i = 0; i < 100000; i++) {
+            check(JniLib.jni_outer((g, k) -> g.call("a"), "t").equals("ta"), "outer callback loop");
+            check(JniLib.jni_own_outer(g -> {
+                try (JniLib.JniStrFn owned = g) { return owned.call("b"); }
+            }, "!").equals("b!"), "own outer callback loop");
+            try (JniLib.JniStrFn.Til m = JniLib.jni_prefixer("p")) { check(m.call("q").equals("pq"), "prefixer loop"); }
+            check(JniLib.jni_maker(tag -> JniLib.jni_prefixer(tag)).equals("pre-x"), "maker til loop");
+            check(JniLib.jni_maker(tag -> s -> s).equals("x"), "maker java loop");
+            check(JniLib.jni_take_fn(JniLib.jni_prefixer("m")).equals("mown"), "take fn loop");
+        }
         // Repeated calls: borrowed temporaries, owned boxes and results are
         // all released by the bridge or the library, never by the JVM.
         for (int i = 0; i < 100000; i++) {
