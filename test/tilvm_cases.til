@@ -1428,6 +1428,7 @@ OwnedFieldRecord := struct {
 OwnedFieldTransform := proc(own mut OwnedFieldRecord, I64) returns OwnedFieldRecord throws OwnedFieldRecord
 OwnedFieldBorrow := proc(mut OwnedFieldRecord)
 OwnedFieldRead := func() returns OwnedFieldRecord
+OwnedFieldReadRef := func() returns ref OwnedFieldRecord
 OwnedFieldTail := func(values: ..OwnedFieldRecord) returns OwnedFieldRecord
 OwnedFieldKeywords := proc(options: ...) returns OwnedFieldRecord
 OwnedFieldScalarThrow := proc() throws I64
@@ -1438,6 +1439,9 @@ owned_field_callback_tests := proc(root: Str) {
         "OwnedFieldLeaf := struct { own text: Str = \"\"; marker: I32 = 0 }\n",
         "OwnedFieldRecord := struct { byte: U8 = 11; own leaf: OwnedFieldLeaf = OwnedFieldLeaf(); own number: I64 = 0; own tag: OwnedFieldTag = OwnedFieldTag.First; last: U8 = 23 }\n")
     File.writefile("guest.til", format("mode lib\n", schema,
+        "mut stored := OwnedFieldRecord(leaf = OwnedFieldLeaf(text = \"borrowed owned\"), number = 61, tag = OwnedFieldTag.Last)\n",
+        "read_ref := func() returns ref OwnedFieldRecord { return stored }\n",
+        "replace_stored := proc() { noop_proc(); stored.leaf.text = \"replaced owned\"; stored.number = 99 }\n",
         "reader := func() returns OwnedFieldRecord { return OwnedFieldRecord(leaf = OwnedFieldLeaf(text = \"guest literal\", marker = 9), number = 42, tag = OwnedFieldTag.Last) }\n",
         "borrow := proc(mut value: OwnedFieldRecord) { noop_proc(); value.leaf.text = \"borrowed mutation\"; value.leaf.marker = 8; value.number = 51 }\n",
         "transform := proc(own mut value: OwnedFieldRecord, action: I64) returns OwnedFieldRecord throws OwnedFieldRecord {\n",
@@ -1452,6 +1456,11 @@ owned_field_callback_tests := proc(root: Str) {
     mut transform := vm.lookup("transform", OwnedFieldTransform)!
     mut borrow := vm.lookup("borrow", OwnedFieldBorrow)!
     mut reader := vm.lookup("reader", OwnedFieldRead)!
+    mut read_ref := vm.lookup("read_ref", OwnedFieldReadRef)!
+    mut replace_stored := vm.lookup("replace_stored")!
+    first_borrow := read_ref.call()!
+    replace_stored.call()!
+    second_borrow := read_ref.call()!
     mut tail := vm.lookup("tail", OwnedFieldTail)!
     mut keyword := vm.lookup("keyword", OwnedFieldKeywords)!
     mut scalar_error := vm.lookup("scalar_error", OwnedFieldScalarThrow)!
@@ -1509,6 +1518,8 @@ owned_field_callback_tests := proc(root: Str) {
     own keyword.delete()
     own tail.delete()
     own reader.delete()
+    own replace_stored.delete()
+    own read_ref.delete()
     own borrow.delete()
     own transform.delete()
     own vm.delete()
@@ -1516,6 +1527,14 @@ owned_field_callback_tests := proc(root: Str) {
     ref guest_literal: OwnedFieldRecord = literal.get(0)
     ref tail_value: OwnedFieldRecord = tailed.get(0)
     ref keyword_value: OwnedFieldRecord = keyed.get(0)
+    ref first_value: OwnedFieldRecord = first_borrow.get(0)
+    ref second_value: OwnedFieldRecord = second_borrow.get(0)
+    ref first_number: I64 = first_value.number
+    ref second_number: I64 = second_value.number
+    ref first_tag: OwnedFieldTag = first_value.tag
+    ref second_tag: OwnedFieldTag = second_value.tag
+    assert(first_value.leaf.text == "borrowed owned" && first_number == 61 && first_tag == OwnedFieldTag.Last)
+    assert(second_value.leaf.text == "replaced owned" && second_number == 99 && second_tag == OwnedFieldTag.Last)
     ref number: I64 = guest_literal.number
     ref tag: OwnedFieldTag = guest_literal.tag
     ref success_number: I64 = success.number

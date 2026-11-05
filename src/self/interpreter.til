@@ -7307,7 +7307,11 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     lp.ctx.eval.failure_site = SourceDiagnostic(phase = DiagnosticPhase.Runtime,
         path = path.clone(), line = def.line, col = def.col)
     mut destination : Dynamic = 0
-    if expected.return_type.len() > 0 { destination = EvalHeap.heap_alloc(raw_type_size(ret_type, lp.ctx)) }
+    // A ref return lends existing guest storage; it never constructs an owned
+    // result destination. Only value returns need storage to drop after copying.
+    if expected.return_type.len() > 0 && expected.return_own_type.is(OwnType.Ref).not() {
+        destination = EvalHeap.heap_alloc(raw_type_size(ret_type, lp.ctx))
+    }
     result : Dynamic = eval_callable_call(temps, call, callable, lp.ctx, destination)
     mut values := Tuple.new()
     mut declared_error := false

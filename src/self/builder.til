@@ -1425,8 +1425,11 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
         py_dst := format(support_root(install_prefix), "/lib/", paths.name, ".py")
         jni_c_dst := format(support_root(install_prefix), "/lib/", paths.name, "_jni.c")
         java_dst := format(support_root(install_prefix), "/lib/java/", paths.java_path.strip_prefix("gen/til/java/"))
-        bridge_dst := format(install_prefix, "/lib/", jni_bridge_path(paths, target).strip_prefix("gen/lib/"))
-        jar_dst := format(install_prefix, "/lib/", jni_jar_path(paths).strip_prefix("gen/lib/"))
+        // strip_prefix borrows its source; retain the owners through formatting.
+        bridge_path := jni_bridge_path(paths, target)
+        jar_path := jni_jar_path(paths)
+        bridge_dst := format(install_prefix, "/lib/", bridge_path.strip_prefix("gen/lib/"))
+        jar_dst := format(install_prefix, "/lib/", jar_path.strip_prefix("gen/lib/"))
         runtime_dst := format(install_prefix, "/lib/", lp.runtime_shared_basename())
         core_dst := format(install_prefix, "/lib/", lp.core_shared_basename())
 
@@ -1446,8 +1449,8 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
         if result == 0 { result = install_file(paths.jni_c_path, jni_c_dst, "install JNI bridge source") }
         if result == 0 { result = install_file(paths.java_path, java_dst, "install Java binding") }
         if result.eq(0).and(lp.jni_build) {
-            result = install_file(jni_bridge_path(paths, target), bridge_dst, "install JNI bridge")
-            if result == 0 { result = install_file(jni_jar_path(paths), jar_dst, "install Java binding jar") }
+            result = install_file(bridge_path, bridge_dst, "install JNI bridge")
+            if result == 0 { result = install_file(jar_path, jar_dst, "install Java binding jar") }
         }
         if result == 0 {
             print_install_success(so_dst)
