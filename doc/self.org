@@ -422,8 +422,9 @@
   vector reduction or an extra initial addition of positive zero. Multiply
   followed by add remains unfused. Arguments beyond the register budget use
   the SysV stack ABI described below.
-  Mutable scalar parameters and ownership-transferring numeric-buffer parameters remain
-  outside the subset; strings, borrowed buffers and the error-out parameter are
+  Borrowed/mutable scalar and SIMD parameters retain their pointer ABI.
+  Ownership-transferring numeric-buffer parameters remain outside the subset;
+  strings, borrowed buffers and the error-out parameter are
   described below.
 
   F32, F64 and F32x4 division use IEEE floating-point semantics, including zero
@@ -540,8 +541,8 @@
   remain visible. The shared lowered guards handle propagation, catch and !.
   Successful access leaves the error slot untouched. Proven in-range constant
   indices omit the check and preserve error-state knowledge; ordinary mutable
-  locals are not treated as constants. Mutable vector parameters remain outside
-  the supported ABI. Both USize widths are tested at O0/O2/O3, including all
+  locals are not treated as constants. Mutable vector parameters use
+  scalar-layout pointers. Both USize widths are tested at O0/O2/O3, including all
   four lanes, out-of-range/maximal indices, raw F32 bits and all 16 masks.
 
   Borrowed buffers retain the existing C Array ABI: a pointer to a descriptor
@@ -551,8 +552,9 @@
   F32, I32 and U32 buffers. Borrowed integer element reads retain signedness
   when widened to I64.
   Element references may be read or, when declared mutable, written through.
-  Buffer aliases borrow the same descriptor. Allocation, cloning, destruction,
-  array returns and descriptor replacement stay in the host; passing an array
+  Buffer aliases and borrowed array returns use the same descriptor address.
+  Allocation, cloning, destruction, value array returns and descriptor
+  replacement stay in the host; passing an array
   as ~own~ or ~shallow~ is rejected rather than changing its ABI.
 
   Checked memory operations support ~?~ propagation, local ~OutOfBounds~
@@ -576,6 +578,52 @@
   pointer domain. It does not attach ~inbounds~ or ~noalias~ assumptions.
   Failed stores write no elements; earlier successful stores remain visible.
 
+*** Borrowed returns and primitive memory
+
+  User functions can return references to supported scalars, SIMD values, POD
+  structs, Str and borrowed numeric arrays. The result is the original address,
+  not a value copy, heap box or hidden sret argument. Definition/call lowering
+  and register-budget accounting all use that pointer result, without integer
+  extension attributes on a borrowed narrow result. The frontend still chooses
+  parameter qualifiers: a reference-returning signature can retain borrowed
+  parameters where a value-returning function would auto-shallow them; explicit
+  shallow parameters retain their usual value ABI.
+
+  Direct/imported/namespace/concrete-generic forwarding preserves aliasing and
+  mutability. A borrowed result used as a value is loaded only at that use;
+  OutOfBounds propagation checks its error slot before consuming a failed
+  reference. Existing frontend lifetime and ownership checks remain in charge.
+  Value locals and value parameters have stable entry-block storage so repeated
+  address-taking, including across branches, denotes the same object. LLVM may
+  promote storage that does not escape. Bool occupies one byte in memory and
+  Boolx4 four normalized bytes, even though computation uses i1 predicates.
+
+  Existing to_ptr, ptr_add, deref, write_ptr, ptr_eq and is_null operations are
+  supported, along with the runtime's word_bits entry when explicitly declared.
+  Pointer offsets are bytes in the full native pointer width, with no inbounds
+  or noalias promises. deref loads a pointer slot; write_ptr stores an address,
+  not the pointee's scalar value. Typed raw reads/writes use alignment 1 and
+  preserve declared widths. Consuming a null typed reference reports the same
+  stderr diagnostic/exit status as C's DEREF; forwarding/testing null does not
+  read it. Raw memory operations retain the caller's bounds/lifetime obligations.
+
+  memcpy/memmove/memset/memcmp and malloc/calloc/realloc/free call libc directly;
+  typed write_i*/write_u*/write_f32/write_bool operations store their declared
+  values. Typed Str free/memset retain C's CAP_LIT protection, and consuming a
+  stack value with free does not physically free its caller/local slot.
+  Concrete raw-allocation locals and cleanup follow the prepared AST.
+  Returning a value releases its consumed allocation wrapper after loading it;
+  a Dynamic pointer return transfers the address. Returning a reference never
+  releases its backing storage. General owning user aggregates remain outside
+  this increment, and the temporary C-core bridge is still used for core bodies.
+
+  Native C and ASAN til/C tests cover pointer identity/mutation, all scalar
+  widths, numeric/mask SIMD storage, nested fields, Str/array references,
+  throwing element references, register budgets without sret, imported/generic
+  forwarding, unaligned access, overlapping moves, zero-length memory calls,
+  full-width address bits, null diagnostics and repeated allocation/cleanup.
+  They run with native USize64 at O0/O2/O3.
+
 *** Scalar and nested POD structs
 
   POD structs may contain Bool, all scalar integer widths, F32/F64 and nested structs from
@@ -585,8 +633,9 @@
   values have no owning/reference/raw-pointer fields or nontrivial destructor;
   SIMD fields and empty runtime structs are not yet supported in this increment.
   Source-defined clone functions can be emitted through the normal namespace
-  callable path when their bodies use the supported subset. Heap-outer owning parameters and borrowed user
-  returns remain outside this slice.
+  callable path when their bodies use the supported subset. Heap-outer owning
+  user parameters remain outside this slice; borrowed returns preserve the
+  original struct address as described above.
 
   The existing typer decides whether an ordinary parameter borrows or is an
   auto-shallowed small value. Borrowed/mut parameters use pointers, and explicit
@@ -624,7 +673,8 @@
   Str retains its data-pointer/count/cap layout. At USize32 its 16-byte value
   return uses two SysV INTEGER chunks; at USize64 its 24-byte return uses an
   sret pointer. Record parameters use the existing pointer ABI; shallow record
-  parameters and borrowed record returns from user functions remain unsupported.
+  parameters remain unsupported; borrowed record returns use their original
+  descriptor address.
   AST ownership/keep-outer/save-old-delete decisions govern transfers and
   cleanup. Moving a stack record boxes its wrapper; forwarding an already-owned
   wrapper does not box again. Returned values release a moved parameter wrapper

@@ -159,6 +159,41 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Borrowed results and primitive memory (base 2e5baf973)
+
+User reference returns now use the native pointer ABI across scalar/SIMD/POD,
+Str and borrowed numeric-array results. Calls preserve the backing address and
+load only when a value is requested. Borrowed results do not reserve an sret
+register or carry scalar signext/zeroext. Borrowed/mutable scalar and SIMD
+parameters use the qualifiers already selected by the frontend, including its
+different auto-shallow behavior for value-returning versus ref-returning bodies.
+
+Value locals/parameters have stable entry-block addresses. Predicate computation
+still uses i1, while addressable Bool/Boolx4 storage uses native normalized bytes.
+Imported, namespace and concrete generic forwarding, nested field aliases and
+OutOfBounds-returned element references retain aliasing/mutation behavior.
+
+The existing to_ptr/ptr_add/deref/write_ptr/ptr_eq/is_null primitives lower to
+native pointer operations, and declared word_bits lowers to ptrtoint. Pointer
+offsets retain all native bits; raw typed loads/stores promise only alignment 1.
+Libc supplies memcpy/memmove/memset/memcmp and malloc/calloc/realloc/free. Typed
+writers retain their declared widths. Concrete raw-allocation locals retain
+their storage/cleanup: returning a scalar payload frees its consumed wrapper,
+while returning a Dynamic pointer transfers it. Null typed reads fail with C's
+stderr diagnostic/exit status; forwarding/testing a null pointer does not load it.
+Typed Str free/memset retain CAP_LIT protection; free of a stack value is only
+the ownership transfer marker, not a physical free of stack storage.
+
+test/mlir.til check_memory compares interpreter/C reference behavior and native
+C/ASAN til consumers at O0/O2/O3, including all scalar reference widths, masks,
+raw NaN SIMD copies, borrowed Str/array descriptors, register-budget rollback
+without a hidden return pointer, unaligned typed reads/writes, overlapping moves,
+pointer-slot access, full-width address roundtrips, stable addresses across branches,
+null diagnostics and repeated allocation/reallocation/transfer/cleanup.
+test/mlir_options.til checks pointer-return signatures and absence of sret and
+integer-extension attributes without requiring LLVM tools. The temporary C-core
+bridge remains; this increment does not introduce general owning user aggregates.
+
 *** Remaining scalar widths and F64 (base 4a621551f)
 
 I8/U8, I16/U16 and F64 now join the scalar slice. Narrow arithmetic and local

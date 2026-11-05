@@ -1624,6 +1624,7 @@ typedef struct priv___src_self_codegen_mlir_codegen_til__MlirBinding {
     Bool is_mut;
     Bool is_signed;
     Bool is_ref;
+    Bool is_stack;
     Bool owns_wrapper;
 } priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 
@@ -2781,6 +2782,7 @@ typedef struct priv___src_self_codegen_mlir_codegen_til__MlirState {
     USize error_version;
     Set__Str clear_conditions;
     Set__Str set_conditions;
+    Bool return_borrow;
     Map__Str_U64 integers;
     Map__Str_Bool booleans;
 } priv___src_self_codegen_mlir_codegen_til__MlirState;

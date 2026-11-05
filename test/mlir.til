@@ -151,6 +151,77 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_memory := proc(compiler:Str,work:Str) {
+    types:=array(Str,"I8","U8","I16","U16","I32","U32","I64","U64","F32","F64","Bool")
+    ctypes:=array(Str,"int8_t","uint8_t","int16_t","uint16_t","int32_t","uint32_t","int64_t","uint64_t","float","double","bool")
+    File.writefile(format(work,"/memory_extra.til"),"mode lib\nkeep:=func<G>(a:G) returns ref G{return a}\nBorrow:=namespace{byte:=func(a:I8) returns ref I8{return a}}\n")
+    mut source:="mode lib\nextra:=import(\"memory_extra\")\nword_bits:=ext_func(w:Dynamic) returns shallow U64{}\n"
+    mut declarations:="#include <assert.h>\n#include <stdint.h>\n#include <stdbool.h>\n#include <string.h>\n#include <stdlib.h>\n"
+    mut scalar_checks:=""
+    for i in 0..types.len() {
+        ref t:Str=types[i];ref ct:Str=ctypes[i]
+        source=format(source,"borrow_",t,":=func(a:",t,") returns ref ",t,"{return a}\nrelay_",t,":=func(a:",t,") returns ref ",t,"{return borrow_",t,"(a)}\nset_",t,":=func(mut a:",t,",v:",t,"){a=v}\n")
+        declarations=format(declarations,"extern const ",ct," *borrow_",t,"(const ",ct,"*),*relay_",t,"(const ",ct,"*);extern void set_",t,"(",ct,"*,",ct,");\n")
+        mut a:="-1";mut b:="7"
+        if t=="Bool" {a="false";b="true"}
+        scalar_checks=format(scalar_checks,"{struct{",ct," a;unsigned char tail[16];}s;memset(&s,0x5a,sizeof s);s.a=",a,";assert(borrow_",t,"(&s.a)==&s.a && relay_",t,"(&s.a)==&s.a);set_",t,"(&s.a,",b,");assert(*relay_",t,"(&s.a)==",b,");for(unsigned j=0;j<16;j++)assert(s.tail[j]==0x5a);}\n")
+        if t!="F64" {
+            writer:=format("write_",t.replace("I","i").replace("U","u").replace("F","f").replace("Bool","bool"))
+            source=format(source,"raw_set_",t,":=func(mut p:Dynamic,v:",t,"){",writer,"(p,v)}\nraw_get_",t,":=func(p:Dynamic) returns ",t,"{ref value:",t,"=to_ptr(p);return value.clone()}\n")
+            declarations=format(declarations,"extern void raw_set_",t,"(void*,",ct,");extern ",ct," raw_get_",t,"(const void*);\n")
+            scalar_checks=format(scalar_checks,"{unsigned char bytes[32];memset(bytes,0x5a,32);",ct," want=",b,";raw_set_",t,"(bytes+1,want);assert(memcmp(bytes+1,&want,sizeof want)==0 && raw_get_",t,"(bytes+1)==want && bytes[0]==0x5a && bytes[1+sizeof want]==0x5a);}\n")
+        }
+    }
+    source=format(source,
+        "Small:=struct{value:I8=0}\nLarge:=struct{a:I64=0;b:I64=0;c:I64=0;d:I64=0}\nOuter:=struct{lead:Bool=false;value:Large}\n",
+        "borrow_small:=func(a:Small) returns ref Small{return a}\nborrow_large:=func(a:Large) returns ref Large{return a}\nrelay_large:=func(a:Large) returns ref Large{return extra.keep(borrow_large(a))}\n",
+        "field_ref:=func(a:Outer) returns ref I64{return a.value.c}\nmutate_ref:=func(mut a:Outer,n:I64){ref mut x:I64=field_ref(a);x=x+n}\nread_narrow:=func(a:I8) returns I64{return extra.Borrow.byte(relay_I8(a))}\n",
+        "choose_ref:=func(a:Large,b:Large,shallow take:Bool) returns ref Large{if take{return relay_large(a)};return b}\n",
+        "F4:=Simd(F32,4)\nS4:=Simd(I32,4)\nM4:=Simd(Bool,4)\nborrow_f4:=func(a:F4) returns ref F4{return a}\nborrow_m4:=func(a:M4) returns ref M4{return a}\n",
+        "read_f4:=func(a:F4) returns F4{return borrow_f4(a).clone()}\nread_m4:=func(a:M4) returns M4{return borrow_m4(a).clone()}\n",
+        "set_mask:=func(mut a:M4,v:M4){a=v}\nmask_bytes:=func(a:M4) returns U64{local:=a.clone();mut bits:U32=0;memcpy(to_ptr(bits),to_ptr(local),4);return bits.cast(U64)}\n",
+        "budget_ref:=func(shallow a:I64,shallow b:I64,shallow c:I64,shallow d:I64,shallow v:S4,x:Large,y:Large) returns ref Large{if a+b+c+d+v.reduce_add().cast(I64)>0{return x};return y}\n",
+        "budget_relay:=func(shallow a:I64,shallow b:I64,shallow c:I64,shallow d:I64,shallow v:S4,x:Large,y:Large) returns ref Large{return budget_ref(a,b,c,d,v,x,y)}\n",
+        "borrow_text:=func(a:Str) returns ref Str{return a}\nrelay_text:=func(a:Str) returns ref Str{return borrow_text(a)}\ntext_length:=func(a:Str) returns USize{return relay_text(a).len()}\ntext_byte:=func(a:Str,shallow i:USize) returns ref I8{return a.unsafe_get(i)}\n",
+        "borrow_array:=func(a:Array(F32)) returns ref Array(F32){return a}\narray_element:=func(a:Array(F32),shallow i:USize) returns ref F32 throws OutOfBounds{return a.get(i)?}\nrelay_element:=func(a:Array(F32),shallow i:USize) returns ref F32 throws OutOfBounds{return array_element(a,i)?}\n",
+        "copy_bytes:=func(mut dst:Dynamic,src:Dynamic,n:UPtr){memcpy(dst,src,n)}\nmove_bytes:=func(mut dst:Dynamic,src:Dynamic,n:UPtr){memmove(dst,src,n)}\nfill_bytes:=func(mut dst:Dynamic,v:I32,n:UPtr){memset(dst,v,n)}\ncompare_bytes:=func(a:Dynamic,b:Dynamic,n:UPtr) returns I64{return memcmp(a,b,n)}\n",
+        "offset_ptr:=func(a:Dynamic,shallow n:UPtr) returns ref Dynamic{return ptr_add(a,n)}\nfrom_address:=func(shallow n:UPtr) returns ref Dynamic{zero:Dynamic=0;return ptr_add(zero,n)}\naddress_bits:=func(a:Dynamic) returns U64{return word_bits(a)}\nnull_test:=func(a:Dynamic) returns Bool{return a.is_null()}\nsame_ptr:=func(a:Dynamic,b:Dynamic) returns Bool{return ptr_eq(a,b)}\n",
+        "load_slot:=func(a:Dynamic) returns ref Dynamic{return deref(a)}\nstore_slot:=func(mut a:Dynamic,b:Dynamic){write_ptr(a,b)}\nraw_i32:=func(a:Dynamic,shallow n:UPtr) returns ref I32{return ptr_add(a,n)}\nraw_read:=func(a:Dynamic,n:UPtr) returns I32{return raw_i32(a,n)}\nraw_write:=func(mut a:Dynamic,v:I32){write_i32(a,v)}\n",
+        "stable_address:=func(n:I64,take:Bool) returns Bool{value:=n+1;ref first:Dynamic=to_ptr(value);if take{ref second:Dynamic=to_ptr(value);if ptr_eq(first,second).not(){return false}};return ptr_eq(first,to_ptr(value))}\n",
+        "heap_cycle:=func(n:UPtr) returns I64{mut p:I64=calloc(n,8);write_i64(p,39);write_i64(ptr_add(p,8),3);mut q:I64=realloc(own p,32);ref second:I64=ptr_add(q,8);return q+second}\n",
+        "heap_fill:=func(n:UPtr) returns I64{mut p:I64=malloc(n);memset(p,0,n);write_i64(p,17);return p}\n",
+        "allocate_bytes:=func(n:UPtr) returns Dynamic{return calloc(n,1)}\ntransfer_bytes:=func(n:UPtr) returns Dynamic{p:U8=malloc(n);return p}\nnull_pointer:=func() returns Dynamic{return 0}\nrelease_bytes:=func(own p:Dynamic){free(own p)}\nfree_value:=func(a:I64){free(own a)}\nliteral_memset:=func() returns USize{mut s:Str=\"abc\";memset(s,0,Str.size().cast(UPtr));return s.len()}\n")
+    File.writefile(format(work,"/memory.til"),source)
+    declarations=format(declarations,
+        "typedef struct{int8_t value;}Small;typedef struct{int64_t a,b,c,d;}Large;typedef struct{bool lead;Large value;}Outer;typedef struct{float v[4];}F4;typedef struct{int32_t v[4];}S4;typedef struct{bool v[4];}M4;typedef struct{char*data;uint64_t count,cap;}Text;typedef struct{float*data;uint64_t count;}Buffer;\n",
+        "extern const Small*borrow_small(const Small*);extern const Large*borrow_large(const Large*),*relay_large(const Large*),*choose_ref(const Large*,const Large*,bool),*budget_ref(int64_t,int64_t,int64_t,int64_t,S4,const Large*,const Large*),*budget_relay(int64_t,int64_t,int64_t,int64_t,S4,const Large*,const Large*);extern const int64_t*field_ref(const Outer*);extern void mutate_ref(Outer*,int64_t);extern int64_t read_narrow(int8_t);\n",
+        "extern const F4*borrow_f4(const F4*);extern const M4*borrow_m4(const M4*);extern F4 read_f4(F4);extern M4 read_m4(M4);extern void set_mask(M4*,M4);extern uint64_t mask_bytes(M4);extern const Text*borrow_text(const Text*),*relay_text(const Text*);extern uint64_t text_length(const Text*);extern const int8_t*text_byte(const Text*,uint64_t);extern const Buffer*borrow_array(const Buffer*);extern const float*array_element(const Buffer*,uint64_t,int64_t*),*relay_element(const Buffer*,uint64_t,int64_t*);\n",
+        "extern void copy_bytes(void*,const void*,uint64_t),move_bytes(void*,const void*,uint64_t),fill_bytes(void*,int32_t,uint64_t),store_slot(void*,const void*),raw_write(void*,int32_t),release_bytes(void*),free_value(int64_t);extern int64_t compare_bytes(const void*,const void*,uint64_t),heap_cycle(uint64_t),heap_fill(uint64_t);extern void*offset_ptr(const void*,uint64_t),*from_address(uint64_t),*load_slot(const void*),*allocate_bytes(uint64_t),*transfer_bytes(uint64_t),*null_pointer(void);extern uint64_t address_bits(const void*),literal_memset(void);extern bool null_test(const void*),same_ptr(const void*,const void*),stable_address(int64_t,bool);extern const int32_t*raw_i32(const void*,uint64_t);extern int32_t raw_read(const void*,uint64_t);\n")
+    checks:=format("int main(int argc,char**argv){(void)argv;if(argc>1){raw_read(NULL,0);return 99;}free_value(42);assert(literal_memset()==3);\n",scalar_checks,
+        "Small small={-128};assert(borrow_small(&small)==&small);Large a={1,2,3,4},b={5,6,7,8};assert(borrow_large(&a)==&a && relay_large(&a)==&a && choose_ref(&a,&b,true)==&a && choose_ref(&a,&b,false)==&b);Outer o={true,{11,12,13,14}};assert(field_ref(&o)==&o.value.c);mutate_ref(&o,17);assert(o.value.c==30 && o.value.b==12 && o.value.d==14);assert(read_narrow(-128)==-128);S4 v={{1,2,3,4}};assert(budget_ref(1,2,3,4,v,&a,&b)==&a && budget_relay(-100,2,3,4,v,&a,&b)==&b);\n",
+        "uint32_t raw[4]={0x7f800001,0xffc12345,0x80000000,1};F4 f;memcpy(&f,raw,16);assert(borrow_f4(&f)==&f);F4 copied=read_f4(f);assert(memcmp(&copied,raw,16)==0);for(unsigned mask=0;mask<16;mask++){M4 m={{mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1}};assert(borrow_m4(&m)==&m);M4 copy=read_m4(m);assert(memcmp(&m,&copy,4)==0);uint32_t bits;memcpy(&bits,&m,4);assert(mask_bytes(m)==bits);M4 other={{true,false,true,false}};set_mask(&m,other);assert(memcmp(&m,&other,4)==0);}\n",
+        "Text text={(char*)\"abc\",3,(uint64_t)-1};assert(borrow_text(&text)==&text && relay_text(&text)==&text && text_length(&text)==3 && text_byte(&text,1)==(const int8_t*)text.data+1);float floats[4]={1,2,3,4};Buffer buffer={floats,4};assert(borrow_array(&buffer)==&buffer);for(uint64_t i=0;i<4;i++){int64_t error=0;assert(array_element(&buffer,i,&error)==floats+i && error==0);assert(relay_element(&buffer,i,&error)==floats+i && error==0);}int64_t error=0;relay_element(&buffer,UINT64_MAX,&error);assert(error==1);\n",
+        "for(unsigned n=0;n<65;n++){unsigned char src[96],dst[96],want[96];for(unsigned j=0;j<96;j++){src[j]=(unsigned char)(j*17);dst[j]=want[j]=0x5a;}copy_bytes(dst+1,src+1,n);memcpy(want+1,src+1,n);assert(memcmp(dst,want,96)==0);fill_bytes(dst+1,0x1234,n);memset(want+1,0x1234,n);assert(memcmp(dst,want,96)==0);move_bytes(dst+3,dst+1,n);memmove(want+3,want+1,n);assert(memcmp(dst,want,96)==0);move_bytes(dst+1,dst+3,n);memmove(want+1,want+3,n);assert(memcmp(dst,want,96)==0);int64_t cmp=compare_bytes(dst,src,n);int expected=memcmp(dst,src,n);assert((cmp>0)-(cmp<0)==(expected>0)-(expected<0));assert(offset_ptr(src,n)==src+n);}\n",
+        "unsigned char bytes[24]={0};int32_t value=-1234567;memcpy(bytes+1,&value,4);assert(raw_i32(bytes,1)==(const int32_t*)(bytes+1) && raw_read(bytes,1)==value);raw_write(bytes+1,7654321);memcpy(&value,bytes+1,4);assert(value==7654321 && bytes[0]==0 && bytes[5]==0);void*slot=NULL;store_slot(&slot,&a);assert(slot==&a && load_slot(&slot)==&a);store_slot(&slot,NULL);assert(load_slot(&slot)==NULL);\n",
+        "const uint64_t addresses[]={0,1,0x100000000ULL,0x8000000000000000ULL,UINT64_MAX};for(unsigned i=0;i<5;i++)assert(address_bits(from_address(addresses[i]))==addresses[i]);assert(null_pointer()==NULL && null_test(NULL) && !null_test(&a) && same_ptr(&a,&a) && !same_ptr(&a,&b));for(unsigned i=0;i<1000;i++){assert(stable_address(i,false) && stable_address(i,true));assert(heap_cycle(2)==42 && heap_fill(16)==17);void*p=allocate_bytes(32);assert(p!=NULL);for(unsigned j=0;j<32;j++)assert(((unsigned char*)p)[j]==0);release_bytes(p);void*q=transfer_bytes(32);memset(q,0x5a,32);release_bytes(q);}return 0;}\n")
+    File.writefile(format(work,"/memory_caller.c"),format(declarations,checks))
+    reference_checks:="main:=proc(){mut a:Large=Large(a=1,b=2,c=3,d=4);mut b:Large=Large(a=5);a.c=7;b.a=6;ref mut view:Large=choose_ref(a,b,true);view.c=19;assert_eq(I64,a.c,19);ref other:Large=choose_ref(a,b,false);assert_eq(I64,other.a,6);mut outer:Outer=Outer(value=Large(c=3));mutate_ref(outer,17);assert_eq(I64,outer.value.c,20);narrow:I8=-128;assert_eq(I64,read_narrow(narrow),-128);mut flag:Bool=true;flag=false;ref mut r:Bool=relay_Bool(flag);r=true;assert(flag);assert(stable_address(7,true));assert_eq(I64,heap_cycle(2),42);assert_eq(I64,heap_fill(16),17);println(\"memory PASS\")}\n"
+    File.writefile(format(work,"/memory_reference.til"),format("mode cli\nimport(\"memory\")\n",reference_checks))
+    File.writefile(format(work,"/memory_consumer.til"),format("mode cli\nlink(\"gen/lib/libmemory.so\")\nLarge:=struct{a:I64=0;b:I64=0;c:I64=0;d:I64=0}\nOuter:=struct{lead:Bool=false;value:Large}\nchoose_ref:=ext_func(a:Large,b:Large,shallow take:Bool) returns ref Large{}\nmutate_ref:=ext_func(mut a:Outer,shallow n:I64){}\nread_narrow:=ext_func(shallow a:I8) returns shallow I64{}\nrelay_Bool:=ext_func(a:Bool) returns ref Bool{}\nstable_address:=ext_func(shallow n:I64,shallow take:Bool) returns shallow Bool{}\nheap_cycle:=ext_func(shallow n:UPtr) returns shallow I64{}\nheap_fill:=ext_func(shallow n:UPtr) returns shallow I64{}\n",reference_checks))
+    reference:=Cmd.new(compiler,"run","--usize=64","memory_reference.til");checked(reference,work)
+    interpreted:=Cmd.new(compiler,"interpret","--usize=64","memory_reference.til");checked(interpreted,work)
+    assert_eq(Str,reference.out(),interpreted.out())
+    for level in array(Str,"0","2","3") {
+        build:=Cmd.new(compiler,"build","--backend=mlir",format("--opt=",level),"memory.til");checked(build,work)
+        cc:=Cmd.new("clang-18","-O2","-fsanitize=address","-Wall","-Wextra","-Werror","memory_caller.c","gen/lib/libmemory.a","-lm","-o","memory_caller");checked(cc,work)
+        native:=Cmd.new("./memory_caller");checked(native,work)
+        consumer:=Cmd.new(compiler,"run","--usize=64","--asan","memory_consumer.til");checked(consumer,work)
+        assert_eq(Str,consumer.out(),reference.out())
+        failure:=Cmd.new("./memory_caller","null");failure.cwd(work).capture()
+        assert_eq(I64,failure.run(),1);assert_eq(Str,failure.out(),"");assert_eq(Str,failure.err(),"panic: null deref\n")
+    }
+}
+
 priv check_scalars := proc(compiler: Str, work: Str) {
     elements:=array(Str,"I8","U8","I16","U16")
     prefixes:=array(Str,"s8","u8","s16","u16")
@@ -1060,5 +1131,6 @@ main := proc(compiler_arg: Str) {
     check_pods(compiler, work)
     check_modules(compiler, work)
     check_scalars(compiler, work)
+    check_memory(compiler,work)
     println("mlir PASS")
 }
