@@ -1,0 +1,45 @@
+# priority: high
+# category: bugs
+** FIXED #479 A global holding a view of a temporary reads freed memory
+
+*** Post-mortem
+
+At program scope the garbager never deletes a named binding (a global) or a
+desugarer temp like ~_va_Array~: it lives until the program ends. Hoisted
+temps are the exception and are deleted at their last use. #447's
+receiver-to-view borrow edge made the ~format(...)~ temp outlive the stored
+~trim()~ view only up to the view's last textual use in the top-level body.
+For a global that is not its lifetime: a function body, or a later REPL
+turn, can still read it. The temp was deleted, and the later read printed
+freed bytes on both backends.
+
+~propagate_borrow_edges~ (src/self/garbager.til) now treats a program-scope
+binding that is never deleted and never handed off as living forever, and
+an owner it borrows from inherits that, transitively, so the owner is never
+deleted either. This is tracked beside the reaches, not as a reach:
+~last_use~ stays textual for the use-after-transfer check.
+
+Regression tests: ~test/bug479.til~ (a test function reading a global view
+of a temporary, interpreted and compiled) and the ~view479~ check in
+~test/repl_help.til~ (the view read in a later REPL turn). Both fail with
+the previous compiler.
+
+*** Original report
+
+Found while re-checking #447 on master ~0cffc6c~. A view of a temporary
+stored at program scope dangles when it is read outside the top-level body
+that declared it:
+
+#+begin_src til
+mode script
+
+a := format("a", " b").trim()
+show := proc() { println(format("[", a, "]")) }
+filler := format("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "yyyy")
+show()
+#+end_src
+
+prints ~[  ]~ interpreted and ~[yyy]~ compiled instead of ~[a b]~. In the
+REPL, ~a := format("a", " b").trim()~ followed by ~println(a)~ in the next
+turn prints garbage the same way. #447's fix keeps the temp alive only to the
+view's last use in the same body.

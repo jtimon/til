@@ -356,7 +356,10 @@ rebind-then-transfer pattern).
 
 til's model is a deliberate close cousin of Mojo's. Re-checked against the
 Mojo manual 2026-07-09 (see Sources); the "Different" list was brought up to
-date with #344's borrow inference, #399 and #415 on 2026-10-31. Terminology note: Mojo renamed its
+date with #344's borrow inference, #399 and #415 on 2026-10-31, and the
+conventions, bindings, fields, captures and temporaries were compared
+against the Mojo manual, proposals and compiler source (CheckLifetimes)
+on 2026-11-05. Terminology note: Mojo renamed its
 conventions over 2024-2025 -- ~borrowed~ became ~read~, ~inout~ became
 ~mut~, ~owned~ became ~var~ -- and replaced the ~__copyinit__~ /
 ~__moveinit__~ dunders with the ~Copyable~/~Movable~ traits whose custom
@@ -376,12 +379,17 @@ cross-language terminology check is in [[file:./garbager.org][the garbager guide
     differences).
   - Single owner. "Every value has only one owner at a time"; the value is
     destroyed when the owner's lifetime ends. Identical here.
-  - Argument conventions map one-to-one:
-    | Mojo (current)   | Mojo (pre-rename) | til           |
-    |------------------+-------------------+---------------|
-    | ~read~ (default) | ~borrowed~        | default (Ref) |
-    | ~mut~            | ~inout~           | ~mut~         |
-    | ~var~            | ~owned~           | ~own~         |
+  - Argument conventions. The three everyday ones correspond; the rest
+    do not map one-to-one:
+    | Mojo (current)   | Mojo (pre-rename) | til                         | difference |
+    |------------------+-------------------+-----------------------------+------------|
+    | ~read~ (default) | ~borrowed~        | default (Ref)               | both pass small trivial types by value (til: auto-shallow, #223) |
+    | ~mut~            | ~inout~           | ~mut~                       | Mojo also enforces exclusivity; til does not |
+    | ~var~            | ~owned~           | ~own~                       | Mojo may pass an implicit copy without ~^~; til always moves and spells ~own~ at the call site |
+    | ~ref~            | --                | plain param + ~returns ref~ | see "Parametric mutability" below |
+    | ~out~            | --                | none                        | til returns by value instead of filling a slot |
+    | ~deinit~         | ~owned~ in ~__del__~ | ~delete(own self, call_free)~ | ~call_free~ is the box-vs-inline bit (see Destructor signature) |
+    | none             | --                | ~shallow~                   | a byte copy, even of ~own~ fields; Mojo's copies run the copy initializer |
   - Transfer. Mojo's postfix ~^~ sigil "transfers the value, leaving the
     original variable uninitialized", disabling the source's ~__del__~;
     use-after-transfer is a compile error. til: ~own~ at the call site is
@@ -461,10 +469,56 @@ cross-language terminology check is in [[file:./garbager.org][the garbager guide
     buffers are typed (~own U8~ fields, typed allocator locals via the
     garbager's raw_alloc provenance) -- which moves til toward Mojo's
     "unsafe is an explicit, typed API" stance.
+  - ~var~ is a declaration keyword, not an argument mode. Mojo renamed
+    ~owned~ to ~var~ because ~var~ already meant "a named, scoped, owned
+    value" (release notes 25.5): ~var x = e~ is til's ~x := e~, and ~var~ on
+    a parameter says the callee owns its own binding. til spells the same
+    idea twice -- ~:=~ for locals (where ~own~ is rejected as redundant) and
+    ~own~ for parameters (where the default borrows) -- and requires ~own~
+    at the call site, which answers the objection Mojo's own proposal raised
+    against the rename (~var~ in a signature does not tell the CALLER that
+    the value is consumed). Mojo locals are always mutable (~let~ was
+    removed); til locals are immutable unless ~mut~.
+  - Reference bindings. Mojo's ~ref x = list[0]~ binds an alias that can
+    never be retargeted: assigning to ~x~ writes the referenced element. A
+    retargetable reference is a first-class ~Pointer[T, origin]~ whose origin
+    (a union, if it may point at either of two owners) is part of its type.
+    til's ~ref x : T = e~ is the alias, and its assignment RETARGETS it
+    (#453, test/reference_rebinding.til), so the garbager infers which owners
+    each reference can reach after every rebinding -- the case #461's
+    motivating example is about, and the analysis Mojo does not need.
+  - Parametric mutability. Mojo's ~ref self~ lets the caller's value decide
+    whether a reference is mutable, so ~def get(ref self) -> ref [self] T~
+    is one accessor for both cases. til gets the useful half by inference: a
+    plain parameter returned through ~returns ref~ is writable when the
+    caller's storage is ~mut~ (qualifiers.org "Mutability rule", #344). Inside
+    the callee a plain parameter stays read-only; Mojo's callee can branch on
+    ~origin_of(x).mut~ and write.
+  - Fields. A Mojo struct cannot hold a ~ref~: it holds a ~Pointer[T, origin]~
+    with the origin as a type parameter, and ~AnyOrigin~ is rejected in
+    fields. til's ~ref field : T~ / ~Option(ref T)~ hold borrows directly,
+    with the owner tracked by deposit inference (#393, #398). An ~own field~
+    heap pointer has no keyword in Mojo (a library type such as
+    ~OwnedPointer~); Mojo fields are inline, and their mutability follows the
+    instance (no per-field ~const~).
+  - Closure captures. ~[x]~ / ~[mut x]~ / ~[own x]~ are Mojo's ~{imm x}~ /
+    ~{mut x}~ / ~{var x^}~. ~[shallow x]~ is near ~{var x}~, but Mojo's copy
+    runs the copy initializer (deep); Mojo also has ~{ref x}~ and copyable
+    closures (~{var^}~).
+  - Temporaries. Mojo materializes a temporary used as a ~self~ / ~ref~
+    argument into a hidden named local with its own origin
+    (~(expression temporary)~ in diagnostics), so a stored view keeps it
+    alive like any owner, and consuming it while a reference is live is a
+    "use of uninitialized value" error. til's hoister lifts temporaries into
+    ~hoisted__~ locals, but a ~Str~ view (~CAP_VIEW~) is invisible to the
+    type system: the receiver-to-view edge exists only for the methods
+    ~str_method_returns_view~ lists (#447). A program-scope binding never
+    deleted (a global) passes that permanence on to the owners it borrows,
+    since a function or a later REPL turn can still read it (#479). #478
+    plans to replace the special case with a typed slice.
   - Mojo extras til lacks: ~out~ named-result constructors
     (~__init__(out self)~ initializes in place; til constructors are
-    ordinary calls returning owned values), ~ref~ parametric-mutability
-    params, ~@explicit_destroy~ linear-style types (implicit destructor
+    ordinary calls returning owned values), ~@explicit_destroy~ linear-style types (implicit destructor
     disabled; a named cleanup MUST be called), and the ~_ = value~ discard
     pattern that extends a lifetime to a chosen point.
   - til extras Mojo lacks: ~Shallow~ as a first-class by-value qualifier
@@ -1031,6 +1085,14 @@ restoring ASAN as the default.
   - Mojo, "Deep dive into ownership in Mojo" (pre-rename terminology):
     https://www.modular.com/blog/deep-dive-into-ownership-in-mojo
   - Terminology re-verified against the manual 2026-07-09.
+  - Modular repository (github.com/modular/modular), read 2026-11-05:
+    Mojo/docs/site/manual/values/{ownership,lifetimes}.mdx,
+    Mojo/docs/site/manual/functions/closures.mdx,
+    Mojo/proposals/{variable-bindings,origin-design,value-ownership,
+    resyntaxing-arg-conventions-and-refs}.md, the 25.5 release notes
+    (owned -> var), Mojo/lib/LowerLIT/CheckLifetimes.cpp and
+    Mojo/test/mojo-parser/ownership/ownership_refs.mojo (temporary
+    materialization).
   - til implementation: [[file:../../src/self/garbager.til][src/self/garbager.til]]
     (the ASAP pass), [[file:../../src/self/typer.til][typer.til]]
     (~make_delete_call~, ~make_free_call~, ~expr_transfers_own~, ~fa_own_type~),

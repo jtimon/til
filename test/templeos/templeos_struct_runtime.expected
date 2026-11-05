@@ -12516,7 +12516,6 @@ I64 TilMain()
     U64 hoisted__U64_g755_1272 = 2;
     TilStr hoisted__Str_g756_1273;
     TilStrFromI64(&hoisted__Str_g756_1273, (*((TilCheckPtr(ref_value_1253))(I64 *))));
-    TilStrDelete(&hoisted__Str_g745_1251, FALSE);
     TilStrArraySet(&_va_Array_g127_1264, hoisted__U64_g755_1272, &hoisted__Str_g756_1273);
     TilPrintln(&_va_Array_g127_1264);
     Map__Str_I64 fruit_copy_1274;
@@ -12573,7 +12572,6 @@ I64 TilMain()
     U64 hoisted__U64_g766_1304 = 0;
     TilStr hoisted__Str_g767_1305;
     TilStrFromI64(&hoisted__Str_g767_1305, (*((TilCheckPtr(ref_value_1279))(I64 *))));
-    TilStrDelete(&hoisted__Str_g759_1277, FALSE);
     TilStrArraySet(&_va_Array_g128_1302, hoisted__U64_g766_1304, &hoisted__Str_g767_1305);
     U64 hoisted__U64_g768_1306 = 1;
     TilStr hoisted__Str_g769_1307;
@@ -12582,7 +12580,6 @@ I64 TilMain()
     U64 hoisted__U64_g770_1308 = 2;
     TilStr hoisted__Str_g771_1309;
     TilStrFromI64(&hoisted__Str_g771_1309, (*((TilCheckPtr(ref_value_1291))(I64 *))));
-    TilStrDelete(&hoisted__Str_g762_1289, FALSE);
     TilStrArraySet(&_va_Array_g128_1302, hoisted__U64_g770_1308, &hoisted__Str_g771_1309);
     TilPrintln(&_va_Array_g128_1302);
     TilStr hoisted__Str_g772_1310;
@@ -13047,7 +13044,6 @@ I64 TilMain()
     U64 hoisted__U64_g883_1554 = 0;
     TilStr hoisted__Str_g884_1555;
     TilStrFromI64(&hoisted__Str_g884_1555, (*((TilCheckPtr(ref_value_1541))(I64 *))));
-    TilStrDelete(&hoisted__Str_g879_1539, FALSE);
     TilStrArraySet(&_va_Array_g136_1552, hoisted__U64_g883_1554, &hoisted__Str_g884_1555);
     TilPrintln(&_va_Array_g136_1552);
     Map__Str_I64_Delete(&literal_values_1534, FALSE);
@@ -13158,7 +13154,6 @@ I64 TilMain()
     U64 hoisted__U64_g914_1610 = 0;
     TilStr hoisted__Str_g915_1611;
     TilStrClone(&hoisted__Str_g915_1611, ref_value_1584);
-    OrderedKey_Delete(&hoisted__OrderedKey_g906_1582, FALSE);
     TilStrArraySet(&_va_Array_g138_1608, hoisted__U64_g914_1610, &hoisted__Str_g915_1611);
     U64 hoisted__U64_g916_1612 = 1;
     TilStr hoisted__Str_g917_1613;
@@ -13167,7 +13162,6 @@ I64 TilMain()
     U64 hoisted__U64_g918_1614 = 2;
     TilStr hoisted__Str_g919_1615;
     TilStrClone(&hoisted__Str_g919_1615, ref_value_1597);
-    OrderedKey_Delete(&hoisted__OrderedKey_g910_1595, FALSE);
     TilStrArraySet(&_va_Array_g138_1608, hoisted__U64_g918_1614, &hoisted__Str_g919_1615);
     TilPrintln(&_va_Array_g138_1608);
     I64 hoisted__I64_g920_1616 = 2;
@@ -13428,7 +13422,6 @@ I64 TilMain()
     U64 hoisted__U64_g993_1744 = 2;
     TilStr hoisted__Str_g994_1745;
     TilStrFromI64(&hoisted__Str_g994_1745, (*((TilCheckPtr(ref_value_1727))(I64 *))));
-    CustomOrderedKey_Delete(&hoisted__CustomOrderedKey_g985_1725, FALSE);
     TilStrArraySet(&_va_Array_g141_1738, hoisted__U64_g993_1744, &hoisted__Str_g994_1745);
     TilPrintln(&_va_Array_g141_1738);
     I64 hoisted__I64_g995_1746 = 2;

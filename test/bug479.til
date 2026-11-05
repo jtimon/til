@@ -1,0 +1,15 @@
+mode test
+
+// Issue #479: a global holding a view of a temporary. The format() result
+// is hoisted into a program-scope temp and the trim() view stored in a
+// global, which lives until the program ends. The garbager deleted the
+// temp after the global's last textual use in the top-level body, so the
+// test function below read freed bytes on both backends. The filler
+// allocation reuses the freed chunk, so the corruption shows up reliably.
+stored_view := format("a", " b").trim()
+filler := format("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "yyyy")
+
+test_global_view_of_temporary := test() {
+    assert_eq(Str, format("[", stored_view, "]"), "[a b]")
+    assert_eq(USize, filler.len(), 48)
+}

@@ -3045,7 +3045,6 @@ I64 TilMain()
     TilStrArraySet(&_va_Array_g100_1012, hoisted__U64_g859_1014, &hoisted__Str_g860_1015);
     TilPrintln(&_va_Array_g100_1012);
     File_remove(&write_path_458);
-    TilStrDelete(&hoisted__Str_g707_455, FALSE);
     F32 float_small_1016 = 1266679808;
     F64 float_large_1017 = TilF64Bits(4715268809856909312);
     F32 hoisted__F32_g861_1018 = 1065353216;
