@@ -72,6 +72,72 @@ own/value arguments and result carriers still need their ownership-aware copies.
 Do not attribute the former validation overhead to an intrinsic cost of
 compressed references, or treat its removal as completing reference compression.
 
+*** Plan for the reference side (proposal, 2026-11-05)
+
+Measured first, over the whole tree (src/core, src/std, src/self):
+
+| stored reference shape                      | count |
+|---------------------------------------------+-------|
+| ~ref~ fields in struct definitions          |    19 |
+| ~Vec(ref T)~ / ~Array(ref T)~ / ~Map(.., ref T)~ |     0 |
+| enum variants with a ~ref~ payload          |     0 |
+| ~Option(ref T)~ spellings (all of them)     |   559 |
+
+The 559 ~Option(ref T)~ are return types and locals, not stored fields: a
+niche enum is one native pointer and lives in a local or a return value,
+which compression never touches (only FIELD storage is compressed; locals,
+params and registers are full width by design, as in V8). So the stored
+references in the entire compiler and standard library are 19 fields, and
+of those at least six address memory that is not, and cannot be, in the
+cage: ~HeapBinding.ctx~ (the Context lives in a frame of main),
+~FasmState.program~ (a local of the emitter), ~File.handle~ / ~Cmd.handle~
+(C FILE and process handles), ~TilClosure~-side ~fn~ (a code address),
+~RawResultInfo.data~ (whatever a raw result points at). The rest point at
+AST and interpreter objects, which are in the cage.
+
+What compressing them would cost:
+
+- A stored ~ref~ can address the stack, a global, foreign (C) memory or
+  code. A 32-bit offset cannot carry any of those, and truncation is not
+  an option, so every such store must be made impossible or re-routed:
+  locals whose address escapes into a field would have to be boxed into
+  the cage (a new escape analysis in the typer/garbager, plus the C
+  emitter's GcStorage decisions), globals' storage would have to be
+  allocated in the cage at init (the literal-pool precedent), and refs to
+  foreign memory would need a native-width type of their own (the
+  ~ext_struct~ rule today), which is a type-system split between "ref to
+  til memory" and "ref to C memory" that the language does not have.
+- The interpreter, reflection, the FFI marshaling, the callback bridge
+  (~interp_callback_error_copy~ copies ref fields at ~Dynamic.size()~ and
+  borrows fixed ref parameters from the host Tuple) and the generated C
+  would all gain a second compressed slot kind, layout-aware everywhere
+  ~own~ is today.
+- The payoff is 4 bytes in 19 fields. The only one with many live
+  instances is ~HeapBinding.ctx~ (one per binding), and that one points at
+  the stack. ~Dynamic~ and ~UPtr~ stay native regardless (FFI pointers and
+  byte counts), as the own-field post-mortem below already settled.
+
+Recommendation: do not compress references. Define the 32-bit layout as
+what it is -- owned pointer fields, which are where data structures' links
+and buffers live and where the density is (every Str, Vec, Map header and
+every ~own~ link shrank; the opt-in measurements and the self-translate
+rows show the win) -- and state in doc/self.org's cage section that ~ref~
+fields, ~Dynamic~ and ~UPtr~ are native by design because they address
+memory the cage does not own. Then the callback bridge's native-width
+copies are correct as they are, not an assumption waiting to break, and
+the "Reopened" item closes as a decision rather than as work. If a future
+measurement shows a hot structure whose ~ref~ links matter, the narrow fix
+is to make that link ~own~ (or an index), not to compress references.
+
+If the decision goes the other way, the order would be: (1) the typer
+rejects storing a ref to a stack local or a foreign pointer into a field
+(fail loud first, before any representation changes), (2) globals'
+aggregate storage moves into the cage at init, (3) ~ref~ fields of
+non-ext_struct, non-callable types get ~TIL_REF_PTR~ storage mirroring
+~TIL_OWN_PTR~, with the interpreter's ~FieldLayout~, reflection, FFI and
+callback bridge following, as a Two-pass commit; (4) ~ref~ to ~ext_struct~
+and ~Dynamic~ stay native.
+
 *** Delivered own-field work: historical post-mortem
 
   Delivered as ~--cptr=32~ (64-bit C targets): every ~own~ pointer field is
