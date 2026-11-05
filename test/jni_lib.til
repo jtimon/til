@@ -243,6 +243,17 @@ jni_people_cb := func(f: JniPeopleFn) returns Str {
     return format(r.len().to_str(), " ", jni_oldest(r), " ", jni_oldest(a))
 }
 
+// A callback given a mut Vec of handles.
+JniMutPeopleFn := func(mut Vec(JniPerson))
+
+jni_mut_people_cb := func(f: JniMutPeopleFn) returns Str {
+    mut ps := Vec(JniPerson).new()
+    ps.push(own JniPerson(name = "a", age = 1))
+    ps.push(own JniPerson(name = "b", age = 2))
+    f(ps)
+    return format(ps.len().to_str(), " ", jni_oldest(ps))
+}
+
 JniSumFn := func(Vec(I64)) returns Vec(I64)
 
 jni_map_sum := func(f: JniSumFn) returns I64 {

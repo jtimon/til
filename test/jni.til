@@ -47,7 +47,9 @@ check_text := proc() {
     require_contains(java, "public static long jni_sum(long[] xs) {")
     require_contains(java, "public static void jni_scale(double[][] xs, double k) {")
     require_contains(java, "return JniPerson.tilArray(n_jni_people(tilUtf8All(names)));")
-    require_contains(java, "// jni_age_all: not bound: mut Vec of handles parameter 'people'")
+    require_contains(java, "public static void jni_age_all(JniPerson[][] people) {")
+    require_contains(java, "long[][] tilMut0 = { JniPerson.tilTakeAll(people[0]) };")
+    require_contains(java, "void call(JniPerson[][] a0);")
     // Callbacks: a throwing one declares TilError; mut values cross in
     // one-element holders, an own handle as one Java owns.
     require_contains(java, "long call(long a0) throws TilError;")
@@ -91,7 +93,20 @@ check_text := proc() {
     require_contains(c, "threw TilError %s, which its til type does not declare")
 }
 
-EXPECTED := "127\n250\n-2000\n65000\n1999999999\n4294967295\n1099511627783\n18446744073709551615\n42\n1.5\n2.5\nfalse true\n42\n6\nhello, jvm\n<owned>\n42\ncaught DivideByZero / DivideByZero: b is zero\ncaught JniBad / JniBad\nada:36\ngrace:37 true\nanon 0 true\n5\nmoved: JniPerson handle is closed or moved\n42 false\nholder: n: a mut parameter takes a one-element array\n49 12 0\n7 own 0\npayload: JniShape is not Label\n2 held held\n5 renamed\nborrowed: cannot move a borrowed JniPerson\n90\n[cb]\n36\nmade:9\ntrue\nx|y||z\np|q\n303\nanon 0\n46\n[0, 1, 4, 9, 16] 0\n[3.0, 4.0, 2.0]\n2\n3 ccc 2 ccc\n3 a\nq [0, 1]\n[4, 5, 6]\n121\n42\nJniErr neg -1 7\nDivideByZero []\nJniBad\n42 abc true 2:9 p|q\nmm:11\n504\nkept 30\n2 z b\nloop ok\n"
+// Everything the class lists as not bound is also a note when the library is
+// built.
+check_notes := proc(err: Str) {
+    for line : Str in File.readfile(JAVA).split("\n") {
+        if line.contains(" not bound: ").not() { continue }
+        reason := line.substr(line.find(" not bound: ").to_usize(), line.len() - line.find(" not bound: ").to_usize())
+        if err.contains(reason).not() { panic("no build note for: ", line, "\nstderr:\n", err) }
+    }
+    require_contains(err, "note: JNI binding til.jni_lib.JniLib: field JniTeam.people not bound: type Vec__JniPerson\n")
+    require_contains(err, "note: JNI binding til.jni_lib.JniLib: JniTeam() not bound: ")
+    require_contains(err, "note: JNI binding til.jni_lib.JniLib: adopt__F64 not bound: parameter 'dest' of type Dynamic\n")
+}
+
+EXPECTED := "127\n250\n-2000\n65000\n1999999999\n4294967295\n1099511627783\n18446744073709551615\n42\n1.5\n2.5\nfalse true\n42\n6\nhello, jvm\n<owned>\n42\ncaught DivideByZero / DivideByZero: b is zero\ncaught JniBad / JniBad\nada:36\ngrace:37 true\nanon 0 true\n5\nmoved: JniPerson handle is closed or moved\n42 false\nholder: n: a mut parameter takes a one-element array\n49 12 0\n7 own 0\npayload: JniShape is not Label\n2 held held\n5 renamed\nborrowed: cannot move a borrowed JniPerson\n90\n[cb]\n36\nmade:9\ntrue\nx|y||z\np|q\n303\nanon 0\n46\n[0, 1, 4, 9, 16] 0\n[3.0, 4.0, 2.0]\n2\n3 ccc 2 ccc\n3 a\nq [0, 1]\n[4, 5, 6]\n121\n42\nJniErr neg -1 7\nDivideByZero []\nJniBad\n42 abc true 2:9 p|q\nmm:11\n504\nkept 30\n2 z b\n3 new a false\nmut vec: JniPerson handle is closed or moved\nborrowed vec: cannot move a borrowed JniPerson\n2 z\nloop ok\n"
 
 main := proc(args: ..Str) {
     // TEMPORARY (#464): make test passes no sanitizer flag; test_asan does.
@@ -104,15 +119,15 @@ main := proc(args: ..Str) {
     }
     // --no-jvm (bin/tests --no-jvm): a host without a JDK builds without
     // --jni and stops at the text.
-    if run_jvm.not() {
-        Cmd.new("bin/til", "build", "test/jni_lib.til").run_checked()
-        check_text()
-        println("jni text ok")
-        return
-    }
-    jni_til_build("test/jni_lib.til", false)
+    build := Cmd.new("bin/til", "build")
+    if run_jvm { build.arg("--jni") }
+    build.arg("test/jni_lib.til")
+    build.capture()
+    if build.run() != 0 { panic("building test/jni_lib.til failed:\n", build.out(), build.err()) }
     check_text()
+    check_notes(build.err())
     println("jni text ok")
+    if run_jvm.not() { return }
 
     java_home := jni_java_home()
     jni_javac(java_home, "tmp/jni_classes", JAR, "test/JniLibTest.java")

@@ -8779,6 +8779,15 @@ priv jni_mangle := func(name: Str) returns Str {
     return out
 }
 
+// Something the binding cannot express: a `// <label> not bound: <reason>`
+// comment in the class at `indent`, and a note on stderr naming the class
+// and `what`, so the gap shows when the library is built, not only in the
+// generated source.
+priv jni_not_bound := proc(jf: File, types: JniTypes, indent: Str, label: Str, what: Str, reason: Str) {
+    jf.write(indent).write("// ").write(label).write(" not bound: ").write(reason).write("\n")
+    eprint_single(format("note: JNI binding ", types.class_path.replace("/", "."), ": ", what, " not bound: ", reason, "\n"))
+}
+
 priv jni_param_is_err_slot := func(p: Declaration) returns Bool {
     return p.name.starts_with("_err_")
 }
@@ -9069,9 +9078,6 @@ priv jni_unbound_reason := func(fd: FunctionDef, types: JniTypes, ctx: Context) 
             return format("shallow ", tn, " parameter '", p.name, "'")
         }
         if kind.eq("callback").and(p.is_mut) { return format("mut callback parameter '", p.name, "'") }
-        // Writing a new Vec of handles back would leave the caller's old
-        // handles to close by hand.
-        if kind.eq("hvec").and(p.is_mut) { return format("mut Vec of handles parameter '", p.name, "'") }
     }
     if fd.sig.return_type.len() > 0 {
         rt := jni_resolve(fd.sig.return_type, ctx)
@@ -9096,7 +9102,8 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
         types: JniTypes, ctx: Context) {
     reason := jni_unbound_reason(fd, types, ctx)
     if reason.len() > 0 {
-        jf.write("    // ").write(api_name).write(": not bound: ").write(reason).write("\n\n")
+        jni_not_bound(jf, types, "    ", format(api_name, ":"), api_name, reason)
+        jf.write("\n")
         return
     }
     java_name := jni_java_ident(api_name)
@@ -9135,10 +9142,23 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
             java_params = format(java_params, ", ")
             java_args = format(java_args, ", ")
         }
-        holder := p.is_mut.and(kind.eq("scalar").or(jni_is_copied(kind)))
+        holder := p.is_mut.and(kind.eq("scalar").or(jni_is_copied(kind)).or(kind.eq("hvec")))
         if holder {
             java_pre = format(java_pre, "        if (", pname, ".length != 1) { throw new IllegalArgumentException(\"",
                 pname, ": a mut parameter takes a one-element array\"); }\n")
+        }
+        if holder.and(kind.eq("hvec")) {
+            // The caller's handles move into the Vec the library changes
+            // (a borrowed one is refused), and the library's Vec comes back
+            // as new owned handles: the old ones are spent.
+            hv := format("tilMut", i.to_str())
+            elem_cls := jni_java_ident(jni_vec_elem(tn))
+            native_params = format(native_params, "long[][] ", pname)
+            java_params = format(java_params, jni_java_type(tn, types, ctx), "[] ", pname)
+            java_pre = format(java_pre, "        long[][] ", hv, " = { ", elem_cls, ".tilTakeAll(", pname, "[0]) };\n")
+            java_post = format(java_post, "            ", pname, "[0] = ", elem_cls, ".tilArray(", hv, "[0]);\n")
+            java_args = format(java_args, hv)
+            continue
         }
         if holder.and(jni_is_copied(kind)) {
             hv := format("tilMut", i.to_str())
@@ -9221,7 +9241,7 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
         tn := jni_decl_type(p, ctx)
         kind := jni_kind(tn, types, ctx)
         mut ct := jni_c_type(tn, types, ctx)
-        if p.is_mut.and(jni_is_copied(kind)) { ct = "jobjectArray" }
+        if p.is_mut.and(jni_is_copied(kind).or(kind.eq("hvec"))) { ct = "jobjectArray" }
         else if p.is_mut.and(kind.eq("scalar")) { ct = format(ct, "Array") }
         head_params = format(head_params, ", ", ct, " a", i.to_str())
     }
@@ -9280,6 +9300,16 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
             }
             // `own`: the callee frees the box. Borrowed and mut: a pointer.
             else { call_args = format(call_args, pv) }
+            continue
+        }
+        if p.is_mut.and(kind.eq("hvec")) {
+            ev := format("e", i.to_str())
+            cf.write("    jlongArray ").write(ev).write(" = (jlongArray)(*env)->GetObjectArrayElement(env, ").write(a).write(", 0);\n")
+            cf.write("    ").write(jni_til_c_type(tn, types, ctx)).write(" ").write(t).write(" = til_jni_vec_move_in_").write(tn)
+                .write("(env, ").write(ev).write(");\n")
+            cf.write("    (*env)->DeleteLocalRef(env, ").write(ev).write(");\n")
+            call_args = format(call_args, "&", t)
+            after = format(after, "    til_jni_vec_write_back_", tn, "(env, ", a, ", &", t, ");\n")
             continue
         }
         if p.is_mut.and(jni_is_copied(kind)) {
@@ -9668,7 +9698,7 @@ priv emit_jni_handle_class := proc(jf: File, cf: File, name: Str, def: Expr, typ
         mut seq : I64 = 0
         jni_init_fields(sdd, "(*p)", def, false, types, ctx, seq, init)
         if init.reason.len() > 0 {
-            jf.write("        // ").write(jcls).write("(): not bound: ").write(init.reason).write("\n")
+            jni_not_bound(jf, types, "        ", format(jcls, "():"), format(name, "()"), init.reason)
         } else {
             jf.write("        public ").write(jcls).write("() { this(").write(hp).write("new(), true); }\n")
             natives = format(natives, "    private static native long ", hp, "new();\n")
@@ -9684,7 +9714,8 @@ priv emit_jni_handle_class := proc(jf: File, cf: File, name: Str, def: Expr, typ
             ftn := jni_decl_type(fdd, ctx)
             kind := jni_kind(ftn, types, ctx)
             if kind.len().eq(0).or(kind.eq("callback")).or(kind.eq("hvec")) {
-                jf.write("        // field ").write(fname).write(": not bound: type ").write(ftn).write("\n")
+                jni_not_bound(jf, types, "        ", format("field ", fname, ":"), format("field ", name, ".", fname),
+                    format("type ", ftn))
                 continue
             }
             // The field's storage, as emit_struct_typedef lays it out.
@@ -9747,7 +9778,8 @@ priv emit_jni_handle_class := proc(jf: File, cf: File, name: Str, def: Expr, typ
             vtn := jni_resolve(enum_variant_type(def, vi.to_i32()), ctx)
             kind := jni_kind(vtn, types, ctx)
             if kind.len().eq(0).or(kind.eq("callback")).or(kind.eq("hvec")) {
-                jf.write("        // payload ").write(pvd.name).write(": not bound: type ").write(vtn).write("\n")
+                jni_not_bound(jf, types, "        ", format("payload ", pvd.name, ":"), format("payload ", name, ".", pvd.name),
+                    format("type ", vtn))
                 continue
             }
             mut m := JniMember(owner = name.clone(), name = pvd.name.clone(), type_name = vtn.clone())
@@ -9838,9 +9870,6 @@ priv jni_callback_reason := proc(sfd: FunctionDef, types: JniTypes, ctx: Context
         tn := jni_decl_type(p, ctx)
         kind := jni_kind(tn, types, ctx)
         if kind.len().eq(0).or(kind.eq("callback")) { return format("parameter of type ", tn) }
-        // As for functions: a new array written back would orphan the
-        // callback's own handles to the old elements.
-        if kind.eq("hvec").and(p.is_mut) { return format("mut Vec of handles parameter of type ", tn) }
     }
     if sfd.sig.return_type.len() > 0 {
         rt := jni_resolve(sfd.sig.return_type, ctx)
@@ -9940,6 +9969,31 @@ priv emit_jni_callback := proc(jf: File, cf: File, name: Str, sfd: FunctionDef, 
             c_args = format(c_args, "    ", slot, ".l = ", h, ";\n")
             c_back = format(c_back, "    (*env)->Get", infix, "ArrayRegion(env, ", h, ", 0, 1, &", v, ");\n",
                 "    ", xv, " = ", jni_c_value_in(tn, v), ";\n")
+            c_post = format(c_post, "    (*env)->DeleteLocalRef(env, ", h, ");\n")
+        } else if p.is_mut.and(kind.eq("hvec")) {
+            // The elements move to Java as owned handles in a one-element
+            // array; whatever array the callback leaves there moves back.
+            s := format("s", i.to_str())
+            n := format("n", i.to_str())
+            jh := format("tilMut", i.to_str())
+            elem_cls := jni_java_ident(jni_vec_elem(tn))
+            iface_params = format(iface_params, jt, "[] ", a)
+            adapter_params = format(adapter_params, ", ", nt, "[] ", a)
+            adapter_pre = format(adapter_pre, "        ", jt, "[] ", jh, " = { ", elem_cls, ".tilArray(", a, "[0]) };\n")
+            adapter_post = format(adapter_post, "            ", a, "[0] = ", elem_cls, ".tilTakeAll(",
+                "java.util.Objects.requireNonNull(", jh, "[0], \"", jh, "[0]\"));\n")
+            adapter_args = format(adapter_args, jh)
+            descriptor = format(descriptor, jni_descriptor(format(nt, "[]")))
+            c_pre = format(c_pre, "    jlongArray ", s, " = til_jni_vec_take_", tn, "(env, &", xv, ");\n",
+                "    til_jni_cb_check(env, \"", name, "\");\n",
+                "    jobjectArray ", h, " = til_jni_cb_holder(env, \"", name, "\", \"[J\", ", s, ");\n",
+                "    (*env)->DeleteLocalRef(env, ", s, ");\n")
+            c_args = format(c_args, "    ", slot, ".l = ", h, ";\n")
+            // take emptied the til Vec; the array Java left becomes it.
+            c_back = format(c_back, "    jlongArray ", n, " = (jlongArray)(*env)->GetObjectArrayElement(env, ", h, ", 0);\n",
+                "    til_jni_cb_check(env, \"", name, "\");\n",
+                "    ", xv, " = til_jni_vec_move_in_", tn, "(env, ", n, ");\n",
+                "    (*env)->DeleteLocalRef(env, ", n, ");\n")
             c_post = format(c_post, "    (*env)->DeleteLocalRef(env, ", h, ");\n")
         } else if p.is_mut.and(jni_is_copied(kind)) {
             // C holds the native value in a one-element array; the adapter
@@ -10179,7 +10233,8 @@ priv emit_jni_global := proc(jf: File, cf: File, api_name: Str, symbol: Str, d: 
     kind := jni_kind(tn, types, ctx)
     is_ref := d.own_type.is(OwnType.Ref)
     if kind.len().eq(0).or(kind.eq("callback")).or(kind.eq("hvec")).or(is_ref.or(d.own_type.is(OwnType.Shallow)).not()) {
-        jf.write("    // ").write(api_name).write(": not bound: global of type ").write(tn).write("\n\n")
+        jni_not_bound(jf, types, "    ", format(api_name, ":"), api_name, format("global of type ", tn))
+        jf.write("\n")
         return
     }
     c_type := jni_til_c_type(tn, types, ctx)
@@ -10414,7 +10469,8 @@ priv build_jni_binding := proc(lp: LoadedProgram, jni_c_path: Str, java_path: St
             case .FuncDef(sfd):
                 reason := jni_callback_reason(sfd, types, lp.ctx)
                 if reason.len() > 0 {
-                    jf.write("    // ").write(fsd.name).write(": callback not bound: ").write(reason).write("\n\n")
+                    jni_not_bound(jf, types, "    ", format(fsd.name, ": callback"), format("callback ", fsd.name), reason)
+                    jf.write("\n")
                 } else {
                     emit_jni_callback(jf, cf, fsd.name, sfd, types, lp.ctx)
                 }
@@ -10476,7 +10532,8 @@ priv build_jni_binding := proc(lp: LoadedProgram, jni_c_path: Str, java_path: St
                             // The enum would keep a ref payload's pointer to
                             // the bridge's argument storage past the call.
                             if enum_variant_payload_ref(rhs, vidx) {
-                                jf.write("    // ").write(api_name).write(": not bound: the payload is a reference\n\n")
+                                jni_not_bound(jf, types, "    ", format(api_name, ":"), api_name, "the payload is a reference")
+                                jf.write("\n")
                                 continue
                             }
                             emit_jni_function(jf, cf, nfd, api_name, c_lib_symbol(lib_name, api_name), types, lp.ctx)
@@ -10586,6 +10643,14 @@ priv emit_jni_vec_helpers := proc(cf: File, name: Str, is_handle: Bool, types: J
         cf.write("    // REM: NULL leaves OutOfMemoryError pending for the JVM.\n")
         cf.write("    if (a != NULL) { (*env)->SetLongArrayRegion(env, a, 0, n, hs); }\n")
         cf.write("    free(hs);\n    return a;\n}\n\n")
+        // A mut argument: the Vec's elements go back to the caller's
+        // one-element array as new owned handles.
+        cf.write("TIL_JNI_HELPER void til_jni_vec_write_back_").write(name).write("(JNIEnv *env, jobjectArray holder, ").write(vt).write(" *v) {\n")
+        cf.write("    jlongArray o = til_jni_vec_take_").write(name).write("(env, v);\n")
+        cf.write("    if (o != NULL) {\n")
+        cf.write("        (*env)->SetObjectArrayElement(env, holder, 0, o);\n")
+        cf.write("        (*env)->DeleteLocalRef(env, o);\n")
+        cf.write("    }\n}\n\n")
         cf.write("TIL_JNI_HELPER jlongArray til_jni_vec_views_").write(name).write("(JNIEnv *env, const ").write(vt).write(" *v) {\n")
         cf.write(count_check)
         cf.write("    jsize n = (jsize)v->count;\n")

@@ -98,6 +98,10 @@ compiling it does.
     libraries without the closure runtime; it is now emitted only with it.
   - Callbacks take ~Vec~s of structs or enums (borrowed views, or owned
     handles for ~own~) and return them (each handle moved into til).
+  - ~mut~ Vecs of structs or enums, for functions (the caller's handles
+    move in, the library's Vec comes back as new owned handles) and
+    callbacks (the elements move to Java as owned handles and back); every
+    unbound item is also a ~note:~ on stderr when the library is built.
   - Open: Android packaging (#462); then the BEAM half (NIFs).
 
 *** Acceptance
@@ -109,8 +113,10 @@ compiling it does.
     including a long-running call that does not block a scheduler.
   - [ ] Unsupported signatures produce actionable diagnostics; existing
     Python/C/til bindings keep working. JVM half done: every unbound
-    function, field, constructor, global or callback is listed in the
-    generated class as ~// <name>: not bound: <reason>~ (checked by
-    ~test/jni.til~), nothing is bound with changed semantics, and the
+    function, field, constructor, global or callback is reported when the
+    library is built (~note: JNI binding <class>: <item> not bound:
+    <reason>~ on stderr) and listed in the generated class as a comment
+    (both checked by ~test/jni.til~), nothing is bound with changed
+    semantics, and the
     Python, C and til binding tests keep passing beside the JVM ones. Open:
     the BEAM half.

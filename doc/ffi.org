@@ -933,8 +933,11 @@ the library, so the Java object is spent and using it again throws
 A ~Vec~ crosses as a Java array. One of scalars is copied both ways, with
 ~mut~ taking a one-element holder (~long[][]~). One of structs or enums is
 built from clones of the elements the caller's handles hold, so the
-caller's handles stay theirs to close, ~own~ included; a ~mut~ one is not
-bound, since writing back would leave the caller's old handles orphaned. A
+caller's handles stay theirs to close, ~own~ included. A ~mut~ one takes a
+one-element holder (~T[][]~) and moves the caller's handles into the Vec the
+library changes (a borrowed handle there throws ~IllegalStateException~
+before the call): the old handles are spent, and the holder gets the
+library's Vec back as new owned handles, also when the call throws. A
 returned ~Vec~ of structs or enums hands each element to Java as a new owned
 handle, and ~returns ref~ gives borrowed views of the elements.
 
@@ -993,7 +996,9 @@ is attached to the JVM on its first callback.
     borrowed handle, changed through its setters.
   - A handle the callback returns is moved into til, and so is each handle
     of a returned array (a borrowed one there aborts, as moving it would).
-    A ~mut~ ~Vec~ of structs or enums is not bound, as for functions.
+    A ~mut~ ~Vec~ of structs or enums moves to Java as a one-element array
+    of owned handles; after the call the array left in ~a[0]~ moves back
+    into til the same way (a borrowed, closed or ~null~ entry aborts).
   - A FuncSig that ~throws~ declares ~throws <Cls>.TilError~. The callback
     throws in til by raising ~new TilError("<Type>")~ or ~new
     TilError("<Type>", detail)~ with one of the declared throw types: the
@@ -1010,13 +1015,14 @@ default on 64-bit targets -- and reaches own pointers through
 layout.
 
 Anything else -- ~Dynamic~ (type-erased, nothing to marshal), ~shallow Str~
-parameters, other collections, ~mut~ and non-function uses of ~Vec~s of
-structs or enums (functions' and callbacks'), variadics, callbacks taking or
-returning other callbacks, throw types whose payload a ~TilError~
-cannot build (a scalar, an enum, a default the bridge cannot reproduce),
-~mut~ callback parameters of functions -- is listed in the
-class as a ~// <name>: not bound: <reason>~ comment, so the gap is visible
-in the generated source.
+parameters, other collections, non-function uses of ~Vec~s of structs or
+enums (fields, globals, payloads), variadics, callbacks taking or returning
+other callbacks, throw types whose payload a ~TilError~ cannot build (a
+scalar, an enum, a default the bridge cannot reproduce), ~mut~ callback
+parameters of functions -- is listed in the class as a ~// <name>: not
+bound: <reason>~ comment, and every translation of the library reports it
+on stderr as ~note: JNI binding <class>: <item> not bound: <reason>~, so
+the gap shows at build time as well as in the generated source.
 
 ~make test~ runs the binding the way it runs the Python one, with a JDK
 (~$JAVA_HOME~, else the one ~javac~ on ~PATH~ belongs to; an optional

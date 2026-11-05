@@ -215,6 +215,41 @@ public class JniLibTest {
             check(JniLib.jni_people_cb((xs, ys) -> { ys[1].close(); return new JniLib.JniPerson[] { ys[0] }; })
                 .equals("1 c b"), "handle vec callback loop");
         }
+        // A mut Vec of handles: the caller's handles move in (a borrowed one is
+        // refused), the library's Vec comes back as new owned handles.
+        JniLib.JniPerson[][] crew = { JniLib.jni_people(new String[] { "a", "bb" }) };
+        JniLib.JniPerson first = crew[0][0];
+        JniLib.jni_age_all(crew);
+        System.out.println(crew[0].length + " " + crew[0][2].name() + " " + crew[0][0].name() + " "
+            + (first == crew[0][0]));
+        try {
+            first.age();
+            System.out.println("moved handle still usable");
+        } catch (IllegalStateException e) {
+            System.out.println("mut vec: " + e.getMessage());
+        }
+        for (JniLib.JniPerson p : crew[0]) { p.close(); }
+        try (JniLib.JniTeam tm = JniLib.jni_team(new String[] { "p" })) {
+            JniLib.jni_age_all(new JniLib.JniPerson[][] { JniLib.jni_team_people(tm) });
+            System.out.println("moved borrowed handles");
+        } catch (IllegalStateException e) {
+            System.out.println("borrowed vec: " + e.getMessage());
+        }
+        System.out.println(JniLib.jni_mut_people_cb(xs -> {
+            JniLib.JniPerson extra = new JniLib.JniPerson();
+            extra.name("z");
+            extra.age(9);
+            xs[0][0].close();
+            xs[0] = new JniLib.JniPerson[] { xs[0][1], extra };
+        }));
+        for (int i = 0; i < 100000; i++) {
+            JniLib.JniPerson[][] t = { JniLib.jni_people(new String[] { "x" }) };
+            JniLib.jni_age_all(t);
+            check(t[0].length == 2, "mut vec loop");
+            for (JniLib.JniPerson p : t[0]) { p.close(); }
+            check(JniLib.jni_mut_people_cb(xs -> { xs[0][1].close(); xs[0] = new JniLib.JniPerson[] { xs[0][0] }; })
+                .equals("1 a"), "mut vec callback loop");
+        }
         // Repeated calls: borrowed temporaries, owned boxes and results are
         // all released by the bridge or the library, never by the JVM.
         for (int i = 0; i < 100000; i++) {
