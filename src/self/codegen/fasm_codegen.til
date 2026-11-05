@@ -479,6 +479,43 @@ priv fasm_static_callable := func(name: Str, slot: Bool, mut program: FasmProgra
     return program.labels[slot_key].clone()
 }
 
+priv fasm_capture_inline := func(cap: Declaration) returns Bool {
+    // An owned opaque pointer retains its independent allocation. Ref captures
+    // retain their borrowed address; all other captures have private value space.
+    return cap.own_type.is(OwnType.Ref).or(cap.own_type.is(OwnType.Own).and(cap.til_type.is(Type.Dynamic))).not()
+}
+
+// Offsets relative to the environment, followed by its total size. The pointer
+// table preserves borrowed/heap-owned identity; private value space follows it.
+priv fasm_capture_layout := func(captures: Vec(Declaration), lp: LoadedProgram) returns Vec(USize) {
+    mut offsets := Vec(USize).new()
+    mut bytes := captures.len() * 8
+    for cap : Declaration in captures {
+        offsets.push(own bytes.clone())
+        if fasm_capture_inline(cap) {
+            mut size := fasm_type_size(cap.til_type, lp)
+            if size < 8 { size = 8 }
+            bytes = bytes + ((size + 7) / 8) * 8
+        }
+    }
+    offsets.push(own bytes)
+    return offsets
+}
+
+// RAX points to the source value. Copy into this closure's private storage,
+// without allocating a capture box. Existing owned heap outers can stay external.
+priv fasm_capture_copy := func(cap: Declaration, offset: USize, environment: Str, mut state: FasmState, lp: LoadedProgram) {
+    destination := fasm_slot(state)
+    fasm_emit(state, format("mov rsi, rax\n    mov rdi, ", environment, "\n    add rdi, ", offset.to_str(),
+        "\n    mov ", destination, ", rdi\n    mov rdx, ", fasm_type_size(cap.til_type, lp).to_str(), "\n    call rt_memcpy\n    mov rax, ", destination))
+    if fasm_is_str(cap.til_type, lp) {
+        label := state.labels.to_str()
+        state.labels++
+        fasm_emit(state, format("mov rdx, rax\n    load_size rcx, [rdx+STR_CAP]\n    mov r9, CAP_LIT\n    cmp rcx, r9\n    jne .capture_str", label,
+            "\n    store_size [rdx+STR_CAP], CAP_VIEW\n.capture_str", label, ":\n    mov rax, rdx"))
+    }
+}
+
 priv fasm_closure_value := proc(e: Expr, name: Str, mut state: FasmState, mut lp: LoadedProgram) {
     target := fasm_request(name, state.program)
     ref captures : Vec(Declaration) = fasm_captures(e)
@@ -487,8 +524,11 @@ priv fasm_closure_value := proc(e: Expr, name: Str, mut state: FasmState, mut lp
         fasm_emit(state, format("mov rax, ", label))
         return
     }
+    layout := fasm_capture_layout(captures, lp)
+    descriptor := fasm_slot(state)
     environment := fasm_slot(state)
-    fasm_emit(state, format("mov rdi, ", (captures.len() * 8).to_str(), "\n    call rt_malloc\n    mov ", environment, ", rax"))
+    fasm_emit(state, format("mov rdi, ", (layout[captures.len()] + 32).to_str(), "\n    call rt_malloc\n    mov ", descriptor,
+        ", rax\n    add rax, 32\n    mov ", environment, ", rax"))
     for i in 0..captures.len() {
         ref cap : Declaration = captures[i]
         mut source := Expr.new(own ident_node(lp.ctx.symbols.intern(cap.name)), e.line, e.col)
@@ -498,15 +538,26 @@ priv fasm_closure_value := proc(e: Expr, name: Str, mut state: FasmState, mut lp
             state.program.definitions[name].capture_signatures.set(cap.name, own signature)
         }
         if cap.own_type.is(OwnType.Ref) { fasm_pointer(source, state, lp) }
-        else if cap.own_type.is(OwnType.Shallow).or(type_is_callable_storage(cap.til_type)) {
+        else if fasm_capture_inline(cap) {
             fasm_pointer(source, state, lp)
-            fasm_box_copy(cap.til_type, state, lp)
+            if cap.own_type.is(OwnType.Own).and(type_is_callable_storage(cap.til_type).not()).and(fasm_boxed(source, state, lp)) {
+                // Moving an existing heap owner preserves its pointee address.
+            } else {
+                mut done := ""
+                if cap.own_type.is(OwnType.Own) && state.outer_heap.len() > 0 && cap.name == state.outer_parameter {
+                    done = format(".capture_outer", state.labels.to_str())
+                    state.labels++
+                    fasm_emit(state, format("cmp ", state.outer_heap, ", 0\n    jne ", done))
+                }
+                fasm_capture_copy(cap, layout[i], environment, state, lp)
+                if done.len() > 0 { fasm_emit(state, format(done, ":")) }
+            }
         } else { fasm_owned(source, state, lp) }
         fasm_emit(state, format("mov rdx, ", environment, "\n    mov [rdx+", (i * 8).to_str(), "], rax"))
     }
     drop := fasm_request(format("@drop:", name), state.program)
     clone := fasm_request(format("@clone:", name), state.program)
-    fasm_emit(state, format("mov edi, 32\n    call rt_malloc\n    mov qword [rax], ", target,
+    fasm_emit(state, format("mov rax, ", descriptor, "\n    mov qword [rax], ", target,
         "\n    mov rdx, ", environment, "\n    mov [rax+8], rdx\n    mov qword [rax+16], ", drop, "\n    mov qword [rax+24], ", clone))
 }
 
@@ -515,14 +566,19 @@ priv fasm_environment_function := func(name: Str, clone: Bool, mut program: Fasm
     ref expr : Expr = fasm_definition(owner, program, lp)
     context_enter_file(lp.ctx, program.definitions[owner].path)
     ref captures : Vec(Declaration) = fasm_captures(expr)
+    layout := fasm_capture_layout(captures, lp)
     mut state := FasmState(program=program)
     state.prefix = program.labels[name].clone()
     source := fasm_slot(state)
     fasm_emit(state, format("mov ", source, ", rdi"))
     mut destination := ""
+    mut environment := ""
     if clone {
         destination = fasm_slot(state)
-        fasm_emit(state, format("mov rdi, ", (captures.len() * 8).to_str(), "\n    call rt_malloc\n    mov ", destination, ", rax"))
+        environment = fasm_slot(state)
+        fasm_emit(state, format("mov rdi, ", (layout[captures.len()] + 32).to_str(), "\n    call rt_malloc\n    mov ", destination,
+            ", rax\n    mov rdi, rax\n    mov rsi, ", source, "\n    sub rsi, 32\n    mov edx, 32\n    call rt_memcpy\n    mov rax, ", destination,
+            "\n    lea rdx, [rax+32]\n    mov [rax+8], rdx\n    mov ", environment, ", rdx"))
     }
     for i in 0..captures.len() {
         ref cap : Declaration = captures[i]
@@ -532,26 +588,40 @@ priv fasm_environment_function := func(name: Str, clone: Bool, mut program: Fasm
             if cap.own_type.is(OwnType.Ref) {
                 // Ref captures in both environments point at the same storage.
             } else if type_is_callable_storage(cap.til_type) {
-                fasm_emit(state, "mov rdi, rax\n    call rt_til_closure_slot_clone")
+                fasm_emit(state, format("mov rdi, [rax]\n    call rt_closure_clone\n    mov rdx, ", environment,
+                    "\n    add rdx, ", layout[i].to_str(), "\n    mov [rdx], rax\n    mov rax, rdx"))
             } else if fasm_aggregate(cap.til_type, lp) {
                 input := fasm_slot(state)
-                output := fasm_slot(state)
-                fasm_emit(state, format("mov ", input, ", rax\n    mov rdi, ", fasm_type_size(cap.til_type, lp).to_str(),
-                    "\n    call rt_malloc\n    mov ", output, ", rax\n    mov rdi, ", input, "\n    mov rax, ", output))
+                fasm_emit(state, format("mov ", input, ", rax\n    mov rdi, ", input, "\n    mov rax, ", environment,
+                    "\n    add rax, ", layout[i].to_str()))
                 if fasm_is_str(cap.til_type, lp) { fasm_emit(state, "call rt_str_clone") }
                 else {
                     target := fasm_request(format(type_name_ref(cap.til_type, lp.ctx.symbols), "_clone"), program)
                     fasm_emit(state, format("call ", target))
                 }
-            } else { fasm_box_copy(cap.til_type, state, lp) }
-            fasm_emit(state, format("mov rdx, ", destination, "\n    mov [rdx+", (i * 8).to_str(), "], rax"))
+            } else if fasm_capture_inline(cap) { fasm_capture_copy(cap, layout[i], environment, state, lp) }
+            else { fasm_box_copy(cap.til_type, state, lp) }
+            fasm_emit(state, format("mov rdx, ", environment, "\n    mov [rdx+", (i * 8).to_str(), "], rax"))
         } else {
+            value := fasm_slot(state)
+            fasm_emit(state, format("mov ", value, ", rax"))
             fasm_emit(state, "mov rdi, rax")
-            fasm_destroy(cap.til_type, true, state, lp)
+            if fasm_capture_inline(cap) {
+                if cap.own_type.is(OwnType.Own).and(type_is_callable_storage(cap.til_type).not()) {
+                    external := format(".capture_external", state.labels.to_str())
+                    done := format(".capture_drop", state.labels.to_str())
+                    state.labels++
+                    fasm_emit(state, format("mov rdx, ", source, "\n    add rdx, ", layout[i].to_str(),
+                        "\n    cmp rdi, rdx\n    jne ", external))
+                    fasm_destroy(cap.til_type, false, state, lp, call_free=true)
+                    fasm_emit(state, format("jmp ", done, "\n", external, ":\n    mov rdi, ", value))
+                    fasm_destroy(cap.til_type, true, state, lp)
+                    fasm_emit(state, format(done, ":"))
+                } else { fasm_destroy(cap.til_type, false, state, lp, call_free=true) }
+            } else { fasm_destroy(cap.til_type, true, state, lp) }
         }
     }
     if clone { fasm_emit(state, format("mov rax, ", destination)) }
-    else { fasm_emit(state, format("mov rdi, ", source, "\n    call rt_free")) }
     fasm_emit(state, "leave\n    ret")
     bytes := ((state.slots * 8 + 15) / 16) * 16
     return format(state.prefix, ":\n    push rbp\n    mov rbp, rsp\n    sub rsp, ", bytes.to_str(), "\n", state.text, state.data)
@@ -1048,7 +1118,7 @@ priv fasm_finish_call := func(e: Expr, fd: FunctionDef, mut state: FasmState, lp
 
 // Destroy contents according to the shared lifecycle definition. The caller
 // supplies an address in RDI and whether this destructor also owns its box.
-priv fasm_destroy := func(shallow t: Type, outer: Bool, mut state: FasmState, lp: LoadedProgram) {
+priv fasm_destroy := func(shallow t: Type, outer: Bool, mut state: FasmState, lp: LoadedProgram, call_free: Bool = false) {
     if type_is_callable_storage(t) {
         slot := fasm_slot(state)
         fasm_emit(state, format("mov ", slot, ", rdi\n    call rt_til_closure_slot_delete"))
@@ -1073,8 +1143,12 @@ priv fasm_destroy := func(shallow t: Type, outer: Bool, mut state: FasmState, lp
     }
     name := format(type_name_ref(t, lp.ctx.symbols), "_delete")
     target := fasm_request(name, state.program)
-    if outer { fasm_emit(state, "mov esi, 1\n    mov r11d, 1") }
-    else { fasm_emit(state, "xor esi, esi\n    xor r11d, r11d") }
+    // Inline captures retain the lifecycle flag of their former private boxes,
+    // while R11 independently prevents a user destructor from freeing interiors.
+    if outer.or(call_free) { fasm_emit(state, "mov esi, 1") }
+    else { fasm_emit(state, "xor esi, esi") }
+    if outer { fasm_emit(state, "mov r11d, 1") }
+    else { fasm_emit(state, "xor r11d, r11d") }
     fasm_emit(state, format("call ", target))
 }
 

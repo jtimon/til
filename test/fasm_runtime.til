@@ -57,8 +57,8 @@ failure := proc(compiler: Str, work: Str, name: Str, source: Str) {
     }
 }
 
-check_allocations := proc(compiler: Str, work: Str, name: Str, source: Str, allocations: I64, frees: I64) {
-    check(compiler, work, name, source, "")
+check_allocations := proc(compiler: Str, work: Str, name: Str, source: Str, allocations: I64, frees: I64, interpret_source: Bool = true) {
+    check(compiler, work, name, source, "", interpret_source = interpret_source)
     root := compiler.substr(0, compiler.rfind("/bin/").to_usize())
     runtime_path := format(root,"/src/self/codegen/ext.fasm")
     counted_path := format(realpath_str(work),"/counted-runtime.fasm")
@@ -136,6 +136,47 @@ check_unboxed := proc(compiler: Str, work: Str) {
         "returned:=forward(own allocated,true); assert(returned.first+returned.last==7) }\n"),1,1)
 }
 
+check_closure_allocations := proc(compiler: Str, work: Str) {
+    check_allocations(compiler,work,"closure_private",format(
+        "mode cli\nAction := func() returns I64\nHolder := struct { action:Action }\n",
+        "make := func(start:I64,step:I64) returns Action { state:=start; delta:=step.to_u8();\n",
+        "return func() returns I64 [own mut state,own delta] { state=state+delta.to_i64(); return state } }\n",
+        "main := proc() { mut seed:I64=9; seed++; original:=Holder(action=make(seed,2)); copy:=original.clone();\n",
+        "assert(original.action()==12); assert(original.action()==14); assert(copy.action()==12); assert(copy.action()==14) }\n"),2,2)
+    check_allocations(compiler,work,"closure_borrowed",format(
+        "mode cli\nAction := func() returns I64\nHolder := struct { action:Action }\n",
+        "main := proc() { mut value:I64=1; original:=Holder(action=func() returns I64 [mut value] { value++; return value }); copy:=original.clone();\n",
+        "assert(original.action()==2); assert(copy.action()==3); assert(original.action()==4); assert(value==4) }\n"),2,2)
+    // The interpreter clones captured records structurally without invoking
+    // their custom clone; pin that lifecycle hook against native C here.
+    check_allocations(compiler,work,"closure_resource",format(
+        "mode cli\nCounts := struct { drops:I64=0; clones:I64=0; flags:I64=0 }\nAction := func() returns I64\nHolder := struct { action:Action }\n",
+        "Tracked := struct { ref counts:Counts; number:I64=0\nnamespace:\n",
+        "delete := func(own self:Tracked,call_free:Bool=true) { self.counts.drops++; if call_free { self.counts.flags++; free(own self) } }\n",
+        "clone := func(self:Tracked) returns Tracked { self.counts.clones++; return Tracked(counts=self.counts,number=self.number) }\n}\n",
+        "make := func(counts:Counts,start:I64) returns Action { value:=Tracked(counts=counts,number=start);\n",
+        "return func() returns I64 [own value] { return value.number } }\n",
+        "main := proc() { counts:=Counts(); mut seed:I64=9; seed++; original:=Holder(action=make(counts,seed)); copy:=original.clone();\n",
+        "assert(counts.clones==1);\nassert(original.action()==10);\nassert(copy.action()==10);\nassert(counts.drops==2); assert(counts.flags==2) }\n"),2,2,interpret_source=false)
+    check_allocations(compiler,work,"closure_nested",format(
+        "mode cli\nAction := func() returns I64\nHolder := struct { action:Action }\n",
+        "counter := func(start:I64) returns Action { state:=start; return func() returns I64 [own mut state] { state++; return state } }\n",
+        "make := func(start:I64) returns Action { inner:Action=counter(start); return func() returns I64 [own inner] { return inner() } }\n",
+        "main := proc() { mut seed:I64=0; seed++; original:=Holder(action=make(seed)); copy:=original.clone();\n",
+        "assert(original.action()==2); assert(original.action()==3); assert(copy.action()==2); assert(copy.action()==3) }\n"),4,4)
+    check_allocations(compiler,work,"closure_heap_capture",format(
+        "mode cli\nAction := func() returns I64\nPair := struct { first:I64=0; last:I64=0 }\n",
+        "main := proc() { mut seed:I64=9; seed++; mut value:Pair=calloc(1,Pair.size().to_uptr()); value.first=seed;\n",
+        "action:Action=func() returns I64 [own value] { return value.first };\n",
+        "assert(action()==10) }\n"),2,2)
+    check_allocations(compiler,work,"closure_strings",format(
+        "mode cli\nAction := func(change:Bool) returns Bool\nHolder := struct { action:Action }\n",
+        "make := func(capacity:USize) returns Action { mut text:=Str.with_capacity(capacity); text.push_str(\"ab\");\n",
+        "return func(change:Bool) returns Bool [own mut text] { if change { memset(text.c_str,88,1) }; return text.eq(\"ab\") } }\n",
+        "main := proc() { mut capacity:USize=7; capacity++; original:=Holder(action=make(capacity)); copy:=original.clone();\n",
+        "assert(original.action(true).not()); assert(copy.action(false)); assert(original.action(false).not()) }\n"),4,4)
+}
+
 check_globals := proc(compiler: Str, work: Str) {
     // A diamond import must initialize the shared state once, before either
     // dependent module. Resource-bearing values must outlive the init frames.
@@ -204,6 +245,7 @@ main := proc(compiler_arg: Str) {
     mkdir_p(work)
     check_globals(compiler, work)
     check_unboxed(compiler, work)
+    check_closure_allocations(compiler, work)
     check(compiler, work, "global_callables", format(
         "mode cli\nAction := func(value: I64) returns I64\nSaved := struct { action: Action }\n",
         "make := func(start: I64) returns Action { state := start; return func(value: I64) returns I64 [own mut state] { state = state + value; return state } }\n",

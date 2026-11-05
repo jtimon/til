@@ -182,6 +182,8 @@ rt_memcpy:
 
 ; Callable values use {code, env, drop, clone} native-pointer descriptors.
 ; A null descriptor is an empty moved slot; drop=0 denotes static storage.
+; Capturing descriptors, environments and private value space share one block.
+; Drop destroys captures; clone receives env and returns a complete descriptor.
 rt_til_closure_delete:
     test rdi, rdi
     jz .done
@@ -214,21 +216,10 @@ rt_closure_clone:
     jz .shared
     cmp qword [rdi+16], 0
     je .shared
-    frame 32
-    mov [rbp-8], rdi
-    mov edi, 32
-    call rt_malloc
-    mov [rbp-16], rax
-    mov rdi, rax
-    mov rsi, [rbp-8]
-    mov edx, 32
-    call rt_memcpy
-    mov rax, [rbp-8]
+    frame 0
+    mov rax, rdi
     mov rdi, [rax+8]
     call qword [rax+24]
-    mov rdx, [rbp-16]
-    mov [rdx+8], rax
-    mov rax, rdx
     leave
     ret
 .shared:

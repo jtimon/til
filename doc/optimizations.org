@@ -5,6 +5,50 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** FASM consolidated closure storage (2026-11-04, #453)
+
+Base: ~4a621551f~. Capturing closures and Body values now allocate their
+four-word descriptor, environment pointer table and private capture storage
+together. Clone callbacks allocate the complete destination once and deep-clone
+captures directly into it. Nested callable cells are inline; their independently
+owned closure blocks still clone normally. Ref captures keep their borrowed
+addresses, and moved heap owners retain their existing pointee addresses.
+
+The same ~test/fasm_runtime.til::check_closure_allocations~ sources were emitted
+at USize32 and USize64. Baseline: this base's ~bin/til_boot~ (reporting revision
+~76c68e209~, with identical FASM emitter/runtime sources) and the matching
+checked-in runtime extracted from HEAD. Candidate: freshly built ~bin/til~ and
+the changed runtime. Each pair used the existing test-local malloc/free counters;
+old callers were never mixed with the changed closure runtime convention.
+The following counts hold at BOTH widths; frees equal allocations in every row.
+
+| Probe                | Before malloc/free | After malloc/free |
+|----------------------+--------------------+-------------------|
+| closure_private      |                  8 |                 2 |
+| closure_borrowed     |                  4 |                 2 |
+| closure_resource     |                  6 |                 2 |
+| closure_nested       |                 12 |                 4 |
+| closure_heap_capture |                  3 |                 2 |
+| closure_strings      |                  8 |                 4 |
+
+These exercise mutable/narrow private captures and independent copies, shared
+borrowed state, custom clone/delete counts and call_free branches, nested owned
+callables, an existing heap-owned capture, and independently mutable captured
+strings. Five compare interpretation/C/FASM; the custom-clone probe compares
+C/FASM because the current interpreter structurally copies captured records
+without calling their custom clone hook (observed before this change).
+
+The owned-string probe caught a new emitter bug at USize32: load_size/store_size
+use RAX as scratch, so the inline-copy path must preserve its destination across
+capacity checks. The regression now checks both widths and independent buffers.
+
+The allocation reduction trades separate boxes for a fixed eight-byte-aligned
+private area. Space reserved for a moved heap owner can be unused in the original
+closure; its clone can use that space. Payload buffers, independently moved heap
+owners, owned opaque pointers, nested closure blocks and raw escaping callable
+slots retain their required allocations. These are allocation-call measurements,
+not elapsed-time or peak-memory speedup claims.
+
 ** FASM caller-provided aggregate storage (2026-11-03, #453)
 
 Base: ~01dc23183~. Non-ref aggregate calls now use a caller frame result

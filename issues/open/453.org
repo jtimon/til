@@ -435,6 +435,38 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   counters. Focused C ~--asan --usize=64~ runs of ~aggregate_control~ and
   ~unboxed_lifecycle~ passed without sanitizer diagnostics; ~make doc~ passed.
 
+**** Consolidated closure storage
+
+  On base ~4a621551f~, capturing functions and Body values allocate a single
+  descriptor/environment/private-value block. The existing four-word callable
+  handle and R10 invocation contract remain intact. Private scalar, aggregate
+  and callable cells live inside the block; borrowed captures retain their
+  addresses, and moved heap owners/owned opaque pointers retain independent
+  storage. Clone callbacks return a complete block, writing aggregate clones
+  and nested callable cells directly into their final destinations.
+
+  Drop distinguishes inline private storage from independently owned captures,
+  preserves custom delete call_free branches via the existing R11 ownership
+  bit, and frees the closure block once. Pointer-table entries allow heap-owner
+  identity to survive without additional capture boxes or per-instance layout
+  metadata. Private area can be unused for a moved heap owner; the clone uses
+  that reserved area instead of allocating another outer box.
+
+  ~fasm_runtime::check_closure_allocations~ verifies exact malloc/free counts
+  at both widths: private captures 8 -> 2, borrowed captures 4 -> 2, custom
+  resource captures 6 -> 2, nested closures 12 -> 4, a heap-owned capture 3 -> 2,
+  and independently mutable owned strings 8 -> 4. Details and paired baseline
+  runtime methodology are recorded in ~doc/optimizations.org~. The string probe
+  also pins destination preservation across USize32 runtime size macros.
+
+  The custom clone/delete probe compares native C/FASM: before these changes,
+  the interpreter copied captured records without calling their custom clone
+  hook. The remaining allocation probes compare all three execution paths.
+  Verification: ~make clean && make test~ passed 558/558, both FASM drivers
+  passed at USize32/USize64, and ~aggregate_control~ plus all six new probes
+  passed focused C ~--asan --usize=64~ checks without sanitizer diagnostics.
+  Native emitted assembly is not ASAN-instrumented.
+
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
   repeated work. In-process code allocation, relocation, lifetime management

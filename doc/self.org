@@ -870,11 +870,24 @@
   Callable values are native pointers to four-word descriptors
   ~{code, environment, drop, clone}~. Static named functions share read-only
   descriptors with no environment/drop/clone; reference bindings can name
-  stable descriptor cells. Capturing functions and Body values allocate an
-  environment and descriptor. Environment fields point at borrowed storage or
-  private value boxes according to the prepared ref/shallow/own capture list.
-  Cloning retains Ref targets and deep-clones private captures through their
-  actual lifecycle methods, including nested callable captures.
+  stable descriptor cells. Capturing functions and Body values allocate one
+  block containing the descriptor, environment pointer table and eight-byte-
+  aligned private capture storage. The environment starts after the four-word
+  descriptor. Ref entries retain borrowed addresses; private value entries point
+  inside the block. Moving an existing heap owner retains its pointee address,
+  and owned opaque pointers keep their independent storage. Typed private space
+  is reserved even when such a moved heap owner leaves that space unused.
+
+  The clone callback receives the source environment and returns a complete
+  cloned descriptor/block. It retains Ref targets, deep-clones aggregates into
+  the provided private storage and clones nested callables directly into inline
+  descriptor cells. Character/element buffers and nested closure blocks retain
+  their own lifetimes. Drop destroys private contents without freeing interior
+  addresses, releases independently owned captures through their lifecycle
+  methods, then the runtime frees the whole closure block once. Custom delete
+  methods retain their call_free flag behavior; R11 selects actual outer
+  ownership independently. Raw escaping callable-slot APIs still allocate the
+  independent pointer-sized cells their contracts return.
 
   Indirect calls evaluate the callable before its arguments, save intermediate
   values in the existing frames, then call its code pointer. R10 carries the
