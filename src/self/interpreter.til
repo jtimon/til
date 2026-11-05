@@ -565,7 +565,7 @@ namespace:
                 err.diagnostics.push(own TilVmDiagnostic(message = "call_throwing requires exactly one declared guest error"))
                 throw err
             }
-            if contract.throw_types[0] != til_type_name(error_type) {
+            if contract.throw_types[0] != dyn_type_to_str(error_type) {
                 mut err := TilVmError(phase = "call")
                 err.diagnostics.push(own TilVmDiagnostic(message = "guest error type does not match call_throwing type"))
                 throw err

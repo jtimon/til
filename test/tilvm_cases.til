@@ -1201,6 +1201,7 @@ throwing_callback_tests := proc(root: Str) {
 }
 
 throwing_schema_tests := proc(root: Str) {
+    primitive_throwing_callback_tests(root)
     // Identical type names do not excuse differing field types or ownership.
     for fields : Str in array(Str, "code: I64 = 0; message := \"\"",
         "code: I32 = 0; ref message: Str = \"\"") {
@@ -1210,6 +1211,28 @@ throwing_schema_tests := proc(root: Str) {
         mut vm := TilVm.new(root)
         vm.load_file("guest.til")!
         expect_lookup_failure(vm, "transform", "shared callback error schema", signature = ThrowTransform)
+    }
+}
+
+PrimitiveThrowing := proc(I64) returns I64 throws I64, Bool
+primitive_throwing_callback_tests := proc(root: Str) {
+    File.writefile("guest.til", format("mode lib\n",
+        "run := proc(action: I64) returns I64 throws I64, Bool { noop_proc(); if action == 1 { throw 42 }; if action == 2 { throw true }; return 7 }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")!
+    mut callback := vm.lookup("run", PrimitiveThrowing)!
+    for action in 0..3 {
+        mut arguments := Tuple.new()
+        arguments.push(I64, own action.clone())
+        mut caught := false
+        result := call_throwing(PrimitiveThrowing)(callback, arguments)?
+        catch (error: I64) { assert(action == 1 && error == 42); caught = true }
+        catch (error: Bool) { assert(action == 2 && error); caught = true }
+        catch (error: TilVmError) { panic(error.to_str()) }
+        if action == 0 {
+            ref value: I64 = result.get(0)
+            assert(value == 7 && caught.not())
+        } else { assert(caught) }
     }
 }
 
@@ -1438,6 +1461,16 @@ owned_field_callback_tests := proc(root: Str) {
     assert(scalar_payload.len() == 1 && scalar_payload.type_at(0) == "I64")
     ref scalar_value: I64 = scalar_payload.get(0)
     assert(scalar_value == 42)
+    mut direct_caught := false
+    call_throwing(I64)(scalar_error)?
+    catch (error: I64) { assert(error == 42); direct_caught = true }
+    catch (error: TilVmError) { panic(error.to_str()) }
+    assert(direct_caught)
+    mut signature_caught := false
+    call_throwing(OwnedFieldScalarThrow)(scalar_error)?
+    catch (error: I64) { assert(error == 42); signature_caught = true }
+    catch (error: TilVmError) { panic(error.to_str()) }
+    assert(signature_caught)
     own scalar_error.delete()
     mut saved := Tuple.new()
     mut saved_error := OwnedFieldRecord()

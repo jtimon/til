@@ -5300,7 +5300,7 @@ priv init_expand_throwing_adapter := proc(mut stmt: Expr, scope: TypeScope, mut 
     source = format(source, "TilVmError { mut error_value := Tuple.new(); result := self.invoke_throwing(",
         signature_name, ", arguments, error_value, keywords = keywords)?; if error_value.len() > 0 { ")
     for error_type : Str in signature.throw_types {
-        source = format(source, "if error_value.type_at(0) == til_type_name(", error_type, ") { throw ",
+        source = format(source, "if error_value.type_at(0) == dyn_type_to_str(", error_type, ") { throw ",
             error_type, ".clone(error_value.get(0)) }; ")
     }
     source = format(source, "panic(\"throwing adapter received an undeclared error type\") }; return result }")

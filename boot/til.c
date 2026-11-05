@@ -95201,7 +95201,7 @@ static Bool priv___src_self_initer_til__init_expand_throwing_adapter(Expr * stmt
             Str hoisted__Str_self_initer_init_expand_throwing_adapter_48 = Str_clone(&source);
             Array__Str_set(&_va_Array_3, hoisted__U32_47, &hoisted__Str_self_initer_init_expand_throwing_adapter_48, &_va_Array_3_ek);
             U32 hoisted__U32_49 = 1;
-            Str hoisted__Str_self_initer_init_expand_throwing_adapter_50 = (Str){.c_str = TIL_OWN_LIT("if error_value.type_at(0) == til_type_name(", 43ULL), .count = 43ULL, .cap = TIL_CAP_LIT};
+            Str hoisted__Str_self_initer_init_expand_throwing_adapter_50 = (Str){.c_str = TIL_OWN_LIT("if error_value.type_at(0) == dyn_type_to_str(", 45ULL), .count = 45ULL, .cap = TIL_CAP_LIT};
             Array__Str_set(&_va_Array_3, hoisted__U32_49, &hoisted__Str_self_initer_init_expand_throwing_adapter_50, &_va_Array_3_ek);
             U32 hoisted__U32_51 = 2;
             Str hoisted__Str_self_initer_init_expand_throwing_adapter_52 = Str_clone(error_type);
@@ -437544,8 +437544,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-4a621551f", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("4a621551f4b3dc8e9129dd81bc20acfb0ea14308", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-85954f444", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("85954f444f007c307f76c7e3d6a882e8273ae427", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};
