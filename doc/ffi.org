@@ -849,7 +849,8 @@ them as ~ctypes.POINTER(T).in_dll~ views read through ~.contents~.
 
 Every ~mode lib~ build writes, next to the Python binding, a JNI binding
 (#463): a Java class and the C bridge between it and the library's exported
-C ABI. Generating them needs no JDK; compiling the bridge does.
+C ABI. Generating them needs no JDK; compiling them does, so that is opt-in:
+~til build --jni~ / ~til install --jni~.
 
 The binding targets the Java world as a whole rather than any one JVM
 language: the class is plain Java at the Java 8 source level (it compiles
@@ -864,30 +865,35 @@ its own.
 |------+----------|
 | ~gen/til/java/til/<pkg>/<Cls>.java~ | ~til.<pkg>.<Cls>~: one public static method per bound function |
 | ~gen/til/<name>_jni.c~ | the ~JNIEXPORT~ functions behind the class's ~native~ methods |
+| ~gen/lib/lib<name>_jni.so~ (~--jni~) | the compiled bridge, beside ~lib<name>.so~ |
+| ~gen/lib/<name>.jar~ (~--jni~) | the compiled class |
 
 ~<pkg>~ is the library name with bytes other than alphanumerics and ~_~
 escaped as ~_x<hex>~; ~<Cls>~ is its alphanumeric runs capitalized
-(~jni_lib~ -> ~til.jni_lib.JniLib~). ~til install~ copies both under
-~<support>/lib/~, beside the ~.py~. Build the bridge into
-~lib<name>_jni.so~ next to ~lib<name>.so~, which the class loads with
-~System.loadLibrary("<name>_jni")~:
+(~jni_lib~ -> ~til.jni_lib.JniLib~). ~til install~ copies both sources under
+~<support>/lib/~, beside the ~.py~; with ~--jni~ it also installs the bridge
+and the jar in ~<prefix>/lib/~, beside the library. The class loads the
+bridge with ~System.loadLibrary("<name>_jni")~:
 
 #+begin_src sh
-cc -fsigned-char -shared -fPIC -I$JAVA_HOME/include -I$JAVA_HOME/include/linux \
-   -Igen/til -Isrc/self/codegen gen/til/<name>_jni.c -Lgen/lib -l<name> \
-   -Wl,-rpath,'$ORIGIN' -o gen/lib/lib<name>_jni.so
-java -Djava.library.path=gen/lib -cp <classes> <Main>
+til build --jni <name>.til
+javac -cp gen/lib/<name>.jar -d <classes> <Main>.java
+java -Djava.library.path=gen/lib -cp gen/lib/<name>.jar:<classes> <Main>
 #+end_src
 
-On macOS the JDK's platform headers are in ~include/darwin~, the bridge is
-~lib<name>_jni.dylib~, its rpath is ~@loader_path~ (til libraries carry
-~@rpath~ install names, so no ~DYLD_*~ variable is needed), and it links
+~--jni~ uses the JDK in ~$JAVA_HOME~, else (on macOS) the one
+~/usr/libexec/java_home~ names, else the one the ~javac~ on ~PATH~ belongs
+to, and fails when there is none. It builds for the host only (no
+~--target~; Linux and macOS hosts), with the library's compiler and flags
+(~--cc~, ~--asan~, ~--usize~, ~--opt~, ~--cpu~), against ~ext.h~ from the
+compiler's support tree. The bridge finds ~lib<name>~ through its rpath
+(~$ORIGIN~, ~@loader_path~ on macOS, where til libraries carry ~@rpath~
+install names, so no ~DYLD_*~ variable is needed). On macOS it also links
 with ~-Wl,-undefined,dynamic_lookup~: the bridge calls the til runtime's
 allocator directly, and Mach-O, unlike ELF, wants every symbol bound to a
-library at link time; the runtime is already loaded by ~lib<name>~.
-~-Isrc/self/codegen~ is for ~ext.h~, which the library header includes;
-~-fsigned-char~ is required by it, as on every til compile. On Android the
-same bridge source goes into the NDK build beside the library (#462).
+library at link time; the runtime is already loaded by ~lib<name>~. On
+Android the same bridge source goes into the NDK build beside the library
+(#462).
 
 Bound: public top-level ~func~ / ~proc~ (and function aliases), user-written
 struct/enum namespace functions and enum variant constructors (as
@@ -968,22 +974,26 @@ when ~mut~ and of a copied kind; a struct or enum global (or a ~ref~
 global) returns a borrowed handle onto the library's storage.
 
 *Callbacks.* A public FuncSig whose parameters are scalars, ~Str~,
-~Vec(Str)~, ~Vec~s of scalars or handles and whose result (if any) is one of
-those by value becomes a ~@FunctionalInterface~, so a Java lambda can be
+~Vec(Str)~, ~Vec~s of scalars, structs or enums, or handles and whose result
+(if any) is one of those by value becomes a ~@FunctionalInterface~, so a Java lambda can be
 passed where til takes the FuncSig. The bridge wraps the Java object in a
 ~TilClosure~ holding a JNI global reference: a borrowed callback is dropped
 after the call, an ~own~ one when the library drops it. A thread til starts
 is attached to the JVM on its first callback.
 
   - A borrowed parameter arrives as a copy, or as a handle borrowed for the
-    duration of the call. An ~own~ one moves to Java: a struct or enum as an
-    owned handle the callback must close (or keep), a copied kind as a copy
-    whose til value the bridge then deletes.
+    duration of the call (a ~Vec~ of structs or enums: an array of such
+    views). An ~own~ one moves to Java: a struct or enum as an owned handle
+    the callback must close (or keep), a ~Vec~ of them as an array of owned
+    handles, a copied kind as a copy whose til value the bridge then
+    deletes.
   - A ~mut~ scalar or copied-kind parameter is a one-element array, as for
     functions: the callback replaces ~a[0]~ and til sees the new value after
     the call (also when the callback throws). A ~mut~ struct or enum is a
     borrowed handle, changed through its setters.
-  - A handle the callback returns is moved into til.
+  - A handle the callback returns is moved into til, and so is each handle
+    of a returned array (a borrowed one there aborts, as moving it would).
+    A ~mut~ ~Vec~ of structs or enums is not bound, as for functions.
   - A FuncSig that ~throws~ declares ~throws <Cls>.TilError~. The callback
     throws in til by raising ~new TilError("<Type>")~ or ~new
     TilError("<Type>", detail)~ with one of the declared throw types: the
@@ -1001,8 +1011,8 @@ layout.
 
 Anything else -- ~Dynamic~ (type-erased, nothing to marshal), ~shallow Str~
 parameters, other collections, ~mut~ and non-function uses of ~Vec~s of
-structs or enums, variadics, callbacks taking or returning ~Vec~s of
-structs or enums or other callbacks, throw types whose payload a ~TilError~
+structs or enums (functions' and callbacks'), variadics, callbacks taking or
+returning other callbacks, throw types whose payload a ~TilError~
 cannot build (a scalar, an enum, a default the bridge cannot reproduce),
 ~mut~ callback parameters of functions -- is listed in the
 class as a ~// <name>: not bound: <reason>~ comment, so the gap is visible
@@ -1011,15 +1021,17 @@ in the generated source.
 ~make test~ runs the binding the way it runs the Python one, with a JDK
 (~$JAVA_HOME~, else the one ~javac~ on ~PATH~ belongs to; an optional
 dependency, see README.org). Without one, ~make test NO_JVM=1~
-(~bin/tests --no-jvm~) keeps the text checks and skips the JDK runs. The ~jni~ test checks the generated text for
-test/jni_lib.til, then compiles the classes with ~javac --release 8~, builds
-the bridge and runs ~test/JniLibTest.java~ through it;
+(~bin/tests --no-jvm~) keeps the text checks and skips the JDK runs. The ~jni~
+test builds test/jni_lib.til with ~til build --jni~, checks the generated
+text, and runs ~test/JniLibTest.java~ against the jar and bridge;
 test/library_namespace.til does the same with
 ~test/LibraryNamespaceAJniTest.java~ against the library and globals its
-Python check reads and writes. On Linux both then rerun with the library and
-bridge built with ~--asan~, where the cage's exit-time leak report fails the
-run if the bridge leaks (macOS's signed JDK launchers refuse the preloaded
-sanitizer). The shared steps are in test/jni_support.til.
+Python check reads and writes. On Linux both then rerun with ~til build --asan
+--jni~, where the cage's exit-time leak report fails the run if the bridge
+leaks (macOS's signed JDK launchers refuse the preloaded sanitizer).
+test/install.til has the installed compiler ~til install --jni~ a library and
+runs a Java caller against the installed jar and bridge. The shared steps are
+in test/jni_support.til.
 
 ** Passing a Str to a C string parameter
 

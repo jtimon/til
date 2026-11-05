@@ -1,8 +1,9 @@
 mode lib
 
-// #463: the JVM half of the generated-binding checks, shared by test/jni.til
-// and test/library_namespace.til: find the JDK, build a library's JNI bridge
-// with the command doc/ffi.org documents, compile Java callers, and run them.
+// #463: the JVM half of the generated-binding checks, shared by test/jni.til,
+// test/library_namespace.til and test/install.til: find the JDK, build a
+// library with `til build --jni`, compile Java callers against its jar, and
+// run them.
 
 import("../src/std/sys")
 import("../src/std/file")
@@ -27,44 +28,29 @@ jni_java_home := proc() returns Str {
     return javac.strip_suffix("/bin/javac").clone()
 }
 
-// lib<name>_jni next to lib<name> in gen/lib, as doc/ffi.org builds it;
-// `asan` adds -fsanitize=address for the leak run.
-jni_build_bridge := proc(java_home: Str, name: Str, asan: Bool) {
-    mut os_include := "linux"
-    mut shared_ext := ".so"
-    mut origin := "$ORIGIN"
-    if host_os() == "macos" {
-        os_include = "darwin"
-        shared_ext = ".dylib"
-        origin = "@loader_path"
-    }
-    // -fsigned-char: ext.h requires it, as on every til compile (plain char
-    // is unsigned on arm64 Linux).
-    cmd := Cmd.new("cc", "-Wall", "-Wextra", "-Werror", "-fsigned-char", "-shared", "-fPIC")
-    if asan { cmd.arg("-fsanitize=address") }
-    cmd.args(format("-I", java_home, "/include"), format("-I", java_home, "/include/", os_include),
-        "-Igen/til", "-Isrc/self/codegen", format("gen/til/", name, "_jni.c"), "-Lgen/lib", format("-l", name),
-        format("-Wl,-rpath,", origin), "-o", format("gen/lib/lib", name, "_jni", shared_ext))
-    // Mach-O binds each symbol to a named library: the bridge's calls into
-    // the til runtime (allocator, cage) resolve at load time from the
-    // libraries lib<name> brings in, as ELF does by default.
-    if host_os() == "macos" { cmd.arg("-Wl,-undefined,dynamic_lookup") }
+// `til build --jni`: the library, its bridge (gen/lib/lib<name>_jni) and
+// its jar (gen/lib/<name>.jar); `asan` builds both sanitized for the leak
+// run.
+jni_til_build := proc(source: Str, asan: Bool) {
+    cmd := Cmd.new("bin/til", "build")
+    if asan { cmd.arg("--asan") }
+    cmd.args("--jni", source)
     cmd.run_checked()
 }
 
-// --release 8: the generated classes stay usable from every JVM toolchain
-// (doc/ffi.org); -Xlint:-options mutes the JDK's notice about release 8.
-jni_javac := proc(java_home: Str, classes: Str, sources: ..Str) {
+// A Java caller compiled against the binding's jar, at --release 8 like the
+// binding; -Xlint:-options mutes the JDK's notice about release 8.
+jni_javac := proc(java_home: Str, classes: Str, jar: Str, sources: ..Str) {
     File.remove_tree(classes)
     cmd := Cmd.new(format(java_home, "/bin/javac"), "--release", "8", "-Xlint:all", "-Xlint:-options",
-        "-Werror", "-d", classes)
+        "-Werror", "-cp", jar, "-d", classes)
     for source : Str in sources { cmd.arg(source) }
     cmd.run_checked()
 }
 
-jni_run := proc(java_home: Str, classes: Str, main_class: Str) returns Str {
+jni_run := proc(java_home: Str, class_path: Str, main_class: Str) returns Str {
     run := Cmd.new(format(java_home, "/bin/java"), "-Xcheck:jni", "-Djava.library.path=gen/lib",
-        "-cp", classes, main_class)
+        "-cp", class_path, main_class)
     run.capture_out()
     if run.run() != 0 { panic(main_class, " failed:\n", run.out()) }
     return run.out()
@@ -76,14 +62,14 @@ jni_run := proc(java_home: Str, classes: Str, main_class: Str) returns Str {
 // allocations, which it cannot tell from leaks. Linux only: preloading
 // libasan into the JVM is how the sanitizer gets in, and macOS's signed JDK
 // launchers drop injected libraries.
-jni_run_asan := proc(java_home: Str, classes: Str, main_class: Str) returns Str {
+jni_run_asan := proc(java_home: Str, class_path: Str, main_class: Str) returns Str {
     find := Cmd.new("cc", "-print-file-name=libasan.so")
     find.capture_out()
     if find.run() != 0 { panic("cc cannot locate libasan.so") }
     // One suppressions file per caller: the two tests run concurrently.
     supp := format("tmp/", main_class, ".lsan.supp")
     File.writefile(supp, "leak:libjvm.so\nleak:libjli.so\nleak:libjava.so\n")
-    run := Cmd.new(format(java_home, "/bin/java"), "-Djava.library.path=gen/lib", "-cp", classes, main_class)
+    run := Cmd.new(format(java_home, "/bin/java"), "-Djava.library.path=gen/lib", "-cp", class_path, main_class)
     run.env("LD_PRELOAD", find.out().trim())
     run.env("ASAN_OPTIONS", "detect_leaks=1:handle_segv=0:allow_user_segv_handler=1:detect_odr_violation=0")
     run.env("LSAN_OPTIONS", format("suppressions=", supp, ":print_suppressions=0"))

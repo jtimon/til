@@ -9632,6 +9632,15 @@ priv emit_jni_handle_class := proc(jf: File, cf: File, name: Str, def: Expr, typ
     jf.write("            for (int i = 0; i < xs.length; i++) { hs[i] = xs[i].tilHandle(); }\n")
     jf.write("            return hs;\n")
     jf.write("        }\n")
+    jf.write("        static long[] tilTakeAll(").write(jcls).write("[] xs) {\n")
+    jf.write("            for (").write(jcls).write(" x : xs) {\n")
+    jf.write("                if (!x.owned) { throw new IllegalStateException(\"cannot move a borrowed ").write(name).write("\"); }\n")
+    jf.write("                x.tilHandle();\n")
+    jf.write("            }\n")
+    jf.write("            long[] hs = new long[xs.length];\n")
+    jf.write("            for (int i = 0; i < xs.length; i++) { hs[i] = xs[i].tilTake(); }\n")
+    jf.write("            return hs;\n")
+    jf.write("        }\n")
     jf.write("        static ").write(jcls).write("[] tilArray(long[] hs) { return tilWrap(hs, true); }\n")
     jf.write("        static ").write(jcls).write("[] tilViews(long[] hs) { return tilWrap(hs, false); }\n")
     jf.write("        private static ").write(jcls).write("[] tilWrap(long[] hs, boolean owned) {\n")
@@ -9816,23 +9825,27 @@ priv jni_cb_err_index := func(sfd: FunctionDef, tt: Str) returns I64 {
 
 // Why a FuncSig cannot be implemented from Java, or "" when it can. A
 // borrowed parameter arrives as a copy (scalar, Str, Vec of a scalar) or a
-// borrowed handle valid during the call; an `own` one is moved to Java (an
-// owned handle, or a copy whose til value the bridge then frees); a `mut` one
-// is a one-element array read back after the call (a mut struct or enum is
-// a borrowed handle, changed through its setters). Its result is handed to
-// til by value; a TilError naming a declared throw type becomes that throw.
+// borrowed handle valid during the call (a Vec of structs or enums: an array
+// of them); an `own` one is moved to Java (owned handles, or a copy whose til
+// value the bridge then frees); a `mut` one is a one-element array read back
+// after the call (a mut struct or enum is a borrowed handle, changed through
+// its setters). Its result is moved into til; a TilError naming a declared
+// throw type becomes that throw.
 priv jni_callback_reason := proc(sfd: FunctionDef, types: JniTypes, ctx: Context) returns Str {
     if sfd.sig.variadic_index.gte(0).or(sfd.sig.kwargs_index.gte(0)) { return "variadic parameter" }
     for p : Declaration in sfd.sig.params {
         if jni_param_is_err_slot(p) { continue }
         tn := jni_decl_type(p, ctx)
         kind := jni_kind(tn, types, ctx)
-        if kind.len().eq(0).or(kind.eq("callback")).or(kind.eq("hvec")) { return format("parameter of type ", tn) }
+        if kind.len().eq(0).or(kind.eq("callback")) { return format("parameter of type ", tn) }
+        // As for functions: a new array written back would orphan the
+        // callback's own handles to the old elements.
+        if kind.eq("hvec").and(p.is_mut) { return format("mut Vec of handles parameter of type ", tn) }
     }
     if sfd.sig.return_type.len() > 0 {
         rt := jni_resolve(sfd.sig.return_type, ctx)
         rkind := jni_kind(rt, types, ctx)
-        if rkind.len().eq(0).or(rkind.eq("callback")).or(rkind.eq("hvec")) { return format("return type ", rt) }
+        if rkind.len().eq(0).or(rkind.eq("callback")) { return format("return type ", rt) }
         if func_returns_c_value(sfd).not() { return format("returns ref ", rt) }
     }
     for tt : Str in sfd.sig.throw_types {
@@ -9955,6 +9968,27 @@ priv emit_jni_callback := proc(jf: File, cf: File, name: Str, sfd: FunctionDef, 
                 "    ", xv, " = ", v, ";\n",
                 "    (*env)->DeleteLocalRef(env, ", n, ");\n")
             c_post = format(c_post, "    (*env)->DeleteLocalRef(env, ", h, ");\n")
+        } else if kind == "hvec" {
+            // Borrowed: views of the elements, valid during the callback.
+            // `own`: the elements move into handles Java owns; the buffer
+            // goes.
+            s := format("s", i.to_str())
+            elem_cls := jni_java_ident(jni_vec_elem(tn))
+            iface_params = format(iface_params, jt, " ", a)
+            adapter_params = format(adapter_params, ", ", nt, " ", a)
+            descriptor = format(descriptor, jni_descriptor(nt))
+            mut helper := "views"
+            mut wrap := "tilViews"
+            if is_own {
+                helper = "take"
+                wrap = "tilArray"
+            }
+            adapter_args = format(adapter_args, elem_cls, ".", wrap, "(", a, ")")
+            c_pre = format(c_pre, "    jlongArray ", s, " = til_jni_vec_", helper, "_", tn, "(env, &", xv, ");\n",
+                "    til_jni_cb_check(env, \"", name, "\");\n")
+            c_args = format(c_args, "    ", slot, ".l = ", s, ";\n")
+            c_post = format(c_post, "    (*env)->DeleteLocalRef(env, ", s, ");\n")
+            if owns_box { c_post = format(c_post, "    free(", x, ");\n") }
         } else if jni_is_copied(kind) {
             s := format("s", i.to_str())
             iface_params = format(iface_params, jt, " ", a)
@@ -10012,6 +10046,10 @@ priv emit_jni_callback := proc(jf: File, cf: File, name: Str, sfd: FunctionDef, 
     jf.write("    }\n")
     mut adapter_call := jni_java_in(rkind, rt, format("f.call(", adapter_args, ")"))
     if rkind == "handle" { adapter_call = format(adapter_call, ".tilTake()") }
+    // A returned array's handles move into til, like a returned handle.
+    if rkind == "hvec" {
+        adapter_call = format(jni_java_ident(jni_vec_elem(rt)), ".tilTakeAll(f.call(", adapter_args, "))")
+    }
     mut stmt := format(adapter_call, ";")
     if has_ret { stmt = format("return ", stmt) }
     jf.write("    private static ").write(native_ret).write(" ").write(adapter).write("(").write(adapter_params).write(")")
@@ -10033,15 +10071,16 @@ priv emit_jni_callback := proc(jf: File, cf: File, name: Str, sfd: FunctionDef, 
     cf.write(c_pre)
     cf.write("    jvalue args[").write(nargs.to_str()).write("];\n")
     cf.write(c_args)
+    ret_object := jni_is_copied(rkind).or(rkind.eq("hvec"))
     mut call_kind := "Void"
     if has_ret {
-        if jni_is_copied(rkind) { call_kind = "Object" }
+        if ret_object { call_kind = "Object" }
         else if rkind == "handle" { call_kind = "Long" }
         else { call_kind = jni_prim_infix(native_ret) }
     }
     cf.write("    ")
     if has_ret {
-        if jni_is_copied(rkind) { cf.write(jni_c_type(rt, types, ctx)).write(" r = (").write(jni_c_type(rt, types, ctx)).write(")") }
+        if ret_object { cf.write(jni_c_type(rt, types, ctx)).write(" r = (").write(jni_c_type(rt, types, ctx)).write(")") }
         else { cf.write("j").write(native_ret).write(" r = ") }
     }
     cf.write("(*env)->CallStatic").write(call_kind).write("MethodA(env, cb->cls, cb->adapter, args);\n")
@@ -10105,6 +10144,12 @@ priv emit_jni_callback := proc(jf: File, cf: File, name: Str, sfd: FunctionDef, 
     if has_ret {
         if jni_is_copied(rkind) {
             cf.write("    ").write(c_ret).write(" out = ").write(jni_c_in(rkind, rt, "r")).write(";\n")
+            cf.write("    (*env)->DeleteLocalRef(env, r);\n")
+            cf.write("    return out;\n")
+        } else if rkind == "hvec" {
+            // The adapter moved each handle out of Java: the values become
+            // the Vec's elements, the boxes are the bridge's to free.
+            cf.write("    ").write(c_ret).write(" out = til_jni_vec_move_in_").write(rt).write("(env, r);\n")
             cf.write("    (*env)->DeleteLocalRef(env, r);\n")
             cf.write("    return out;\n")
         } else if rkind == "handle" {
@@ -10326,10 +10371,16 @@ priv build_jni_binding := proc(lp: LoadedProgram, jni_c_path: Str, java_path: St
     // unused static inline function in a .c file.
     cf.write("#define TIL_JNI_HELPER static inline __attribute__((unused))\n\n")
     cf.write("typedef ").write(lib_c_resolved_name("Str", lp.ctx)).write(" TilJniStr;\n")
-    cf.write("typedef ").write(lib_c_resolved_name("TilClosure", lp.ctx)).write(" TilJniClosure;\n")
     cf.write("void ").write(lib_c_resolved_name("Str_delete", lp.ctx)).write("(TilJniStr *self, Bool call_free);\n")
     cf.write("#define TIL_JNI_STR_DELETE ").write(lib_c_resolved_name("Str_delete", lp.ctx)).write("\n\n")
     emit_jni_bridge_prelude(cf, types.class_path)
+    // A library that uses no closures has no TilClosure in its header.
+    if lp.ctx.builder_closure_rt_used {
+        cf.write("typedef ").write(lib_c_resolved_name("TilClosure", lp.ctx)).write(" TilJniClosure;\n\n")
+        emit_jni_callback_prelude(cf, types.class_path)
+    } else if types.callbacks.len() > 0 {
+        panic(__LOC__, "JNI callbacks in a library whose header has no closure runtime: ", lib_name)
+    }
     if types.has_strvec { emit_jni_strvec_prelude(cf, lp.ctx) }
     for vhu : ProgramUnit in lp.units {
         ref vhiu : ImportUnit = lp.ctx.imported[vhu.path]
@@ -10497,6 +10548,25 @@ priv emit_jni_vec_helpers := proc(cf: File, name: Str, is_handle: Bool, types: J
         "        fprintf(stderr, \"til jni: ", name, " of %llu elements does not fit a Java array\\n\", (unsigned long long)v->count);\n",
         "        abort();\n    }\n")
     if is_handle {
+        // A callback's returned array: each box Java gave up holds a value
+        // that moves into the Vec; the box goes.
+        cf.write("TIL_JNI_HELPER ").write(vt).write(" til_jni_vec_move_in_").write(name).write("(JNIEnv *env, ").write(jt).write(" a) {\n")
+        cf.write("    jsize n = (*env)->GetArrayLength(env, a);\n")
+        cf.write("    ").write(vt).write(" v;\n    memset(&v, 0, sizeof v);\n")
+        cf.write("    if (n > 0) {\n")
+        cf.write("        ").write(et).write(" *data = (").write(et).write(" *)malloc((size_t)n * sizeof(").write(et).write("));\n")
+        cf.write("        if (data == NULL) { fprintf(stderr, \"til jni: out of memory\\n\"); abort(); }\n")
+        cf.write("        jlong *hs = (*env)->GetLongArrayElements(env, a, NULL);\n")
+        cf.write("        if (hs == NULL) { fprintf(stderr, \"til jni: cannot read a returned ").write(name).write("\\n\"); abort(); }\n")
+        cf.write("        for (jsize i = 0; i < n; i++) {\n")
+        cf.write("            ").write(et).write(" *box = (").write(et).write(" *)(intptr_t)hs[i];\n")
+        cf.write("            data[i] = *box;\n")
+        cf.write("            free(box);\n")
+        cf.write("        }\n")
+        cf.write("        (*env)->ReleaseLongArrayElements(env, a, hs, JNI_ABORT);\n")
+        cf.write("        TIL_OWN_SET(v.data, (U8 *)data);\n")
+        cf.write("    }\n")
+        cf.write("    v.count = (USize)n;\n    v.cap = (USize)n;\n    return v;\n}\n\n")
         // Ownership of each element moves to a box Java owns; the Vec keeps
         // only its buffer, which goes.
         cf.write("TIL_JNI_HELPER jlongArray til_jni_vec_take_").write(name).write("(JNIEnv *env, ").write(vt).write(" *v) {\n")
@@ -10673,6 +10743,11 @@ priv emit_jni_bridge_prelude := proc(cf: File, class_path: Str) {
     cf.write("    (*env)->Throw(env, (jthrowable)ex);\n")
     cf.write("}\n")
     cf.write("\n")
+}
+
+// The callback machinery: only a library whose header has the closure
+// runtime (TilClosure) can take one.
+priv emit_jni_callback_prelude := proc(cf: File, class_path: Str) {
     cf.write("// A Java object implementing a callback interface, as a TilClosure's env:\n")
     cf.write("// global references keep it and the class (whose static adapter the\n")
     cf.write("// trampoline calls) alive until til drops the closure.\n")

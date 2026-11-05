@@ -229,6 +229,20 @@ jni_own_cb := func(f: JniOwnFn) returns I64 {
     return f(own "given", own JniPerson(name = "kept", age = 30), own xs)
 }
 
+// A callback taking borrowed and own Vecs of handles and returning one.
+JniPeopleFn := func(Vec(JniPerson), own Vec(JniPerson)) returns Vec(JniPerson)
+
+jni_people_cb := func(f: JniPeopleFn) returns Str {
+    mut a := Vec(JniPerson).new()
+    a.push(own JniPerson(name = "a", age = 1))
+    a.push(own JniPerson(name = "b", age = 2))
+    mut b := Vec(JniPerson).new()
+    b.push(own JniPerson(name = "c", age = 3))
+    b.push(own JniPerson(name = "d", age = 4))
+    r := f(a, own b)
+    return format(r.len().to_str(), " ", jni_oldest(r), " ", jni_oldest(a))
+}
+
 JniSumFn := func(Vec(I64)) returns Vec(I64)
 
 jni_map_sum := func(f: JniSumFn) returns I64 {

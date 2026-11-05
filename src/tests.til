@@ -984,7 +984,11 @@ main := proc(args: ..Str) returns I64 {
     // Keep their driver outputs separate as well as their install prefixes.
     add_single(tests, "install_rebuild", "build", 0, "",
         format(TIL, " run -o bin/c/install_rebuild -c gen/c/install_rebuild.c test/install.til rebuild"))
-    add_single(tests, "install", "build", 0, "", format(TIL, " run test/install.til support"))
+    // The installed compiler also builds a library with --jni (#463),
+    // unless --no-jvm.
+    mut install_jvm_arg := ""
+    if en_jvm == 0 { install_jvm_arg = " --no-jvm" }
+    add_single(tests, "install", "build", 0, "", format(TIL, " run test/install.til support", install_jvm_arg))
 
     // Build each installed host once, inheriting explicit ASAN mode. Families
     // are scheduler jobs released after the build; waiting costs no slot.

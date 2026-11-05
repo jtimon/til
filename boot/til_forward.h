@@ -2065,6 +2065,7 @@ typedef struct CliArgs {
     Bool asan;
     Bool prof;
     Bool force_rebuild;
+    Bool jni;
     I64 usize_bits;
     Bool check_unused_imports;
     TIL_OWN_PTR(Vec__Str) extra_modes;
@@ -2752,6 +2753,7 @@ typedef struct LoadedProgram {
     Str translation_stamp;
     Str executable_stamp;
     Bool asan_build;
+    Bool jni_build;
     Bool mlir_runtime;
     Bool run_tests;
     I32 load_errors;

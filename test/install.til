@@ -3,6 +3,7 @@ mode cli
 import("../src/std/sys")
 import("../src/std/file")
 import("../src/self/install")
+import("jni_support")
 
 // `til install` end to end, because nothing covered it and it was
 // broken for two weeks without anyone noticing.
@@ -49,10 +50,20 @@ rebuild_install := proc(prefix: Str) {
     install.run_checked()
 }
 
-main := proc(phases: ..Str) returns I64 {
-    if phases.len() > 1 { panic("expected at most one install test phase") }
+main := proc(args: ..Str) returns I64 {
+    // An optional phase, and --no-jvm (bin/tests --no-jvm) to skip the
+    // installed --jni build on a host without a JDK.
     mut phase := "all"
-    if phases.len() == 1 { phase = phases[0].borrowed_view() }
+    mut phase_set := false
+    mut run_jvm := true
+    for arg : Str in args {
+        if arg == "--no-jvm" { run_jvm = false }
+        else if phase_set { panic("expected at most one install test phase") }
+        else {
+            phase = arg.clone()
+            phase_set = true
+        }
+    }
     if phase.eq("all").or(phase.eq("rebuild")).or(phase.eq("support")).not() {
         panic("unknown install test phase: ", phase)
     }
@@ -338,6 +349,33 @@ main := proc(phases: ..Str) returns I64 {
         panic("installed shared panic output mismatch: ", py_failure.out())
     }
     if py_failure.err().len() != 0 { panic("installed shared panic wrote stderr: ", py_failure.err()) }
+
+    // #463: the installed compiler builds the same library's JNI bridge and
+    // jar (against its installed ext.h) and installs them beside it; a Java
+    // caller outside the checkout loads them from the prefix.
+    if run_jvm {
+        jni_install := Cmd.new(installed_til, "install", "--jni", "--prefix=../install_test", "installed_lib.til")
+        jni_install.cwd(WORK)
+        jni_install.run_checked()
+        jar := format(PREFIX, "/lib/installed_lib.jar")
+        require(jar)
+        require(format(PREFIX, "/lib/libinstalled_lib_jni", shared_ext))
+        File.writefile(format(WORK, "/InstalledLibJni.java"), format(
+            "import til.installed_lib.InstalledLib;\n",
+            "public class InstalledLibJni {\n",
+            "    public static void main(String[] args) {\n",
+            "        System.out.println(InstalledLib.installed_value() + \" \" + InstalledLib.installed_format());\n",
+            "    }\n",
+            "}\n"))
+        java_home := jni_java_home()
+        classes := format(WORK, "/jni_classes")
+        jni_javac(java_home, classes, jar, format(WORK, "/InstalledLibJni.java"))
+        java := Cmd.new(format(java_home, "/bin/java"), "-Xcheck:jni", format("-Djava.library.path=", PREFIX, "/lib"),
+            "-cp", format(jar, ":", classes), "InstalledLibJni")
+        java.capture_out()
+        if java.run() != 0 { panic("the Java caller of the installed library failed: ", java.out()) }
+        if java.out() != "77 5\n" { panic("the Java caller of the installed library printed '", java.out(), "'") }
+    }
 
     // The gui leg (issue #348): mode gui from OUTSIDE the repo, both
     // backends, deliberately windowless (like test/gui_interp.til --

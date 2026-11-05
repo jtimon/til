@@ -677,6 +677,15 @@ priv print_translate_success := proc(paths: BuildPaths) {
     }
 }
 
+// Appended after --cc's embedded options, on every compile/link command,
+// including link_c, shared runtime/core, Emscripten and the JNI bridge. Keep
+// FP contraction off: selecting an optimizing ISA must not silently
+// introduce FMA. Standard excess precision also makes x87 casts/assignments
+// round to the declared format instead of retaining extended intermediates.
+priv c_build_flags := func(lp: LoadedProgram) returns Str {
+    return format(lp.cpu.c_flags, " -O", lp.opt_level.to_str(), " -ffp-contract=off -fexcess-precision=standard")
+}
+
 priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     if lp.mode_str == "theme" {
         println("error: mode theme supports translation only")
@@ -696,12 +705,7 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
     // Keep ext.h's USize typedef in lockstep with the loader-stamped target
     // alias used by typecheck, layout, constfold, and interpretation.
     usize64 := lp.ctx.target_usize_pname == "U64"
-    // Appended after --cc's embedded options, on every compile/link command,
-    // including link_c, shared runtime/core and Emscripten. Keep FP contraction
-    // off: selecting an optimizing ISA must not silently introduce FMA.
-    // Standard excess precision also makes x87 casts/assignments round to
-    // the declared format instead of retaining extended intermediates.
-    build_flags := format(lp.cpu.c_flags, " -O", lp.opt_level.to_str(), " -ffp-contract=off -fexcess-precision=standard")
+    build_flags := c_build_flags(lp)
     link_flags := format(lp.link_flags_for_target(), macos_framework_flags(lp))
     include_flags := lp.include_flags_for_target()
     if report_missing_target_archives(lp) != 0 { return 1 }
@@ -930,6 +934,103 @@ priv compile_fasm := proc(lp: LoadedProgram, paths: BuildPaths) returns I32 {
     return 0
 }
 
+// --- #463: `--jni` -- a library's JNI bridge and Java jar ---
+
+// The JDK `--jni` builds with: $JAVA_HOME, else on macOS the one
+// /usr/libexec/java_home names, else the one the javac on PATH belongs to.
+// "" when there is none.
+priv jni_java_home := proc() returns Str {
+    from_env := get_env("JAVA_HOME")
+    if from_env.len() > 0 { return from_env }
+    if host_os() == "macos" {
+        mac := Cmd.new("/usr/libexec/java_home")
+        mac.capture_out()
+        if mac.run() != 0 { return "" }
+        return mac.out().trim().clone()
+    }
+    which := Cmd.new("sh", "-c", "readlink -f \"$(command -v javac)\"")
+    which.capture_out()
+    if which.run() != 0 { return "" }
+    javac := which.out().trim().clone()
+    if javac.ends_with("/bin/javac").not() { return "" }
+    return javac.strip_suffix("/bin/javac").clone()
+}
+
+priv jni_bridge_path := func(paths: BuildPaths, target: Target) returns Str {
+    return format("gen/lib/lib", paths.name, "_jni", shared_lib_extension(target))
+}
+
+priv jni_jar_path := func(paths: BuildPaths) returns Str {
+    return format("gen/lib/", paths.name, ".jar")
+}
+
+// Compiles gen/til/<name>_jni.c into lib<name>_jni beside lib<name> (which
+// it finds through its own rpath), then the Java binding into <name>.jar,
+// at --release 8 so every JVM toolchain can use it. The classes are staged
+// under the caller's tmp/ and removed once jarred.
+priv build_jni := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str, asan: Bool) returns I32 {
+    mut os_include := "linux"
+    mut origin := "$ORIGIN"
+    if host_os() == "macos" {
+        os_include = "darwin"
+        origin = "@loader_path"
+    } else if host_os() != "linux" {
+        println(format("error: --jni supports Linux and macOS hosts, not ", host_os()))
+        return 1
+    }
+    java_home := jni_java_home()
+    if java_home.len() == 0 {
+        println("error: --jni needs a JDK: set JAVA_HOME or put javac on PATH")
+        return 1
+    }
+    mut compiler := cc_override
+    if compiler.len() == 0 { compiler = toolchain_command(target, Lang.C) }
+    mut asan_flags := ""
+    if asan { asan_flags = " -fsanitize=address -fno-omit-frame-pointer" }
+    mut usize_flags := " -DTIL_USIZE32"
+    if lp.ctx.target_usize_pname == "U64" { usize_flags = " -DTIL_USIZE64" }
+    ext_dir := lp.ext_c_path.substr(0, lp.ext_c_path.rfind("/").to_usize())
+    h_dir := paths.h_path.substr(0, paths.h_path.rfind("/").to_usize())
+    mut link_extra := ""
+    // Mach-O binds each symbol to a named library: the bridge's calls into
+    // the til runtime (allocator, cage) resolve at load time from the
+    // libraries lib<name> brings in, as ELF does by default.
+    if host_os() == "macos" { link_extra = " -Wl,-undefined,dynamic_lookup" }
+    cmd := compiler.format(toolchain_extra_args(target), c_build_flags(lp), " -Werror", asan_flags, usize_flags,
+        " -shared -fPIC -I", mlir_shell_quote(format(java_home, "/include")),
+        " -I", mlir_shell_quote(format(java_home, "/include/", os_include)),
+        " -I", h_dir, " -I", ext_dir, " ", paths.jni_c_path, " -Lgen/lib -l", paths.name,
+        " ", mlir_shell_quote(format("-Wl,-rpath,", origin)), link_extra, " -o ", jni_bridge_path(paths, target))
+    if system_cmd(cmd) != 0 {
+        println("error: JNI bridge compilation failed")
+        return 1
+    }
+
+    if mkdir_p("tmp") != 0 { panic("failed to create tmp") }
+    stage := format("tmp/jni-", process_id().to_str(), "-", paths.name)
+    File.remove_tree(stage)
+    javac := Cmd.new(format(java_home, "/bin/javac"), "--release", "8", "-Xlint:all", "-Xlint:-options", "-Werror",
+        "-d", stage, paths.java_path)
+    if javac.run() != 0 {
+        File.remove_tree(stage)
+        println("error: compiling the Java binding failed")
+        return 1
+    }
+    jar_path := jni_jar_path(paths)
+    jar_tmp := format(jar_path, ".tmp.", process_id().to_str())
+    File.remove(jar_tmp)
+    jar := Cmd.new(format(java_home, "/bin/jar"), "cf", jar_tmp, "-C", stage, ".")
+    jar_status := jar.run()
+    File.remove_tree(stage)
+    if jar_status != 0 {
+        File.remove(jar_tmp)
+        println("error: creating the Java binding's jar failed")
+        return 1
+    }
+    File.rename(jar_tmp, jar_path)
+    return 0
+}
+
 // One command lifecycle for every backend. Emission and toolchain invocation
 // are selected by BuildPaths; preparation and execution remain shared.
 priv build_program := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str,
@@ -970,6 +1071,10 @@ priv build_program := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str,
     }
     result = compile_ast(lp, paths, target, cc_override, asan, prof)
     if result != 0 { return result }
+    if lp.jni_build {
+        result = build_jni(lp, paths, target, cc_override, asan)
+        if result != 0 { return result }
+    }
     if command == "build" && paths.do_lib {
         if backend == "c" { print_translate_success(paths) }
         mut extension := shared_lib_extension(target)
@@ -979,6 +1084,10 @@ priv build_program := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str,
         if backend == "c" && lp.uses_shared_runtime() {
             println(format("Generated: gen/lib/", lp.runtime_shared_basename()))
             println(format("Generated: gen/lib/", lp.core_shared_basename()))
+        }
+        if lp.jni_build {
+            println(format("Generated: ", jni_bridge_path(paths, target)))
+            println(format("Generated: ", jni_jar_path(paths)))
         }
     }
     if command == "run" || command == "test" { return run_artifact(paths, argv, target, asan) }
@@ -1305,6 +1414,7 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths, target)
     if result == 0 { result = compile_ast(lp, paths, target, cc_override, asan, prof) }
+    if result.eq(0).and(lp.jni_build) { result = build_jni(lp, paths, target, cc_override, asan) }
     if result != 0 { return result }
 
     if paths.do_lib {
@@ -1315,6 +1425,8 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
         py_dst := format(support_root(install_prefix), "/lib/", paths.name, ".py")
         jni_c_dst := format(support_root(install_prefix), "/lib/", paths.name, "_jni.c")
         java_dst := format(support_root(install_prefix), "/lib/java/", paths.java_path.strip_prefix("gen/til/java/"))
+        bridge_dst := format(install_prefix, "/lib/", jni_bridge_path(paths, target).strip_prefix("gen/lib/"))
+        jar_dst := format(install_prefix, "/lib/", jni_jar_path(paths).strip_prefix("gen/lib/"))
         runtime_dst := format(install_prefix, "/lib/", lp.runtime_shared_basename())
         core_dst := format(install_prefix, "/lib/", lp.core_shared_basename())
 
@@ -1333,6 +1445,10 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
         if result == 0 { result = install_file(paths.py_path, py_dst, "install Python binding") }
         if result == 0 { result = install_file(paths.jni_c_path, jni_c_dst, "install JNI bridge source") }
         if result == 0 { result = install_file(paths.java_path, java_dst, "install Java binding") }
+        if result.eq(0).and(lp.jni_build) {
+            result = install_file(jni_bridge_path(paths, target), bridge_dst, "install JNI bridge")
+            if result == 0 { result = install_file(jni_jar_path(paths), jar_dst, "install Java binding jar") }
+        }
         if result == 0 {
             print_install_success(so_dst)
             print_install_success(a_dst)
@@ -1341,6 +1457,10 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
             print_install_success(py_dst)
             print_install_success(jni_c_dst)
             print_install_success(java_dst)
+            if lp.jni_build {
+                print_install_success(bridge_dst)
+                print_install_success(jar_dst)
+            }
             if lp.uses_shared_runtime() { print_install_success(runtime_dst) }
             if lp.uses_shared_runtime() { print_install_success(core_dst) }
         }

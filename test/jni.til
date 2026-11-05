@@ -2,7 +2,8 @@ mode cli
 
 // #463: the JNI binding generated for every `mode lib` library. Checks the
 // generated Java class and C bridge for test/jni_lib.til as text, then
-// compiles the bridge and runs test/JniLibTest.java through it; on Linux
+// builds it with `til build --jni` and runs test/JniLibTest.java against the
+// jar and bridge; on Linux
 // again under explicit --asan with the library and bridge sanitized, so the
 // cage's leak report covers every bridge path. Needs a JDK (test/jni_support.til finds
 // it). test/library_namespace.til drives library_namespace_a the same way.
@@ -13,6 +14,8 @@ import("jni_support")
 
 JAVA := "gen/til/java/til/jni_lib/JniLib.java"
 BRIDGE := "gen/til/jni_lib_jni.c"
+JAR := "gen/lib/jni_lib.jar"
+CLASS_PATH := "gen/lib/jni_lib.jar:tmp/jni_classes"
 
 require_contains := func(text: Str, expected: Str) returns Bool {
     if text.contains(expected).not() { panic("missing generated JNI text: ", expected) }
@@ -52,6 +55,7 @@ check_text := proc() {
     require_contains(java, "a1[0] = tilUtf8(java.util.Objects.requireNonNull(tilMut1[0], \"tilMut1[0]\"));")
     require_contains(java, "return f.call(tilStr(a0), new JniPerson(a1, true), a2);")
     require_contains(java, "public TilError(String type, String detail) {")
+    require_contains(java, "return JniPerson.tilTakeAll(f.call(JniPerson.tilViews(a0), JniPerson.tilArray(a1)));")
     if java.contains("JniCounter_delete") { panic("generated lifecycle member bound through JNI") }
     require_contains(java, "public static final class JniPerson implements AutoCloseable {")
     require_contains(java, "public JniPerson() { this(h_JniPerson_new(), true); }")
@@ -87,7 +91,7 @@ check_text := proc() {
     require_contains(c, "threw TilError %s, which its til type does not declare")
 }
 
-EXPECTED := "127\n250\n-2000\n65000\n1999999999\n4294967295\n1099511627783\n18446744073709551615\n42\n1.5\n2.5\nfalse true\n42\n6\nhello, jvm\n<owned>\n42\ncaught DivideByZero / DivideByZero: b is zero\ncaught JniBad / JniBad\nada:36\ngrace:37 true\nanon 0 true\n5\nmoved: JniPerson handle is closed or moved\n42 false\nholder: n: a mut parameter takes a one-element array\n49 12 0\n7 own 0\npayload: JniShape is not Label\n2 held held\n5 renamed\nborrowed: cannot move a borrowed JniPerson\n90\n[cb]\n36\nmade:9\ntrue\nx|y||z\np|q\n303\nanon 0\n46\n[0, 1, 4, 9, 16] 0\n[3.0, 4.0, 2.0]\n2\n3 ccc 2 ccc\n3 a\nq [0, 1]\n[4, 5, 6]\n121\n42\nJniErr neg -1 7\nDivideByZero []\nJniBad\n42 abc true 2:9 p|q\nmm:11\n504\nkept 30\nloop ok\n"
+EXPECTED := "127\n250\n-2000\n65000\n1999999999\n4294967295\n1099511627783\n18446744073709551615\n42\n1.5\n2.5\nfalse true\n42\n6\nhello, jvm\n<owned>\n42\ncaught DivideByZero / DivideByZero: b is zero\ncaught JniBad / JniBad\nada:36\ngrace:37 true\nanon 0 true\n5\nmoved: JniPerson handle is closed or moved\n42 false\nholder: n: a mut parameter takes a one-element array\n49 12 0\n7 own 0\npayload: JniShape is not Label\n2 held held\n5 renamed\nborrowed: cannot move a borrowed JniPerson\n90\n[cb]\n36\nmade:9\ntrue\nx|y||z\np|q\n303\nanon 0\n46\n[0, 1, 4, 9, 16] 0\n[3.0, 4.0, 2.0]\n2\n3 ccc 2 ccc\n3 a\nq [0, 1]\n[4, 5, 6]\n121\n42\nJniErr neg -1 7\nDivideByZero []\nJniBad\n42 abc true 2:9 p|q\nmm:11\n504\nkept 30\n2 z b\nloop ok\n"
 
 main := proc(args: ..Str) {
     // TEMPORARY (#464): make test passes no sanitizer flag; test_asan does.
@@ -98,23 +102,27 @@ main := proc(args: ..Str) {
         else if arg == "--asan" { asan = true }
         else { panic("test/jni.til: unknown argument ", arg) }
     }
-    Cmd.new("bin/til", "build", "test/jni_lib.til").run_checked()
+    // --no-jvm (bin/tests --no-jvm): a host without a JDK builds without
+    // --jni and stops at the text.
+    if run_jvm.not() {
+        Cmd.new("bin/til", "build", "test/jni_lib.til").run_checked()
+        check_text()
+        println("jni text ok")
+        return
+    }
+    jni_til_build("test/jni_lib.til", false)
     check_text()
     println("jni text ok")
-    // --no-jvm (bin/tests --no-jvm): a host without a JDK stops at the text.
-    if run_jvm.not() { return }
 
     java_home := jni_java_home()
-    jni_build_bridge(java_home, "jni_lib", false)
-    jni_javac(java_home, "tmp/jni_classes", JAVA, "test/JniLibTest.java")
-    out := jni_run(java_home, "tmp/jni_classes", "JniLibTest")
+    jni_javac(java_home, "tmp/jni_classes", JAR, "test/JniLibTest.java")
+    out := jni_run(java_home, CLASS_PATH, "JniLibTest")
     if out != EXPECTED { panic("JniLibTest output mismatch:\n", out) }
     println("jni jvm ok")
 
     if asan.and(host_os() == "linux") {
-        Cmd.new("bin/til", "build", "--asan", "test/jni_lib.til").run_checked()
-        jni_build_bridge(java_home, "jni_lib", true)
-        out_asan := jni_run_asan(java_home, "tmp/jni_classes", "JniLibTest")
+        jni_til_build("test/jni_lib.til", true)
+        out_asan := jni_run_asan(java_home, CLASS_PATH, "JniLibTest")
         if out_asan != EXPECTED { panic("JniLibTest output mismatch under ASAN:\n", out_asan) }
         println("jni jvm asan ok")
     }

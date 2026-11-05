@@ -428,15 +428,15 @@ JVM_EXPECTED := "globals ok\nenums ok\nclosed: BindingPoint handle is closed or 
 
 check_jvm := proc(asan: Bool) {
     java_home := jni_java_home()
-    jni_build_bridge(java_home, "library_namespace_a", false)
-    jni_javac(java_home, "tmp/library_namespace_classes",
-        "gen/til/java/til/library_namespace_a/LibraryNamespaceA.java", "test/LibraryNamespaceAJniTest.java")
-    out := jni_run(java_home, "tmp/library_namespace_classes", "LibraryNamespaceAJniTest")
+    jar := "gen/lib/library_namespace_a.jar"
+    class_path := format(jar, ":tmp/library_namespace_classes")
+    jni_til_build("test/library_namespace_a.til", false)
+    jni_javac(java_home, "tmp/library_namespace_classes", jar, "test/LibraryNamespaceAJniTest.java")
+    out := jni_run(java_home, class_path, "LibraryNamespaceAJniTest")
     if out != JVM_EXPECTED { panic("LibraryNamespaceAJniTest output mismatch:\n", out) }
     if asan.and(host_os() == "linux") {
-        Cmd.new("bin/til", "build", "--asan", "test/library_namespace_a.til").run_checked()
-        jni_build_bridge(java_home, "library_namespace_a", true)
-        out_asan := jni_run_asan(java_home, "tmp/library_namespace_classes", "LibraryNamespaceAJniTest")
+        jni_til_build("test/library_namespace_a.til", true)
+        out_asan := jni_run_asan(java_home, class_path, "LibraryNamespaceAJniTest")
         if out_asan != JVM_EXPECTED { panic("LibraryNamespaceAJniTest output mismatch under ASAN:\n", out_asan) }
     }
 }

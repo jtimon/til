@@ -202,6 +202,19 @@ public class JniLibTest {
             check(JniLib.jni_mut_cb((k, s, b, xs, ss) -> { s[0] = "z"; ss[0] = new String[0]; }).startsWith("1 z"),
                 "mut callback loop");
         }
+        // Vecs of handles into and out of a callback: borrowed views, owned
+        // handles (one returned, one closed), and a returned array moved into til.
+        System.out.println(JniLib.jni_people_cb((xs, ys) -> {
+            JniLib.JniPerson made = new JniLib.JniPerson();
+            made.name("z");
+            made.age(xs[1].age() + 7);
+            ys[1].close();
+            return new JniLib.JniPerson[] { made, ys[0] };
+        }));
+        for (int i = 0; i < 100000; i++) {
+            check(JniLib.jni_people_cb((xs, ys) -> { ys[1].close(); return new JniLib.JniPerson[] { ys[0] }; })
+                .equals("1 c b"), "handle vec callback loop");
+        }
         // Repeated calls: borrowed temporaries, owned boxes and results are
         // all released by the bridge or the library, never by the JVM.
         for (int i = 0; i < 100000; i++) {

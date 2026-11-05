@@ -89,8 +89,16 @@ compiling it does.
     ~TilError~ naming a declared type becomes the til throw, its payload the
     type's default with the detail as ~msg~); ~TilError~ gains public
     constructors and ~detail()~.
-  - Open: whether ~til build~ should compile the bridge, Java packaging (a
-    jar), Android packaging (#462); then the BEAM half (NIFs).
+  - ~til build --jni~ / ~til install --jni~ compile the bridge
+    (~gen/lib/lib<name>_jni~) and jar the class (~gen/lib/<name>.jar~) with
+    the host JDK; install puts both beside the library in ~<prefix>/lib/~.
+    The suite's JVM checks build through it, and test/install.til runs a
+    Java caller against an installed compiler's ~install --jni~. That run
+    found the bridge declaring its callback machinery over ~TilClosure~ in
+    libraries without the closure runtime; it is now emitted only with it.
+  - Callbacks take ~Vec~s of structs or enums (borrowed views, or owned
+    handles for ~own~) and return them (each handle moved into til).
+  - Open: Android packaging (#462); then the BEAM half (NIFs).
 
 *** Acceptance
 

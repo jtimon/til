@@ -368,6 +368,9 @@ LoadedProgram := struct {
     translation_stamp := ""
     executable_stamp := ""
     asan_build := false
+    // `build --jni` / `install --jni` of a `mode lib` library: also compile
+    // its JNI bridge and jar its Java binding with a JDK (#463).
+    jni_build := false
     // Temporary MLIR-to-C core bridge; not a source-language mode or cache.
     mlir_runtime := false
     run_tests := false

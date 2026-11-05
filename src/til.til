@@ -772,6 +772,10 @@ usage := proc() {
     println("              existing C or executable is newer than every input and")
     println("              was produced by the same compiler, program and options")
     println("              (that check otherwise reuses it).")
+    println("  --jni      build/install of a `mode lib` library: also compile its JNI")
+    println("              bridge (gen/lib/lib<name>_jni) and jar its Java binding")
+    println("              (gen/lib/<name>.jar) with a JDK: $JAVA_HOME, else the one")
+    println("              javac on PATH belongs to (/usr/libexec/java_home on macOS).")
     println("")
     println("bindings audit -- the generated file is a starting point, not a finished")
     println("binding: C headers cannot express three til-side qualifier axes, so the")
@@ -820,6 +824,9 @@ CliArgs := struct {
     prof := false
     // #442: skip the timestamp reuse check; always translate and compile.
     force_rebuild := false
+    // #463: build --jni / install --jni also compile a library's JNI bridge
+    // and jar its Java binding.
+    jni := false
     // #309: --usize overrides the target-native USize alias. 0 follows the
     // target pointer width; 32/64 force that width independently of UPtr.
     usize_bits : I64 = 0
@@ -989,6 +996,9 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
         } else if flag == "--asan" {
             cli.asan = true
             cli.path_idx++
+        } else if flag == "--jni" {
+            cli.jni = true
+            cli.path_idx++
         } else if flag == "--force-rebuild" {
             cli.force_rebuild = true
             cli.path_idx++
@@ -1110,6 +1120,14 @@ main := proc(args: ..Str) {
         usage()
         return
     }
+    if cli.jni.and(cli.command.eq("build").or(cli.command.eq("install")).not()) {
+        println("error: --jni requires build or install")
+        exit(1)
+    }
+    if cli.jni.and(cli.backend.neq("c")) {
+        println("error: --jni requires the C backend")
+        exit(1)
+    }
 
     if cli.cpu_set {
         if cli.command.eq("interpret").or(cli.command.eq("translate"))
@@ -1147,6 +1165,12 @@ main := proc(args: ..Str) {
     mut target := detect_current_target()
     if cli.target_str.len() > 0 { target = target_from_str(cli.target_str) }
     validate_target_flags(cli, target)
+    // The bridge compiles against the host JDK's jni.h and jni_md.h.
+    if cli.jni.and(target.is(detect_current_target()).not()) {
+        println(format("error: --jni builds the bridge with the host JDK and does not support --target=",
+            target_to_str(target)))
+        exit(1)
+    }
     if cli.backend_set && target_lang(target).is(Lang.C).not() {
         println("error: --backend requires a native C-compatible target")
         exit(1)
@@ -1177,11 +1201,16 @@ main := proc(args: ..Str) {
     mut lp := load_program(cli.path, bin_dir, cwd, cli.extra_modes)
     lp.compiler_revision = COMPILER_REVISION.clone()
     lp.asan_build = cli.asan
+    lp.jni_build = cli.jni
     // An unresolvable / unparsable import used to panic inside load_program.
     // It reports and returns now (so the REPL can drop the turn); a file
     // compile still stops here, with the message resolve_imports printed.
     if lp.load_errors > 0 { exit(1) }
     validate_theme_cli(cli, lp)
+    if cli.jni.and(lp.cur_mode.is_library.not()) {
+        println("error: --jni requires a `mode lib` library")
+        exit(1)
+    }
     if cli.backend_set && lp.mode_str == "theme" {
         println("error: --backend is not supported with mode theme")
         exit(1)

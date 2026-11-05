@@ -85,7 +85,8 @@ This is more predictable, but sill not completely deterministic. And can be more
 
 ** Optional: a JDK
 
-The JNI binding tests compile and run Java callers, so ~make test~ uses a
+~til build --jni~ compiles a library's JNI bridge and jar (doc/ffi.org), and
+the JNI binding tests use it and run Java callers, so ~make test~ uses a
 JDK: ~$JAVA_HOME~, else the one the ~javac~ on ~PATH~ belongs to. On Ubuntu:
 
 #+begin_src sh
