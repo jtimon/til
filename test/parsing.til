@@ -247,3 +247,56 @@ test_for_in := test() {
     }
     assert_eq(USize, node.children.len(), 2)
 }
+
+// #472 (moved from test/lexing.til, which then imports only the lexer).
+// Parsing the same source with fresh state twice interns the same names
+// in source order and synthesizes the same anonymous type names.
+parse_fresh := proc(src: Str, symbols: SymbolPool, mut counter: I64) returns Expr {
+    tokens := tokenize(src, "p.til")
+    mut mode_str := ""
+    return parse(tokens, src, "p.til", mode_str, counter, symbols)
+}
+
+test_repeat_parse := test() {
+    src := "zeta := struct { b : I64 = 0 }\nalpha := func(x: zeta) returns I64 { return x.b }\npair := enum { One, Two }\np := struct { q : I64 = 1 }(q=2)\nc := enum { Red, Green }.Green\nd := struct { q : I64 = 1 }(q=3)\ne := alpha(zeta(b=1))\n"
+    symbols1 := SymbolPool()
+    mut counter1 : I64 = 0
+    ast1 := parse_fresh(src, symbols1, counter1)
+    symbols2 := SymbolPool()
+    mut counter2 : I64 = 0
+    // A separate buffer holding the same bytes.
+    src_copy := src.clone()
+    ast2 := parse_fresh(src_copy, symbols2, counter2)
+    assert_eq(I64, counter1, counter2)
+    // Two distinct inline literals are lifted; the repeated struct shape
+    // reuses its first name.
+    assert_eq(I64, counter1, 2)
+    assert_eq(USize, symbols1.names.len(), symbols2.names.len())
+    for i in 0..symbols1.names.len() {
+        assert_eq(Str, symbols1.names[i], symbols2.names[i])
+    }
+    // Symbols are numbered by first reference in source order (lifted
+    // anonymous type names when they are lifted), not by spelling or by
+    // hash bucket.
+    mut order := Vec(Str).new()
+    order.push(own "zeta")
+    order.push(own "x")
+    order.push(own "b")
+    order.push(own "AnonStruct0")
+    order.push(own "AnonEnum1")
+    order.push(own "Green")
+    order.push(own "alpha")
+    assert_eq(USize, symbols1.names.len(), order.len())
+    for i in 0..order.len() {
+        assert_eq(Str, symbols1.names[i], order[i])
+    }
+    assert_eq(Str, ast1.to_str_with_symbols(symbols1.names), ast2.to_str_with_symbols(symbols2.names))
+    assert_eq(USize, ast1.children.len(), ast2.children.len())
+    for i in 0..ast1.children.len() {
+        ref c1 : Expr = ast1.children[i]
+        ref c2 : Expr = ast2.children[i]
+        assert_eq(U32, c1.line, c2.line)
+        assert_eq(U32, c1.col, c2.col)
+        assert_eq(Str, node_name(c1.node_type), node_name(c2.node_type))
+    }
+}

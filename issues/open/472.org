@@ -453,12 +453,17 @@ rebased source with identical results.
   unexpected character, unterminated string/char/comment.
 - Repetition: the same source in a fresh clone and in a buffer assembled by
   concatenation (different path argument) tokenizes to field-identical
-  streams; two parses with fresh ~SymbolPool~s intern identical names in
+  streams; in ~test/parsing.til~, two parses with fresh ~SymbolPool~s intern identical names in
   first-reference order (asserted exactly) and lift the same ~AnonStructN~ /
   ~AnonEnumN~ names (a repeated literal shape reuses its name).
 - Registered with ~add_both~ (interpreted and compiled). The old comment's
-  interpreter failure on U32 Token fields no longer reproduces, so
-  ~test/doc_block_comments.til~ is interpreted again too.
+  interpreter failure on U32 Token fields no longer reproduces.
+  ~test/doc_block_comments.til~ stays compile-only: lexing.til already covers
+  the lexer interpreted.
+- Cost: lexing.til imports only the lexer (the repeat-parse test lives in
+  ~test/parsing.til~, which already imports the parser and runs compile-only)
+  and builds failure messages only on failure (~expect~ formats its parts on
+  every call). Locally: interpret 3.7s -> 1.2s, build 2.9s -> 1.5s.
 - Observed, not changed: a multi-line string token carries the END line with
   the START column (~tokenize~'s ~'"'~ case advances ~line~ before
   ~push_tok~). The test pins only the following token's position.

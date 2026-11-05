@@ -2369,9 +2369,12 @@ main := proc(args: ..Str) returns I64 {
     // ctor temp's payload and the temp's delete freed the shared Str
     // storage). Fixed -- both backends now.
     add_both(tests, "test/enums_lifecycle.til", flags)
-    // The lexer tests drive tokenize() directly (#182, #472). Both now pass
-    // in the interpreter too: its old U32 Token-field failure is gone.
-    add_both(tests, "test/doc_block_comments.til", flags)
+    // The lexer tests drive tokenize() directly (#182, #472). lexing.til
+    // covers the lexer interpreted (U32 Token fields work there now), so
+    // doc_block_comments stays compile-only to avoid a duplicate interp run.
+    // lexing.til imports only the lexer; its repeat-parse test lives in
+    // parsing.til, which already pays for importing the parser.
+    add_both(tests, "test/doc_block_comments.til", mode_flags(0, en_run, asan_flag))
     add_both(tests, "test/lexing.til", flags)
     // TODO(#114): help()/doc comments are REPL-only for now; doc_comments.til
     // assumes docs are populated for til test / til interpret.

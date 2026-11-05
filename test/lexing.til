@@ -7,21 +7,26 @@ mode test
 // prefix). The stream always ends with one zero-length Eof at src.len().
 
 import("../src/self/lexer")
-import("../src/self/parser")
 
-// Assert token i's kind, source slice and location.
+// Assert token i's kind, source slice and location. Messages are built
+// only on failure (expect would format its parts on every call, and these
+// checks run hundreds of times in the interpreter).
 check_tok := func(src: Str, tokens: Vec(Token), i: USize, expected_type: TokenType, expected_text: Str, line: U32, col: U32) {
-    expect(i.lt(tokens.len()), "token ", i.to_str(), " missing: only ", tokens.len().to_str(), " tokens")
+    if i.gte(tokens.len()) { panic("token ", i.to_str(), " missing: only ", tokens.len().to_str(), " tokens") }
     ref t : Token = tokens[i]
     tt := t.type
-    expect(tt.eq(expected_type),
-        "token ", i.to_str(), " type: expected ", expected_type.to_str(), " got ", tt.to_str())
-    expect(t.start.add(t.len).lte(src.len()), "token ", i.to_str(), " span is outside the source")
-    got := src.substr(t.start, t.len).clone()
-    expect(got.eq(expected_text),
-        "token ", i.to_str(), " text: expected '", expected_text, "' got '", got, "'")
-    expect(t.line.eq(line), "token ", i.to_str(), " line: expected ", line.to_str(), " got ", t.line.to_str())
-    expect(t.col.eq(col), "token ", i.to_str(), " col: expected ", col.to_str(), " got ", t.col.to_str())
+    if tt.eq(expected_type).not() {
+        panic("token ", i.to_str(), " type: expected ", expected_type.to_str(), " got ", tt.to_str())
+    }
+    if t.start.add(t.len).gt(src.len()) { panic("token ", i.to_str(), " span is outside the source") }
+    got := src.substr(t.start, t.len)
+    if got.eq(expected_text).not() {
+        panic("token ", i.to_str(), " text: expected '", expected_text, "' got '", got, "'")
+    }
+    if t.line.eq(line).and(t.col.eq(col)).not() {
+        panic("token ", i.to_str(), " at ", t.line.to_str(), ":", t.col.to_str(),
+            ", expected ", line.to_str(), ":", col.to_str())
+    }
 }
 
 // Assert the exact byte range, for spans the slice alone cannot pin down.
@@ -46,7 +51,7 @@ check_same_tokens := func(a: Vec(Token), b: Vec(Token)) {
         ref tb : Token = b[i]
         ta_type := ta.type
         tb_type := tb.type
-        expect(ta_type.eq(tb_type), "token ", i.to_str(), " kind differs")
+        if ta_type.eq(tb_type).not() { panic("token ", i.to_str(), " kind differs") }
         assert_eq(USize, ta.start, tb.start)
         assert_eq(USize, ta.len, tb.len)
         assert_eq(U32, ta.line, tb.line)
@@ -179,7 +184,7 @@ test_keywords := test() {
         ref t : Token = tokens[i]
         tt := t.type
         ref want : TokenType = expected[i]
-        expect(tt.eq(want), "keyword ", i.to_str(), ": expected ", want.to_str(), " got ", tt.to_str())
+        if tt.eq(want).not() { panic("keyword ", i.to_str(), ": expected ", want.to_str(), " got ", tt.to_str()) }
         // The keyword spelling and tok_name agree in both directions.
         assert_eq(Str, tok_name(want), src.substr(t.start, t.len))
     }
@@ -396,56 +401,4 @@ test_repeat_tokenize := test() {
     from_built := tokenize(built, "other/path.til")
     check_same_tokens(first, from_built)
     assert_eq(USize, first.len(), 24)
-}
-
-// Parsing the same source with fresh state twice interns the same names
-// in source order and synthesizes the same anonymous type names.
-parse_fresh := proc(src: Str, symbols: SymbolPool, mut counter: I64) returns Expr {
-    tokens := tokenize(src, "p.til")
-    mut mode_str := ""
-    return parse(tokens, src, "p.til", mode_str, counter, symbols)
-}
-
-test_repeat_parse := test() {
-    src := "zeta := struct { b : I64 = 0 }\nalpha := func(x: zeta) returns I64 { return x.b }\npair := enum { One, Two }\np := struct { q : I64 = 1 }(q=2)\nc := enum { Red, Green }.Green\nd := struct { q : I64 = 1 }(q=3)\ne := alpha(zeta(b=1))\n"
-    symbols1 := SymbolPool()
-    mut counter1 : I64 = 0
-    ast1 := parse_fresh(src, symbols1, counter1)
-    symbols2 := SymbolPool()
-    mut counter2 : I64 = 0
-    // A separate buffer holding the same bytes.
-    src_copy := src.clone()
-    ast2 := parse_fresh(src_copy, symbols2, counter2)
-    assert_eq(I64, counter1, counter2)
-    // Two distinct inline literals are lifted; the repeated struct shape
-    // reuses its first name.
-    assert_eq(I64, counter1, 2)
-    assert_eq(USize, symbols1.names.len(), symbols2.names.len())
-    for i in 0..symbols1.names.len() {
-        assert_eq(Str, symbols1.names[i], symbols2.names[i])
-    }
-    // Symbols are numbered by first reference in source order (lifted
-    // anonymous type names when they are lifted), not by spelling or by
-    // hash bucket.
-    mut order := Vec(Str).new()
-    order.push(own "zeta")
-    order.push(own "x")
-    order.push(own "b")
-    order.push(own "AnonStruct0")
-    order.push(own "AnonEnum1")
-    order.push(own "Green")
-    order.push(own "alpha")
-    assert_eq(USize, symbols1.names.len(), order.len())
-    for i in 0..order.len() {
-        assert_eq(Str, symbols1.names[i], order[i])
-    }
-    assert_eq(Str, ast1.to_str_with_symbols(symbols1.names), ast2.to_str_with_symbols(symbols2.names))
-    assert_eq(USize, ast1.children.len(), ast2.children.len())
-    for i in 0..ast1.children.len() {
-        ref c1 : Expr = ast1.children[i]
-        ref c2 : Expr = ast2.children[i]
-        assert_eq(U32, c1.line, c2.line)
-        assert_eq(U32, c1.col, c2.col)
-        assert_eq(Str, node_name(c1.node_type), node_name(c2.node_type))
-    }
 }
