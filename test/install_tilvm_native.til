@@ -126,14 +126,15 @@ main := proc(args: ..Str) returns I64 {
         "native_enum_reset := proc() { noop_proc(); native_choice_state = NativeChoice.Empty; native_maybe_state = NativeMaybeConfig.None }\n",
         "NativeError := struct { code : I64 = 0 }\n",
         "native_fail := func() throws NativeError { throw NativeError(code = 7) }\n"))
-    native_build := Cmd.new(installed_til, "build")
+    // Match the host, libraries and plugin's toolchain, including ASAN runtime.
+    native_build := Cmd.new(installed_til, "build", "--cc=clang")
     if asan { native_build.arg("--asan") }
     native_build.arg("vm_native.til")
     native_build.cwd(work)
     native_build.run_checked()
     File.writefile(format(work, "/vm_plugin.til"),
         "mode lib\nplugin_value := func() returns I64 { return 73 }\n")
-    plugin_build := Cmd.new(installed_til, "build")
+    plugin_build := Cmd.new(installed_til, "build", "--cc=clang")
     if asan { plugin_build.arg("--asan") }
     plugin_build.arg("vm_plugin.til")
     plugin_build.cwd(work)
@@ -144,7 +145,7 @@ main := proc(args: ..Str) returns I64 {
     library_dir := realpath_str(format(work, "/gen/lib"))
     File.writefile(format(work, "/tilvm_native_cases.til"), File.readfile("test/tilvm_native_cases.til"))
     File.writefile(format(work, "/tilvm_native.til"), File.readfile(format("test/", fixture, ".til")))
-    native_host := Cmd.new(installed_til, "build")
+    native_host := Cmd.new(installed_til, "build", "--cc=clang")
     if asan { native_host.arg("--asan") }
     native_host.args("-o", "bin/tilvm_native", "tilvm_native.til")
     native_host.cwd(work)

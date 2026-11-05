@@ -60,7 +60,7 @@ main := proc(args: ..Str) returns I64 {
     // Guest files do not exist until that compiled host creates them.
     File.writefile(format(work, "/tilvm_cases.til"), File.readfile("test/tilvm_cases.til"))
     File.writefile(format(work, "/tilvm_host.til"), File.readfile(format("test/", fixture, ".til")))
-    vm_build := Cmd.new(installed_til, "build")
+    vm_build := Cmd.new(installed_til, "build", "--cc=clang")
     if asan { vm_build.arg("--asan") }
     vm_build.args("-o", "bin/tilvm_host", "tilvm_host.til")
     vm_build.cwd(work)

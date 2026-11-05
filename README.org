@@ -80,7 +80,7 @@ This is more predictable, but sill not completely deterministic. And can be more
 
 - ~make~
 - ~gcc~
-- ~clang~ (for the compiler-install rebuild test)
+- ~clang~ (for the compiler-install rebuild and VM build tests)
 - ~xvfb~ (for GUI tests)
 
 ** Optional: a JDK
