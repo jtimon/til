@@ -151,6 +151,98 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_scalars := proc(compiler: Str, work: Str) {
+    elements:=array(Str,"I8","U8","I16","U16")
+    prefixes:=array(Str,"s8","u8","s16","u16")
+    ctypes:=array(Str,"int8_t","uint8_t","int16_t","uint16_t")
+    utypes:=array(Str,"uint8_t","uint8_t","uint16_t","uint16_t")
+    mut source:="mode lib\nextra:=import(\"scalar_extra\")\n"
+    mut prototypes:="#include <assert.h>\n#include <stdint.h>\n#include <string.h>\n#include <math.h>\n#include <stdbool.h>\n#include <stdlib.h>\n"
+    mut checks:="int main(int argc,char**argv){if(argc>1){double bad;uint64_t raw=0x7ff8000000001234ULL;memcpy(&bad,&raw,8);if(atoi(argv[1])==0)s8_from_double(bad);else if(atoi(argv[1])==1)u16_from_double(65536.0);else if(atoi(argv[1])==2)double_i64(0x1p63);else double_u64(0x1p64);return 99;}\n"
+    for i in 0..elements.len() {
+        ref t:Str=elements[i];ref prefix:Str=prefixes[i];ref ct:Str=ctypes[i];ref ut:Str=utypes[i]
+        mut result64:="I64";mut c64:="int64_t";mut cast64:="I64"
+        if i==1 || i==3 {result64="U64";c64="uint64_t";cast64="U64"}
+        mut complement:="return a.bnot()"
+        if i==2 {complement="return a.bxor(-1)"}
+        if i==3 {complement="return a.bxor(U16.MAX)"}
+        for op in array(Str,"add","sub","mul","band","bor","bxor") {
+            source=format(source,prefix,"_",op,":=func(a:",t,",b:",t,") returns ",t,"{return a.",op,"(b)}\n")
+            prototypes=format(prototypes,"extern ",ct," ",prefix,"_",op,"(",ct,",",ct,");\n")
+        }
+        for op in array(Str,"eq","neq","lt","lte","gt","gte") {
+            source=format(source,prefix,"_",op,":=func(a:",t,",b:",t,") returns Bool{return a.",op,"(b)}\n")
+            prototypes=format(prototypes,"extern bool ",prefix,"_",op,"(",ct,",",ct,");\n")
+        }
+        source=format(source,
+            prefix,"_cmp:=func(a:",t,",b:",t,") returns I64{return a.cmp(b)}\n",
+            prefix,"_not:=func(a:",t,") returns ",t,"{",complement,"}\n",
+            prefix,"_wide:=func(a:",t,") returns ",result64,"{return a.cast(",cast64,")}\n",
+            prefix,"_float:=func(a:",t,") returns F64{return a.cast(F64)}\n",
+            prefix,"_from_double:=func(a:F64) returns ",t,"{return a.cast(",t,")}\n",
+            prefix,"_legacy:=func(a:I64) returns ",t,"{return a.to_",t.replace("I","i").replace("U","u"),"()}\n",
+            prefix,"_forward:=func(a:",t,",b:",t,") returns ",t,"{return ",prefix,"_add(a,b)}\n",
+            prefix,"_cycle:=func(a:",t,",n:USize) returns ",t,"{mut x:=a.clone();mut i:USize=0;while i<n{x++;i++};x--;return x}\n")
+        prototypes=format(prototypes,"extern int64_t ",prefix,"_cmp(",ct,",",ct,");extern ",ct," ",prefix,"_not(",ct,"),",prefix,"_from_double(double),",prefix,"_legacy(int64_t),",prefix,"_forward(",ct,",",ct,"),",prefix,"_cycle(",ct,",uint64_t);extern ",c64," ",prefix,"_wide(",ct,");extern double ",prefix,"_float(",ct,");\n")
+        mut inputs:="0,1,2,127,128,129,254,255";mut length:="8";mut mask:="255"
+        if i>=2 {inputs="0,1,2,127,128,255,256,32767,32768,32769,65534,65535";length="12";mask="65535"}
+        checks=format(checks,"{const uint32_t inputs[]={",inputs,"};for(unsigned i=0;i<",length,";i++){",ct," a=(",ct,")inputs[i];uint32_t ab=(",ut,")a;assert(",prefix,"_wide(a)==(",c64,")a && ",prefix,"_float(a)==(double)a);assert((",ut,")",prefix,"_not(a)==((~ab)&",mask,"));for(unsigned n=0;n<260;n+=37)assert((",ut,")",prefix,"_cycle(a,n)==((ab+n-1)&",mask,"));for(unsigned j=0;j<",length,";j++){",ct," b=(",ct,")inputs[j];uint32_t bb=(",ut,")b;assert((",ut,")",prefix,"_add(a,b)==((ab+bb)&",mask,"));assert((",ut,")",prefix,"_forward(a,b)==((ab+bb)&",mask,"));assert((",ut,")",prefix,"_sub(a,b)==((ab-bb)&",mask,"));assert((",ut,")",prefix,"_mul(a,b)==((ab*bb)&",mask,"));assert((",ut,")",prefix,"_band(a,b)==(ab&bb));assert((",ut,")",prefix,"_bor(a,b)==(ab|bb));assert((",ut,")",prefix,"_bxor(a,b)==(ab^bb));assert(",prefix,"_eq(a,b)==(a==b) && ",prefix,"_neq(a,b)==(a!=b) && ",prefix,"_lt(a,b)==(a<b) && ",prefix,"_lte(a,b)==(a<=b) && ",prefix,"_gt(a,b)==(a>b) && ",prefix,"_gte(a,b)==(a>=b));assert(",prefix,"_cmp(a,b)==(a>b)-(a<b));}}for(int64_t v=-70000;v<70000;v+=997)assert((",ut,")",prefix,"_legacy(v)==((uint64_t)v&",mask,"));}\n")
+    }
+    File.writefile(format(work,"/scalar_extra.til"),"mode lib\nSmall:=namespace{echo8:=func(v:I8) returns I8{return v};echo16:=func(v:U16) returns U16{return v};constant:=func() returns U8{return 255}}\n")
+    source=format(source,
+        "ns_byte:=func(v:I8) returns I8{return extra.Small.echo8(v)}\nns_half:=func(v:U16) returns U16{return extra.Small.echo16(v)}\nns_constant:=func() returns U8{return extra.Small.constant()}\n",
+        "double_add:=func(a:F64,b:F64) returns F64{return a+b}\ndouble_sub:=func(a:F64,b:F64) returns F64{return a-b}\ndouble_mul:=func(a:F64,b:F64) returns F64{return a*b}\ndouble_div:=func(a:F64,b:F64) returns F64{return a/b}\n",
+        "double_fma:=func(a:F64,b:F64,c:F64) returns F64{return a.fma(b,c)}\ndouble_separate:=func(a:F64,b:F64,c:F64) returns F64{return a*b+c}\ndouble_cmp:=func(a:F64,b:F64) returns I64{return a.cmp(b)}\n",
+        "double_lt:=func(a:F64,b:F64) returns Bool{return a<b}\ndouble_neq:=func(a:F64,b:F64) returns Bool{return a!=b}\ndouble_identity:=func(a:F64) returns F64{return a}\n",
+        "double_narrow:=func(a:F64) returns F32{return a.cast(F32)}\ndouble_legacy:=func(a:F64) returns F32{return a.to_f32()}\nfloat_wide:=func(a:F32) returns F64{return a.cast(F64)}\n",
+        "double_i64:=func(a:F64) returns I64{return a.cast(I64)}\ndouble_u64:=func(a:F64) returns U64{return a.cast(U64)}\ndouble_literal:=func() returns F64{return 0.1}\ndouble_negative_zero:=func() returns F64{return -0.0}\n",
+        "F4:=Simd(F32,4)\ndouble_stack:=func(a:F64,b:F64,c:F64,d:F64,e:F64,f:F64,g:F64,v:F4,last:F64,tag:I16) returns F64{return a+b+c+d+e+f+g+last+tag.cast(F64)+v.reduce_add().cast(F64)}\n",
+        "double_stack_relay:=func(a:F64,b:F64,c:F64,d:F64,e:F64,f:F64,g:F64,v:F4,last:F64,tag:I16) returns F64{return double_stack(a,b,c,d,e,f,g,v,last,tag)}\n",
+        "SmallDouble:=struct{value:F64=0}\nMixedScalar:=struct{a:I8=0;b:U8=0;c:I16=0;d:U16=0;f:F32=0;g:F64=0}\n",
+        "make_double:=func(value:F64) returns SmallDouble{return SmallDouble(value=value)}\ncopy_double:=func(shallow value:SmallDouble) returns SmallDouble{return value.clone()}\n",
+        "make_mixed:=func(a:I8,b:U8,c:I16,d:U16,f:F32,g:F64) returns MixedScalar{return MixedScalar(a=a,b=b,c=c,d=d,f=f,g=g)}\n",
+        "copy_mixed:=func(shallow value:MixedScalar) returns MixedScalar{return value.clone()}\nchange_mixed:=func(mut p:MixedScalar){ref mut c:I16=p.c;c++;p.a=p.a+1;p.b=p.b+1;p.d=p.d+1;p.g=p.g+0.5}\n",
+        "wide_field:=func(p:MixedScalar) returns I64{return p.a.cast(I64)+p.c.cast(I64)}\n")
+    prototypes=format(prototypes,
+        "extern int8_t ns_byte(int8_t);extern uint16_t ns_half(uint16_t);extern uint8_t ns_constant(void);extern double double_add(double,double),double_sub(double,double),double_mul(double,double),double_div(double,double),double_fma(double,double,double),double_separate(double,double,double),double_identity(double),float_wide(float),double_literal(void),double_negative_zero(void);extern int64_t double_cmp(double,double),double_i64(double);extern uint64_t double_u64(double);extern bool double_lt(double,double),double_neq(double,double);extern float double_narrow(double),double_legacy(double);\n",
+        "typedef struct{float v[4];}F4;extern double double_stack(double,double,double,double,double,double,double,F4,double,int16_t),double_stack_relay(double,double,double,double,double,double,double,F4,double,int16_t);typedef struct{double value;}SmallDouble;typedef struct{int8_t a;uint8_t b;int16_t c;uint16_t d;float f;double g;}MixedScalar;extern SmallDouble make_double(double),copy_double(SmallDouble);extern MixedScalar make_mixed(int8_t,uint8_t,int16_t,uint16_t,float,double),copy_mixed(MixedScalar);extern void change_mixed(MixedScalar*);extern int64_t wide_field(const MixedScalar*);\n",
+        "static void same(double a,double b){if(isnan(b))assert(isnan(a));else assert(memcmp(&a,&b,8)==0);}\n")
+    checks=format(checks,
+        "for(unsigned v=0;v<256;v++)assert(ns_byte((int8_t)v)==(int8_t)v);assert(ns_half(65535)==65535 && ns_constant()==255);assert(s8_from_double(-128.99)==-128 && s8_from_double(127.99)==127 && u8_from_double(-0.75)==0 && u8_from_double(255.99)==255);assert(s16_from_double(-32768.99)==-32768 && s16_from_double(32767.99)==32767 && u16_from_double(65535.99)==65535);assert(double_i64(-0x1p63)==INT64_MIN && double_i64(0x1.fffffffffffffp62)==(int64_t)0x1.fffffffffffffp62 && double_u64(0x1.fffffffffffffp63)==(uint64_t)0x1.fffffffffffffp63);\n",
+        "const double values[]={0,-0.0,1,-1,INFINITY,-INFINITY,NAN,0x1p-1074,0x1p-1022,0x1.fffffffffffffp1023,134217729,-18014398777917440.0};for(unsigned i=0;i<12;i++){same(double_identity(values[i]),values[i]);float narrowed=(float)values[i];if(isnan(narrowed)){assert(isnan(double_narrow(values[i])) && isnan(double_legacy(values[i])));}else{float n=double_narrow(values[i]),l=double_legacy(values[i]);assert(memcmp(&n,&narrowed,4)==0 && memcmp(&l,&narrowed,4)==0);}for(unsigned j=0;j<12;j++){same(double_add(values[i],values[j]),values[i]+values[j]);same(double_sub(values[i],values[j]),values[i]-values[j]);same(double_mul(values[i],values[j]),values[i]*values[j]);same(double_div(values[i],values[j]),values[i]/values[j]);assert(double_cmp(values[i],values[j])==(values[i]>values[j])-(values[i]<values[j]));assert(double_lt(values[i],values[j])==(values[i]<values[j]) && double_neq(values[i],values[j])==(values[i]!=values[j]));for(unsigned k=0;k<12;k++){same(double_fma(values[i],values[j],values[k]),fma(values[i],values[j],values[k]));double p=values[i]*values[j];same(double_separate(values[i],values[j],values[k]),p+values[k]);}}}\n",
+        "same(double_literal(),0.1);same(double_negative_zero(),-0.0);same(double_fma(134217729,134217729,-18014398777917440.0),1);same(double_separate(134217729,134217729,-18014398777917440.0),0);same(float_wide(0.1f),(double)0.1f);F4 v={{1,2,3,4}};assert(double_stack(1,2,3,4,5,6,7,v,17,-3)==52 && double_stack_relay(1,2,3,4,5,6,7,v,17,-3)==52);\n",
+        "const uint64_t raw[]={0x7ff0000000000001ULL,0xfff8123456789abcULL,0x8000000000000000ULL,1};for(unsigned i=0;i<4;i++){double value;memcpy(&value,&raw[i],8);double identity=double_identity(value);assert(memcmp(&identity,&raw[i],8)==0);SmallDouble a=make_double(value),b=copy_double(a);assert(memcmp(&a.value,&raw[i],8)==0 && memcmp(&b.value,&raw[i],8)==0);MixedScalar m=make_mixed(-128,255,32767,65535,-0.0f,value),n=copy_mixed(m);assert(n.a==-128 && n.b==255 && n.c==32767 && n.d==65535 && memcmp(&n.g,&raw[i],8)==0);}\n",
+        "MixedScalar m=make_mixed(127,255,32767,65535,2,3);change_mixed(&m);assert(m.a==-128 && m.b==0 && m.c==-32768 && m.d==0 && m.f==2 && m.g==3.5 && wide_field(&m)==-32896);return 0;}\n")
+    File.writefile(format(work,"/scalars.til"),source)
+    File.writefile(format(work,"/scalar_caller.c"),format(prototypes,checks))
+    reference_checks:="main:=proc(){mut a:I8=-128;a=a+0;assert_eq(I8,s8_forward(a,-1),127);assert_eq(I64,s8_wide(a),-128);assert_eq(U16,u16_legacy(-1),65535);assert_eq(I16,s16_from_double(-32768.99),-32768);assert_eq(U8,u8_from_double(-0.75),0);assert_eq(F64,double_fma(134217729,134217729,-18014398777917440.0),1);assert_eq(F64,double_separate(134217729,134217729,-18014398777917440.0),0);println(a.to_str());println(u16_legacy(-1).to_str());println(double_literal().to_repr());println(ns_byte(-7).to_str());println(ns_constant().to_str());}\n"
+    File.writefile(format(work,"/scalar_reference.til"),format("mode cli\nimport(\"scalars\")\n",reference_checks))
+    File.writefile(format(work,"/scalar_consumer.til"),format(
+        "mode cli\nlink(\"gen/lib/libscalars.so\")\ns8_forward:=ext_func(shallow a:I8,shallow b:I8) returns shallow I8 {}\ns8_wide:=ext_func(shallow a:I8) returns shallow I64 {}\nu16_legacy:=ext_func(shallow a:I64) returns shallow U16 {}\ns16_from_double:=ext_func(shallow a:F64) returns shallow I16 {}\nu8_from_double:=ext_func(shallow a:F64) returns shallow U8 {}\ndouble_fma:=ext_func(shallow a:F64,shallow b:F64,shallow c:F64) returns shallow F64 {}\ndouble_separate:=ext_func(shallow a:F64,shallow b:F64,shallow c:F64) returns shallow F64 {}\ndouble_literal:=ext_func() returns shallow F64 {}\nns_byte:=ext_func(shallow a:I8) returns shallow I8 {}\nns_constant:=ext_func() returns shallow U8 {}\n",reference_checks))
+    File.writefile(format(work,"/scalar_panic.til"),"mode cli\nimport(\"scalars\")\nmain:=proc(which:I64){mut raw:U64=0x7ff8000000001234;mut bad:F64=0;memcpy(to_ptr(bad),to_ptr(raw),8);mut half:F64=65536;half=half+0;mut signed_limit:F64=9223372036854775808.0;signed_limit=signed_limit+0;mut unsigned_limit:F64=18446744073709551616.0;unsigned_limit=unsigned_limit+0;if which==0{s8_from_double(bad)}else if which==1{u16_from_double(half)}else if which==2{double_i64(signed_limit)}else{double_u64(unsigned_limit)}}\n")
+    reference:=Cmd.new(compiler,"run","--usize=64","scalar_reference.til");checked(reference,work)
+    interpreted:=Cmd.new(compiler,"interpret","--usize=64","scalar_reference.til");checked(interpreted,work)
+    assert_eq(Str,reference.out(),interpreted.out())
+    mut messages:=Vec(Str).new()
+    for i in 0..4 {
+        failure:=Cmd.new(compiler,"run","--usize=64","scalar_panic.til",i.to_str());failure.cwd(work).capture()
+        status:=failure.run();expect(status==1 && failure.err().len()==0,failure.out(),failure.err())
+        messages.push(own failure.out())
+    }
+    for level in array(Str,"0","2","3") {
+        build:=Cmd.new(compiler,"build","--backend=mlir","--cpu=baseline",format("--opt=",level),"./scalars.til");checked(build,work)
+        cc:=Cmd.new("clang-18","-O2","-ffp-contract=off","-fsanitize=address","-Wall","-Wextra","-Werror","scalar_caller.c","gen/lib/libscalars.a","-lm","-o","scalar_caller");checked(cc,work)
+        native:=Cmd.new("./scalar_caller");checked(native,work)
+        client:=Cmd.new(compiler,"run","--usize=64","--asan","scalar_consumer.til");checked(client,work)
+        assert_eq(Str,client.out(),reference.out())
+        for i in 0..4 {
+            failure:=Cmd.new("./scalar_caller",i.to_str());failure.cwd(work).capture()
+            status:=failure.run();expect(status==1,failure.out(),failure.err())
+            assert_eq(Str,failure.out(),messages[i.to_usize()]);assert_eq(Str,failure.err(),"")
+        }
+    }
+}
+
 priv check_modules := proc(compiler: Str, work: Str) {
     File.writefile(format(work,"/module_left.til"),format(
         "mode lib\nF4:=Simd(F32,4)\npriv bias:=func(x:I32) returns I32{return x+3}\n",
@@ -239,9 +331,9 @@ priv check_pods := proc(compiler: Str, work: Str) {
     // This exercises the LLVM 18 export adapter's balanced-type parsing and
     // idempotence, independently of the native ABI matrix below.
     module_path:="../../src/self/codegen/mlir_codegen"
-    declaration:="declare void @\"call,(abi)\"(ptr sret(%\"shape,(nested)\"), ptr byval({ float, [2 x i64], <2 x float> }) align 8)\n"
-    call:="  call void @\"call,(abi)\"(ptr %out, ptr %input)\n"
-    corrected:="  call void @\"call,(abi)\"(ptr sret(%\"shape,(nested)\") %out, ptr byval({ float, [2 x i64], <2 x float> }) align 8 %input)\n"
+    declaration:="declare void @\"call,(abi)\"(ptr sret(%\"shape,(nested)\"), ptr byval({ float, [2 x i64], <2 x float> }) align 8)\ndeclare signext i8 @signed_byte(i8 signext)\ndeclare zeroext i16 @unsigned_half(i16 zeroext)\ndeclare zeroext i8 @no_args()\n"
+    call:="  call void @\"call,(abi)\"(ptr %out, ptr %input)\n  %a = call i8 @signed_byte(i8 -1)\n  %b = call i16 @unsigned_half(i16 65535)\n  %c = call i8 @no_args()\n"
+    corrected:="  call void @\"call,(abi)\"(ptr sret(%\"shape,(nested)\") %out, ptr byval({ float, [2 x i64], <2 x float> }) align 8 %input)\n  %a = call signext i8 @signed_byte(i8 signext -1)\n  %b = call zeroext i16 @unsigned_half(i16 zeroext 65535)\n  %c = call zeroext i8 @no_args()\n"
     input:=format(declaration,call).replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n")
     expected:=format(declaration,corrected).replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n")
     File.writefile(format(work,"/llvm_attributes.til"),format("mode cli\nimport(\"../../src/self/interpreter\")\nimport(\"",module_path,"\")\nmain:=proc(){input:=\"",input,"\";expected:=\"",expected,"\";actual:=mlir_llvm_call_attributes(input);assert_eq(Str,actual,expected);assert_eq(Str,mlir_llvm_call_attributes(actual),actual);scope_pool_drain();println(\"LLVM attributes PASS\")}\n"))
@@ -967,5 +1059,6 @@ main := proc(compiler_arg: Str) {
     check_stack_abi(compiler, work)
     check_pods(compiler, work)
     check_modules(compiler, work)
+    check_scalars(compiler, work)
     println("mlir PASS")
 }

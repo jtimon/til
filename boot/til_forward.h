@@ -437,6 +437,7 @@ typedef struct priv___src_self_codegen_mlir_codegen_til__MlirBinding priv___src_
 typedef struct priv___src_self_codegen_mlir_codegen_til__MlirCallable priv___src_self_codegen_mlir_codegen_til__MlirCallable;
 typedef struct priv___src_self_codegen_mlir_codegen_til__MlirState priv___src_self_codegen_mlir_codegen_til__MlirState;
 typedef struct priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature;
+typedef struct priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi;
 typedef struct Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 typedef struct Map__Str_U64 Map__Str_U64;
 enum {
@@ -453,7 +454,9 @@ typedef struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable Vec__
 typedef struct Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable;
 typedef struct Map__Str_UPtr Map__Str_UPtr;
 typedef struct Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature;
+typedef struct Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi;
 typedef struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding;
+typedef struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi;
 typedef struct priv___src_self_codegen_fasm_codegen_til__FasmDefinition priv___src_self_codegen_fasm_codegen_til__FasmDefinition;
 typedef struct priv___src_self_codegen_fasm_codegen_til__FasmGlobal priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
 typedef struct priv___src_self_codegen_fasm_codegen_til__FasmProgram priv___src_self_codegen_fasm_codegen_til__FasmProgram;
@@ -1643,6 +1646,12 @@ typedef struct priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature {
 } priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature;
 
 
+typedef struct priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi {
+    Vec__Str parameters;
+    Str result;
+} priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi;
+
+
 typedef struct Map__Str_U64 {
     Vec__Str keys;
     Vec__U64 values;
@@ -1693,6 +1702,13 @@ typedef struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding {
     USize count;
     USize cap;
 } Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding;
+
+
+typedef struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi;
 
 
 typedef struct priv___src_self_codegen_fasm_codegen_til__FasmDefinition {
@@ -2406,6 +2422,12 @@ typedef struct Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding {
     Vec__Str keys;
     Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding values;
 } Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding;
+
+
+typedef struct Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi {
+    Vec__Str keys;
+    Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi values;
+} Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi;
 
 
 typedef struct priv___src_self_codegen_fasm_codegen_til__FasmState {

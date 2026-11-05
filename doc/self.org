@@ -363,17 +363,17 @@
   initial MLIR ABI supports Linux x86-64 hosts and targets only.
 
   This is a restricted value/control-flow backend, not GPU execution or a
-  replacement for the general C backend. It supports F32, ~Simd(F32,4)~,
+  replacement for the general C backend. It supports F32/F64, ~Simd(F32,4)~,
   ~Simd(I32,4)~, ~Simd(U32,4)~,
   ~Simd(Bool,4)~ masks,
-  Bool, I32/U32 and I64/U64 values, including USize/UPtr aliases resolved
+  Bool and all I8/U8, I16/U16, I32/U32 and I64/U64 scalar values, including USize/UPtr aliases resolved
   through the existing target configuration. Scalar/nested POD structs support
   construction, field access/update and value returns as described below.
   Value parameters are immutable;
   locals may be mutable. Borrowed ~Array(F32)~, ~Array(I32)~ and ~Array(U32)~ parameters support read-only
   inputs and ~mut~ outputs. Arithmetic includes addition, subtraction and
   multiplication (integer operations wrap), integer increment/decrement,
-  scalar comparisons, Boolean logic, cloning, literals, cross-unit direct
+  integer bitwise operations, scalar comparisons/cmp, Boolean logic, cloning, literals, cross-unit direct
   calls and returns. Scalar integer division, shifts and other unsupported
   operations still produce diagnostics. SIMD ~new~,
   ~splat~, ~zero~, fixed-order ~reduce_add~ and checked lane
@@ -426,11 +426,11 @@
   outside the subset; strings, borrowed buffers and the error-out parameter are
   described below.
 
-  F32 and F32x4 division use IEEE floating-point semantics, including zero
+  F32, F64 and F32x4 division use IEEE floating-point semantics, including zero
   divisors, signed zeros, infinities and NaNs, through ~arith.divf~. Explicit
   ~a.fma(b,c)~ uses ~llvm.intr.fma~ with one fused rounding; ordinary ~a*b+c~
   remains separate. Operands are evaluated once in source order. Executables
-  and shared libraries link libm so baseline CPUs can use LLVM's ~fmaf~
+  and shared libraries link libm so baseline CPUs can use LLVM's ~fmaf~/~fma~
   lowering; native callers of static archives must also link ~-lm~ when needed.
   Integration tests compare finite/zero results bit-for-bit and NaNs by
   classification against C division/~fmaf~, at O0/O2/O3 and both USize widths.
@@ -438,8 +438,23 @@
   internally and normalized byte values at the C ABI boundary. Integer
   arguments do not consume the SSE argument budget. Native-width USize
   remains the default; the existing explicit width override is unchanged.
-  Accepted 32-to-64-bit integer widening uses sign or zero extension as
-  appropriate, including widened locals, assignments and return values.
+  Accepted integer widening uses sign or zero extension as appropriate,
+  including widened locals, assignments and return values. Narrow signed
+  parameters/results carry signext, unsigned ones carry zeroext, and Bool's
+  normalized-byte ABI uses zeroext. The LLVM export adapter restores these
+  call-site attributes as well as the aggregate ABI attributes.
+
+  I8/U8 and I16/U16 locals and fields retain their declared widths: arithmetic
+  wraps without LLVM overflow flags, comparisons preserve signedness, and
+  integer constants retain their width-specific bit patterns. F64 constants
+  preserve all 64 bits, including negative zero. Floating comparisons use
+  ordered predicates except inequality; cmp returns zero for unordered inputs,
+  matching core's existing scalar cmp. F32/F64 share the SSE argument budget.
+  The existing numeric to_x/from_i64 conversions are lowered using their actual
+  declared return type, including narrowing and cross-signedness conversion;
+  legacy float-to-integer to_x remains unchecked. Checked cast retains its
+  range/NaN/infinity panic contract. Float-width conversions preserve numeric
+  rounding, and formatting/to_repr still uses the ordinary C-core bridge.
 
   I32x4/U32x4 use ~vector<4xi32>~ internally. Their four scalar fields cross
   the SysV ABI as two i64 INTEGER chunks for arguments and returns, independent
@@ -463,7 +478,8 @@
   aggregates use LLVM byval pointers to four-scalar structs with alignment 8,
   not native-vector parameter types. Each call site's source snapshot has an
   aligned entry-block slot, so repeated loop calls do not grow local storage.
-  LLVM 18 exports byval/sret on declarations but drops call-site arg_attrs.
+  LLVM 18 exports byval/sret and integer extension attributes on declarations
+  but drops the corresponding call-site attributes.
   The export adapter described below restores those attributes BEFORE any
   optimization. Instruction selection consulting the callee is not sufficient:
   padded POD forwarding passed O0 but failed O2 until the call was annotated.
@@ -562,7 +578,7 @@
 
 *** Scalar and nested POD structs
 
-  POD structs may contain Bool, I32/U32, I64/U64, F32 and nested structs from
+  POD structs may contain Bool, all scalar integer widths, F32/F64 and nested structs from
   that same set. Constructors use the shared frontend's positional/default
   field lowering. Mutable locals, whole-value assignment, field reads/writes,
   nested field aliases, auto-generated clone and size are supported. These
@@ -642,10 +658,10 @@
   til writes ~gen/mlir/<source>.mlir~, preserving the same normalized source
   hierarchy as C output. ~mlir-opt-18~ lowers vector/arith operations to the
   LLVM dialect; ~mlir-translate-18~ produces LLVM IR; ~clang-18~ compiles it.
-  Lowered MLIR flows through a pipe. LLVM 18's exporter omits call-site byval
-  and sret attributes, so builds stage its LLVM IR in caller-local
+  Lowered MLIR flows through a pipe. LLVM 18's exporter omits call-site byval,
+  sret and narrow-integer extension attributes, so builds stage its LLVM IR in caller-local
   ~tmp/mlir-<pid>.ll~. Til reads that file, restores the required call attributes
-  from the exported function declarations, and rewrites it; Clang then reads
+  from the exported function declarations (arguments and results), and rewrites it; Clang then reads
   it, and til removes it after compilation (including a Clang failure).
   Balanced type parsing handles named/quoted types and nested aggregate
   signatures; inconsistent argument counts/attributes fail loudly.

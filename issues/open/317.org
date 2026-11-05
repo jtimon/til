@@ -159,6 +159,36 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Remaining scalar widths and F64 (base 4a621551f)
+
+I8/U8, I16/U16 and F64 now join the scalar slice. Narrow arithmetic and local
+stepping wrap at the declared width; integer comparisons/cmp and bitwise
+operations preserve signedness. Widening, explicit casts and existing numeric
+conversion functions use the actual source/declared result widths. Float-width
+conversion uses numeric rounding; compatibility to_x remains unchecked where
+it was unchecked, while cast checks the truncated result before conversion.
+
+F64 literals retain their 64-bit representation. Arithmetic/division follow
+IEEE, explicit fma is fused and ordinary multiply/add remains separate. cmp
+returns zero for unordered inputs as core already does. F32/F64 share the SSE
+bank. POD layout/classification now includes narrow fields and double fields,
+including scalar-aligned loads and the existing native aggregate ABI.
+
+Narrow arguments/results carry signext/zeroext, including namespace/imported
+calls and zero-argument return functions. The LLVM 18 adapter restores these
+on call arguments AND results, in addition to byval/sret. The synthetic LLVM
+signature test covers result-only attributes and repair idempotence.
+
+Differential tests exercise arithmetic boundaries, signed/unsigned comparisons,
+bit patterns, local wraparound, named/checked conversions, small float-to-int
+bounds, 64-bit bounds, F64 special values/subnormals, genuine fused rounding,
+mixed F32/F64 stack calls and mixed/nested ABI classes. Native C and ASAN til/C
+consumers compare values/output at O0/O2/O3, including exact panic diagnostics
+and raw signaling-NaN/zero preservation on identity/POD copies. Translation-only
+checks cover types, extension attributes, conversion operations and literals.
+Scalar integer division/shifts and additional SIMD lane families remain outside
+this increment; the shared language APIs and default backend are unchanged.
+
 *** Imported and namespace functions/procedures (base 0cffc6cfc)
 
 Direct calls now select the actual prepared FunctionDef across user units and

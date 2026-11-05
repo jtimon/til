@@ -74,8 +74,11 @@ priv mlir_type := func(shallow t: Type, lp: LoadedProgram) returns Str {
     case .Primitive(p):
         switch p {
         case .Bool: return "i1"
+        case .I8, .U8: return "i8"
+        case .I16, .U16: return "i16"
         case .I32, .U32: return "i32"
         case .I64, .U64: return "i64"
+        case .F64: return "f64"
         case:
         }
     case:
@@ -86,6 +89,7 @@ priv mlir_type := func(shallow t: Type, lp: LoadedProgram) returns Str {
     if name == "Str" { return format("!llvm.struct<(!llvm.ptr, ", mlir_count_type(lp), ", ", mlir_count_type(lp), ")>") }
     if name == "Array__Str" { return format("!llvm.struct<(!llvm.ptr, ", mlir_count_type(lp), ")>") }
     if name == "F32" { return "f32" }
+    if name == "F64" { return "f64" }
     if t.is(Type.None) { return "void" }
     definition := lp.ctx.scope.get_struct(name, lp.ctx.symbols)
     if definition.is_some() {
@@ -104,7 +108,7 @@ priv mlir_type := func(shallow t: Type, lp: LoadedProgram) returns Str {
                 ref field : Declaration = sd.fields[i]
                 if field.own_type.is(OwnType.Shallow).not() { return "" }
                 ft := mlir_type(declaration_resolved_type(field, lp.ctx.scope, lp.ctx.symbols), lp)
-                if ft != "i1" && ft != "i32" && ft != "i64" && ft != "f32" && mlir_pod(ft).not() { return "" }
+                if mlir_scalar(ft).or(mlir_pod(ft)).not() { return "" }
                 if i > 0 { fields = format(fields, ", ") }
                 if ft == "i1" { fields = format(fields, "i8") }
                 else { fields = format(fields, ft) }
@@ -132,7 +136,8 @@ priv mlir_alignment := func(t: Str) returns Str {
     // in arrays). Do not promise the stronger alignment of our own slots.
     if mlir_pod(t) { return "1" }
     if t == "i1" || t == "i8" { return "1" }
-    if t == "i64" || t == "!llvm.ptr" || mlir_record(t) { return "8" }
+    if t == "i16" { return "2" }
+    if t == "i64" || t == "f64" || t == "!llvm.ptr" || mlir_record(t) { return "8" }
     return "4"
 }
 
@@ -165,7 +170,7 @@ priv mlir_pod_classify := func(t: Str, offset: USize, mut parts: Vec(Str), lp: L
         if mlir_pod(ft) { mlir_pod_classify(ft, position, parts, lp) }
         else {
             chunk := position/8
-            if ft == "f32" { if parts[chunk].len() == 0 { parts.set(chunk, own "vector<2xf32>")! } }
+            if mlir_float(ft) { if parts[chunk].len() == 0 { parts.set(chunk, own "vector<2xf32>")! } }
             else { parts.set(chunk, own "i64")! }
         }
     }
@@ -239,7 +244,7 @@ priv mlir_stack_arguments := func(fd: FunctionDef, lp: LoadedProgram) returns Ve
         } else if t == "vector<4xi32>" {
             if integer_slots <= 4 { integer_slots = integer_slots+2 }
             else { spilled = true }
-        } else if t == "f32" {
+        } else if mlir_float(t) {
             if sse_slots < 8 { sse_slots++ }
         } else {
             // Supported integer scalars and the one-eightbyte Bool mask.
@@ -364,6 +369,10 @@ priv mlir_runtime_call := proc(e: Expr, name: Str, fd: FunctionDef, mut state: M
         }
         if types.len() > 0 { args = format(args, ", "); types = format(types, ", "); declaration = format(declaration, ", ") }
         args = format(args, value); types = format(types, abi); declaration = format(declaration, abi)
+        if abi != "!llvm.ptr" {
+            extension := mlir_integer_extension(declaration_resolved_type(p,lp.ctx.scope,lp.ctx.symbols))
+            if extension.len()>0 {declaration=format(declaration," {llvm.",extension,"}")}
+        }
     }
     mut abi_ret := ret.clone()
     if ret == "i1" { abi_ret = "i8" }
@@ -371,7 +380,14 @@ priv mlir_runtime_call := proc(e: Expr, name: Str, fd: FunctionDef, mut state: M
     if boxed_return || fd.sig.return_own_type.is(OwnType.Ref) { abi_ret = "!llvm.ptr" }
     if sret { abi_ret = "void" }
     mut signature := format("  llvm.func @\"", symbol, "\"(", declaration, ")")
-    if abi_ret != "void" { signature = format(signature, " -> ", abi_ret) }
+    if abi_ret != "void" {
+        mut extension := ""
+        if fd.sig.return_type.len()>0 && fd.sig.return_own_type.is(OwnType.Ref).not() && boxed_return.not() {
+            extension=mlir_integer_extension(type_from_name_init_name(fd.sig.return_type,lp.ctx.scope,lp.ctx.symbols))
+        }
+        if extension.len()>0 {signature=format(signature," -> (",abi_ret," {llvm.",extension,"})")}
+        else {signature = format(signature, " -> ", abi_ret)}
+    }
     state.externals.set(symbol, own format(signature, "\n"))
     mut result := ""
     if abi_ret == "void" { state.text = format(state.text, "    llvm.call @\"", symbol, "\"(", args, ") : (", types, ") -> ()\n") }
@@ -432,15 +448,60 @@ priv mlir_branch := func(name: Str, mut state: MlirState) {
 }
 
 priv mlir_signed := func(shallow t: Type) returns Bool {
-    return t.eq(Type.Primitive(Primitive.I32)).or(t.eq(Type.Primitive(Primitive.I64)))
+    return t.eq(Type.Primitive(Primitive.I8)).or(t.eq(Type.Primitive(Primitive.I16)))
+        .or(t.eq(Type.Primitive(Primitive.I32))).or(t.eq(Type.Primitive(Primitive.I64)))
+}
+
+priv mlir_float := func(t: Str) returns Bool { return t.eq("f32").or(t.eq("f64")) }
+
+priv mlir_integer_bits := func(t: Str) returns USize {
+    switch t {
+    case "i8": return 8
+    case "i16": return 16
+    case "i32": return 32
+    case "i64": return 64
+    case: return 0
+    }
+}
+
+priv mlir_scalar := func(t: Str) returns Bool { return t.eq("i1").or(mlir_integer_bits(t)>0).or(mlir_float(t)) }
+
+priv mlir_integer_extension := func(shallow t: Type) returns Str {
+    switch t {
+    case .Primitive(p):
+        switch p {
+        case .I8, .I16: return "signext"
+        case .U8, .U16, .Bool: return "zeroext"
+        case: return ""
+        }
+    case: return ""
+    }
+}
+
+priv mlir_hex_literal := func(bits: U64, nibbles: USize) returns Str {
+    mut hex := "0x"
+    digits := "0123456789ABCDEF"
+    for i in 0..nibbles {
+        digit := bits.shr(((nibbles-1-i)*4).cast(U64)).band(15)
+        hex=format(hex,digits.substr(digit.to_usize(),1))
+    }
+    return hex
 }
 
 priv mlir_convert := proc(value: Str, from: Str, target: Str, signed_value: Bool, source: Expr, mut state: MlirState, mut lp: LoadedProgram) returns Str {
     if from == target { return value.clone() }
-    if from == "i32" && target == "i64" {
+    from_bits := mlir_integer_bits(from)
+    target_bits := mlir_integer_bits(target)
+    if from_bits > 0 && target_bits > 0 {
+        if from_bits > target_bits { return mlir_value(state,format("arith.trunci ",value," : ",from," to ",target)) }
         mut operation := "extui"
         if signed_value { operation = "extsi" }
-        return mlir_value(state, format("arith.", operation, " ", value, " : i32 to i64"))
+        return mlir_value(state, format("arith.", operation, " ", value, " : ",from," to ",target))
+    }
+    if mlir_float(from).and(mlir_float(target)) {
+        mut operation := "extf"
+        if target == "f32" { operation = "truncf" }
+        return mlir_value(state,format("arith.",operation," ",value," : ",from," to ",target))
     }
     return mlir_error(source, format("unsupported value conversion from ", from, " to ", target), lp)
 }
@@ -470,7 +531,7 @@ priv mlir_integer_type := func(shallow t: Type) returns Bool {
     switch t {
     case .Primitive(p):
         switch p {
-        case .I32, .U32, .I64, .U64: return true
+        case .I8, .U8, .I16, .U16, .I32, .U32, .I64, .U64: return true
         case: return false
         }
     case: return false
@@ -482,10 +543,11 @@ priv mlir_integer := func(e: Expr, state: MlirState, lp: LoadedProgram) returns 
     case .Literal(Literal.Num(n)):
         if mlir_integer_type(e.til_type()) {
             mut value := n.to_u64()
-            // Compare the typed bit pattern, including signed 32-bit literals.
-            if e.til_type() == Type.Primitive(Primitive.I32) || e.til_type() == Type.Primitive(Primitive.U32) {
-                value = value.band(0xffffffff)
-            }
+            // Compare the declared-width bit pattern, including negative literals.
+            bits := mlir_integer_bits(mlir_type(e.til_type(),lp))
+            mut shift:USize=64
+            shift=shift-bits
+            value = value.band(U64.MAX.shr(shift.cast(U64)))
             return Option(U64).Some(value)
         }
     case .Ident(id):
@@ -981,26 +1043,22 @@ priv mlir_cast := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram) ret
     if source == "vector<4xi32>" { signed_source = mlir_unsigned_vector(source_type, lp).not() }
     if target == "vector<4xi32>" { signed_target = mlir_unsigned_vector(target_type, lp).not() }
     if source != target {
-        float_source := source.eq("f32").or(source.eq("vector<4xf32>"))
-        float_target := target.eq("f32").or(target.eq("vector<4xf32>"))
-        if float_source {
-            if target != "i32" && target != "i64" && target != "vector<4xi32>" { return mlir_error(e, "unsupported floating cast", lp) }
-            mut bits : U32 = 32
-            if target == "i64" { bits = 64 }
+        float_source := mlir_float(source).or(source.eq("vector<4xf32>"))
+        float_target := mlir_float(target).or(target.eq("vector<4xf32>"))
+        if float_source && float_target { converted=mlir_convert(value,source,target,signed_source,e,state,lp) }
+        else if float_source {
+            if mlir_integer_bits(target)==0 && target != "vector<4xi32>" { return mlir_error(e, "unsupported floating cast", lp) }
+            mut bits := mlir_integer_bits(target)
+            if target == "vector<4xi32>" { bits=32 }
             mut exponent := bits
             if signed_target { exponent = bits-1 }
-            bound_bits := (exponent+127).shl(23)
-            mut hex := ""
-            digits := "0123456789ABCDEF"
-            for i in 0..8 { hex = format(hex, digits.substr(bound_bits.shr(((7-i)*4).to_u32()).band(15).to_usize(), 1)) }
-            mut upper_literal := format("0x", hex)
+            mut bound_bits := (exponent+127).cast(U64).shl(23)
+            mut nibbles : USize = 8
+            mut sign : U64 = 0x80000000
+            if source=="f64" {bound_bits=(exponent+1023).cast(U64).shl(52);nibbles=16;sign=0x8000000000000000}
+            mut upper_literal := mlir_hex_literal(bound_bits,nibbles)
             mut lower_literal := "0.0"
-            if signed_target {
-                sign_bits := bound_bits.bor(0x80000000)
-                hex = ""
-                for i in 0..8 { hex = format(hex, digits.substr(sign_bits.shr(((7-i)*4).to_u32()).band(15).to_usize(), 1)) }
-                lower_literal = format("0x", hex)
-            }
+            if signed_target { lower_literal = mlir_hex_literal(bound_bits.bor(sign),nibbles) }
             if source == "vector<4xf32>" {
                 upper_literal = format("dense<", upper_literal, ">")
                 lower_literal = format("dense<", lower_literal, ">")
@@ -1030,6 +1088,28 @@ priv mlir_cast := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram) ret
         } else { converted = mlir_convert(value, source, target, signed_source, e, state, lp) }
     }
     return mlir_convert(converted, target, mlir_type(e.til_type(), lp), signed_target, e, state, lp)
+}
+
+priv mlir_legacy_numeric_conversion := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram) returns Str {
+    ref fd : FunctionDef = funcdef_of(resolve_direct_fcall(e,lp.ctx.scope,lp.ctx.symbols).unwrap())
+    ref source_type:Type=e.children[1].til_type()
+    target_type:=type_from_name_init_name(fd.sig.return_type,lp.ctx.scope,lp.ctx.symbols)
+    source:=mlir_type(source_type,lp)
+    target:=mlir_type(target_type,lp)
+    value:=mlir_expr(e.children[1],state,lp)
+    mut converted:=value.clone()
+    if source!=target {
+        if mlir_float(source).and(mlir_integer_type(target_type)) {
+            // Compatibility to_x conversions keep their existing unchecked
+            // C numeric conversion contract. Only cast adds the range panic.
+            mut operation:="fptoui";if mlir_signed(target_type){operation="fptosi"}
+            converted=mlir_value(state,format("arith.",operation," ",value," : ",source," to ",target))
+        } else if mlir_integer_type(source_type).and(mlir_float(target)) {
+            mut operation:="uitofp";if mlir_signed(source_type){operation="sitofp"}
+            converted=mlir_value(state,format("arith.",operation," ",value," : ",source," to ",target))
+        } else {converted=mlir_convert(value,source,target,mlir_signed(source_type),e,state,lp)}
+    }
+    return mlir_convert(converted,target,mlir_type(e.til_type(),lp),mlir_signed(target_type),e,state,lp)
 }
 
 priv mlir_pod_field_address := proc(parent: Expr, field: Str, mut state: MlirState, mut lp: LoadedProgram) returns Str {
@@ -1095,6 +1175,23 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
         }
         return mlir_error(e, format("unsupported global or value '", name, "'"), lp)
     case .FieldAccess(field):
+        switch e.children[0].node_type {
+        case .Ident(owner):
+            ref name:Str=owner.ident_name(lp.ctx.symbols.names)
+            if state.values.has(name).not() {
+                owner_type:=type_from_name_init_name(name,lp.ctx.scope,lp.ctx.symbols)
+                if mlir_scalar(mlir_type(owner_type,lp)) {
+                    ref definition:Expr=lp.ctx.scope.get_struct(name,lp.ctx.symbols).unwrap()
+                    ref member:Declaration=def_ns_get(definition,field.field_access_name(lp.ctx.symbols.names)).unwrap()
+                    if member.is_mut || member.default_value.is_none() {return mlir_error(e,"unsupported numeric namespace value",lp)}
+                    ref value:Expr=member.default_expr()
+                    if value.node_type.is(NodeType.Literal).not() {return mlir_error(e,"numeric namespace value is not a literal constant",lp)}
+                    raw:=mlir_expr(value,state,lp)
+                    return mlir_coerce(raw,value,mlir_type(e.til_type(),lp),state,lp)
+                }
+            }
+        case:
+        }
         parent_type := mlir_type(e.children[0].til_type(), lp)
         if mlir_pod(parent_type).not() { return mlir_error(e, "field access requires a supported scalar/nested POD struct", lp) }
         ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(mlir_pod_name(parent_type), lp.ctx.symbols).unwrap())
@@ -1120,17 +1217,15 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             value := mlir_integer(e, state, lp).unwrap()
             return mlir_value(state, format("arith.constant ", value.to_str(), " : ", mlir_type(e.til_type(), lp)))
         }
-        if mlir_type(e.til_type(), lp) != "f32" { return mlir_error(e, "only F32 numeric literals are supported", lp) }
-        value := num.to_f32()
-        mut bits : U32 = 0
-        memcpy(to_ptr(bits), to_ptr(value), 4)
-        mut hex := ""
-        digits := "0123456789ABCDEF"
-        for i in 0..8 {
-            digit := bits.shr(((7 - i) * 4).to_u32()).band(15)
-            hex = format(hex, digits.substr(digit.to_usize(), 1))
-        }
-        return mlir_value(state, format("arith.constant 0x", hex, " : f32"))
+        t := mlir_type(e.til_type(),lp)
+        mut bits : U64 = 0
+        mut nibbles : USize = 8
+        if t=="f32" {
+            value:=num.to_f32();mut word:U32=0;memcpy(to_ptr(word),to_ptr(value),4);bits=word.to_u64()
+        } else if t=="f64" {
+            value:=num.literal_num_text().to_f64();memcpy(to_ptr(bits),to_ptr(value),8);nibbles=16
+        } else {return mlir_error(e,"unsupported numeric literal type",lp)}
+        return mlir_value(state,format("arith.constant ",mlir_hex_literal(bits,nibbles)," : ",t))
     case .FCall:
         ref callee : Expr = e.children[0]
         if type_is_callable_storage(callee.til_type()) { return mlir_error(e,"indirect calls are not supported",lp) }
@@ -1245,16 +1340,25 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                 owner_type := type_from_name_init_name(id.ident_name(lp.ctx.symbols.names), lp.ctx.scope, lp.ctx.symbols)
                 t := mlir_type(owner_type, lp)
                 ref op : Str = field.field_access_name(lp.ctx.symbols.names)
+                if mlir_scalar(t) && op=="size" && e.children.len()==1 {
+                    mut size:USize=1
+                    if t=="f32" {size=4}else if t=="f64" {size=8}else if t!="i1" {size=mlir_integer_bits(t)/8}
+                    return mlir_value(state,format("arith.constant ",size.to_str()," : ",mlir_count_type(lp)))
+                }
                 if mlir_pod(t) && op == "size" && e.children.len() == 1 {
                     size := lp.ctx.struct_layouts[mlir_pod_name(t)].total_size
                     return mlir_value(state, format("arith.constant ", size.to_str(), " : ", mlir_count_type(lp)))
                 }
-                if mlir_record(t) || op == "to_str" {
+                if mlir_record(t) || op == "to_str" || op == "to_repr" {
                     found := resolve_direct_fcall(e, lp.ctx.scope, lp.ctx.symbols)
                     if found.is_none() { return mlir_error(e, "unresolved runtime method", lp) }
                     return mlir_runtime_call(e, format(id.ident_name(lp.ctx.symbols.names), "_", op), funcdef_of(found.unwrap()), state, lp, borrow)
                 }
                 if t.len() == 0 { return mlir_error(e, "unsupported operation type", lp) }
+                if op.starts_with("to_").or(op=="from_i64") && e.children.len()==2
+                    && mlir_integer_type(owner_type).or(mlir_float(t)) {
+                    return mlir_legacy_numeric_conversion(e,state,lp)
+                }
                 if t == "!llvm.ptr" {
                     mut scalar := "i32"
                     if type_name_ref(owner_type, lp.ctx.symbols) == "Array__F32" { scalar = "f32" }
@@ -1287,13 +1391,26 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     case: return mlir_error(e, "increment requires a local identifier", lp)
                     }
                 }
-                if op == "fma" && e.children.len() == 4 && t.eq("f32").or(t.eq("vector<4xf32>")) {
+                if op=="cmp" && e.children.len()==3 && mlir_integer_type(owner_type).or(mlir_float(t)) {
+                    a:=mlir_expr(e.children[1],state,lp)
+                    b:=mlir_expr(e.children[2],state,lp)
+                    mut operation:="cmpi";mut prefix:="s"
+                    if mlir_float(t) {operation="cmpf";prefix="o"}else if mlir_signed(owner_type).not() {prefix="u"}
+                    less:=mlir_value(state,format("arith.",operation," ",prefix,"lt, ",a,", ",b," : ",t))
+                    greater:=mlir_value(state,format("arith.",operation," ",prefix,"gt, ",a,", ",b," : ",t))
+                    zero:=mlir_value(state,"arith.constant 0 : i64")
+                    one:=mlir_value(state,"arith.constant 1 : i64")
+                    minus_one:=mlir_value(state,"arith.constant -1 : i64")
+                    positive:=mlir_value(state,format("arith.select ",greater,", ",one,", ",zero," : i64"))
+                    return mlir_value(state,format("arith.select ",less,", ",minus_one,", ",positive," : i64"))
+                }
+                if op == "fma" && e.children.len() == 4 && mlir_float(t).or(t.eq("vector<4xf32>")) {
                     a := mlir_expr(e.children[1], state, lp)
                     b := mlir_expr(e.children[2], state, lp)
                     c := mlir_expr(e.children[3], state, lp)
                     return mlir_value(state, format("llvm.intr.fma(", a, ", ", b, ", ", c, ") : (", t, ", ", t, ", ", t, ") -> ", t))
                 }
-                floating_div := op.eq("div").and(t.eq("f32").or(t.eq("vector<4xf32>")))
+                floating_div := op.eq("div").and(mlir_float(t).or(t.eq("vector<4xf32>")))
                 if op.eq("add").or(op.eq("mul")).or(op.eq("sub")).or(floating_div) && e.children.len() == 3 {
                     a_value := mlir_expr(e.children[1], state, lp)
                     a := mlir_coerce(a_value, e.children[1], t, state, lp)
@@ -1325,14 +1442,14 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                         a := mlir_coerce(a_value, e.children[1], t, state, lp)
                         b_value := mlir_expr(e.children[2], state, lp)
                         b := mlir_coerce(b_value, e.children[2], t, state, lp)
-                        if t == "f32" || t == "vector<4xf32>" {
+                        if mlir_float(t) || t == "vector<4xf32>" {
                             if predicate == "ne" { predicate = "une" }
                             else { predicate = format("o", predicate) }
                             return mlir_value(state, format("arith.cmpf ", predicate, ", ", a, ", ", b, " : ", t))
                         }
                         if predicate != "eq" && predicate != "ne" {
                             mut sign := "s"
-                            if owner_type == Type.Primitive(Primitive.U32) || owner_type == Type.Primitive(Primitive.U64) || t == "i1" { sign = "u" }
+                            if mlir_integer_type(owner_type).and(mlir_signed(owner_type).not()) || t == "i1" { sign = "u" }
                             if t == "vector<4xi32>" { if mlir_unsigned_vector(owner_type, lp) { sign = "u" } }
                             predicate = format(sign, predicate)
                         }
@@ -1349,7 +1466,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                         return mlir_value(state, format("arith.select ", mask, ", ", a, ", ", b, " : vector<4xi1>, ", t))
                     }
                 }
-                if t == "vector<4xi1>" || t == "vector<4xi32>" {
+                if t == "vector<4xi1>" || t == "vector<4xi32>" || mlir_integer_type(owner_type) {
                     if op == "new" && e.children.len() == 5 { return mlir_construct(e, state, lp) }
                     if op == "zero" && e.children.len() == 1 { return mlir_value(state, format("arith.constant dense<0> : ", t)) }
                     if op == "splat" && e.children.len() == 2 {
@@ -1366,7 +1483,8 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     }
                     if op == "bnot" && e.children.len() == 2 {
                         value := mlir_expr(e.children[1], state, lp)
-                        ones := mlir_value(state, format("arith.constant dense<-1> : ", t))
+                        mut literal:="-1";if mlir_vector(t) {literal="dense<-1>"}
+                        ones := mlir_value(state, format("arith.constant ",literal," : ", t))
                         return mlir_value(state, format("arith.xori ", value, ", ", ones, " : ", t))
                     }
                     if op.eq("all").or(op.eq("any")) && e.children.len() == 2 && t == "vector<4xi1>" {
@@ -1514,7 +1632,7 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
             t := mlir_type(local_type, lp)
             if t.len() == 0 || t == "void" { mlir_error(stmt, "unsupported local type", lp); break }
             if local.own_type.is(OwnType.Ref) {
-                if t != "f32" && t != "i32" && t != "i64" && t != "i1" && t != "!llvm.ptr" && mlir_record(t).or(mlir_pod(t)).not() { mlir_error(stmt, "unsupported borrowed local", lp); break }
+                if mlir_scalar(t).not() && t != "!llvm.ptr" && mlir_record(t).or(mlir_pod(t)).not() { mlir_error(stmt, "unsupported borrowed local", lp); break }
                 address := mlir_expr(stmt.children[0], state, lp, true)
                 state.values.set(local.name, own MlirBinding(value = address, type_name = t.clone(),
                     is_mut = local.is_mut && t != "!llvm.ptr", is_ref = t != "!llvm.ptr", is_signed = mlir_signed(local_type)))
@@ -1821,6 +1939,8 @@ priv mlir_function := proc(callable: MlirCallable, functions: Map(UPtr,MlirCalla
                 value = mlir_unpack_mask(arg, state)
             }
             signature = format(signature, arg, ": ", abi_t)
+            extension := mlir_integer_extension(declaration_resolved_type(p,lp.ctx.scope,lp.ctx.symbols))
+            if extension.len()>0 {signature=format(signature," {llvm.",extension,"}")}
             state.values.set(p.name, own MlirBinding(value = value, type_name = t.clone(), is_signed = mlir_signed(declaration_resolved_type(p, lp.ctx.scope, lp.ctx.symbols))))
         }
     }
@@ -1846,7 +1966,13 @@ priv mlir_function := proc(callable: MlirCallable, functions: Map(UPtr,MlirCalla
         if signature.len() > 0 { signature = format(", ", signature) }
         result = format("  llvm.func ", linkage, "@\"", name, "\"(%result: !llvm.ptr {llvm.sret = ", ret, "}", signature, ")")
     }
-    if ret == "vector<4xf32>" { result = format(result, " -> ", mlir_f4_type()) }
+    mut extension := ""
+    if fd.sig.return_type.len()>0 {extension=mlir_integer_extension(type_from_name_init_name(fd.sig.return_type,lp.ctx.scope,lp.ctx.symbols))}
+    if extension.len()>0 {
+        mut abi:=ret.clone();if ret=="i1" {abi="i8"}
+        result=format(result," -> (",abi," {llvm.",extension,"})")
+    }
+    else if ret == "vector<4xf32>" { result = format(result, " -> ", mlir_f4_type()) }
     else if ret == "vector<4xi32>" { result = format(result, " -> ", mlir_i4_type()) }
     else if ret == "i1" { result = format(result, " -> i8") }
     else if ret == "vector<4xi1>" { result = format(result, " -> i32") }
@@ -1954,6 +2080,18 @@ priv MlirLlvmSignature := struct {
     close : USize = 0
 }
 
+priv MlirLlvmAbi := struct {
+    parameters := Vec(Str).new()
+    result := ""
+}
+
+priv mlir_llvm_extension := func(text: Str) returns Str {
+    for word : Str in text.split(" ") {
+        if word=="signext" || word=="zeroext" {return word.clone()}
+    }
+    return ""
+}
+
 priv mlir_llvm_close := func(text: Str, open: USize) returns USize {
     mut depth : I64 = 0
     mut quoted := false
@@ -2027,12 +2165,12 @@ priv mlir_llvm_parameter_abi := func(parameter: Str) returns Str {
         }
         return result
     }
-    return ""
+    return mlir_llvm_extension(parameter)
 }
 
 mlir_llvm_call_attributes := func(text: Str) returns Str {
     lines := text.split("\n")
-    mut functions := Map(Str,Vec(Str)).new()
+    mut functions := Map(Str,MlirLlvmAbi).new()
     for line : Str in lines {
         trimmed := line.trim()
         if trimmed.starts_with("define ").or(trimmed.starts_with("declare ")).not() { continue }
@@ -2045,7 +2183,8 @@ mlir_llvm_call_attributes := func(text: Str) returns Str {
             any=any.or(abi.len()>0)
             attributes.push(own abi)
         }
-        if any { functions.set(signature.name,own attributes) }
+        extension:=mlir_llvm_extension(line.substr(0,line.find("@").to_usize()))
+        if any || extension.len()>0 { functions.set(signature.name,own MlirLlvmAbi(parameters=attributes,result=extension)) }
     }
     mut rendered_lines := Vec(Str).new()
     mut total : USize = 0
@@ -2060,7 +2199,8 @@ mlir_llvm_call_attributes := func(text: Str) returns Str {
             if signature.is_some() {
                 call := signature.unwrap()
                 if functions.has(call.name) {
-                    ref attributes : Vec(Str) = functions[call.name]
+                    ref abi_info : MlirLlvmAbi = functions[call.name]
+                    ref attributes : Vec(Str) = abi_info.parameters
                     parameters := mlir_llvm_parameters(line.substr(call.open+1,call.close-call.open-1))
                     if parameters.len() != attributes.len() { panic("LLVM call ABI argument count mismatch: ",call.name) }
                     mut arguments := ""
@@ -2069,7 +2209,17 @@ mlir_llvm_call_attributes := func(text: Str) returns Str {
                         ref abi : Str = attributes[j]
                         if j > 0 { arguments=format(arguments,", ") }
                         if abi.len() == 0 { arguments=format(arguments,parameter); continue }
-                        if parameter.contains(" byval(").or(parameter.contains(" sret(")) {
+                        if abi=="signext" || abi=="zeroext" {
+                            present:=mlir_llvm_extension(parameter)
+                            if present.len()>0 {
+                                if present!=abi {panic("LLVM integer call extension disagrees: ",call.name)}
+                                arguments=format(arguments,parameter)
+                            } else {
+                                separator:=parameter.find(" ")
+                                if separator<0 {panic("LLVM integer ABI argument has no value: ",call.name)}
+                                arguments=format(arguments,parameter.substr(0,separator.to_usize())," ",abi,parameter.substr(separator.to_usize(),parameter.len()-separator.to_usize()))
+                            }
+                        } else if parameter.contains(" byval(").or(parameter.contains(" sret(")) {
                             if parameter.contains(abi).not() { panic("LLVM call ABI attributes disagree: ",call.name) }
                             arguments=format(arguments,parameter)
                         } else {
@@ -2077,7 +2227,19 @@ mlir_llvm_call_attributes := func(text: Str) returns Str {
                             arguments=format(arguments,"ptr ",abi," ",parameter.strip_prefix("ptr "))
                         }
                     }
-                    rendered=format(line.substr(0,call.open+1),arguments,line.substr(call.close,line.len()-call.close))
+                    mut prefix:=line.substr(0,call.open+1)
+                    if abi_info.result.len()>0 {
+                        present:=mlir_llvm_extension(line.substr(0,line.find("@").to_usize()))
+                        if present.len()>0 {
+                            if present!=abi_info.result {panic("LLVM call result extension disagrees: ",call.name)}
+                        } else {
+                            position:=prefix.find("call ")
+                            if position<0 {panic("LLVM call result has no call opcode: ",call.name)}
+                            end:=position.to_usize()+5
+                            prefix=format(prefix.substr(0,end),abi_info.result," ",prefix.substr(end,prefix.len()-end))
+                        }
+                    }
+                    rendered=format(prefix,arguments,line.substr(call.close,line.len()-call.close))
                 }
             }
         }
