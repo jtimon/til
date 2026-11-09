@@ -2256,8 +2256,8 @@ void cfile_write_str(const void *handle, const Str *s) {
     // compares it; this was the one write path that did not).
     size_t put = fwrite(TIL_OWN_GET(I8, s->c_str), 1, (size_t)s->count, (FILE *)handle);
     if (put != (size_t)s->count) {
-        fprintf(stderr, "cfile_write_str: wrote %zu of %zu bytes: %s\n",
-                put, (size_t)s->count, strerror(errno));
+        fprintf(stderr, "cfile_write_str: wrote %llu of %llu bytes: %s\n",
+                (unsigned long long)put, (unsigned long long)s->count, strerror(errno));
         exit(1);
     }
 }
