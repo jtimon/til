@@ -8,6 +8,8 @@
 *** [[./open/452.org][#452]] C keyword used as a til local name breaks C emission
 *** [[./open/457.org][#457]] til names that collide with C macros or keywords break the C backend
 *** [[./open/465.org][#465]] Enum switch payload binding reevaluates a side-effecting scrutinee
+*** [[./open/480.org][#480]] A mut local holding a capture-free func is lifted to a top-level function
+*** [[./open/481.org][#481]] Passing a struct's closure field as a closure argument crashes the compiler
 ** Low
 *** [[./open/427.org][#427]] func<G> fails when G appears inside another type in its signature
 *** [[./open/428.org][#428]] Errors inside an instantiated template point at the user's file and cascade
@@ -52,7 +54,7 @@
 *** [[./open/419.org][#419]] mode const_time: a constant-time dialect for cryptographic primitives
 *** [[./open/438.org][#438]] Packed BitMap container for boolean storage
 *** [[./open/459.org][#459]] Research bulk directory imports and package entry points
-*** [[./open/463.org][#463]] Call til from the JVM and BEAM through generated bindings
+*** [[./open/479.org][#479]] Call til from BEAM (Erlang, Elixir) through generated NIF bindings
 * Backends
 ** Medium
 *** [[./open/383.org][#383]] Coordinate alternative backend runtimes and conformance tests

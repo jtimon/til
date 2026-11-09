@@ -40,7 +40,7 @@ explicitly rather than acquire silent substitutes.
   - [ ] Decide the repository layout and native filename for every active
     backend, including HolyC, assembly and MLIR. (The JVM and BEAM
     backends, #375 and #374, are cancelled: those VMs call til through
-    bindings, #463.)
+    bindings, #463 and #479.)
   - [ ] Decide how each backend selects progressively larger sets of existing
     tests without introducing a second test registry or copied test bodies.
   - [ ] Decide where genuinely backend-specific and temporary frontier

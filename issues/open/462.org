@@ -22,7 +22,7 @@ events. Many games ship this way.
 
 So the natural first apps draw their own UI (raylib-style, GL), and anything
 needing the Java SDK goes through generated JNI calls later
-([[./463.org][#463]]).
+([[../fixed/463.org][#463]]).
 
 *** Staged plan
 

@@ -1,0 +1,51 @@
+# priority: low
+# category: features
+** OPEN #479 Call til from BEAM (Erlang, Elixir) through generated NIF bindings
+
+Split out of #463, whose JVM half is done: make til libraries usable from
+BEAM the way Python and the JVM already use them -- a native ~mode lib~
+library plus generated bindings, without translating til to BEAM (the BEAM
+backend, #374, is cancelled: til's raw-memory and ownership model maps down
+to machine targets and fights managed VMs).
+
+*** The bridge
+
+BEAM has no ~ctypes~ equivalent: native code is reached through NIFs
+(native implemented functions), a C bridge compiled against ERTS's
+~erl_nif.h~ and loaded by an Erlang module. NIFs run on scheduler threads,
+so long calls must be marked dirty or yield, and a crash takes the VM down
+-- the bindings must say which calls are safe to call directly.
+
+Til already emits C, so the bridge can be generated C compiled beside the
+library, as the JNI bridge is (~gen/til/<name>_jni.c~, ~til build --jni~;
+see doc/ffi.org "Calling a library from the JVM"). Generating its sources
+needs no OTP; compiling it does.
+
+*** Scope
+
+  - Reuse the library's exported interface and native ABI as the single
+    source of truth, as the Python and JVM bindings do; no hand-maintained
+    declarations per language.
+  - Specify numeric widths (unsigned types included), strings, aggregates,
+    enums, borrowed and mutable references, owned results and explicit
+    release (resource objects), callbacks, and throws. Reject unsupported
+    signatures with diagnostics rather than changing their semantics, as
+    the JNI binding does (a comment in the generated source and a ~note:~
+    when the library is built).
+  - Keep generating binding sources separate from compiling the bridge, so a
+    default build never needs OTP.
+
+*** Decisions needing approval before implementation
+
+  Generated file names and layout, module naming, which builds generate the
+  binding, how the bridge is compiled (a flag like ~--jni~) and where the
+  result is installed, and the tools each step requires.
+
+*** Acceptance
+
+  - [ ] An Erlang caller loads a til ~mode lib~ library through a generated
+    NIF module and exercises values, ownership/release and errors against
+    the same interface the Python and JVM bindings test, including a
+    long-running call that does not block a scheduler.
+  - [ ] Unsupported signatures produce actionable diagnostics; the existing
+    Python, C, til and JVM bindings keep working.

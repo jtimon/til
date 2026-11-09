@@ -2955,11 +2955,28 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             mut target := acname.clone()
             if ctx.closure_emit_captures.has(assign_sym) { target = format("(*", ctx.closure_emit_env, "->", aname, ")") }
             else if is_ref_local(assign_sym, ctx) { target = format("(*", acname, ")") }
+            // A `mut` callable parameter is the caller's slot.
+            else if is_current_func_param(aname, ctx) { target = format("(*", acname, ")") }
             if ad.save_old_delete {
                 f.write("TilClosure *callable_old = ").write(target)
                 f.write("; if (callable_old && callable_old->drop) { callable_old->drop(callable_old->env); free(callable_old); } ")
             }
             f.write(target).write(" = *callable_copy; free(callable_copy); }\n")
+            return
+        }
+        if type_is_callable_storage(e.til_type()).and(is_current_func_param(aname, ctx))
+            .and(ctx.closure_emit_captures.has(assign_sym).not()) {
+            // Any other value into a `mut` callable parameter: write the
+            // caller's slot, dropping the closure it held (a capture-free
+            // one has no drop and is static storage).
+            f.write("{ TilClosure *callable_new = ")
+            emit_expr(f, rhs, depth, ctx)
+            f.write("; ")
+            if ad.save_old_delete {
+                f.write("TilClosure *callable_old = *").write(acname)
+                f.write("; if (callable_old && callable_old->drop) { callable_old->drop(callable_old->env); free(callable_old); } ")
+            }
+            f.write("*").write(acname).write(" = callable_new; }\n")
             return
         }
         if ctx.closure_emit_captures.has(assign_sym) {
@@ -9040,6 +9057,8 @@ priv jni_c_return_out := func(type_name: Str, v: Str, types: JniTypes, ctx: Cont
     kind := jni_kind(type_name, types, ctx)
     if jni_is_copied(kind) { return format("return ", jni_c_out(kind, type_name, format("&", v)), ";") }
     if kind == "handle" { return format("return (jlong)(intptr_t)&", v, ";") }
+    // Borrowed views of the elements, valid while the storage lives.
+    if kind == "hvec" { return format("return til_jni_vec_views_", type_name, "(env, &", v, ");") }
     return format("return ", jni_c_scalar_out(type_name, v, types, ctx), ";")
 }
 
@@ -9079,13 +9098,11 @@ priv jni_unbound_reason := func(fd: FunctionDef, types: JniTypes, ctx: Context) 
         if kind.eq("str").or(kind.eq("strvec")).and(p.own_type.is(OwnType.Shallow)) {
             return format("shallow ", tn, " parameter '", p.name, "'")
         }
-        if kind.eq("callback").and(p.is_mut) { return format("mut callback parameter '", p.name, "'") }
     }
     if fd.sig.return_type.len() > 0 {
         rt := jni_resolve(fd.sig.return_type, ctx)
         rkind := jni_kind(rt, types, ctx)
         if rkind.len() == 0 { return format("return type ", rt) }
-        if rkind.eq("callback").and(fd.sig.return_own_type.is(OwnType.Ref)) { return format("returns ref ", rt) }
         if func_returns_c_value(fd).not().and(fd.sig.return_own_type.is(OwnType.Ref).not()) {
             return format("return type ", rt)
         }
@@ -9167,10 +9184,23 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
         if java_params.len() > 0 { java_params = format(java_params, ", ") }
         if native_params.len() > 0 { native_params = format(native_params, ", ") }
         if java_args.len() > 0 { java_args = format(java_args, ", ") }
-        holder := p.is_mut.and(kind.eq("scalar").or(jni_is_copied(kind)).or(kind.eq("hvec")))
+        holder := p.is_mut.and(kind.eq("scalar").or(jni_is_copied(kind)).or(kind.eq("hvec")).or(kind.eq("callback")))
         if holder {
             java_pre = format(java_pre, "        if (", pname, ".length != 1) { throw new IllegalArgumentException(\"",
                 pname, ": a mut parameter takes a one-element array\"); }\n")
+        }
+        if holder.and(kind.eq("callback")) {
+            // The caller's closure goes in (an F.Til moves; a borrowed or
+            // closed one is refused), and whatever closure the library
+            // leaves comes back as an owned F.Til -- or, untouched, the
+            // caller's own Java object stays.
+            jt := jni_java_type(tn, types, ctx)
+            native_params = format(native_params, jt, "[] ", pname)
+            java_params = format(java_params, jt, "[] ", pname)
+            java_pre = format(java_pre, "        ", jt, ".Til.tilMovable(java.util.Objects.requireNonNull(", pname,
+                "[0], \"", pname, "[0]\"));\n")
+            java_args = format(java_args, pname)
+            continue
         }
         if holder.and(kind.eq("hvec")) {
             // The caller's handles move into the Vec the library changes
@@ -9238,7 +9268,8 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
         call = format("new ", java_ret, "(", call, ", ", owned, ")")
     }
     // A til closure result is Java's to close.
-    if ret_kind == "callback" { call = format("new ", java_ret, "(", call, ", true)") }
+    // A `returns ref` closure is a borrowed view of the library's slot.
+    if ret_kind == "callback" { call = format("new ", java_ret, "(", call, ", ", ret_ref.not().to_str(), ")") }
     mut stmt := format(call, ";")
     if has_ret { stmt = format("return ", stmt) }
     if java_post.len() > 0 {
@@ -9282,9 +9313,10 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
         } else {
             fp_tn := jni_decl_type(fpp, ctx)
             fp_ctv := jni_til_c_type(fp_tn, types, ctx)
-            // A closure is passed as its TilClosure pointer, `own` included.
+            // A closure is passed as its TilClosure pointer, `own` included;
+            // a `mut` one as its slot.
             if func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
-                .or(jni_kind(fp_tn, types, ctx).eq("callback")) {
+                .or(jni_kind(fp_tn, types, ctx).eq("callback").and(fpp.is_mut.not())) {
                 fp_params = format(fp_params, ", ", fp_ctv)
             } else { fp_params = format(fp_params, ", ", fp_ctv, " *") }
         }
@@ -9295,7 +9327,7 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
         tn := jni_decl_type(p, ctx)
         kind := jni_kind(tn, types, ctx)
         mut ct := jni_c_type(tn, types, ctx)
-        if p.is_mut.and(jni_is_copied(kind).or(kind.eq("hvec"))) { ct = "jobjectArray" }
+        if p.is_mut.and(jni_is_copied(kind).or(kind.eq("hvec")).or(kind.eq("callback"))) { ct = "jobjectArray" }
         else if p.is_mut.and(kind.eq("scalar")) { ct = format(ct, "Array") }
         head_params = format(head_params, ", ", ct, " a", i.to_str())
     }
@@ -9330,6 +9362,15 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
         by_value := func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
         is_own := p.own_type.is(OwnType.Own).and(p.is_mut.not())
         stack_outer := func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
+        if p.is_mut.and(kind.eq("callback")) {
+            ev := format("e", i.to_str())
+            cf.write("    jobject ").write(ev).write(" = (*env)->GetObjectArrayElement(env, ").write(a).write(", 0);\n")
+            cf.write("    TilJniClosure *").write(t).write(" = til_jni_cb_in_").write(tn).write("(env, ").write(ev).write(");\n")
+            call_args = format(call_args, "&", t)
+            after = format(after, "    til_jni_cb_write_back_", tn, "(env, ", a, ", ", ev, ", ", t, ");\n",
+                "    (*env)->DeleteLocalRef(env, ", ev, ");\n")
+            continue
+        }
         if kind == "callback" {
             // `own`: a til closure (<F>.Til) moves back; a Java object is
             // wrapped either way.
@@ -9495,6 +9536,7 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
             // A borrowed result: a handle views the library's storage, a
             // scalar or Str is copied out of it.
             if ret_kind == "handle" { cf.write("    return (jlong)(intptr_t)r;\n") }
+            else if ret_kind == "callback" { cf.write("    return (jlong)(intptr_t)(*r);\n") }
             else if ret_kind == "hvec" { cf.write("    return til_jni_vec_views_").write(rt).write("(env, r);\n") }
             else { cf.write("    ").write(jni_c_return_out(rt, "(*r)", types, ctx)).write("\n") }
         } else if jni_is_copied(ret_kind) {
@@ -9673,12 +9715,15 @@ priv emit_jni_member := proc(jf: File, cf: File, m: JniMember, types: JniTypes, 
     mut natives := format("    private static native ", nt, " ", getter, "(long h);\n")
     mut get_expr := jni_java_out(kind, m.type_name, format(getter, "(tilHandle())"))
     if kind == "handle" { get_expr = format("new ", jt, "(", get_expr, ", false)") }
+    if kind == "hvec" { get_expr = format(jni_java_ident(jni_vec_elem(m.type_name)), ".tilViews(", getter, "(tilHandle()))") }
     jf.write("        public ").write(jt).write(" ").write(jname).write("() {\n")
     if m.guard.len() > 0 { jf.write("            ").write(m.guard).write("\n") }
     jf.write("            return ").write(get_expr).write(";\n        }\n")
     emit_jni_c_head(cf, ct, types.class_path, getter, ", jlong h")
     cf.write("    ").write(jni_c_return_out(m.type_name, place, types, ctx)).write("\n}\n\n")
-    if m.settable.and(kind.eq("handle").not()) {
+    // A struct or enum member (or a Vec of them) is reached through
+    // borrowed handles, never replaced from Java.
+    if m.settable.and(kind.eq("handle").or(kind.eq("hvec")).not()) {
         natives = format(natives, "    private static native void ", setter, "(long h, ", nt, " v);\n")
         arg := jni_java_in(kind, m.type_name, "v")
         jf.write("        public void ").write(jname).write("(").write(jt).write(" v) { ").write(setter)
@@ -9784,7 +9829,7 @@ priv emit_jni_handle_class := proc(jf: File, cf: File, name: Str, def: Expr, typ
             ref fname : Str = sdd.field_name_at(fi)
             ftn := jni_decl_type(fdd, ctx)
             kind := jni_kind(ftn, types, ctx)
-            if kind.len().eq(0).or(kind.eq("callback")).or(kind.eq("hvec")) {
+            if kind.len().eq(0).or(kind.eq("callback")) {
                 jni_not_bound(jf, types, "        ", format("field ", fname, ":"), format("field ", name, ".", fname),
                     format("type ", ftn))
                 continue
@@ -9848,7 +9893,7 @@ priv emit_jni_handle_class := proc(jf: File, cf: File, name: Str, def: Expr, typ
             if pvd.payload_type.len() == 0 { continue }
             vtn := jni_resolve(enum_variant_type(def, vi.to_i32()), ctx)
             kind := jni_kind(vtn, types, ctx)
-            if kind.len().eq(0).or(kind.eq("callback")).or(kind.eq("hvec")) {
+            if kind.len().eq(0).or(kind.eq("callback")) {
                 jni_not_bound(jf, types, "        ", format("payload ", pvd.name, ":"), format("payload ", name, ".", pvd.name),
                     format("type ", vtn))
                 continue
@@ -9941,7 +9986,6 @@ priv jni_callback_reason := proc(sfd: FunctionDef, types: JniTypes, ctx: Context
         tn := jni_decl_type(p, ctx)
         kind := jni_kind(tn, types, ctx)
         if kind.len() == 0 { return format("parameter of type ", tn) }
-        if kind.eq("callback").and(p.is_mut) { return format("mut callback parameter of type ", tn) }
     }
     if sfd.sig.return_type.len() > 0 {
         rt := jni_resolve(sfd.sig.return_type, ctx)
@@ -10015,9 +10059,10 @@ priv emit_jni_callback := proc(jf: File, cf: File, name: Str, sfd: FunctionDef, 
         }
         nt := jni_native_type(tn, types, ctx)
         jt := jni_java_type(tn, types, ctx)
-        // A closure is passed as its TilClosure pointer, `own` included.
+        // A closure is passed as its TilClosure pointer, `own` included; a
+        // `mut` one as its slot.
         by_value := func_param_passes_c_value(sfd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
-            .or(kind.eq("callback"))
+            .or(kind.eq("callback").and(p.is_mut.not()))
         is_own := p.own_type.is(OwnType.Own).and(p.is_mut.not())
         stack_outer := func_param_has_stack_outer(sfd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
         ctv := jni_til_c_type(tn, types, ctx)
@@ -10154,6 +10199,31 @@ priv emit_jni_callback := proc(jf: File, cf: File, name: Str, sfd: FunctionDef, 
                 adapter_args = format(adapter_args, "new ", jt, "(", a, ", false)")
                 c_args = format(c_args, "    ", slot, ".j = (jlong)(intptr_t)&", xv, ";\n")
             }
+        } else if p.is_mut.and(kind.eq("callback")) {
+            // The slot's closure, as a borrowed <F>.Til in a one-element
+            // array; whatever else the callback leaves there moves into the
+            // slot, and the closure it replaces is dropped.
+            o := format("o", i.to_str())
+            n := format("n", i.to_str())
+            iface_params = format(iface_params, jt, "[] ", a)
+            adapter_params = format(adapter_params, ", ", jt, "[] ", a)
+            adapter_args = format(adapter_args, a)
+            descriptor = format(descriptor, "[L", types.class_path, "$", jt, ";")
+            c_pre = format(c_pre, "    jobject ", o, " = til_jni_til_new_", tn, "(env, ", xv, ", JNI_FALSE);\n",
+                "    jobjectArray ", h, " = til_jni_cb_holder(env, \"", name, "\", \"", types.class_path, "$", jt, "\", ", o, ");\n")
+            c_args = format(c_args, "    ", slot, ".l = ", h, ";\n")
+            c_back = format(c_back, "    jobject ", n, " = (*env)->GetObjectArrayElement(env, ", h, ", 0);\n",
+                "    til_jni_cb_check(env, \"", name, "\");\n",
+                "    if (!(*env)->IsSameObject(env, ", n, ", ", o, ")) {\n",
+                "        TilJniClosure *replaced = ", xv, ";\n",
+                "        ", xv, " = til_jni_cb_in_", tn, "(env, ", n, ");\n",
+                "        if (replaced->drop != NULL) {\n",
+                "            replaced->drop(replaced->env);\n",
+                "            free(replaced);\n",
+                "        }\n",
+                "    }\n",
+                "    if (", n, " != NULL) (*env)->DeleteLocalRef(env, ", n, ");\n")
+            c_post = format(c_post, "    (*env)->DeleteLocalRef(env, ", o, ");\n", "    (*env)->DeleteLocalRef(env, ", h, ");\n")
         } else if kind == "callback" {
             // A til closure, as its <F>.Til: borrowed during the call, or
             // Java's to close when `own` (its box, if any, goes).
@@ -10386,6 +10456,33 @@ priv emit_jni_callback := proc(jf: File, cf: File, name: Str, sfd: FunctionDef, 
     cf.write("    (*env)->DeleteLocalRef(env, til);\n")
     cf.write("    return (TilJniClosure *)(intptr_t)p;\n")
     cf.write("}\n\n")
+    // A til closure as a new <F>.Til object, owned or a borrowed view.
+    cf.write("TIL_JNI_HELPER jobject til_jni_til_new_").write(name).write("(JNIEnv *env, TilJniClosure *c, jboolean owned) {\n")
+    cf.write("    jclass til = (*env)->FindClass(env, \"").write(types.class_path).write("$").write(jname).write("$Til\");\n")
+    cf.write("    til_jni_cb_check(env, \"").write(name).write("\");\n")
+    cf.write("    jmethodID ctor = (*env)->GetMethodID(env, til, \"<init>\", \"(JZ)V\");\n")
+    cf.write("    til_jni_cb_check(env, \"").write(name).write("\");\n")
+    cf.write("    jobject o = (*env)->NewObject(env, til, ctor, (jlong)(intptr_t)c, owned);\n")
+    cf.write("    til_jni_cb_check(env, \"").write(name).write("\");\n")
+    cf.write("    (*env)->DeleteLocalRef(env, til);\n")
+    cf.write("    return o;\n")
+    cf.write("}\n\n")
+    // A mut argument after the call: a bridge wrapper of the caller's own
+    // Java object (judged by what it is, not by address, which a freed
+    // and reallocated closure can reuse) is dropped and the object stays
+    // in the holder; any other closure goes there as an owned <F>.Til.
+    cf.write("TIL_JNI_HELPER void til_jni_cb_write_back_").write(name)
+        .write("(JNIEnv *env, jobjectArray holder, jobject orig, TilJniClosure *after) {\n")
+    cf.write("    if (after->call == (void *)til_jni_cb_call_").write(name)
+        .write(" && (*env)->IsSameObject(env, ((TilJniCallback *)after->env)->fn, orig)) {\n")
+    cf.write("        after->drop(after->env);\n")
+    cf.write("        free(after);\n")
+    cf.write("        return;\n")
+    cf.write("    }\n")
+    cf.write("    jobject o = til_jni_til_new_").write(name).write("(env, after, JNI_TRUE);\n")
+    cf.write("    (*env)->SetObjectArrayElement(env, holder, 0, o);\n")
+    cf.write("    (*env)->DeleteLocalRef(env, o);\n")
+    cf.write("}\n\n")
 }
 
 // A public global or namespace datum: getter (and setter when `mut`) for a
@@ -10396,7 +10493,7 @@ priv emit_jni_global := proc(jf: File, cf: File, api_name: Str, symbol: Str, d: 
     tn := jni_decl_type(d, ctx)
     kind := jni_kind(tn, types, ctx)
     is_ref := d.own_type.is(OwnType.Ref)
-    if kind.len().eq(0).or(kind.eq("callback")).or(kind.eq("hvec")).or(is_ref.or(d.own_type.is(OwnType.Shallow)).not()) {
+    if kind.len().eq(0).or(kind.eq("callback")).or(is_ref.or(d.own_type.is(OwnType.Shallow)).not()) {
         jni_not_bound(jf, types, "    ", format(api_name, ":"), api_name, format("global of type ", tn))
         jf.write("\n")
         return
@@ -10418,10 +10515,11 @@ priv emit_jni_global := proc(jf: File, cf: File, api_name: Str, symbol: Str, d: 
     // The global's storage lives as long as the library: a borrowed handle
     // that close() never frees.
     if kind == "handle" { get_expr = format("new ", jt, "(", get_expr, ", false)") }
+    if kind == "hvec" { get_expr = format(jni_java_ident(jni_vec_elem(tn)), ".tilViews(", getter, "())") }
     jf.write("    public static ").write(jt).write(" ").write(java_name).write("() { return ").write(get_expr).write("; }\n")
     emit_jni_c_head(cf, ct, types.class_path, getter, "")
     cf.write("    ").write(jni_c_return_out(tn, place, types, ctx)).write("\n}\n\n")
-    if d.is_mut.and(kind.eq("handle").not()) {
+    if d.is_mut.and(kind.eq("handle").or(kind.eq("hvec")).not()) {
         jf.write("    private static native void ").write(setter).write("(").write(nt).write(" v);\n")
         arg := jni_java_in(kind, tn, "v")
         jf.write("    public static void ").write(java_name).write("(").write(jt).write(" v) { ").write(setter)
@@ -10650,6 +10748,9 @@ priv build_jni_binding := proc(lp: LoadedProgram, jni_c_path: Str, java_path: St
             if types.callbacks.has(pd.name).not() { continue }
             cf.write("TIL_JNI_HELPER TilJniClosure *til_jni_cb_new_").write(pd.name).write("(JNIEnv *env, jobject fn);\n")
             cf.write("TIL_JNI_HELPER TilJniClosure *til_jni_cb_in_").write(pd.name).write("(JNIEnv *env, jobject fn);\n")
+            cf.write("TIL_JNI_HELPER jobject til_jni_til_new_").write(pd.name).write("(JNIEnv *env, TilJniClosure *c, jboolean owned);\n")
+            cf.write("TIL_JNI_HELPER void til_jni_cb_write_back_").write(pd.name)
+                .write("(JNIEnv *env, jobjectArray holder, jobject orig, TilJniClosure *after);\n")
         }
     }
     cf.write("\n")

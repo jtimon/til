@@ -1,0 +1,34 @@
+# priority: medium
+# category: bugs
+** OPEN #481 Passing a struct's closure field as a closure argument crashes the compiler
+
+Found while binding ~mut~ closure parameters for the JVM (#463); master's
+compiler crashes the same way. Calling a function that takes a closure with
+a struct's closure field as the argument panics in the compiler (translate,
+build or run; the interpreter runs it fine):
+
+#+begin_src til
+mode cli
+
+Fn := func(I64) returns I64
+
+apply := func(f: Fn, x: I64) returns I64 { return f(x) }
+
+Holder := struct {
+    f : Fn = func(x: I64) returns I64 { return x + 1 }
+}
+
+main := proc() {
+    h := Holder()
+    println(apply(h.f, 5).to_str())
+}
+#+end_src
+
+#+begin_example
+./src/self/context.til:41:19: panic: ./src/self/context.til:41:25unwrap of a None Option
+#+end_example
+
+Passing the same field to a ~mut~ closure parameter (~swap(h.f, 3)~)
+compiles and runs. Calling the field directly is also unsupported:
+~h.f(5)~ is a type error (~no method 'f' for type 'Holder'~), and through
+~ref g : Fn = h.f~ the call's result types as Dynamic.

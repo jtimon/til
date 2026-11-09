@@ -55,6 +55,10 @@ check_text := proc() {
     require_contains(java, "public interface JniStrFn extends AutoCloseable {")
     require_contains(java, "final class Til implements JniStrFn, AutoCloseable {")
     require_contains(java, "public static JniStrFn.Til jni_prefixer(String tag) {")
+    require_contains(java, "public static void jni_swap_fn(JniMapFn[] f, long k) {")
+    require_contains(java, "void call(JniMapFn[] a0);")
+    require_contains(java, "return new JniMapFn.Til(n_jni_box_fn(b.tilHandle()), false);")
+    require_contains(java, "return JniPerson.tilViews(h_JniTeam_get_people(tilHandle()));")
     require_contains(java, "return tilStr(n_jni_take_fn(JniStrFn.Til.tilMovable(java.util.Objects.requireNonNull(f, \"f\"))));")
     // Callbacks: a throwing one declares TilError; mut values cross in
     // one-element holders, an own handle as one Java owns.
@@ -107,12 +111,12 @@ check_notes := proc(err: Str) {
         reason := line.substr(line.find(" not bound: ").to_usize(), line.len() - line.find(" not bound: ").to_usize())
         if err.contains(reason).not() { panic("no build note for: ", line, "\nstderr:\n", err) }
     }
-    require_contains(err, "note: JNI binding til.jni_lib.JniLib: field JniTeam.people not bound: type Vec__JniPerson\n")
+    if err.contains("field JniTeam.people not bound") { panic("a Vec of handles field is not bound:\n", err) }
     require_contains(err, "note: JNI binding til.jni_lib.JniLib: JniTeam() not bound: ")
     require_contains(err, "note: JNI binding til.jni_lib.JniLib: adopt__F64 not bound: parameter 'dest' of type Dynamic\n")
 }
 
-EXPECTED := "127\n250\n-2000\n65000\n1999999999\n4294967295\n1099511627783\n18446744073709551615\n42\n1.5\n2.5\nfalse true\n42\n6\nhello, jvm\n<owned>\n42\ncaught DivideByZero / DivideByZero: b is zero\ncaught JniBad / JniBad\nada:36\ngrace:37 true\nanon 0 true\n5\nmoved: JniPerson handle is closed or moved\n42 false\nholder: n: a mut parameter takes a one-element array\n49 12 0\n7 own 0\npayload: JniShape is not Label\n2 held held\n5 renamed\nborrowed: cannot move a borrowed JniPerson\n90\n[cb]\n36\nmade:9\ntrue\nx|y||z\np|q\n303\nanon 0\n46\n[0, 1, 4, 9, 16] 0\n[3.0, 4.0, 2.0]\n2\n3 ccc 2 ccc\n3 a\nq [0, 1]\n[4, 5, 6]\n121\n42\nJniErr neg -1 7\nDivideByZero []\nJniBad\n42 abc true 2:9 p|q\nmm:11\n504\nkept 30\n2 z b\n3 new a false\nmut vec: JniPerson handle is closed or moved\nborrowed vec: cannot move a borrowed JniPerson\n2 z\nt:a2\nb!\np-q\np-r\npre-x\ntil-pre-x\nJniErr neg\nclosed: JniStrFn closure is closed or moved\nborrowed: cannot move a borrowed JniStrFn\nm-own\nloop ok\n"
+EXPECTED := "127\n250\n-2000\n65000\n1999999999\n4294967295\n1099511627783\n18446744073709551615\n42\n1.5\n2.5\nfalse true\n42\n6\nhello, jvm\n<owned>\n42\ncaught DivideByZero / DivideByZero: b is zero\ncaught JniBad / JniBad\nada:36\ngrace:37 true\nanon 0 true\n5\nmoved: JniPerson handle is closed or moved\n42 false\nholder: n: a mut parameter takes a one-element array\n49 12 0\n7 own 0\npayload: JniShape is not Label\n2 held held\n5 renamed\nborrowed: cannot move a borrowed JniPerson\n90\n[cb]\n36\nmade:9\ntrue\nx|y||z\np|q\n303\nanon 0\n46\n[0, 1, 4, 9, 16] 0\n[3.0, 4.0, 2.0]\n2\n3 ccc 2 ccc\n3 a\nq [0, 1]\n[4, 5, 6]\n121\n42\nJniErr neg -1 7\nDivideByZero []\nJniBad\n42 abc true 2:9 p|q\nmm:11\n504\nkept 30\n2 z b\n3 new a false\nmut vec: JniPerson handle is closed or moved\nborrowed vec: cannot move a borrowed JniPerson\n2 z\nt:a2\nb!\np-q\np-r\npre-x\ntil-pre-x\nJniErr neg\nclosed: JniStrFn closure is closed or moved\nborrowed: cannot move a borrowed JniStrFn\nm-own\ntrue 15\n200 true\n8 8\n21\ntrue\n101 5\n2 v w\nloop ok\n"
 
 main := proc(args: ..Str) {
     // TEMPORARY (#464): make test passes no sanitizer flag; test_asan does.
