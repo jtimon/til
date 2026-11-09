@@ -109,6 +109,36 @@ test_fnv1a_standard_vectors := test() {
     assert_eq(U64, hash_str(high_byte), hash_ff)
 }
 
+test_fnv1a_unaligned_blocks_and_tails := test() {
+    mut bytes := Str.with_capacity(66)
+    mut octet : I8 = 19
+    for i in 0..bytes.cap {
+        ref mut byte : I8 = ptr_add(bytes.c_str, i.to_uptr())
+        byte = octet
+        octet = octet + 73
+    }
+    bytes.count = 66
+    ref mut nul : I8 = ptr_add(bytes.c_str, 17)
+    nul = 0
+    // Start one byte into a buffer containing a NUL and high-bit octets.
+    // Fixed reference values cover empty input, block boundaries and tails.
+    ref start : U8 = ptr_add(bytes.c_str, 1)
+    lengths := array(USize, 0, 1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65)
+    zero : U64 = 0
+    expected := array(U64,
+        FNV_OFFSET, zero.sub(5808498599037614437),
+        670934123012774746, zero.sub(5787765325149580580),
+        zero.sub(6411396087937211055), zero.sub(299750214297648605),
+        4649656994029033188, 2886877171246360205, 7386479515647416235,
+        5659021545637964660, 8864225518955740757, 6278684176491670127,
+        3523728802823422880, 3634789006931186377,
+        6301751478826961295, 6033111077508075168,
+        zero.sub(7153822116625471767), zero.sub(9065767969908926257))
+    for i in 0..lengths.len() {
+        assert_eq(U64, fnv1a(start, lengths[i]), expected[i])
+    }
+}
+
 test_bucket_in_range := test() {
     cap : USize = 16
     for i in 0..100 {

@@ -48846,56 +48846,51 @@ static void adopt__Token(void * dest, Token * src) {
 static U64 fnv1a(void * data, USize n) {
     U64 h = 14695981039346656037ULL;
     USize i = 0;
+    USize unroll_mask = 4294967292;
+    U32 block_end = ((U32)(n & unroll_mask));
     while (1) {
-        U32 hoisted__U32_1 = ((U32)(n - i));
-        Bool _wcond_Bool_0 = ((Bool)(hoisted__U32_1 >= priv___src_std_hash_til__FNV_UNROLL));
+        Bool _wcond_Bool_0 = ((Bool)(i < block_end));
         if (!(_wcond_Bool_0)) {
             break;
         }
-        U64 hoisted__U64_2 = ((U64)(i));
-        U8 *b0 = ((void *)((U8 *)(data) + (hoisted__U64_2)));
-        U64 hoisted__U64_3 = (U64)(DEREF(b0));
-        U64 hoisted__U64_4 = ((U64)(h ^ hoisted__U64_3));
-        U64 hoisted__U64_5 = ((U64)(hoisted__U64_4 * FNV_PRIME));
-        h = hoisted__U64_5;
-        U32 hoisted__U32_6 = 1;
-        U32 hoisted__U32_7 = ((U32)(i + hoisted__U32_6));
-        U64 hoisted__U64_8 = ((U64)(hoisted__U32_7));
-        U8 *b1 = ((void *)((U8 *)(data) + (hoisted__U64_8)));
-        U64 hoisted__U64_9 = (U64)(DEREF(b1));
-        U64 hoisted__U64_10 = ((U64)(h ^ hoisted__U64_9));
-        U64 hoisted__U64_11 = ((U64)(hoisted__U64_10 * FNV_PRIME));
-        h = hoisted__U64_11;
-        U32 hoisted__U32_12 = 2;
-        U32 hoisted__U32_13 = ((U32)(i + hoisted__U32_12));
-        U64 hoisted__U64_14 = ((U64)(hoisted__U32_13));
-        U8 *b2 = ((void *)((U8 *)(data) + (hoisted__U64_14)));
-        U64 hoisted__U64_15 = (U64)(DEREF(b2));
-        U64 hoisted__U64_16 = ((U64)(h ^ hoisted__U64_15));
-        U64 hoisted__U64_17 = ((U64)(hoisted__U64_16 * FNV_PRIME));
-        h = hoisted__U64_17;
-        U32 hoisted__U32_18 = 3;
-        U32 hoisted__U32_19 = ((U32)(i + hoisted__U32_18));
-        U64 hoisted__U64_20 = ((U64)(hoisted__U32_19));
-        U8 *b3 = ((void *)((U8 *)(data) + (hoisted__U64_20)));
-        U64 hoisted__U64_21 = (U64)(DEREF(b3));
-        U64 hoisted__U64_22 = ((U64)(h ^ hoisted__U64_21));
-        U64 hoisted__U64_23 = ((U64)(hoisted__U64_22 * FNV_PRIME));
-        h = hoisted__U64_23;
-        U32 hoisted__U32_24 = ((U32)(i + priv___src_std_hash_til__FNV_UNROLL));
-        i = hoisted__U32_24;
+        U64 hoisted__U64_1 = ((U64)(i));
+        U8 *b0 = ((void *)((U8 *)(data) + (hoisted__U64_1)));
+        U64 hoisted__U64_2 = (U64)(DEREF(b0));
+        U64 hoisted__U64_3 = ((U64)(h ^ hoisted__U64_2));
+        U64 hoisted__U64_4 = ((U64)(hoisted__U64_3 * FNV_PRIME));
+        h = hoisted__U64_4;
+        U64 hoisted__U64_5 = 1ULL;
+        U8 *b1 = ((void *)((U8 *)(b0) + (hoisted__U64_5)));
+        U64 hoisted__U64_6 = (U64)(DEREF(b1));
+        U64 hoisted__U64_7 = ((U64)(h ^ hoisted__U64_6));
+        U64 hoisted__U64_8 = ((U64)(hoisted__U64_7 * FNV_PRIME));
+        h = hoisted__U64_8;
+        U64 hoisted__U64_9 = 2ULL;
+        U8 *b2 = ((void *)((U8 *)(b0) + (hoisted__U64_9)));
+        U64 hoisted__U64_10 = (U64)(DEREF(b2));
+        U64 hoisted__U64_11 = ((U64)(h ^ hoisted__U64_10));
+        U64 hoisted__U64_12 = ((U64)(hoisted__U64_11 * FNV_PRIME));
+        h = hoisted__U64_12;
+        U64 hoisted__U64_13 = 3ULL;
+        U8 *b3 = ((void *)((U8 *)(b0) + (hoisted__U64_13)));
+        U64 hoisted__U64_14 = (U64)(DEREF(b3));
+        U64 hoisted__U64_15 = ((U64)(h ^ hoisted__U64_14));
+        U64 hoisted__U64_16 = ((U64)(hoisted__U64_15 * FNV_PRIME));
+        h = hoisted__U64_16;
+        U32 hoisted__U32_17 = ((U32)(i + priv___src_std_hash_til__FNV_UNROLL));
+        i = hoisted__U32_17;
     }
     while (1) {
-        Bool _wcond_Bool_25 = ((Bool)(i < n));
-        if (!(_wcond_Bool_25)) {
+        Bool _wcond_Bool_18 = ((Bool)(i < n));
+        if (!(_wcond_Bool_18)) {
             break;
         }
-        U64 hoisted__U64_26 = ((U64)(i));
-        U8 *b = ((void *)((U8 *)(data) + (hoisted__U64_26)));
-        U64 hoisted__U64_27 = (U64)(DEREF(b));
-        U64 hoisted__U64_28 = ((U64)(h ^ hoisted__U64_27));
-        U64 hoisted__U64_29 = ((U64)(hoisted__U64_28 * FNV_PRIME));
-        h = hoisted__U64_29;
+        U64 hoisted__U64_19 = ((U64)(i));
+        U8 *b = ((void *)((U8 *)(data) + (hoisted__U64_19)));
+        U64 hoisted__U64_20 = (U64)(DEREF(b));
+        U64 hoisted__U64_21 = ((U64)(h ^ hoisted__U64_20));
+        U64 hoisted__U64_22 = ((U64)(hoisted__U64_21 * FNV_PRIME));
+        h = hoisted__U64_22;
         (++i);
     }
     return h;
@@ -448500,8 +448495,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-9cae04f18", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("9cae04f18e9721753754622bdc0a86d85cbea33a", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-43ad1f7bc", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("43ad1f7bc9aa3697aee0264d164c59d1be6549bf", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

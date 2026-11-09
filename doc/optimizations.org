@@ -5,6 +5,39 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** FNV-1a block addressing (2026-11-09)
+
+Base: ~0fafe1c4e~. Keep the four-byte unroll and the exact FNV-1a byte order,
+but round the full-block boundary down once and derive the remaining three
+byte addresses from the block's first address. This removes repeated USize
+addition/conversion and base-address arithmetic from the unrolled body. The
+rounded boundary uses USize at both widths; the scalar tail is unchanged.
+
+A temporary C probe included each compiler's actual generated C and called
+its unchanged-signature ~fnv1a~ directly. Both used GCC 13.3.0, -O0, USize32,
+the same constants and input buffer. The buffer contained every octet value;
+hashing started one byte into it. Prefix lengths 0..256 were checked once,
+then lengths 0..128 were repeated 1000 times. Callgrind collected only inside
+~fnv1a~ (129,257 calls), excluding startup, printing and the probe loops.
+
+| Implementation | FNV-1a instruction references |
+|----------------+-------------------------------|
+| Baseline       |                   247,052,361 |
+| Candidate      |                   204,674,930 |
+
+This is a 17.15% reduction in the hash kernel's instructions, not a whole-
+compiler or elapsed-time speedup claim. All 257 hashes and the accumulated
+checksum matched, and the hashes also matched an independent scalar reference.
+Old/new compiler self-translations of the same final inputs produced
+byte-identical C and forward headers with ~--force-rebuild --usize=32~.
+
+~test/hashes.til::test_fnv1a_unaligned_blocks_and_tails~ adds fixed vectors for
+unaligned input, high-bit bytes, an embedded NUL, empty input and block/tail
+boundaries. All 15 hash tests passed interpreted and ASAN-compiled at USize32,
+and ASAN-compiled at USize64. ~make clean && make test~ passed 558/558.
+Elapsed-time comparisons are left to the merge run because other sessions
+were active locally.
+
 ** Symbol-pool probe arithmetic (2026-11-05)
 
 Base: ~2e5baf973~. A forced self-translation function profile recorded about
