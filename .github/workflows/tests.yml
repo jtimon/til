@@ -320,7 +320,7 @@ jobs:
       - name: Cross-compile and run for linux-x86
         run: |
           ./bin/til build --target=linux-x86 -o bin/hello_script_x86 examples/hello_script.til
-          file bin/hello_script_x86 | grep -q "80386"
+          file bin/hello_script_x86 | grep -q -E "Intel (80386|i386)"
           qemu-i386 bin/hello_script_x86
           qemu-i386 bin/hello_script_x86 | grep -q "Hello World"
       - name: Run Dynamic and checked byte-count probes at both USize widths
@@ -389,7 +389,7 @@ jobs:
             libxcursor1:i386 libxi6:i386 libxext6:i386 libgl1:i386 libgl1-mesa-dri:i386
           make vendor/raylib/build-linux-x86/libraylib.a vendor/tinyfiledialogs/build-linux-x86/libtinyfd.a
           ./bin/til build --target=linux-x86 -o bin/hello_gui_x86 examples/hello_gui.til
-          file bin/hello_gui_x86 | grep -q "80386"
+          file bin/hello_gui_x86 | grep -q -E "Intel (80386|i386)"
           rc=0; xvfb-run --auto-servernum timeout 3 qemu-i386 bin/hello_gui_x86 || rc=$?
           test "$rc" = "124"
       - name: Cancel the rest of this run
@@ -614,7 +614,7 @@ jobs:
           file bin/hello_script.exe | grep -q "PE32+"
           # windows-x86 (32-bit, mingw i686) -- issue #232
           ./bin/til build --target=windows-x86 -o bin/hello_script-x86.exe examples/hello_script.til
-          file bin/hello_script-x86.exe | grep -q "Intel 80386"
+          file bin/hello_script-x86.exe | grep -q -E "Intel (80386|i386)"
       # Issue #232: prove mode gui cross-links for BOTH windows arches. mingw
       # ships the win32/win64 GL/GDI backend, so raylib/tinyfd cross-build
       # from source with no X11 sysroot. Build-only (a raylib window cannot
@@ -627,13 +627,13 @@ jobs:
           ./bin/til build --target=windows-x64 -o bin/hello_gui.exe examples/hello_gui.til
           file bin/hello_gui.exe | grep -q "PE32+"
           ./bin/til build --target=windows-x86 -o bin/hello_gui-x86.exe examples/hello_gui.til
-          file bin/hello_gui-x86.exe | grep -q "Intel 80386"
+          file bin/hello_gui-x86.exe | grep -q -E "Intel (80386|i386)"
           # The retained editor example covers a larger GUI app than the smoke
           # example. Full editor development now lives in jtimon/tiled.
           ./bin/til build --target=windows-x64 -o bin/editor.exe examples/editor.til
           file bin/editor.exe | grep -q "PE32+"
           ./bin/til build --target=windows-x86 -o bin/editor-x86.exe examples/editor.til
-          file bin/editor-x86.exe | grep -q "Intel 80386"
+          file bin/editor-x86.exe | grep -q -E "Intel (80386|i386)"
       # Issue #235: std/crypto on windows. libsecp256k1 cross-builds from
       # the vendored source for both arches (mingw is the whole toolchain
       # change; no shims, unlike nng), and test/crypto.til -- the FIPS
@@ -645,7 +645,7 @@ jobs:
           ./bin/til build --target=windows-x64 -o bin/crypto.exe test/crypto.til
           file bin/crypto.exe | grep -q "PE32+"
           ./bin/til build --target=windows-x86 -o bin/crypto-x86.exe test/crypto.til
-          file bin/crypto-x86.exe | grep -q "Intel 80386"
+          file bin/crypto-x86.exe | grep -q -E "Intel (80386|i386)"
       # Issue #420: both mingw libffi archives, called directly by
       # test/ffi_prep.til (the win64 one is otherwise only exercised through
       # til.exe's interpreter, the win32 one not at all); the programs run
@@ -656,7 +656,7 @@ jobs:
           ./bin/til build --target=windows-x64 -o bin/ffi_prep.exe test/ffi_prep.til
           file bin/ffi_prep.exe | grep -q "PE32+"
           ./bin/til build --target=windows-x86 -o bin/ffi_prep-x86.exe test/ffi_prep.til
-          file bin/ffi_prep-x86.exe | grep -q "Intel 80386"
+          file bin/ffi_prep-x86.exe | grep -q -E "Intel (80386|i386)"
       # Issue #422: nng for both windows arches, from make.til's per-target
       # table; test/nng_pair.til (a one-process round trip over inproc://)
       # runs on the windows runner below.
@@ -666,7 +666,7 @@ jobs:
           ./bin/til build --target=windows-x64 --extra-modes=examples/custom_modes.til -o bin/nng_pair.exe test/nng_pair.til
           file bin/nng_pair.exe | grep -q "PE32+"
           ./bin/til build --target=windows-x86 --extra-modes=examples/custom_modes.til -o bin/nng_pair-x86.exe test/nng_pair.til
-          file bin/nng_pair-x86.exe | grep -q "Intel 80386"
+          file bin/nng_pair-x86.exe | grep -q -E "Intel (80386|i386)"
       - name: Upload .exe artifacts
         uses: actions/upload-artifact@v4
         with:
