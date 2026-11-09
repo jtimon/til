@@ -1,0 +1,76 @@
+# priority: medium
+# category: bugs
+** FIXED #480 A mut local holding a capture-free func is lifted to a top-level function
+
+*** Post-mortem
+
+A ~mut~ local initialised with a capture-free ~func~ went through every pass
+as a nested function definition: the initer lifted it to a top-level
+~<parent>_<name>~ function, and even unlifted, the desugarer skipped a
+Decl's right-hand side as "a named function definition". So it had no
+storage: interpreted, ~swap(f, 3)~ silently left ~f~ unchanged; compiled,
+the call took the address of the lifted function's static closure twice
+(invalid C). The later "not lifting is not enough" finding below came from
+the repro naming its FuncSig ~Fn~ (#481); with another name, two more
+pieces were missing.
+
+Fix, in four places:
+  - initer (~init_is_lift_target~): a ~mut~ Decl is not lifted.
+  - desugarer (~typer_lift_lambdas_in_expr~): a ~mut~ Decl's capture-free
+    ~func~ is lifted like any lambda value, so the local is initialised from
+    the lifted ~_lambda_~ function (static closure storage) -- the existing
+    "variable holding a function" path.
+  - garbager: a ~mut~ callable local is heap-owned (dropped at scope end, a
+    no-op while it holds a capture-free func), and replacing its closure
+    sets ~save_old_delete~ so the old one is dropped.
+  - C codegen (Assign): a fresh closure assigned to a callable local or
+    ref local drops the closure it replaces, as the ~mut~-parameter case
+    already did. The HolyC golden test/templeos/templeos_struct_runtime.expected
+    picked up the same delete for its ~callable_chosen~ reassignment (a leak
+    there before).
+
+Regression test: ~test_mut_closure_local~ in test/closures_compile_escape.til
+(swap through a ~mut~ parameter, direct reassignment, a ~mut~-parameter
+callback), clean under ~--asan~. The repro below (whose ~swap~ also collides
+with core's generic ~swap~) is kept as filed.
+
+
+Found while binding ~mut~ closure parameters for the JVM (#463). The
+initer's nested-definition lifting (~init_is_lift_target~ in
+src/self/initer.til, issue #93) lifts every capture-free ~func~ declared in
+a function body to a top-level ~<parent>_<name>~ function, ~mut~ locals
+included. A ~mut~ local is a variable that starts out holding the function,
+not a definition: once lifted it has no storage, so it cannot be reassigned
+or passed to a ~mut~ parameter.
+
+#+begin_src til
+mode cli
+
+Fn := func(I64) returns I64
+
+swap := func(mut f: Fn, k: I64) {
+    kk := k
+    f = func(x: I64) returns I64 [own kk] { return x * kk }
+}
+
+main := proc() {
+    mut f : Fn = func(x: I64) returns I64 { return x + 1 }
+    swap(f, 3)
+    println(f(5).to_str())
+}
+#+end_src
+
+Compiled, the call passes ~&&main_f__til_closure~ (the address of the
+lifted function's static closure, taken twice) and the C compile fails
+(~label 'main_f__til_closure' used but not defined~).
+
+Not lifting ~mut~ locals is not enough on its own: with that change the
+interpreter reports ~f is undefined~ and the compiler panics with ~unwrap of
+a None Option~ (context.til), so the capture-free ~func~ value held by a
+plain local is unsupported further down as well (typer, interpreter and C
+codegen). A capturing ~func~ is never lifted and already works as a ~mut~
+local.
+
+Workaround today: hold the closure in a struct field and pass the field
+(~swap(h.f, 3)~), as ~test_mut_closure_param_assigned~ in
+test/closures_compile_escape.til does.

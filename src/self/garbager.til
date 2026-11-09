@@ -1977,6 +1977,11 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
                     if fcall_returns_dynamic_storage(li_rhs, scope, ctx.symbols) { li.is_heap = true }
                     if type_is_callable_storage(b.type).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = true }
                 case:
+                    // #480: a `mut` callable local can be reassigned (or
+                    // written through a `mut` parameter) to a capturing
+                    // closure, which it then owns. Dropping it at scope end
+                    // is a no-op while it still holds a capture-free func.
+                    if type_is_callable_storage(b.type).and(b.is_mut).and(b.own_type.is(OwnType.Ref).not()) { li.is_heap = true }
                 }
                 if rhs_is_allocator_call(li_rhs, ctx.symbols).and(b.type.is(Type.Dynamic).not()) {
                     // Typed local from a raw allocator: an owned heap
@@ -3602,6 +3607,11 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
                         new_ch.push(own del)
                     }
                 }
+            } else if type_is_callable_storage(local.type).and(local.is_heap) {
+                // #480: an owned callable local's old closure goes when a
+                // new one replaces it, as flag_outer_assign_rebinds does
+                // for an enclosing body's; a consumed one returned above.
+                ad.save_old_delete = true
             }
             break
         }

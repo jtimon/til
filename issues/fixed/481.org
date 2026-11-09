@@ -1,6 +1,23 @@
 # priority: medium
 # category: bugs
-** OPEN #481 Passing a struct's closure field as a closure argument crashes the compiler
+** FIXED #481 Passing a struct's closure field as a closure argument crashes the compiler
+
+*** Post-mortem
+
+The struct field was a red herring: the repro named its FuncSig ~Fn~, which
+is the parser's own name for the builtin closure type (~builtin_type_from_name~
+in src/self/parser.til, like ~Body~). Every ~f: Fn~ therefore meant the
+anonymous builtin, never the declaration, so ~apply~'s parameter had no
+signature and the codegen's ~fcall_fn_sig(...).unwrap()~ panicked on the
+call through it -- with or without the struct (renamed to ~MapFn~, the
+original program compiles and prints 6, interpreted and compiled).
+
+Fix: the parser rejects declaring ~Fn~ or ~Body~ (the builtins no source
+declares; core declares the primitives, ~Str~, ~Dynamic~, ~StructDef~ and
+~EnumDef~ itself): ~'Fn' is a builtin type name and cannot be declared~.
+Regression test: ~builtin_type_name_error~ (test/builtin_type_name_error.til).
+The repro below is kept as filed.
+
 
 Found while binding ~mut~ closure parameters for the JVM (#463); master's
 compiler crashes the same way. Calling a function that takes a closure with

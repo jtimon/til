@@ -3042,6 +3042,10 @@ main := proc(args: ..Str) returns I64 {
     add_count(tests, "const_payload_error_build", "typer",
         "cannot assign to immutable variable", 1,
         format(til_bin, " build", asan_flag, " test/const_payload_error.til"))
+    // #481: a declaration named like a builtin type the parser resolves.
+    add_count(tests, "builtin_type_name_error", "typer",
+        "'Fn' is a builtin type name and cannot be declared", 1,
+        format(til_bin, " build", asan_flag, " test/builtin_type_name_error.til"))
     add_count(tests, "priv_error_interp", "typer",
         "is private to", 4,
         format(til_bin, " interpret test/priv_error.til"))

@@ -2424,6 +2424,16 @@ priv parse_expression := proc(mut p: Parser) returns Expr {
     return e
 }
 
+// A builtin type the parser resolves by name and no source declares (core
+// itself declares the primitives, Str, Dynamic, StructDef and EnumDef).
+priv parser_reserved_type_name := func(name: Str) returns Bool {
+    switch name {
+    case "Fn", "Body": return true
+    case:
+    }
+    return false
+}
+
 // parse_statement_ident: identifier is current token
 priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type: OwnType) returns Expr {
     t_line := peek_line(p)
@@ -2435,6 +2445,12 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
         advance(p)
     } else {
         name = expect_text(p, TokenType.Ident)
+    }
+    // These names are the parser's own types: every `f: Fn` in the file
+    // would still mean the builtin, never the declaration, which compiled
+    // into broken code instead of an error (#481).
+    if check(p, TokenType.ColonEq).or(check(p, TokenType.Colon)).and(parser_reserved_type_name(name)) {
+        parse_fail(p, t_line, t_col, "'", name, "' is a builtin type name and cannot be declared")
     }
 
     // Declaration: name := value

@@ -1,0 +1,12 @@
+mode cli
+
+// #481: `Fn` (like `Body`) is the parser's own type, so every `f: Fn` below
+// would mean the builtin, never this declaration. Declaring it is an error,
+// not code that compiles into a crash.
+Fn := func(I64) returns I64
+
+apply := func(f: Fn, x: I64) returns I64 { return f(x) }
+
+main := proc() {
+    println(apply(func(x: I64) returns I64 { return x + 1 }, 5).to_str())
+}

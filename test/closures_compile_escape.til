@@ -56,6 +56,27 @@ test_mut_closure_param_assigned := test() {
     assert_eq(I64, swap_and_call(h.f, 4, 5), 20)
 }
 
+// #480: a `mut` local initialised with a capture-free func is a variable,
+// not a lifted definition: it can be swapped through a `mut` parameter,
+// reassigned, and handed on through a callback.
+MutUnaryOp := func(mut UnaryOp)
+
+pass_mut := func(g: MutUnaryOp, mut f: UnaryOp) { g(f) }
+
+apply_unary := func(f: UnaryOp, x: I64) returns I64 { return f(x) }
+
+test_mut_closure_local := test() {
+    mut f : UnaryOp = func(x: I64) returns I64 { return x.add(1) }
+    assert_eq(I64, f(1), 2)
+    swap_unary(f, 3)
+    assert_eq(I64, f(5), 15)
+    seven := 7
+    f = func(x: I64) returns I64 [own seven] { return x.add(seven) }
+    assert_eq(I64, apply_unary(f, 1), 8)
+    pass_mut(func(mut h: UnaryOp) { swap_unary(h, 10) }, f)
+    assert_eq(I64, f(2), 20)
+}
+
 test_own_closure_param_dropped := test() {
     for _ in 0..3 { assert_eq(Str, take_supplier(own make_str_supplier()), "hello") }
     assert_eq(Str, take_supplier(own func() returns Str { return "static" }), "static")

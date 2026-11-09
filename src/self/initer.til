@@ -2474,6 +2474,14 @@ priv infer_top_level_decl_type := func(stmt: Expr, scope: TypeScope, mut out_typ
 priv init_is_lift_target := func(stmt: Expr) returns Bool {
     if stmt.node_type.is(NodeType.Decl).not() { return false }
     if stmt.children.len() == 0 { return false }
+    // #480: a `mut` local is a variable that starts out holding the
+    // function, not a definition. Lifted, it had no storage: reassigning it
+    // or passing it to a `mut` parameter changed nothing (interpreted) or
+    // emitted invalid C.
+    switch stmt.node_type {
+    case .Decl(sdd): if sdd.is_mut { return false }
+    case:
+    }
     ref rhs : Expr = stmt.children[0]
     if rhs.node_type.is(NodeType.StructDef) { return true }
     if rhs.node_type.is(NodeType.EnumDef) { return true }

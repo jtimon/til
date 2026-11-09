@@ -2964,19 +2964,23 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             f.write(target).write(" = *callable_copy; free(callable_copy); }\n")
             return
         }
-        if type_is_callable_storage(e.til_type()).and(is_current_func_param(aname, ctx))
+        callable_param := is_current_func_param(aname, ctx)
+        if type_is_callable_storage(e.til_type()).and(is_value_global(assign_sym, ctx).not())
             .and(ctx.closure_emit_captures.has(assign_sym).not()) {
-            // Any other value into a `mut` callable parameter: write the
-            // caller's slot, dropping the closure it held (a capture-free
-            // one has no drop and is static storage).
+            // Any other value into a `mut` callable parameter (the caller's
+            // slot), a ref local or a local: drop the closure it held -- a
+            // capture-free one has no drop and is static storage -- then
+            // store the new one.
+            mut slot := acname.clone()
+            if callable_param.or(is_ref_local(assign_sym, ctx)) { slot = format("(*", acname, ")") }
             f.write("{ TilClosure *callable_new = ")
             emit_expr(f, rhs, depth, ctx)
             f.write("; ")
             if ad.save_old_delete {
-                f.write("TilClosure *callable_old = *").write(acname)
+                f.write("TilClosure *callable_old = ").write(slot)
                 f.write("; if (callable_old && callable_old->drop) { callable_old->drop(callable_old->env); free(callable_old); } ")
             }
-            f.write("*").write(acname).write(" = callable_new; }\n")
+            f.write(slot).write(" = callable_new; }\n")
             return
         }
         if ctx.closure_emit_captures.has(assign_sym) {

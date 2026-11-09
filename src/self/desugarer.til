@@ -318,8 +318,16 @@ priv typer_lift_lambdas_in_expr := proc(mut e: Expr, mut top_level: Vec(Expr), m
         ref mut c : Expr = e.children[i]
         // The rhs slot of a NodeType.Decl is a named function definition,
         // not a lambda. Skip lifting; just recurse to find any lambdas
-        // nested INSIDE that named function's body.
-        is_decl_rhs := e.node_type.is(NodeType.Decl).and(i.eq(0))
+        // nested INSIDE that named function's body. A `mut` Decl is a
+        // variable whose initial value is the func (#480): lift it like
+        // any other lambda value.
+        mut is_decl_rhs := e.node_type.is(NodeType.Decl).and(i.eq(0))
+        if is_decl_rhs {
+            switch e.node_type {
+            case .Decl(lift_dd): if lift_dd.is_mut { is_decl_rhs = false }
+            case:
+            }
+        }
         if typer_is_lambda_target(c).and(is_decl_rhs.not()) {
             typer_lift_lambdas_in_expr(c, top_level, ctx)
             lname := format("_lambda_", synth_symbol_suffix(ctx))

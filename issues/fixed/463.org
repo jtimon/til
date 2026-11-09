@@ -32,7 +32,7 @@ both in test/closures_compile_escape.til). Still open in til itself, outside
 the binding: a ~mut~ local initialised with a capture-free ~func~ is lifted
 to a top-level function, so it cannot be reassigned or passed ~mut~ (#480),
 and passing a struct's closure field as a closure argument crashes the
-compiler (#481).
+compiler (#481) -- both since fixed.
 
 Make til libraries usable from the JVM (Java and every JVM language, Android
 included) the way Python already uses them: a native ~mode lib~ library plus
