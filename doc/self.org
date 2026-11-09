@@ -61,9 +61,11 @@
   invocation's executable stamp (ext.c's ~til_build_stamp~: the
   translation stamp plus every compile option). A timestamp alone cannot
   establish which program or options produced a file (#406); the stamps
-  do. An input as new as its output (whole-second mtimes) counts as newer.
-  Programs declaring a value macro, libraries, themes, other backends and
-  ~test~ always regenerate, and ~--force-rebuild~ skips reuse. The build
+  do. ~file_mtime~ reports nanoseconds; an input as new as its output
+  (one coarse kernel clock tick) counts as newer. Programs declaring a
+  value macro, translations under ~TIL_GC_AUDIT~ (whose dump prints while
+  translating), libraries, themes, other backends and ~test~ always
+  regenerate, and ~--force-rebuild~ skips reuse. The build
   program's explicit dependency graph is separate from this CLI behavior
   and still decides which build steps need to run.
 

@@ -3356,13 +3356,32 @@ void sleep_ms(I64 ms) {
 
 void noop_proc(void) {}
 
+// Last modification time in nanoseconds since the Unix epoch, -1 when the
+// path cannot be stat'ed. Whole seconds could not order an output written
+// in the same second as its input (#442); each host keeps finer stamps.
 I64 file_mtime(const Str *path) {
     char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
+#ifdef _WIN32
+    // FILETIME: 100 ns ticks since 1601-01-01.
+    WIN32_FILE_ATTRIBUTE_DATA data;
+    BOOL ok = GetFileAttributesExA(p, GetFileExInfoStandard, &data);
+    free(p);
+    if (!ok) return -1;
+    ULARGE_INTEGER ticks;
+    ticks.LowPart = data.ftLastWriteTime.dwLowDateTime;
+    ticks.HighPart = data.ftLastWriteTime.dwHighDateTime;
+    return ((I64)ticks.QuadPart - 116444736000000000LL) * 100;
+#else
     struct stat st;
     int rc = stat(p, &st);
     free(p);
     if (rc != 0) return -1;
-    return (I64)st.st_mtime;
+#ifdef __APPLE__
+    return (I64)st.st_mtimespec.tv_sec * 1000000000LL + (I64)st.st_mtimespec.tv_nsec;
+#else
+    return (I64)st.st_mtim.tv_sec * 1000000000LL + (I64)st.st_mtim.tv_nsec;
+#endif
+#endif
 }
 
 I32 mkdir_p(const Str *path) {
