@@ -11616,8 +11616,8 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
 // ISA -- once src/core's scalar ops migrate ext_func -> core_func and their
 // ext.c symbols are deleted, this is the ONLY path. It is already live for the
 // ext_func ops, so the whole suite (interpret + both-mode compare) proves it
-// matches ext.c. div/mod (zero-guarded), cmp, clone, and conversions other
-// than to_uptr/to_usize are NOT handled here and keep dispatching to ext.c.
+// matches native emission. Integer div/mod and shifts use the same explicit
+// zero, overflow and declared-width count rules as compiled code.
 
 // Category of a scalar type name: "u" unsigned int, "i" signed int, "f" F32;
 // "" for anything that is not one of the nine numeric primitives.
@@ -11648,8 +11648,6 @@ priv scalar_apply_u64 := func(op: Str, a: U64, b: U64) returns U64 {
     case "band": return a.band(b)
     case "bor": return a.bor(b)
     case "bxor": return a.bxor(b)
-    case "shl": return a.shl(b)
-    case "shr": return a.shr(b)
     case "div": return a.div(b)
     case "mod": return a.mod(b)
     }
@@ -11667,10 +11665,14 @@ priv scalar_apply_i64 := func(op: Str, a: I64, b: I64) returns I64 {
     case "band": return a.band(b)
     case "bor": return a.bor(b)
     case "bxor": return a.bxor(b)
-    case "shl": return a.shl(b)
-    case "shr": return a.shr(b)
-    case "div": return a.div(b)
-    case "mod": return a.mod(b)
+    case "div", "mod":
+        if b==0 {return 0}
+        if a==I64.MIN && b == -1 {
+            if op=="div" {return a}
+            return 0
+        }
+        if op=="div" {return a.div(b)}
+        return a.mod(b)
     }
     panic(__LOC__, ": scalar_apply_i64: unhandled op ", op)
     return a
@@ -11897,17 +11899,17 @@ priv scalar_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut r
         ref mut be : Expr = e.children[2]
         av : Dynamic = scalar_read_arg(scope, ae, scalar_type, ctx)
         bv : Dynamic = scalar_read_arg(scope, be, scalar_type, ctx)
-        if ctx.eval.embedded.and(cat.eq("u").or(cat.eq("i"))).and(op_str.eq("div").or(op_str.eq("mod"))) {
-            if raw_to_u64(scalar_type, bv, ctx) == 0 {
-                interp_embedded_error(e, "integer division by zero", ctx)
-                return true
-            }
-            if cat == "i" {
-                if raw_to_i64(scalar_type, av, ctx).eq(I64.MIN).and(raw_to_i64(scalar_type, bv, ctx).eq(-1)) {
-                    interp_embedded_error(e, "integer division overflow", ctx)
-                    return true
-                }
-            }
+        if op_str.eq("shl").or(op_str.eq("shr")) {
+            bits:=numeric_cast_integer_bits(type_str)
+            count:=raw_to_u64(scalar_type,bv,ctx)
+            mut shifted:U64=0
+            if count>=bits.cast(U64) {
+                if op_str=="shr" && cat=="i" && raw_to_i64(scalar_type,av,ctx)<0 {shifted=U64.MAX}
+            } else if op_str=="shl" {shifted=raw_to_u64(scalar_type,av,ctx).shl(count)}
+            else if cat=="i" {shifted=raw_to_i64(scalar_type,av,ctx).shr(count.cast(I64)).cast(U64)}
+            else {shifted=raw_to_u64(scalar_type,av,ctx).shr(count)}
+            scalar_write_raw(type_str,result,shifted.cast(I64))
+            return true
         }
         if cat == "u" {
             scalar_write_raw(type_str, result, scalar_apply_u64(op_str, raw_to_u64(scalar_type, av, ctx), raw_to_u64(scalar_type, bv, ctx)).cast(I64))

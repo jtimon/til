@@ -151,6 +151,71 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_integer_arithmetic := proc(compiler:Str,work:Str) {
+    types:=array(Str,"I8","U8","I16","U16","I32","U32","I64","U64")
+    ctypes:=array(Str,"char","unsigned char","short","unsigned short","int","unsigned int","long long","unsigned long long")
+    widths:=array(Str,"8","8","16","16","32","32","64","64")
+    mut source:="mode lib\n"
+    mut declarations:="#include <stdint.h>\n#include <string.h>\n#ifdef C_REFERENCE\n#include \"gen/til/integer_ops_forward.h\"\n#endif\n#include <assert.h>\n"
+    mut checks:="int main(void){const uint64_t input[]={0,1,2,3,7,8,15,16,31,32,63,64,65,127,128,255,256,32767,32768,65535,0x7fffffffULL,0x80000000ULL,0xffffffffULL,0x7fffffffffffffffULL,0x8000000000000000ULL,UINT64_MAX};\n"
+    for i in 0..types.len() {
+        ref t:Str=types[i];ref ct:Str=ctypes[i];ref bits:Str=widths[i]
+        mut signed_flag:="0";mut wide:="U64";mut cwide:="unsigned long long"
+        if t.starts_with("I") {signed_flag="1";wide="I64";cwide="long long"}
+        for op in array(Str,"div","mod","shl","shr") {
+            source=format(source,"num_",t,"_",op,":=func(a:",t,",b:",t,") returns ",t,"{return a.",op,"(b)}\n",
+                "num_",t,"_",op,"_relay:=func(a:",t,",b:",t,") returns ",t,"{return num_",t,"_",op,"(a,b)}\n",
+                "num_",t,"_",op,"_wide:=func(a:",t,",b:",t,") returns ",wide,"{return a.",op,"(b)}\n")
+            declarations=format(declarations,"extern ",ct," num_",t,"_",op,"(",ct,",",ct,"),num_",t,"_",op,"_relay(",ct,",",ct,");extern ",cwide," num_",t,"_",op,"_wide(",ct,",",ct,");\n")
+            mut operation:="0";if op=="mod" {operation="1"};if op=="shl" {operation="2"};if op=="shr" {operation="3"}
+            checks=format(checks,"{const unsigned bits=",bits,";const uint64_t mask=mask_for(bits);uint64_t random=0x123456789abcdef0ULL;for(unsigned i=0;i<1024;i++){random=random*6364136223846793005ULL+1442695040888963407ULL;uint64_t av=i<26?input[i]:random;for(unsigned j=0;j<26;j++){uint64_t bv=input[j];",ct," a=(",ct,")av,b=(",ct,")bv;uint64_t expected=reference(av&mask,bv&mask,bits,",signed_flag,",",operation,");uint64_t got=(uint64_t)num_",t,"_",op,"(a,b)&mask,relayed=(uint64_t)num_",t,"_",op,"_relay(a,b)&mask;assert(got==expected && relayed==expected);",cwide," widened=num_",t,"_",op,"_wide(a,b);if(",signed_flag,")assert((int64_t)widened==signed_bits(expected,bits));else assert((uint64_t)widened==expected);}}}\n")
+        }
+        source=format(source,"constant_",t,":=func(a:",t,") returns ",t,"{return a.div(0).bor(a.mod(0)).bor(a.shl(",bits,")).bor(a.shr(",bits,").band(0))}\n")
+        declarations=format(declarations,"extern ",ct," constant_",t,"(",ct,");\n")
+        checks=format(checks,"assert(constant_",t,"((",ct,")-1)==0);\n")
+    }
+    source=format(source,
+        "operand:=func(mut trace:I64,value:I64) returns I64{trace=trace*10+value;return value}\n",
+        "ordered_div:=func(mut trace:I64) returns I64{return operand(trace,8).div(operand(trace,2))}\n",
+        "ordered_mod:=func(mut trace:I64) returns I64{return operand(trace,8).mod(operand(trace,3))}\n",
+        "ordered_shift:=func(mut trace:I64) returns I64{return operand(trace,1).shl(operand(trace,2))}\n",
+        "ordered_zero:=func(mut trace:I64) returns I64{return operand(trace,8).div(operand(trace,0))}\n",
+        "discarded:=func(mut trace:I64,value:I64) returns I64{operand(trace,value).div(0);operand(trace,value).shl(-1);return trace}\n",
+        "size_div:=func(a:USize,b:USize) returns USize{return a.div(b)}\nptr_shift:=func(a:UPtr,b:UPtr) returns UPtr{return a.shr(b)}\n")
+    declarations=format(declarations,"extern long long ordered_div(long long*),ordered_mod(long long*),ordered_shift(long long*),ordered_zero(long long*),discarded(long long*,long long);extern unsigned long long size_div(unsigned long long,unsigned long long),ptr_shift(unsigned long long,unsigned long long);\n")
+    checks=format(checks,"long long trace=0;assert(ordered_div(&trace)==4 && trace==82);trace=0;assert(ordered_mod(&trace)==2 && trace==83);trace=0;assert(ordered_shift(&trace)==4 && trace==12);trace=0;assert(ordered_zero(&trace)==0 && trace==80);trace=0;assert(discarded(&trace,3)==33 && trace==33);assert(size_div(UINT64_MAX,2)==UINT64_MAX/2 && size_div(UINT64_MAX,0)==0 && ptr_shift(UINT64_MAX,63)==1 && ptr_shift(UINT64_MAX,64)==0);return 0;}\n")
+    reference:=format(
+        "static uint64_t mask_for(unsigned bits){return bits==64?UINT64_MAX:(UINT64_C(1)<<bits)-1;}\n",
+        "static int64_t signed_bits(uint64_t value,unsigned bits){uint64_t mask=mask_for(bits);if(value&(UINT64_C(1)<<(bits-1)))value|=~mask;int64_t result;memcpy(&result,&value,8);return result;}\n",
+        "static uint64_t reference(uint64_t a,uint64_t b,unsigned bits,int sign,unsigned op){uint64_t mask=mask_for(bits);if(op<2){if(!b)return 0;if(sign){int64_t x=signed_bits(a,bits),y=signed_bits(b,bits);if(x==INT64_MIN && y==-1)return op?0:a;return (uint64_t)(op?x%y:x/y)&mask;}return op?a%b:a/b;}if(b>=bits)return op==3 && sign && (a&(UINT64_C(1)<<(bits-1)))?mask:0;if(op==2)return (a<<b)&mask;if(sign && (a&(UINT64_C(1)<<(bits-1))))return ((a>>b)|~(mask>>b))&mask;return a>>b;}\n")
+    File.writefile(format(work,"/integer_ops.til"),source)
+    File.writefile(format(work,"/integer_caller.c"),format(declarations,reference,checks))
+    // MLIR uses an explicit CLI entrypoint; keep the shared operations and
+    // assertions intact while placing the script's statements inside main.
+    control:=File.readfile("test/scalar_control.til").replace("mode script","mode cli")
+    body_start:=control.find("\nmut count := 0")
+    expect(body_start>0,"scalar control body marker missing")
+    start:=body_start.to_usize()
+    File.writefile(format(work,"/integer_control.til"),format(control.substr(0,start),"\nmain:=proc(){",control.substr(start,control.len()-start),"\n}\n"))
+    expected:=Cmd.new(compiler,"run","--usize=64","integer_control.til");checked(expected,work)
+    interpreted:=Cmd.new(compiler,"interpret","--usize=64","integer_control.til");checked(interpreted,work)
+    assert_eq(Str,interpreted.out(),expected.out())
+    for level in array(Str,"0","2","3") {
+        for backend in array(Str,"c","mlir") {
+            build:=Cmd.new(compiler,"build",format("--backend=",backend),"--usize=64",format("--opt=",level))
+            if backend=="c" {build.arg("--cc=clang-18 -fsanitize=undefined -fno-sanitize-recover=all");build.arg("--asan")}
+            build.arg("integer_ops.til")
+            checked(build,work)
+            cc:=Cmd.new("clang-18","-O2","-fsigned-char","-fsanitize=address,undefined","-fno-sanitize-recover=all","-Wall","-Wextra","-Werror","integer_caller.c","gen/lib/libinteger_ops.a","-lm","-o","integer_caller")
+            if backend=="c" {cc.arg("-DC_REFERENCE");cc.arg(format("-I",realpath_str("src/self/codegen")))}
+            checked(cc,work)
+            native:=Cmd.new("./integer_caller");checked(native,work)
+        }
+        run:=Cmd.new(compiler,"run","--backend=mlir",format("--opt=",level),"integer_control.til");checked(run,work)
+        assert_eq(Str,run.out(),expected.out())
+    }
+}
+
 priv check_memory := proc(compiler:Str,work:Str) {
     types:=array(Str,"I8","U8","I16","U16","I32","U32","I64","U64","F32","F64","Bool")
     ctypes:=array(Str,"int8_t","uint8_t","int16_t","uint16_t","int32_t","uint32_t","int64_t","uint64_t","float","double","bool")
@@ -1132,5 +1197,6 @@ main := proc(compiler_arg: Str) {
     check_modules(compiler, work)
     check_scalars(compiler, work)
     check_memory(compiler,work)
+    check_integer_arithmetic(compiler,work)
     println("mlir PASS")
 }

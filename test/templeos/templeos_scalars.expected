@@ -9,6 +9,8 @@ I64 TilI64Div(I64 a, I64 b)
 {
     if (!b)
         return 0;
+    if (a == 0x8000000000000000 && b == -1)
+        return a;
     return a / b;
 }
 
@@ -16,7 +18,21 @@ I64 TilI64Mod(I64 a, I64 b)
 {
     if (!b)
         return 0;
+    if (a == 0x8000000000000000 && b == -1)
+        return 0;
     return a % b;
+}
+
+U64 TilIntegerShift(U64 value, U64 count, I64 bits, Bool right, Bool signed_value)
+{
+    Bool negative = signed_value && ((value + 0)(I64) < 0);
+    if (count >= bits) {
+        if (right && negative) return 0xFFFFFFFFFFFFFFFF;
+        return 0;
+    }
+    if (!right) return value << count;
+    if (negative) return ~((~value) >> count);
+    return value >> count;
 }
 
 extern I64 twice(I64 n);
@@ -122,7 +138,7 @@ I64 TilMain()
     U8 shift_base_39 = 0;
     (shift_base_39 = ((shift_base_39 + 1) & 255));
     U8 hoisted__U8_g23_40 = 7;
-    U8 shifted_left_41 = (((shift_base_39 << hoisted__U8_g23_40)) & 255);
+    U8 shifted_left_41 = ((TilIntegerShift(shift_base_39, hoisted__U8_g23_40, 8, FALSE, FALSE)) & 255);
     U8 hoisted__U8_g24_42 = 128;
     Bool hoisted__Bool_g25_43 = (shifted_left_41 != hoisted__U8_g24_42);
     if (hoisted__Bool_g25_43) {
@@ -132,7 +148,7 @@ I64 TilMain()
         }
     }
     U8 hoisted__U8_g26_45 = 7;
-    U8 shifted_right_46 = (shifted_left_41 >> hoisted__U8_g26_45);
+    U8 shifted_right_46 = ((TilIntegerShift(shifted_left_41, hoisted__U8_g26_45, 8, TRUE, FALSE)) & 255);
     U8 hoisted__U8_g27_47 = 1;
     Bool hoisted__Bool_g28_48 = (shifted_right_46 != hoisted__U8_g27_47);
     if (hoisted__Bool_g28_48) {

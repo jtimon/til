@@ -335,6 +335,28 @@
   self-translate before the cage became the default (-O0, U32 widths):
   -4.8% peak RSS, -3.9% time for the cage.
 
+** Scalar integer arithmetic
+
+  I8/U8 through I64/U64, including resolved USize/UPtr aliases, have the same
+  arithmetic contract in interpretation (including TilVm), C, MLIR, FASM and
+  HolyC. Division truncates toward zero, and a nonzero signed remainder has
+  the dividend's sign. Integer div/mod return zero for a zero divisor. Signed
+  MIN/-1 wraps to MIN with remainder zero; neither case traps or invokes C
+  undefined behavior. safe_div remains the throwing API for division by zero.
+
+  All eight integer types provide shl/shr. Counts are checked against the
+  declared operand width, not C promotions or the machine's masked count.
+  Negative or oversized counts yield zero for left/unsigned-right shifts;
+  signed right shifts yield sign-fill (-1 for a negative operand, zero
+  otherwise). Valid left shifts wrap to the declared width; valid signed
+  right shifts sign-extend. Operands are evaluated once, left to right.
+
+  C binds operands before its checks and shifts unsigned bit patterns. MLIR
+  substitutes safe divisors/counts BEFORE arithmetic, then selects the specified
+  result, so discarded exceptional results cannot introduce LLVM poison.
+  test/scalar_control.til exercises the shared rules; test/mlir.til adds native
+  C/MLIR ABI and ASAN/UBSAN boundary/randomized comparisons at O0/O2/O3.
+
 ** CPU profiles and C optimization
 
   ~--cpu=baseline|x86-64-v3|x86-64-v4~ selects a target CPU profile,
@@ -404,9 +426,9 @@
   locals may be mutable. Borrowed ~Array(F32)~, ~Array(I32)~ and ~Array(U32)~ parameters support read-only
   inputs and ~mut~ outputs. Arithmetic includes addition, subtraction and
   multiplication (integer operations wrap), integer increment/decrement,
-  integer bitwise operations, scalar comparisons/cmp, Boolean logic, cloning, literals, cross-unit direct
-  calls and returns. Scalar integer division, shifts and other unsupported
-  operations still produce diagnostics. SIMD ~new~,
+  integer bitwise operations, scalar division/remainder/shifts, scalar comparisons/cmp,
+  Boolean logic, cloning, literals, cross-unit direct calls and returns.
+  Unsupported operations still produce diagnostics. SIMD ~new~,
   ~splat~, ~zero~, fixed-order ~reduce_add~ and checked lane
   access/update (~v[i]~, ~v.get(i)?~, ~v.set(i,own x)!~) are supported. Unsupported arithmetic,
   ownership, globals, runtime calls and types produce
@@ -487,6 +509,14 @@
   legacy float-to-integer to_x remains unchecked. Checked cast retains its
   range/NaN/infinity panic contract. Float-width conversions preserve numeric
   rounding, and formatting/to_repr still uses the ordinary C-core bridge.
+
+  Scalar div/mod/shl/shr follow the shared integer contract above at each
+  declared width, including the new I16/U16 shift functions. Native C callers
+  compare boundary and randomized operands, narrow/widened results, direct
+  forwarding, constant exceptional operands, discarded results and operand
+  side-effect order at O0/O2/O3. The same caller also tests C-generated libraries
+  under ASAN/UBSAN. Shared scalar/control-flow assertions run through interpreted,
+  C and MLIR CLI entrypoints. Additional SIMD operations are separate work.
 
   I32x4/U32x4 use ~vector<4xi32>~ internally. Their four scalar fields cross
   the SysV ABI as two i64 INTEGER chunks for arguments and returns, independent
@@ -838,11 +868,10 @@
   break/continue and lexical blocks preserve their normal control flow.
   Bool and/or, including &&/|| and their n-ary forms, short-circuit.
 
-  Integer add/subtract/multiply/inc/dec wrap at the declared width. Division
-  and remainder use the existing zero-divisor result of zero and native C
-  integer promotions; bitwise operations, shifts, signed/unsigned comparisons,
-  cmp, casts and Bool negation are supported. This does not define new behavior
-  for C's undefined signed division overflow or out-of-range shift counts.
+  Integer add/subtract/multiply/inc/dec wrap at the declared width. Division,
+  remainder and shifts follow the shared scalar integer contract above,
+  including zero divisors, MIN/-1 and invalid counts. Bitwise operations,
+  signed/unsigned comparisons, cmp, casts and Bool negation are supported.
   Narrow cells are reloaded at their declared width after mut/ref writes.
   Arithmetic retains its method width before any caller-parameter widening.
   Unsupported constructs receive source-located errors.

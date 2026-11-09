@@ -15,6 +15,10 @@ import("str")
 // src/self/loader.til), so the names U32/U64/USize/UPtr must all be bound
 // here -- they are.
 
+// Integer div/mod return zero for a zero divisor. Signed MIN/-1 wraps to MIN
+// with remainder zero. Shifts use the declared type width: negative or oversized
+// counts yield zero, except signed right shifts yield the sign bit extended.
+
 /// Unsigned 8-bit integer.
 U8 := struct {
 namespace:
@@ -128,6 +132,8 @@ namespace:
     band := core_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
     bor := core_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
     bxor := core_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
+    shl := core_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
+    shr := core_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
     clone := ext_func(val: U16) returns shallow U16 {}
     /// Absolute difference between two values, useful for Range iteration.
     distance := func(a: Dynamic, b: Dynamic) returns U64 {
@@ -443,6 +449,8 @@ namespace:
     band := core_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     bor := core_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     bxor := core_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
+    shl := core_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
+    shr := core_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     clone := ext_func(val: I16) returns shallow I16 {}
     /// Absolute difference between two values, useful for Range iteration.
     distance := func(a: Dynamic, b: Dynamic) returns U64 {
@@ -685,7 +693,7 @@ namespace:
     size := func() returns USize { return 8 }
 
     /// Issue #198: division that throws DivideByZero when dividing by
-    /// zero. Use I64.div for the panicking variant.
+    /// zero. Use I64.div for the zero-result variant.
     safe_div := func(a: I64, b: I64, loc: Str = __LOC__) returns I64 throws DivideByZero {
         if b == 0 {
             throw DivideByZero(msg = format(loc, ":I64.safe_div: divide by zero"))

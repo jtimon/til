@@ -35,6 +35,7 @@ priv HolyCEmitState := struct {
     needs_i64_mod := false
     needs_u64_div := false
     needs_u64_mod := false
+    needs_integer_shift := false
     needs_str_array_clone := false
     needs_str_array_get := false
     needs_str_array_concat := false
@@ -3479,13 +3480,21 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 state.needs_i64_mod = true
                 return holyc_narrow_wrap(format("TilI64Mod(", left, ", ", right, ")"), owner)
             }
+            if method.eq("shl").or(method.eq("shr")) {
+                state.needs_integer_shift=true
+                mut right_flag:="FALSE";if method=="shr" {right_flag="TRUE"}
+                mut signed_flag:="FALSE";if owner.starts_with("I") {signed_flag="TRUE"}
+                mut shifted:=format("TilIntegerShift(",left,", ",right,", ",numeric_cast_integer_bits(owner).to_str(),", ",right_flag,", ",signed_flag,")")
+                if owner.starts_with("I") {shifted=format("(",shifted,")(I64)")}
+                return holyc_narrow_wrap(shifted,owner)
+            }
             op := holyc_core_binop(method)
             if op.len() == 0 {
                 error = format("unsupported core call '", owner, ".", method, "'")
                 return ""
             }
             value := format("(", left, " ", op, " ", right, ")")
-            if method.eq("add").or(method.eq("sub")).or(method.eq("mul")).or(method.eq("shl")) {
+            if method.eq("add").or(method.eq("sub")).or(method.eq("mul")) {
                 return holyc_narrow_wrap(value, owner)
             }
             return value
@@ -5853,7 +5862,7 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
         helpers = format(helpers, "  TilPanicZ(\"\");\n}\n\n")
     }
     if state.needs_i64_div {
-        helpers = format(helpers, "I64 TilI64Div(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a / b;\n}\n\n")
+        helpers = format(helpers, "I64 TilI64Div(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    if (a == 0x8000000000000000 && b == -1)\n        return a;\n    return a / b;\n}\n\n")
     }
     if state.needs_u64_div {
         helpers = format(helpers, "U64 TilU64Div(U64 a, U64 b)\n{\n    if (!b)\n        return 0;\n    return a / b;\n}\n\n")
@@ -5862,7 +5871,12 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
         helpers = format(helpers, "U64 TilU64Mod(U64 a, U64 b)\n{\n    if (!b)\n        return 0;\n    return a % b;\n}\n\n")
     }
     if state.needs_i64_mod {
-        helpers = format(helpers, "I64 TilI64Mod(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    return a % b;\n}\n\n")
+        helpers = format(helpers, "I64 TilI64Mod(I64 a, I64 b)\n{\n    if (!b)\n        return 0;\n    if (a == 0x8000000000000000 && b == -1)\n        return 0;\n    return a % b;\n}\n\n")
+    }
+    if state.needs_integer_shift {
+        helpers=format(helpers,"U64 TilIntegerShift(U64 value, U64 count, I64 bits, Bool right, Bool signed_value)\n{\n")
+        helpers=format(helpers,"    Bool negative = signed_value && ((value + 0)(I64) < 0);\n    if (count >= bits) {\n        if (right && negative) return 0xFFFFFFFFFFFFFFFF;\n        return 0;\n    }\n")
+        helpers=format(helpers,"    if (!right) return value << count;\n    if (negative) return ~((~value) >> count);\n    return value >> count;\n}\n\n")
     }
     reflection := format(holyc_basic_reflection(lp.ctx, state), holyc_metadata_reflection(lp.ctx, state))
     mut dyn_lookup := ""

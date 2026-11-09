@@ -1590,26 +1590,34 @@ priv fasm_binary := proc(e: Expr, shallow owner: Type, op: Str, mut state: FasmS
     case "bor": fasm_emit(state, "or rax, rcx")
     case "bxor": fasm_emit(state, "xor rax, rcx")
     case "shl", "shr":
+        label:=state.labels.to_str()
+        state.labels++
+        bits:=fasm_type_size(owner,lp)*8
+        fasm_emit(state,format("cmp rcx, ",bits.to_str(),"\n    jae .shiftoutside",label))
         mut instruction := "shl"
         if op == "shr" {
             instruction = "sar"
             if is_unsigned { instruction = "shr" }
         }
-        // Match the C integer promotions: sub-32-bit operands shift as ints.
-        mut value_register := "eax"
-        if wide { value_register = "rax" }
-        fasm_emit(state, format(instruction, " ", value_register, ", cl"))
+        fasm_emit(state,format(instruction," rax, cl\n    jmp .shiftend",label,"\n.shiftoutside",label,":"))
+        if op=="shr" && is_unsigned.not() {fasm_emit(state,"sar rax, 63")}
+        else {fasm_emit(state,"xor eax, eax")}
+        fasm_emit(state,format(".shiftend",label,":"))
     case "div", "mod":
         label := state.labels.to_str()
         state.labels++
         fasm_emit(state, format("test rcx, rcx\n    jz .divzero", label))
         if is_unsigned {
-            fasm_emit(state, "xor edx, edx")
-            if wide { fasm_emit(state, "div rcx") }
-            else { fasm_emit(state, "div ecx") }
+            fasm_emit(state, "xor edx, edx\n    div rcx")
         } else {
-            if wide { fasm_emit(state, "cqo\n    idiv rcx") }
-            else { fasm_emit(state, "cdq\n    idiv ecx") }
+            if wide {
+                fasm_emit(state,format("cmp rcx, -1\n    jne .divnormal",label,"\n    mov rdx, 0x8000000000000000\n    cmp rax, rdx\n    jne .divnormal",label))
+                if op=="mod" {fasm_emit(state,"xor eax, eax")}
+                fasm_emit(state,format("jmp .divend",label,"\n.divnormal",label,":"))
+            }
+            // Narrow operands are sign-extended: a 64-bit divide followed by
+            // narrowing also handles the smaller types' MIN/-1 without traps.
+            fasm_emit(state, "cqo\n    idiv rcx")
         }
         if op == "mod" { fasm_emit(state, "mov rax, rdx") }
         fasm_emit(state, format("jmp .divend", label, "\n.divzero", label, ":\n    xor eax, eax\n.divend", label, ":"))

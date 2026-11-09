@@ -2828,6 +2828,7 @@ typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState {
     Bool needs_i64_mod;
     Bool needs_u64_div;
     Bool needs_u64_mod;
+    Bool needs_integer_shift;
     Bool needs_str_array_clone;
     Bool needs_str_array_get;
     Bool needs_str_array_concat;

@@ -7,6 +7,21 @@ bump := func(mut count: I64) returns Bool {
 }
 byte_bump := func(mut value: I8) { value.inc() }
 pointer_width := func(value: UPtr) returns UPtr { return value }
+integer_edges := func(T:Type,mut calls:I64,low:T,high:T,width:T) {
+    one:T=1
+    zero:T=0
+    minus_one:T=zero-one
+    assert(low.div(zero)==zero && high.mod(zero)==zero)
+    assert(low.div(one)==low && high.mod(one)==zero)
+    assert(low.div(minus_one)==low && low.mod(minus_one)==zero)
+    assert(high.shl(width)==zero && high.shl(width+one)==zero)
+    assert(high.shl(minus_one)==zero && high.shr(width)==zero)
+    assert(high.shr(minus_one)==zero)
+    assert(high.shl(zero)==high && high.shr(zero)==high)
+    if low<zero {assert(low.shr(width)==minus_one && low.shr(minus_one)==minus_one)}
+    else {assert(low.shr(width)==zero && low.shr(minus_one)==zero)}
+    calls++
+}
 find := func(limit: I64) returns I64 {
     mut i := 0
     while i < limit {
@@ -107,4 +122,14 @@ assert(bits.div(2) == 1073741823)
 mut size : USize = 0
 size = size - 1
 assert(pointer_width(size.add(1)) == 0)
+mut edge_calls:I64=0
+integer_edges(I8,edge_calls,I8.MIN,I8.MAX,8)
+integer_edges(U8,edge_calls,U8.MIN,U8.MAX,8)
+integer_edges(I16,edge_calls,I16.MIN,I16.MAX,16)
+integer_edges(U16,edge_calls,U16.MIN,U16.MAX,16)
+integer_edges(I32,edge_calls,I32.MIN,I32.MAX,32)
+integer_edges(U32,edge_calls,U32.MIN,U32.MAX,32)
+integer_edges(I64,edge_calls,I64.MIN,I64.MAX,64)
+integer_edges(U64,edge_calls,U64.MIN,U64.MAX,64)
+assert(edge_calls==8)
 println("scalar control passed")

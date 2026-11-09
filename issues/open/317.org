@@ -159,6 +159,46 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Shared scalar integer arithmetic and MLIR lowering (base 0fafe1c4e)
+
+The human approved unifying previously inconsistent/undefined edge cases before
+adding MLIR scalar div/mod/shl/shr. All scalar integer widths now return zero
+for zero divisors, signed MIN for MIN/-1 and zero for its remainder. Shifts test
+the full count against the declared width: negative/oversized counts produce
+zero, except signed right shifts produce sign-fill. I16/U16 now expose shl/shr
+alongside the other widths. Operands run once, left to right.
+
+C explicitly checks division overflow and counts and shifts unsigned bit
+patterns. Interpretation checks the source width rather than always shifting
+at I64/U64 width; signed division avoids native I64 overflow. Embedded TilVm
+uses the same plain arithmetic semantics instead of its former special errors;
+safe_div remains throwing and retains VM failure coverage. FASM/HolyC emitters
+also implement the same overflow/count checks rather than hardware masking.
+
+MLIR replaces exceptional divisors with one and invalid counts with zero before
+emitting div/rem/shift, then selects the defined result. This prevents LLVM
+poison even for constant or discarded exceptional operations. Declared-width
+results are converted only afterwards when an enclosing context widens them.
+Clang discarded-value handling also covers scalar statement expressions so
+operand side effects survive without unused-result compilation failures.
+
+Regression coverage: test/scalar_control.til shares all-width edge assertions
+across backends; test/tilvm_cases.til covers embedded ordinary arithmetic and
+throwing safe_div. test/mlir.til check_integer_arithmetic compares native C/MLIR
+libraries against independent guarded reference arithmetic with boundary and
+randomized inputs, ASAN/UBSAN callers, widening, direct forwarding, discarded
+results, single evaluation and USize/UPtr aliases at O0/O2/O3. It also wraps the
+unchanged shared script operations/assertions in a CLI main for MLIR.
+test/mlir_options.til checks tool-independent emission; the TempleOS guest corpus
+includes the shared scalar fixture at both layouts. The commit uses two-pass
+bootstrap regeneration so the compiler's own arithmetic has the new emission.
+
+Verification: make clean && make test_two_pass passes 558/558. The ASAN compiler
+and driver pass the full optional MLIR integration, including ASAN/UBSAN C
+libraries/callers at O0/O2/O3. Focused TempleOS guests pass the shared scalar
+fixture at USize32 and USize64. FASM translation passes; native FASM was not run
+because this worktree has no assembler bootstrap.
+
 *** Borrowed results and primitive memory (base 2e5baf973)
 
 User reference returns now use the native pointer ABI across scalar/SIMD/POD,

@@ -2693,6 +2693,12 @@ priv emit_stmt_return := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     }
 }
 
+priv builder_stmt_is_scalar_core := func(e:Expr,ctx:Context) returns Bool {
+    if is_primitive(e.til_type()).not() {return false}
+    target:=resolve_direct_fcall(e,ctx.scope,ctx.symbols)
+    return target.is_some().and(funcdef_of(target.unwrap()).sig.func_type.is_core())
+}
+
 // Trivial no-op delete: `Type.delete(stack_local_primitive, ...)` -- the
 // typer emits these for hoisted stack temps whose type has no destructor
 // work to do. The builder previously suppressed the call body but still
@@ -3395,7 +3401,9 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         // statement, test/templeos/holyc_cast_invalid.til) is the same shape: a
         // float source emits a GNU statement expression whose last
         // expression is the cast value (#212).
-        if builder_stmt_is_inline_checked_get(e, ctx).or(builder_stmt_is_cast(e, ctx)) { f.write("(void)") }
+        // Scalar div/mod and shifts bind operands in statement expressions too;
+        // discarding their result must still evaluate those operands once.
+        if builder_stmt_is_inline_checked_get(e, ctx).or(builder_stmt_is_cast(e, ctx)).or(builder_stmt_is_scalar_core(e,ctx)) { f.write("(void)") }
         emit_expr(f, e, depth, ctx); f.write(";\n")
     case .Return:
         emit_stmt_return(f, e, depth, ctx)
@@ -4593,9 +4601,35 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                         f.write(")(_cf_a / _cf_b); })")
                         return f
                     }
-                    f.write(")((_cf_b == 0) ? 0 : (_cf_a ")
+                    f.write(")((_cf_b == 0) ? 0 : ")
+                    if core_ret_c.starts_with("I") {
+                        bits:=numeric_cast_integer_bits(core_ret_c)
+                        f.write("((_cf_a == (").write(core_ret_c).write(")((U64)1 << ").write((bits-1).to_str())
+                            .write(")) && (_cf_b == -1)) ? ")
+                        if core_op=="div" {f.write("_cf_a")}
+                        else {f.write("0")}
+                        f.write(" : ")
+                    }
+                    f.write("(_cf_a ")
                     f.write(divmod_c_op)
                     f.write(" _cf_b)); })")
+                } else if core_op.eq("shl").or(core_op.eq("shr")) {
+                    // Test the full declared-width count before shifting; the
+                    // U64 comparison also rejects a signed negative count.
+                    bits:=numeric_cast_integer_bits(core_ret_c)
+                    f.write("({ ").write(core_ret_c).write(" til_shift_a = ")
+                    emit_deref(f,e.children[1],depth,ctx)
+                    f.write("; ").write(core_ret_c).write(" til_shift_b = ")
+                    emit_deref(f,e.children[2],depth,ctx)
+                    f.write("; (").write(core_ret_c).write(")((U64)til_shift_b >= ").write(bits.to_str()).write(" ? ")
+                    if core_op=="shr" && core_ret_c.starts_with("I") {f.write("(til_shift_a < 0 ? (U64)-1 : (U64)0)")}
+                    else {f.write("(U64)0")}
+                    f.write(" : ")
+                    if core_op=="shl" {f.write("((U64)til_shift_a << (U64)til_shift_b)")}
+                    else if core_ret_c.starts_with("I") {
+                        f.write("(til_shift_a < 0 ? ~((~(U64)til_shift_a) >> (U64)til_shift_b) : ((U64)til_shift_a >> (U64)til_shift_b))")
+                    } else {f.write("((U64)til_shift_a >> (U64)til_shift_b)")}
+                    f.write("); })")
                 } else if core_op.eq("inc").or(core_op.eq("dec")) {
                     step_name := callee_param_type_name(flat, 0, ctx)
                     step_type := til_type_name_c(type_from_name_init_name(step_name, ctx.scope, ctx.symbols), ctx.symbols)
@@ -4665,10 +4699,6 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                         if core_ret_c == "I32" { unsigned_type = "U32" }
                         else if core_ret_c == "I64" { unsigned_type = "U64" }
                         else if core_ret_c.eq("U16").and(core_op.eq("mul")) { unsigned_type = "U32" }
-                    } else if core_op.eq("shl").and(is_primitive_type(core_ret_c))
-                        .and(core_ret_c.starts_with("I").or(core_ret_c.starts_with("U")))
-                        .and(core_ret_c.neq("U64")) {
-                        unsigned_type = "U64"
                     }
                     if unsigned_type.len() > 0 { f.write("(").write(unsigned_type).write(")(") }
                     emit_deref(f, e.children[1], depth, ctx)

@@ -2108,13 +2108,13 @@ lifecycle_tests := proc(root: Str) returns I64 {
     expect_failure(vm, "mode lib\nprintln(dyn_size_of(\"NoSuchType\").to_str())\n", "eval", "unknown type", 2)
     expect_failure(vm, "mode lib\nprintln(struct_field_count(\"NoSuchType\").to_str())\n", "eval", "not found", 2)
     expect_failure(vm, "mode lib\nprintln(struct_field_name(\"Str\", 99))\n", "eval", "out of range", 2)
-    expect_failure(vm, "mode lib\nprintln(1.div(0).to_str())\n", "eval", "division by zero", 2)
+    expect_failure(vm, "mode lib\n1.safe_div(0)? catch(error:DivideByZero){panic(error.msg)}\n", "eval", "divide by zero", 2)
     expect_failure(vm, "mode lib\nforeign := ext_proc() {}\nforeign()\n", "eval", "native function is not registered", 3)
     expect_failure(vm, "mode lib\nforeign := ext_global(I64, \"unknown_native_global\")\n", "eval", "external global symbol not found", 2)
     expect_failure(vm, "mode lib\nNativeState := struct { namespace: value := ext_global(I64, \"unknown_namespace_global\") }\n", "load", "external global symbol not found", 2)
     expect_failure(vm, "mode lib\nlink_c(\"missing.c\")\n", "load", "cannot compile link_c", 1)
 
-    File.writefile("guest.til", "mode lib\nmessage := format(\"guest \", \"loaded\")\nprintln(message)\n")
+    File.writefile("guest.til", "mode lib\nmut dividend:I64=I64.MIN;dividend=dividend+0;assert(dividend.div(0)==0 && dividend.mod(0)==0);assert(dividend.div(-1)==I64.MIN && dividend.mod(-1)==0);assert(dividend.shl(-1)==0 && dividend.shr(64)==-1);message := format(\"guest \", \"loaded\")\nprintln(message)\n")
     vm.load_file("guest.til")!
     // A second live VM can load and die without invalidating the first.
     implicit_teardown(root)

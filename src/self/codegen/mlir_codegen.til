@@ -709,6 +709,58 @@ priv mlir_i4_div := func(a: Str, b: Str, unsigned_lanes: Bool, mut state: MlirSt
     return mlir_value(state, format("arith.select ", is_zero, ", ", zero, ", ", result, " : vector<4xi1>, ", t))
 }
 
+priv mlir_scalar_divmod := func(a:Str,b:Str,t:Str,signed_value:Bool,remainder:Bool,mut state:MlirState) returns Str {
+    zero:=mlir_value(state,format("arith.constant 0 : ",t))
+    one:=mlir_value(state,format("arith.constant 1 : ",t))
+    is_zero:=mlir_value(state,format("arith.cmpi eq, ",b,", ",zero," : ",t))
+    mut exceptional:=is_zero.clone()
+    mut overflow:=""
+    mut operation:="divui"
+    if remainder {operation="remui"}
+    if signed_value {
+        if remainder {operation="remsi"}else{operation="divsi"}
+        mut bits:U64=1
+        bits=bits.shl((mlir_integer_bits(t)-1).cast(U64))
+        minimum:=mlir_value(state,format("arith.constant ",bits.to_str()," : ",t))
+        minus_one:=mlir_value(state,format("arith.constant -1 : ",t))
+        is_min:=mlir_value(state,format("arith.cmpi eq, ",a,", ",minimum," : ",t))
+        is_minus_one:=mlir_value(state,format("arith.cmpi eq, ",b,", ",minus_one," : ",t))
+        overflow=mlir_value(state,format("arith.andi ",is_min,", ",is_minus_one," : i1"))
+        exceptional=mlir_value(state,format("arith.ori ",is_zero,", ",overflow," : i1"))
+    }
+    // Neither div nor rem may see an exceptional operand, even if a later
+    // select would discard its result: LLVM would already have made poison.
+    divisor:=mlir_value(state,format("arith.select ",exceptional,", ",one,", ",b," : ",t))
+    mut result:=mlir_value(state,format("arith.",operation," ",a,", ",divisor," : ",t))
+    if signed_value {
+        mut wrapped:=a.clone()
+        if remainder {wrapped=zero.clone()}
+        result=mlir_value(state,format("arith.select ",overflow,", ",wrapped,", ",result," : ",t))
+    }
+    return mlir_value(state,format("arith.select ",is_zero,", ",zero,", ",result," : ",t))
+}
+
+priv mlir_scalar_shift := func(a:Str,b:Str,t:Str,signed_value:Bool,right:Bool,mut state:MlirState) returns Str {
+    bits:=mlir_integer_bits(t)
+    zero:=mlir_value(state,format("arith.constant 0 : ",t))
+    width:=mlir_value(state,format("arith.constant ",bits.to_str()," : ",t))
+    // An unsigned full-width count comparison rejects negative signed counts.
+    invalid:=mlir_value(state,format("arith.cmpi uge, ",b,", ",width," : ",t))
+    count:=mlir_value(state,format("arith.select ",invalid,", ",zero,", ",b," : ",t))
+    mut operation:="shli"
+    mut outside:=zero.clone()
+    if right {
+        operation="shrui"
+        if signed_value {
+            operation="shrsi"
+            last:=mlir_value(state,format("arith.constant ",(bits-1).to_str()," : ",t))
+            outside=mlir_value(state,format("arith.shrsi ",a,", ",last," : ",t))
+        }
+    }
+    value:=mlir_value(state,format("arith.",operation," ",a,", ",count," : ",t))
+    return mlir_value(state,format("arith.select ",invalid,", ",outside,", ",value," : ",t))
+}
+
 priv mlir_minmax_pair := func(a: Str, b: Str, scalar: Str, unsigned_lanes: Bool, maximum: Bool, mut state: MlirState) returns Str {
     mut comparison := "lt"
     if maximum { comparison = "gt" }
@@ -1581,6 +1633,16 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     b := mlir_expr(e.children[2], state, lp)
                     c := mlir_expr(e.children[3], state, lp)
                     return mlir_value(state, format("llvm.intr.fma(", a, ", ", b, ", ", c, ") : (", t, ", ", t, ", ", t, ") -> ", t))
+                }
+                if mlir_integer_type(owner_type) && e.children.len()==3 && op.eq("div").or(op.eq("mod")).or(op.eq("shl")).or(op.eq("shr")) {
+                    raw_a:=mlir_expr(e.children[1],state,lp)
+                    a:=mlir_coerce(raw_a,e.children[1],t,state,lp)
+                    raw_b:=mlir_expr(e.children[2],state,lp)
+                    b:=mlir_coerce(raw_b,e.children[2],t,state,lp)
+                    mut result:=""
+                    if op.eq("div").or(op.eq("mod")) {result=mlir_scalar_divmod(a,b,t,mlir_signed(owner_type),op=="mod",state)}
+                    else {result=mlir_scalar_shift(a,b,t,mlir_signed(owner_type),op=="shr",state)}
+                    return mlir_convert(result,t,mlir_type(e.til_type(),lp),mlir_signed(owner_type),e,state,lp)
                 }
                 floating_div := op.eq("div").and(mlir_float(t).or(t.eq("vector<4xf32>")))
                 if op.eq("add").or(op.eq("mul")).or(op.eq("sub")).or(floating_div) && e.children.len() == 3 {
