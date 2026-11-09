@@ -1919,6 +1919,9 @@ priv seed_test_roots := func(lp: LoadedProgram, mut worklist: Vec(Str)) {
                 if nsfdef.node_type.is(NodeType.FuncDef).not() { continue }
                 ref nsfd : FunctionDef = funcdef_of(nsfdef)
                 if nsfd.sig.func_type.is(FuncType.Test) {
+                    // A no-argument test need not mention its containing type.
+                    // Keep that AST container as well as its selected member.
+                    vec_push_str(worklist, sdecl.name)
                     push_qn(worklist, sdecl.name, def_ns_name_at(stmt.children[0], cur_tvi))
                 }
             }

@@ -49,3 +49,19 @@ test_top_level_still_works := test() {
     c := Counter(value = 41)
     assert_eq(I64, c.bump(), 42)
 }
+
+// No case refers to either containing type. Test reachability must retain
+// the containers themselves, not just their qualified member names.
+mut otherwise_unused_cases:I64=0
+OtherwiseUnusedStruct:=struct {
+namespace:
+    discovered:=test() { otherwise_unused_cases++ }
+}
+OtherwiseUnusedEnum:=enum {
+    Value,
+namespace:
+    discovered:=test() { otherwise_unused_cases++ }
+}
+test_unused_namespace_tests_were_run:=test() {
+    assert_eq(I64,otherwise_unused_cases,2)
+}

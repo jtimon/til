@@ -1,5 +1,5 @@
 #+TITLE: src/self/codegen/mlir_codegen.til
-#+SUBTITLE: til 0.0.1-5c5675e91
+#+SUBTITLE: til 0.0.1-0fafe1c4e
 #+OPTIONS: toc:t
 
 * mlir_source_declarations
@@ -27,6 +27,24 @@ proc mlir_codegen_translate(mut lp: LoadedProgram, path: Str, source_functions: 
 
 #+begin_src til
 func mlir_llvm_call_attributes(text: Str) returns Str
+#+end_src
+
+* Vec__MlirCallable
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__MlirCallable
+:END:
+
+#+begin_src til
+Vec__MlirCallable is a None
+#+end_src
+
+* Map__UPtr_MlirCallable
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__UPtr_MlirCallable
+:END:
+
+#+begin_src til
+Map__UPtr_MlirCallable is a None
 #+end_src
 
 * Option__MlirLlvmSignature
@@ -386,6 +404,533 @@ a clone would copy a whole subtree and break node identity.
 func Option__Bool.take(own self: Option__Bool) returns Bool
 #+end_src
 
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+:END:
+
+#+begin_src til
+struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func with_capacity(n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func len(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns USize
+    func clear(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func delete_marked(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func append(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func move_to(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, mut dest: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func move_from(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func unsafe_get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, shallow i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirCallable throws OutOfBounds
+    func pop(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func remove_at(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func truncate(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, mut src: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize)
+    func delete(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, call_free: Bool = true)
+    func clone(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func size() returns USize
+}
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.new
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.new() returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.with_capacity
+:END:
+
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.with_capacity(n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.clear
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.clear(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.delete_marked
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.delete_marked(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, marks: Dynamic)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.push
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.push(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.append
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.append(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.take
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(~mut old := body.children.take()~): a field cannot be an ~own~
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.move_to
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: ~Vec(T).move_to(own src, dest)~.
+
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.move_to(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, mut dest: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.move_from
+:END:
+
+Take ~other~'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: ~dest.move_from(own src)~.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.move_from(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.unsafe_get
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.unsafe_get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirCallable
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.get
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, shallow i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirCallable throws OutOfBounds
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.pop
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.pop(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns priv___src_self_codegen_mlir_codegen_til__MlirCallable
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.remove_at
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.remove_at(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize) throws OutOfBounds
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.take_prefix
+:END:
+
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.take_prefix(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.truncate
+:END:
+
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.truncate(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, n: USize)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.unsafe_set
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.unsafe_set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.set
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable) throws OutOfBounds
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.push_take
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.push_take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, mut src: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.delete
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.delete(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, call_free: Bool = true)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.clone
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.clone(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+#+end_src
+
+* Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable
+:END:
+
+#+begin_src til
+struct Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable {
+    mut keys : Vec__UPtr
+    mut values : Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+namespace:
+    func new() returns Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func with_capacity(n: USize) returns Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func len(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns USize
+    func clear(mut self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func has(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr) returns Bool
+    func get(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr) returns ref priv___src_self_codegen_mlir_codegen_til__MlirCallable throws KeyNotFound
+    func set(mut self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func remove(mut self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr) returns Bool
+    func delete(own self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, call_free: Bool = true)
+    func clone(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func size() returns USize
+    func hash(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, hasher: HashFn) returns U64
+}
+#+end_src
+
+* Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.new
+:END:
+
+Create an empty Map of the types provided for the key and values respectively.
+The key type must implement ~cmp~.
+
+#+begin_src til
+func Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.new() returns Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable
+#+end_src
+
+* Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.with_capacity
+:END:
+
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
+counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+
+#+begin_src til
+func Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.with_capacity(n: USize) returns Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable
+#+end_src
+
+* Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.clear
+:END:
+
+Drop all live keys and values but keep the allocated storage so the Map can be reused.
+
+#+begin_src til
+func Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.clear(mut self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+#+end_src
+
+* Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.has
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.has
+:END:
+
+True if a value exists for the given key.
+
+#+begin_src til
+func Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.has(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr) returns Bool
+#+end_src
+
+* Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.get
+:END:
+
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
+on a missing key.
+
+#+begin_src til
+func Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.get(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr) returns ref priv___src_self_codegen_mlir_codegen_til__MlirCallable throws KeyNotFound
+#+end_src
+
+* Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.set
+:END:
+
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
+
+#+begin_src til
+func Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.set(mut self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+#+end_src
+
+* Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.remove
+:END:
+
+Remove ~key~, dropping its key and value. Returns false if absent.
+
+#+begin_src til
+func Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.remove(mut self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr) returns Bool
+#+end_src
+
+* Map__Str_UPtr
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_UPtr
+:END:
+
+#+begin_src til
+struct Map__Str_UPtr {
+    mut keys : Vec__Str
+    mut values : Vec__UPtr
+namespace:
+    func new() returns Map__Str_UPtr
+    func with_capacity(n: USize) returns Map__Str_UPtr
+    func len(self: Map__Str_UPtr) returns USize
+    func clear(mut self: Map__Str_UPtr)
+    func has(self: Map__Str_UPtr, key: Str) returns Bool
+    func get(self: Map__Str_UPtr, key: Str) returns ref UPtr throws KeyNotFound
+    func set(mut self: Map__Str_UPtr, key: Str, own val: UPtr)
+    func remove(mut self: Map__Str_UPtr, key: Str) returns Bool
+    func delete(own self: Map__Str_UPtr, call_free: Bool = true)
+    func clone(self: Map__Str_UPtr) returns Map__Str_UPtr
+    func size() returns USize
+    func hash(self: Map__Str_UPtr, hasher: HashFn) returns U64
+}
+#+end_src
+
+* Map__Str_UPtr.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_UPtr.new
+:END:
+
+Create an empty Map of the types provided for the key and values respectively.
+The key type must implement ~cmp~.
+
+#+begin_src til
+func Map__Str_UPtr.new() returns Map__Str_UPtr
+#+end_src
+
+* Map__Str_UPtr.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_UPtr.with_capacity
+:END:
+
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
+counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+
+#+begin_src til
+func Map__Str_UPtr.with_capacity(n: USize) returns Map__Str_UPtr
+#+end_src
+
+* Map__Str_UPtr.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_UPtr.clear
+:END:
+
+Drop all live keys and values but keep the allocated storage so the Map can be reused.
+
+#+begin_src til
+func Map__Str_UPtr.clear(mut self: Map__Str_UPtr)
+#+end_src
+
+* Map__Str_UPtr.has
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_UPtr.has
+:END:
+
+True if a value exists for the given key.
+
+#+begin_src til
+func Map__Str_UPtr.has(self: Map__Str_UPtr, key: Str) returns Bool
+#+end_src
+
+* Map__Str_UPtr.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_UPtr.get
+:END:
+
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
+on a missing key.
+
+#+begin_src til
+func Map__Str_UPtr.get(self: Map__Str_UPtr, key: Str) returns ref UPtr throws KeyNotFound
+#+end_src
+
+* Map__Str_UPtr.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_UPtr.set
+:END:
+
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
+
+#+begin_src til
+func Map__Str_UPtr.set(mut self: Map__Str_UPtr, key: Str, own val: UPtr)
+#+end_src
+
+* Map__Str_UPtr.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_UPtr.remove
+:END:
+
+Remove ~key~, dropping its key and value. Returns false if absent.
+
+#+begin_src til
+func Map__Str_UPtr.remove(mut self: Map__Str_UPtr, key: Str) returns Bool
+#+end_src
+
 * Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.codegen.mlir_codegen.Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
@@ -442,6 +987,114 @@ a clone would copy a whole subtree and break node identity.
 
 #+begin_src til
 func Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature.take(own self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+#+end_src
+
+* Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+:END:
+
+#+begin_src til
+struct Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi {
+    mut keys : Vec__Str
+    mut values : Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+namespace:
+    func new() returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func with_capacity(n: USize) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func len(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns USize
+    func clear(mut self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func has(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str) returns Bool
+    func get(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str) returns ref priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi throws KeyNotFound
+    func set(mut self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func remove(mut self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str) returns Bool
+    func delete(own self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, call_free: Bool = true)
+    func clone(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func size() returns USize
+    func hash(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, hasher: HashFn) returns U64
+}
+#+end_src
+
+* Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.new
+:END:
+
+Create an empty Map of the types provided for the key and values respectively.
+The key type must implement ~cmp~.
+
+#+begin_src til
+func Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.new() returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+#+end_src
+
+* Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.with_capacity
+:END:
+
+Create an empty Map pre-sized for ~n~ entries, so inserting up to
+~n~ reallocs neither backing Vec (Vec.with_capacity's
+counterpart). n=0 behaves like new(): lazy-empty, no allocation.
+
+#+begin_src til
+func Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.with_capacity(n: USize) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+#+end_src
+
+* Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clear
+:END:
+
+Drop all live keys and values but keep the allocated storage so the Map can be reused.
+
+#+begin_src til
+func Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clear(mut self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+#+end_src
+
+* Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.has
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.has
+:END:
+
+True if a value exists for the given key.
+
+#+begin_src til
+func Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.has(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str) returns Bool
+#+end_src
+
+* Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.get
+:END:
+
+Return a ref to the value for ~key~. Throws KeyNotFound if
+~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
+on a missing key.
+
+#+begin_src til
+func Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.get(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str) returns ref priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi throws KeyNotFound
+#+end_src
+
+* Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.set
+:END:
+
+Insert or overwrite. Ref-qualified keys/values borrow their sources;
+other keys are cloned and other values are taken by ownership.
+
+#+begin_src til
+func Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.set(mut self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+#+end_src
+
+* Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.remove
+:END:
+
+Remove ~key~, dropping its key and value. Returns false if absent.
+
+#+begin_src til
+func Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.remove(mut self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str) returns Bool
 #+end_src
 
 * Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
@@ -755,6 +1408,317 @@ Deep-copy the Vec and all its elements via elem_clone.
 func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.clone(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
 #+end_src
 
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+:END:
+
+#+begin_src til
+struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func with_capacity(n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func len(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns USize
+    func clear(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func delete_marked(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func append(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func move_to(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, mut dest: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func move_from(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func unsafe_get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, shallow i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi throws OutOfBounds
+    func pop(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func remove_at(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func truncate(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, mut src: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize)
+    func delete(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, call_free: Bool = true)
+    func clone(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func size() returns USize
+}
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.new
+:END:
+
+Create a new empty Vec for elements of type T. Lazy: no allocation
+until the first push -- an empty Vec is (data=NULL, count=0, cap=0),
+and the grow sites below seed cap 0->1 on the first insert. This keeps
+the many containers that stay empty (e.g. the unused maps in a fresh
+Scope) allocation-free, which is the dominant per-call interpreter cost.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.new() returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.with_capacity
+:END:
+
+Create an empty Vec pre-sized for ~n~ elements, so pushing up to ~n~
+items reallocs zero times. Use at call sites where the final length is
+known up front (cloning a Vec of known length, building a fixed arg
+list, ...) to avoid the 1->2->4->...->n grow-and-realloc churn that
+~new()~ + repeated ~push~ pays. n=0 behaves like new(): lazy-empty,
+no allocation (the grow sites seed cap 0->1 on the first insert).
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.with_capacity(n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clear
+:END:
+
+Drop all live elements via elem_delete but keep the allocated
+storage and element-type metadata so the Vec can be reused.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clear(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.delete_marked
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.delete_marked
+:END:
+
+Drop the elements flagged in ~marks~ (a byte-per-element buffer,
+nonzero = drop, at least self.count entries) via elem_delete, then
+compact the survivors forward and update count. This is the
+container home for the scavenger's mark/sweep/compact, which used
+to reach into data/count directly.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.delete_marked(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, marks: Dynamic)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.push
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.push
+:END:
+
+Append an element to the end. ~val~ is owned: after this call the
+caller must not use the value passed -- clone it first if needed.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.push(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.append
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.append
+:END:
+
+Consume the contents of ~other~ by appending them to ~self~.
+~other~ is taken by ownership and will be empty after the call.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.append(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.take
+:END:
+
+Take the contents out: the returned Vec owns self's buffer and
+self is left lazy-empty. No element is copied or cloned.
+
+This is how a struct FIELD hands its contents over
+(~mut old := body.children.take()~): a field cannot be an ~own~
+argument or receiver, because the callee would then free the
+ADDRESS OF THE FIELD -- the compiler dies with "free(): invalid
+pointer" compiling itself. Everything the caller can give away
+uses the two move forms below instead.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.move_to
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.move_to
+:END:
+
+Give self's contents to ~dest~, which drops whatever it held.
+SELF is consumed, so the receiver is the owned one and the call
+spells the type out: ~Vec(T).move_to(own src, dest)~.
+
+The three fields move as BYTES on purpose:
+~dest.data = self.data~ drops dest's old pointer (right) and then
+~self.data = 0~ drops the pointer dest just adopted -- a double
+free, which is what the emitted C does with field assignment.
+Blanking the source leaves a genuinely valid lazy-empty Vec, so
+a later push on it allocates afresh instead of reallocating a
+buffer that now belongs to someone else.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.move_to(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, mut dest: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.move_from
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.move_from
+:END:
+
+Take ~other~'s contents, dropping whatever self held. OTHER is
+consumed -- it is the value being emptied, so it is the owned
+argument: ~dest.move_from(own src)~.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.move_from(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.unsafe_get
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ with NO bounds check. The caller must prove ~i < len()~.
+This is the unchecked core that ~get~ wraps; for-in uses it
+directly because its ~_fi < len()~ termination test already
+proves the index in bounds (issue #284).
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.unsafe_get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.get
+:END:
+
+Return a reference to the element at index ~i~. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i]~
+to panic on a bad index. The reference is valid until the
+next mutation.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, shallow i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi throws OutOfBounds
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.pop
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.pop
+:END:
+
+Remove and return the last element. Panics if empty. The caller
+takes ownership of the returned value.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.pop(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.remove_at
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.remove_at
+:END:
+
+Remove and drop the element at ~i~, shifting later elements left.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.remove_at(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize) throws OutOfBounds
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.take_prefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.take_prefix
+:END:
+
+Split off the first ~n~ elements into a new Vec. Panics if ~n~
+exceeds self.len(). The remaining elements shift to the front.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.take_prefix(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.truncate
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.truncate
+:END:
+
+Drop the elements from index ~n~ to the end, freeing each via
+elem_delete, and set count to ~n~ (the survivors [0, n) are left
+untouched). Panics if ~n~ exceeds len. This is the container home
+for a pop-and-free-the-tail loop shrinking a Vec back to a mark.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.truncate(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, n: USize)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.unsafe_set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.unsafe_set
+:END:
+
+Overwrite the element at index ~i~ without a bounds check, dropping
+the old value. Caller guarantees ~i < self.count~; the write-side
+mirror of unsafe_get (issue #284).
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.unsafe_set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.set
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.set
+:END:
+
+Overwrite the element at index ~i~. ~val~ is owned. Throws
+OutOfBounds if ~i~ is past the end; call as ~vec[i] = val~
+(or ~vec.set(i, own val)!~) to panic on a bad index.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) throws OutOfBounds
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.push_take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.push_take
+:END:
+
+Move bytes of src[i] into self (push). Source slot is zeroed so that
+src's eventual elem_delete on it is a no-op (relies on the same
+count==0/data==NULL convention used by take_children and Vec.delete).
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.push_take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, mut src: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.delete
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.delete
+:END:
+
+Drop each element via elem_delete, free storage, then free self
+unless ~call_free~ is false.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.delete(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, call_free: Bool = true)
+#+end_src
+
+* Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clone
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clone
+:END:
+
+Deep-copy the Vec and all its elements via elem_clone.
+
+#+begin_src til
+func Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clone(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+#+end_src
+
 * adopt__priv___src_self_codegen_mlir_codegen_til__MlirBinding
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.codegen.mlir_codegen.adopt__priv___src_self_codegen_mlir_codegen_til__MlirBinding
@@ -762,4 +1726,22 @@ func Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding.clone(self: Vec_
 
 #+begin_src til
 func adopt__priv___src_self_codegen_mlir_codegen_til__MlirBinding(mut dest: Dynamic, own src: priv___src_self_codegen_mlir_codegen_til__MlirBinding)
+#+end_src
+
+* adopt__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.adopt__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+:END:
+
+#+begin_src til
+func adopt__priv___src_self_codegen_mlir_codegen_til__MlirCallable(mut dest: Dynamic, own src: priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+#+end_src
+
+* adopt__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.codegen.mlir_codegen.adopt__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+:END:
+
+#+begin_src til
+func adopt__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi(mut dest: Dynamic, own src: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
 #+end_src

@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-5c5675e91
+#+SUBTITLE: til 0.0.1-0fafe1c4e
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -10,6 +10,16 @@
 
 #+begin_src til
 ext_proc realpath_str(path: Str) returns Str
+#+end_src
+
+* get_exe_path
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.get_exe_path
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+ext_proc get_exe_path() returns Str
 #+end_src
 
 * compiler_src_prefix

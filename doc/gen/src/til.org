@@ -1,5 +1,5 @@
 #+TITLE: src/til.til
-#+SUBTITLE: til 0.0.1-5c5675e91
+#+SUBTITLE: til 0.0.1-0fafe1c4e
 #+OPTIONS: toc:t
 
 * BASE_VERSION
@@ -269,6 +269,8 @@ struct CliArgs {
     mut early_return : Bool
     mut asan : Bool
     mut prof : Bool
+    mut force_rebuild : Bool
+    mut jni : Bool
     mut usize_bits : I64
     mut check_unused_imports : Bool
     own mut extra_modes : Vec__Str

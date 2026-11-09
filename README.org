@@ -141,20 +141,21 @@ See [[file:doc/self.org::*Experimental MLIR backend][Experimental MLIR backend]]
 ** Optional FASM bootstrap
 
 The experimental [[file:issues/open/453.org][FASM backend (#453)]] supports Linux x86-64.
-Translation needs no assembler. Build/run use the vendored assembler, built
+Translation needs no assembler. Build/run/test use the vendored assembler, built
 once with an existing FASM executable (Ubuntu/Debian package ~fasm~):
 
 #+begin_src sh
 fasm vendor/fasm/source/linux/x64/fasm.asm vendor/fasm/fasm
 chmod +x vendor/fasm/fasm
 bin/til run --backend=fasm path/to/program.til
+bin/til test --backend=fasm --usize=32 test/interfaces.til
 bin/til run test/fasm_native.til bin/til
 bin/til run test/fasm_runtime.til bin/til
 #+end_src
 
 The generated ~vendor/fasm/fasm~ is a native x86-64 executable, ignored by
 git. After this initial bootstrap, ordinary ~make~ / ~make vendor~ and FASM
-build/run commands rebuild it automatically when its assembly sources or
+build/run/test commands rebuild it automatically when its assembly sources or
 includes change. A failed rebuild leaves the previous executable intact.
 
 On Linux x86-64, compiler installation copies a bootstrapped assembler and
@@ -164,6 +165,10 @@ they do not rebuild the assembler or write temporary files into the installation
 Without a bootstrap, installation explicitly reports that it is installing
 only the FASM runtime sources. Bootstrap and reinstall to enable native FASM
 execution in that installation.
+
+Native ~mode test~ files run directly, including struct/enum namespace tests.
+~test --backend=fasm~ uses the normal interpret-then-compile/run workflow;
+~build~ and ~run~ also recognize the test mode's native entry point.
 
 Ordinary C builds and ~make test~ do not require FASM; the suite checks translation and
 diagnostics, while ~test/fasm_native.til~ and ~test/fasm_runtime.til~ check native

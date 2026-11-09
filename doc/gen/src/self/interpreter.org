@@ -1,5 +1,5 @@
 #+TITLE: src/self/interpreter.til
-#+SUBTITLE: til 0.0.1-5c5675e91
+#+SUBTITLE: til 0.0.1-0fafe1c4e
 #+OPTIONS: toc:t
 
 * CALLABLE_BOX_MAGIC
@@ -899,16 +899,6 @@ ext_func ffi_global_symbol(name: Str) returns ref U8
 
 #+begin_src til
 ext_proc ffi_last_error() returns Str
-#+end_src
-
-* get_exe_path
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.interpreter.get_exe_path
-:group: Compiler tools
-:END:
-
-#+begin_src til
-ext_proc get_exe_path() returns Str
 #+end_src
 
 * til_built_with_asan

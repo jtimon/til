@@ -205,6 +205,7 @@
 *** is_enum := false
 *** is_funcptr := false
 *** is_cptr := false
+*** owned_scalar_size : USize = 0
 ** StructLayout: StructDef
 *** total_size : USize = 0
 *** align : USize = 1
@@ -549,7 +550,10 @@
 *** macos_frameworks := ""
 *** link_c_paths := ""
 *** compiler_revision := ""
+*** translation_stamp := ""
+*** executable_stamp := ""
 *** asan_build := false
+*** jni_build := false
 *** mlir_runtime := false
 *** run_tests := false
 *** load_errors : I32 = 0

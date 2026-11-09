@@ -1111,8 +1111,9 @@ main := proc(args: ..Str) {
     cli := parse_args(args)
     if cli.early_return { return }
 
-    if cli.backend_set && cli.command != "translate" && cli.command != "build" && cli.command != "run" {
-        println("error: --backend requires translate, build or run")
+    if cli.backend_set && cli.command != "translate" && cli.command != "build" && cli.command != "run"
+        && (cli.command != "test" || cli.backend == "mlir") {
+        println("error: --backend requires translate, build or run (also test for c/fasm)")
         exit(1)
     }
 
@@ -1330,7 +1331,8 @@ main := proc(args: ..Str) {
         result = cmd_interpret(lp, user_argv)
         if result == 0 {
             eprint_single("=== compile + run ===\n")
-            result = cmd_test_build_run(lp, cli.custom_bin, cli.custom_c, target, cli.cc, cli.asan, cli.prof)
+            result = cmd_test_build_run(lp, cli.custom_bin, cli.custom_c, target, cli.cc, cli.asan, cli.prof,
+                cli.backend, backend_functions, user_argv)
         }
     case "translate":
         result = cmd_translate(lp, cli.custom_bin, cli.custom_c, target, cli.backend, backend_functions, user_argv)

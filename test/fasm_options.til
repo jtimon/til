@@ -16,7 +16,7 @@ main := proc(compiler_arg: Str) {
         expect(good_status == 0, good.out(), good.err())
         assembly := File.readfile(format(work, "/gen/fasm/main.fasm"))
         expect(assembly.contains("format ELF64 executable 3"), assembly)
-        for command_name in array(Str, "translate", "build", "run") {
+        for command_name in array(Str, "translate", "build", "run", "test") {
             arguments := Cmd.new(compiler, command_name, "--backend=fasm", "main.til", "unexpected")
             arguments.cwd(work).capture()
             expect(arguments.run() != 0, "FASM entry arguments accepted: ", command_name)
@@ -41,6 +41,12 @@ main := proc(compiler_arg: Str) {
         bad.cwd(work).capture()
         expect(bad.run() != 0, "unsupported float accepted")
         expect(bad.out().contains("FASM backend:") && bad.out().contains("bad.til:"), bad.out(), bad.err())
+        File.writefile(format(work,"/bad_native_test.til"),"mode test\nfloating:=test() { mut value:F32=1.0; value=value+1.0; assert(value==2.0) }\n")
+        native_failure:=Cmd.new(compiler,"test","--backend=fasm","bad_native_test.til")
+        native_failure.cwd(work).capture()
+        expect(native_failure.run()!=0,"compiled test silently used C")
+        expect(native_failure.out().contains("FASM backend:") && native_failure.out().contains("bad_native_test.til:"),native_failure.out(),native_failure.err())
+        expect(native_failure.err().contains("=== interpret ===\n  pass: floating\n1/1 tests passed\n=== compile + run ===\n"),native_failure.err())
         for flag in array(Str, "--asan", "--prof", "--cpu=baseline", "--opt=0", "--cc=cc") {
             rejected := Cmd.new(compiler, "build", "--backend=fasm", flag, "main.til")
             rejected.cwd(work).capture()
@@ -69,6 +75,9 @@ main := proc(compiler_arg: Str) {
             "Number:=struct implements View { n:I64=0\nnamespace:\nvalue:=func(self:Number) returns I64 { return self.n }\n}\n",
             "USize_probe:=func(value:I64) returns I64 { return value+1 }\n",
             "main:=proc() { mut n:I64=1; n++; view:View=Number(n=n); copy:=view.clone(); assert(copy.value()==2); assert(view.value()==2); assert(USize_probe(n)==3) }\n"))
+        File.writefile(format(work,"/native_tests.til"),format(
+            "mode test\nfirst:=test() { assert(true) }\n",
+            "OnlyTests:=struct {\nnamespace:\nmember:=test() { assert(true) }\n}\n"))
         for width in array(Str, "32", "64") {
             aggregates := Cmd.new(compiler, "translate", "--backend=fasm", format("--usize=", width), "aggregates.til")
             aggregates.cwd(work).capture()
@@ -88,6 +97,12 @@ main := proc(compiler_arg: Str) {
             expect(interface_status==0,interfaces.out(),interfaces.err())
             interface_source := File.readfile(format(work,"/gen/fasm/interfaces.fasm"))
             expect(interface_source.contains("call rt_str_eq"),"interface dispatch was not emitted",interface_source)
+            tests:=Cmd.new(compiler,"translate","--backend=fasm",format("--usize=",width),"native_tests.til")
+            tests.cwd(work).capture()
+            test_status:=tests.run()
+            expect(test_status==0,tests.out(),tests.err())
+            test_source:=File.readfile(format(work,"/gen/fasm/native_tests.fasm"))
+            expect(test_source.contains("test_main:") && test_source.contains("call rt_eprint_single"),test_source)
         }
         File.writefile(format(work, "/bad_field.til"), "mode cli\nBad := struct { value: F32 = 0.0 }\nmain := proc() { mut b := Bad(); b.value = 1.0; println(b.value.to_str()) }\n")
         bad_field := Cmd.new(compiler, "translate", "--backend=fasm", "bad_field.til")

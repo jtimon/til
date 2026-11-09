@@ -1,5 +1,5 @@
 #+TITLE: src/core/ast.til
-#+SUBTITLE: til 0.0.1-5c5675e91
+#+SUBTITLE: til 0.0.1-0fafe1c4e
 #+OPTIONS: toc:t
 
 * Primitive
@@ -903,6 +903,7 @@ struct FieldLayout {
     mut is_enum : Bool
     mut is_funcptr : Bool
     mut is_cptr : Bool
+    mut owned_scalar_size : USize
 namespace:
     func eq(a: FieldLayout, b: FieldLayout) returns Bool
     func to_str(self: FieldLayout) returns Str

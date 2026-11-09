@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-5c5675e91</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-0fafe1c4e</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -131,6 +131,10 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <article class="doc-entry" id="til.src.std.sys.file_mtime">
 <h2>file_mtime</h2>
 <dl class="meta"><dt>Group</dt><dd>Standard library</dd></dl>
+<div class="doc-body">
+<p>Last modification time of <code>path</code> in nanoseconds since the Unix epoch, or
+-1 when it cannot be stat'ed. The resolution is the file system's.</p>
+</div>
 <pre><code class="language-til">ext_proc (path: Str) returns shallow I64
 </code></pre>
 </article>

@@ -29,24 +29,56 @@ check_shared := proc(compiler: Str, work: Str, source: Str, expected_exit: I64 =
     }
 }
 
-check_interfaces := proc(compiler: Str, work: Str) {
-    // Reuse every original interface assertion. Only the test entry markers
-    // change: this CLI harness calls the cases in source order at both widths.
-    source := File.readfile("test/interfaces.til")
-    mut calls := "\nmain := proc() {\n"
-    mut cases:USize=0
-    for line:Str in source.split("\n") {
-        if line.starts_with("test_").and(line.contains(" := test() {")) {
-            name := line.substr(0,line.find(" := ").to_usize())
-            calls = format(calls,"println(\"",name,"\"); ",name,"()\n")
-            cases++
+check_test_command := proc(compiler: Str, work: Str) {
+    File.writefile(format(work,"/test_library.til"),format(
+        "mode lib\nmut total:I64=0\ninitialize:=func() returns I64 { total++; return total }\ninitial:=initialize()\n",
+        "imported:=test() { assert(initial==1); assert(total==1); total++ }\n",
+        "Library:=struct {\nnamespace:\nmember:=test() { assert(total==2); total++ }\n}\n"))
+    File.writefile(format(work,"/tests.til"),format(
+        "mode test\nimport(\"./test_library\")\nroot:=test() { assert(total==3); total++ }\n",
+        "Local:=struct {\nnamespace:\nmember:=test() { assert(total==4); total++ }\n}\n",
+        "Choice:=enum { One,\nnamespace:\nmember:=test() { assert(total==5); total++ }\n}\n",
+        "last:=test() { assert(total==6) }\n"))
+    File.writefile(format(work,"/cli_tests.til"),"mode cli\nmain:=proc() { panic(\"main must not run\") }\ninline_test:=test() { assert(true) }\n")
+    File.writefile(format(work,"/library_tests.til"),"mode pure\nlibrary_test:=test() { assert(true) }\n")
+    File.writefile(format(work,"/empty_tests.til"),"mode test\nunused:=func() returns I64 { return 1 }\n")
+    File.writefile(format(work,"/failing_tests.til"),format(
+        "mode test\nbefore:=test() { assert(true) }\n",
+        "failing:=test() { panic(\"expected failure\",loc=\"native-test\") }\n",
+        "after:=test() { panic(\"must not run\",loc=\"native-test\") }\n"))
+    report := format("  pass: imported\n  pass: Library.member\n  pass: root\n",
+        "  pass: Local.member\n  pass: Choice.member\n  pass: last\n6/6 tests passed\n")
+    for width in array(Str,"32","64") {
+        for backend in array(Str,"c","fasm") {
+            for name in array(Str,"tests","cli_tests","library_tests") {
+                mut expected := report.clone()
+                if name=="cli_tests" { expected="  pass: inline_test\n1/1 tests passed\n" }
+                if name=="library_tests" { expected="  pass: library_test\n1/1 tests passed\n" }
+                mut output:=format("bin/test-",backend,"-",width)
+                // FASM invokes its assembler with argv; exercise its existing
+                // space-containing output support separately from C's shell.
+                if backend=="fasm" { output=format("bin/test output-",width) }
+                command:=Cmd.new(compiler,"test",format("--backend=",backend),format("--usize=",width),"-o",output,format(name,".til"))
+                command.cwd(work).capture()
+                status:=command.run()
+                expect(status==0,name,backend,width,command.out(),command.err())
+                expect(command.err()==format("=== interpret ===\n",expected,"=== compile + run ===\n",expected),command.err())
+                expect(File.is_file(format(work,"/",output)),"test executable missing")
+            }
         }
     }
-    expect(cases>0,"no shared interface tests discovered")
-    path := format(work,"/interfaces.til")
-    File.writefile(path,format(source.replace("mode test\n","mode cli\n")
-        .replace(":= test() {",":= proc() { noop_proc()"),calls,"}\n"))
-    check_shared(compiler,work,path)
+    check_shared(compiler,work,format(work,"/tests.til"))
+    check_shared(compiler,work,format(work,"/empty_tests.til"))
+    check_shared(compiler,work,format(work,"/failing_tests.til"),1)
+    artifact:=format(work,"/bin/interpreter-failure")
+    File.remove(artifact)
+    fail:=Cmd.new(compiler,"test","--backend=fasm","-o","bin/interpreter-failure","failing_tests.til")
+    fail.cwd(work).capture()
+    fail_status:=fail.run()
+    expect(fail_status==1,fail.out(),fail.err())
+    expect(fail.err()=="=== interpret ===\n  pass: before\n",fail.err())
+    expect(fail.out()=="native-test: panic: expected failure\n",fail.out())
+    expect(File.is_file(artifact).not(),"compiled after an interpreter failure")
 }
 
 check_rebuild := proc(compiler: Str, work: Str) {
@@ -126,12 +158,12 @@ main := proc(compiler_arg: Str) {
     expect(build_status == 0, build.out(), build.err())
     run := Cmd.new(format(work, "/bin/custom output"))
     expect(run.run() == 0, "empty main failed")
-    for source in array(Str, "test/templeos/holyc_continue.til", "examples/fizzbuzz.til", "examples/templeos_scalars.til", "test/scalar_control.til", "examples/templeos_calls.til", "test/aggregate_control.til", "test/reference_rebinding.til") {
+    for source in array(Str, "test/templeos/holyc_continue.til", "examples/fizzbuzz.til", "examples/templeos_scalars.til", "test/scalar_control.til", "examples/templeos_calls.til", "test/aggregate_control.til", "test/reference_rebinding.til", "test/interfaces.til", "test/test_in_namespace.til") {
         check_shared(compiler, work, source)
     }
     check_shared(compiler, work, "test/script_bang_panic_msg.til", 1)
     check_shared(compiler, work, "test/script_bang_store_panic_msg.til", 1)
-    check_interfaces(compiler,work)
+    check_test_command(compiler,work)
     check_rebuild(compiler, work)
     println("fasm_native PASS")
 }

@@ -1,5 +1,5 @@
 #+TITLE: src/std/sys.til
-#+SUBTITLE: til 0.0.1-5c5675e91
+#+SUBTITLE: til 0.0.1-0fafe1c4e
 #+OPTIONS: toc:t
 
 * system_cmd
@@ -47,6 +47,9 @@ ext_proc sleep_ms(shallow ms: I64)
 :CUSTOM_ID: til.src.std.sys.file_mtime
 :group: Standard library
 :END:
+
+Last modification time of ~path~ in nanoseconds since the Unix epoch, or
+-1 when it cannot be stat'ed. The resolution is the file system's.
 
 #+begin_src til
 ext_proc file_mtime(path: Str) returns shallow I64

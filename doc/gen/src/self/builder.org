@@ -1,5 +1,5 @@
 #+TITLE: src/self/builder.til
-#+SUBTITLE: til 0.0.1-5c5675e91
+#+SUBTITLE: til 0.0.1-0fafe1c4e
 #+OPTIONS: toc:t
 
 * fasm_prepare
@@ -10,6 +10,36 @@
 
 #+begin_src til
 proc fasm_prepare(root: Str, required: Bool) returns I32
+#+end_src
+
+* set_reuse_stamps
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.builder.set_reuse_stamps
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc set_reuse_stamps(mut lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str, target: Target, backend: Str, cc_override: Str, asan: Bool, prof: Bool)
+#+end_src
+
+* translation_is_current
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.builder.translation_is_current
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc translation_is_current(lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str, target: Target) returns Bool
+#+end_src
+
+* reuse_translation
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.builder.reuse_translation
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc reuse_translation(mut lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str, argv: Vec__Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32
 #+end_src
 
 * cmd_translate
@@ -59,7 +89,7 @@ proc cmd_run(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv: V
 :END:
 
 #+begin_src til
-proc cmd_test_build_run(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32
+proc cmd_test_build_run(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool, backend: Str = "c", functions: Set__Str = Set__Str.new(), argv: Vec__Str = Vec__Str.new()) returns I32
 #+end_src
 
 * DocEntry

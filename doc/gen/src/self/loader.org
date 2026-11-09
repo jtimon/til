@@ -1,5 +1,5 @@
 #+TITLE: src/self/loader.til
-#+SUBTITLE: til 0.0.1-5c5675e91
+#+SUBTITLE: til 0.0.1-0fafe1c4e
 #+OPTIONS: toc:t
 
 * REPL_DOC_INDEX
@@ -131,7 +131,10 @@ struct LoadedProgram {
     mut macos_frameworks : Str
     mut link_c_paths : Str
     mut compiler_revision : Str
+    mut translation_stamp : Str
+    mut executable_stamp : Str
     mut asan_build : Bool
+    mut jni_build : Bool
     mut mlir_runtime : Bool
     mut run_tests : Bool
     mut load_errors : I32
@@ -360,6 +363,16 @@ func lazy_recursive_variadic_def(fdef: Expr, symbols: SymbolPool) returns Bool
 
 #+begin_src til
 func expand_lazy_in_expr(mut e: Expr, scope: TypeScope, depth: I32, ctx: Context)
+#+end_src
+
+* register_target_int_aliases
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.loader.register_target_int_aliases
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func register_target_int_aliases(mut lp: LoadedProgram)
 #+end_src
 
 * type_program_errors

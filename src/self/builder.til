@@ -1037,8 +1037,8 @@ priv build_program := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str,
     target: Target, cc_override: Str, asan: Bool, prof: Bool, backend: Str,
     functions: Set(Str), argv: Vec(Str)) returns I32 {
     if backend == "fasm" {
-        if lp.cur_mode.is_library || (lp.mode_str != "cli" && lp.mode_str != "script") {
-            println("error: FASM backend currently supports mode cli or script only")
+        if lp.run_tests.not() && (lp.cur_mode.is_library || (lp.mode_str != "cli" && lp.mode_str != "script")) {
+            println("error: FASM backend currently supports mode cli or script only unless running tests")
             return 1
         }
         if argv.len() > 0 { println("error: FASM entry point takes no arguments"); return 1 }
@@ -1059,7 +1059,7 @@ priv build_program := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str,
         if lp.mode_str == "theme" || backend != "c" { theme_output = custom_bin.clone() }
     } else { theme_output = custom_bin.clone() }
     mut paths := derive_build_paths(lp, theme_output, custom_c, target, backend)
-    if command == "test" { paths.do_lib = false }
+    if command == "test" || backend.eq("fasm").and(lp.run_tests) { paths.do_lib = false }
     make_build_dirs(paths)
     mut result := translate_ast(lp, paths, target, functions)
     if result != 0 { return result }
@@ -1567,10 +1567,13 @@ cmd_run := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, user_argv
 
 // Compile and run a test binary. Forces do_lib=false so library-mode
 // files still produce an executable -- emit_test_main is gated on
-// lp.run_tests, so the C output has a real main().
-cmd_test_build_run := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
+// lp.run_tests, so the selected backend emits its native test entry point.
+cmd_test_build_run := proc(mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool,
+    backend: Str = "c", functions: Set(Str) = Set(Str).new(), argv: Vec(Str) = Vec(Str).new()) returns I32 {
+    mut compiled_argv := Vec(Str).new()
+    if backend == "fasm" { compiled_argv = argv.clone() }
     return build_program(lp, "test", custom_bin, custom_c, target, cc_override, asan, prof,
-        "c", Set(Str).new(), Vec(Str).new())
+        backend, functions, compiled_argv)
 }
 
 // --- til doc <path> -- documentation generator ---

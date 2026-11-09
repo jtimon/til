@@ -859,9 +859,9 @@
 
 ** Experimental FASM backend
 
-  ~--backend=fasm~ selects native assembly for ~translate~, ~build~ and ~run~
-  on Linux x86-64 hosts and targets. The subset accepts ~mode script~ and
-  ~mode cli~ with a no-argument, void ~main~, ordinary functions with supported
+  ~--backend=fasm~ selects native assembly for ~translate~, ~build~, ~run~ and
+  ~test~ on Linux x86-64 hosts and targets. The subset accepts ~mode test~,
+  ~mode script~ and ~mode cli~ with a no-argument, void ~main~, ordinary functions with supported
   lowered bodies, up to six runtime arguments (including lowered error slots),
   scalar/struct parameters, value locals, local assignments, calls, returns, if/else and
   while loops. Range for loops use the shared frontend lowering; nested
@@ -880,11 +880,25 @@
   The vendored FASM writes a standalone ELF64 executable to ~bin/<source>~
   or the existing ~-o~ override. There is no C compiler, libc or linker in
   that path. Internal calls use SysV integer registers and aligned frames;
-  this does not yet expose a library ABI. Libraries, program arguments,
+  this does not yet expose a library ABI. Library output, program arguments,
   other modes, ~-c~, ~--cc~, ~--asan~, ~--prof~, ~--cpu~, ~--opt~, ~link_c~
   and link flags are rejected. See README for the assembler bootstrap.
 
-  After bootstrap, the vendor build and FASM build/run paths refresh a stale
+  Native test entry points run user-unit test declarations in dependency and
+  declaration order, including struct/enum namespace tests. Initialization runs
+  first. Each completed case writes the same stderr pass line as C, followed by
+  the same count summary or "no tests found" report. Failures terminate before
+  a pass line or later tests. A mode-test program needs no source main.
+
+  ~test --backend=fasm~ uses the shared interpret-then-compile/run workflow,
+  stopping before compilation on an interpreter failure. It forces native
+  tests for CLI/library sources too, selecting test declarations rather than
+  main. The executable follows normal source-relative paths and the ~-o~ override.
+  Namespace-test roots retain their containing type even when no test body
+  refers to it; otherwise the scavenger could discard that selected test.
+  Explicit ~--backend=c~ also works with ~test~; MLIR remains translation/build/run only.
+
+  After bootstrap, the vendor build and FASM build/run/test paths refresh a stale
   ~vendor/fasm/fasm~ from its assembly/includes, using the existing executable.
   The replacement is built in checkout-local ~tmp/~ and renamed into place
   after success. Installed compilers carry the prebuilt assembler/license at
@@ -1093,7 +1107,7 @@
     directories and other failures are errors.
 
   Floating-point operations, general runtime-selected method/reflection lookup,
-  unsupported external runtime services and mode test remain outside this
+  unsupported external runtime services remain outside this
   subset. Array methods are no longer restricted to compiler-generated
   variadic collectors.
 
@@ -1118,15 +1132,20 @@
   wrappers. The existing imported-call and bang-panic fixtures run unchanged.
   Aggregate translation also runs in the assembler-free options test.
 
-  ~fasm_native::check_interfaces~ runs every case in ~test/interfaces.til~
-  through interpretation, C and FASM at both widths. Its temporary CLI harness
-  replaces test entry markers with proc/noop_proc markers and invokes the
-  original assertions in source order; it does not duplicate their bodies or
-  require native mode-test entry support. The corpus covers struct/enum dispatch,
+  The native driver runs ~test/interfaces.til~ directly through interpretation,
+  C and FASM at both widths, without a rewritten CLI adapter. The corpus covers struct/enum dispatch,
   defaults/overrides, owned receivers, mutation, borrowed returns, throws,
   multiple Self arguments, returned Self, defaults/varargs, callable methods,
   nested Self applications, collections and bounded generators. Interface
   translation is also checked without an assembler in ~fasm_options~.
+
+  ~fasm_native::check_test_command~ checks exact reports and execution order for
+  imported/top-level/namespace tests, runtime initialization, forced CLI/library
+  tests, empty suites, custom executable paths and failure propagation. It also
+  verifies that interpretation failure prevents compilation. The ordinary
+  ~test/test_in_namespace.til~ regression includes otherwise-unreferenced struct
+  and enum containers, and ~fasm_options~ checks native test translation and a
+  compiled-only FASM rejection without requiring an assembler.
 
   ~fasm_runtime::check_interface_allocations~ verifies zero native allocations
   for borrowed interface handles, two payload allocations/frees for owned

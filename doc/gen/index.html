@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-5c5675e91</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-0fafe1c4e</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="src/core/str.html">src/core/str.til</a></li>
 <li><a href="src/core/dyn.html">src/core/dyn.til</a></li>
@@ -2426,6 +2426,7 @@ namespace:
     mut is_enum : Bool
     mut is_funcptr : Bool
     mut is_cptr : Bool
+    mut owned_scalar_size : USize
 namespace:
     func eq(a: FieldLayout, b: FieldLayout) returns Bool
     func to_str(self: FieldLayout) returns Str
@@ -6794,6 +6795,10 @@ namespace:
 </li>
 <li><a href="src/self/context.html#til.src.self.context.realpath_str">realpath_str</a>
 <pre><code class="language-til">ext_proc (path: Str) returns Str
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.get_exe_path">get_exe_path</a>
+<pre><code class="language-til">ext_proc () returns Str
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.compiler_src_prefix">compiler_src_prefix</a>
@@ -12605,7 +12610,10 @@ namespace:
     mut macos_frameworks : Str
     mut link_c_paths : Str
     mut compiler_revision : Str
+    mut translation_stamp : Str
+    mut executable_stamp : Str
     mut asan_build : Bool
+    mut jni_build : Bool
     mut mlir_runtime : Bool
     mut run_tests : Bool
     mut load_errors : I32
@@ -12720,6 +12728,10 @@ namespace:
 </li>
 <li><a href="src/self/loader.html#til.src.self.loader.expand_lazy_in_expr">expand_lazy_in_expr</a>
 <pre><code class="language-til">func (mut e: Expr, scope: TypeScope, depth: I32, ctx: Context)
+</code></pre>
+</li>
+<li><a href="src/self/loader.html#til.src.self.loader.register_target_int_aliases">register_target_int_aliases</a>
+<pre><code class="language-til">func (mut lp: LoadedProgram)
 </code></pre>
 </li>
 <li><a href="src/self/loader.html#til.src.self.loader.type_program_errors">type_program_errors</a>
@@ -15039,6 +15051,18 @@ namespace:
 <pre><code class="language-til">proc (root: Str, required: Bool) returns I32
 </code></pre>
 </li>
+<li><a href="src/self/builder.html#til.src.self.builder.set_reuse_stamps">set_reuse_stamps</a>
+<pre><code class="language-til">proc (mut lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str, target: Target, backend: Str, cc_override: Str, asan: Bool, prof: Bool)
+</code></pre>
+</li>
+<li><a href="src/self/builder.html#til.src.self.builder.translation_is_current">translation_is_current</a>
+<pre><code class="language-til">proc (lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str, target: Target) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/builder.html#til.src.self.builder.reuse_translation">reuse_translation</a>
+<pre><code class="language-til">proc (mut lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str, argv: Vec__Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32
+</code></pre>
+</li>
 <li><a href="src/self/builder.html#til.src.self.builder.cmd_translate">cmd_translate</a>
 <pre><code class="language-til">proc (mut lp: LoadedProgram, custom_output: Str, custom_c: Str, target: Target, backend: Str = &quot;c&quot;, functions: Set__Str = Set__Str.new(), argv: Vec__Str = Vec__Str.new()) returns I32
 </code></pre>
@@ -15056,7 +15080,7 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.cmd_test_build_run">cmd_test_build_run</a>
-<pre><code class="language-til">proc (mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32
+<pre><code class="language-til">proc (mut lp: LoadedProgram, custom_bin: Str, custom_c: Str, target: Target, cc_override: Str, asan: Bool, prof: Bool, backend: Str = &quot;c&quot;, functions: Set__Str = Set__Str.new(), argv: Vec__Str = Vec__Str.new()) returns I32
 </code></pre>
 </li>
 <li><a href="src/self/builder.html#til.src.self.builder.DocEntry">DocEntry</a>
@@ -15753,10 +15777,6 @@ namespace:
 </code></pre>
 </li>
 <li><a href="src/self/interpreter.html#til.src.self.interpreter.ffi_last_error">ffi_last_error</a>
-<pre><code class="language-til">ext_proc () returns Str
-</code></pre>
-</li>
-<li><a href="src/self/interpreter.html#til.src.self.interpreter.get_exe_path">get_exe_path</a>
 <pre><code class="language-til">ext_proc () returns Str
 </code></pre>
 </li>
@@ -16902,6 +16922,8 @@ namespace:
     mut early_return : Bool
     mut asan : Bool
     mut prof : Bool
+    mut force_rebuild : Bool
+    mut jni : Bool
     mut usize_bits : I64
     mut check_unused_imports : Bool
     own mut extra_modes : Vec__Str
@@ -17718,6 +17740,14 @@ namespace:
 <pre><code class="language-til">func (text: Str) returns Str
 </code></pre>
 </li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__MlirCallable">Vec__MlirCallable</a>
+<pre><code class="language-til"> is a None
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__UPtr_MlirCallable">Map__UPtr_MlirCallable</a>
+<pre><code class="language-til"> is a None
+</code></pre>
+</li>
 <li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Option__MlirLlvmSignature">Option__MlirLlvmSignature</a>
 <pre><code class="language-til"> is a None
 </code></pre>
@@ -17888,6 +17918,213 @@ namespace:
 <pre><code class="language-til">func (own self: Option__Bool) returns Bool
 </code></pre>
 </li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func with_capacity(n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func len(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns USize
+    func clear(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func delete_marked(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func append(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func move_to(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, mut dest: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func move_from(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func unsafe_get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, shallow i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirCallable throws OutOfBounds
+    func pop(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func remove_at(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func truncate(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, mut src: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize)
+    func delete(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, call_free: Bool = true)
+    func clone(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func size() returns USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.new">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.new</a>
+<pre><code class="language-til">func () returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.with_capacity">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.clear">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.clear</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.delete_marked">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, marks: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.push">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.push</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.append">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.append</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.take">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.take</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.move_to">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.move_to</a>
+<pre><code class="language-til">func (own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, mut dest: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.move_from">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.unsafe_get">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirCallable
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.get">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.get</a>
+<pre><code class="language-til">func (self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, shallow i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirCallable throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.pop">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.pop</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns priv___src_self_codegen_mlir_codegen_til__MlirCallable
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.remove_at">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.take_prefix">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.truncate">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, n: USize)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.unsafe_set">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.set">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.set</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.push_take">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, mut src: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, i: USize)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.delete">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.delete</a>
+<pre><code class="language-til">func (own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, call_free: Bool = true)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.clone">Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable.clone</a>
+<pre><code class="language-til">func (self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable">Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable</a>
+<pre><code class="language-til">struct {
+    mut keys : Vec__UPtr
+    mut values : Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
+namespace:
+    func new() returns Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func with_capacity(n: USize) returns Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func len(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns USize
+    func clear(mut self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func has(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr) returns Bool
+    func get(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr) returns ref priv___src_self_codegen_mlir_codegen_til__MlirCallable throws KeyNotFound
+    func set(mut self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+    func remove(mut self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr) returns Bool
+    func delete(own self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, call_free: Bool = true)
+    func clone(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable
+    func size() returns USize
+    func hash(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, hasher: HashFn) returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.new">Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.new</a>
+<pre><code class="language-til">func () returns Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.with_capacity">Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.clear">Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.clear</a>
+<pre><code class="language-til">func (mut self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.has">Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.has</a>
+<pre><code class="language-til">func (self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.get">Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.get</a>
+<pre><code class="language-til">func (self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr) returns ref priv___src_self_codegen_mlir_codegen_til__MlirCallable throws KeyNotFound
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.set">Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.set</a>
+<pre><code class="language-til">func (mut self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr, own val: priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.remove">Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable.remove</a>
+<pre><code class="language-til">func (mut self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, key: UPtr) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_UPtr">Map__Str_UPtr</a>
+<pre><code class="language-til">struct {
+    mut keys : Vec__Str
+    mut values : Vec__UPtr
+namespace:
+    func new() returns Map__Str_UPtr
+    func with_capacity(n: USize) returns Map__Str_UPtr
+    func len(self: Map__Str_UPtr) returns USize
+    func clear(mut self: Map__Str_UPtr)
+    func has(self: Map__Str_UPtr, key: Str) returns Bool
+    func get(self: Map__Str_UPtr, key: Str) returns ref UPtr throws KeyNotFound
+    func set(mut self: Map__Str_UPtr, key: Str, own val: UPtr)
+    func remove(mut self: Map__Str_UPtr, key: Str) returns Bool
+    func delete(own self: Map__Str_UPtr, call_free: Bool = true)
+    func clone(self: Map__Str_UPtr) returns Map__Str_UPtr
+    func size() returns USize
+    func hash(self: Map__Str_UPtr, hasher: HashFn) returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_UPtr.new">Map__Str_UPtr.new</a>
+<pre><code class="language-til">func () returns Map__Str_UPtr
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_UPtr.with_capacity">Map__Str_UPtr.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Map__Str_UPtr
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_UPtr.clear">Map__Str_UPtr.clear</a>
+<pre><code class="language-til">func (mut self: Map__Str_UPtr)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_UPtr.has">Map__Str_UPtr.has</a>
+<pre><code class="language-til">func (self: Map__Str_UPtr, key: Str) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_UPtr.get">Map__Str_UPtr.get</a>
+<pre><code class="language-til">func (self: Map__Str_UPtr, key: Str) returns ref UPtr throws KeyNotFound
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_UPtr.set">Map__Str_UPtr.set</a>
+<pre><code class="language-til">func (mut self: Map__Str_UPtr, key: Str, own val: UPtr)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_UPtr.remove">Map__Str_UPtr.remove</a>
+<pre><code class="language-til">func (mut self: Map__Str_UPtr, key: Str) returns Bool
+</code></pre>
+</li>
 <li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature">Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature</a>
 <pre><code class="language-til">enum {
     None
@@ -17913,6 +18150,54 @@ namespace:
 </li>
 <li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature.take">Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature.take</a>
 <pre><code class="language-til">func (own self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi">Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi</a>
+<pre><code class="language-til">struct {
+    mut keys : Vec__Str
+    mut values : Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+namespace:
+    func new() returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func with_capacity(n: USize) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func len(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns USize
+    func clear(mut self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func has(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str) returns Bool
+    func get(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str) returns ref priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi throws KeyNotFound
+    func set(mut self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func remove(mut self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str) returns Bool
+    func delete(own self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, call_free: Bool = true)
+    func clone(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func size() returns USize
+    func hash(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, hasher: HashFn) returns U64
+}
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.new">Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.new</a>
+<pre><code class="language-til">func () returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.with_capacity">Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clear">Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clear</a>
+<pre><code class="language-til">func (mut self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.has">Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.has</a>
+<pre><code class="language-til">func (self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.get">Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.get</a>
+<pre><code class="language-til">func (self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str) returns ref priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi throws KeyNotFound
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.set">Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.set</a>
+<pre><code class="language-til">func (mut self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.remove">Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.remove</a>
+<pre><code class="language-til">func (mut self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, key: Str) returns Bool
 </code></pre>
 </li>
 <li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding">Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding</a>
@@ -18026,8 +18311,127 @@ namespace:
 <pre><code class="language-til">func (self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
 </code></pre>
 </li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func with_capacity(n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func len(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns USize
+    func clear(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func delete_marked(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, marks: Dynamic)
+    func push(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func append(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func move_to(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, mut dest: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func move_from(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func unsafe_get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func get(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, shallow i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi throws OutOfBounds
+    func pop(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func remove_at(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func truncate(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, n: USize)
+    func unsafe_set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+    func set(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) throws OutOfBounds
+    func push_take(mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, mut src: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize)
+    func delete(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, call_free: Bool = true)
+    func clone(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+    func size() returns USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.new">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.new</a>
+<pre><code class="language-til">func () returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.with_capacity">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clear">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clear</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.delete_marked">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, marks: Dynamic)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.push">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.push</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.append">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.append</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.take">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.take</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.move_to">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.move_to</a>
+<pre><code class="language-til">func (own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, mut dest: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.move_from">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, own other: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.unsafe_get">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.get">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.get</a>
+<pre><code class="language-til">func (self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, shallow i: USize) returns ref priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.pop">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.pop</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.remove_at">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.take_prefix">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, n: USize) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.truncate">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, n: USize)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.unsafe_set">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.set">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.set</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize, own val: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) throws OutOfBounds
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.push_take">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, mut src: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, i: USize)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.delete">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.delete</a>
+<pre><code class="language-til">func (own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, call_free: Bool = true)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clone">Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi.clone</a>
+<pre><code class="language-til">func (self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
+</code></pre>
+</li>
 <li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.adopt__priv___src_self_codegen_mlir_codegen_til__MlirBinding">adopt__priv___src_self_codegen_mlir_codegen_til__MlirBinding</a>
 <pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_codegen_mlir_codegen_til__MlirBinding)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.adopt__priv___src_self_codegen_mlir_codegen_til__MlirCallable">adopt__priv___src_self_codegen_mlir_codegen_til__MlirCallable</a>
+<pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_codegen_mlir_codegen_til__MlirCallable)
+</code></pre>
+</li>
+<li><a href="src/self/codegen/mlir_codegen.html#til.src.self.codegen.mlir_codegen.adopt__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi">adopt__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi</a>
+<pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi)
 </code></pre>
 </li>
 <li><a href="src/self/codegen/fasm_codegen.html#til.src.self.codegen.fasm_codegen.fasm_source_declarations">fasm_source_declarations</a>

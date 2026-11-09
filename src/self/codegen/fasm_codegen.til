@@ -2448,6 +2448,53 @@ priv fasm_function := proc(name: Str, mut program: FasmProgram, mut lp: LoadedPr
     return format(program.labels[name], ":\n    push rbp\n    mov rbp, rsp\n    sub rsp, ", size.to_str(), "\n", state.text, state.data)
 }
 
+priv fasm_test_report := proc(message: Str, mut state: FasmState, mut lp: LoadedProgram) {
+    mut value := Expr.new(own NodeType.Literal(Literal.Str(message.clone())), 0, 0)
+    value.set_til_type(type_from_name_init_name("Str", lp.ctx.scope, lp.ctx.symbols))
+    fasm_expr(value, state, lp)
+    fasm_emit(state, "mov rdi, rax\n    call rt_eprint_single")
+}
+
+priv fasm_test_entry := proc(mut program: FasmProgram, mut lp: LoadedProgram) returns Str {
+    mut state := FasmState(program=program)
+    state.prefix = "test_main"
+    mut count:USize=0
+    // Match C and interpretation: user units in dependency order, top-level
+    // tests and struct/enum namespace tests in their declaration order.
+    for unit:ProgramUnit in lp.units {
+        context_enter_file(lp.ctx, unit.path)
+        for stmt:Expr in lp.ctx.imported[unit.path].ast.children {
+            if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) { continue }
+            ref declaration:Declaration=decl_of(stmt)
+            ref value:Expr=stmt.children[0]
+            if value.node_type.is(NodeType.FuncDef) {
+                if funcdef_of(value).sig.func_type.is(FuncType.Test).not() { continue }
+                fasm_emit(state,format("call ",fasm_request(declaration.name,program)))
+                fasm_test_report(format("  pass: ",declaration.name,"\n"),state,lp)
+                count++
+            } else if value.node_type.is(NodeType.StructDef).or(value.node_type.is(NodeType.EnumDef)) {
+                ref members:Vec(Declaration)=def_ns_decls(value)
+                for i in 0..members.len() {
+                    ref member:Declaration=members[i]
+                    if member.default_value.is_none() { continue }
+                    ref body:Expr=member.default_expr()
+                    if body.node_type.is(NodeType.FuncDef).not() { continue }
+                    if funcdef_of(body).sig.func_type.is(FuncType.Test).not() { continue }
+                    ref name:Str=def_ns_name_at(value,i)
+                    fasm_emit(state,format("call ",fasm_request(format(declaration.name,"_",name),program)))
+                    fasm_test_report(format("  pass: ",declaration.name,".",name,"\n"),state,lp)
+                    count++
+                }
+            }
+        }
+    }
+    if count == 0 { fasm_test_report("no tests found\n",state,lp) }
+    else { fasm_test_report(format(count.to_str(),"/",count.to_str()," tests passed\n"),state,lp) }
+    bytes:=((state.slots*8+15)/16)*16
+    return format(state.prefix,":\n    push rbp\n    mov rbp, rsp\n    sub rsp, ",bytes.to_str(),"\n",
+        state.text,"    leave\n    ret\n",state.data)
+}
+
 fasm_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_names: Set(Str)) returns I32 {
     context_enter_file(lp.ctx, lp.units[lp.units.len() - 1].path)
     mut program := FasmProgram()
@@ -2458,8 +2505,8 @@ fasm_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_names: S
     for unit : ProgramUnit in lp.units {
         fasm_collect(lp.ctx.imported[unit.path].ast, unit.path, program)
     }
-    script := lp.mode_str == "script"
-    if script.not() && program.definitions.has("main").not() { println("error: FASM backend requires a no-argument main"); return 1 }
+    script := lp.mode_str.eq("script").and(lp.run_tests.not())
+    if script.or(lp.run_tests).not() && program.definitions.has("main").not() { println("error: FASM backend requires a no-argument main"); return 1 }
     mut width := "8"
     mut str_size := "24"
     mut cap_offset := "16"
@@ -2468,7 +2515,9 @@ fasm_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_names: S
     if lp.ctx.target_usize_bytes == 4 { width = "4"; str_size = "16"; cap_offset = "12"; cap_view = "0xfffffffe"; cap_lit = "0xffffffff" }
     runtime := format(lp.ctx.import_support_dir, "/src/self/codegen/ext.fasm")
     mut entry := "script_main"
-    if script.not() { entry = fasm_request("main", program) }
+    mut test_entry := ""
+    if lp.run_tests { entry = "test_main"; test_entry = fasm_test_entry(program,lp) }
+    else if script.not() { entry = fasm_request("main", program) }
     mut initialization := ""
     mut initializers := ""
     paths := lp.unit_paths()
@@ -2500,7 +2549,7 @@ fasm_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_names: S
     mut text := format("format ELF64 executable 3\nentry start\nUSIZE_BYTES = ", width, "\nSTR_SIZE = ", str_size, "\nSTR_CAP = ", cap_offset,
         "\nCAP_VIEW = ", cap_view, "\nCAP_LIT = ", cap_lit,
         "\nsegment readable executable\ninclude '", runtime.replace("'", "''"), "'\nsegment readable executable\nstart:\n", initialization,
-        "    call ", entry, "\n    xor edi, edi\n    jmp rt_exit\n", initializers)
+        "    call ", entry, "\n    xor edi, edi\n    jmp rt_exit\n", initializers,test_entry)
     mut next : USize = 0
     while next < program.pending.len() {
         name := program.pending[next].clone()

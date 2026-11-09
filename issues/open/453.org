@@ -503,6 +503,42 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   four allocation-probe sources passed focused C ~--asan --usize=64~ runs
   without sanitizer diagnostics. Native emitted assembly is not ASAN-instrumented.
 
+**** Native test entry points and test command
+
+  On base ~0fafe1c4e~, mode-test programs translate/build/run directly through
+  FASM. The native entry scans the same user-unit test metadata as C and
+  interpretation, in dependency/declaration order, including struct/enum
+  namespace members. Runtime initialization precedes the cases; stderr pass
+  lines, count/empty reports and fail-fast behavior match C.
+
+  ~test --backend=fasm~ now routes its compiled half through the shared builder
+  with the selected backend. Interpretation still runs first and failure
+  prevents compilation. Forced tests work for CLI/library sources without
+  running main, and use the existing executable paths and -o override.
+  The interface CLI-source adapter is removed: the original 61-case interface
+  file and the expanded namespace regression execute directly at both widths.
+
+  A shared discovery defect surfaced in the namespace fixture: roots kept a
+  no-argument test's qualified member but not its containing type, so an
+  otherwise-unused struct/enum and all its tests were swept. Test roots now
+  keep those containers too. ~test/test_in_namespace.til~ pins both cases with
+  a final counter assertion; the ordinary interpreter/C suite now runs 9/9
+  cases in that file instead of silently omitting the unused containers.
+
+  ~fasm_native::check_test_command~ compares exact C/FASM reports for imported
+  and local tests, initialization order, forced CLI/library tests and custom
+  output, plus empty suites and native/interpreter failure propagation.
+  ~fasm_options~ checks native test entry emission without an assembler, and
+  verifies that a test passing interpretation still rejects an unsupported
+  FASM operation in its compiled half rather than silently compiling as C.
+
+  Verification: ~make clean && make test~ passed 558/558. Both optional FASM
+  drivers passed; ~test --backend=fasm~ ran all 61 interface cases at each USize
+  width with matching interpretation/native reports. A focused
+  ~test --backend=c --asan --usize=64 test/test_in_namespace.til~ passed both
+  9-case phases without sanitizer diagnostics. Native assembly is not
+  ASAN-instrumented.
+
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
   repeated work. In-process code allocation, relocation, lifetime management
