@@ -28,6 +28,27 @@ C and interpretation at both widths. It includes subnormals, largest finite
 values, signed zeros, infinities and signed NaNs. No before/after allocation
 or elapsed-time speedup is claimed for these newly supported paths.
 
+** Single-probe constructor ownership fields (2026-11-09)
+
+Base: ~389200c8c~. The per-name ownership predicate and its fact-collecting
+mirror both searched a named constructor field with ~has()~ and then ~[]~.
+Both now use ~get()?~ once and skip the argument on KeyNotFound, preserving
+the previous missing-field behavior and positional-argument path.
+
+Generated C confirms the reduction in both scanners: each emitted range-loop
+direction has one get call instead of has followed by get. This halves the
+binary searches for a present named field; it is not a whole-compiler timing
+claim. Compiler self-translation remains byte-identical, including the forward
+header. The ownership fixture's C differs only in the expected compiler-
+identity freshness-stamp footer; its header and C body are identical.
+
+~test/ownership_shapes.til::named_ctor_reordered_owned_and_ref_fields~ exercises
+reversed argument order, an owned field beside a borrowed field, mutation seen
+through the borrow, and paths with and without the constructor transfer. All
+49 ownership tests passed interpreted and ASAN-compiled. The clean full suite
+passed 559/559. Elapsed-time comparisons are left to the merge run while other
+sessions are active.
+
 ** FNV-1a block addressing (2026-11-09)
 
 Base: ~0fafe1c4e~. Keep the four-byte unroll and the exact FNV-1a byte order,

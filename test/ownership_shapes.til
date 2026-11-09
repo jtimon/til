@@ -82,6 +82,26 @@ own_local_ctor_straight := test() {
     assert_eq(USize, h.s.len(), 5)
 }
 
+named_ctor_reordered_owned_and_ref_fields := test() {
+    MixedHolder := struct {
+        owned := ""
+        ref borrowed : Str
+    }
+    for path in 0..2 {
+        mut borrowed := heap415("borrowed")
+        owned := heap415("owned")
+        if path == 1 {
+            // Argument order is opposite field order: transfer only owned.
+            holder := MixedHolder(borrowed = borrowed, owned = owned)
+            borrowed = heap415("updated")
+            assert_eq(Str, holder.owned, "owned")
+            assert_eq(Str, holder.borrowed, "updated")
+        }
+        if path == 0 { assert_eq(Str, borrowed, "borrowed") }
+        else { assert_eq(Str, borrowed, "updated") }
+    }
+}
+
 /// Straight-line: an `own` argument consumes an owned local.
 own_local_own_arg_straight := test() {
     lit := "hello"

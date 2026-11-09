@@ -12128,8 +12128,9 @@ priv fcall_has_own_arg := func(fcall: Expr, var_name: Str, scope: TypeScope, sym
                             mut fd_idx : I32 = ci.sub(1).to_i32()
                             switch arg.node_type {
                             case .NamedArg(fhoa_nan):
-                                fd_idx = -1
-                                if fhoa_sdd.fields_index.has(fhoa_nan) { fd_idx = fhoa_sdd.fields_index[fhoa_nan].to_i32() }
+                                ref field_idx : USize = fhoa_sdd.fields_index.get(fhoa_nan)?
+                                catch (e: KeyNotFound) { continue }
+                                fd_idx = field_idx.to_i32()
                             case:
                             }
                             if fd_idx < 0 { continue }
@@ -12433,8 +12434,9 @@ priv fcall_collect_own_arg_names := func(fcall: Expr, scope: TypeScope, fi: Fact
                             mut fd_idx : I32 = ci.sub(1).to_i32()
                             switch arg.node_type {
                             case .NamedArg(fcoa_nan):
-                                fd_idx = -1
-                                if fcoa_sdd.fields_index.has(fcoa_nan) { fd_idx = fcoa_sdd.fields_index[fcoa_nan].to_i32() }
+                                ref field_idx : USize = fcoa_sdd.fields_index.get(fcoa_nan)?
+                                catch (e: KeyNotFound) { continue }
+                                fd_idx = field_idx.to_i32()
                             case:
                             }
                             if fd_idx < 0 { continue }
