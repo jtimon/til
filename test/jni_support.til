@@ -67,8 +67,12 @@ jni_run_asan := proc(java_home: Str, class_path: Str, main_class: Str) returns S
     find.capture_out()
     if find.run() != 0 { panic("cc cannot locate libasan.so") }
     // One suppressions file per caller: the two tests run concurrently.
+    // libzip.so: JDK 17 leaves the native state of java.util.zip.Inflater
+    // objects (reading the jar) to a Cleaner that never runs before exit, so
+    // LeakSanitizer reports 40040 bytes from Java_java_util_zip_Inflater_*
+    // (CI's Temurin 17; JDK 21 frees them).
     supp := format("tmp/", main_class, ".lsan.supp")
-    File.writefile(supp, "leak:libjvm.so\nleak:libjli.so\nleak:libjava.so\n")
+    File.writefile(supp, "leak:libjvm.so\nleak:libjli.so\nleak:libjava.so\nleak:libzip.so\n")
     run := Cmd.new(format(java_home, "/bin/java"), "-Djava.library.path=gen/lib", "-cp", class_path, main_class)
     run.env("LD_PRELOAD", find.out().trim())
     run.env("ASAN_OPTIONS", "detect_leaks=1:handle_segv=0:allow_user_segv_handler=1:detect_odr_violation=0")
