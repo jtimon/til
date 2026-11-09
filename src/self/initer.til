@@ -1000,8 +1000,7 @@ priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U
             // #320: a ref payload is borrowed -- the enum does not own the
             // pointee, so delete must not touch it.
             if enum_variant_payload_ref(enum_def, j.to_i32()) { continue }
-            vt_to_str_resolved := type_from_name_init_name(vtype, scope, symbols)
-            if vt_to_str_resolved.is_funcptr().or(vt_to_str_resolved.is(Type.Body)) { continue }
+            payload_type := type_from_name_init_name(vtype, scope, symbols)
             // #326: an INLINE payload whose type needs no cleanup makes
             // the whole arm -- a tag compare, a payload pointer, the call
             // -- do nothing. In a niche's pointer slot the payload IS a
@@ -1026,7 +1025,11 @@ priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U
             // `self` would stay untyped -> `offsetof(, data)`. Set the receiver's
             // enum type here; the switch/clone/eq paths get it via Decl inference.
             self_arg.set_til_type(Type.EnumSym(symbols.intern(ename)))
-            mut gc := make_get_payload_fcall(own self_arg, type_from_name_init_name(vtype, scope, symbols), line, col, symbols)
+            // Callable deletion operates on its inline pointer-word slot.
+            // Keep that address erased rather than loading the descriptor.
+            mut delete_type := payload_type
+            if type_is_callable_storage(delete_type) { delete_type = Type.Dynamic }
+            mut gc := make_get_payload_fcall(own self_arg, delete_type, line, col, symbols)
             set_own_arg(del_call, del_call.children.len())
             del_call.add_child(own gc)
             mut false_lit := Expr.new(own NodeType.Literal(Literal.Bool(payload_in_slot)), line, col)
@@ -6549,6 +6552,48 @@ init_require_simd := proc(elem: Str, width: USize, line: U32, col: U32, mut ctx:
     program.add_child(own decl)
     path := ctx.path.clone()
     if init_declarations_unit(path, program, ctx.scope, ctx, false) != 0 { panic("failed to materialize SIMD conversion type") }
+    start := ctx.generic_pending.children.len()
+    ctx.generic_pending.take_children(program)
+    init_refresh_seeded_scope_defs(ctx.generic_pending, ctx.scope, ctx.symbols)
+    init_refresh_interp_type_defs_from(ctx.generic_pending, start, ctx)
+    return name
+}
+
+// Generic containers use the same namespace lifecycle contract for FuncSigs
+// as for structs. Materialize ordinary AST over the existing closure-slot
+// operations; do not give each backend a separate generic lifecycle rule.
+init_require_callable_method := proc(type_name: Str, method: Str, slot_input: Bool, mut ctx: Context) returns Str {
+    mut suffix := method.clone()
+    if method.eq("clone").and(slot_input) { suffix = format(suffix, "_slot") }
+    if method.eq("delete").and(slot_input.not()) { suffix = format(suffix, "_value") }
+    name := priv_c_name(ctx.path, format("callable_", type_name, "_", suffix))
+    if ctx.scope.lookup_func_name(name, ctx.symbols).is_some() { return name }
+    mut source := ""
+    if method == "clone" {
+        mut parameter := format("value: ", type_name)
+        mut address := "to_ptr(value)"
+        if slot_input { parameter = "slot: Dynamic"; address = "slot" }
+        source = format("priv ", name, " := func(", parameter, ") returns ", type_name, " {\n",
+            "mut raw : Dynamic = til_closure_slot_clone(", address, ")\ncopy : ", type_name, " = til_closure_slot_pop(raw)\n",
+            "free(own raw)\nreturn copy\n}\n")
+    } else {
+        if method != "delete" { panic("unexpected callable lifecycle method: ", method) }
+        if slot_input {
+            source = format("priv ", name, " := func(own slot: Dynamic, call_free: Bool = true) {\n",
+                "til_closure_slot_delete(slot)\nif call_free { free(own slot) }\n}\n")
+        } else {
+            source = format("priv ", name, " := func(own value: ", type_name, ", call_free: Bool = true) {\n",
+                "til_closure_delete(value)\nif call_free { free(own value) }\n}\n")
+        }
+    }
+    tokens := tokenize(source, ctx.path)
+    mut mode := ""
+    mut anon : I64 = 0
+    mut errors : I32 = 0
+    mut program := parse(tokens, source, ctx.path, mode, anon, ctx.symbols, errors)
+    if errors != 0 { panic("invalid generated callable lifecycle method: ", source) }
+    path := ctx.path.clone()
+    if init_declarations_unit(path, program, ctx.scope, ctx, false) != 0 { panic("failed to initialize callable lifecycle method") }
     start := ctx.generic_pending.children.len()
     ctx.generic_pending.take_children(program)
     init_refresh_seeded_scope_defs(ctx.generic_pending, ctx.scope, ctx.symbols)

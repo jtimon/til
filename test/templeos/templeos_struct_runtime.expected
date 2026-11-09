@@ -5247,6 +5247,7 @@ extern I64 callable_check_slot_cleanup(CallableCounts *counts);
 extern TilClosure * callable_lookup(TilStr *type_name, TilStr *method);
 extern U0 compiler_text_checks(TilStr *value);
 extern StructNullable * safe_ref__StructNullable(StructNullable *value);
+extern U0 priv__test_templeos_script_struct_runtime_til__callable_CallableUnary_delete(U8 *slot, Bool call_free);
 
 extern U8 * default_clone(U8 *v);
 extern U0 default_delete(U8 *_v, Bool _cf);
@@ -9836,6 +9837,14 @@ StructNullable * safe_ref__StructNullable(StructNullable *value)
     return hoisted__Option__ref_StructNullable_0_358;
 }
 
+U0 priv__test_templeos_script_struct_runtime_til__callable_CallableUnary_delete(U8 *slot, Bool call_free)
+{
+    TilClosureSlotDelete(slot);
+    if (call_free) {
+        TilFree(slot);
+    }
+}
+
 U8 * default_clone(U8 *v)
 {
     return v;
@@ -13983,7 +13992,7 @@ I64 TilMain()
     TilPrintln(&_va_Array_g167_2050);
     CallableAction callable_action_2056;
     callable_action_2056.tag = 1;
-    callable_action_2056.payload_Run = &TilValue_callable_inc;
+    callable_action_2056.payload_Run = TilClosureClone(&TilValue_callable_inc);
     do {
         U8 enum_switch_15 = (&callable_action_2056)->tag;
         if ((enum_switch_15 == 1)) {

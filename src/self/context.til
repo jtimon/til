@@ -2647,9 +2647,9 @@ func_returns_c_value := func(fd: FunctionDef) returns Bool {
 }
 
 // C parameter representation is separate from semantic ownership. Shallow
-// parameters are always values. In a closed world, an ordinary owned primitive
-// can also transfer its value directly. Owned aggregates prefer pointer ABI
-// over caller stack storage. External boundaries and generated lifecycle
+// parameters are always values. In a closed world, owned primitives and
+// callable carriers can also transfer their values directly. Owned aggregates
+// prefer pointer ABI over caller stack storage. External boundaries and lifecycle
 // helpers retain their established ABI.
 func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool, scope: TypeScope, symbols: SymbolPool) returns Bool {
     if i >= fd.sig.params.len() { return false }
@@ -2660,12 +2660,15 @@ func_param_passes_c_value := func(fd: FunctionDef, i: USize, value_abi_ok: Bool,
     if value_abi_ok.not() { return false }
     if p.own_type.is(OwnType.Own).not().or(p.is_mut) { return false }
     if fd.sig.func_type.is_bodyless() { return false }
+    pt := declaration_resolved_type(p, scope, symbols)
+    // A callable carrier is already the descriptor pointer, including in a
+    // lifecycle helper. Its contents own that descriptor; there is no box.
+    if type_is_callable_storage(pt) { return true }
     // delete(self, call_free) owns a pointer specifically so call_free can
     // release that outer storage; generated cleanup sites pass its address.
     if fd.sig.params.len() > 1 {
         if fd.sig.params[1].name == "call_free" { return false }
     }
-    pt := declaration_resolved_type(p, scope, symbols)
     return pt.is(Type.Primitive)
 }
 

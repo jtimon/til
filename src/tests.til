@@ -1239,12 +1239,14 @@ main := proc(args: ..Str) returns I64 {
     }
     for bits : Str in array(Str, "32", "64") {
         for fixture : Str in array(Str, "holyc_primitives", "holyc_float_primitives", "holyc_numeric_cast",
-            "holyc_owned_primitives", "holyc_hashmap") {
+            "holyc_owned_primitives", "holyc_hashmap", "holyc_hashset", "holyc_hashmap_owned") {
             mut message := "Primitive integers and Booleans passed"
             if fixture == "holyc_float_primitives" { message = "Primitive floating-point passed" }
             if fixture == "holyc_numeric_cast" { message = "HolyC numeric casts passed" }
             if fixture == "holyc_owned_primitives" { message = "Owned primitive calls passed" }
             if fixture == "holyc_hashmap" { message = "HolyC HashMap passed" }
+            if fixture == "holyc_hashset" { message = "HolyC HashSet passed" }
+            if fixture == "holyc_hashmap_owned" { message = "HolyC owned HashMap values passed" }
             name := format(fixture, "_", bits)
             source := format("test/templeos/", fixture, ".til")
             add_count(tests, format(name, "_interp"), "build", message, 1,

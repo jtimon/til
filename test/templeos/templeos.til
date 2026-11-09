@@ -462,7 +462,7 @@ owned_collection_checks := proc(identity: Str, bits: Str) {
         runtime.replace("=MAlloc(", "=TilTestMAlloc(")
             .replace("=CAlloc(", "=TilTestCAlloc(").replace(" Free(", " TilTestFree("))
     File.writefile(format(WORK, "/Ext.HC"), ledger)
-    for fixture : Str in array(Str, "holyc_owned_primitives", "holyc_hashmap") {
+    for fixture : Str in array(Str, "holyc_owned_primitives", "holyc_hashmap", "holyc_hashset", "holyc_hashmap_owned") {
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), format("test/templeos/", fixture, ".til")).run_checked()
         program := File.readfile(format(WORK, "/TILTEST.HC"))
@@ -471,6 +471,8 @@ owned_collection_checks := proc(identity: Str, bits: Str) {
             "\nTilMain; if (TilTestLiveAllocs) TilPanicZ(\"owned allocation ledger not empty\\n\");\n")
         mut expected := "HolyC HashMap passed\n"
         if fixture == "holyc_owned_primitives" { expected = "Owned primitive calls passed\n" }
+        if fixture == "holyc_hashset" { expected = "HolyC HashSet passed\n" }
+        if fixture == "holyc_hashmap_owned" { expected = "HolyC owned HashMap values passed\n" }
         run_guest(identity, format(fixture, "_", bits), expected, "pass")
     }
     File.writefile(format(WORK, "/Ext.HC"), runtime)

@@ -867,8 +867,9 @@
 
   Keep ~bin/til translate --target=templeos -c tmp/til.HC src/til.til~ as a
   development pressure test, not a claim of a working TempleOS compiler.
-  The latest full attempt reaches ~IdentData_ident_name~ and reports
-  ~unsupported direct call 'cast'~. General Dynamic-to-typed casts, the remaining
+  The latest full attempt on ~389200c8c~, at both USize widths, reports
+  ~unsupported Map value type 'Dynamic'~ after correcting scalar-alias payload
+  classification. General Dynamic-to-typed casts, the remaining
   compiler data/operation shapes, and actual foreign/native boundaries still
   need coverage. Translation, native compilation and a usable compiler are
   separate acceptance milestones. Broader CLI checks should include imported
@@ -1555,6 +1556,46 @@
   numeric casts and exact invalid-cast transcripts. The imported-calls golden
   reflects module-load initialization; its guest output is unchanged. The merge
   benchmark hook is compile-checked; timed measurements are left to the merge.
+
+**** HashSet and nested owned collection conformance
+
+  ~test/templeos/holyc_hashset.til~ runs the existing shared HashSet bodies with
+  integer/string elements, lazy empty construction, preallocation, default and
+  capturing hashers, cached hashes, growth, forced collisions, duplicates,
+  dense-swap removal/rechaining, missing-key catches, clone independence and
+  clear/reuse. Fresh duplicate strings exercise incoming-value cleanup.
+
+  This exposed a native Bad Free: HashSet.add's duplicate branch freed its
+  caller-frame Str parameter after destroying the contents. HolyC now records
+  caller-slot ownership through the shared parameter ABI predicates for both
+  scalar and aggregate values. Lifecycle methods retain real heap-outer cleanup.
+
+  ~test/templeos/holyc_hashmap_owned.til~ covers nested Vec(Str) values, USize/UPtr
+  enum payloads, directly stored capturing callbacks, and enum payloads containing
+  strings, nested vectors and captured callbacks. Explicit destructor counters
+  check replacement/removal/clear, independent clones, temporary cleanup, and
+  callable value versus slot deletion, alongside the native allocation ledger.
+
+  Shared callable lifecycle calls now use private generated AST helpers over
+  the existing closure-slot operations. Cloning moves the cloned descriptor out
+  of its temporary box before releasing that box. Owned callable carriers have
+  value ABI; raw memory operations and to_ptr address their pointer-word storage.
+  The interpreter borrows those actual slots instead of cloning a transient
+  callable value before passing an address to memcpy/to_ptr. C and HolyC enum
+  constructors clone borrowed capturing descriptors and share static descriptors;
+  generated enum destruction releases their owned callbacks. Native callable
+  vectors clone and destroy their elements while retaining value parameter ABI.
+
+  The compiler pressure test also caught USize/UPtr being registered as aggregate
+  payload types. Runtime type discovery now normalizes these scalar aliases, and
+  the enum/container regression checks preserve all bits at USize32/64.
+
+  Verification on master ~389200c8c~: clean two-pass hosted suite 575/575,
+  including clang validation and the two new fixtures through interpretation,
+  C O0/O2 and HolyC translation at USize32/64. Eight additional focused C/ASAN
+  runs pass (both fixtures, both widths, O0/O2). ~make test_templeos~ passes all
+  119 guest cases, including eight ownership/collection cases whose allocation
+  ledgers return to zero. Destructor counters agree across the execution paths.
 
 **** Manual GUI testing in one VM
 

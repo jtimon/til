@@ -4791,7 +4791,15 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                 memset_arg_sname = memset_arg_sname_ref.clone()
             }
             memset_arg_type := c_type_name(memset_arg.til_type(), memset_arg_sname, ctx)
-            if memset_arg_type == "Str" {
+            if type_is_callable_storage(memset_arg.til_type()) {
+                f.write("memset(")
+                emit_callable_slot(f, memset_arg, depth, ctx)
+                f.write(", ")
+                emit_deref(f, e.children[2], depth, ctx)
+                f.write(", ")
+                emit_deref(f, e.children[3], depth, ctx)
+                f.write(")")
+            } else if memset_arg_type == "Str" {
                 f.write("if ((")
                 emit_as_ptr(f, memset_arg, depth, false, ctx)
                 f.write(")->cap != TIL_CAP_LIT) { memset(")
@@ -4806,6 +4814,25 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                 emit_user_fcall_args(f, e, "memset", depth, ctx, false)
                 f.write(")")
             }
+        } else if name.ident_name(ctx.symbols.names).eq("to_ptr").and(e.children.len().eq(2))
+            .and(type_is_callable_storage(e.children[1].til_type())) {
+            emit_callable_slot(f, e.children[1], depth, ctx)
+        } else if name.ident_name(ctx.symbols.names).eq("memcpy").or(name.ident_name(ctx.symbols.names).eq("memmove"))
+            .or(name.ident_name(ctx.symbols.names).eq("memcmp"))
+            .and(e.children.len().eq(4))
+            .and(type_is_callable_storage(e.children[1].til_type()).or(type_is_callable_storage(e.children[2].til_type()))) {
+            // Raw memory operations copy a callable's pointer word, not bytes
+            // from the descriptor it points at. Ordinary calls still pass the
+            // descriptor value; only storage-address consumers use the slot.
+            f.write(name.ident_name(ctx.symbols.names)).write("(")
+            for i : USize in 1..3 {
+                if i > 1 { f.write(", ") }
+                if type_is_callable_storage(e.children[i].til_type()) { emit_callable_slot(f, e.children[i], depth, ctx) }
+                else { emit_as_ptr(f, e.children[i], depth, false, ctx) }
+            }
+            f.write(", ")
+            emit_deref(f, e.children[3], depth, ctx)
+            f.write(")")
         } else if name.ident_name(ctx.symbols.names).eq("free").and(e.children.len().eq(2)) {
             ref free_arg : Expr = e.children[1]
             mut free_stack_param := false
@@ -6878,7 +6905,15 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, mut l
                 // copied out of the caller's storage, never owned, so
                 // no free -- the caller passes `&value`, not a box.
                 f.write("    r.data.").write(vn).write(" = *val;\n")
-            } else if is_funcsig_type(vt, lp.ctx).or(vt.eq("Dynamic")) {
+            } else if is_funcsig_type(vt, lp.ctx) {
+                // The constructor borrows its callable argument. A static
+                // descriptor is shared; a capturing descriptor needs its own
+                // environment before the caller releases a temporary.
+                f.write("    TilClosure *source = (TilClosure *)val;\n")
+                f.write("    if (source->drop) {\n        TilClosure **copy = til_closure_slot_clone(&source);\n")
+                f.write("        r.data.").write(vn).write(" = *copy; free(copy);\n    } else {\n")
+                f.write("        r.data.").write(vn).write(" = val;\n    }\n")
+            } else if vt.eq("Dynamic") {
                 f.write("    r.data.").write(vn).write(" = val;\n")
             } else {
                 // The closed-world caller lends its stack outer while moving

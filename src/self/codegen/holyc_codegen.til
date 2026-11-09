@@ -75,7 +75,7 @@ priv HolyCLocalState := struct {
     ref_return_type := ""
     continue_label := ""
     param_pointer_names := Set(Str).new()
-    scalar_slot_params := Set(Str).new()
+    caller_slot_params := Set(Str).new()
     payload_names := Map(Str, Str).new()
     pointer_types := Map(Str, Str).new()
     str_names := Set(Str).new()
@@ -116,7 +116,7 @@ priv holyc_local_name := func(name: Str, locals: HolyCLocalState) returns Str {
 
 priv holyc_bind_name := func(name: Str, emitted_name: Str, mut locals: HolyCLocalState) {
     locals.param_pointer_names.remove(name)
-    locals.scalar_slot_params.remove(name)
+    locals.caller_slot_params.remove(name)
     locals.payload_names.remove(name)
     locals.str_names.remove(name)
     locals.str_pointer_names.remove(name)
@@ -234,7 +234,7 @@ priv holyc_clone_locals := func(locals: HolyCLocalState) returns HolyCLocalState
     return HolyCLocalState(ref_return_type = locals.ref_return_type.clone(),
         continue_label = locals.continue_label.clone(),
         param_pointer_names = locals.param_pointer_names.clone(),
-        scalar_slot_params = locals.scalar_slot_params.clone(),
+        caller_slot_params = locals.caller_slot_params.clone(),
         payload_names = locals.payload_names.clone(),
         pointer_types = locals.pointer_types.clone(),
         str_names = locals.str_names.clone(),
@@ -864,7 +864,7 @@ priv holyc_delete_free_flag := func(receiver: Expr, flag: Expr, ctx: Context,
     switch receiver.node_type {
     case .Ident(id):
         if locals.param_pointer_names.has(id.ident_name(ctx.symbols.names))
-            .or(locals.scalar_slot_params.has(id.ident_name(ctx.symbols.names))) { return "FALSE" }
+            .or(locals.caller_slot_params.has(id.ident_name(ctx.symbols.names))) { return "FALSE" }
     case:
     }
     return holyc_expr(flag, ctx, state, locals, error)
@@ -1271,6 +1271,10 @@ priv holyc_enum_init := func(type_name: Str, dest: Str, e: Expr, depth: USize,
             if error.len() > 0 { return "" }
             return format(out, prefix, field, " = ", src, ";\n")
         }
+        if holyc_callable_type(payload_type, state) {
+            src := holyc_expr(value, ctx, state, locals, error)
+            return format(out, prefix, field, " = TilClosureClone(", src, ");\n")
+        }
         if payload_type == "Str" {
             init := holyc_str_init(field, value, ctx, state, locals, error)
             return format(out, prefix, init, ";\n")
@@ -1548,7 +1552,7 @@ priv holyc_collect_collection_types := func(e: Expr, ctx: Context,
 priv holyc_register_runtime_type := func(name: Str, ctx: Context,
     mut state: HolyCEmitState, mut error: Str) {
     if name.len() == 0 { return }
-    if holyc_scalar_type_name(name).or(name.eq("Str")).or(name.eq("Dynamic"))
+    if holyc_scalar_type_name(holyc_storage_type_name(name, state)).or(name.eq("Str")).or(name.eq("Dynamic"))
         .or(name.eq("Array__Str")).or(holyc_callable_type(name, state)) { return }
     if state.struct_names.has(name).or(state.enum_types.has(name)).or(state.niche_ref_types.has(name)) { return }
     def_o := ctx.scope.get_struct(name, ctx.symbols)
@@ -2938,6 +2942,10 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
             }
             if state.collection_elements.has(owner) {
                 ref elem : Str = state.collection_elements[owner]
+                if method == "size" {
+                    if e.children.len() != 1 { error = "invalid collection size call"; return "" }
+                    return format("sizeof(", owner, ")")
+                }
                 if method == "len" {
                     if e.children.len() != 2 { error = "invalid collection length call"; return "" }
                     self_ref := holyc_struct_ref(e.children[1], ctx, locals, error)
@@ -3784,9 +3792,9 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 if e.children.len() != 2 { error = "invalid call 'free'"; return "" }
                 switch e.children[1].node_type {
                 case .Ident(arg):
-                    // An ordinary own primitive consumes a value/caller slot,
-                    // not a heap outer wrapper. Keep the ownership transfer.
-                    if locals.scalar_slot_params.has(arg.ident_name(ctx.symbols.names)) { return "0" }
+                    // These parameters consume contents, not their caller's
+                    // outer storage. Lifecycle methods retain heap ownership.
+                    if locals.caller_slot_params.has(arg.ident_name(ctx.symbols.names)) { return "0" }
                 case:
                 }
                 ptr := holyc_pointer_expr(e.children[1], ctx, state, locals, error)
@@ -4620,6 +4628,7 @@ priv holyc_enum_definition := func(name: Str, def: Expr, ctx: Context,
 
 priv holyc_collection_drop_element := func(elem: Str, slot: Str,
     indent: Str, state: HolyCEmitState) returns Str {
+    if holyc_callable_type(elem, state) { return format(indent, "TilClosureDelete(", slot, ");\n") }
     if elem == "Str" { return format(indent, "TilStrDelete(&", slot, ", FALSE);\n") }
     if holyc_aggregate_type(elem, state) {
         return format(indent, elem, "_Delete(&", slot, ", FALSE);\n")
@@ -4653,6 +4662,7 @@ priv holyc_collection_word_arg := func(call: Expr, index: USize, elem: Str, ctx:
 
 priv holyc_collection_clone_element := func(elem: Str, dest: Str, src: Str,
     indent: Str, state: HolyCEmitState) returns Str {
+    if holyc_callable_type(elem, state) { return format(indent, dest, " = TilClosureClone(", src, ");\n") }
     if elem == "Str" { return format(indent, "TilStrClone(&", dest, ", &", src, ");\n") }
     if holyc_aggregate_type(elem, state) {
         return format(indent, elem, "_Clone(&", dest, ", &", src, ");\n")
@@ -4675,7 +4685,9 @@ priv holyc_collection_definition := func(name: Str, ctx: Context, state: HolyCEm
     ref elem : Str = state.collection_elements[name]
     ctype := holyc_value_ctype(elem, state)
     is_managed := elem.eq("Str").or(holyc_aggregate_type(elem, state))
-    if holyc_scalar_type_name(ctype).or(elem.eq("Dynamic")).or(state.niche_ref_types.has(elem)).or(is_managed).not() {
+    needs_drop := is_managed.or(holyc_callable_type(elem, state))
+    if holyc_scalar_type_name(ctype).or(elem.eq("Dynamic")).or(state.niche_ref_types.has(elem))
+        .or(holyc_callable_type(elem, state)).or(is_managed).not() {
         error = format("unsupported collection element type '", elem, "'")
         return ""
     }
@@ -4722,8 +4734,8 @@ priv holyc_collection_definition := func(name: Str, ctx: Context, state: HolyCEm
         ctype, " *", name, "_UnsafeGet(", name, " *self, ", sz, " i)\n{\n",
         "  return &self->data[i];\n}\n\n",
         "U0 ", name, "_UnsafeSet(", name, " *self, ", sz, " i, ", value_param, ")\n{\n")
+    out = format(out, holyc_collection_drop_element(elem, "self->data[i]", "  ", state))
     if is_managed {
-        out = format(out, holyc_collection_drop_element(elem, "self->data[i]", "  ", state))
         out = format(out, "  TilMemCpy(&self->data[i], value, sizeof(", ctype, "));\n",
             "  TilMemSet(value, 0, sizeof(", ctype, "));\n")
     } else {
@@ -4772,7 +4784,7 @@ priv holyc_collection_definition := func(name: Str, ctx: Context, state: HolyCEm
         }
         out = format(out, "}\n\n",
             "U0 ", name, "_Clear(", name, " *self)\n{\n")
-        if is_managed {
+        if needs_drop {
             out = format(out, "  ", sz, " i = 0;\n  while (i < self->count) {\n")
             out = format(out, holyc_collection_drop_element(elem, "self->data[i]", "    ", state))
             out = format(out, "    i++;\n  }\n")
@@ -4782,7 +4794,7 @@ priv holyc_collection_definition := func(name: Str, ctx: Context, state: HolyCEm
     out = format(out, "U0 ", name, "_Delete(", name, " *self, Bool call_free)\n{\n",
         "")
     if is_vec { out = format(out, "  ", name, "_Clear(self);\n") }
-    else if is_managed {
+    else if needs_drop {
         out = format(out, "  ", sz, " i = 0;\n  while (i < self->cap) {\n")
         out = format(out, holyc_collection_drop_element(elem, "self->data[i]", "    ", state))
         out = format(out, "    i++;\n  }\n")
@@ -5491,8 +5503,10 @@ priv holyc_emit_function := func(name: Str, func_expr: Expr, ctx: Context,
             ref param : Declaration = fdef.sig.params[i]
             holyc_bind_name(param.name, param.name, locals)
             mut param_type := holyc_storage_type_name(decl_type_name_ref(param, ctx.symbols), state)
-            if holyc_scalar_type_name(param_type).and(param.own_type.is(OwnType.Own)) {
-                locals.scalar_slot_params.add(own param.name.clone())
+            if param.own_type.is(OwnType.Own)
+                .and(func_param_passes_c_value(fdef, i, true, ctx.scope, ctx.symbols)
+                    .or(func_param_has_stack_outer(fdef, i, true, ctx.scope, ctx.symbols))) {
+                locals.caller_slot_params.add(own param.name.clone())
             }
             if fdef.sig.variadic_index == i.to_i32() {
                 param_type = format("Array__", param_type)

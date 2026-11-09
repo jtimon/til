@@ -2554,12 +2554,46 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         }
     }
 
+    if obj.til_type().is_funcptr().and(method.eq("clone").or(method.eq("delete"))) {
+        switch obj.node_type {
+        case .Ident(id):
+            binding := scope.get_binding_sym(id.ident_sym())
+            if binding.is_some().and(type_binding_is_type_token(scope, binding.unwrap(), ctx.symbols)) {
+                for i in 1..e.children.len() { infer_expr(scope, e.children[i], in_func, ctx) }
+                mut slot_input := false
+                if e.children.len() > 1 {
+                    slot_input = e.children[1].til_type().is(Type.Dynamic)
+                    if method.eq("delete").and(slot_input.not()) {
+                        ref actual : Type = e.children[1].til_type()
+                        if funcptr_eq(actual, obj.til_type(), ctx.symbols).not() {
+                            e.children[1].type_error("callable delete expects a callable of the declared signature or raw slot storage", ctx)
+                        } else {
+                            mismatch := funcref_sig_mismatch(e.children[1], obj.til_type(), scope, ctx.symbols)
+                            if mismatch.len() > 0 { e.children[1].type_error(mismatch, ctx) }
+                        }
+                    }
+                }
+                pending_start := ctx.generic_pending.children.len()
+                target := init_require_callable_method(id.ident_name(ctx.symbols.names), method, slot_input, ctx)
+                type_repl_delta_decls_from(ctx.generic_pending, pending_start, ctx)
+                mut args := Vec(Expr).new()
+                args.push(own Expr.new(own ident_node(ctx.symbols.intern(target)), e.line, e.col))
+                for i in 1..e.children.len() {
+                    args.push(own e.children[i].clone())
+                }
+                e.children.move_from(own args)
+                infer_fcall_expr(scope, e, in_func, ctx)
+                return true
+            }
+        case:
+        }
+    }
+
     // A function pointer is a pointer-sized value, but a funcsig is not a
     // struct, so it has no `size` metatype method of its own. Route a funcptr
     // type-token's `.size()` through Dynamic (the universal 8-byte pointer,
-    // src/core/dyn.til), which reports pointer size. (`clone`/`delete` need
-    // funcptr-typed results / true no-op delete -- not Dynamic's, which frees
-    // -- so they are handled separately as the Array-of-funcptr work lands.)
+    // src/core/dyn.til), which reports pointer size. Lifecycle methods above
+    // retain the concrete signature and release capturing environments.
     if obj.til_type().is_funcptr().and(method.eq("size")) {
         switch obj.node_type {
         case .Ident:

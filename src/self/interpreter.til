@@ -11267,9 +11267,24 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
         if interp_c_str_arg_shape(arg_expr, ctx.symbols).and(interp_ext_c_string_param(scope, name, i, ctx.symbols)) {
             ctx.eval.interp_cstr_arg = true
         }
-        arg_raw : Dynamic = eval_expr_raw_info(scope, arg_expr, ctx, arg_info)
+        mut storage_arg := false
+        if heap_type_is_callable(arg_expr.til_type()) {
+            storage_arg = name.eq("to_ptr").or(name.eq("memset")).and(i.eq(0))
+                .or(name.eq("memcpy").or(name.eq("memmove")).or(name.eq("memcmp")).and(i.lt(2)))
+        }
+        mut arg_raw : Dynamic = 0
+        if storage_arg {
+            // Reading a callable as a value clones it. Address consumers need
+            // the actual binding/field slot, just like calling through it.
+            mut owned := false
+            arg_raw = eval_callable_callee_raw(scope, arg_expr, owned, ctx)
+            arg_info.source_type_p = to_ptr(interp_intern_type(arg_expr.til_type(), ctx))
+            arg_info.is_ref = owned.not()
+        } else { arg_raw = eval_expr_raw_info(scope, arg_expr, ctx, arg_info) }
         ctx.eval.interp_cstr_arg = false
-        mut arg_pointer : Dynamic = raw_arg_pointer(arg_raw, arg_info, ctx)
+        arg_is_callable := heap_type_is_callable(raw_result_source_type(arg_info))
+        mut arg_pointer : Dynamic = arg_raw
+        if storage_arg.not() { arg_pointer = raw_arg_pointer(arg_raw, arg_info, ctx) }
         arg_raw_off := i.mul(16)
         write_ptr(ptr_add(arg_raws, arg_raw_off), arg_raw)
         write_bool(ptr_add(arg_raws, arg_raw_off.add(8)), arg_info.is_ref)
@@ -11322,7 +11337,6 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
                 arg_pointer = marshaled
             }
         }
-        arg_is_callable := heap_type_is_callable(raw_result_source_type(arg_info))
         mut is_shallow := fe.param_shallows.is_null().not()
         .and(i.lt(fe.nparam))
         if is_shallow {
