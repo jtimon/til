@@ -4287,7 +4287,8 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                     if ctx.eval.embedded {
                         interp_embedded_error(e, format("native function is not registered for TilVm: ", name.ident_name(ctx.symbols.names)), ctx)
                     } else if ctx.eval.constfold_active.not() {
-                        panic("ext function is not registered (symbol missing, or its signature is not supported by the interpreter's libffi bridge): ", name.ident_name(ctx.symbols.names))
+                        panic("ext function is not registered (symbol missing, or its signature is not supported by the interpreter's libffi bridge): ",
+                            name.ident_name(ctx.symbols.names), ffi_failed_links_note(ctx))
                     }
                     ctx.eval.eval_aborted = true
                     if destination.is_null().not() { return destination }
@@ -8098,6 +8099,7 @@ ffi_reset := proc(mut ctx: Context) {
     }
     // Always ensure struct defs map exists.
     ctx.ffi.struct_defs = Map(Str, ExprPtrBox).new()
+    ctx.ffi.failed_links = Map(Str, Str).new()
 }
 
 // libffi exposes its primitive ffi_type descriptors as global symbols
@@ -8189,6 +8191,18 @@ til_built_with_asan := ext_proc() returns shallow Bool {}
 // walk in ffi_global_symbol then finds its exports exactly like dlopen's
 // RTLD_GLOBAL does. A distinct name, not a PE file called .so, so a
 // checkout can hold both hosts' twins side by side.
+// The libraries `link("name")` named that did not load, for the message of
+// an ext function found missing afterwards: the symbol most likely lives in
+// one of them. Empty when every link loaded.
+priv ffi_failed_links_note := func(ctx: Context) returns Str {
+    if ctx.ffi.failed_links.len() == 0 { return "" }
+    mut note := "; these linked libraries did not load:"
+    for soname, why in ctx.ffi.failed_links {
+        note = format(note, "\n  ", soname, ": ", why)
+    }
+    return note
+}
+
 priv ffi_link_error := proc(path: Str, detail: Str, mut ctx: Context, origin: Str = "", line: U32 = 0, col: U32 = 0) {
     message := format("cannot load native library '", path, "': ", detail)
     if ctx.collect_diagnostics {
@@ -8279,6 +8293,14 @@ priv ffi_load_link := proc(target: Str, mut ctx: Context, origin: Str = "", line
                 return 1
             }
             if loaded { return ffi_check_lib_layout(lib, soname, ctx, origin, line, col) }
+            // Not an error yet: the name may resolve from the process itself
+            // (-lm, -lpthread). Remembered so that an ext function missing
+            // later can name the library that did not load, and why. The
+            // link() position is known only on the per-directive (embedded)
+            // path; the flag-string path has lost it.
+            mut where := ffi_last_error()
+            if origin.len() > 0 { where = format(where, " (link() at ", origin, ":", line.to_str(), ":", col.to_str(), ")") }
+            ctx.ffi.failed_links.set(soname, own where)
         }
     } else if target.ends_with(".a") {
         return ffi_load_archive_twin(target, ctx, origin, line, col)

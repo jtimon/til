@@ -80,6 +80,22 @@ main := proc(compiler: Str) {
         check_link(absolute_compiler, realpath_str(source), format(dir, "/elsewhere"), "42\n")
     }
 
+    // #313 follow-up: link("name") -- the -l form -- may resolve from the
+    // process itself (m, pthread), so a library that does not load is not an
+    // error by itself; but an ext function missing afterwards names it.
+    named_source := format(dir, "/project/named_missing.til")
+    File.writefile(named_source, format(
+        "mode script\nlink(\"link_probe_absent\")\n",
+        "link_probe_vanished := ext_proc() returns shallow I64 {}\n",
+        "println(link_probe_vanished().to_str())\n"))
+    named := Cmd.new(absolute_compiler, "interpret", named_source)
+    named.capture()
+    assert_eq(I64, named.run(), 1)
+    // The interpreter's panic goes to stdout.
+    expect(named.out().contains("ext function is not registered"), named.out(), named.err())
+    expect(named.out().contains("these linked libraries did not load"), named.out())
+    expect(named.out().contains(format("liblink_probe_absent", extension)), named.out())
+
     for kind in vec(Str, "missing", "invalid") {
         bad_library := format(kind, extension)
         if kind == "missing" { File.remove(format(dir, "/", bad_library)) }

@@ -210,10 +210,39 @@
   4GB allocation region, the cage. ~--usize=64~ is the native layout; a
   32-bit target, mode theme, HolyC output and the FASM backend are native
   at any width, and MLIR has the native layout only. ~ref~, ~Dynamic~ and
-  callable fields stay native pointers. Str and Vec are 12 bytes instead of
-  24. The 4GB is a hard per-process heap cap: a program that needs more
-  builds ~--usize=64~. The language is experimental, so this default is
-  chosen by measurement and can change again before a versioned release.
+  callable fields stay native pointers (why, below). Str and Vec are 12
+  bytes instead of 24. The 4GB is a hard per-process heap cap: a program
+  that needs more builds ~--usize=64~. The language is experimental, so
+  this default is chosen by measurement and can change again before a
+  versioned release.
+
+  Why only ~own~ fields are compressed. A 32-bit field can hold one kind
+  of value: an offset from the cage base, which names an address inside
+  the cage and nothing else. An ~own~ field's pointee is always something
+  ~malloc~ returned -- by construction, since the field owns it and til
+  allocates through the cage -- so every own pointer has such an offset.
+  A ~ref~ borrows a binding wherever its storage is: a local (the stack),
+  a global (the data segment), a C library's object (a FILE, a process
+  handle, an nng buffer), code (a closure's function), as well as heap
+  values reached through own fields. The first four have no cage offset,
+  and the type does not say which kind a given ~ref~ field holds, so the
+  representation would have to be chosen per field by proving its pointee
+  is heap storage (an escape rule in the typer), or every borrowable thing
+  would have to be moved into the cage (boxing escaping locals, allocating
+  globals there at init, a separate native type for foreign pointers).
+  Measured over the whole tree, there are 19 stored ~ref~ fields and no
+  ~ref~ containers or ~ref~ enum payloads; at least six of the 19 address
+  stack or C memory. Locals, parameters and return values are never
+  compressed in either design (~Option(ref T)~ included), so the whole
+  payoff is 4 bytes in those 19 fields. That is why refs are native by
+  decision, not by omission: the density lives in owned links and buffers,
+  which are compressed, and a structure whose ~ref~ link ever turns out to
+  matter is better served by making that link ~own~ or an index. ~Dynamic~
+  stays native because it crosses the FFI, ~UPtr~ because it is a byte
+  count. Issue #313 ("Plan for the reference side") keeps the ordered
+  steps should the decision be revisited; it is not fully satisfying, and
+  it is written down so that the next reader starts from the measurement
+  rather than from the title.
 
   The driver passes ~-DTIL_USIZE32~ or ~-DTIL_USIZE64~ on every C compile,
   and the generated headers carry the same pin as a default, so a flag-less

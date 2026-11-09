@@ -1361,6 +1361,11 @@ FfiState := struct {
     // Target widths are fixed until ffi_reset clears this cache.
     type_cache := Map(Str, FFITypePtrBox).new()
     type_cache_inited := false
+    // #313 follow-up: `link("name")` targets (the -l form) whose shared
+    // object did not load, with the loader's error, keyed by soname. Not an
+    // error by itself -- some names (m, pthread) resolve from the process
+    // without a library -- but named when an ext function is then missing.
+    failed_links := Map(Str, Str).new()
 }
 
 // #286 follow-up: canonical heap Type blocks that HeapBinding.til_type

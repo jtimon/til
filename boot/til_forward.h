@@ -2582,6 +2582,7 @@ typedef struct FfiState {
     Map__Str_ExprPtrBox struct_defs;
     Map__Str_FFITypePtrBox type_cache;
     Bool type_cache_inited;
+    Map__Str_Str failed_links;
 } FfiState;
 
 
