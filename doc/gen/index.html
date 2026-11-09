@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-0fafe1c4e</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-389200c8c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="src/core/str.html">src/core/str.til</a></li>
 <li><a href="src/core/dyn.html">src/core/dyn.til</a></li>
@@ -1100,6 +1100,8 @@ namespace:
     core_func band(shallow a: U16, shallow b: U16) returns shallow U16
     core_func bor(shallow a: U16, shallow b: U16) returns shallow U16
     core_func bxor(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func shl(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func shr(shallow a: U16, shallow b: U16) returns shallow U16
     ext_func clone(val: U16) returns shallow U16
     func distance(a: Dynamic, b: Dynamic) returns U64
     func delete(own self: U16, call_free: Bool = true)
@@ -1393,6 +1395,8 @@ namespace:
     core_func band(shallow a: I16, shallow b: I16) returns shallow I16
     core_func bor(shallow a: I16, shallow b: I16) returns shallow I16
     core_func bxor(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func shl(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func shr(shallow a: I16, shallow b: I16) returns shallow I16
     ext_func clone(val: I16) returns shallow I16
     func distance(a: Dynamic, b: Dynamic) returns U64
     func delete(own self: I16, call_free: Bool = true)
@@ -7195,6 +7199,7 @@ namespace:
     mut struct_defs : Map__Str_ExprPtrBox
     mut type_cache : Map__Str_FFITypePtrBox
     mut type_cache_inited : Bool
+    mut failed_links : Map__Str_Str
 namespace:
     func size() returns USize
     func clone(self: FfiState) returns FfiState

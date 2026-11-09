@@ -1127,8 +1127,21 @@ type_name_mentions_param := func(name: Str, pname: Str) returns Bool {
     if pname.len() == 0 { return false }
     if name.eq(pname) { return true }
     segs := name.split("_")
-    for sg : Str in segs {
-        if sg.eq(pname) { return true }
+    mut i:USize=0
+    while i<segs.len() {
+        if segs[i].eq("priv").and(i+1<segs.len()) {
+            if segs[i+1].len()==0 {
+                // priv_c_name collapses path punctuation to SINGLE underscores,
+                // then separates the actual name with DOUBLE underscores. A
+                // path component is never a generic type-argument dependency.
+                i=i+2
+                while i<segs.len() && segs[i].len()==0 { i++ }
+                while i<segs.len() && segs[i].len()>0 { i++ }
+                continue
+            }
+        }
+        if segs[i].eq(pname) { return true }
+        i++
     }
     return false
 }

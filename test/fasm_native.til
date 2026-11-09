@@ -29,6 +29,36 @@ check_shared := proc(compiler: Str, work: Str, source: Str, expected_exit: I64 =
     }
 }
 
+check_floating_point := proc(compiler: Str, work: Str) {
+    // Reuse the existing scalar cast cases; the final SIMD case is a separate
+    // backend feature. Keep their test bodies and runtime operand boundaries.
+    casts:=File.readfile("test/cast.til")
+    end:=casts.find("\nS4 :=")
+    expect(end>=0,"scalar/SIMD cast boundary missing")
+    scalar_path:=format(work,"/float_casts.til")
+    File.writefile(scalar_path,casts.substr(0,end.to_usize()))
+    check_shared(compiler,work,scalar_path)
+    format_path:=format(work,"/float_format.til")
+    File.writefile(format_path,format(
+        "mode cli\nraw64:=proc(bits:U64) returns F64 { noop_proc(); mut out:F64=0; memcpy(to_ptr(out),to_ptr(bits),8); return out }\n",
+        "raw32:=proc(bits:U32) returns F32 { noop_proc(); mut out:F32=0; memcpy(to_ptr(out),to_ptr(bits),4); return out }\n",
+        "main:=proc() { mut bits:U64=1; for _ in 0..120 { bits=bits*6364136223846793005+1442695040888963407;\n",
+        "value:=raw64(bits); println(value.to_str(),\"|\",value.to_repr()); small:=raw32(bits.to_u32()); println(small.to_str(),\"|\",small.to_repr()) };\n",
+        "for word:U64 in array(U64,0,9223372036854775808,1,4503599627370495,4503599627370496,9218868437227405311,9218868437227405312,18442240474082181120,9221120237041090560,18444492273895866368) {\n",
+        "value:=raw64(word); println(value.to_str(),\"|\",value.to_repr()) } }\n"))
+    check_shared(compiler,work,format_path)
+    expressions:=array(Str,"runtime(128.0)","runtime(-129.0)","runtime(256.0)","runtime(-1.0)",
+        "runtime(9223372036854775808.0)","runtime(18446744073709551616.0)",
+        "runtime(0.0)/runtime(0.0)","runtime(1.0)/runtime(0.0)","runtime(18446744073709551616.0)")
+    targets:=array(Str,"I8","I8","U8","U8","I64","U64","U64","I32","UPtr")
+    for i in 0..expressions.len() {
+        path:=format(work,"/float_invalid_",i.to_str(),".til")
+        File.writefile(path,format("mode cli\nruntime:=proc(value:F64) returns F64 { noop_proc(); return value }\n",
+            "main:=proc() { value:=",expressions[i],"; value.cast(",targets[i],") }\n"))
+        check_shared(compiler,work,path,1)
+    }
+}
+
 check_test_command := proc(compiler: Str, work: Str) {
     File.writefile(format(work,"/test_library.til"),format(
         "mode lib\nmut total:I64=0\ninitialize:=func() returns I64 { total++; return total }\ninitial:=initialize()\n",
@@ -158,12 +188,13 @@ main := proc(compiler_arg: Str) {
     expect(build_status == 0, build.out(), build.err())
     run := Cmd.new(format(work, "/bin/custom output"))
     expect(run.run() == 0, "empty main failed")
-    for source in array(Str, "test/templeos/holyc_continue.til", "examples/fizzbuzz.til", "examples/templeos_scalars.til", "test/scalar_control.til", "examples/templeos_calls.til", "test/aggregate_control.til", "test/reference_rebinding.til", "test/interfaces.til", "test/test_in_namespace.til") {
+    for source in array(Str, "test/templeos/holyc_continue.til", "examples/fizzbuzz.til", "examples/templeos_scalars.til", "test/scalar_control.til", "examples/templeos_calls.til", "test/aggregate_control.til", "test/reference_rebinding.til", "test/interfaces.til", "test/test_in_namespace.til", "test/float_literals.til") {
         check_shared(compiler, work, source)
     }
     check_shared(compiler, work, "test/script_bang_panic_msg.til", 1)
     check_shared(compiler, work, "test/script_bang_store_panic_msg.til", 1)
     check_test_command(compiler,work)
+    check_floating_point(compiler,work)
     check_rebuild(compiler, work)
     println("fasm_native PASS")
 }

@@ -1,5 +1,5 @@
 #+TITLE: src/core/numbers.til
-#+SUBTITLE: til 0.0.1-0fafe1c4e
+#+SUBTITLE: til 0.0.1-389200c8c
 #+OPTIONS: toc:t
 
 * U8
@@ -183,6 +183,8 @@ namespace:
     core_func band(shallow a: U16, shallow b: U16) returns shallow U16
     core_func bor(shallow a: U16, shallow b: U16) returns shallow U16
     core_func bxor(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func shl(shallow a: U16, shallow b: U16) returns shallow U16
+    core_func shr(shallow a: U16, shallow b: U16) returns shallow U16
     ext_func clone(val: U16) returns shallow U16
     func distance(a: Dynamic, b: Dynamic) returns U64
     func delete(own self: U16, call_free: Bool = true)
@@ -765,6 +767,8 @@ namespace:
     core_func band(shallow a: I16, shallow b: I16) returns shallow I16
     core_func bor(shallow a: I16, shallow b: I16) returns shallow I16
     core_func bxor(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func shl(shallow a: I16, shallow b: I16) returns shallow I16
+    core_func shr(shallow a: I16, shallow b: I16) returns shallow I16
     ext_func clone(val: I16) returns shallow I16
     func distance(a: Dynamic, b: Dynamic) returns U64
     func delete(own self: I16, call_free: Bool = true)
@@ -1202,7 +1206,7 @@ func I64.distance(a: Dynamic, b: Dynamic) returns U64
 :END:
 
 Issue #198: division that throws DivideByZero when dividing by
-zero. Use I64.div for the panicking variant.
+zero. Use I64.div for the zero-result variant.
 
 #+begin_src til
 func I64.safe_div(a: I64, b: I64, loc: Str = __LOC__) returns I64 throws DivideByZero

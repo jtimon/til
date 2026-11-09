@@ -5,6 +5,29 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** FASM scalar floating-point allocation checks (2026-11-09, #453)
+
+Base: ~389200c8c~. Native F32/F64 operations and conversions use frame/register
+bit-pattern storage and SSE2 scratch. Decimal formatting expands finite IEEE
+values exactly into an 800-byte digit area in a fixed 1152-byte runtime frame,
+rounds to the requested precision once, and fills caller-provided Str storage.
+This is a correctness-first integer conversion loop, without heap workspace.
+
+~test/fasm_runtime.til::check_float_allocations~ compares the same programs with
+interpretation and C, then counts FASM malloc/free calls using the existing
+temporary instrumented runtime. Counts below hold at USize32 and USize64.
+
+| Probe        | Native malloc | Native free | Work                                  |
+|--------------+---------------+-------------+---------------------------------------|
+| float_values |             0 |           0 | Mutable globals, arithmetic and casts |
+| float_format |             2 |           2 | F64 and F32 repr character buffers    |
+
+~fasm_native::check_floating_point~ additionally compares six-/nine-/seventeen-
+digit output for 250 sampled/extreme bit patterns (500 formatted strings) with
+C and interpretation at both widths. It includes subnormals, largest finite
+values, signed zeros, infinities and signed NaNs. No before/after allocation
+or elapsed-time speedup is claimed for these newly supported paths.
+
 ** FNV-1a block addressing (2026-11-09)
 
 Base: ~0fafe1c4e~. Keep the four-byte unroll and the exact FNV-1a byte order,

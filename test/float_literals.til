@@ -132,3 +132,71 @@ test_ieee_f64_division := test() {
     propagated := one.safe_div(nan_value)!
     assert(propagated != propagated)
 }
+
+MixedFloatCall:=func(a:F64,b:I64,c:F32,d:F64,e:I16,f:F32) returns F64
+mixed_float_sum:=func(a:F64,b:I64,c:F32,d:F64,e:I16,f:F32) returns F64 {
+    return a+b.cast(F64)+c.cast(F64)+d+e.cast(F64)+f.cast(F64)
+}
+float_adjust:=func(mut value:F32) { value=value+0.5 }
+float_borrow:=func(mut value:F64) returns ref F64 { value=value+0.25; return value }
+FloatPair:=struct { small:F32=0; wide:F64=0 }
+FloatPairCall:=func(value:F32) returns FloatPair
+FloatConversion:=func(value:I64) returns F64
+FloatFormat:=func(value:F64) returns Str
+make_float_pair:=func(value:F32) returns FloatPair { return FloatPair(small=value,wide=value.cast(F64)+0.25) }
+
+test_float_call_boundaries:=test() {
+    seed:=runtime_f64(1.5)
+    assert_eq(F64,mixed_float_sum(seed,2,3.5,4.25,5,6.5),22.75)
+    call:MixedFloatCall=mixed_float_sum
+    assert_eq(F64,call(seed,2,3.5,4.25,5,6.5),22.75)
+    bias:=seed
+    captured:MixedFloatCall=func(a:F64,b:I64,c:F32,d:F64,e:I16,f:F32) returns F64 [own bias] {
+        return mixed_float_sum(a,b,c,d,e,f)+bias
+    }
+    assert_eq(F64,captured(seed,2,3.5,4.25,5,6.5),24.25)
+    body_bias:=seed
+    mut observed:F64=0
+    body:Body=[own body_bias,mut observed] { observed=body_bias }
+    body()
+    assert_eq(F64,observed,seed)
+    mut narrow:=runtime_f32(1.25)
+    float_adjust(narrow)
+    assert_eq(F32,narrow,1.75)
+    mut wide:=seed
+    ref mut alias:F64=float_borrow(wide)
+    alias=alias+0.5
+    assert_eq(F64,wide,2.25)
+    make:FloatPairCall=make_float_pair
+    pair:=make(narrow)
+    assert_eq(F32,pair.small,1.75)
+    assert_eq(F64,pair.wide,2.0)
+    convert:FloatConversion=dyn_fn("F64","from_i64")
+    assert_eq(F64,convert(2),2.0)
+    format_value:FloatFormat=dyn_fn("F64","to_repr")
+    assert_eq(Str,format_value(seed),"1.5")
+}
+
+FloatReading:=interface {
+    read:=func(self:FloatReading) returns F64
+    add:=func(mut self:FloatReading,amount:F32) returns F32
+}
+FloatMeter:=struct implements FloatReading {
+    small:F32=0
+    wide:F64=0
+namespace:
+    read:=func(self:FloatMeter) returns F64 { return self.wide }
+    add:=func(mut self:FloatMeter,amount:F32) returns F32 { self.small=self.small+amount; return self.small }
+}
+test_float_interface_and_templates:=test() {
+    mut meter:=FloatMeter(small=runtime_f32(1.25),wide=runtime_f64(2.5))
+    ref mut view:FloatReading=meter
+    assert_eq(F64,view.read(),2.5)
+    assert_eq(F32,view.add(0.5),1.75)
+    assert_eq(F32,meter.small,1.75)
+    values:=array(F32,1.25,2.5,3.75)
+    copied:=values.clone()
+    assert_eq(F32,copied[0]+copied[1]+copied[2],7.5)
+    large:=runtime_f32(16777216.0)
+    assert_eq(F32,large+1.0,large)
+}

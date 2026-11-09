@@ -416,6 +416,7 @@
 *** struct_defs := Map(Str, ExprPtrBox).new()
 *** type_cache := Map(Str, FFITypePtrBox).new()
 *** type_cache_inited := false
+*** failed_links := Map(Str, Str).new()
 ** InternedTypes: StructDef
 *** simples := Vec(Dynamic).new()
 *** prims := Vec(Dynamic).new()

@@ -893,6 +893,30 @@
   Arithmetic retains its method width before any caller-parameter widening.
   Unsupported constructs receive source-located errors.
 
+  F32/F64 values, fields, templates and captures retain their IEEE bit patterns.
+  SSE2 implements add/subtract/multiply/divide and comparisons; unordered NaN
+  cases are false for ordered comparisons and true for !=, while cmp retains
+  core's zero result for unordered operands. Division preserves Inf/NaN and
+  signed-zero behavior; the ordinary safe_div bodies retain their throw paths.
+  Numeric casts cover integer/float and F32/F64 conversion. Checked float-to-
+  integer casts decode the truncated mathematical value before applying exact
+  signed/unsigned bounds, including U64, and retain the source-located invalid
+  numeric cast panic. The to_i64 method keeps its existing unchecked contract.
+
+  Float bit patterns travel through the existing private integer argument
+  registers/frame slots and RAX results, including direct/indirect calls,
+  borrowed results, closures, interface dispatch and native method thunks.
+  XMM0/XMM1 are operation scratch, not a public C/SSE calling convention;
+  the existing six-argument private budget and aggregate result input remain.
+
+  Native to_str uses six significant digits, and to_repr uses nine/seventeen
+  for F32/F64. The runtime expands the finite IEEE value into exact decimal
+  digits in fixed stack workspace, rounds once to nearest-even and applies C's
+  %g fixed/scientific and trailing-zero rules. Signed zeros, infinities and NaNs
+  preserve their signs. Only the returned character buffer is heap-allocated;
+  the descriptor uses caller-provided storage. This correctness-first conversion
+  loop has no elapsed-time performance claim.
+
   Til writes ~gen/fasm/<source>.fasm~, preserving the normal source hierarchy.
   The vendored FASM writes a standalone ELF64 executable to ~bin/<source>~
   or the existing ~-o~ override. There is no C compiler, libc or linker in
@@ -1123,7 +1147,8 @@
     Removal follows ext.c's unlink contract: a missing path is harmless, but
     directories and other failures are errors.
 
-  Floating-point operations, general runtime-selected method/reflection lookup,
+  SIMD, explicit fused multiply-add, text-to-float parsing, general
+  runtime-selected method/reflection lookup,
   unsupported external runtime services remain outside this
   subset. Array methods are no longer restricted to compiler-generated
   variadic collectors.
@@ -1168,6 +1193,22 @@
   for borrowed interface handles, two payload allocations/frees for owned
   copies and fields, and four for two closures with owned interface captures.
   A mismatched-Self fixture checks native C/FASM diagnostic parity.
+
+  ~test/float_literals.til~ runs directly at both widths, including IEEE edge
+  cases, mixed six-argument direct/indirect/captured calls, mutable/borrowed
+  floats, aggregate results, interfaces, templates and primitive method thunks.
+  ~fasm_native::check_floating_point~ reuses the scalar prefix of ~test/cast.til~
+  before its separate SIMD section, compares to_str/to_repr for 250 sampled and
+  extreme F32/F64 bit patterns, and checks nine invalid-cast diagnostics/exits.
+  The runtime driver pins zero allocation/free calls for scalar float work and
+  two/two for two formatted results, at both USize widths.
+
+  The owned alias captures in the shared float test also regress a C emitter
+  defect: a borrowed local scalar alias must be copied into a private capture
+  cell, not retained and later freed as though its stack address were owned.
+  Both function and Body capture paths use the corrected storage classification.
+  The SDK documentation fixture separately checks that private type source-path
+  components are not mistaken for generic type-argument dependencies.
 
   The same corpus covers enum tags (including U64 values above 32 bits),
   narrow/Bool/USize payloads, mutable payload bindings, nested patterns,

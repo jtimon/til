@@ -1,5 +1,5 @@
 #+TITLE: src/self/scavenger.til
-#+SUBTITLE: til 0.0.1-0fafe1c4e
+#+SUBTITLE: til 0.0.1-389200c8c
 #+OPTIONS: toc:t
 
 * vec_push_str

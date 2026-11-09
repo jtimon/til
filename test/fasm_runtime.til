@@ -212,6 +212,18 @@ check_interface_allocations := proc(compiler: Str, work: Str) {
         "","interface dispatch: Self arguments have different runtime types\n",1,interpret_source=false)
 }
 
+check_float_allocations := proc(compiler: Str, work: Str) {
+    check_allocations(compiler,work,"float_values",format(
+        "mode cli\nmut narrow:F32=1.25\nmut wide:F64=2.5\n",
+        "bump:=func() { narrow=narrow+0.5; wide=wide+0.25 }\n",
+        "main:=proc() { bump(); assert(narrow==1.75); assert(wide==2.75);\n",
+        "assert(narrow.cast(I32)==1); assert(wide.cast(U64)==2); assert(narrow.cast(F64)==1.75) }\n"),0,0)
+    check_allocations(compiler,work,"float_format",format(
+        "mode cli\nmain:=proc() { mut value:F64=0.1; value=value+0.0; text:=value.to_repr();\n",
+        "assert(text.eq(\"0.10000000000000001\")); mut small:F32=0.1; small=small+0.0;\n",
+        "single:=small.to_repr(); assert(single.eq(\"0.100000001\")) }\n"),2,2)
+}
+
 check_globals := proc(compiler: Str, work: Str) {
     // A diamond import must initialize the shared state once, before either
     // dependent module. Resource-bearing values must outlive the init frames.
@@ -282,6 +294,7 @@ main := proc(compiler_arg: Str) {
     check_unboxed(compiler, work)
     check_closure_allocations(compiler, work)
     check_interface_allocations(compiler,work)
+    check_float_allocations(compiler,work)
     check(compiler, work, "global_callables", format(
         "mode cli\nAction := func(value: I64) returns I64\nSaved := struct { action: Action }\n",
         "make := func(start: I64) returns Action { state := start; return func(value: I64) returns I64 [own mut state] { state = state + value; return state } }\n",

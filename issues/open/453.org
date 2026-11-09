@@ -539,6 +539,44 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   9-case phases without sanitizer diagnostics. Native assembly is not
   ASAN-instrumented.
 
+**** Scalar F32/F64 values, casts, calls and formatting
+
+  On base ~389200c8c~, native scalar floating-point values use IEEE bit storage
+  in the existing private frame/register convention. SSE2 implements the four
+  basic arithmetic operators and IEEE comparisons (including unordered NaN
+  behavior and core cmp). Literals, fields, templates, captures, mutable/ref
+  values, aggregate results, mixed direct/indirect calls, interface methods
+  and primitive method thunks use the same storage rules.
+
+  Numeric casts handle signed/unsigned integers and both float widths.
+  Checked float-to-integer conversion validates the truncated mathematical
+  value with exact integer bounds, preserving U64 behavior and source-located
+  failure text. Native to_str/to_repr use C's 6/9/17 significant-digit rules,
+  expanding exact decimal digits in fixed stack workspace and rounding once
+  to nearest-even. Only character buffers allocate; result descriptors remain
+  in caller-provided storage. Explicit FMA, SIMD and text parsing remain
+  separate unsupported runtime slices.
+
+  Shared validation exposed two existing causes outside the FASM emitter:
+  - C closure/Body construction forwarded an elided borrowed scalar alias into
+    an owning environment, then freed its stack address. It now allocates the
+    private scalar value cell that capture owns. The shared float call-boundary
+    test pins both function and Body captures.
+  - SDK imports use absolute private type identities. A source-path component
+    named target made runtime Type parameters look like generic arguments.
+    Dependency matching now skips the encoded private path while retaining
+    actual type-name/argument segments. ~test/doc_sdk.til~ adds a portable
+    target.til/private-type fixture covering direct and container annotations.
+
+  ~float_literals~ runs 11 cases directly; ~check_floating_point~ reuses all 10
+  scalar cast cases before the existing SIMD section, compares 500 strings for
+  250 sampled/extreme IEEE values and checks nine invalid casts at both widths.
+  Allocation probes pin 0/0 for scalar work and 2/2 for two formatted results.
+  ~fasm_options~ now accepts scalar floats and retains SIMD rejection coverage.
+  Verification: ~make clean && make test~ passed 559/559, both FASM drivers
+  passed, and the shared float/cast/format sources passed focused C ASAN runs
+  at USize64 without sanitizer diagnostics. Native assembly is not ASAN-instrumented.
+
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
   repeated work. In-process code allocation, relocation, lifetime management

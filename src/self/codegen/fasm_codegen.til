@@ -211,9 +211,8 @@ priv fasm_type_size := func(shallow t: Type, lp: LoadedProgram) returns USize {
         switch p {
         case .I8, .U8, .Bool: return 1
         case .I16, .U16: return 2
-        case .I32, .U32: return 4
-        case .I64, .U64: return 8
-        case: panic("unsupported FASM scalar layout")
+        case .I32, .U32, .F32: return 4
+        case .I64, .U64, .F64: return 8
         }
     case: return target_value_size(type_name_ref(t, lp.ctx.symbols), lp.ctx.scope, lp.ctx)
     }
@@ -762,6 +761,18 @@ priv fasm_static_number := func(value: U64, bytes: USize) returns Str {
     return format(text, "\n")
 }
 
+priv fasm_numeric_bits := func(value: LiteralNumData, shallow t: Type) returns U64 {
+    mut bits:U64=0
+    if t==Type.Primitive(Primitive.F32) {
+        number:=value.to_f32()
+        memcpy(to_ptr(bits),to_ptr(number),4)
+    } else if t==Type.Primitive(Primitive.F64) {
+        number:=value.text.to_f64()
+        memcpy(to_ptr(bits),to_ptr(number),8)
+    } else { return value.to_u64() }
+    return bits
+}
+
 priv fasm_static_label := func(mut state: FasmState) returns Str {
     label := format(state.prefix, "p", state.literals.to_str())
     state.literals++
@@ -829,7 +840,7 @@ priv fasm_static_value := proc(e: Expr, shallow t: Type, mut state: FasmState, m
     switch e.node_type {
     case .Literal(Literal.Num(n)):
         if fasm_scalar(t).not() { fasm_error(e, "unsupported precomputed scalar", lp); return "" }
-        return fasm_static_number(n.to_u64(), fasm_type_size(t, lp))
+        return fasm_static_number(fasm_numeric_bits(n,t), fasm_type_size(t, lp))
     case .Literal(Literal.Bool(v)):
         if v { return "db 1\n" }
         return "db 0\n"
@@ -1424,11 +1435,92 @@ priv fasm_scalar := func(shallow t: Type) returns Bool {
     switch t {
     case .Primitive(p):
         switch p {
-        case .I8, .U8, .I16, .U16, .I32, .U32, .I64, .U64, .Bool: return true
-        case: return false
+        case .I8, .U8, .I16, .U16, .I32, .U32, .I64, .U64, .Bool, .F32, .F64: return true
         }
     case: return false
     }
+}
+
+priv fasm_float := func(shallow t: Type) returns Bool {
+    return t.eq(Type.Primitive(Primitive.F32)).or(t.eq(Type.Primitive(Primitive.F64)))
+}
+
+priv fasm_float_suffix := func(shallow t: Type) returns Str {
+    if t==Type.Primitive(Primitive.F32) { return "ss" }
+    return "sd"
+}
+
+priv fasm_float_factory := func(name: Str, program: FasmProgram, lp: LoadedProgram) returns Bool {
+    ref location:FasmDefinition=program.definitions[name]
+    if location.member<0 || location.nested.len()>0 { return false }
+    ref unit:ImportUnit=lp.ctx.imported[location.path]
+    ref declaration:Expr=unit.ast.children.unsafe_get(location.declaration)
+    ref owner:Str=decl_of(declaration).name
+    return owner.eq("F32").or(owner.eq("F64"))
+        .and(def_ns_name_at(declaration.children[0],location.member.to_usize()).eq("from_i64"))
+}
+
+// Values retain the private RAX/argument-register bit convention. XMM registers
+// are scratch for IEEE operations, so closures, refs and aggregates share slots.
+priv fasm_float_cast := proc(e: Expr, shallow source: Type, shallow target: Type, checked: Bool,
+    mut state: FasmState, mut lp: LoadedProgram) {
+    single:=source==Type.Primitive(Primitive.F32)
+    if fasm_float(source).and(fasm_float(target)) {
+        if source==target { return }
+        if single { fasm_emit(state,"movd xmm0, eax\n    cvtss2sd xmm0, xmm0\n    movq rax, xmm0") }
+        else { fasm_emit(state,"movq xmm0, rax\n    cvtsd2ss xmm0, xmm0\n    movd eax, xmm0") }
+        return
+    }
+    if fasm_float(target) {
+        label:=state.labels.to_str()
+        state.labels++
+        suffix:=fasm_float_suffix(target)
+        if source==Type.Primitive(Primitive.U64) {
+            fasm_emit(state,format("test rax, rax\n    jns .float_signed",label,
+                "\n    mov rcx, rax\n    and ecx, 1\n    shr rax, 1\n    or rax, rcx\n    cvtsi2",suffix,
+                " xmm0, rax\n    add",suffix," xmm0, xmm0\n    jmp .float_converted",label,
+                "\n.float_signed",label,":\n    cvtsi2",suffix," xmm0, rax\n.float_converted",label,":"))
+        } else { fasm_emit(state,format("cvtsi2",suffix," xmm0, rax")) }
+        if target==Type.Primitive(Primitive.F32) { fasm_emit(state,"movd eax, xmm0") }
+        else { fasm_emit(state,"movq rax, xmm0") }
+        return
+    }
+    if checked.not() {
+        if single { fasm_emit(state,"movd xmm0, eax\n    cvttss2si rax, xmm0") }
+        else { fasm_emit(state,"movq xmm0, rax\n    cvttsd2si rax, xmm0") }
+        fasm_narrow(target,state)
+        return
+    }
+    // Decode the truncated mathematical integer before conversion. This avoids
+    // rounded MAX bounds and handles unsigned 64-bit values without overflow.
+    label:=state.labels.to_str()
+    state.labels++
+    mut mantissa:USize=52
+    mut bias:I64=1023
+    mut exponent_mask:U64=2047
+    mut exponent_bits:USize=11
+    one:U64=1
+    if single { mantissa=23; bias=127; exponent_mask=255; exponent_bits=8 }
+    fasm_emit(state,format("mov r8, rax\n    shr r8, ",(mantissa+exponent_bits).to_str()))
+    fasm_emit(state,format("mov rcx, rax\n    shr rcx, ",mantissa.to_str(),"\n    and ecx, ",exponent_mask.to_str(),
+        "\n    cmp ecx, ",exponent_mask.to_str(),"\n    je .float_invalid",label,"\n    sub rcx, ",bias.to_str(),
+        "\n    js .float_zero",label,"\n    cmp rcx, 64\n    jae .float_invalid",label,
+        "\n    mov rdx, ",one.shl(mantissa.to_u64()).to_str(),"\n    dec rdx\n    and rax, rdx\n    inc rdx\n    or rax, rdx",
+        "\n    sub rcx, ",mantissa.to_str(),"\n    jns .float_left",label,"\n    neg rcx\n    shr rax, cl\n    jmp .float_bounds",label,
+        "\n.float_left",label,":\n    shl rax, cl\n.float_bounds",label,":"))
+    bits:=fasm_type_size(target,lp)*8
+    if fasm_unsigned(target) {
+        fasm_emit(state,format("test r8, r8\n    jnz .float_invalid",label))
+        if bits<64 { fasm_emit(state,format("mov rdx, ",one.shl(bits.to_u64()).to_str(),"\n    cmp rax, rdx\n    jae .float_invalid",label)) }
+    } else {
+        fasm_emit(state,format("mov rdx, ",one.shl((bits-1).to_u64()).to_str(),"\n    test r8, r8\n    jz .float_positive",label,
+            "\n    cmp rax, rdx\n    ja .float_invalid",label,"\n    neg rax\n    jmp .float_done",label,
+            "\n.float_positive",label,":\n    cmp rax, rdx\n    jae .float_invalid",label))
+    }
+    fasm_emit(state,format("jmp .float_done",label,"\n.float_zero",label,":\n    xor eax, eax\n    jmp .float_done",label,"\n.float_invalid",label,":"))
+    fasm_interface_literal(format(numeric_cast_location(e,lp.ctx),": panic: invalid numeric cast\n"),state,lp)
+    fasm_emit(state,format("mov rdi, rax\n    call rt_print_single\n    mov edi, 1\n    jmp rt_exit\n.float_done",label,":"))
+    fasm_narrow(target,state)
 }
 
 priv fasm_is_str := func(shallow t: Type, lp: LoadedProgram) returns Bool { return type_name_ref(t, lp.ctx.symbols) == "Str" }
@@ -1449,7 +1541,7 @@ priv fasm_narrow := func(shallow t: Type, mut state: FasmState) {
         case .I16: fasm_emit(state, "movsx rax, ax")
         case .U16: fasm_emit(state, "movzx eax, ax")
         case .I32: fasm_emit(state, "movsxd rax, eax")
-        case .U32: fasm_emit(state, "mov eax, eax")
+        case .U32, .F32: fasm_emit(state, "mov eax, eax")
         case:
         }
     case:
@@ -1465,7 +1557,7 @@ priv fasm_load_scalar := func(shallow t: Type, mut state: FasmState) {
         case .I16: fasm_emit(state, "movsx rax, word [rax]")
         case .U16: fasm_emit(state, "movzx eax, word [rax]")
         case .I32: fasm_emit(state, "movsxd rax, dword [rax]")
-        case .U32: fasm_emit(state, "mov eax, dword [rax]")
+        case .U32, .F32: fasm_emit(state, "mov eax, dword [rax]")
         case: fasm_emit(state, "mov rax, [rax]")
         }
     case: fasm_emit(state, "mov rax, [rax]")
@@ -1542,9 +1634,8 @@ priv fasm_store_scalar := func(shallow t: Type, mut state: FasmState) {
         switch p {
         case .I8, .U8, .Bool: fasm_emit(state, "mov [rcx], al")
         case .I16, .U16: fasm_emit(state, "mov [rcx], ax")
-        case .I32, .U32: fasm_emit(state, "mov [rcx], eax")
-        case .I64, .U64: fasm_emit(state, "mov [rcx], rax")
-        case: panic("invalid FASM scalar store")
+        case .I32, .U32, .F32: fasm_emit(state, "mov [rcx], eax")
+        case .I64, .U64, .F64: fasm_emit(state, "mov [rcx], rax")
         }
     case:
         if type_is_callable_storage(t) { fasm_emit(state, "mov [rcx], rax") }
@@ -1564,11 +1655,51 @@ priv fasm_conversion := func(op: Str, lp: LoadedProgram) returns Type {
     case "to_u64": return Type.Primitive(Primitive.U64)
     case "to_usize": return type_from_name_init_name("USize", lp.ctx.scope, lp.ctx.symbols)
     case "to_uptr": return type_from_name_init_name("UPtr", lp.ctx.scope, lp.ctx.symbols)
+    case "to_f32": return Type.Primitive(Primitive.F32)
+    case "to_f64": return Type.Primitive(Primitive.F64)
     case: return Type.Unknown
     }
 }
 
+priv fasm_float_binary := proc(e: Expr, shallow owner: Type, op: Str, mut state: FasmState, mut lp: LoadedProgram) returns Bool {
+    switch op {
+    case "add","sub","mul","div","eq","neq","lt","gt","lte","gte","cmp":
+    case: return false
+    }
+    fasm_expr(e.children[1],state,lp)
+    left:=fasm_slot(state)
+    fasm_emit(state,format("mov ",left,", rax"))
+    fasm_expr(e.children[2],state,lp)
+    fasm_emit(state,format("mov rcx, rax\n    mov rax, ",left))
+    if owner==Type.Primitive(Primitive.F32) { fasm_emit(state,"movd xmm0, eax\n    movd xmm1, ecx") }
+    else { fasm_emit(state,"movq xmm0, rax\n    movq xmm1, rcx") }
+    switch op {
+    case "add","sub","mul","div":
+        fasm_emit(state,format(op,fasm_float_suffix(owner)," xmm0, xmm1"))
+        if owner==Type.Primitive(Primitive.F32) { fasm_emit(state,"movd eax, xmm0") }
+        else { fasm_emit(state,"movq rax, xmm0") }
+        if fasm_float(e.til_type()).and(owner.neq(e.til_type())) { fasm_float_cast(e,owner,e.til_type(),false,state,lp) }
+    case:
+        fasm_emit(state,format("ucomi",fasm_float_suffix(owner)," xmm0, xmm1"))
+        switch op {
+        case "eq": fasm_emit(state,"sete al\n    setnp dl\n    and al, dl")
+        case "neq": fasm_emit(state,"setne al\n    setp dl\n    or al, dl")
+        case "lt": fasm_emit(state,"setb al\n    setnp dl\n    and al, dl")
+        case "lte": fasm_emit(state,"setbe al\n    setnp dl\n    and al, dl")
+        case "gt": fasm_emit(state,"seta al")
+        case "gte": fasm_emit(state,"setae al")
+        case "cmp":
+            fasm_emit(state,"seta cl\n    setb al\n    setnp dl\n    and al, dl\n    movzx ecx, cl\n    movzx eax, al\n    sub rcx, rax\n    mov rax, rcx")
+            return true
+        case:
+        }
+        fasm_emit(state,"movzx eax, al")
+    }
+    return true
+}
+
 priv fasm_binary := proc(e: Expr, shallow owner: Type, op: Str, mut state: FasmState, mut lp: LoadedProgram) returns Bool {
+    if fasm_float(owner) { return fasm_float_binary(e,owner,op,state,lp) }
     switch op {
     case "add", "sub", "mul", "div", "mod", "band", "bor", "bxor", "shl", "shr", "eq", "neq", "lt", "gt", "lte", "gte", "cmp":
     case: return false
@@ -1788,8 +1919,8 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
         if state.values.has(name).not() { fasm_error(e, format("unsupported value '", name, "'"), lp); return }
         fasm_binding_value(name, e.til_type(), as_pointer, state)
     case .Literal(Literal.Num(n)):
-        if fasm_scalar(e.til_type()).not() { fasm_error(e, "only integer numeric values are supported", lp); return }
-        fasm_emit(state, format("mov rax, ", n.to_u64().to_str()))
+        if fasm_scalar(e.til_type()).not() { fasm_error(e, "unsupported numeric value", lp); return }
+        fasm_emit(state, format("mov rax, ", fasm_numeric_bits(n,e.til_type()).to_str()))
         fasm_narrow(e.til_type(), state)
     case .Literal(Literal.Null): fasm_emit(state, "xor eax, eax")
     case .PrecomputedSequence:
@@ -1875,6 +2006,12 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
                     fasm_user_call(e, fasm_callee_name(e, lp), state, lp, as_pointer)
                     return
                 }
+                if fasm_float(owner) && (op=="to_str" || op=="to_repr") {
+                    mut runtime:="rt_f64_"
+                    if owner==Type.Primitive(Primitive.F32) { runtime="rt_f32_" }
+                    fasm_runtime_call(e,format(runtime,op),state,lp)
+                    return
+                }
                 if op == "to_str" && owner.is(Type.Dynamic).not() && owner != Type.Primitive(Primitive.Bool) {
                     mut runtime := "rt_i64_to_str"
                     if fasm_unsigned(owner) { runtime = "rt_u64_to_str" }
@@ -1884,7 +2021,13 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
                 conversion := fasm_conversion(op, lp)
                 if conversion.is(Type.Unknown).not() {
                     fasm_expr(e.children[1], state, lp)
-                    fasm_narrow(conversion, state)
+                    if fasm_float(owner).or(fasm_float(conversion)) { fasm_float_cast(e,owner,conversion,false,state,lp) }
+                    else { fasm_narrow(conversion, state) }
+                    return
+                }
+                if op=="from_i64" && fasm_float(owner) {
+                    fasm_expr(e.children[1],state,lp)
+                    fasm_float_cast(e,Type.Primitive(Primitive.I64),owner,false,state,lp)
                     return
                 }
                 if (op == "inc" || op == "dec") && e.children.len() == 2 {
@@ -1963,7 +2106,9 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
                         }
                         if fasm_scalar(target).not() { fasm_error(e, "unsupported cast target", lp); return }
                         fasm_expr(e.children[1], state, lp)
-                        fasm_narrow(target, state)
+                        ref source:Type=e.children[1].til_type()
+                        if fasm_float(source).or(fasm_float(target)) { fasm_float_cast(e,source,target,true,state,lp) }
+                        else { fasm_narrow(target, state) }
                         return
                     case: fasm_error(e, "cast target must be a concrete type", lp); return
                     }
@@ -2410,7 +2555,7 @@ priv fasm_function := proc(name: Str, mut program: FasmProgram, mut lp: LoadedPr
     }
     if fasm_interface_dispatchable(name,program,lp) {
         fasm_interface_dispatch(name,expr,state,lp)
-    } else if fd.sig.func_type.is_bodyless() {
+    } else if fd.sig.func_type.is_bodyless().or(fasm_float_factory(name,program,lp)) {
         ref location : FasmDefinition = program.definitions[name]
         mut callee := Expr.new(own ident_node(lp.ctx.symbols.intern(name)), expr.line, expr.col)
         if location.member >= 0 {

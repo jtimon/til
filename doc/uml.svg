@@ -356,7 +356,7 @@
   <text x="1014" y="550" class="line">error_detail := &quot;&quot;</text>
   <text x="1014" y="568" class="line">source := &quot;&quot;</text>
   <text x="1014" y="586" class="line">ref symbols : SymbolPool</text>
-  <rect x="1370" y="24" width="516" height="4412" rx="14" ry="14" class="panel"/>
+  <rect x="1370" y="24" width="516" height="4430" rx="14" ry="14" class="panel"/>
   <text x="1390" y="62" class="panel-label">context</text>
   <rect x="1390" y="88" width="212" height="118" rx="10" ry="10" class="box"/>
   <text x="1404" y="126" class="title">RootBits: StructDef</text>
@@ -466,7 +466,7 @@
   <text x="1404" y="2222" class="line">in_func_def := false</text>
   <text x="1404" y="2240" class="line">in_main_func := false</text>
   <text x="1404" y="2258" class="line">current_fdef := Option(ref Expr).None</text>
-  <rect x="1390" y="2284" width="372" height="190" rx="10" ry="10" class="box"/>
+  <rect x="1390" y="2284" width="372" height="208" rx="10" ry="10" class="box"/>
   <text x="1404" y="2322" class="title">FfiState: StructDef</text>
   <text x="1404" y="2340" class="line">dispatch_map := Map(Str, Dynamic).new()</text>
   <text x="1404" y="2358" class="line">dispatch_inited := false</text>
@@ -476,100 +476,101 @@
   <text x="1404" y="2430" class="line">struct_defs := Map(Str, ExprPtrBox).new()</text>
   <text x="1404" y="2448" class="line">type_cache := Map(Str, FFITypePtrBox).new()</text>
   <text x="1404" y="2466" class="line">type_cache_inited := false</text>
-  <rect x="1390" y="2492" width="308" height="154" rx="10" ry="10" class="box"/>
-  <text x="1404" y="2530" class="title">InternedTypes: StructDef</text>
-  <text x="1404" y="2548" class="line">simples := Vec(Dynamic).new()</text>
-  <text x="1404" y="2566" class="line">prims := Vec(Dynamic).new()</text>
-  <text x="1404" y="2584" class="line">structs := Map(Str, Dynamic).new()</text>
-  <text x="1404" y="2602" class="line">enums := Map(Str, Dynamic).new()</text>
-  <text x="1404" y="2620" class="line">customs := Map(Str, Dynamic).new()</text>
-  <text x="1404" y="2638" class="line">funcsigs := Map(Str, Dynamic).new()</text>
-  <rect x="1390" y="2664" width="220" height="100" rx="10" ry="10" class="box"/>
-  <text x="1404" y="2702" class="title">ForeignPlace: StructDef</text>
-  <text x="1404" y="2720" class="line">names := Vec(Str).new()</text>
-  <text x="1404" y="2738" class="line">roots := Vec(UPtr).new()</text>
-  <text x="1404" y="2756" class="line">own state : U8</text>
-  <rect x="1390" y="2782" width="244" height="82" rx="10" ry="10" class="box"/>
-  <text x="1404" y="2820" class="title">InterpOutputStream: EnumDef</text>
-  <text x="1404" y="2838" class="line">Stdout</text>
-  <text x="1404" y="2856" class="line">Stderr }</text>
-  <rect x="1390" y="2882" width="308" height="82" rx="10" ry="10" class="box"/>
-  <text x="1404" y="2920" class="title">InterpOutputEvent: StructDef</text>
-  <text x="1404" y="2938" class="line">stream := InterpOutputStream.Stdout</text>
-  <text x="1404" y="2956" class="line">text := &quot;&quot;</text>
-  <rect x="1390" y="2982" width="260" height="100" rx="10" ry="10" class="box"/>
-  <text x="1404" y="3020" class="title">ComptimeDefinition: StructDef</text>
-  <text x="1404" y="3038" class="line">name: Str</text>
-  <text x="1404" y="3056" class="line">ref original: Expr</text>
-  <text x="1404" y="3074" class="line">is_type: Bool</text>
-  <rect x="1390" y="3100" width="332" height="154" rx="10" ry="10" class="box"/>
-  <text x="1404" y="3138" class="title">ComptimePreparation: StructDef</text>
-  <text x="1404" y="3156" class="line">definitions := Map(Str, Expr).new()</text>
-  <text x="1404" y="3174" class="line">saved := Vec(ComptimeDefinition).new()</text>
-  <text x="1404" y="3192" class="line">ready := Set(Str).new()</text>
-  <text x="1404" y="3210" class="line">active := Set(Str).new()</text>
-  <text x="1404" y="3228" class="line">globals := Vec(Str).new()</text>
-  <text x="1404" y="3246" class="line">storage_calls := Map(UPtr, Str).new()</text>
-  <rect x="1390" y="3272" width="404" height="496" rx="10" ry="10" class="box"/>
-  <text x="1404" y="3310" class="title">EvalState: StructDef</text>
-  <text x="1404" y="3328" class="line">has_return := false</text>
-  <text x="1404" y="3346" class="line">has_break := false</text>
-  <text x="1404" y="3364" class="line">has_continue := false</text>
-  <text x="1404" y="3382" class="line">ref return_value : Dynamic = 0</text>
-  <text x="1404" y="3400" class="line">interp_ret_is_ref := false</text>
-  <text x="1404" y="3418" class="line">ref interp_ret_dest : Dynamic = 0</text>
-  <text x="1404" y="3436" class="line">interp_ret_type := Option(ref Str).None</text>
-  <text x="1404" y="3454" class="line">interp_ret_own_type := OwnType.Shallow</text>
-  <text x="1404" y="3472" class="line">interp_cstr_arg := false</text>
-  <text x="1404" y="3490" class="line">interp_callable_arg_borrow := false</text>
-  <text x="1404" y="3508" class="line">constfold_active := false</text>
-  <text x="1404" y="3526" class="line">target_size_queries := false</text>
-  <text x="1404" y="3544" class="line">eval_aborted := false</text>
-  <text x="1404" y="3562" class="line">repl_session := false</text>
-  <text x="1404" y="3580" class="line">embedded := false</text>
-  <text x="1404" y="3598" class="line">exit_status := Option(I64).None</text>
-  <text x="1404" y="3616" class="line">failure_site := SourceDiagnostic()</text>
-  <text x="1404" y="3634" class="line">guest_output := &quot;&quot;</text>
-  <text x="1404" y="3652" class="line">function_paths := Map(UPtr, Str).new()</text>
-  <text x="1404" y="3670" class="line">capture_output := false</text>
-  <text x="1404" y="3688" class="line">output := Vec(InterpOutputEvent).new()</text>
-  <text x="1404" y="3706" class="line">ns_fields := Option(Scope).None</text>
-  <text x="1404" y="3724" class="line">foreign_places := Map(UPtr, ForeignPlace).new()</text>
-  <text x="1404" y="3742" class="line">own foreign_cleanup_dirty : U8 = calloc(1, 1)</text>
-  <text x="1404" y="3760" class="line">cached_str_name := &quot;&quot;</text>
-  <rect x="1390" y="3786" width="476" height="550" rx="10" ry="10" class="box"/>
-  <text x="1404" y="3824" class="title">Context: StructDef</text>
-  <text x="1404" y="3842" class="line">mode := Mode()</text>
-  <text x="1404" y="3860" class="line">path := &quot;&quot;</text>
-  <text x="1404" y="3878" class="line">collect_diagnostics := false</text>
-  <text x="1404" y="3896" class="line">diagnostics := Vec(SourceDiagnostic).new()</text>
-  <text x="1404" y="3914" class="line">deferred_errors := Vec(SourceDiagnostic).new()</text>
-  <text x="1404" y="3932" class="line">path_modes := Map(Str, Mode).new()</text>
-  <text x="1404" y="3950" class="line">mode_registry := Map(Str, Mode).new()</text>
-  <text x="1404" y="3968" class="line">eval_heap := EvalHeap.new()</text>
-  <text x="1404" y="3986" class="line">target_usize_pname := &quot;U64&quot;</text>
-  <text x="1404" y="4004" class="line">target_uptr_pname := &quot;U64&quot;</text>
-  <text x="1404" y="4022" class="line">target_usize_bytes : USize = 8</text>
-  <text x="1404" y="4040" class="line">target_simd_bits : USize = 128</text>
-  <text x="1404" y="4058" class="line">target_cptr32 := false</text>
-  <text x="1404" y="4076" class="line">comptime_requests := Set(Str).new()</text>
-  <text x="1404" y="4094" class="line">comptime_preparation := Option(ComptimePreparation).None</text>
-  <text x="1404" y="4112" class="line">target_scalar64_align : USize = 8</text>
-  <text x="1404" y="4130" class="line">anon_type_counter : I64 = 0</text>
-  <text x="1404" y="4148" class="line">compile_mode := false</text>
-  <text x="1404" y="4166" class="line">constfolder_foldables := Map(Str, FuncType).new()</text>
-  <text x="1404" y="4184" class="line">constfolder_known := Option(Scope).None</text>
-  <text x="1404" y="4202" class="line">constfolder_assigned := Set(Str).new()</text>
-  <text x="1404" y="4220" class="line">precomputed_sequence_counter : USize = 0</text>
-  <text x="1404" y="4238" class="line">eval := EvalState()</text>
-  <text x="1404" y="4256" class="line">imported := Map(Str, ImportUnit).new()</text>
-  <text x="1404" y="4274" class="line">import_cwd := &quot;&quot;</text>
-  <text x="1404" y="4292" class="line">import_support_dir := &quot;&quot;</text>
-  <text x="1404" y="4310" class="line">check_unused_imports := false</text>
-  <text x="1404" y="4328" class="line">... (81 more)</text>
-  <rect x="1390" y="4354" width="236" height="64" rx="10" ry="10" class="box"/>
-  <text x="1404" y="4392" class="title">HostOwnPtrProbe: StructDef</text>
-  <text x="1404" y="4410" class="line">own p : U8 = 0</text>
+  <text x="1404" y="2484" class="line">failed_links := Map(Str, Str).new()</text>
+  <rect x="1390" y="2510" width="308" height="154" rx="10" ry="10" class="box"/>
+  <text x="1404" y="2548" class="title">InternedTypes: StructDef</text>
+  <text x="1404" y="2566" class="line">simples := Vec(Dynamic).new()</text>
+  <text x="1404" y="2584" class="line">prims := Vec(Dynamic).new()</text>
+  <text x="1404" y="2602" class="line">structs := Map(Str, Dynamic).new()</text>
+  <text x="1404" y="2620" class="line">enums := Map(Str, Dynamic).new()</text>
+  <text x="1404" y="2638" class="line">customs := Map(Str, Dynamic).new()</text>
+  <text x="1404" y="2656" class="line">funcsigs := Map(Str, Dynamic).new()</text>
+  <rect x="1390" y="2682" width="220" height="100" rx="10" ry="10" class="box"/>
+  <text x="1404" y="2720" class="title">ForeignPlace: StructDef</text>
+  <text x="1404" y="2738" class="line">names := Vec(Str).new()</text>
+  <text x="1404" y="2756" class="line">roots := Vec(UPtr).new()</text>
+  <text x="1404" y="2774" class="line">own state : U8</text>
+  <rect x="1390" y="2800" width="244" height="82" rx="10" ry="10" class="box"/>
+  <text x="1404" y="2838" class="title">InterpOutputStream: EnumDef</text>
+  <text x="1404" y="2856" class="line">Stdout</text>
+  <text x="1404" y="2874" class="line">Stderr }</text>
+  <rect x="1390" y="2900" width="308" height="82" rx="10" ry="10" class="box"/>
+  <text x="1404" y="2938" class="title">InterpOutputEvent: StructDef</text>
+  <text x="1404" y="2956" class="line">stream := InterpOutputStream.Stdout</text>
+  <text x="1404" y="2974" class="line">text := &quot;&quot;</text>
+  <rect x="1390" y="3000" width="260" height="100" rx="10" ry="10" class="box"/>
+  <text x="1404" y="3038" class="title">ComptimeDefinition: StructDef</text>
+  <text x="1404" y="3056" class="line">name: Str</text>
+  <text x="1404" y="3074" class="line">ref original: Expr</text>
+  <text x="1404" y="3092" class="line">is_type: Bool</text>
+  <rect x="1390" y="3118" width="332" height="154" rx="10" ry="10" class="box"/>
+  <text x="1404" y="3156" class="title">ComptimePreparation: StructDef</text>
+  <text x="1404" y="3174" class="line">definitions := Map(Str, Expr).new()</text>
+  <text x="1404" y="3192" class="line">saved := Vec(ComptimeDefinition).new()</text>
+  <text x="1404" y="3210" class="line">ready := Set(Str).new()</text>
+  <text x="1404" y="3228" class="line">active := Set(Str).new()</text>
+  <text x="1404" y="3246" class="line">globals := Vec(Str).new()</text>
+  <text x="1404" y="3264" class="line">storage_calls := Map(UPtr, Str).new()</text>
+  <rect x="1390" y="3290" width="404" height="496" rx="10" ry="10" class="box"/>
+  <text x="1404" y="3328" class="title">EvalState: StructDef</text>
+  <text x="1404" y="3346" class="line">has_return := false</text>
+  <text x="1404" y="3364" class="line">has_break := false</text>
+  <text x="1404" y="3382" class="line">has_continue := false</text>
+  <text x="1404" y="3400" class="line">ref return_value : Dynamic = 0</text>
+  <text x="1404" y="3418" class="line">interp_ret_is_ref := false</text>
+  <text x="1404" y="3436" class="line">ref interp_ret_dest : Dynamic = 0</text>
+  <text x="1404" y="3454" class="line">interp_ret_type := Option(ref Str).None</text>
+  <text x="1404" y="3472" class="line">interp_ret_own_type := OwnType.Shallow</text>
+  <text x="1404" y="3490" class="line">interp_cstr_arg := false</text>
+  <text x="1404" y="3508" class="line">interp_callable_arg_borrow := false</text>
+  <text x="1404" y="3526" class="line">constfold_active := false</text>
+  <text x="1404" y="3544" class="line">target_size_queries := false</text>
+  <text x="1404" y="3562" class="line">eval_aborted := false</text>
+  <text x="1404" y="3580" class="line">repl_session := false</text>
+  <text x="1404" y="3598" class="line">embedded := false</text>
+  <text x="1404" y="3616" class="line">exit_status := Option(I64).None</text>
+  <text x="1404" y="3634" class="line">failure_site := SourceDiagnostic()</text>
+  <text x="1404" y="3652" class="line">guest_output := &quot;&quot;</text>
+  <text x="1404" y="3670" class="line">function_paths := Map(UPtr, Str).new()</text>
+  <text x="1404" y="3688" class="line">capture_output := false</text>
+  <text x="1404" y="3706" class="line">output := Vec(InterpOutputEvent).new()</text>
+  <text x="1404" y="3724" class="line">ns_fields := Option(Scope).None</text>
+  <text x="1404" y="3742" class="line">foreign_places := Map(UPtr, ForeignPlace).new()</text>
+  <text x="1404" y="3760" class="line">own foreign_cleanup_dirty : U8 = calloc(1, 1)</text>
+  <text x="1404" y="3778" class="line">cached_str_name := &quot;&quot;</text>
+  <rect x="1390" y="3804" width="476" height="550" rx="10" ry="10" class="box"/>
+  <text x="1404" y="3842" class="title">Context: StructDef</text>
+  <text x="1404" y="3860" class="line">mode := Mode()</text>
+  <text x="1404" y="3878" class="line">path := &quot;&quot;</text>
+  <text x="1404" y="3896" class="line">collect_diagnostics := false</text>
+  <text x="1404" y="3914" class="line">diagnostics := Vec(SourceDiagnostic).new()</text>
+  <text x="1404" y="3932" class="line">deferred_errors := Vec(SourceDiagnostic).new()</text>
+  <text x="1404" y="3950" class="line">path_modes := Map(Str, Mode).new()</text>
+  <text x="1404" y="3968" class="line">mode_registry := Map(Str, Mode).new()</text>
+  <text x="1404" y="3986" class="line">eval_heap := EvalHeap.new()</text>
+  <text x="1404" y="4004" class="line">target_usize_pname := &quot;U64&quot;</text>
+  <text x="1404" y="4022" class="line">target_uptr_pname := &quot;U64&quot;</text>
+  <text x="1404" y="4040" class="line">target_usize_bytes : USize = 8</text>
+  <text x="1404" y="4058" class="line">target_simd_bits : USize = 128</text>
+  <text x="1404" y="4076" class="line">target_cptr32 := false</text>
+  <text x="1404" y="4094" class="line">comptime_requests := Set(Str).new()</text>
+  <text x="1404" y="4112" class="line">comptime_preparation := Option(ComptimePreparation).None</text>
+  <text x="1404" y="4130" class="line">target_scalar64_align : USize = 8</text>
+  <text x="1404" y="4148" class="line">anon_type_counter : I64 = 0</text>
+  <text x="1404" y="4166" class="line">compile_mode := false</text>
+  <text x="1404" y="4184" class="line">constfolder_foldables := Map(Str, FuncType).new()</text>
+  <text x="1404" y="4202" class="line">constfolder_known := Option(Scope).None</text>
+  <text x="1404" y="4220" class="line">constfolder_assigned := Set(Str).new()</text>
+  <text x="1404" y="4238" class="line">precomputed_sequence_counter : USize = 0</text>
+  <text x="1404" y="4256" class="line">eval := EvalState()</text>
+  <text x="1404" y="4274" class="line">imported := Map(Str, ImportUnit).new()</text>
+  <text x="1404" y="4292" class="line">import_cwd := &quot;&quot;</text>
+  <text x="1404" y="4310" class="line">import_support_dir := &quot;&quot;</text>
+  <text x="1404" y="4328" class="line">check_unused_imports := false</text>
+  <text x="1404" y="4346" class="line">... (81 more)</text>
+  <rect x="1390" y="4372" width="236" height="64" rx="10" ry="10" class="box"/>
+  <text x="1404" y="4410" class="title">HostOwnPtrProbe: StructDef</text>
+  <text x="1404" y="4428" class="line">own p : U8 = 0</text>
   <rect x="1920" y="24" width="236" height="580" rx="14" ry="14" class="panel"/>
   <text x="1940" y="62" class="panel-label">targets</text>
   <rect x="1940" y="88" width="132" height="100" rx="10" ry="10" class="box"/>

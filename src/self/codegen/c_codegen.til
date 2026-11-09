@@ -3645,11 +3645,15 @@ priv emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: C
             ctype := c_type_name(cap.til_type, type_name_ref(cap.til_type, _ctx.symbols), _ctx)
             mut cap_expr := Expr.new(own ident_node(_ctx.symbols.intern(cap.name)), e.line, e.col)
             cap_expr.set_til_type(cap.til_type.clone())
+            // An immutable scalar copy may have become a borrowed local alias.
+            // Its private capture owns a value cell, not the alias's pointee.
+            borrowed_scalar := cap.til_type.is(Type.Primitive)
+                .and(_ctx.builder_func.ref_locals.has(_ctx.symbols.intern(cap.name)))
             if cap.own_type.is(OwnType.Ref) {
                 f.write("til_env->").write(cap.name).write(" = ")
                 emit_as_ptr(f, cap_expr, _depth, false, _ctx)
                 f.write("; ")
-            } else if cap.own_type.is(OwnType.Shallow).or(type_is_callable_storage(cap.til_type)) {
+            } else if cap.own_type.is(OwnType.Shallow).or(type_is_callable_storage(cap.til_type)).or(borrowed_scalar) {
                 f.write("til_env->").write(cap.name).write(" = malloc(TIL_BOX(").write(ctype).write(")); ")
                 f.write("*til_env->").write(cap.name).write(" = ")
                 emit_deref(f, cap_expr, _depth, _ctx)
@@ -3669,11 +3673,13 @@ priv emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: C
             ctype_b := c_type_name(cap_b.til_type, type_name_ref(cap_b.til_type, _ctx.symbols), _ctx)
             mut cap_expr_b := Expr.new(own ident_node(_ctx.symbols.intern(cap_b.name)), e.line, e.col)
             cap_expr_b.set_til_type(cap_b.til_type.clone())
+            borrowed_scalar_b := cap_b.til_type.is(Type.Primitive)
+                .and(_ctx.builder_func.ref_locals.has(_ctx.symbols.intern(cap_b.name)))
             if cap_b.own_type.is(OwnType.Ref) {
                 f.write("til_env->").write(cap_b.name).write(" = ")
                 emit_as_ptr(f, cap_expr_b, _depth, false, _ctx)
                 f.write("; ")
-            } else if cap_b.own_type.is(OwnType.Shallow).or(type_is_callable_storage(cap_b.til_type)) {
+            } else if cap_b.own_type.is(OwnType.Shallow).or(type_is_callable_storage(cap_b.til_type)).or(borrowed_scalar_b) {
                 f.write("til_env->").write(cap_b.name).write(" = malloc(TIL_BOX(").write(ctype_b).write(")); ")
                 f.write("*til_env->").write(cap_b.name).write(" = ")
                 emit_deref(f, cap_expr_b, _depth, _ctx)

@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-0fafe1c4e
+#+SUBTITLE: til 0.0.1-389200c8c
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -674,6 +674,7 @@ struct FfiState {
     mut struct_defs : Map__Str_ExprPtrBox
     mut type_cache : Map__Str_FFITypePtrBox
     mut type_cache_inited : Bool
+    mut failed_links : Map__Str_Str
 namespace:
     func size() returns USize
     func clone(self: FfiState) returns FfiState

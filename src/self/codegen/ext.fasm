@@ -727,6 +727,301 @@ rt_integer_to_str:
     leave
     ret
 
+; Match C's %g / %.9g / %.17g in the default nearest-even environment.
+; Expand the finite IEEE value exactly as decimal digits, then round once.
+; 800 bytes cover a 53-bit significand scaled by 2^-1074.
+rt_f32_to_str:
+    mov esi, 6
+    mov edx, 4
+    jmp rt_float_to_str
+rt_f32_to_repr:
+    mov esi, 9
+    mov edx, 4
+    jmp rt_float_to_str
+rt_f64_to_str:
+    mov esi, 6
+    mov edx, 8
+    jmp rt_float_to_str
+rt_f64_to_repr:
+    mov esi, 17
+    mov edx, 8
+rt_float_to_str:
+    frame 1152
+    mov [rbp-8], rax
+    mov [rbp-16], rsi
+    cmp edx, 4
+    jne .double
+    mov eax, edi
+    mov ecx, edi
+    mov edx, edi
+    shr edx, 31
+    mov [rbp-24], rdx
+    and eax, 7fffffh
+    shr ecx, 23
+    and ecx, 255
+    mov edx, 800000h
+    mov r8d, 150
+    mov r9d, 255
+    jmp .decoded
+.double:
+    mov rax, rdi
+    mov rcx, rdi
+    shr rdi, 63
+    mov [rbp-24], rdi
+    mov rdx, 0fffffffffffffh
+    and rax, rdx
+    inc rdx
+    shr rcx, 52
+    and ecx, 2047
+    mov r8d, 1075
+    mov r9d, 2047
+.decoded:
+    lea rdi, [rbp-192]
+    cmp qword [rbp-24], 0
+    je .prefix
+    mov byte [rdi], '-'
+    inc rdi
+.prefix:
+    mov [rbp-88], rdi
+    cmp rcx, r9
+    je .special
+    test rcx, rcx
+    jnz .normal
+    test rax, rax
+    jz .zero
+    mov ecx, 1
+    jmp .exponent
+.normal:
+    or rax, rdx
+.exponent:
+    sub rcx, r8
+    mov qword [rbp-32], 0
+    mov r11, rcx
+    mov r8d, 2
+    test rcx, rcx
+    jns .initial_digits
+    mov [rbp-32], rcx
+    neg r11
+    mov r8d, 5
+.initial_digits:
+    xor r10d, r10d
+    mov ecx, 10
+.initial_digit:
+    xor edx, edx
+    div rcx
+    mov [rbp-1024+r10], dl
+    inc r10
+    test rax, rax
+    jnz .initial_digit
+.multiply:
+    test r11, r11
+    jz .round
+    xor esi, esi
+    xor r9d, r9d
+.multiply_digit:
+    movzx eax, byte [rbp-1024+rsi]
+    imul eax, r8d
+    add eax, r9d
+    xor edx, edx
+    div ecx
+    mov r9d, eax
+    mov [rbp-1024+rsi], dl
+    inc rsi
+    cmp rsi, r10
+    jb .multiply_digit
+    test r9d, r9d
+    jz .multiplied
+    mov [rbp-1024+r10], r9b
+    inc r10
+.multiplied:
+    dec r11
+    jmp .multiply
+.round:
+    mov r8, r10
+    sub r8, [rbp-16]
+    jle .rounded
+    movzx eax, byte [rbp-1025+r8]
+    cmp eax, 5
+    jb .rounded
+    ja .round_up
+    xor esi, esi
+.sticky:
+    lea rdx, [r8-1]
+    cmp rsi, rdx
+    jae .tie
+    cmp byte [rbp-1024+rsi], 0
+    jne .round_up
+    inc rsi
+    jmp .sticky
+.tie:
+    test byte [rbp-1024+r8], 1
+    jz .rounded
+.round_up:
+    mov rsi, r8
+.carry:
+    cmp byte [rbp-1024+rsi], 9
+    jne .increment
+    mov byte [rbp-1024+rsi], 0
+    inc rsi
+    cmp rsi, r10
+    jb .carry
+    mov byte [rbp-1024+r10], 0
+    inc r10
+.increment:
+    inc byte [rbp-1024+rsi]
+.rounded:
+    mov rax, r10
+    dec rax
+    add rax, [rbp-32]
+    mov [rbp-40], rax
+    mov r8, r10
+    sub r8, [rbp-16]
+    jns .trim
+    xor r8d, r8d
+.trim:
+    lea rsi, [r10-1]
+    cmp r8, rsi
+    jae .emit
+    cmp byte [rbp-1024+r8], 0
+    jne .emit
+    inc r8
+    jmp .trim
+.emit:
+    mov rdi, [rbp-88]
+    cmp rax, -4
+    jl .scientific
+    cmp rax, [rbp-16]
+    jge .scientific
+    test rax, rax
+    js .fraction
+    lea r11, [rax+1]
+    mov r9, r10
+    dec r9
+.integer:
+    mov al, '0'
+    cmp r9, r8
+    jl .integer_digit
+    mov al, [rbp-1024+r9]
+    add al, '0'
+.integer_digit:
+    mov [rdi], al
+    inc rdi
+    dec r9
+    dec r11
+    jnz .integer
+    cmp r9, r8
+    jl .allocate
+    mov byte [rdi], '.'
+    inc rdi
+    jmp .tail
+.fraction:
+    mov word [rdi], '0.'
+    add rdi, 2
+    neg rax
+    dec rax
+.leading_zero:
+    test rax, rax
+    jz .all_digits
+    mov byte [rdi], '0'
+    inc rdi
+    dec rax
+    jmp .leading_zero
+.all_digits:
+    mov r9, r10
+    dec r9
+.tail:
+    mov al, [rbp-1024+r9]
+    add al, '0'
+    mov [rdi], al
+    inc rdi
+    dec r9
+    cmp r9, r8
+    jge .tail
+    jmp .allocate
+.scientific:
+    mov r9, r10
+    dec r9
+    mov al, [rbp-1024+r9]
+    add al, '0'
+    mov [rdi], al
+    inc rdi
+    dec r9
+    cmp r9, r8
+    jl .scientific_exponent
+    mov byte [rdi], '.'
+    inc rdi
+.scientific_digit:
+    mov al, [rbp-1024+r9]
+    add al, '0'
+    mov [rdi], al
+    inc rdi
+    dec r9
+    cmp r9, r8
+    jge .scientific_digit
+.scientific_exponent:
+    mov byte [rdi], 'e'
+    mov byte [rdi+1], '+'
+    add rdi, 2
+    mov rax, [rbp-40]
+    test rax, rax
+    jns .absolute_exponent
+    mov byte [rdi-1], '-'
+    neg rax
+.absolute_exponent:
+    cmp eax, 100
+    jb .two_exponent_digits
+    xor edx, edx
+    mov ecx, 100
+    div ecx
+    add al, '0'
+    mov [rdi], al
+    inc rdi
+    mov eax, edx
+.two_exponent_digits:
+    xor edx, edx
+    mov ecx, 10
+    div ecx
+    add al, '0'
+    add dl, '0'
+    mov [rdi], al
+    mov [rdi+1], dl
+    add rdi, 2
+    jmp .allocate
+.special:
+    test rax, rax
+    jnz .nan
+    mov word [rdi], 'in'
+    mov byte [rdi+2], 'f'
+    add rdi, 3
+    jmp .allocate
+.nan:
+    mov word [rdi], 'na'
+    mov byte [rdi+2], 'n'
+    add rdi, 3
+    jmp .allocate
+.zero:
+    mov byte [rdi], '0'
+    inc rdi
+.allocate:
+    lea rsi, [rbp-192]
+    sub rdi, rsi
+    mov [rbp-96], rdi
+    mov rax, [rbp-8]
+    call rt_str_capacity
+    mov [rbp-104], rax
+    mov rdi, [rax]
+    lea rsi, [rbp-192]
+    mov rdx, [rbp-96]
+    call rt_memcpy
+    mov rdx, [rbp-104]
+    mov rcx, [rbp-96]
+    store_size [rdx+8], rcx
+    mov rax, [rdx]
+    mov byte [rax+rcx], 0
+    mov rax, rdx
+    leave
+    ret
+
 ; Paths are counted Strs: copy and terminate instead of assuming views end
 ; at a NUL. File handles encode fd+1, keeping zero as the closed sentinel.
 rt_path:
