@@ -89,7 +89,7 @@ priv mlir_type := func(shallow t: Type, lp: LoadedProgram) returns Str {
     if t == Type.Primitive(Primitive.F32) { return "f32" }
     ref name : Str = type_name_ref(t, lp.ctx.symbols)
     if name == "Dynamic" { return "!llvm.ptr" }
-    if name == "Array__F32" || name == "Array__I32" || name == "Array__U32" { return "!llvm.ptr" }
+    if mlir_array_element(t,lp).is(Type.None).not() { return "!llvm.ptr" }
     if name == "Str" { return format("!llvm.struct<(!llvm.ptr, ", mlir_count_type(lp), ", ", mlir_count_type(lp), ")>") }
     if name == "Array__Str" { return format("!llvm.struct<(!llvm.ptr, ", mlir_count_type(lp), ")>") }
     if name == "F32" { return "f32" }
@@ -121,6 +121,16 @@ priv mlir_type := func(shallow t: Type, lp: LoadedProgram) returns Str {
         }
     }
     return ""
+}
+
+priv mlir_array_element := func(shallow t:Type,lp:LoadedProgram) returns Type {
+    ref name:Str=type_name_ref(t,lp.ctx.symbols)
+    if name.starts_with("Array__").not() {return Type.None}
+    element:=type_from_name_init_name(name.strip_prefix("Array__"),lp.ctx.scope,lp.ctx.symbols)
+    // A ref-element array has pointer slots, not densely stored scalars. Its
+    // qualified element name does not resolve to a primitive here.
+    if element.is(Type.Primitive) {return element}
+    return Type.None
 }
 
 priv mlir_error := proc(e: Expr, message: Str, mut lp: LoadedProgram) returns Str {
@@ -984,11 +994,14 @@ priv mlir_checked_memory := proc(e: Expr, vector: Bool, store: Bool, scalar: Str
     mut wide_index := index.clone()
     if count_type == "i32" { wide_index = mlir_value(state, format("arith.extui ", index, " : i32 to i64")) }
     address := mlir_value(state, format("llvm.getelementptr ", data, "[", wide_index,
-        "] : (!llvm.ptr, i64) -> !llvm.ptr, ", scalar))
+        "] : (!llvm.ptr, i64) -> !llvm.ptr, ", mlir_storage_type(scalar)))
     if store {
         mut value_type := scalar.clone()
         if vector { value_type = result_type.clone() }
-        mlir_store(address, arguments[value_index], value_type, state)
+        mut value:=arguments[value_index].clone()
+        mut alignment:="4"
+        if vector.not() {value=mlir_coerce(value,e.children[value_index+1],scalar,state,lp);alignment="1"}
+        mlir_store(address, value, value_type, state,alignment)
     } else if vector {
         value := mlir_value(state, format("llvm.load ", address, " {alignment = 4 : i64} : !llvm.ptr -> ", result_type))
         mlir_store(result_slot, value, result_type, state)
@@ -1583,9 +1596,9 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     && mlir_integer_type(owner_type).or(mlir_float(t)) {
                     return mlir_legacy_numeric_conversion(e,state,lp)
                 }
-                if t == "!llvm.ptr" {
-                    mut scalar := "i32"
-                    if type_name_ref(owner_type, lp.ctx.symbols) == "Array__F32" { scalar = "f32" }
+                element:=mlir_array_element(owner_type,lp)
+                if element.is(Type.None).not() {
+                    scalar:=mlir_type(element,lp)
                     if op == "len" && e.children.len() == 2 {
                         buffer := mlir_expr(e.children[1], state, lp)
                         return mlir_buffer_length(buffer, state, lp)
@@ -1593,7 +1606,8 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     if op == "get" && e.children.len() == 4 {
                         address := mlir_checked_memory(e, false, false, scalar, state, lp)
                         if borrow { return address }
-                        return mlir_value(state, format("llvm.load ", address, " {alignment = 4 : i64} : !llvm.ptr -> ", scalar))
+                        value:=mlir_load(address,scalar,state,"1")
+                        return mlir_convert(value,scalar,mlir_type(e.til_type(),lp),mlir_signed(element),e,state,lp)
                     }
                     if op == "set" && e.children.len() == 5 { return mlir_checked_memory(e, false, true, scalar, state, lp) }
                     return mlir_error(e, format("unsupported borrowed-buffer operation '", op, "'"), lp)

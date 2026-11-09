@@ -189,6 +189,22 @@ main := proc(compiler_arg: Str) {
         expect(integer_status==0,integer_options.out(),integer_options.err())
         integer_ir:=File.readfile(format(work,"/gen/mlir/integer_ops.mlir"))
         for operation in array(Str,"arith.divsi","arith.divui","arith.remsi","arith.remui","arith.shli","arith.shrsi","arith.shrui","arith.cmpi uge") {expect(integer_ir.contains(operation),integer_ir)}
+        mut array_source:="mode lib\nByte:=I8\n"
+        for t in array(Str,"I8","U8","I16","U16","I32","U32","I64","U64","F32","F64","Bool","USize","UPtr","Byte") {
+            array_source=format(array_source,"read_",t,":=func(a:Array(",t,"),i:USize) returns ",t," throws OutOfBounds{ref v:",t,"=a.get(i)?;return v.clone()}\nwrite_",t,":=func(mut a:Array(",t,"),i:USize,v:",t,") throws OutOfBounds{a.set(i,own v.clone())?}\n")
+        }
+        File.writefile(format(work,"/scalar_arrays.til"),array_source)
+        arrays:=Cmd.new(compiler,"translate","--backend=mlir","scalar_arrays.til")
+        arrays.cwd(work).capture()
+        array_status:=arrays.run()
+        expect(array_status==0,arrays.out(),arrays.err())
+        array_ir:=File.readfile(format(work,"/gen/mlir/scalar_arrays.mlir"))
+        expect(array_ir.contains("-> f64") && array_ir.contains("-> i16") && array_ir.contains("arith.trunci") && array_ir.contains("arith.extui"),array_ir)
+        expect(array_ir.contains("inbounds").or(array_ir.contains("noalias")).not(),array_ir)
+        File.writefile(format(work,"/ref_array.til"),"mode lib\nlength:=func(a:Array(ref I8)) returns USize{return a.len()}\n")
+        ref_array:=Cmd.new(compiler,"translate","--backend=mlir","ref_array.til")
+        ref_array.cwd(work).capture()
+        expect(ref_array.run()!=0 && ref_array.out().contains("MLIR backend:"),ref_array.out(),ref_array.err())
         File.writefile(format(work, "/bad.til"), "mode pure\nbad := func(a: I32) returns I32 { return a.abs() }\n")
         bad := Cmd.new(compiler, "translate", "--backend=mlir", "bad.til")
         bad.cwd(work).capture()

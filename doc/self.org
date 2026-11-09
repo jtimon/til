@@ -423,8 +423,8 @@
   through the existing target configuration. Scalar/nested POD structs support
   construction, field access/update and value returns as described below.
   Value parameters are immutable;
-  locals may be mutable. Borrowed ~Array(F32)~, ~Array(I32)~ and ~Array(U32)~ parameters support read-only
-  inputs and ~mut~ outputs. Arithmetic includes addition, subtraction and
+  locals may be mutable. Borrowed arrays of all supported scalar types provide
+  read-only inputs and ~mut~ outputs. Arithmetic includes addition, subtraction and
   multiplication (integer operations wrap), integer increment/decrement,
   integer bitwise operations, scalar division/remainder/shifts, scalar comparisons/cmp,
   Boolean logic, cloning, literals, cross-unit direct calls and returns.
@@ -609,14 +609,31 @@
   Borrowed buffers retain the existing C Array ABI: a pointer to a descriptor
   containing a data pointer followed by a USize capacity. The capacity field
   uses the selected USize width; the data pointer stays pointer-sized.
-  ~len~, checked scalar ~get/set~ and four-lane ~load/store~ are supported for
-  F32, I32 and U32 buffers. Borrowed integer element reads retain signedness
-  when widened to I64.
+  ~len~ and checked scalar ~get/set~ support I8/U8, I16/U16, I32/U32,
+  I64/U64, F32/F64 and Bool, including USize/UPtr and user scalar aliases.
+  Four-lane ~load/store~ support F32, I32 and U32 buffers. Borrowed integer
+  element reads retain their declared width and sign/zero extension when widened.
+  Element address stride follows native storage: Bool/I8/U8 occupy one byte,
+  I16/U16 two, F32/I32/U32 four and F64/I64/U64 eight. Bool loads/stores convert
+  between byte storage and i1 computation, with normalized bytes on writes.
+  Scalar memory accesses promise only alignment 1; raw float payload/zero bits
+  survive reads and copies, including at unaligned data addresses. No inbounds
+  or noalias assumptions are attached. Ref-element arrays have pointer-slot
+  storage and remain a separate unsupported type rather than being mistaken
+  for dense scalar arrays.
   Element references may be read or, when declared mutable, written through.
   Buffer aliases and borrowed array returns use the same descriptor address.
   Allocation, cloning, destruction, value array returns and descriptor
   replacement stay in the host; passing an array
   as ~own~ or ~shallow~ is rejected rather than changing its ABI.
+
+  Native C and ASAN til/C consumers test all scalar types and aliases at
+  O0/O2/O3: returned element/descriptor identity, mutable references, full-width
+  indices, zero-length/null-data descriptors, failed stores, partial writes,
+  sequential overlapping copies, repeated catch recovery followed by successful
+  access, sign/zero extension, raw signaling-NaN bits and exact bang diagnostics.
+  The ordinary options test covers type emission and ref-element rejection
+  without invoking LLVM tools. The supported layout is native USize64.
 
   Checked memory operations support ~?~ propagation, local ~OutOfBounds~
   catches and ~!~ panic handling. Propagation uses the existing trailing

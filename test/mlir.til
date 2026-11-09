@@ -151,6 +151,70 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_scalar_arrays := proc(compiler:Str,work:Str) {
+    types:=array(Str,"I8","U8","I16","U16","I32","U32","I64","U64","F32","F64","Bool","USize","UPtr","Byte")
+    ctypes:=array(Str,"char","unsigned char","short","unsigned short","int","unsigned int","long long","unsigned long long","float","double","bool","unsigned long long","unsigned long long","char")
+    mut source:="mode lib\nByte:=I8\n"
+    mut declarations:="#include <assert.h>\n#include <stdint.h>\n#include <stdbool.h>\n#include <string.h>\ntypedef struct{void*data;uint64_t cap;}Buffer;\n"
+    mut native_checks:="int main(int argc,char**argv){(void)argv;if(argc>1){Buffer empty={0,0};bang_I16(&empty,UINT64_MAX);return 99;}\n"
+    mut bindings:="mode cli\nlink(\"gen/lib/libscalar_arrays.so\")\nByte:=I8\n"
+    mut assertions:="main:=proc(){\n"
+    for i in 0..types.len() {
+        ref t:Str=types[i];ref ct:Str=ctypes[i]
+        mut zero:="0";mut value:="7"
+        if t=="Bool" {zero="false";value="true"}
+        source=format(source,
+            "length_",t,":=func(a:Array(",t,")) returns USize{return a.len()}\n",
+            "borrow_",t,":=func(a:Array(",t,")) returns ref Array(",t,"){return a}\n",
+            "element_",t,":=func(a:Array(",t,"),shallow i:USize) returns ref ",t," throws OutOfBounds{return a.get(i)?}\n",
+            "forward_",t,":=func(a:Array(",t,"),shallow i:USize) returns ref ",t," throws OutOfBounds{return element_",t,"(a,i)?}\n",
+            "read_",t,":=func(a:Array(",t,"),i:USize) returns ",t," throws OutOfBounds{ref v:",t,"=a.get(i)?;return v.clone()}\n",
+            "write_",t,":=func(mut a:Array(",t,"),i:USize,v:",t,") throws OutOfBounds{a.set(i,own v.clone())?}\n",
+            "alias_",t,":=func(mut a:Array(",t,"),i:USize,v:",t,") throws OutOfBounds{ref mut cell:",t,"=forward_",t,"(a,i)?;cell=v}\n",
+            "copy_",t,":=func(a:Array(",t,"),mut out:Array(",t,"),n:USize) throws OutOfBounds{mut i:USize=0;while i<n{ref v:",t,"=a.get(i)?;out.set(i,own v.clone())?;i++}}\n",
+            "recover_",t,":=func(a:Array(",t,")) returns ",t,"{ref first:",t,"=a.get(0)!;mut result:",t,"=",zero,";mut i:USize=0;while i<3{result=read_",t,"(a,USize.MAX)? catch(err:OutOfBounds){result=first.clone()};ref again:",t,"=a.get(0)!;result=again.clone();i++};return result}\n",
+            "bang_",t,":=func(a:Array(",t,"),i:USize) returns ",t,"{ref v:",t,"=a.get(i)!;return v.clone()}\n")
+        declarations=format(declarations,"extern uint64_t length_",t,"(const Buffer*);extern const Buffer*borrow_",t,"(const Buffer*);extern const ",ct,"*element_",t,"(const Buffer*,uint64_t,long long*),*forward_",t,"(const Buffer*,uint64_t,long long*);extern ",ct," read_",t,"(const Buffer*,uint64_t,long long*),recover_",t,"(const Buffer*),bang_",t,"(const Buffer*,uint64_t);extern void write_",t,"(Buffer*,uint64_t,",ct,",long long*),alias_",t,"(Buffer*,uint64_t,",ct,",long long*),copy_",t,"(const Buffer*,Buffer*,uint64_t,long long*);\n")
+        mut init:=format(ct," v=(",ct,")(i*37+129);memcpy(raw+1+i*sizeof v,&v,sizeof v);")
+        if t=="Bool" {init="bool v=(i%2)!=0;memcpy(raw+1+i,&v,1);"}
+        if t=="F32" {init="const uint32_t patterns[]={0x7f800001,0xffc12345,0x80000000,1,0x7f800000,0xff800000,0,0x3f800000};memcpy(raw+1+i*4,patterns+i,4);"}
+        if t=="F64" {init="const uint64_t patterns[]={0x7ff0000000000001ULL,0xfff8123456789abcULL,0x8000000000000000ULL,1,0x7ff0000000000000ULL,0xfff0000000000000ULL,0,0x3ff0000000000000ULL};memcpy(raw+1+i*8,patterns+i,8);"}
+        mut native_value:=format(ct," v=(",ct,")-1;")
+        if t=="F32" || t=="F64" {native_value=format(ct," v;memcpy(&v,raw+1,size);")}
+        native_checks=format(native_checks,"{unsigned char raw[128],out[128],want[128];memset(raw,0x5a,128);for(unsigned i=0;i<8;i++){",init,"}const size_t size=sizeof(",ct,");Buffer a={raw+1,8},b={out+1,8},empty={0,0},huge={0,UINT64_MAX};long long error=0;assert(length_",t,"(&a)==8 && length_",t,"(&huge)==UINT64_MAX && borrow_",t,"(&a)==&a);const uint64_t indices[]={0,1,7,8,9,UINT64_MAX,UINT64_MAX-1};for(unsigned k=0;k<7;k++){uint64_t index=indices[k];error=0;const ",ct,"*p=forward_",t,"(&a,index,&error);assert(error==(index<8?0:1));if(index<8){assert((const unsigned char*)p==raw+1+index*size);",ct," got=read_",t,"(&a,index,&error);assert(error==0 && memcmp(&got,raw+1+index*size,size)==0);}memset(out,0x5a,128);memcpy(want,out,128);",native_value,"error=0;write_",t,"(&b,index,v,&error);assert(error==(index<8?0:1));if(index<8)memcpy(want+1+index*size,&v,size);assert(memcmp(out,want,128)==0);memset(out,0x5a,128);error=0;alias_",t,"(&b,index,v,&error);assert(error==(index<8?0:1) && memcmp(out,want,128)==0);}error=0;element_",t,"(&empty,0,&error);assert(error==1);error=0;write_",t,"(&empty,0,(",ct,")7,&error);assert(error==1);error=0;element_",t,"(&huge,UINT64_MAX,&error);assert(error==1);",ct," recovered=recover_",t,"(&a);assert(memcmp(&recovered,raw+1,size)==0);\n")
+        native_checks=format(native_checks,"for(uint64_t n=0;n<=8;n++){a.cap=n;memset(out,0x5a,128);memcpy(want,out,128);memcpy(want+1,raw+1,n*size);error=0;copy_",t,"(&a,&b,n,&error);assert(error==0 && memcmp(out,want,128)==0);memset(out,0x5a,128);error=0;copy_",t,"(&a,&b,n+1,&error);assert(error==1 && memcmp(out,want,128)==0);}a.cap=8;memcpy(out,raw,128);memcpy(want,raw,128);Buffer left={out+1,7},right={out+1+size,7};for(unsigned i=0;i<7;i++){unsigned char temporary[8];memcpy(temporary,want+1+i*size,size);memcpy(want+1+(i+1)*size,temporary,size);}error=0;copy_",t,"(&left,&right,7,&error);assert(error==0 && memcmp(out,want,128)==0);}\n")
+        if t.starts_with("I").or(t=="Byte").or(t.starts_with("U")) {
+            mut wide:="U64";mut cwide:="unsigned long long"
+            if t.starts_with("I").or(t=="Byte") {wide="I64";cwide="long long"}
+            source=format(source,"wide_",t,":=func(a:Array(",t,"),i:USize) returns ",wide," throws OutOfBounds{ref v:",t,"=a.get(i)?;return v.clone()}\n")
+            declarations=format(declarations,"extern ",cwide," wide_",t,"(const Buffer*,uint64_t,long long*);\n")
+            native_checks=format(native_checks,"{",ct," value=(",ct,")-1;Buffer b={&value,1};long long error=0;assert(wide_",t,"(&b,0,&error)==(",cwide,")value && error==0);}\n")
+        }
+        bindings=format(bindings,"length_",t,":=ext_func(a:Array(",t,")) returns shallow USize{}\nforward_",t,":=ext_func(a:Array(",t,"),shallow i:USize) returns ref ",t," throws OutOfBounds{}\nwrite_",t,":=ext_func(mut a:Array(",t,"),shallow i:USize,shallow v:",t,") throws OutOfBounds{}\ncopy_",t,":=ext_func(a:Array(",t,"),mut out:Array(",t,"),shallow n:USize) throws OutOfBounds{}\n")
+        assertions=format(assertions,"mut a_",t,":=Array(",t,").new(3);write_",t,"(a_",t,",1,",value,")!;assert(length_",t,"(a_",t,")==3);assert_eq(",t,",a_",t,"[1],",value,");ref mut cell_",t,":",t,"=forward_",t,"(a_",t,",1)!;cell_",t,"=",zero,";assert_eq(",t,",a_",t,"[1],",zero,");write_",t,"(a_",t,",0,",value,")!;mut out_",t,":=Array(",t,").new(2);mut caught_",t,":=false;copy_",t,"(a_",t,",out_",t,",3)? catch(err:OutOfBounds){caught_",t,"=true};assert(caught_",t,");assert_eq(",t,",out_",t,"[0],",value,");\n")
+    }
+    File.writefile(format(work,"/scalar_arrays.til"),source)
+    File.writefile(format(work,"/scalar_array_caller.c"),format(declarations,native_checks,"return 0;}\n"))
+    assertions=format(assertions,"println(\"scalar arrays PASS\")}\n")
+    File.writefile(format(work,"/scalar_array_reference.til"),format("mode cli\nimport(\"scalar_arrays\")\n",assertions))
+    File.writefile(format(work,"/scalar_array_consumer.til"),format(bindings,assertions))
+    File.writefile(format(work,"/scalar_array_panic.til"),"mode cli\nimport(\"scalar_arrays\")\nmain:=proc(){a:=Array(I16).new(0);bang_I16(a,USize.MAX)}\n")
+    reference:=Cmd.new(compiler,"run","--usize=64","scalar_array_reference.til");checked(reference,work)
+    interpreted:=Cmd.new(compiler,"interpret","--usize=64","scalar_array_reference.til");checked(interpreted,work)
+    assert_eq(Str,reference.out(),interpreted.out())
+    panic_reference:=Cmd.new(compiler,"run","--usize=64","scalar_array_panic.til");panic_reference.cwd(work).capture()
+    assert_eq(I64,panic_reference.run(),1)
+    for level in array(Str,"0","2","3") {
+        build:=Cmd.new(compiler,"build","--backend=mlir",format("--opt=",level),"./scalar_arrays.til");checked(build,work)
+        cc:=Cmd.new("clang-18","-O2","-fsigned-char","-fsanitize=address,undefined","-fno-sanitize-recover=all","-Wall","-Wextra","-Werror","scalar_array_caller.c","gen/lib/libscalar_arrays.a","-lm","-o","scalar_array_caller");checked(cc,work)
+        native:=Cmd.new("./scalar_array_caller");checked(native,work)
+        consumer:=Cmd.new(compiler,"run","--usize=64","--asan","scalar_array_consumer.til");checked(consumer,work)
+        assert_eq(Str,consumer.out(),reference.out())
+        failure:=Cmd.new("./scalar_array_caller","panic");failure.cwd(work).capture()
+        assert_eq(I64,failure.run(),1);assert_eq(Str,failure.out(),panic_reference.out());assert_eq(Str,failure.err(),panic_reference.err())
+    }
+}
+
 priv check_integer_arithmetic := proc(compiler:Str,work:Str) {
     types:=array(Str,"I8","U8","I16","U16","I32","U32","I64","U64")
     ctypes:=array(Str,"char","unsigned char","short","unsigned short","int","unsigned int","long long","unsigned long long")
@@ -1198,5 +1262,6 @@ main := proc(compiler_arg: Str) {
     check_scalars(compiler, work)
     check_memory(compiler,work)
     check_integer_arithmetic(compiler,work)
+    check_scalar_arrays(compiler,work)
     println("mlir PASS")
 }

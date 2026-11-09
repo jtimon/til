@@ -159,6 +159,35 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Borrowed arrays of all scalar types (base 389200c8c)
+
+The existing borrowed Array ABI now covers I8/U8, I16/U16, I32/U32, I64/U64,
+F32/F64 and Bool, plus USize/UPtr and user scalar aliases. Element types resolve
+through the existing type registry instead of a three-name/fixed-i32 shortcut.
+Ref-element arrays remain distinct pointer-slot storage and are rejected.
+
+Checked get/set use the element's actual storage stride and only form the data
+address after the full USize bounds check. Bool occupies a byte in memory and
+uses i1 for computation; writes normalize its byte. Scalar loads/stores promise
+only alignment 1, while existing numeric SIMD memory keeps its scalar alignment.
+Element reads keep their actual width before signed/unsigned consumer widening.
+Borrowed descriptor and element returns preserve addresses and mutation across
+forwarding, with the same trailing OutOfBounds slot and ordinary catch/bang paths.
+
+test/mlir.til check_scalar_arrays covers all types and aliases through native C
+and ASAN til/C consumers at O0/O2/O3. Cases include unaligned data, raw F32/F64
+signaling-NaN/zero payloads, byte Bool storage with adjacent sentinels, descriptor
+and element identity, mutable aliases, signed/unsigned widening, empty/null-data
+descriptors, maximal indices/capacities, failed stores, partial copy writes,
+sequential overlapping copies, repeated catch/recovery and exact panic streams.
+test/mlir_options.til checks translation and ref-element-array rejection without
+external tools. Array allocation/ownership and additional SIMD lane families
+remain separate work; the temporary C-core bridge is still present.
+
+Verification: make clean && make test passes 559/559. The ASAN compiler/driver
+passes the full optional MLIR integration, including all scalar-array native
+C and ASAN til consumers at O0/O2/O3, with ASAN/UBSAN on the native C caller.
+
 *** Shared scalar integer arithmetic and MLIR lowering (base 0fafe1c4e)
 
 The human approved unifying previously inconsistent/undefined edge cases before
