@@ -1,0 +1,30 @@
+# priority: low
+# category: experiments
+** OPEN #482 Explore concurrency: Go channels, NNG, ZeroMQ, Jai and semaphores
+
+Explore what the README's aspirational "Better concurrency than Go" could mean
+for Til. "At some point, subjectively" is a goal, not a claim about current
+capabilities.
+
+*** Questions to explore
+
+- Go channels and select: ownership, buffering, backpressure, cancellation,
+  closure and how easy it is to reason about blocked tasks.
+- NNG and ZeroMQ (ZMQ): message-passing patterns, in-process versus IPC/network
+  boundaries, delivery semantics and integration with task scheduling. Start
+  with Til's existing NNG integration rather than assuming a new dependency.
+- Jai: investigate its concurrency approaches and examples, recording sources
+  and distinguishing available facilities from proposed ideas.
+- Semaphores, mutexes, condition variables and atomics: where explicit
+  synchronization helps, and where higher-level primitives would help more.
+- Task/thread lifetime, shutdown, error propagation, fairness and observability
+  across these approaches.
+
+*** Outcome
+
+Compare the approaches against Til's current facilities and try a small Til
+experiment with a concrete workload. State what "better" means (subjective
+ergonomics, correctness, performance), and measure any performance claims.
+Document ownership, lifetime and compatibility decisions, and which pieces
+belong in the language, runtime, standard library or application, before
+proposing an API.
