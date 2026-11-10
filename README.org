@@ -88,6 +88,19 @@ At some point, subjectively. See [[file:issues/fixed/482.org][#482]].
 
 ** TODO ... (like Jai)
 
+* Diagnostics and modes
+
+Til's language checks report errors rather than warnings; diagnostics can
+also include explanatory notes and help.
+
+Modes are selected file by file. Mode-dependent language checks use the mode
+of the file being checked, including imported files. For example, ~mode pure~
+rejects ~proc~ declarations while ~mode lib~ permits them. Changing one file's
+~mode~ declaration can therefore change which errors it reports.
+
+The entry file's mode also controls program-level requirements, such as
+whether a ~main~ entrypoint is required.
+
 * Dependencies
 
 - ~make~
