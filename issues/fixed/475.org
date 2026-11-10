@@ -1,6 +1,32 @@
 # priority: medium
 # category: cleanups
-** OPEN #475 CI: fold the small macOS jobs into the native mac job of their architecture
+** FIXED #475 CI: fold the small macOS jobs into the native mac job of their architecture
+
+*** Post-mortem
+
+Run 3007 (f1beab4) went red with all 21 jobs that ran green: GitHub
+cancelled ~macos-host-cross-build~ with "The job was not acquired by
+Runner of type hosted even after multiple attempts" (its annotations
+carried the macOS arm64 capacity notice), and skipped the two jobs that
+run its output. Five mac runners per push was the cause.
+
+Done as planned. ~macos-arm64~ (native) now also runs the
+linux-cross-built arm64 binaries ("cross run" steps, first: they take
+seconds and need no build) and, after the native suite and examples,
+cross-builds windows-x64 and linux-x64 from the mac and uploads
+~hello_script-from-mac~ ("host cross" steps). ~macos-x64~ (native) runs the
+x64 cross binaries the same way. Both native jobs ~need:~
+~macos-cross-build~; ~macos-host-cross-win-run~ and
+~macos-host-cross-linux-run~ ~need:~ ~macos-arm64~. The
+~macos-arm64-cross-run~, ~macos-x64-cross-run~ and ~macos-host-cross-build~
+jobs are gone: each push requests one macos-latest and one
+macos-15-intel runner.
+
+Every step of the five old jobs is still in one of the two native jobs,
+with the same commands, on the same runner type (checked by listing the
+parsed workflow's steps). The first CI run of the change is the check
+for the remaining acceptance items (green run; downstream jobs still
+run).
 
 *** Problem
 
@@ -69,6 +95,6 @@ every step that runs today still runs, on the same kind of machine:
 
 *** Related
 
-- [[./473.org][#473]] adds per-host cross builds of every target; its extra
+- [[../open/473.org][#473]] adds per-host cross builds of every target; its extra
   mac work lands in these same two jobs and should follow this layout.
-- [[./472.org][#472]] owns the deterministic compilation those builds check.
+- [[../open/472.org][#472]] owns the deterministic compilation those builds check.
