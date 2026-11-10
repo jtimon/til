@@ -46,7 +46,7 @@ executing the compiler.
 | Linux x64 | ~linux-x64~ native ASAN suite; ~linux-x64-usize64~ alternate-layout suite; separate cross jobs | Six Linux targets, Windows x64/x86, macOS x64/arm64, wasm32; TempleOS guest acceptance |
 | Linux arm64 | ~linux-arm64-native~ native ASAN suite and hello build | Native arm64 explicitly; no all-target producer matrix |
 | macOS arm64 | ~macos-arm64~ no-GUI ASAN suite and native examples | Native arm64 |
-| macOS arm64 | ~macos-host-cross-build~ | Windows x64 hello; Linux x64 hello and crypto, using Homebrew cross tools |
+| macOS arm64 | ~macos-arm64~ "host cross" steps (a job of their own until #475) | Windows x64 hello; Linux x64 hello and crypto, using Homebrew cross tools |
 | macOS x64 | ~macos-x64~ no-GUI ASAN suite and native examples | Native x64; no equivalent cross producer job |
 | Windows x64 | ~windows-x64-host-run~ executes the Linux-built ~til.exe~, interprets/translates and builds selected programs using native GCC | Windows x64 probes; no native compiler bootstrap/full-suite producer |
 | TempleOS guest | Linux produces HolyC; TempleOS compiles/runs it through guest acceptance | A target/execution consumer, not yet a self-hosted til producer |
