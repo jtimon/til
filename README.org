@@ -82,7 +82,7 @@ This is more predictable, but sill not completely deterministic. And can be more
 
 ** TODO Better concurrency than Go
 
-At some point, subjectively. See [[file:issues/open/482.org][#482]].
+At some point, subjectively. See [[file:issues/fixed/482.org][#482]].
 
 ** TODO ... (like Mojo)
 

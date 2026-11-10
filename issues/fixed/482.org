@@ -1,0 +1,511 @@
+# priority: low
+# category: experiments
+** FIXED #482 Explore concurrency: Go channels, NNG, ZeroMQ, Jai and semaphores
+
+*** Post-mortem
+
+The missing piece was a grounded investigation behind the README aspiration,
+not an existing concurrency implementation to repair. Inventoried the NNG
+bindings, process facilities and single-threaded allocator/VM constraints;
+compared Go, NNG, ZeroMQ, sourced Jai examples and synchronization primitives;
+recorded ownership/lifetime/compatibility requirements before API design.
+
+The ~concurrency482~ experiment below validates numbered-record ingestion,
+bounded application windows, saturation/draining and explicit completion using
+existing NNG. It passed compiled, interpreted and ASAN-compiled. Its source,
+commands and measured results are retained in this issue. It is an exploratory
+regression probe, not a new suite test or a proof of concurrent Til execution.
+This closes the exploration outcome; the README's aspirational TODO remains.
+
+Explore what the README's aspirational "Better concurrency than Go" could mean
+for Til. "At some point, subjectively" is a goal, not a claim about current
+capabilities.
+
+*** Questions to explore
+
+- Go channels and select: ownership, buffering, backpressure, cancellation,
+  closure and how easy it is to reason about blocked tasks.
+- NNG and ZeroMQ (ZMQ): message-passing patterns, in-process versus IPC/network
+  boundaries, delivery semantics and integration with task scheduling. Start
+  with Til's existing NNG integration rather than assuming a new dependency.
+- Jai: investigate its concurrency approaches and examples, recording sources
+  and distinguishing available facilities from proposed ideas.
+- Semaphores, mutexes, condition variables and atomics: where explicit
+  synchronization helps, and where higher-level primitives would help more.
+- Task/thread lifetime, shutdown, error propagation, fairness and observability
+  across these approaches.
+
+*** Outcome
+
+Compare the approaches against Til's current facilities and try a small Til
+experiment with a concrete workload. State what "better" means (subjective
+ergonomics, correctness, performance), and measure any performance claims.
+Document ownership, lifetime and compatibility decisions, and which pieces
+belong in the language, runtime, standard library or application, before
+proposing an API.
+
+*** Investigation (2026-11-10, master e07d5da04)
+
+**** What Til implements now
+
+- ~vendor/bindings/nng.til~ binds the vendored NNG 1.11.0 API. These are
+  deliberately ~ext_proc~ calls: folding socket operations at compile time
+  would perform real I/O or embed compiler-process pointers. Pair, push/pull,
+  pub/sub, req/rep, bus and survey constructors are present.
+- ~examples/custom_modes.til~ supplies sender/receiver/publisher/subscriber
+  preludes. ~examples/lib/custom_modes/nng_base.til~ selects target archives,
+  checks return codes and copies foreign strings. These modes support the
+  listed Linux, Windows and macOS targets, not wasm32. NNG is already bundled;
+  ~make.til~ builds it with TLS disabled. Transport availability is not a
+  promise that every upstream NNG feature is enabled.
+- ~test/nng_pair.til~ and the interpreted/compiled registrations in
+  ~src/tests.til~ exercise a one-process inproc pair. ~test/nng_interp.til~
+  covers interpreted FFI startup. These are messaging smoke tests, not proof
+  that concurrently executing arbitrary Til code is safe.
+- The bindings include mutex allocation/lock/unlock/free, condition-variable
+  wait/until/wake, thread destroy/name, and AIO operation/wait/cancel/stop.
+  However, ~nng_thread_create~ and ~nng_aio_alloc~ are ABSENT as declarations
+  (only their explanatory comments remain). The C header has both. Error
+  enum values and flag macros are also missing from the Til binding.
+  Thus a list of bound AIO methods is not a usable task system.
+- No native Til channel/select, task scheduler, standard thread constructor,
+  semaphore or atomic API was found in ~src/core~, ~src/std~ or the language
+  implementation. Linking pthread/atomic in ~src/til.til~ does not add these
+  language facilities. ~src/std/sys.til~ has processes (~Cmd~, ~spawn_cmd~,
+  ~wait_cmd~), clocks and hardware-thread count (~get_thread_count~ returns
+  online processors, not live tasks). ~src/test_scheduler.til~
+  schedules child processes, not Til coroutines.
+
+**** Ownership, lifetime and compatibility decisions BEFORE API design
+
+These are constraints for this investigation and candidate requirements for a
+future design, not newly approved language semantics.
+
+- Preserve Til's one-owner, last-use destruction model. ~own~ transfer ends
+  the old owner's obligation; ~ref~ borrows extend a tracked owner's lifetime.
+  See ~doc/concepts/ownership.org~. An opaque C call retaining a pointer is
+  not automatically tracked through asynchronous completion. Scope extent
+  alone is insufficient because destruction is ASAP, not scope-exit RAII.
+- The default 64-bit C target uses ~--usize=32~ and a process-wide allocation
+  cage. ~src/self/codegen/ext.c:202-259~ explicitly says its allocator has no
+  lock because Til is single-threaded. ~doc/self.org~ describes the shared
+  cage ABI. Concurrent Til allocation/free needs a runtime audit and a real
+  synchronization design; changing to native pointers alone is not a proof
+  of thread safety. Profiling counters and other global runtime state also
+  need review. ~doc/ffi.org~ requires serialized VM operations on one thread.
+- Keep foreign allocations foreign. An NNG buffer must be freed by NNG, not
+  Til's cage allocator; do not store it in a Til ~own~ pointer field. For this
+  experiment use copying ~nng_send~ (flags 0) and caller-owned receive storage.
+  NNG worker threads only touch their own copied message data; all Til code
+  and Til allocations run on one application thread.
+- Socket IDs are shallow handles, not linear owners with automatic close.
+  Assign exactly one closer in the experiment, close after explicit draining,
+  and check every error. A future owning wrapper would need non-duplicating
+  resource semantics and tracked borrows before making destruction automatic.
+- For future typed local queues, prefer whole owned values without escaping
+  mutable aliases. A failed/canceled send must have an explicit ownership
+  outcome (return the value or destroy it under a documented consuming
+  contract). Existing ~own~ calls consume even on error; do not pretend a
+  conditional move can be obtained just by annotating an FFI call.
+- A parent must retain task state, borrowed data and endpoints until every
+  child and completion callback has stopped. Prefer explicit completion/join
+  for error reporting, with teardown enforcing cleanup. An ASAP-inserted
+  destructor must not unexpectedly join a producer before its consumer runs.
+  Cancellation requests stopping; completion establishes that storage can be
+  reclaimed. Forced thread termination is not an ownership protocol.
+- Separate graceful end-of-stream (drain accepted work) from abort (wake
+  waiters, dispose of queued values, report incomplete work). Deadlines and
+  cancellation are distinct from peer disconnection. Network send success is
+  not application completion; retries need identities and deduplication.
+- Keep current NNG modes/bindings and wire behavior intact. Local typed
+  ownership transfer and IPC serialization are different contracts. No raw
+  Str/Vec/cage pointers across processes, and no silent switch from lossless
+  local queues to lossy pub/sub. NNG's SP protocol is not ZeroMQ's ZMTP;
+  similar socket names do not imply wire or API compatibility.
+
+**** Go channels and select
+
+The [[https://go.dev/ref/spec#Channel_types][Go specification]] defines FIFO channel values,
+zero-capacity rendezvous and bounded buffers. A full buffer blocks a sender;
+an empty one blocks a receiver. Capacity bounds queued elements, not memory
+reachable through them, blocked goroutines or already-started work. Sending a
+slice/pointer copies its descriptor/value, not the referent or exclusive
+ownership. Synchronization does not prevent later racing writes through an
+alias. A Til design could improve this particular contract using its ownership
+analysis, but that improvement is not implemented or established here.
+
+Closing means no more sends. Buffered values remain receivable, followed by
+zero value plus ~ok=false~; sending to or closing a closed channel panics.
+Nil-channel sends/receives block forever. Channel close neither joins workers
+nor carries their error, and receivers must not race producers to close it.
+
+~select~ commits one ready communication; when several can proceed the spec
+chooses uniformly pseudo-randomly. This is not bounded waiting or a priority
+rule: ready cancellation can lose to ready data. Nil cases disable an arm;
+~default~ makes the selection nonblocking and can create a busy loop. Send
+operands are evaluated before selection, important for an ownership-taking
+Til equivalent: unselected values still require a defined owner.
+
+Goroutines blocked on channels park in Go's scheduler rather than each requiring
+a blocked OS thread. Their retained data and lifetime still cost resources.
+[[https://go.dev/blog/pipelines][Pipelines and cancellation]] demonstrates both a stranded sender
+when a consumer stops and a bounded worker pipeline. Closing a done channel
+(or selecting on a context's Done channel) broadcasts cancellation; it does
+not forcibly interrupt arbitrary work. Join/error coordination is additional
+library/application logic. Goroutine dumps, race detection, block/mutex
+profiles and execution tracing are important parts of Go's practical baseline;
+syntax alone would not make Til subjectively better.
+
+**** NNG and ZeroMQ
+
+| Concern | NNG (vendored 1.11.0) | ZeroMQ (libzmq 4.3.5 docs) |
+|---------+----------------------+---------------------------|
+| Work distribution | Push/pull pipeline | PUSH/PULL, round-robin output and fair-queued input |
+| RPC | Req/rep, automatic request resend; contexts for independent protocol state | REQ/REP alternating state; DEALER/ROUTER for explicit asynchronous routing |
+| Broadcast | Pub/sub drops under overload; bus and survey also available | PUB/SUB drops for slow subscribers; XPUB/XSUB expose subscription traffic |
+| Local/remote | inproc in one process; IPC, TCP, WebSocket etc. | inproc in one context; IPC, TCP and other transports |
+| Backpressure | Protocol-specific queues, send/receive timeouts, nonblocking errors | Protocol-specific high-water marks, timeouts, DONTWAIT/EAGAIN; ROUTER defaults can drop |
+| Scheduling | Internal C workers; sync calls block caller; AIO completes through callbacks/waits | Internal I/O workers; sync calls block caller; poll multiplexes readiness |
+| Sharing sockets | NNG socket operations generally thread-safe; protocol state and object lifetimes still matter | Traditional REQ/REP/PUSH/PULL/PUB/SUB/PAIR sockets are not thread-safe; some newer types are, several documented as draft |
+
+Neither library is a language task scheduler. NNG AIO callbacks normally run
+on foreign threads; they cannot safely run allocating Til code under the
+current cage assumptions. A future completion handoff to one Til event loop
+could preserve those assumptions, but needs lifetime-safe registration,
+wakeup, cancellation and unregistration. ~nng_aio_cancel~ can race success;
+wait/stop must establish completion before freeing its state. For ZeroMQ,
+~zmq_poll~ is readiness multiplexing, not an atomic Go-style selection across
+local channel operations; actual send/receive and timeout handling remain.
+
+Local transport removes serialization/network costs but does not turn either
+socket API into a typed, ownership-safe Go channel. NNG's general contract is
+whole messages or none, without a general delivery/order guarantee. Req retries
+can repeat application work. ZeroMQ's queue admission likewise does not prove
+peer receipt or durable processing. Acks, idempotency, persistence and recovery
+belong to the application protocol when required. Do not claim exactly-once
+execution from a successful send, TCP reliability, or an inproc smoke test.
+
+Shutdown differs materially. NNG close can discard in-flight data; closing a
+local socket makes later operations ECLOSED, while peer disappearance is not
+channel EOF. Close contexts before their parent socket and stop/free AIO only
+after callbacks finish. ZeroMQ context termination interrupts blocking calls
+with ETERM, then waits for sockets to close and their linger obligations;
+unbounded linger can prevent termination. Use explicit drain/ack or abort
+policies, not sleeps that merely appear to flush.
+
+Fair queueing of peers is not fair CPU scheduling or bounded job latency.
+Record accepted/completed/dropped counts, queue bytes, blocked durations,
+timeouts, task identity and shutdown reason. NNG stats/pipe notifications and
+ZeroMQ socket monitoring provide transport observations, not application job
+completion. Til currently has raw NNG stats bindings, not a task inspector.
+
+Sources: vendored ~vendor/nng/docs/man/~ pages ~nng.7.adoc~,
+~nng_close.3.adoc~, ~nng_aio_alloc.3.adoc~, ~nng_aio_cancel.3.adoc~,
+~nng_aio_stop.3.adoc~ and protocol pages; ~vendor/nng/include/nng/nng.h~.
+ZeroMQ version-pinned [[https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_socket.txt][socket patterns/thread safety]],
+[[https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_poll.txt][poll]] and
+[[https://github.com/zeromq/libzmq/blob/v4.3.5/doc/zmq_ctx_term.txt][context termination]].
+
+**** Jai: evidence rather than a promised concurrency model
+
+Public source examples provide evidence of actual usage, not a stable language
+specification or a local execution result. No Jai compiler was used here.
+
+- [[https://github.com/BlankTiger/thread_context/blob/1a47ffca42cbe6566540fac0c4d37ea2312c1b08/pool.jai][BlankTiger/thread_context, pool.jai]]
+  imports ~Thread~ and ~Atomics~, creates ~Thread~ values using ~thread_init~ /
+  ~thread_start~, signals a ~Semaphore~, and counts work with ~atomic_add~ and
+  ~atomic_read~. Destruction sets an exit flag, wakes workers, waits with
+  ~thread_is_done(..., -1)~, and deinitializes them. The completion wait spins.
+  This is concrete library-level worker-pool code, not Go-style channels or a
+  language scheduler. Its publication ordering, exit-flag access, allocation
+  cleanup and spin behavior require review; source existence is not proof of
+  correctness or portability.
+- The same revision's [[https://github.com/BlankTiger/thread_context/blob/1a47ffca42cbe6566540fac0c4d37ea2312c1b08/threads.jai][threads.jai]]
+  uses ~starting_context~ and ~Thread_Group~. These show explicit worker
+  context and group management in the ecosystem. They do not establish
+  compiler-enforced lifetime or race freedom.
+- [[https://github.com/aRaymo/JaiRenderThreadExample/blob/ce9dc170fd6ea3e84978190e8c8e3ab9ba50ce81/render.jai][JaiRenderThreadExample, render.jai]]
+  uses Win32 ~CreateThread~, critical sections and condition variables, a
+  ~#c_call~ entry, and ~push_context~ with separate temporary storage. Rendering
+  stays on its own thread; shared frame state is copied under a lock. The
+  source explicitly contains a TODO about context setup. This is a useful
+  concrete example of affinity and allocator concerns, not portable built-in
+  structured concurrency, and not a shutdown pattern certified by this report.
+- The older [[https://github.com/BSVino/JaiPrimer/blob/master/JaiPrimer.md][JaiPrimer]] explicitly warns that its account is
+  unofficial and that the language designer disputes its accuracy. It lists
+  "a better concurrency model" under Planned and describes proposed captures.
+  Those statements are historical proposals, not evidence of shipped channels,
+  race checking, automatic joins or bounded cancellation. The public examples
+  above also do not settle whether newer private compiler builds add features.
+
+Useful lesson for Til: worker-local allocator/context and affinity must be
+designed alongside scheduling. Semaphores and explicit jobs are a viable
+library style for batch/frame work. Claims that Jai already solves structured
+ownership-safe concurrency would exceed the evidence.
+
+**** Explicit synchronization and cross-cutting rules
+
+| Primitive | Appropriate role | Obligation it does not remove |
+|-----------+------------------+-------------------------------|
+| Mutex | Short updates to a shared invariant; resource/allocator metadata | Lock ordering, ownership of protected data, avoiding blocking I/O while locked |
+| Condition variable | Sleep until a predicate over mutex-protected state is true | Recheck predicate in a loop, including shutdown; wakeup is not a queued message |
+| Semaphore | Resource permits or count of available jobs | Pair every acquired permit with release on errors; queue storage and shutdown are separate |
+| Atomics | Counters, publication flags, proven low-level queue algorithms | Memory order, composite invariants, lifetime/reclamation, ABA and progress proof |
+| Bounded queue/task group | Pipeline handoff, parent-child completion and error collection | Application stop/drain policy, capacity/byte budget and processing acknowledgments |
+
+The [[https://man7.org/linux/man-pages/man3/pthread_cond_wait.3p.html][POSIX condition-wait specification]] explicitly permits spurious
+wakes and leaves wake ordering to scheduling policy. A semaphore remembers
+permits; a condition notification does not remember a state transition.
+Neither implies FIFO fairness. Cancellation needs to wake every kind of wait,
+including a producer blocked on capacity, not only receivers waiting for work.
+
+For atomics, a relaxed counter is not publication of a payload. A future Til
+memory model must specify the synchronization edge (for example release/acquire
+publication) before exposing operations that users could combine with ordinary
+memory. Atomic pointers alone do not make freeing/reusing their objects safe.
+Mutexes are often simpler for composite state. Lock-free is a progress property,
+not a claim of lower latency, and spinning should be measured under contention.
+
+Error propagation needs an owner too: a worker reports a result/error to its
+parent, which cancels siblings if the application policy requires it and still
+joins all of them. Cleanup errors must not disappear behind the first error.
+Current NNG ~check~ panics on error, suitable for this assertion-driven probe,
+not a recoverable task-error policy. A future design should preserve existing
+Til throws behavior at explicit completion boundaries.
+
+**** Candidate division of responsibility (no new API)
+
+- Language/compiler: ownership/borrow transfer across suspension and joins,
+  callable capture lifetime, and a defined data-race/memory model. Consider
+  select syntax only after its losing-arm ownership and cancellation semantics
+  are established; syntax is not needed for the present experiment.
+- Runtime: allocator/global-state thread safety, OS-thread lifecycle, wait/wake,
+  timers, foreign-callback handoff, and observable blocked-task state. A
+  cooperative event loop is a smaller starting point than an M:N preemptive
+  scheduler, but blocking FFI would stall it unless isolated explicitly.
+- Standard library: owning endpoints, bounded local queues, cancellation and
+  deadline propagation, structured task groups, joins/results, mutex/CV/
+  semaphore wrappers. These remain candidate capabilities requiring approval,
+  not public names/signatures or implemented promises.
+- Application: worker count, byte/in-flight limits, batching, retry/dedup/ack
+  protocol, ordering needs, drain versus abort, affinity and metrics policy.
+  NNG remains the existing messaging substrate; this comparison supplies no
+  workload evidence justifying a ZeroMQ dependency.
+
+"Better" should be evaluated separately: subjective ergonomics (how many
+independent cleanup/close obligations the reader tracks), correctness (no
+dangling payload, stranded child or lost permit on tested exit paths), and
+performance (elapsed/CPU time, peak bytes and latency distributions on the SAME
+workload). No cross-language speed ranking follows from this investigation.
+
+*** Experiment: bounded numbered-record ingestion over existing NNG
+
+Workload: ingest decimal record IDs 0..19999, validate every received ID and
+sum their squares. The expected checksum is 2666466670000. A producer sends
+up to an application window of 1 or 16 records, then the consumer drains that
+window. Each record is a NUL-terminated decimal string, 2..6 bytes including
+NUL. This models a small streaming validation stage, not a CPU-parallel job.
+Both endpoints run on ONE Til thread; NNG transport processing uses its native
+workers. There is no independently scheduled Til worker, user-thread creation,
+AIO callback or scheduler implementation hidden in the probe.
+
+The pair protocol allows an explicit END/ACK exchange after all records have
+been validated. All four socket send/receive directions have timeouts. Each
+socket has one explicit closer. The binding declares ~nng_send~'s input mutable,
+so the helper clones into mutable storage before the copying send. Receive
+storage is Til-owned; length and trailing NUL are checked before copying it
+into a returned Str. No foreign heap ownership crosses into the Til allocator.
+
+Separate correctness probe: with send/receive buffers set to one and the
+consumer paused, fill until ETIMEDOUT, require a nonblocking EAGAIN, drain exactly
+the accepted count, and prove another record gets through. Closing the producer
+makes its own send return ECLOSED; the drained consumer's next receive times
+out instead of returning an EOF. On all three executions the fill accepted
+four messages. That number is an observation of this build, NOT a capacity
+contract: protocol/transport in-flight storage exists beyond the two socket
+buffers. A real end-to-end bound needs application credits/acknowledgments,
+including bytes, outstanding producers and work already being processed.
+
+**** Results and limits
+
+Linux 6.14.0-37-generic x86_64; AMD Ryzen 9 9950X3D (16 cores/32 hardware
+threads); GCC 13.3.0; local ~bin/til -v~ = ~0.0.1-e07d5da04~; NNG reports
+~1.11.0~. Default C backend, ~--usize=32~, default CPU configuration, no
+explicit optimization flag (generated application C uses GCC's default -O0
+and -g); vendored NNG was built CMake Release. No CPU affinity or isolated
+machine claim. Commands ran sequentially.
+
+Six pairs per execution; first pair is warm-up. Timing uses ~nng_clock~ in
+milliseconds around send/receive, parsing, validation, copying/allocation and
+checksum only. Setup, close, END/ACK, output and the saturation probe are outside
+that interval. The clock is too coarse for per-message latency conclusions.
+
+| Non-ASAN window | Five measured elapsed times (ms) | Median | Range |
+|-----------------+----------------------------------+--------+-------|
+| 1               | 86, 98, 83, 112, 78               |     86 | 78-112 |
+| 16              | 72, 87, 63, 54, 55                |     63 | 54-87 |
+
+Warm-up times were 119/55 ms. Batching reduced median elapsed time in this run;
+overlapping ranges and five samples do not establish a general speedup.
+Allocation and decimal conversion costs are included, not isolated. No Go,
+ZeroMQ, Jai, mutex-queue or direct-loop baseline was timed. CPU utilization,
+peak memory, tail latency and fairness were not measured; do not derive those
+properties from these elapsed times.
+
+The full probe also passed interpreted and ASAN-compiled, with all 12 checksums
+per execution and the pressure/shutdown assertions. ASAN printed no diagnostics;
+the vendored NNG archive itself was not rebuilt with ASAN. These checks do not
+establish thread safety, exactly-once delivery under failure, or multi-peer
+ordering. Cancellation of an already blocked Til task, independent worker
+failure, IPC/network behavior and starvation were not exercised: no such task
+abstraction was introduced. The timeout probe shows a bounded wait returning
+an error, not cancellation propagation.
+
+Subjective result: the visible count/window and END/ACK protocol are readable,
+but raw numeric errors, mutable-copy adaptation and manual close obligations
+are awkward. The most useful next design target is explicit ownership and
+structured completion with bounded backpressure, rather than new channel
+syntax or replacing NNG. That is a recommendation for a separately approved
+design, not a claim that the README aspiration has been achieved.
+
+**** Reproduction
+
+Save the following Til block verbatim as ~tmp/concurrency482.til~ in a checkout
+built with ~make bin/til~. It is an ad-hoc experiment using the existing scratch
+directory; this issue is the retained source/report, with no new installed
+module, test target, dependency or public surface. Run from the checkout root:
+
+#+begin_src sh
+bin/til run -o tmp/concurrency482 -c tmp/concurrency482.c --extra-modes=examples/custom_modes.til tmp/concurrency482.til > tmp/experiment.log 2>&1
+bin/til run --asan -o tmp/concurrency482_asan -c tmp/concurrency482_asan.c --extra-modes=examples/custom_modes.til tmp/concurrency482.til > tmp/experiment_asan.log 2>&1
+bin/til interpret --extra-modes=examples/custom_modes.til tmp/concurrency482.til > tmp/experiment_interpret.log 2>&1
+#+end_src
+
+Check each log for the pressure success line and twelve checksum lines; compiler
+diagnostics are failures even if the driver exits zero. The interpreted run took
+about 150 seconds on this machine. Output under ~tmp/~ is disposable and not an
+additional source of truth. Source and measurements are preserved here.
+
+#+begin_src til
+mode sender
+
+// Private probe constants from vendor/nng/include/nng/nng.h.
+// The binding omits these macros/enumerators.
+again : I32 = 8
+timed_out : I32 = 5
+closed : I32 = 7
+nonblock : I32 = 2
+
+receive := proc(sock: nng_socket) returns Str {
+    mut buf := Str.with_capacity(64)
+    mut size : USize = 64
+    check(nng_recv(sock, buf.c_str, size, 0), "receive")
+    assert((size > 0).and(size <= 64))
+    assert(buf.unsafe_get(size - 1) == 0)
+    return read_cstr(buf.c_str)
+}
+
+send := proc(sock: nng_socket, value: Str) {
+    mut bytes := value.clone()
+    check(nng_send(sock, bytes.c_str, bytes.len() + 1, 0), "send")
+}
+
+run := proc(window: USize, count: USize) {
+    mut producer := nng_socket(id=0)
+    mut consumer := nng_socket(id=0)
+    check(nng_pair0_open(producer), "open producer")
+    check(nng_pair0_open(consumer), "open consumer")
+    check(nng_socket_set_int(producer, "send-buffer".c_str, 16), "send buffer")
+    check(nng_socket_set_int(consumer, "recv-buffer".c_str, 16), "recv buffer")
+    check(nng_socket_set_ms(producer, "send-timeout".c_str, 1000), "send timeout")
+    check(nng_socket_set_ms(producer, "recv-timeout".c_str, 1000), "ack timeout")
+    check(nng_socket_set_ms(consumer, "send-timeout".c_str, 1000), "ack send timeout")
+    check(nng_socket_set_ms(consumer, "recv-timeout".c_str, 1000), "recv timeout")
+    mut listener := nng_listener(id=0)
+    mut dialer := nng_dialer(id=0)
+    url := "inproc://til-482"
+    check(nng_listen(producer, url.c_str, listener, 0), "listen")
+    check(nng_dial(consumer, url.c_str, dialer, 0), "dial")
+
+    // Finite numbered-record ingestion with a bounded application window.
+    mut sent : USize = 0
+    mut received : USize = 0
+    mut checksum : U64 = 0
+    start := nng_clock()
+    while received < count {
+        while (sent < count).and(sent - received < window) {
+            send(producer, sent.to_str())
+            sent = sent + 1
+        }
+        while received < sent {
+            value := receive(consumer).to_u64()
+            assert(value == received.cast(U64))
+            checksum = checksum + value * value
+            received = received + 1
+        }
+    }
+    elapsed := nng_clock() - start
+    n := count.cast(U64)
+    assert(checksum == (n - 1) * n * (n * 2 - 1) / 6)
+
+    // Completion is an application protocol, not nng_close or send success.
+    send(producer, "END")
+    assert(receive(consumer) == "END")
+    send(consumer, "ACK")
+    assert(receive(producer) == "ACK")
+    check(nng_close(producer), "close producer")
+    check(nng_close(consumer), "close consumer")
+    println("window=", window, " count=", count, " checksum=", checksum, " ms=", elapsed)
+}
+
+probe := proc() {
+    mut producer := nng_socket(id=0)
+    mut consumer := nng_socket(id=0)
+    check(nng_pair0_open(producer), "probe producer")
+    check(nng_pair0_open(consumer), "probe consumer")
+    check(nng_socket_set_int(producer, "send-buffer".c_str, 1), "probe send buffer")
+    check(nng_socket_set_int(consumer, "recv-buffer".c_str, 1), "probe recv buffer")
+    check(nng_socket_set_ms(producer, "send-timeout".c_str, 20), "probe timeout")
+    check(nng_socket_set_ms(consumer, "recv-timeout".c_str, 1000), "probe receive timeout")
+    mut listener := nng_listener(id=0)
+    mut dialer := nng_dialer(id=0)
+    url := "inproc://til-482-pressure"
+    check(nng_listen(producer, url.c_str, listener, 0), "probe listen")
+    check(nng_dial(consumer, url.c_str, dialer, 0), "probe dial")
+    mut msg := "work"
+    mut accepted : USize = 0
+    mut saturated := false
+    while accepted < 10000 {
+        rc := nng_send(producer, msg.c_str, msg.len() + 1, 0)
+        if rc == timed_out {
+            saturated = true
+            break
+        }
+        check(rc, "fill")
+        accepted = accepted + 1
+    }
+    assert(saturated)
+    assert(nng_send(producer, msg.c_str, msg.len() + 1, nonblock) == again)
+    for _ in 0..accepted { assert(receive(consumer) == msg) }
+    // Draining restores capacity. No failed send was counted or retried.
+    send(producer, "after drain")
+    assert(receive(consumer) == "after drain")
+    check(nng_close(producer), "probe close producer")
+    assert(nng_send(producer, msg.c_str, msg.len() + 1, 0) == closed)
+    check(nng_socket_set_ms(consumer, "recv-timeout".c_str, 20), "peer timeout")
+    mut buf := Str.with_capacity(64)
+    mut size : USize = 64
+    assert(nng_recv(consumer, buf.c_str, size, 0) == timed_out)
+    check(nng_close(consumer), "probe close consumer")
+    println("pressure accepted=", accepted, " timeout/EAGAIN/drain/local-close/peer-timeout ok")
+}
+
+println("NNG ", read_cstr(nng_version()))
+probe()
+// First pair is warm-up; subsequent pairs are measurements.
+for _ in 0..6 {
+    run(1, 20000)
+    run(16, 20000)
+}
+nng_fini()
+#+end_src
