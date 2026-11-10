@@ -4213,7 +4213,10 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                     if oi.sub(1).to_i32() == ext_variadic_index { continue }
                     switch e.children[oi].node_type {
                     case .Ident(oa_ident):
-                        mut arg_hb_o := scope_lookup_heap_binding(scope, oa_ident.ident_name(ctx.symbols.names))
+                        // scope_find, not scope_lookup: the callee may already
+                        // have released the slot (adopt's `free(own src)`), and
+                        // the lookup's callable refresh would read it.
+                        mut arg_hb_o := scope_find_heap_binding(scope, oa_ident.ident_name(ctx.symbols.names))
                         if arg_hb_o.is_some() {
                             ref mut arg_hb : HeapBinding = arg_hb_o.unwrap()
                             // An own arg whose CALLEE PARAM is `own` was genuinely
@@ -5142,12 +5145,17 @@ scope_new := func(parent: Option(ref Scope)) returns Scope {
 }
 
 // Look up the type/ownership metadata for a raw binding.
-scope_lookup_heap_binding := func(mut s: Scope, name: Str) returns Option(ref HeapBinding) {
+// The binding `name` resolves to, walking outward from `s`, exactly as
+// stored: no ext_global re-load and no callable-slot refresh. For a caller
+// whose binding's slot may already be released -- an own argument an ext
+// call just consumed (`free(own src)` in adopt) -- where the refresh in
+// scope_lookup_heap_binding would read the freed slot.
+priv scope_find_heap_binding := func(mut s: Scope, name: Str) returns Option(ref HeapBinding) {
     if to_ptr(s).is_null() { return Option(ref HeapBinding).None }   // REM: nullable scope ARG, see scope_get
     ref mut cur : Scope = s
     mut walking := true
     while walking {
-        ref mut b : HeapBinding = cur.heap_bindings.get(name)?
+        ref b : HeapBinding = cur.heap_bindings.get(name)?
         catch (e: KeyNotFound) {
             switch cur.parent {
             case .Some(p): cur = p
@@ -5155,31 +5163,38 @@ scope_lookup_heap_binding := func(mut s: Scope, name: Str) returns Option(ref He
             }
             continue
         }
-        switch b.ext_slot {
-        case .Some(slot):
-            // A `ref` ext_global: re-load the C pointer so the borrow
-            // follows a re-point made after the declaration.
-            ref next : Dynamic = deref(slot)
-            if b.foreign_root != 0 && to_ptr(b.ptr).ptr_eq(next).not() {
-                ffi_release_binding(b)
-                b.foreign_root = 0
-            }
-            b.ptr = to_ptr(deref(slot))
-        case .None:
-        }
-        if b.moved_out.not().and(heap_type_is_callable(hb_type(b))) {
-            // Mutable aliases can replace the descriptor without changing
-            // this binding's metadata. The shared slot is authoritative.
-            b.payload_released = deref(b.ptr).is_null()
-            // Delete empties the descriptor but retains its borrowable slot.
-            b.is_static_callable = false
-            if b.payload_released.not() {
-                b.is_static_callable = heap_slot_is_static_callable(hb_type(b), to_ptr(b.ptr))
-            }
-        }
         return safe_ref(b)
     }
     return Option(ref HeapBinding).None
+}
+
+scope_lookup_heap_binding := func(mut s: Scope, name: Str) returns Option(ref HeapBinding) {
+    mut found := scope_find_heap_binding(s, name)
+    if found.is_none() { return Option(ref HeapBinding).None }
+    ref mut b : HeapBinding = found.unwrap()
+    switch b.ext_slot {
+    case .Some(slot):
+        // A `ref` ext_global: re-load the C pointer so the borrow
+        // follows a re-point made after the declaration.
+        ref next : Dynamic = deref(slot)
+        if b.foreign_root != 0 && to_ptr(b.ptr).ptr_eq(next).not() {
+            ffi_release_binding(b)
+            b.foreign_root = 0
+        }
+        b.ptr = to_ptr(deref(slot))
+    case .None:
+    }
+    if b.moved_out.not().and(heap_type_is_callable(hb_type(b))) {
+        // Mutable aliases can replace the descriptor without changing
+        // this binding's metadata. The shared slot is authoritative.
+        b.payload_released = deref(b.ptr).is_null()
+        // Delete empties the descriptor but retains its borrowable slot.
+        b.is_static_callable = false
+        if b.payload_released.not() {
+            b.is_static_callable = heap_slot_is_static_callable(hb_type(b), to_ptr(b.ptr))
+        }
+    }
+    return safe_ref(b)
 }
 
 // Identify callable raw slots from their Type metadata.

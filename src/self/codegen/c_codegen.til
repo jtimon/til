@@ -2963,10 +2963,9 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             else if is_ref_local(assign_sym, ctx) { target = format("(*", acname, ")") }
             // A `mut` callable parameter is the caller's slot.
             else if is_current_func_param(aname, ctx) { target = format("(*", acname, ")") }
-            if ad.save_old_delete {
-                f.write("TilClosure *callable_old = ").write(target)
-                f.write("; if (callable_old && callable_old->drop) { callable_old->drop(callable_old->env); free(callable_old); } ")
-            }
+            // til_closure_drop (ext.c), not an inline guarded free: with the
+            // old value a visible static closure GCC rejects the free.
+            if ad.save_old_delete { f.write("til_closure_drop(").write(target).write("); ") }
             f.write(target).write(" = *callable_copy; free(callable_copy); }\n")
             return
         }
@@ -2982,10 +2981,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             f.write("{ TilClosure *callable_new = ")
             emit_expr(f, rhs, depth, ctx)
             f.write("; ")
-            if ad.save_old_delete {
-                f.write("TilClosure *callable_old = ").write(slot)
-                f.write("; if (callable_old && callable_old->drop) { callable_old->drop(callable_old->env); free(callable_old); } ")
-            }
+            if ad.save_old_delete { f.write("til_closure_drop(").write(slot).write("); ") }
             f.write(slot).write(" = callable_new; }\n")
             return
         }

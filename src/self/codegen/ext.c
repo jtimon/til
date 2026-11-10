@@ -1462,6 +1462,20 @@ void *til_closure_slot_clone(void *slot) {
     *holder = dst;
     return holder;
 }
+// Release a closure a callable slot held before it is overwritten. A
+// capture-free function's closure is static storage with drop == NULL, so
+// it is left alone. This lives here rather than inline in the emitted
+// assignment: there GCC can see the slot holding &fn__til_closure (a
+// non-const static) and rejects the guarded free(...) with
+// -Werror=free-nonheap-object under the native layout's libc free
+// (test/fn_ptr.til, --usize=64).
+void til_closure_drop(void *closure) {
+    TilClosureExt *old = closure;
+    if (old && old->drop) {
+        old->drop(old->env);
+        free(old);
+    }
+}
 /* #211 follow-up: write a typed primitive into raw bytes. Used by the
  * AST interpreter to mirror writes through a payload-aliased binding
  * into the underlying enum's payload memory. */
