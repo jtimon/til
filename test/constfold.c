@@ -144,6 +144,30 @@ typedef struct Map__Str_I64 {
 } Map__Str_I64;
 
 
+_Static_assert(sizeof(Str) == 12, "til computed sizeof(Str) as 12");
+_Static_assert(sizeof(Array__Str) == 8, "til computed sizeof(Array__Str) as 8");
+_Static_assert(sizeof(Vec__Str) == 12, "til computed sizeof(Vec__Str) as 12");
+_Static_assert(sizeof(U8) == 1, "til computed sizeof(U8) as 1");
+_Static_assert(sizeof(U32) == 4, "til computed sizeof(U32) as 4");
+_Static_assert(sizeof(U64) == 8, "til computed sizeof(U64) as 8");
+_Static_assert(sizeof(I8) == 1, "til computed sizeof(I8) as 1");
+_Static_assert(sizeof(I32) == 4, "til computed sizeof(I32) as 4");
+_Static_assert(sizeof(I64) == 8, "til computed sizeof(I64) as 8");
+_Static_assert(sizeof(F32) == 4, "til computed sizeof(F32) as 4");
+_Static_assert(sizeof(Bool) == 1, "til computed sizeof(Bool) as 1");
+_Static_assert(sizeof(CfVec2) == 16, "til computed sizeof(CfVec2) as 16");
+_Static_assert(sizeof(CfRect) == 32, "til computed sizeof(CfRect) as 32");
+_Static_assert(sizeof(CfVec3f) == 12, "til computed sizeof(CfVec3f) as 12");
+_Static_assert(sizeof(Color) == 1, "til computed sizeof(Color) as 1");
+_Static_assert(sizeof(Token) == 24, "til computed sizeof(Token) as 24");
+_Static_assert(sizeof(WideToken) == 16, "til computed sizeof(WideToken) as 16");
+_Static_assert(sizeof(NestedToken) == 8, "til computed sizeof(NestedToken) as 8");
+_Static_assert(sizeof(CfNestedValues) == 12, "til computed sizeof(CfNestedValues) as 12");
+_Static_assert(sizeof(Array__I64) == 8, "til computed sizeof(Array__I64) as 8");
+_Static_assert(sizeof(Map__Str_I64) == 24, "til computed sizeof(Map__Str_I64) as 24");
+_Static_assert(sizeof(Vec__I64) == 12, "til computed sizeof(Vec__I64) as 12");
+_Static_assert(sizeof(Vec__CfNestedValues) == 12, "til computed sizeof(Vec__CfNestedValues) as 12");
+
 
 static void print_single(Str *s);
 static void print_flush();

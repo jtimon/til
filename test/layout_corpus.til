@@ -1,0 +1,108 @@
+mode script
+
+// #472 (step F1a): types whose TARGET layout til must compute exactly as
+// the C compiler lays them out. The check is not written in this file:
+// every C build carries one static assert per emitted type
+// (c_codegen.til emit_layout_asserts), so COMPILING this for a target is
+// the test. Each type is constructed and read below so its definition is
+// emitted. make.til's layout_regressions builds and runs it at both
+// widths; the CI jobs that compile for another target build it there.
+
+// A 64-bit scalar after a byte: aligned to 8 on every target but
+// linux-x86, where it is 4.
+ByteThenWide := struct {
+    tag : U8 = 0
+    wide : U64 = 0
+}
+ByteThenDouble := struct {
+    tag : U8 = 0
+    value : F64 = 0.0
+}
+
+// The width aliases beside a narrower field.
+Widths := struct {
+    count : USize = 0
+    address : UPtr = 0
+    small : U16 = 0
+}
+
+// own fields: a 4-byte cage offset under the compact layout, a pointer
+// otherwise.
+Owner := struct {
+    flag : Bool = false
+    own name : Str = ""
+    own boxed : I64 = 0
+    last : U8 = 0
+}
+
+Nested := struct {
+    head : ByteThenWide = ByteThenWide()
+    widths : Widths = Widths()
+    tail : U8 = 0
+}
+
+TagOnly := enum { First, Second, Third }
+WideTag := enum(U32) { First = 1, Second = 70000 }
+BytePayload := enum { Empty, Byte: U8 }
+WidePayload := enum { Empty, Wide: U64 }
+StrPayload := enum { Empty, Named: Str }
+StructPayload := enum { Empty, Pair: ByteThenWide }
+
+fail := proc(what: Str) {
+    println(format("FAIL: ", what))
+    exit(1)
+}
+
+btw := ByteThenWide(tag = 1, wide = 2)
+if btw.tag.neq(1).or(btw.wide.neq(2)) { fail("ByteThenWide") }
+
+btd := ByteThenDouble(tag = 1, value = 2.5)
+if btd.value.neq(2.5) { fail("ByteThenDouble") }
+
+widths := Widths(count = 3, address = 4, small = 5)
+if widths.count.neq(3).or(widths.small.neq(5)) { fail("Widths") }
+
+owner := Owner(flag = true, name = "abc", boxed = 7, last = 9)
+if owner.name.neq("abc").or(owner.last.neq(9)) { fail("Owner") }
+
+nested := Nested(head = ByteThenWide(tag = 4, wide = 5), widths = Widths(count = 6), tail = 7)
+if nested.head.wide.neq(5).or(nested.widths.count.neq(6)).or(nested.tail.neq(7)) { fail("Nested") }
+
+tag_only := TagOnly.Second
+if tag_only.is(TagOnly.Second).not() { fail("TagOnly") }
+
+wide_tag := WideTag.Second
+if wide_tag.is(WideTag.Second).not() { fail("WideTag") }
+
+byte_payload := BytePayload.Byte(200)
+switch byte_payload {
+case .Byte(value): if value.neq(200) { fail("BytePayload value") }
+case: fail("BytePayload")
+}
+
+wide_payload := WidePayload.Wide(4294967297)
+switch wide_payload {
+case .Wide(value): if value.neq(4294967297) { fail("WidePayload value") }
+case: fail("WidePayload")
+}
+
+str_payload := StrPayload.Named("named")
+switch str_payload {
+case .Named(value): if value.neq("named") { fail("StrPayload value") }
+case: fail("StrPayload")
+}
+
+struct_payload := StructPayload.Pair(ByteThenWide(tag = 8, wide = 9))
+switch struct_payload {
+case .Pair(value): if value.wide.neq(9) { fail("StructPayload value") }
+case: fail("StructPayload")
+}
+
+mut strings := Vec(Str).new()
+strings.push(own "one")
+strings.push(own "two")
+mut counts := Map(Str, I64).new()
+counts.set("one", own 1)
+if strings.len().neq(2).or(counts.len().neq(1)) { fail("containers") }
+
+println("layout corpus OK")

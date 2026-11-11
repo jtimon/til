@@ -935,3 +935,45 @@ differences -> every step's row; documentation -> a "Reproducible builds"
 section in ~doc/self.org~ (configurations that hold, declared inputs,
 limits), written by the commit that lands the last gate, which also moves
 this file to ~issues/fixed/~.
+
+*** Progress: step F1a (base master 605e94e)
+
+Landed: ~c_codegen.til::emit_layout_asserts~. Every generated ~.c~ carries,
+after its type definitions, one line per struct and enum it defines:
+
+#+begin_src c
+_Static_assert(sizeof(Str) == 12, "til computed sizeof(Str) as 12");
+#+end_src
+
+The number is ~typer.til::target_value_size~. Nothing reads it for a value
+yet; ~X.size()~ behaves as before. The forward and public headers do not
+carry the asserts, and ~Dynamic~ is skipped because its C type is a
+one-byte stand-in (#394).
+
+~test/layout_corpus.til~ holds the awkward shapes (a 64-bit scalar after a
+byte, width aliases, own fields, enum tags and payloads). It is built and
+run at both widths by ~make.til::layout_regressions~, and built for every
+target a CI job cross-compiles for (run too where that job runs binaries).
+The macOS corpus sweep now also counts a failed assert.
+
+Verified here, compact compiler on Linux x64:
+- ~make clean && make test_two_pass~: 575/575. That compiles every suite
+  program with its asserts, the compiler itself (281 types), and the
+  ~--usize=64~ builds of ~layout_regressions~, which are cross-layout.
+- ~macos-arm64~ and ~macos-x64~: the corpus and ~test/enums.til~ built
+  with the SDK-less clang toolchain.
+- ~linux-x86~ at both widths, COMPILE ONLY (~gcc -m32~ with a stub
+  ~gnu/stubs-32.h~; this container has no 32-bit libc, so the link fails
+  after the asserts were evaluated): the corpus, ~enums~, ~first_class~,
+  ~structs~ and ~simd~. For example ~ByteThenWide~ is 12 there and 16 on
+  x64.
+
+Result so far: no disagreement. Wherever it could be checked, til's target
+layout equals the C compiler's.
+
+Not verified here, because this container has no toolchain for them:
+linux-arm64, linux-riscv64, linux-arm32, linux-riscv32, windows-x64,
+windows-x86, wasm32. The CI run of this commit is the evidence for those;
+a red job there names the type and both numbers. F1b starts once that run
+is read.
+

@@ -189,6 +189,17 @@ jobs:
         run: |
           ./bin/til build --target=linux-arm64 -o bin/hello_script_arm64 examples/hello_script.til
           file bin/hello_script_arm64 | grep -q "aarch64"
+      # Issue #472 (F1a): every C build carries one static assert per emitted
+      # type that the C compiler's sizeof equals the layout til computed for
+      # this target, so compiling is the check. test/layout_corpus.til holds
+      # the awkward shapes (64-bit scalars after a byte, width aliases, own
+      # fields, enum payloads) and is built here at both USize widths.
+      - name: Build and run the layout corpus for linux-arm64
+        run: |
+          for width in 32 64; do
+            ./bin/til build --target=linux-arm64 --usize=$width -o bin/layout_corpus_arm64 test/layout_corpus.til
+            qemu-aarch64 -L /usr/aarch64-linux-gnu bin/layout_corpus_arm64 | grep -q "layout corpus OK"
+          done
       # Issue #235: std/crypto cross-built for this target. libsecp256k1
       # builds from the vendored source into this target's own archive
       # (the builder links it instead of the host's), and test/crypto.til
@@ -255,6 +266,13 @@ jobs:
         run: |
           ./bin/til build --target=linux-riscv64 -o bin/hello_script_riscv64 examples/hello_script.til
           file bin/hello_script_riscv64 | grep -q "RISC-V"
+      # Issue #472 (F1a): see the linux-arm64 job.
+      - name: Build and run the layout corpus for linux-riscv64
+        run: |
+          for width in 32 64; do
+            ./bin/til build --target=linux-riscv64 --usize=$width -o bin/layout_corpus_riscv64 test/layout_corpus.til
+            qemu-riscv64 -L /usr/riscv64-linux-gnu bin/layout_corpus_riscv64 | grep -q "layout corpus OK"
+          done
       # Issue #235: std/crypto cross-built for this target. libsecp256k1
       # builds from the vendored source into this target's own archive
       # (the builder links it instead of the host's), and test/crypto.til
@@ -323,6 +341,14 @@ jobs:
           file bin/hello_script_x86 | grep -q -E "Intel (80386|i386)"
           qemu-i386 bin/hello_script_x86
           qemu-i386 bin/hello_script_x86 | grep -q "Hello World"
+      # Issue #472 (F1a): see the linux-arm64 job. This is the one target
+      # where a 64-bit scalar aligns to 4.
+      - name: Build and run the layout corpus for linux-x86
+        run: |
+          for width in 32 64; do
+            ./bin/til build --target=linux-x86 --usize=$width -o bin/layout_corpus_x86 test/layout_corpus.til
+            qemu-i386 bin/layout_corpus_x86 | grep -q "layout corpus OK"
+          done
       - name: Run Dynamic and checked byte-count probes at both USize widths
         run: |
           ./bin/til run -o bin/c/cpu_options -c gen/c/cpu_options.c test/cpu_options.til ./bin/til
@@ -420,6 +446,13 @@ jobs:
         run: |
           qemu-arm -L /usr/arm-linux-gnueabihf bin/hello_script_arm32
           qemu-arm -L /usr/arm-linux-gnueabihf bin/hello_script_arm32 | grep -q "Hello World"
+      # Issue #472 (F1a): see the linux-arm64 job.
+      - name: Build and run the layout corpus for linux-arm32
+        run: |
+          for width in 32 64; do
+            ./bin/til build --target=linux-arm32 --usize=$width -o bin/layout_corpus_arm32 test/layout_corpus.til
+            qemu-arm -L /usr/arm-linux-gnueabihf bin/layout_corpus_arm32 | grep -q "layout corpus OK"
+          done
       # Issue #235: std/crypto cross-built for this target. libsecp256k1
       # builds from the vendored source into this target's own archive
       # (the builder links it instead of the host's), and test/crypto.til
@@ -502,6 +535,16 @@ jobs:
           SYSROOT=$("$RISCV32_CC" -print-sysroot)
           qemu-riscv32 -L "$SYSROOT" bin/hello_script_riscv32
           qemu-riscv32 -L "$SYSROOT" bin/hello_script_riscv32 | grep -q "Hello World"
+      # Issue #472 (F1a): see the linux-arm64 job.
+      - name: Build and run the layout corpus for linux-riscv32
+        run: |
+          RISCV32_CC=$(ls "$RISCV32_TC"/bin/riscv32-*-gcc | head -1)
+          SYSROOT=$("$RISCV32_CC" -print-sysroot)
+          for width in 32 64; do
+            ./bin/til build --target=linux-riscv32 --cc="$RISCV32_CC" --usize=$width \
+              -o bin/layout_corpus_riscv32 test/layout_corpus.til
+            qemu-riscv32 -L "$SYSROOT" bin/layout_corpus_riscv32 | grep -q "layout corpus OK"
+          done
       # Issue #235: std/crypto cross-built for this target. libsecp256k1
       # builds (with the Bootlin compiler) from the vendored source into this target's own archive
       # (the builder links it instead of the host's), and test/crypto.til
@@ -586,6 +629,9 @@ jobs:
           "$NODE" bin/hello_script.js | grep -q "Hello World"
           ./bin/til build --target=wasm32 --cc="$EMCC" -o bin/crypto.js test/crypto.til
           "$NODE" bin/crypto.js
+          # Issue #472 (F1a): the layout corpus; see the linux-arm64 job.
+          ./bin/til build --target=wasm32 --cc="$EMCC" -o bin/layout_corpus.js test/layout_corpus.til
+          "$NODE" bin/layout_corpus.js | grep -q "layout corpus OK"
           ./bin/til build --target=wasm32 --cc="$EMCC" -o bin/hello_gui.html examples/hello_gui.til
           grep -qi "<html" bin/hello_gui.html
       - name: Cancel the rest of this run
@@ -615,6 +661,15 @@ jobs:
           # windows-x86 (32-bit, mingw i686) -- issue #232
           ./bin/til build --target=windows-x86 -o bin/hello_script-x86.exe examples/hello_script.til
           file bin/hello_script-x86.exe | grep -q -E "Intel (80386|i386)"
+      # Issue #472 (F1a): see the linux-arm64 job. Build only: the asserts
+      # are checked by the compiler, and this file is not in the artifact
+      # the windows runner executes.
+      - name: Build the layout corpus for windows-x64 and windows-x86
+        run: |
+          for width in 32 64; do
+            ./bin/til build --target=windows-x64 --usize=$width -o bin/layout_corpus.exe test/layout_corpus.til
+            ./bin/til build --target=windows-x86 --usize=$width -o bin/layout_corpus-x86.exe test/layout_corpus.til
+          done
       # Issue #232: prove mode gui cross-links for BOTH windows arches. mingw
       # ships the win32/win64 GL/GDI backend, so raylib/tinyfd cross-build
       # from source with no X11 sysroot. Build-only (a raylib window cannot
@@ -1299,6 +1354,14 @@ jobs:
           file bin/hello_script-macos-arm64 | grep -q "Mach-O 64-bit arm64"
           ./bin/til build --target=macos-x64 -o bin/hello_script-macos-x64 examples/hello_script.til
           file bin/hello_script-macos-x64 | grep -q "Mach-O 64-bit x86_64"
+      # Issue #472 (F1a): see the linux-arm64 job. Build only.
+      - name: Build the layout corpus for macos-arm64 and macos-x64
+        run: |
+          for arch in arm64 x64; do
+            for width in 32 64; do
+              ./bin/til build --target=macos-$arch --usize=$width -o bin/layout_corpus-macos-$arch test/layout_corpus.til
+            done
+          done
       # Issue #235: std/crypto for both mac arches. libsecp256k1 builds
       # from the vendored source against the SDK-less headers (clang +
       # llvm-ar, like the mac gui archives); the binaries run on the mac
@@ -1359,9 +1422,12 @@ jobs:
           status=0
           for f in test/*.til examples/*.til; do
             log=$(./bin/til build --target=macos-arm64 -o tmp/xcheck "$f" 2>&1 || true)
-            if printf '%s' "$log" | grep -q '\[-W'; then
+            # Issue #472 (F1a): a failed layout assert is not a warning and
+            # carries no `[-W` marker, but it is exactly as much the
+            # compiler's verdict on the emitted C.
+            if printf '%s' "$log" | grep -q -e '\[-W' -e 'static assertion failed'; then
               echo "=== $f"
-              printf '%s\n' "$log" | grep '\[-W' | head -5
+              printf '%s\n' "$log" | grep -e '\[-W' -e 'static assertion failed' | head -5
               status=1
             fi
           done

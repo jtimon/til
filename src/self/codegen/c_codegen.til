@@ -7232,6 +7232,40 @@ priv topo_emit_struct_enum_defs_lp := proc(f: File, mut emitted: Set(Str), mut l
 
 }
 
+// #472 (step F1a): til computes the TARGET's layout itself
+// (typer.til::target_value_size); these asserts make the C compiler check
+// it. One per struct/enum definition this translation unit carries -- the
+// same set topo_emit_struct_enum_defs_lp spelled out, in the same stable
+// scan order -- emitted once every definition is complete. A wrong layout
+// computation is then a compile error naming the type and til's number,
+// on whichever target it is wrong for, instead of a size that silently
+// disagrees with the emitted struct. Nothing reads til's number for a value
+// yet: `X.size()` still folds from the running compiler's layout or is
+// emitted as sizeof (see emit_ns_func_def); F1b switches it over once
+// every target passes these.
+//
+// Only the .c carries them, not the forward or public headers: a header may
+// be included by a compiler this build never ran.
+//
+// Dynamic is skipped: its emitted C type is the one-byte stand-in for a
+// field-less struct (`char _;`), while a Dynamic VALUE is a machine word
+// (#394) -- sizeof(Dynamic) is not its layout.
+priv emit_layout_asserts := proc(f: File, lp: LoadedProgram) {
+    for upath : Str in lp.unit_paths() {
+        ref iu : ImportUnit = lp.ctx.imported[upath]
+        for stmt : Expr in iu.ast.children {
+            if is_struct_or_enum(stmt).not() { continue }
+            ref name : Str = decl_of(stmt).name
+            if builder_ctype_def_kept(name, lp.ctx).not() { continue }
+            if name == "Dynamic" { continue }
+            size := target_value_size(name, lp.ctx.scope, lp.ctx).to_str()
+            f.write("_Static_assert(sizeof(").write(name).write(") == ").write(size)
+            f.write(", \"til computed sizeof(").write(name).write(") as ").write(size).write("\");\n")
+        }
+    }
+    f.write("\n")
+}
+
 // Resolve the C return type for a FunctionDef; "void" when the proc
 // has no return type. Avoids the `mut ret := "void"` reassign pattern
 // in emit_func_forward_decl / emit_funcsig_typedef whose default
@@ -14370,6 +14404,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     // gated emission (the forward-declaration block).
 
     emit_monolithic_header_lp(f, lp)
+    emit_layout_asserts(f, lp)
 
     mut has_simd := false
     for simd_path : Str in lp.unit_paths() {

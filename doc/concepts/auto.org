@@ -160,7 +160,8 @@
    because until then the same code may still run inside the compiler.
    The C backend emits one static assert per emitted type that its
    ~sizeof~ equals til's number, so a wrong layout computation is a
-   compile error, not corrupted memory.
+   compile error, not corrupted memory. This part IS implemented (#472
+   step F1a): every generated ~.c~ carries the asserts today.
 
 * Derived from cmp (structs and enums)
 

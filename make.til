@@ -722,6 +722,13 @@ layout_regressions := proc(mut b: Build, asan: Bool) {
     run("tmp/usize64_sizes")
     run(TIL, "build", "--usize=32", "-o", "tmp/usize32_sizes", "test/usize32_sizes.til")
     run("tmp/usize32_sizes")
+    // #472 (F1a): building is the check -- every emitted type carries a
+    // static assert that sizeof equals the layout til computed for the
+    // target (c_codegen.til emit_layout_asserts).
+    run(TIL, "build", "--usize=32", "-o", "tmp/layout_corpus32", "test/layout_corpus.til")
+    run("tmp/layout_corpus32")
+    run(TIL, "build", "--usize=64", "-o", "tmp/layout_corpus64", "test/layout_corpus.til")
+    run("tmp/layout_corpus64")
     run(compiler, "build", "--usize=64", "-o", "tmp/usize64_comptime", "test/usize64_comptime.til")
     run("tmp/usize64_comptime")
     mut compact := TIL.clone()
