@@ -411,10 +411,14 @@ namespace:
         case .Wasm32: target_name = "wasm32"
         case .TempleosX86: target_name = "templeos-x86"
         }
-        // The layout, then the ISA and sanitizer qualifiers (a CPU-qualified
-        // name ends with its profile, as cpu_options checks).
-        mut out := format(self.compiler_revision, "-", target_name, "-",
-            abi_layout_id(self.ctx.target_usize_pname))
+        return format(self.compiler_revision, "-", target_name, "-", self.runtime_abi_tail())
+    }
+    // What follows the target in runtime_abi_id: the layout, then the ISA
+    // and sanitizer qualifiers (a CPU-qualified name ends with its profile,
+    // as cpu_options checks). The JNI class names its natives in every
+    // target's directory of the jar with it.
+    runtime_abi_tail := func(self: LoadedProgram) returns Str {
+        mut out := abi_layout_id(self.ctx.target_usize_pname)
         // ISA variants must not replace a baseline runtime/core used by
         // already-built libraries. Optimization alone does not change the ABI.
         if self.cpu.name != "baseline" { out = format(out, "-", self.cpu.name) }

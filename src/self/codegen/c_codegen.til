@@ -10679,6 +10679,78 @@ priv jni_is_funcsig := func(name: Str, ctx: Context) returns Bool {
     return sym_o.is_some().and(ctx.funcsig_names.has(sym_o.unwrap()))
 }
 
+// The class's static initializer. The natives are the bridge lib<name>_jni,
+// lib<name>, and the til runtime and core both link; the jar `--jni` builds
+// carries them under native/<target>/ beside the class (doc/ffi.org), one
+// directory per OS and CPU. The class names the running target as til does,
+// extracts that directory's natives to a fresh temp directory (deleted at
+// exit) and loads the bridge, which finds the rest through its rpath. A
+// target the jar does not carry loads the bridge from java.library.path, as
+// for a bridge installed beside the library. The runtime ABI after the
+// target (layout, CPU profile, ASAN) is this build's, so every directory of
+// one jar comes from builds with one compiler revision and one set of
+// options.
+priv emit_jni_native_loader := proc(jf: File, lp: LoadedProgram, lib_name: Str, pkg: Str, cls: Str) {
+    jf.write("    static { tilLoadNatives(); }\n\n")
+    jf.write("    private static String tilTarget() {\n")
+    jf.write("        String os = System.getProperty(\"os.name\", \"\");\n")
+    jf.write("        String arch = System.getProperty(\"os.arch\", \"\");\n")
+    jf.write("        String o = os.startsWith(\"Linux\") ? \"linux\" : os.startsWith(\"Mac\") ? \"macos\"\n")
+    jf.write("            : os.startsWith(\"Windows\") ? \"windows\" : os.toLowerCase(java.util.Locale.ROOT);\n")
+    jf.write("        String a;\n")
+    jf.write("        switch (arch) {\n")
+    jf.write("            case \"amd64\": case \"x86_64\": a = \"x64\"; break;\n")
+    jf.write("            case \"aarch64\": case \"arm64\": a = \"arm64\"; break;\n")
+    jf.write("            case \"x86\": case \"i386\": case \"i486\": case \"i586\": case \"i686\": a = \"x86\"; break;\n")
+    jf.write("            case \"arm\": a = \"arm32\"; break;\n")
+    jf.write("            default: a = arch; break;\n")
+    jf.write("        }\n")
+    jf.write("        return o + \"-\" + a;\n")
+    jf.write("    }\n\n")
+    jf.write("    private static void tilLoadNatives() {\n")
+    jf.write("        String target = tilTarget();\n")
+    jf.write("        String ext = target.startsWith(\"macos-\") ? \".dylib\" : target.startsWith(\"windows-\") ? \".dll\" : \".so\";\n")
+    jf.write("        String abi = \"").write(lp.compiler_revision).write("-\" + target + \"-")
+        .write(lp.runtime_abi_tail()).write("\";\n")
+    jf.write("        String[] files = { \"libtilrt-\" + abi + ext, \"libtilcore-\" + abi + ext,\n")
+    jf.write("            \"lib").write(lib_name).write("\" + ext, \"lib").write(lib_name).write("_jni\" + ext };\n")
+    jf.write("        String dir = \"native/\" + target + \"/\";\n")
+    jf.write("        if (").write(cls).write(".class.getResource(dir + files[3]) == null) {\n")
+    jf.write("            try {\n")
+    jf.write("                System.loadLibrary(\"").write(lib_name).write("_jni\");\n")
+    jf.write("            } catch (UnsatisfiedLinkError e) {\n")
+    jf.write("                UnsatisfiedLinkError u = new UnsatisfiedLinkError(\"til.").write(pkg).write(".").write(cls)
+        .write(": the jar has no natives for \" + target\n")
+    jf.write("                    + \" and ").write(lib_name).write("_jni is not on java.library.path: \" + e.getMessage());\n")
+    jf.write("                u.initCause(e);\n")
+    jf.write("                throw u;\n")
+    jf.write("            }\n")
+    jf.write("            return;\n")
+    jf.write("        }\n")
+    jf.write("        try {\n")
+    jf.write("            java.io.File tmp = java.nio.file.Files.createTempDirectory(\"til-").write(lib_name).write("-\").toFile();\n")
+    jf.write("            tmp.deleteOnExit();\n")
+    jf.write("            for (String f : files) {\n")
+    jf.write("                java.io.File out = new java.io.File(tmp, f);\n")
+    jf.write("                out.deleteOnExit();\n")
+    jf.write("                try (java.io.InputStream in = ").write(cls).write(".class.getResourceAsStream(dir + f)) {\n")
+    jf.write("                    if (in == null) {\n")
+    jf.write("                        throw new UnsatisfiedLinkError(\"til.").write(pkg).write(".").write(cls)
+        .write(": the jar's \" + dir + \" lacks \" + f);\n")
+    jf.write("                    }\n")
+    jf.write("                    java.nio.file.Files.copy(in, out.toPath());\n")
+    jf.write("                }\n")
+    jf.write("            }\n")
+    jf.write("            System.load(new java.io.File(tmp, files[3]).getAbsolutePath());\n")
+    jf.write("        } catch (java.io.IOException e) {\n")
+    jf.write("            UnsatisfiedLinkError u = new UnsatisfiedLinkError(\"til.").write(pkg).write(".").write(cls)
+        .write(": extracting the natives failed: \" + e);\n")
+    jf.write("            u.initCause(e);\n")
+    jf.write("            throw u;\n")
+    jf.write("        }\n")
+    jf.write("    }\n\n")
+}
+
 priv build_jni_binding := proc(lp: LoadedProgram, jni_c_path: Str, java_path: Str, lib_name: Str) returns I32 {
     pkg := jni_package_name(lib_name)
     cls := jni_class_name(lib_name)
@@ -10758,7 +10830,7 @@ priv build_jni_binding := proc(lp: LoadedProgram, jni_c_path: Str, java_path: St
     jf.write("import java.nio.charset.StandardCharsets;\n\n")
     jf.write("public final class ").write(cls).write(" {\n")
     jf.write("    private ").write(cls).write("() {}\n\n")
-    jf.write("    static { System.loadLibrary(\"").write(lib_name).write("_jni\"); }\n\n")
+    emit_jni_native_loader(jf, lp, lib_name, pkg, cls)
     jf.write("    /**\n")
     jf.write("     * A til error crossing the binding; type() is its til throw type. A\n")
     jf.write("     * callback whose til type throws raises one to throw in til: the type\n")

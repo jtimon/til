@@ -416,7 +416,8 @@ main := proc(args: ..Str) returns I64 {
 
     // #463: the installed compiler builds the same library's JNI bridge and
     // jar (against its installed ext.h) and installs them beside it; a Java
-    // caller outside the checkout loads them from the prefix.
+    // caller outside the checkout needs only the installed jar, which
+    // carries the natives.
     if run_jvm {
         jni_install := Cmd.new(installed_til, "install", "--jni", "--prefix=../install_test", "installed_lib.til")
         jni_install.cwd(WORK)
@@ -434,8 +435,7 @@ main := proc(args: ..Str) returns I64 {
         java_home := jni_java_home()
         classes := format(WORK, "/jni_classes")
         jni_javac(java_home, classes, jar, format(WORK, "/InstalledLibJni.java"))
-        java := Cmd.new(format(java_home, "/bin/java"), "-Xcheck:jni", format("-Djava.library.path=", PREFIX, "/lib"),
-            "-cp", format(jar, ":", classes), "InstalledLibJni")
+        java := Cmd.new(format(java_home, "/bin/java"), "-Xcheck:jni", "-cp", format(jar, ":", classes), "InstalledLibJni")
         java.capture_out()
         if java.run() != 0 { panic("the Java caller of the installed library failed: ", java.out()) }
         if java.out() != "77 5\n" { panic("the Java caller of the installed library printed '", java.out(), "'") }

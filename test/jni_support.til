@@ -29,8 +29,8 @@ jni_java_home := proc() returns Str {
 }
 
 // `til build --jni`: the library, its bridge (gen/lib/lib<name>_jni) and
-// its jar (gen/lib/<name>.jar); `asan` builds both sanitized for the leak
-// run.
+// its jar (gen/lib/<name>.jar, carrying both and the til runtime); `asan`
+// builds them sanitized for the leak run.
 jni_til_build := proc(source: Str, asan: Bool) {
     cmd := Cmd.new("bin/til", "build")
     if asan { cmd.arg("--asan") }
@@ -48,9 +48,9 @@ jni_javac := proc(java_home: Str, classes: Str, jar: Str, sources: ..Str) {
     cmd.run_checked()
 }
 
+// No java.library.path: the binding loads the natives its jar carries.
 jni_run := proc(java_home: Str, class_path: Str, main_class: Str) returns Str {
-    run := Cmd.new(format(java_home, "/bin/java"), "-Xcheck:jni", "-Djava.library.path=gen/lib",
-        "-cp", class_path, main_class)
+    run := Cmd.new(format(java_home, "/bin/java"), "-Xcheck:jni", "-cp", class_path, main_class)
     run.capture_out()
     if run.run() != 0 { panic(main_class, " failed:\n", run.out()) }
     return run.out()
@@ -73,7 +73,7 @@ jni_run_asan := proc(java_home: Str, class_path: Str, main_class: Str) returns S
     // (CI's Temurin 17; JDK 21 frees them).
     supp := format("tmp/", main_class, ".lsan.supp")
     File.writefile(supp, "leak:libjvm.so\nleak:libjli.so\nleak:libjava.so\nleak:libzip.so\n")
-    run := Cmd.new(format(java_home, "/bin/java"), "-Djava.library.path=gen/lib", "-cp", class_path, main_class)
+    run := Cmd.new(format(java_home, "/bin/java"), "-cp", class_path, main_class)
     run.env("LD_PRELOAD", find.out().trim())
     run.env("ASAN_OPTIONS", "detect_leaks=1:handle_segv=0:allow_user_segv_handler=1:detect_odr_violation=0")
     run.env("LSAN_OPTIONS", format("suppressions=", supp, ":print_suppressions=0"))

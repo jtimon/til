@@ -3,7 +3,8 @@ mode cli
 // #463: the JNI binding generated for every `mode lib` library. Checks the
 // generated Java class and C bridge for test/jni_lib.til as text, then
 // builds it with `til build --jni` and runs test/JniLibTest.java against the
-// jar and bridge; on Linux
+// jar, which carries the bridge, the library and the til runtime (and once
+// more from java.library.path, for a target the jar lacks); on Linux
 // again under explicit --asan with the library and bridge sanitized, so the
 // cage's leak report covers every bridge path. Needs a JDK (test/jni_support.til finds
 // it). test/library_namespace.til drives library_namespace_a the same way.
@@ -27,7 +28,9 @@ check_text := proc() {
     c := File.readfile(BRIDGE)
     require_contains(java, "package til.jni_lib;")
     require_contains(java, "public final class JniLib {")
-    require_contains(java, "static { System.loadLibrary(\"jni_lib_jni\"); }")
+    require_contains(java, "static { tilLoadNatives(); }")
+    require_contains(java, "String dir = \"native/\" + target + \"/\";")
+    require_contains(java, "System.loadLibrary(\"jni_lib_jni\");")
     require_contains(java, "public static byte jni_add_u8(byte a, byte b) {")
     require_contains(java, "public static int jni_add_usize(int a, int b) {")
     require_contains(java, "public static boolean jni_not(boolean a) {")
@@ -144,6 +147,20 @@ main := proc(args: ..Str) {
     out := jni_run(java_home, CLASS_PATH, "JniLibTest")
     if out != EXPECTED { panic("JniLibTest output mismatch:\n", out) }
     println("jni jvm ok")
+
+    // A target the jar does not carry (os.arch "none") loads the bridge from
+    // java.library.path; without one there, the class names the target.
+    other := Cmd.new(format(java_home, "/bin/java"), "-Xcheck:jni", "-Dos.arch=none",
+        "-Djava.library.path=gen/lib", "-cp", CLASS_PATH, "JniLibTest")
+    other.capture_out()
+    if other.run() != 0 { panic("JniLibTest from java.library.path failed:\n", other.out()) }
+    if other.out() != EXPECTED { panic("JniLibTest output mismatch from java.library.path:\n", other.out()) }
+    missing := Cmd.new(format(java_home, "/bin/java"), "-Dos.arch=none", "-cp", CLASS_PATH, "JniLibTest")
+    missing.capture()
+    if missing.run() == 0 { panic("JniLibTest ran with no natives for its target") }
+    require_contains(missing.err(), "til.jni_lib.JniLib: the jar has no natives for ")
+    require_contains(missing.err(), "-none and jni_lib_jni is not on java.library.path: ")
+    println("jni jvm library path ok")
 
     if asan.and(host_os() == "linux") {
         jni_til_build("test/jni_lib.til", true)

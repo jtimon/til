@@ -878,20 +878,55 @@ only save the per-library compile ~--jni~ already automates.
 | ~gen/til/java/til/<pkg>/<Cls>.java~ | ~til.<pkg>.<Cls>~: one public static method per bound function |
 | ~gen/til/<name>_jni.c~ | the ~JNIEXPORT~ functions behind the class's ~native~ methods |
 | ~gen/lib/lib<name>_jni.so~ (~--jni~) | the compiled bridge, beside ~lib<name>.so~ |
-| ~gen/lib/<name>.jar~ (~--jni~) | the compiled class |
+| ~gen/lib/<name>.jar~ (~--jni~) | the compiled class, and the natives it loads |
 
 ~<pkg>~ is the library name with bytes other than alphanumerics and ~_~
 escaped as ~_x<hex>~; ~<Cls>~ is its alphanumeric runs capitalized
 (~jni_lib~ -> ~til.jni_lib.JniLib~). ~til install~ copies both sources under
 ~<support>/lib/~, beside the ~.py~; with ~--jni~ it also installs the bridge
-and the jar in ~<prefix>/lib/~, beside the library. The class loads the
-bridge with ~System.loadLibrary("<name>_jni")~:
+and the jar in ~<prefix>/lib/~, beside the library.
+
+The jar is all a Java program needs. Beside the class, under
+~til/<pkg>/native/<target>/~ (til's target names: ~linux-x64~,
+~linux-arm64~, ~macos-x64~, ~macos-arm64~, ...), it carries the four
+natives: the bridge, ~lib<name>~, and the til runtime and core
+(~libtilrt-*~, ~libtilcore-*~) both link. The class names the running
+target from ~os.name~ and ~os.arch~ as til names it, extracts that
+directory to a fresh temporary directory (deleted when the JVM exits) and
+loads the bridge, which finds the others through its rpath. For a target
+the jar does not carry it loads ~<name>_jni~ from ~java.library.path~
+instead -- a bridge installed beside the library -- and when that fails
+too, the error names the target:
 
 #+begin_src sh
 til build --jni <name>.til
 javac -cp gen/lib/<name>.jar -d <classes> <Main>.java
-java -Djava.library.path=gen/lib -cp gen/lib/<name>.jar:<classes> <Main>
+java -cp gen/lib/<name>.jar:<classes> <Main>
 #+end_src
+
+*One jar for several platforms.* A build fills only its own target's
+directory, and ~--jni~ builds for the host, so a jar for every OS and CPU a
+deployment runs on is merged from one build on each, with the JDK's ~jar~
+tool:
+
+#+begin_src sh
+# on each build host, the same til revision and the same options:
+til build --jni <name>.til          # gen/lib/<name>.jar
+# then, with every host's jar collected in jars/:
+mkdir merged && cd merged
+for j in ../jars/*.jar; do jar xf "$j"; done
+rm -r META-INF && jar cf ../<name>.jar .
+#+end_src
+
+The class is the same in every host's jar, and the directories do not
+overlap. The class names the natives in every directory by the runtime
+ABI of its own build -- the til revision, the ~USize~ layout, the CPU
+profile and ~--asan~ (~LoadedProgram.runtime_abi_tail~) -- so the hosts
+must agree on those. A Linux native links the glibc of the host that built
+it and loads only where that glibc or a newer one is installed: build on
+the oldest distribution the deployment supports. The natives add their
+size to the jar for every target it carries (a few hundred KB each for a
+small library).
 
 ~--jni~ uses the JDK in ~$JAVA_HOME~, else (on macOS) the one
 ~/usr/libexec/java_home~ names, else the one the ~javac~ on ~PATH~ belongs
@@ -910,10 +945,9 @@ Still to do, so the binding reaches the places Java runs:
     ABI (~arm64-v8a~, ~armeabi-v7a~, ~x86_64~) and ship them under
     ~jniLibs/<abi>/~ (or in an AAR) beside the Java class. Needs an Android
     target in til; ~--jni~ is host-only today.
-  - Servers: ~--jni~ builds the bridge for the host only. A Java deployment
-    usually wants one jar carrying the bridge (and library) for every OS
-    and CPU it runs on, unpacked at load time, as the SQLite JDBC jar does;
-    that packaging does not exist yet and needs a design decision.
+  - Windows servers: ~--jni~ runs on Linux and macOS hosts only, so no
+    jar carries ~windows-*~ natives yet; that waits on building til on a
+    Windows host (#483).
 
 Bound: public top-level ~func~ / ~proc~ (and function aliases), user-written
 struct/enum namespace functions and enum variant constructors (as

@@ -1016,6 +1016,27 @@ priv build_jni := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_
         println("error: compiling the Java binding failed")
         return 1
     }
+    // The natives ride in the jar under native/<target>/ beside the class,
+    // which extracts and loads them (emit_jni_native_loader); a jar for
+    // several targets merges those directories from one build per target.
+    // A library links the shared runtime and core on every host --jni takes.
+    java_rel := paths.java_path.strip_prefix("gen/til/java/")
+    class_dir := java_rel.substr(0, java_rel.rfind("/").to_usize())
+    native_dir := format(stage, "/", class_dir, "/native/", target_to_str(target))
+    if mkdir_p(native_dir) != 0 { panic(__LOC__, "failed to create ", native_dir) }
+    mut natives := Vec(Str).new()
+    natives.push(own format("gen/lib/", lp.runtime_shared_basename()))
+    natives.push(own format("gen/lib/", lp.core_shared_basename()))
+    natives.push(own format("gen/lib/lib", paths.name, shared_lib_extension(target)))
+    natives.push(own jni_bridge_path(paths, target))
+    for native : Str in natives {
+        dst := format(native_dir, "/", native.strip_prefix("gen/lib/"))
+        if copy_file(native, dst) != 0 {
+            File.remove_tree(stage)
+            println(format("error: copying ", native, " into the Java binding's jar failed"))
+            return 1
+        }
+    }
     jar_path := jni_jar_path(paths)
     jar_tmp := format(jar_path, ".tmp.", process_id().to_str())
     File.remove(jar_tmp)
