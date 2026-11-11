@@ -37,7 +37,33 @@ priv drop_shared_write := proc(dst: Str, what: Str) returns I32 {
     return check_install_rc(rc, format("restrict the permissions of '", dst, "' (", what, ")"))
 }
 
+// copy_file writes "<destination>.tmp.<pid>" and renames it into place,
+// so a copy that was killed leaves that file behind and nothing ever
+// reuses its name. Remove the leftovers of earlier installs before
+// writing: `pattern` directly in `dir`, or anywhere under it. find does
+// not follow symlinks, and a prefix that does not exist yet has nothing
+// to sweep. Windows has no find; its leftovers stay (issue #483).
+priv sweep_stale_copies := proc(dir: Str, pattern: Str, recursive: Bool, what: Str) returns I32 {
+    if host_os() == "windows" { return 0 }
+    if File.is_dir(dir).not() { return 0 }
+    sweep := Cmd.new("find", dir)
+    if recursive.not() { sweep.arg("-maxdepth").arg("1") }
+    sweep.arg("-type").arg("f").arg("-name").arg(pattern).arg("-delete")
+    mut rc : I32 = 0
+    if sweep.run() != 0 { rc = 1 }
+    return check_install_rc(rc, format("remove interrupted copies under '", dir, "' (", what, ")"))
+}
+
 install_file := proc(src: Str, dst: Str, what: Str) returns I32 {
+    slash := dst.rfind("/")
+    mut dst_dir := "."
+    mut dst_name := dst.clone()
+    if slash >= 0 {
+        dst_dir = dst.substr(0, slash.to_usize()).clone()
+        dst_name = dst.substr(slash.to_usize() + 1, dst.len() - slash.to_usize() - 1).clone()
+    }
+    swept := sweep_stale_copies(dst_dir, format(dst_name, ".tmp.[0-9]*"), false, what)
+    if swept != 0 { return swept }
     rc := check_install_rc(copy_file(src, dst), what)
     if rc != 0 { return rc }
     return drop_shared_write(dst, what)
@@ -49,7 +75,9 @@ priv install_tree := proc(src: Str, dst: Str, what: Str) returns I32 {
 
 install_compiler_support := proc(root: Str, prefix: Str) returns I32 {
     dst_root := support_root(prefix)
-    mut rc := install_tree(format(root, "/src/core"), format(dst_root, "/src/core"), "install compiler core sources")
+    mut rc := sweep_stale_copies(dst_root, "*.tmp.[0-9]*", true, "install compiler support tree")
+    if rc != 0 { return rc }
+    rc = install_tree(format(root, "/src/core"), format(dst_root, "/src/core"), "install compiler core sources")
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/src/std"), format(dst_root, "/src/std"), "install compiler std sources")
     if rc != 0 { return rc }

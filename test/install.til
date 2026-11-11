@@ -90,9 +90,24 @@ main := proc(args: ..Str) returns I64 {
     c_time := file_mtime("gen/til/til.c")
     boot_time := file_mtime("boot/til.c")
     File.remove_tree(PREFIX)
+    // What a killed copy leaves behind: copy_file's "<name>.tmp.<pid>".
+    // The next install removes them, for the executable and in the tree.
+    stale_binary := format(PREFIX, "/bin/til.tmp.99999")
+    stale_source := format(PREFIX, "/lib/til/src/core/str.til.tmp.99999")
+    other_program := format(PREFIX, "/bin/other.tmp.99999")
+    mkdir_p(format(PREFIX, "/bin"))
+    mkdir_p(format(PREFIX, "/lib/til/src/core"))
+    File.writefile(stale_binary, "partial")
+    File.writefile(stale_source, "partial")
+    File.writefile(other_program, "not ours")
     if install_executable("bin/til", format(PREFIX, "/bin/til"), ".", PREFIX) != 0 {
         panic("copy-only compiler installation failed")
     }
+    if host_os() != "windows" {
+        expect(File.exists(stale_binary).not(), "an interrupted copy of the executable survived the install")
+        expect(File.exists(stale_source).not(), "an interrupted copy in the support tree survived the install")
+    }
+    expect(File.exists(other_program), "the install removed another program's file")
     if file_mtime("bin/til") != binary_time { panic("copy-only install rebuilt bin/til") }
     if file_mtime("gen/til/til.c") != c_time { panic("copy-only install regenerated C") }
     if file_mtime("boot/til.c") != boot_time { panic("copy-only install regenerated boot") }

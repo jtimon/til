@@ -1,0 +1,58 @@
+mode test
+
+import("../src/std/file")
+import("../src/std/sys")
+
+// copy_file replaces its destination through a sibling temporary and a
+// rename. Kept free of POSIX-only tools so the Windows runner can
+// interpret it with the cross-built til.exe: that branch (MoveFileExA)
+// runs nowhere else (issue #483).
+
+DIR := "tmp/_test_copy_file"
+
+test_copy_file_creates_and_replaces := test() {
+    File.remove_tree(DIR)
+    mkdir_p(DIR)
+    src := format(DIR, "/src.txt")
+    dst := format(DIR, "/dst.txt")
+
+    File.writefile(src, "first")
+    assert_eq(I32, copy_file(src, dst), 0)
+    assert_eq(Str, File.readfile(dst), "first")
+
+    // Over an existing destination, shorter than what was there.
+    File.writefile(dst, "something much longer than the source")
+    File.writefile(src, "new")
+    assert_eq(I32, copy_file(src, dst), 0)
+    assert_eq(Str, File.readfile(dst), "new")
+    assert_eq(Str, File.readfile(src), "new")
+}
+
+test_copy_file_creates_parent_directories := test() {
+    src := format(DIR, "/nested_src.txt")
+    dst := format(DIR, "/a/b/c/dst.txt")
+    File.writefile(src, "deep")
+    assert_eq(I32, copy_file(src, dst), 0)
+    assert_eq(Str, File.readfile(dst), "deep")
+}
+
+// The temporary is renamed away, not left beside the destination.
+test_copy_file_leaves_no_temporary := test() {
+    dir := format(DIR, "/clean")
+    File.remove_tree(dir)
+    mkdir_p(dir)
+    src := format(DIR, "/clean_src.txt")
+    File.writefile(src, "x")
+    assert_eq(I32, copy_file(src, format(dir, "/one.txt")), 0)
+    assert_eq(I32, copy_file(src, format(dir, "/one.txt")), 0)
+    names := Dir.list(dir)
+    assert_eq(USize, names.len(), 1)
+    for name : Str in names {
+        assert_eq(Str, name, "one.txt")
+    }
+}
+
+test_copy_file_reports_a_missing_source := test() {
+    assert(copy_file(format(DIR, "/does_not_exist.txt"), format(DIR, "/never.txt")) != 0)
+    assert(File.exists(format(DIR, "/never.txt")).not())
+}

@@ -891,6 +891,12 @@ jobs:
           ./winhost/til.exe interpret examples/hello_script.til | grep -q "Hello World"
           ./winhost/til.exe translate -c tmp_hello.c examples/hello_script.til
           test -s tmp_hello.c
+      # Issue #483: copy_file's Win32 branch (a sibling temporary, then
+      # MoveFileExA over the destination) executes nowhere else.
+      - name: Interpret the copy_file test on windows
+        shell: bash
+        run: |
+          ./winhost/til.exe interpret test/copy_file.til
       # Both files share one directory, which becomes the artifact's root.
       - name: Download the windows-host libsecp256k1
         uses: actions/download-artifact@v4
