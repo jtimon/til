@@ -93,6 +93,11 @@ At some point, subjectively. See [[file:issues/fixed/482.org][#482]].
 - ~make~
 - ~gcc~
 - ~clang~ (for the compiler-install rebuild and VM build tests)
+
+Decided in issue #473, not implemented yet: one pinned ~clang~ and ~lld~
+(LLVM 18 proposed) becomes the C toolchain for every target on every
+host, so that a cross-built binary has the same hash as the natively
+built one. ~--cc~ stays as the override.
 - ~xvfb~ (for GUI tests)
 
 ** Optional: a JDK

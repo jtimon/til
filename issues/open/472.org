@@ -4,6 +4,10 @@
 
 *** Goal
 
+CURRENT PLAN AND DECISIONS: the last section, "Plan to close". Where an
+earlier section differs from it, that section wins; the earlier ones are
+kept as the record of how the plan was reached.
+
 A til build is a function of its inputs (source tree, target, flags), not
 of the machine it ran on. Start with lexing through the pre-codegen boundary,
 then establish reproducible emitted source and binaries under explicit input
@@ -247,6 +251,10 @@ now live in [[./473.org][#473]], where the workflow and host-support dependencie
   deliberate token/type/ownership/order changes to prove the comparator
   detects differences hidden by today's AST printer.
 
+SUPERSEDED by decision 3 in "Plan to close": the observation surface is a
+phase selector on the existing ~til ast~ command, not this driver. Kept as
+the record of what was proposed first.
+
 Observation proposal for approval BEFORE implementation: a test-only til
 driver, ~test/frontend_determinism.til~, calls the real loader/preparation
 phases and streams explicitly field-tagged S-expression comparison records
@@ -370,6 +378,8 @@ session is not implementing the whole cross-platform/build/JIT roadmap.
 
 **** B. Establish a trustworthy pre-codegen comparison
 
+- SUPERSEDED: decision 3 in "Plan to close" settled the surface (~til ast~
+  phase selector).
 - The observation-driver proposal above is a proposal, not an implemented
   facility. Obtain explicit approval for that exact new test-output surface
   before creating it; a general request to work on #472 does not select a
@@ -470,8 +480,9 @@ rebased source with identical results.
 
 **** B. Pre-codegen observation surface
 
-Not implemented: the proposal above (~test/frontend_determinism.til~
-streaming field-tagged S-expression records) still awaits explicit approval.
+Not implemented. At the time the proposal above
+(~test/frontend_determinism.til~ streaming field-tagged S-expression records)
+awaited approval; decision 3 in "Plan to close" replaced it.
 No comparison claims are made beyond the lexer/parser tests.
 
 **** C. Same-target host-layout divergence: reproduced
@@ -528,6 +539,10 @@ left them unfolded); folding host values bakes wrong results (above). Neither
 choice can be made per unit: ~src/std/hashmap.til~ uses ~K.size()~ for
 storage outside core, and user code may too.
 
+SUPERSEDED by decision 1 in "Plan to close": the roles are still split, but
+~size()~ keeps the storage meaning and the new name (~size_for_target()~)
+goes on the target value, so no core/std call site changes.
+
 Proposed design (needs approval: it changes core/std APIs and folding):
 separate the two roles at the source. Containers' byte arithmetic calls a
 dedicated storage-size query; the interpreter answers it from the host layout,
@@ -549,3 +564,374 @@ dispatch per interpreted storage query (to be measured).
   above design's constfolder pass and needs the same role split.
 - Path identity/~__LOC__~, effectful macros, compiler revision queries and
   floating-point folding are untouched.
+
+*** Plan to close (written at master eaa47ee; decisions recorded since)
+
+This is the working plan. It supersedes "Immediate next implementation
+scope" and "Next-session execution plan" where they differ; the inventory
+and the session 1 progress above stay as the record. Re-check every
+file/function reference on the actual base before editing.
+
+**** State at this base
+
+Done: lexer coverage (A), own pointer fields in the target layout model and
+its same-layout audit. Still true at eaa47ee, read from the source:
+
+- ~context.til::size_intrinsics_emit_sizeof~ compares the target with the
+  RUNNING compiler's layout. Its callers are the three size arms of
+  ~constfolder_classify_stmt~ and the auto size method in ~c_codegen.til~
+  (the ~is_auto_size~ branch). ~constfolder.til::try_fast_fold_call~ lifts the
+  host literal out of a generated ~size~ body unless
+  ~ctx.eval.target_size_queries~ is set, which only
+  ~constfolder_eval_generator_function~ sets.
+- Generated size bodies carry the host literal
+  (~initer.til::gen_struct_size_method_for_stmt~ / ~gen_enum_...~, from
+  ~ctx.struct_layouts~). The target-domain path already exists for generator
+  conditions only: ~interpreter.til::eval_call_info~ answers a generated
+  ~size~ from ~typer.til::target_value_size~ and aborts a call recorded by
+  ~typer.til::comptime_check_storage_domains~. That check compares target
+  and host sizes, so what it diagnoses also depends on the host.
+- HolyC emits ~sizeof~ at size call sites and FASM emits the target model;
+  ~mlir_codegen.til~ still reads ~ctx.struct_layouts~ (host) for POD sizes
+  at four sites.
+- ~context.til::display_path~ gives ~./rel~ under the cwd and an absolute
+  path otherwise. That one spelling is ~ctx.path~: diagnostics, ~__LOC__~
+  (typer ~.Loc~ arm and ~resolve_default_value~), ~__FILE__~ (parser),
+  ~numeric_cast_location~, and private names
+  (~initer.til::init_private_names~ -> ~context.til::priv_c_name~). An
+  installed compiler therefore emits different strings AND different C
+  identifiers for core/std than the in-repo one.
+- ~src/til.til::get_version~ runs ~git rev-parse --short HEAD~; the
+  abbreviation length is git's choice (object count, config), not an input.
+- ~builder.til~ archives with plain ~ar rcs~ at two sites.
+- ~src/tests.til~ still has the ~self_reference~ accommodation: under an
+  explicit ~--usize~ the ~self_translate~ row compares two translations by
+  the same compiler instead of ~boot/til.c~.
+- The CLI's target/width/~cptr32~/~compile_mode~ setup is inline in
+  ~src/til.til~ main; ~loader.til::cmd_ast~ prints before typing.
+
+**** Rules for every step
+
+- One step is one commit that passes ~make clean && make test~, or
+  ~make clean && make test_two_pass~ where the step says "Two-pass". Its
+  regression row lands in the same commit as the fix that makes it pass.
+- Until the observation facility exists, the detector is the translator
+  output: the same ~til translate --target=T --usize=W~ run by two compiler
+  layouts, from two roots, or by two installs, then ~cmp~. It is coarse (it
+  cannot name the phase), but it needs no new surface and it is how the
+  session 1 reproduction was found. The fix track below does not wait for
+  the observation track.
+- A difference is fixed where it is introduced. No scrubbing of outputs, no
+  pinning every producer to one absolute path, no disabling of folding
+  wholesale.
+- Cross-layout pair for local work: ~bin/til~ (compact) and a native-layout
+  compiler from ~bin/til build --usize=64 -o tmp/til64 src/til.til~. Always
+  record which binary executed a comparison.
+
+**** Decisions (all taken; 2 by default, as no change)
+
+1. Size methods (steps F1 and F3). DECIDED. The principle: a regular user
+   writes ~size()~ once and it is right on every target, without knowing
+   the target or the compactness; choosing those belongs to whoever builds
+   the program. Only code that reasons about the build target on purpose
+   uses the second method, which says so in its name.
+   - ~size()~ keeps its meaning: the size in the program that EXECUTES the
+     call. At compile time that is the compiler's own memory, so containers
+     and the lowerings that pass ~T.size()~ to ~swap_bytes~ and
+     ~KwargsMap.set~ stay correct, and no core/std call site changes.
+   - A new ~size_for_target()~: the size in the program being BUILT. It is
+     generated by the same generator under the same rule as ~size~ (skipped
+     when the type defines it), with a literal body computed by til from
+     the target's layout instead of the compiler's. If a type defines its
+     own ~size~ and no ~size_for_target~, the generated one forwards to it.
+     Core writes it by hand next to ~size~ for the primitives and ~Bool~.
+     At runtime the two always agree. It takes no target or Context
+     argument: the compiler knows what it is building for.
+   - No ~sizeof~ for values, for either method: til computes every layout.
+     Both end up folded in emitted code. ~size_for_target()~ can be folded
+     at any time; ~size()~ only once compile-time evaluation is over (F1b),
+     and then to the same target number.
+     The C compiler is kept only as a CHECK: a static assert per emitted
+     type that its ~sizeof~ equals til's number, so a wrong layout
+     computation is a compile error instead of corrupted memory.
+   - Only compile-time code that needs the built program's size uses the
+     new method: generator conditions and macros (today
+     ~if T.size() == expected~ in ~test/first_class.til~). That is a
+     spelling change in such conditions, including users'. The generator
+     frame's special mode and its storage diagnostics go away.
+   - Known limits, stated once: a fold that passes through a container at
+     compile time is not baked (F2), for good; and a macro that uses plain
+     ~size()~ as a value on a cross-layout build still bakes the
+     compiler's size, caught for the repository by the two-compiler-layout
+     comparison rows.
+2. Source identity (step F4). DECIDED BY DEFAULT: leave it. Jorge can pick
+   another option later; nothing else in the plan depends on it.
+   The question is what gets baked into a BUILT PROGRAM (~__LOC__~,
+   ~__FILE__~, cast locations, private C names) for a file of the
+   compiler's own ~src/core~, ~src/std~, ~src/modes~. Today it is the path
+   as loaded: ~./src/core/...~ in the repository, the absolute install path
+   for an installed compiler. Compiler error messages are not part of this:
+   they show the real path in every option, so an editor's jump-to-error
+   keeps working.
+   - Leave it (the default), and state the contract: comparisons use the
+     in-repository compiler run from the checkout root. Every CI producer
+     already does that, so they bake the same ~./src/core/...~ wherever the
+     checkout lives (the Windows ~til.exe~ spelling still has to be
+     checked). No work now. Known leftover: an installed compiler produces
+     different bytes from the in-repository one, and from one installed
+     under another prefix.
+   - Always ~./src/core/...~, whatever the install root. Nothing changes in
+     the repository; an installed compiler on any OS produces the same
+     bytes; an installed user sees a relative-looking path in a runtime
+     panic that is not under their directory.
+   - Always ~core/...~, ~std/...~, ~modes/...~, the import spelling. Same
+     bytes everywhere; every private C name of core changes (a large
+     ~boot/~ diff, Two-pass) and expected files are regenerated.
+   - Keep baking the real path and run CI from compilers installed at one
+     fixed prefix. Windows and TempleOS have their own paths and can never
+     match, and a user who installs elsewhere gets different bytes.
+   No prefix-map flag is proposed in any of them.
+3. Observation surface (step O1). DECIDED: a phase selector on the
+   EXISTING ~til ast~ command (~tokens~, ~parsed~, ~typed~, ~owned~,
+   ~prepared~) that streams field-tagged records to stdout. Who writes: the
+   compiler, on request. Who reads: the test harness and #473's collector;
+   nothing loads it back and nothing is cached. This replaces the earlier
+   ~test/frontend_determinism.til~ driver proposal. ~cmd_ast~ as it stands
+   is only the entry point: it returns after parsing, prints user units
+   only, and its printer omits types, signatures and ownership, so the
+   phases after parsing and the serializer are new work (O1, O2).
+4. Decided in #473: hash-list artifacts between jobs, the collector, and
+   one pinned clang per target on every producer (its decision 4), which
+   is what makes binary hashes comparable at all.
+
+**** Track F: remove the known host dependencies
+
+F1. Generated ~size()~ is til's target number on every build; no ~sizeof~
+for values. Two commits.
+
+How it works today, read from ~initer.til~ and the backends: the
+generated body is ~return N~ with N from ~ctx.struct_layouts~, the RUNNING
+compiler's layout (~compute_struct_layout~ / ~compute_enum_layout~: own
+and ref fields at the compiler's pointer width, USize/UPtr at its widths,
+enums in the interpreter's format with the payload at a fixed offset of
+8). A same-layout build folds every call to N and drops the C function
+(#326); a cross-layout build leaves the call and emits the body as
+~return sizeof(X)~, ~Dynamic~ spelled ~void *~ (#394). Primitives and
+~Bool~ are hand-written literals in core (~U8.size()~ is ~return 1~), a
+user's own ~size~ wins, and a function type's ~size()~ is routed to
+~Dynamic.size()~; none of those is touched here.
+
+- F1a, check first, no behavior change (Two-pass: the compiler's own C
+  gains the asserts). The C backend emits, for every struct and enum it
+  emits, a static assert that ~sizeof~ equals
+  ~typer.til::target_value_size~. Every CI target then reports where
+  til's target layout disagrees with the C compiler. That computation has
+  been checked on Linux x64 only, and session 1 found it wrong there for
+  compact own pointers. Fix it at the source until every job is green:
+  64-bit scalar alignment per target, enums with payloads, niche enums,
+  callables, ext_struct, SIMD, 32-bit targets, Windows, wasm32. A layout
+  corpus test joins the jobs that compile for each target.
+- F1b (Two-pass). Generated ~size()~ is still folded, but LAST. Folding
+  it early is the defect: the literal lands in a tree that the interpreter
+  may run later (a macro calling ~Vec.push~) AND that is emitted, so one
+  number has to be the compiler's and the target's at once. So: while
+  compile-time evaluation can still run, the call stays in the tree and
+  the interpreter answers the compiler's number (~constfolder_classify_stmt~
+  does not classify generated ~size~ as foldable, ~try_fast_fold_call~ does
+  not lift the literal). When emission starts, after the last evaluation
+  (and after the interpret half of ~til test~), one shared pass replaces
+  every generated ~size()~ call by til's TARGET number and folds the
+  literal arithmetic and branches around it, without calling user
+  functions. Every backend then emits a tree with sizes folded, as a
+  same-layout build has today, and the result depends on the target only.
+  A constant-argument ~dyn_size_of~ gets the same treatment. The ~sizeof~
+  value path and ~size_intrinsics_emit_sizeof~ are removed;
+  ~size_intrinsics_use_sizeof~ stays for FFI marshaling. MLIR's four
+  ~ctx.struct_layouts~ size reads move to the target computation.
+  This commit rewrites the ~size~ entries of ~doc/concepts/auto.org~ and
+  the cage paragraph of ~doc/self.org~ in the present tense.
+- Regression: a fixture with only direct queries (the ~Pair~ / ~Shape~ /
+  ~total~ program above) translated by both compiler layouts for
+  ~--usize=32~ and ~--usize=64~; the ~.c~ and ~_forward.h~ must ~cmp~
+  equal. Home: ~make.til::layout_regressions~, which already self-translates
+  for ~--usize=64~; make that row a build so it leaves the native-layout
+  compiler behind. If the extra C compile is too slow for ~make test~, the
+  rows move to ~check_usize64~, where both compilers already exist.
+- Report: ~boot/til.c~ size, ~self_translate~ time and suite wall before
+  and after.
+
+F2. A folded call never bakes the compiler's size. No new surface. Two-pass
+if the compiler's own folds change.
+- Interpreter: note when an evaluation executes a generated size method or
+  ~h_dyn_size_of~. ~constfolder.til::try_eval_call~: a non-macro fold whose
+  evaluation did so is discarded, on every host, so the call stays a
+  runtime call. Whether the first query is reached cannot depend on the
+  host, because nothing before it does.
+- Regression: the indirect fixture (~twice~) through both layouts, ~cmp~
+  equal, plus runtime asserts in ~test/usize32_sizes.til~ and
+  ~test/usize64_sizes.til~ that the value is the target's.
+- Report how many folds are discarded over ~src/til.til~ and the suite.
+  This is permanent under decision 1; if the suite shows a construct that
+  REQUIRES such a fold, stop and report it; do not special-case names.
+
+F3. ~size_for_target()~ (decision 1). Preparation and use, with a master
+merge between them: til_boot must already generate the method before any
+source can call it (~doc/self.org~, "When a preparation commit is needed").
+- F3a, preparation: generate it in ~gen_struct_size_method_for_stmt~ /
+  ~gen_enum_size_method_for_stmt~ beside ~size~, with the literal from the
+  target computation F1a checked, the forward-to-own-~size~ rule, and the
+  hand-written ones in core. It is an ordinary foldable function: its
+  answer does not depend on the running compiler, and it is not a size
+  observation for F2. No callers yet.
+- F3b, use: generator conditions and macros in the repository that need
+  the built program's size switch to it. The generator frame's
+  ~target_size_queries~ mode, the interception in
+  ~interpreter.til::eval_call_info~ and
+  ~typer.til::comptime_check_storage_domains~ are deleted. The
+  ~self_reference~ accommodation in ~src/tests.til~ goes: under
+  ~check_usize64~ the native-layout compiler must reproduce ~boot/til.c~
+  byte for byte. That row is the exit gate for size determinism.
+- Documentation, in the same commits: ~doc/concepts/auto.org~ ("size and
+  size_for_target" becomes present tense), ~doc/concepts/functions.org~
+  (the ~macro~ section and "Conditional definitions", whose example and
+  target-mode paragraphs change), and ~///~ doc comments on the
+  hand-written ~size~ / ~size_for_target~ of the primitives in core, so
+  the generated API docs say which one to use.
+
+F4. Source identity, as decision 2 settles it. With "leave it" this step is
+only the contract sentence in the documentation plus the Windows check.
+With either fixed spelling (Two-pass only if emitted names change, which
+~./src/core/...~ does not):
+- Carry the baked path next to the display path from where
+  ~loader.til~ computes it; switch the baked uses listed under "State";
+  normalize separators so a Windows host spells the same string.
+- Regression: one fixture translated by the in-repo compiler and by the
+  compiler ~test/install.til~ installs under ~tmp/install_test~, ~cmp~
+  equal; the same project copied under two different absolute roots and
+  translated from each root, ~cmp~ equal; an expected-output test for a
+  core ~__LOC__~ at runtime.
+
+F5. ~VERSION~ independent of git's abbreviation choice: derive the short
+form from ~COMPILER_REVISION~ by a fixed length. Measured while writing
+this plan: master's ~boot/til.c~ at eaa47ee spells the previous commit as
+~0.0.1-f1beab456~ (9 characters, the full clone), and a shallow CI-style
+clone of the same history regenerates it as ~0.0.1-eaa47ee~ (7). Two
+checkouts of one commit already disagree on this line. Pick 9 so the
+full clone's ~til -v~ does not change. The revision itself remains a
+declared input.
+
+F6. Audits, each with a fixture, fixed at the first phase that differs or
+recorded as a declared input:
+- Floats: folded F32/F64 go through host ~strtod~ / ~snprintf~
+  (~codegen/ext.c~). Compare translations containing signed zero,
+  subnormals, rounding boundaries, large exponents and nonfinite values
+  between Linux, macOS and the Windows ~til.exe~ (msvcrt). If any spelling
+  differs, format from the bit pattern inside til.
+- Order: every ~Set(UPtr)~ / ~Map(UPtr, ...)~ and every std
+  ~HashMap~ / ~HashSet~ keyed by an address must be membership-only;
+  iterating one into output is a bug to fix at that site.
+- Effects: macros that read time, environment, files or commands are
+  inputs the user declares; list the ones the repo itself uses
+  (~get_version~, ~get_compiler_revision~) and their contract. No language
+  change is planned here.
+
+**** Track O: the pre-codegen observation (level 1)
+
+O1. The serializer behind ~til ast~. Checkpoints sit at the existing phase
+boundaries: after ~lexer.til::tokenize~ (~tokens~), after
+~loader.til::load_program~ (~parsed~), after ~type_program_errors~
+(~typed~), after ~finish_init_and_type_program~ (~owned~) and after
+~finish_prepare_program~ (~prepared~). The same configuration code as a
+real ~translate~ runs first, so a compile-mode preparation is what gets
+observed.
+
+O2. Record contract, written down in this issue before coding it:
+- Header: target, backend, mode, USize/UPtr primitive, ~cptr32~, 64-bit
+  scalar alignment, compile mode, compiler revision.
+- Per unit, in load order: logical path, then every node in pre-order with
+  its kind, line/col, resolved type and EVERY payload field of the
+  ~src/core/ast.til~ structures (Declaration, FuncSig, FunctionDef,
+  FCallData, the literal/ident/field-access/assign/for/match/case/capture
+  data, struct and enum definitions with variants). Symbols by name, plus
+  one record of the intern order. Literals as exact bytes with unambiguous
+  escaping.
+- Backend-consumed side state after ~prepared~: the type inventory with
+  TARGET size/align from ~target_value_size_align~, foldable classification,
+  throw registries, the ~builder_*~ inventories that codegen reads.
+- Excluded, each with its reason recorded: ~ctx.struct_layouts~ (host
+  storage), evaluation heap and scopes, caches, addresses, capacities.
+- Completeness: the serializer switches over ~NodeType~ with no default
+  arm, so a new node kind cannot be skipped silently; a ~REM~ at the ast.til
+  structs names the serializer.
+
+O3. Gates, in ~make test~ unless a cost measurement says otherwise:
+- Sensitivity: fixture pairs that differ only in a type annotation, a
+  signature, an ownership flag, a literal or declaration order must
+  produce DIFFERENT records at the first checkpoint where they can.
+- Two fresh processes agree at every checkpoint.
+- Compact and native compiler layouts agree for a fixed target/width (needs
+  F1-F3; before them this row is the localized reproduction).
+- Two project roots agree. In-repo versus installed support root is a row
+  only if decision 2 moves to a fixed spelling.
+- Corpus: scalars and control flow, imports including a diamond and a
+  cycle, generics, closures, ownership and throwing, size and constant
+  evaluation, one negative diagnostic. ~src/til.til~ joins last, with its
+  time, peak memory and output size recorded first.
+
+O4. Hand the command and corpus to #473 for the first cross-host group
+(Linux x64 and Linux arm64, target linux-x64, ~--usize=32~), then the Macs
+and the Windows ~til.exe~. Level 1 is claimed per group, when its gate is
+blocking there.
+
+**** Level 2: translator output
+
+- Local first, no toolchains needed: for every ~Target~ entry and each
+  width it supports, translate the corpus with both compiler layouts and
+  compare every emitted file: ~.c~ and ~_forward.h~, the HolyC ~.HC~, the
+  ~.fasm~, MLIR output on its one host, and the JNI/library binding files
+  as their own corpus case.
+- Then across hosts through #473: each producer uploads hashes of the same
+  translations; equality per (target, backend, width, case, file).
+- With level 1 green for a group, a level 2 difference is an emission bug
+  by construction; fix it in the backend, not in the comparison.
+
+**** Level 3: binaries
+
+- L3a, til's own inputs to the C toolchain: deterministic archives
+  (~ar rcsD~, and ~ZERO_AR_DATE~ for Apple's tools) at both ~builder.til~
+  sites and in ~make.til~; no absolute path in what the C compiler sees
+  (relative source paths, ~-ffile-prefix-map~ / ~-fdebug-prefix-map~ where
+  debug info is on); stable temporary object names; the same output
+  basename, because ad-hoc Mach-O signatures embed it; check PE timestamps,
+  ~--build-id~ and ~LC_UUID~ for content-only derivation. Gate: the same
+  host builds the same program twice, at different times and from two
+  checkout paths, with identical hashes.
+- L3b, one toolchain per target (#473 decision 4): clang and lld at one
+  pinned version, with the same headers and libraries, on every producer.
+  LLVM 18 is the proposed pin because the MLIR backend already ends in
+  ~clang-18~. Recorded here per target: version, where the headers and
+  libraries come from, and the flags til passes. GCC stays usable through
+  ~--cc~ but is outside every comparison.
+- L3c, first target: macOS (~hello_script~ for ~macos-arm64~), because its
+  headers are already in the repository (~vendor/macos~); producers Linux
+  x64, Linux arm64 and the Macs. Then Windows, then Linux targets, in
+  #473 step C4's order. A mismatch is traced to its section first.
+- L3d, widen the artifact set as targets hold: ~libtilrt~ / ~libtilcore~,
+  the compiler binary, then vendored libraries, each either with pinned
+  flags or excluded by name with the reason stated. FASM joins when a
+  second host can run it (#453/#151).
+
+**** Order, and what closes the issue
+
+F1, F2 and F3 can start now, in that order; F3 needs one master merge
+between its two commits. F4 follows decision 2; F5 and F6 are independent.
+O1-O3 can run beside the F track. O4, level 2 across hosts and L3c onward
+need the matching #473 steps. L3a and L3b need nothing from #473.
+
+Acceptance mapping: contract -> O1, O2; frontend agreement -> O3, O4 with
+F1-F6; toolchain groups and inventory -> L3b; clean rebuilds -> L3a;
+generated source -> level 2; binaries -> L3c, L3d; regressions for found
+differences -> every step's row; documentation -> a "Reproducible builds"
+section in ~doc/self.org~ (configurations that hold, declared inputs,
+limits), written by the commit that lands the last gate, which also moves
+this file to ~issues/fixed/~.

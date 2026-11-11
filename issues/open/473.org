@@ -2,6 +2,10 @@
 # category: backends
 ** OPEN #473 Expand native and cross-platform CI, then enforce per-target reproducibility
 
+CURRENT PLAN AND DECISIONS: the last section, "Plan to close". Where an
+earlier section differs from it, that section wins; the earlier ones are
+kept as the record of how the plan was reached.
+
 Each supported host should test its own native build and build programs for
 the other supported targets. Execute cross-built artifacts on the target or
 an emulator where available. A collecting job checks completeness and, as
@@ -268,3 +272,244 @@ failure results, local versus real CI verification, and any remaining coverage
 gaps here. The first slice can land independently; leave #473 open for the
 collector, additional hosts/targets and eventual equality gates. Do not expand
 this handoff into compiler determinism, TempleOS porting or JIT implementation.
+
+*** Plan to close (written at master eaa47ee; decisions recorded since)
+
+The working order for this issue. "Next implementation handoff" above is
+still the specification of step C1 and of the collector's rules. Decision
+4 below replaces two things written earlier: adding more "build here, run
+there" cells ("Independent CI improvements", item 2), and comparing
+binaries only inside whatever toolchain groups happen to exist; there is
+one pinned clang per target instead. This section adds what the workflow
+looks like now, the remaining steps, and what each one needs. Re-read ~.github/workflows/tests.yml~ on the actual
+base before editing.
+
+**** State at this base
+
+Nothing of the handoff is implemented yet: no upload has
+~if-no-files-found: error~, no job validates a payload per file, and there
+is no collecting job. Facts the plan has to respect:
+
+- Every job ends with "Cancel the rest of this run" (~gh run cancel~ on
+  failure). After the first failure the other jobs report cancelled, so a
+  collector sees cancelled producers, not their real results.
+- ~doc-gate~ skips the whole workflow for pushes that are all "Doc: ".
+- Since #475 a push may ask for ONE ~macos-latest~ and ONE
+  ~macos-15-intel~ runner. New mac work is a step inside ~macos-arm64~ /
+  ~macos-x64~, never a new mac job.
+- A workflow commit is not documentation-only: it needs the full
+  ~make clean && make test~ and a "CI: " style subject, and its real proof
+  is a ~workflow_dispatch~ run on the branch, which is the human's to
+  authorize.
+
+Artifacts that exist today (the path root of an upload is the common
+parent of its files):
+
+| Artifact | Producer | Files | Consumer and destination |
+|----------+----------+-------+--------------------------|
+| ~hello_script-windows~ | ~windows-x64-build~ | 8 under ~bin/~: hello_script, crypto, ffi_prep, nng_pair, each ~.exe~ and ~-x86.exe~ | ~windows-x64-run~, cwd |
+| ~til-windows-host~ | ~windows-x64-host-build~ | 6 under ~bin/~: til, sender, receiver, echo_argv, win_quoting, repl_wincon ~.exe~ | ~windows-x64-host-run~, ~winhost/~ |
+| ~secp256k1-windows-host~ | same | ~libsecp256k1.dll~ and ~.a~ | same job, ~vendor/secp256k1/build-windows-x64/lib~ |
+| ~gui-windows-host~ | same | raylib and tinyfd ~.dll~ and ~.a~, root ~vendor/~ | same job, ~vendor~ |
+| ~hello_script-macos~ | ~macos-cross-build~ | 4 under ~bin/~: hello_script and crypto for arm64 and x64 | ~macos-arm64~ and ~macos-x64~, cwd; each runs its own arch only |
+| ~til-macos-cross~ | ~macos-cross-build~ | 6 under ~bin/~: ffi_prep, nng_pair, til for both arches | both mac jobs, ~machost/~ |
+| ~hello_script-from-mac~ | ~macos-arm64~ | ~hello_script-from-mac.exe~, ~hello_script-from-mac-linux~, ~crypto-from-mac-linux~ | ~macos-host-cross-win-run~ (the .exe), ~macos-host-cross-linux-run~ (the two ELF) |
+| ~hello_gui-macos~ | ~macos-gui-cross~ | hello_gui for both arches | none: build-only evidence |
+
+Coverage today, C backend unless noted. S = full suite, X = executed,
+B = built and file-format checked only:
+
+| Host running til | Target | What |
+|------------------+--------+------|
+| Linux x64 | linux-x64 | S under ASAN at ~--usize=32~, S again through the ~--usize=64~ compiler; the suite carries the FASM and MLIR rows |
+| Linux x64 | linux-arm64, linux-riscv64 | X under qemu: crypto, nng_pair, ffi_prep, and til itself interpreting; B: hello, hello_gui |
+| Linux x64 | linux-x86 | X under qemu: hello, width probes at both widths, crypto, nng_pair, ffi_prep, hello_gui smoke; no compiler (#431) |
+| Linux x64 | linux-arm32, linux-riscv32 | X under qemu: hello, crypto, nng_pair, ffi_prep; B: hello_gui; no compiler (#431) |
+| Linux x64 | windows-x64, windows-x86 | X on Windows: hello, crypto, ffi_prep, nng_pair; x64 also til.exe and its helpers; B: hello_gui, editor |
+| Linux x64 | macos-arm64, macos-x64 | X on the Macs: hello, crypto, ffi_prep, nng_pair, til interpreting; B: hello_gui, editor; clang -Werror sweep of the corpus for arm64 |
+| Linux x64 | wasm32 | X under node: hello, crypto; B: hello_gui |
+| Linux x64 | templeos | X in the guest, both widths (HolyC emitted on Linux) |
+| Linux arm64 | linux-arm64 | S under ASAN; hello X. No other target |
+| macOS arm64 | macos-arm64 | S without GUI under ASAN; hello X; native examples B |
+| macOS arm64 | windows-x64, linux-x64 | hello X on Windows; hello and crypto X on Linux |
+| macOS x64 | macos-x64 | S without GUI under ASAN; hello X; native examples B. No other target |
+| Windows x64 (imported til.exe) | windows-x64 | interpret hello/crypto/gui_interp, translate hello (non-empty check only), build and run hello and link_objects with native gcc. No suite, no self-build |
+| TempleOS | none | consumer only |
+
+No cell has a compare level yet.
+
+**** Decisions (all four are taken)
+
+1. Collector job (step C3). DECIDED: one new job, proposed name ~collect~,
+   on ~ubuntu-latest~, that ~needs~ every producer and consumer it reports
+   on, runs with a status condition that survives upstream failure, and
+   fails when a required result or file is missing. It writes only to the
+   job log and the job summary.
+2. Comparison artifacts (step C5 on). DECIDED: hash lists only. Each
+   producer uploads one small text artifact per level, named by producer,
+   with lines of "sha256, level, target, backend, width, case, item". For
+   translator output and binaries the item is the file; for #472's frontend
+   records it is the checkpoint and unit, so a mismatch still names the
+   first phase and file that differ and is reproduced locally from there.
+   Who writes: the producer step. Who reads: the collector, in the same
+   run. Nothing persists beyond the run's artifact retention and nothing in
+   the repository reads them. This adds artifacts; it changes no existing
+   one. Uploading the differing files themselves for a small corpus is
+   the next step only if hashes prove insufficient to diagnose.
+3. Collector logic. DECIDED: a til program (proposed
+   ~examples/ci_collect.til~, beside ~examples/issues.til~ and
+   ~examples/merge_commit.til~), so the suite runs it against fixture
+   directories under ~tmp/~ and the injected failures of the handoff's
+   matrix become ordinary tests. The collector job builds ~bin/til~ first.
+4. What each environment builds and runs. DECIDED.
+   - Every environment tests its own native build.
+   - It cross-compiles so the collector can compare hashes, and the goal
+     is that a cross-built binary has the SAME hash as the natively built
+     one. til only writes the C (or MLIR); the bytes come from the C
+     compiler and linker, and two different compilers never agree. So
+     clang is used everywhere: for each target, every producer uses the
+     same clang and lld at the same pinned version with the same headers
+     and libraries. The MLIR backend already ends in ~clang-18~
+     (~mlir-opt-18~ -> ~mlir-translate-18~ -> ~clang-18~, ~doc/self.org~),
+     so the same rule covers it; LLVM 18 is the proposed pin for that
+     reason.
+   - For the reasoning "the native tests cover the cross build" to hold,
+     the binaries the native suite runs must come from that same clang.
+     til's default C compiler therefore becomes clang on every host, one
+     target at a time (step C4). Apple's own compiler cannot run on Linux,
+     so for macOS targets the shared one is the open-source clang on the
+     Mac too; the GUI examples that need Apple's SDK frameworks keep
+     Apple's toolchain and stay outside the comparison.
+   - "Build on one OS, run it on another" goes away target by target, as
+     soon as that target's cross and native hashes match. The
+     Linux-to-Windows pair also needs [[./483.org][#483]], because today the only
+     Windows compiler is the cross-built ~til.exe~.
+   - Unchanged: targets that are run under an emulator or in a VM (riscv64,
+     x86, arm32, riscv32 under qemu, wasm32 under node, TempleOS in its
+     guest). The compiler does not run on those systems, only its output
+     does, and that is how they are tested today.
+
+**** Steps
+
+C0. Baseline costs, read-only: wall time per job and artifact sizes of the
+last green master runs, from the Actions API (available to bot sessions
+now; the earlier inventory had no access). Recorded in this issue. Every
+later step reports its delta against it.
+
+C1. Per-file completeness for ~hello_script-windows~, exactly as the
+handoff specifies: a validation step before the upload in
+~windows-x64-build~ (every one of the eight paths a non-empty regular file,
+all omissions reported, then fail), ~if-no-files-found: error~ on that
+upload, and the same eight basenames validated in ~windows-x64-run~ right
+after the download and before the first program runs. The expected set is
+written once per job, next to the list it guards. The shape:
+
+#+begin_src sh
+status=0
+for f in hello_script crypto ffi_prep nng_pair; do
+  for e in "$f.exe" "$f-x86.exe"; do
+    if [ ! -f "bin/$e" ] || [ ! -s "bin/$e" ]; then
+      echo "missing or empty: bin/$e"; status=1
+    fi
+  done
+done
+exit $status
+#+end_src
+
+Checked locally against fixture directories under ~tmp/~ for every row of
+the handoff's failure matrix, then by one authorized branch run. No new
+job, artifact or file.
+
+C2. The same check for ~windows-x64-host-build~ (three artifacts, three
+destinations in ~windows-x64-host-run~). The mac bundles are not worth
+it: decision 4 removes those pairs in step C4. Failure-diagnostic uploads
+keep ~if-no-files-found: ignore~.
+
+C3. Collector. ~needs~ lists every job explicitly;
+~if: always()~ combined with the doc-gate output, so a Doc-only push skips
+it and that skip is not a failure. It prints one table: per required job
+its result (success, failure, cancelled, skipped), per artifact the files
+present, each downloaded into its own directory. It fails on any
+non-success result or missing file, and says which. First thing to verify
+with a deliberately failing branch run: that the job still runs after
+another job's ~gh run cancel~, and what it then sees. If cancellation
+makes it useless, the choice between the fail-fast cancel and a complete
+report goes back to the human with that evidence; the plan does not remove
+the cancel steps on its own.
+
+C4. One clang for every target (decision 4), one target per commit, each
+reported against C0. Anything that adds a download or a vendored tree is
+named in its own commit before it lands.
+- Record first (with C0): the clang and lld version on every runner, and
+  where each target's headers and libraries come from today.
+- macOS targets first, because their headers are already in the
+  repository (~vendor/macos~): Linux x64, Linux arm64 and both Macs build
+  the same small programs with the pinned clang and lld; the Macs' native
+  tests run those binaries. When the hashes match, the "cross run" steps
+  in the mac jobs and the two ~macos-host-cross-*-run~ jobs are removed.
+- Windows targets: clang with one pinned set of mingw headers and
+  libraries on every producer, including the Windows runner once #483
+  gives it a native build; then ~windows-x64-run~ and
+  ~windows-x64-host-run~'s cross-built inputs are removed.
+- Linux targets: clang with one pinned sysroot per target instead of each
+  distribution's cross packages. Linux arm64 joins as a producer for
+  linux-x64 here. The qemu jobs keep running the binaries.
+- wasm32 keeps the vendored emsdk, which is already one pinned clang.
+- til's default (~toolchain_command~) switches to clang for a target in
+  the commit that makes that target's hashes match, so the suite tests
+  what is compared. ~--cc~ stays as the override.
+- Windows as a native producer is [[./483.org][#483]].
+
+C5. First equality group, frontend (needs #472 O1-O3).
+~linux-x64~ and ~linux-arm64-native~ run #472's observation command for
+target linux-x64, ~--usize=32~, over the small corpus, after their suites,
+and upload the hash list of the records. The collector compares per
+checkpoint and unit and names the first one that differs, with both
+producers. Exploratory until #472 says the group should hold, then
+blocking. Next producers: both Macs, then the Windows ~til.exe~.
+
+C6. Translator output (needs #472 level 2 for a group to be blocking;
+reporting can start earlier, labelled exploratory). Every job that has a
+til binary translates the corpus for every ~Target~ entry and both widths
+where valid and uploads the hash list. No cross toolchain is involved, so
+this is the cheapest all-host matrix: five producers x twelve targets.
+Measure it on one producer first; ~src/til.til~ joins only as a single
+target per producer until its cost is known.
+
+C7. Binaries (needs #472 L3a-L3c and the C4 step for that target). The
+collector compares per (target, backend, width, stage, artifact) across
+every producer; with one pinned clang per target there is one group, and
+a producer whose recorded clang or lld version differs is reported as a
+failure, not compared. Tool versions, flags and header/library identities
+go to the producer's log next to the hashes.
+
+C8. Collector validation, as suite tests over fixtures. Every row of the
+handoff's failure matrix, plus: a changed byte in one producer's file, a hash list for the
+wrong target or width, one producer missing from a group, a group with a
+single producer (reported as not compared, never as equal).
+
+C9. TempleOS as a producer, in the order already written above; each stage
+waits for #151/#453, and its comparisons for the matching #472 level.
+
+C10. Final report in this issue: the matrix above brought up to date with
+a compare column, measured runner time and artifact size against C0, the
+remaining gaps with their reasons. The commit that lands the last
+acceptance item moves this file to ~issues/fixed/~.
+
+**** Order and dependencies
+
+C0 and C3 can start now, and so can C4's first target (macOS). C1 and C2
+are worth doing only for the cross-run pairs that will still exist for a
+while (the Windows ones, until #483); the mac pairs are removed by C4
+instead. C5 needs #472's observation track; C6 and C7 become blocking
+target by target as #472 lands the matching level and C4 the matching
+clang; C8 follows C3 and grows with each level; C9 follows #151.
+
+Still to be named when their step is reached, because each adds a
+download or a vendored tree: the exact pinned LLVM release (18 proposed),
+and where the Windows and Linux targets' headers and libraries come from.
+
+Acceptance mapping: matrix and corpus -> the tables here, C4, C10;
+visible absence and producer failure -> C1, C2, C3; frontend, source and
+binary groups -> C5, C6, C7; collector validation -> C8; TempleOS -> C9;
+gaps and costs -> C0, C10.

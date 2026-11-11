@@ -326,7 +326,12 @@
   always stay native. Like #309's width split, sizes fold only when host and
   target agree; a native (~--usize=64~) compiler building a compact program
   (or the reverse) emits ~X.size()~ as C ~sizeof~, so that translation is
-  not byte-identical to a same-layout one.
+  not byte-identical to a same-layout one. #472 decided to remove that
+  split (not implemented yet): til computes the target's layout itself,
+  a generated ~size()~ folds to it on every build once compile-time
+  evaluation is over, ~size_for_target()~ gives compile-time code the
+  target's number, and ~sizeof~ remains only in static asserts
+  (~doc/concepts/auto.org~, "size and size_for_target").
 
   ~make check_usize64~ (and its CI job) keeps the native layout alive: the
   whole suite through an ASAN compiler built ~--usize=64~, with every

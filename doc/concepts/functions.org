@@ -157,6 +157,16 @@ is replaced by the AST node the macro returns. By codegen time no
 macro calls remain. A macro returning ~FuncDef~ generates functions;
 see "Function generators" below.
 
+A macro body runs INSIDE THE COMPILER, not in the program being built.
+On a cross-size build (a ~--usize=64~ or 32-bit target from the default
+compiler) those are two different memory layouts, and ~T.size()~ in a
+macro body is the compiler's. Generator conditions are the exception
+today; see "Conditional definitions". Decided in #472, not implemented
+yet: ~T.size()~ means the size where the code runs everywhere, a macro
+or condition that needs the built program's size writes
+~T.size_for_target()~, and the exception goes away. The contract is in
+~doc/concepts/auto.org~, "size and size_for_target".
+
 ** test
 
 A named test block; ~make test~ collects and runs them in both interp
@@ -423,6 +433,15 @@ short-circuit operand are not executed or rejected for that storage mismatch.
 Unavailable runtime values and calls that cannot be evaluated produce an
 expansion error, not a false condition. The same selection rules apply to
 generators returning ~StructDef~ or ~EnumDef~.
+
+Decided in #472, not implemented yet: a condition asks for the target
+explicitly, ~if T.size_for_target() <= limit~. ~T.size()~ then means in a
+condition what it means everywhere else -- the size where the code runs,
+here the compiler -- so the special target mode above and its rejection
+of raw-memory calls are removed, and a condition may use containers on
+any build. Existing conditions that compare a generated ~size()~ change
+spelling; ~USize.size()~ and ~UPtr.size()~ already name the target's
+primitive and stay as they are.
 
 ~type_arg_is_ref(T)~ queries a compile-time type argument's qualifier. A
 generator can use it to select borrowing storage and operations:

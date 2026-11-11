@@ -1,0 +1,70 @@
+# priority: medium
+# category: backends
+** OPEN #483 Build and install til natively on a Windows host (make, make install)
+
+Filed while planning [[./472.org][#472]] and [[./473.org][#473]]: the question was whether a
+Windows-installed til exists to compare against the Linux and macOS ones.
+It does not yet. Read from the source at master 9a71a09; nothing here was
+run on Windows.
+
+*** What does not work
+
+- ~make~, and therefore ~make install~: the Makefile sets ~HOST_OS~ for
+  ~Linux~ and ~Darwin~ only and stops any other host with "unsupported
+  build host ...: til builds on Linux and macOS". The bootstrap
+  (~til_boot~ from ~boot/~, the vendored libffi and nng, ~bin/make~) never
+  starts.
+- The only Windows compiler is ~bin/til.exe~ cross-built on Linux
+  (~make build_win_host~) and handed to the Windows runner as an artifact.
+  There it interprets, translates, and builds and runs small programs with
+  the native gcc. It has never built ~src/til.til~ there, and no step runs
+  ~til.exe install~.
+
+*** What exists but has never executed on Windows
+
+- ~src/self/install.til~: ~default_install_prefix~ returns
+  ~C:/Program Files/til~ on a Windows host, and the support tree copies
+  ~.dll~ twins instead of ~.so~. ~make.til::run_install~ ->
+  ~copy_compiler_install~ uses it, with ~TIL~ spelled ~bin/til~ (no
+  ~.exe~).
+- ~codegen/ext.c~ has Win32 branches for ~copy_file~ / ~copy_tree~ /
+  ~mkdir_p~; ~install.til::drop_shared_write~ returns early on Windows.
+- ~test/install.til~ (install under ~tmp/~, then compile and run a program
+  with the installed compiler from another directory) runs in the Linux
+  and macOS suites only.
+
+*** Known requirements
+
+- Installing the compiler copies the HOST target's vendored archives and
+  their loadable twins (libffi, raylib, tinyfiledialogs, secp256k1 under
+  ~build-windows-x64~). Today only the Linux cross build produces them;
+  the runner receives the raylib, tinyfd and secp256k1 ones as artifacts
+  and no libffi.
+- ~C:/Program Files~ needs elevation. Tests stay unprivileged: they
+  install with ~--prefix~ under the checkout's ~tmp/~.
+- Drive letters and backslashes reach the source path the compiler bakes
+  into ~__LOC__~ and private C names. What is baked is #472's source
+  identity decision; this issue only has to deliver a working install.
+
+*** Steps
+
+1. With the imported ~til.exe~ on the Windows runner:
+   ~til.exe install --prefix=tmp/install_test~ for a program, then the
+   compiler support install; fix what fails.
+2. ~til.exe build src/til.til~ with the native gcc against the
+   windows-x64 libffi and nng, then the same from the committed ~boot/~ C
+   without an imported compiler.
+3. Makefile and ~make.til~ accept a Windows host (the MSYS/MinGW ~uname~
+   spellings, ~.exe~ names, host target ~windows-x64~), so ~make~ and
+   ~make install~ work.
+4. ~test/install.til~ on Windows in CI, then the suite subset that needs
+   no POSIX-only tool (#473 step C4).
+
+*** Acceptance
+
+- [ ] A til built on Windows from this repository, with no compiler
+  imported from another host.
+- [ ] ~make install~ and ~til.exe install --prefix=...~ produce an
+  installed compiler that compiles and runs a program from another
+  directory.
+- [ ] CI runs that on the Windows runner.
