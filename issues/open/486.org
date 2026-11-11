@@ -1,6 +1,6 @@
 # priority: medium
 # category: features
-** OPEN #486 Compile-time conditionals on the build target (Jai's #if), so link() and declarations can be selected per OS
+** WIP #486 Compile-time conditionals on the build target (Jai's #if), so link() and declarations can be selected per OS
 
 til has no way to select top-level code by build target at compile time,
 the job the C preprocessor's ~#ifdef _WIN32~ does and Jai's ~#if~ does
@@ -147,3 +147,17 @@ references that are ordinary declarations living under that branch.
 - Migration: system ~link()~ lines and ~link(name, "<targets>")~ uses move
   under the conditional; remove the target-list form and the builder's
   flag rewrite; make interpreter ~link()~ load failures errors.
+
+*** Progress
+
+- [X] Step 1: ~TargetOs~ / ~TargetArch~ and the constants ~TARGET_OS~ /
+  ~TARGET_ARCH~ (src/core/core.til). The loader points their initializers
+  at ~lp.target~'s variants before typing (~retarget_target_constants~),
+  and the constant folder evaluates immutable enum-valued globals into its
+  scope so a macro can read them (~constfolder_register_enum_constants~).
+  Test: test/target_constants.til (default target interpreted and
+  compiled, three cross targets through a macro's folded literal).
+- [ ] Step 2: top-level constant ~if~ / ~switch~.
+- [ ] Step 3: migrate the system ~link()~s and ~link(name, "<targets>")~;
+  remove the target-list form and the builder's rewrite; interpreter
+  ~link()~ load failures become errors.

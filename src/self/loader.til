@@ -580,6 +580,37 @@ retarget_loaded_aliases := func(mut lp: LoadedProgram) {
     retarget_alias_binding(lp.ctx.scope, "USize", target_int_alias_name(lp, "USize", target_usize_name(lp.target)), lp.ctx.symbols)
 }
 
+// #486: TARGET_OS / TARGET_ARCH (src/core/core.til) are written with a
+// placeholder variant; point each at lp.target's before anything is
+// initialized or typed, so they are ordinary constants of the build target
+// -- folded in macros and in top-level conditions, read at run time -- and
+// a cross --target sees the target, not the machine running the compiler.
+// Runs once lp.target is final (src/til.til sets it after load_program).
+priv retarget_target_constants := func(mut lp: LoadedProgram) {
+    mut core_path := ""
+    if lp.skip_core { core_path = lp.units[lp.units.len() - 1].path.clone() }
+    else { core_path = lp.core_units[lp.core_units.len() - 1].path.clone() }
+    ref mut iu : ImportUnit = lp.ctx.imported[core_path]
+    mut found : USize = 0
+    for mut stmt : Expr in iu.ast.children {
+        mut variant := ""
+        switch stmt.node_type {
+        case .Decl(d):
+            if d.name == "TARGET_OS" { variant = target_os_variant(lp.target) }
+            if d.name == "TARGET_ARCH" { variant = target_arch_variant(lp.target) }
+        case:
+        }
+        if variant.len() == 0 { continue }
+        ref mut rhs : Expr = stmt.children[0]
+        if rhs.node_type.is(NodeType.FieldAccess).not() {
+            panic(": TARGET_OS / TARGET_ARCH must be initialized with an enum variant", loc = core_path)
+        }
+        rhs.node_type = field_access_node(lp.ctx.symbols.intern(variant))
+        found++
+    }
+    if found != 2 { panic(": core.til must declare TARGET_OS and TARGET_ARCH once each", loc = core_path) }
+}
+
 // #472 (F2): mark the size queries written in core/std (FCallData
 // .storage_size_read says why they are different). By shape, not by
 // resolving the callee: a mark on a call that turns out not to be a generated
@@ -674,6 +705,9 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
         for upath : Str in lp.unit_paths() {
             interpreter_init_ns(lp.ctx, global, lp.ctx.imported[upath].ast)
         }
+        for upath : Str in lp.unit_paths() {
+            constfolder_register_enum_constants(global, lp.ctx.imported[upath].ast, lp.ctx)
+        }
 
         // 2b) Init FFI for the interpreter used by constfolder.
         // Scan per-file ASTs directly to avoid merged-AST cloning.
@@ -755,7 +789,11 @@ priv constfolder_repl_delta := proc(mut lp: LoadedProgram, mut delta: Expr) {
         for upath : Str in lp.unit_paths() {
             interpreter_init_ns(lp.ctx, global, lp.ctx.imported[upath].ast)
         }
+        for upath : Str in lp.unit_paths() {
+            constfolder_register_enum_constants(global, lp.ctx.imported[upath].ast, lp.ctx)
+        }
         interpreter_init_ns(lp.ctx, global, delta)
+        constfolder_register_enum_constants(global, delta, lp.ctx)
 
         ffi_reset(lp.ctx)
         runtime_src_prefix := compiler_src_prefix(lp.ctx)
@@ -4691,6 +4729,7 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     lp.ctx.target_simd_bits = lp.cpu.simd_bits
     lp.ctx.target_scalar64_align = 8
     if lp.target.is(Target.LinuxX86) { lp.ctx.target_scalar64_align = 4 }
+    retarget_target_constants(lp)
 
     // #192: register target-dependent USize/UPtr widths before any
     // init/typer resolution, so every position resolves them uniformly

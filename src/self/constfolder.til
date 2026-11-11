@@ -2080,6 +2080,49 @@ constfolder_register_fold_scope := func(mut global: Scope, prog: Expr, mut ctx: 
     }
 }
 
+// #486: an expression built only from enum_name's own variants and
+// namespace calls (the typer writes `X := E.A` as `E.clone(E.A)`) is a
+// constant: nothing outside the enum can reach it.
+priv enum_constant_expr := func(e: Expr, enum_name: Str, symbols: SymbolPool) returns Bool {
+    switch e.node_type {
+    case .FieldAccess:
+        if e.children.len() != 1 { return false }
+        switch e.children[0].node_type {
+        case .Ident(id): return id.ident_name(symbols.names) == enum_name
+        case: return false
+        }
+    case .FCall:
+        if enum_constant_expr(e.children[0], enum_name, symbols).not() { return false }
+        for i in 1..e.children.len() {
+            if enum_constant_expr(e.children[i], enum_name, symbols).not() { return false }
+        }
+        return true
+    case:
+    }
+    return false
+}
+
+// #486: an immutable global whose value is a constant of its own enum type
+// (TARGET_OS := TargetOs.Linux) is as constant as a literal one. Evaluate
+// those declarations into the fold scope so macro bodies that read them fold.
+// Runs after interpreter_init_ns, which evaluating a variant needs.
+constfolder_register_enum_constants := proc(mut global: Scope, prog: Expr, mut ctx: Context) {
+    mut decls := Expr.new(own NodeType.Body, prog.line, prog.col)
+    for stmt : Expr in prog.children {
+        if stmt.children.len() != 1 { continue }
+        ref rhs : Expr = stmt.children[0]
+        if is_enum_type(rhs.til_type()).not() { continue }
+        if enum_constant_expr(rhs, type_to_name(rhs.til_type(), ctx.symbols), ctx.symbols).not() { continue }
+        switch stmt.node_type {
+        case .Decl(dd):
+            if dd.external_symbol.len().gt(0).or(dd.is_mut).or(dd.own_type.is(OwnType.Ref)) { continue }
+            decls.add_child(own stmt.clone())
+        case:
+        }
+    }
+    if decls.children.len() > 0 { eval_body(global, decls, ctx) }
+}
+
 // Issue #191: core constants macro bodies may need. Registered after the
 // defs walk so they win over any like-named definition.
 // CAP_VIEW = -2 as USize, CAP_LIT = -1 as USize. #192: USize is

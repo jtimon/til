@@ -31,3 +31,33 @@ Simd := macro(T: Type, N: I64) returns StructDef {
 }
 
 simd_width := core_func(T: Type) returns shallow USize {}
+
+/// The operating system of the BUILD TARGET (issue #486): what --target
+/// names, or the machine running the compiler when it names none and when
+/// interpreting. Not host_os() (src/std/sys.til), which is the machine the
+/// running binary is on; the two differ when cross-compiling.
+TargetOs := enum {
+    Linux,
+    Windows,
+    Macos,
+    Wasm,
+    Templeos,
+}
+
+/// The CPU architecture of the build target; see TargetOs.
+TargetArch := enum {
+    X64,
+    X86,
+    Arm64,
+    Arm32,
+    Riscv64,
+    Riscv32,
+    Wasm32,
+}
+
+// REM: placeholders. The loader rewrites both initializers to the build
+// target's variants before anything is initialized or typed
+// (retarget_target_constants in src/self/loader.til), so they fold like any
+// other constant -- in a macro, in a top-level condition, at run time.
+TARGET_OS := TargetOs.Linux
+TARGET_ARCH := TargetArch.X64

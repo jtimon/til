@@ -1,0 +1,95 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+realpath_str := ext_proc(path: Str) returns Str {}
+
+// Issue #486: TARGET_OS / TARGET_ARCH are constants of the BUILD target.
+// Without --target (and when interpreting) that is the machine running the
+// compiler; with one, it is the named target even though the compiler runs
+// elsewhere -- unlike host_os() / host_arch(), which a macro runs on the
+// compiler's machine. A cross translation cannot run here, so the probe
+// folds the constants through a macro and the emitted C is searched for the
+// literal it produced.
+
+WORK := "tmp/target_constants"
+
+// The variants for host_os() / host_arch()'s names.
+os_variant := func(os: Str) returns Str {
+    switch os {
+    case "linux": return "Linux"
+    case "windows": return "Windows"
+    case "macos": return "Macos"
+    }
+    panic("no TargetOs for host_os() ", os)
+    return ""
+}
+
+arch_variant := func(arch: Str) returns Str {
+    switch arch {
+    case "x64": return "X64"
+    case "x86": return "X86"
+    case "arm64": return "Arm64"
+    case "arm32": return "Arm32"
+    case "riscv64": return "Riscv64"
+    case "riscv32": return "Riscv32"
+    }
+    panic("no TargetArch for host_arch() ", arch)
+    return ""
+}
+
+check_default := proc(compiler: Str, command: Str, host: Str, windows: Str) {
+    out := run_probe(compiler, command)
+    if out.contains(format("folded ", host, "\n")).not()
+        .or(out.contains(format("value ", host, "\n")).not())
+        .or(out.contains(format(windows, "\n")).not()) {
+        panic(command, ": the default target's constants are not ", host, " (", windows, "): ", out)
+    }
+}
+
+run_probe := proc(compiler: Str, command: Str) returns Str {
+    cmd := Cmd.new(compiler, command, "./probe.til")
+    cmd.cwd(WORK)
+    cmd.capture()
+    status := cmd.run()
+    out := format(cmd.out(), cmd.err())
+    if status != 0 { panic(command, " of the probe failed: ", out) }
+    return out
+}
+
+check_cross := proc(compiler: Str, target: Str, expected: Str) {
+    c_path := format("gen/", target, ".c")
+    cmd := Cmd.new(compiler, "translate", format("--target=", target), "-c", c_path, "./probe.til")
+    cmd.cwd(WORK)
+    cmd.capture()
+    if cmd.run() != 0 { panic("translate --target=", target, " failed: ", cmd.out(), cmd.err()) }
+    c_source := File.readfile(format(WORK, "/", c_path))
+    if c_source.contains(format("\"", expected, "\"")).not() {
+        panic("--target=", target, " did not fold TARGET_OS / TARGET_ARCH to ", expected)
+    }
+}
+
+main := proc(args: ..Str) {
+    compiler := realpath_str(args[0])
+    File.remove_tree(WORK)
+    mkdir_p(format(WORK, "/gen"))
+    File.writefile(format(WORK, "/probe.til"), format(
+        "mode script\n",
+        "os_arch := macro() returns Str { return format(TARGET_OS.to_str(), \"-\", TARGET_ARCH.to_str()) }\n",
+        "on := func(os: TargetOs) returns Bool { return TARGET_OS == os }\n",
+        "println(\"folded \", os_arch())\n",
+        "println(\"value \", TARGET_OS.to_str(), \"-\", TARGET_ARCH.to_str())\n",
+        "if on(TargetOs.Windows) { println(\"on windows\") } else { println(\"not on windows\") }\n"))
+
+    host := format(os_variant(host_os()), "-", arch_variant(host_arch()))
+    mut windows := "not on windows"
+    if host_os() == "windows" { windows = "on windows" }
+    check_default(compiler, "interpret", host, windows)
+    check_default(compiler, "run", host, windows)
+
+    check_cross(compiler, "windows-x64", "Windows-X64")
+    check_cross(compiler, "macos-arm64", "Macos-Arm64")
+    check_cross(compiler, "linux-riscv32", "Linux-Riscv32")
+    println("target constants passed")
+}

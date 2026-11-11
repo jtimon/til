@@ -1154,6 +1154,12 @@ main := proc(args: ..Str) returns I64 {
         format(til_bin, " run", asan_flag,
             " -o bin/c/link_macos -c gen/c/link_macos.c test/link_macos.til ", til_bin))
 
+    // Issue #486: TARGET_OS / TARGET_ARCH name the build target -- the
+    // host by default and when interpreting, the --target when crossing.
+    add_count(tests, "target_constants", "build", "target constants passed", 1,
+        format(til_bin, " run", asan_flag,
+            " -o bin/c/target_constants -c gen/c/target_constants.c test/target_constants.til ", til_bin))
+
     // Independent driver and scratch directory: the scheduler can overlap
     // pointer-width checks with CPU-option checks within its normal -j limit.
     add_count(tests, "dynamic_widths", "build", "dynamic width options passed", 1,

@@ -76,6 +76,31 @@ target_to_str := func(target: Target) returns Str {
     return ""
 }
 
+// #486: the TargetOs / TargetArch variants (src/core/core.til) that
+// describe a target, as the loader writes them into TARGET_OS / TARGET_ARCH.
+target_os_variant := func(target: Target) returns Str {
+    switch target {
+    case .LinuxX64, .LinuxArm64, .LinuxRiscv64, .LinuxX86, .LinuxArm32,
+         .LinuxRiscv32: return "Linux"
+    case .WindowsX64, .WindowsX86: return "Windows"
+    case .MacosX64, .MacosArm64: return "Macos"
+    case .Wasm32: return "Wasm"
+    case .TempleosX86: return "Templeos"
+    }
+}
+
+target_arch_variant := func(target: Target) returns Str {
+    switch target {
+    case .LinuxX64, .WindowsX64, .MacosX64: return "X64"
+    case .LinuxX86, .WindowsX86, .TempleosX86: return "X86"
+    case .LinuxArm64, .MacosArm64: return "Arm64"
+    case .LinuxArm32: return "Arm32"
+    case .LinuxRiscv64: return "Riscv64"
+    case .LinuxRiscv32: return "Riscv32"
+    case .Wasm32: return "Wasm32"
+    }
+}
+
 priv target_is_32bit := func(target: Target) returns Bool {
     switch target {
     case .LinuxX86, .LinuxArm32, .LinuxRiscv32, .WindowsX86,
