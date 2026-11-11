@@ -1,6 +1,14 @@
 # priority: medium
 # category: bugs
-** OPEN #457 til names that collide with C macros or keywords break the C backend
+** CANCELLED #457 til names that collide with C macros or keywords break the C backend
+
+*** Cancellation reasoning (2026-11-11)
+
+Duplicate of [[file:../open/452.org][#452]], the older report of the same C emission defect. The
+reproducers, sightings and fix sketch below were consolidated into #452;
+the original text is kept as history.
+
+*** Original report
 
 The C codegen emits til identifiers into the generated C unchanged
 (~builder_resolve_c_ident_name~ in src/self/codegen/c_codegen.til returns the

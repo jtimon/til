@@ -5,8 +5,7 @@
 *** [[./open/431.org][#431]] til itself no longer builds for 32-bit targets (U64 -> UPtr narrowing casts)
 *** [[./open/445.org][#445]] C library binding generation rejects builtin SIMD types
 *** [[./open/448.org][#448]] Same top-level function name in two units compiles silently; last definition wins everywhere
-*** [[./open/452.org][#452]] C keyword used as a til local name breaks C emission
-*** [[./open/457.org][#457]] til names that collide with C macros or keywords break the C backend
+*** [[./open/452.org][#452]] til names that collide with C keywords, macros or libc names break C emission
 *** [[./open/465.org][#465]] Enum switch payload binding reevaluates a side-effecting scrutinee
 ** Low
 *** [[./open/427.org][#427]] func<G> fails when G appears inside another type in its signature

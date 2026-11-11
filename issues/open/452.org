@@ -1,6 +1,6 @@
 # priority: medium
 # category: bugs
-** OPEN #452 C keyword used as a til local name breaks C emission
+** OPEN #452 til names that collide with C keywords, macros or libc names break C emission
 
 Found while adding #443 regressions on base bf835288e. A local named
 ~short~ is accepted and runs in the interpreter, but the C backend emits
@@ -23,3 +23,43 @@ It now uses ~short_values~ so this independent naming defect does not
 obscure the propagation regression. Fix identifier escaping consistently
 for declarations and uses; cover other C keywords and collisions with the
 escaped spelling. This is a C emission problem, not a missing til keyword.
+
+*** Consolidated from #457 (2026-11-11)
+
+#457 reported the same defect more broadly and was cancelled as a
+duplicate; its findings are kept here.
+
+The C codegen emits til identifiers into the generated C unchanged:
+~builder_resolve_c_ident_name~ in src/self/codegen/c_codegen.til returns
+the name as written unless it is a pooled string literal or an imported
+global. So any valid til name that C reserves makes the generated C fail
+to compile while the interpreter runs the same program -- not only
+keywords, but predefined macros and libc identifiers too.
+
+Reproduce (each a ~mode script~ program: ~<name> := 3~ then
+~println(<name>.to_str())~, built with ~bin/til run~):
+
+- ~short~, ~register~, ~restrict~ (C keywords): "two or more data types
+  in declaration specifiers", "'register' is not at beginning of
+  declaration [-Werror=old-style-declaration]", "expected identifier or
+  '(' before '=' token".
+- ~linux~, ~unix~ (macros gcc predefines as ~1~ in its default GNU C
+  mode): "expected identifier or '(' before numeric constant".
+- ~stdin~ (a libc global): "conflicting types for 'stdin'; have 'I64'".
+- ~errno~ happened to work.
+
+Sightings, each worked around by renaming the local:
+
+- ~short~ in a #443 regression test (now ~short_values~).
+- ~linux~ in test/link_macos.til (#422).
+- ~restrict~ in src/self/install.til, where it broke the build of
+  bin/make itself rather than a test (2026-11-11).
+
+Expected: any name the til lexer accepts compiles. Likely shape of a
+fix, in one place in the C codegen: mangle emitted user identifiers that
+collide with C (a fixed reserved-word list plus the predefined-macro
+spellings, or a uniform prefix for user locals/globals), consistently
+for declarations and uses, including collisions with the escaped
+spelling. At minimum, a loud til-level error naming the identifier
+instead of a C compiler error. Out of scope for the other backends
+unless they share the problem.

@@ -149,7 +149,8 @@ was 164.50 s, summed interpretation 483.38 s, and the Unicode test took
 135.88 s interpreted / 3.32 s compiled / 0.02 s native execution while sharing
 the machine with the suite. Log: =tmp/unicode-perf-full-test-final.log=.
 The preceding run's sole failure was an issue-number collision with master's
-new C identifier bug (#457); the extraction was renumbered to #458.
+new C identifier bug (#457, later consolidated into #452); the extraction
+was renumbered to #458.
 
 *** Balanced conformance jobs (superseded)
 
