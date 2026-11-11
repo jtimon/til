@@ -5,6 +5,37 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** Avoid overwritten reference-loan name clones (2026-11-11)
+
+Base: ~a06e63e54~. ~collect_reference_loans~ now clones a declaration's name
+only on its root-level path. Nested declarations construct the same formatted
+graph key directly instead of first cloning and then discarding the name.
+The name-change records, graph numbering and traversal are unchanged.
+
+Baseline/candidate instrumented compilers were built from this base and
+translated the same final ~src/til.til~ inputs with ~--force-rebuild --usize=32~
+into the same output path. Both made 2,932,702 collector visits and emitted
+byte-identical C and forward headers. Allocation-profile results:
+
+| Measurement                  | Before      | After       |
+|------------------------------+-------------+-------------|
+| Str.clone calls              |  30,633,204 |  29,906,950 |
+| Str.clone allocations        |  28,083,954 |  27,357,700 |
+| Str.clone allocated KiB      |   434,135.7 |   417,161.0 |
+| Total attributed allocations |  56,390,708 |  55,664,455 |
+
+This removes 726,254 string allocations and about 16.58 MiB of allocation
+traffic. The candidate records one additional lazy empty-literal allocation
+in the collector, so the net reduction is 726,253 allocations. These counts
+measure allocation traffic, not peak memory or elapsed-time improvement.
+
+The clean suite passed 577/577. All 37 ~test/ref.til~ cases passed interpreted
+and ASAN-compiled; ~test/reference_rebinding.til~ also passed under ASAN,
+including nested shadowing and restoration of reference names. Its interpreted
+output and the escape-error fixture's interpret/translate diagnostics match
+the baseline exactly. Merge-time measurements remain the elapsed-time check
+while other sessions are active.
+
 ** FASM scalar floating-point allocation checks (2026-11-09, #453)
 
 Base: ~389200c8c~. Native F32/F64 operations and conversions use frame/register

@@ -2156,8 +2156,10 @@ priv collect_reference_loans := func(e: Expr, scope: TypeScope, root_level: Bool
         if e.children.len() == 0 { return }
         ref rhs : Expr = e.children[0]
         if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef)).or(rhs.node_type.is(NodeType.EnumDef)) { return }
-        mut key := dd.name.clone()
-        if root_level.not() {
+        mut key := ""
+        if root_level {
+            key = dd.name.clone()
+        } else {
             // Internal graph nodes cannot collide with source identifiers.
             key = format("@", loans.next.to_str(), ":", dd.name)
             loans.next++
