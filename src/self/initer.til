@@ -3470,6 +3470,15 @@ priv init_macro_inst_arg_name := func(arg: Expr, symbols: SymbolPool) returns St
         }
         return out
     case .FCall:
+        // #485: a nested application (`Vec(Str)` in `Vec(Vec(Str))`) is
+        // spelled as the instance it denotes, `Vec__Str`, the name an alias
+        // of it (`VS := Vec(Str)`; `Vec(VS)`) already gave. The former
+        // `call_Vec_Str` named one type twice, and the interpreter, which
+        // reads a container's element type off its instance name, found no
+        // layout under it.
+        if arg.children.len().gt(0).and(arg.children[0].node_type.is(NodeType.Ident)) {
+            return init_macro_inst_name(arg, symbols)
+        }
         mut out := "call"
         for c : Expr in arg.children {
             out = format(out, "_", init_macro_inst_arg_name(c, symbols))

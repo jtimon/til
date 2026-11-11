@@ -236,7 +236,7 @@ class Array__I64 {
   U64 cap;
 };
 
-class Vec__call_Vec_I64 {
+class Vec__Vec__I64 {
   Vec__I64 *data;
   U64 count;
   U64 cap;
@@ -257,9 +257,9 @@ class Map__I64_StructNamedPoint {
   Vec__StructNamedPoint values;
 };
 
-class Map__I64_call_Vec_I64 {
+class Map__I64_Vec__I64 {
   Vec__I64 keys;
-  Vec__call_Vec_I64 values;
+  Vec__Vec__I64 values;
 };
 
 class Map__OrderedKey_Str {
@@ -3591,21 +3591,21 @@ U0 Array__I64_ToVec(Vec__I64 *out, Array__I64 *src)
   out->count = src->cap;
 }
 
-U0 Vec__call_Vec_I64_CopyValue(Vec__call_Vec_I64 *out, Vec__call_Vec_I64 *src)
+U0 Vec__Vec__I64_CopyValue(Vec__Vec__I64 *out, Vec__Vec__I64 *src)
 {
   out->data = src->data;
   out->count = src->count;
   out->cap = src->cap;
 }
 
-U0 Vec__call_Vec_I64_New(Vec__call_Vec_I64 *out)
+U0 Vec__Vec__I64_New(Vec__Vec__I64 *out)
 {
   out->data = NULL;
   out->count = 0;
   out->cap = 0;
 }
 
-U0 Vec__call_Vec_I64_WithCapacity(Vec__call_Vec_I64 *out, U64 cap)
+U0 Vec__Vec__I64_WithCapacity(Vec__Vec__I64 *out, U64 cap)
 {
   out->data = NULL;
   if (cap && cap > I64_MAX / sizeof(Vec__I64)) TilPanicZ("til: allocation size overflow
@@ -3615,7 +3615,7 @@ U0 Vec__call_Vec_I64_WithCapacity(Vec__call_Vec_I64 *out, U64 cap)
   out->cap = cap;
 }
 
-U0 Vec__call_Vec_I64_Clone(Vec__call_Vec_I64 *out, Vec__call_Vec_I64 *src)
+U0 Vec__Vec__I64_Clone(Vec__Vec__I64 *out, Vec__Vec__I64 *src)
 {
   out->data = (TilCAlloc(src->cap, sizeof(Vec__I64)))(Vec__I64 *);
   out->count = src->count;
@@ -3627,39 +3627,39 @@ U0 Vec__call_Vec_I64_Clone(Vec__call_Vec_I64 *out, Vec__call_Vec_I64 *src)
   }
 }
 
-Vec__I64 *Vec__call_Vec_I64_UnsafeGet(Vec__call_Vec_I64 *self, U64 i)
+Vec__I64 *Vec__Vec__I64_UnsafeGet(Vec__Vec__I64 *self, U64 i)
 {
   return &self->data[i];
 }
 
-U0 Vec__call_Vec_I64_UnsafeSet(Vec__call_Vec_I64 *self, U64 i, Vec__I64 *value)
+U0 Vec__Vec__I64_UnsafeSet(Vec__Vec__I64 *self, U64 i, Vec__I64 *value)
 {
   Vec__I64_Delete(&self->data[i], FALSE);
   TilMemCpy(&self->data[i], value, sizeof(Vec__I64));
   TilMemSet(value, 0, sizeof(Vec__I64));
 }
 
-Vec__I64 *Vec__call_Vec_I64_Get(Vec__call_Vec_I64 *self, U64 i, I64 *err_kind)
+Vec__I64 *Vec__Vec__I64_Get(Vec__Vec__I64 *self, U64 i, I64 *err_kind)
 {
   *err_kind = 0;
   if (i >= self->count) {
     *err_kind = 1;
     return NULL;
   }
-  return Vec__call_Vec_I64_UnsafeGet(self, i);
+  return Vec__Vec__I64_UnsafeGet(self, i);
 }
 
-U0 Vec__call_Vec_I64_Set(Vec__call_Vec_I64 *self, U64 i, Vec__I64 *value, I64 *err_kind)
+U0 Vec__Vec__I64_Set(Vec__Vec__I64 *self, U64 i, Vec__I64 *value, I64 *err_kind)
 {
   *err_kind = 0;
   if (i >= self->count) {
     *err_kind = 1;
     return;
   }
-  Vec__call_Vec_I64_UnsafeSet(self, i, value);
+  Vec__Vec__I64_UnsafeSet(self, i, value);
 }
 
-U0 Vec__call_Vec_I64_Push(Vec__call_Vec_I64 *self, Vec__I64 *value)
+U0 Vec__Vec__I64_Push(Vec__Vec__I64 *self, Vec__I64 *value)
 {
   if (self->count == self->cap) {
     if (self->cap > I64_MAX/2) TilPanicZ("Vec.push: capacity overflow
@@ -3676,7 +3676,7 @@ U0 Vec__call_Vec_I64_Push(Vec__call_Vec_I64 *self, Vec__I64 *value)
   self->count++;
 }
 
-U0 Vec__call_Vec_I64_Pop(Vec__I64 *out, Vec__call_Vec_I64 *self)
+U0 Vec__Vec__I64_Pop(Vec__I64 *out, Vec__Vec__I64 *self)
 {
   if (!self->count) TilPanicZ("Vec.pop: empty vec
 ");
@@ -3685,7 +3685,7 @@ U0 Vec__call_Vec_I64_Pop(Vec__I64 *out, Vec__call_Vec_I64 *self)
   TilMemSet(&self->data[self->count], 0, sizeof(Vec__I64));
 }
 
-U0 Vec__call_Vec_I64_Clear(Vec__call_Vec_I64 *self)
+U0 Vec__Vec__I64_Clear(Vec__Vec__I64 *self)
 {
   U64 i = 0;
   while (i < self->count) {
@@ -3695,9 +3695,9 @@ U0 Vec__call_Vec_I64_Clear(Vec__call_Vec_I64 *self)
   self->count = 0;
 }
 
-U0 Vec__call_Vec_I64_Delete(Vec__call_Vec_I64 *self, Bool call_free)
+U0 Vec__Vec__I64_Delete(Vec__Vec__I64 *self, Bool call_free)
 {
-  Vec__call_Vec_I64_Clear(self);
+  Vec__Vec__I64_Clear(self);
   TilFree(self->data);
   self->data = NULL;
   self->cap = 0;
@@ -3705,18 +3705,18 @@ U0 Vec__call_Vec_I64_Delete(Vec__call_Vec_I64 *self, Bool call_free)
   if (call_free) TilFree(self);
 }
 
-U0 Vec__call_Vec_I64_Take(Vec__call_Vec_I64 *out, Vec__call_Vec_I64 *self)
+U0 Vec__Vec__I64_Take(Vec__Vec__I64 *out, Vec__Vec__I64 *self)
 {
-  Vec__call_Vec_I64_CopyValue(out, self);
+  Vec__Vec__I64_CopyValue(out, self);
   self->data = NULL;
   self->count = 0;
   self->cap = 0;
 }
 
-U0 Vec__call_Vec_I64_Append(Vec__call_Vec_I64 *self, Vec__call_Vec_I64 *other)
+U0 Vec__Vec__I64_Append(Vec__Vec__I64 *self, Vec__Vec__I64 *other)
 {
   if (!other->count) {
-    Vec__call_Vec_I64_Delete(other, FALSE);
+    Vec__Vec__I64_Delete(other, FALSE);
     return;
   }
   if (other->count > I64_MAX - self->count) TilPanicZ("Vec.append: size overflow
@@ -3738,16 +3738,16 @@ U0 Vec__call_Vec_I64_Append(Vec__call_Vec_I64 *self, Vec__call_Vec_I64 *other)
   TilMemCpy(&self->data[self->count], other->data, other->count * sizeof(Vec__I64));
   self->count = needed;
   other->count = 0;
-  Vec__call_Vec_I64_Delete(other, FALSE);
+  Vec__Vec__I64_Delete(other, FALSE);
 }
 
-U0 Vec__call_Vec_I64_MoveTo(Vec__call_Vec_I64 *src, Vec__call_Vec_I64 *dest)
+U0 Vec__Vec__I64_MoveTo(Vec__Vec__I64 *src, Vec__Vec__I64 *dest)
 {
-  Vec__call_Vec_I64_Delete(dest, FALSE);
-  Vec__call_Vec_I64_Take(dest, src);
+  Vec__Vec__I64_Delete(dest, FALSE);
+  Vec__Vec__I64_Take(dest, src);
 }
 
-U0 Vec__call_Vec_I64_Truncate(Vec__call_Vec_I64 *self, U64 n)
+U0 Vec__Vec__I64_Truncate(Vec__Vec__I64 *self, U64 n)
 {
   if (n > self->count) TilPanicZ("Vec.truncate: out of bounds
 ");
@@ -3759,7 +3759,7 @@ U0 Vec__call_Vec_I64_Truncate(Vec__call_Vec_I64 *self, U64 n)
   self->count = n;
 }
 
-U0 Vec__call_Vec_I64_RemoveAt(Vec__call_Vec_I64 *self, U64 i, I64 *err_kind)
+U0 Vec__Vec__I64_RemoveAt(Vec__Vec__I64 *self, U64 i, I64 *err_kind)
 {
   *err_kind = 0;
   if (i >= self->count) { *err_kind = 1; return; }
@@ -3770,7 +3770,7 @@ U0 Vec__call_Vec_I64_RemoveAt(Vec__call_Vec_I64 *self, U64 i, I64 *err_kind)
   TilMemSet(&self->data[last], 0, sizeof(Vec__I64));
 }
 
-U0 Vec__call_Vec_I64_PushTake(Vec__call_Vec_I64 *self, Vec__call_Vec_I64 *src, U64 i)
+U0 Vec__Vec__I64_PushTake(Vec__Vec__I64 *self, Vec__Vec__I64 *src, U64 i)
 {
   if (i >= src->count) TilPanicZ("Vec.push_take: out of bounds
 ");
@@ -3789,7 +3789,7 @@ U0 Vec__call_Vec_I64_PushTake(Vec__call_Vec_I64 *self, Vec__call_Vec_I64 *src, U
   self->count++;
 }
 
-U0 Vec__call_Vec_I64_TakePrefix(Vec__call_Vec_I64 *out, Vec__call_Vec_I64 *self, U64 n)
+U0 Vec__Vec__I64_TakePrefix(Vec__Vec__I64 *out, Vec__Vec__I64 *self, U64 n)
 {
   if (n > self->count) TilPanicZ("Vec.take_prefix: out of bounds
 ");
@@ -3807,7 +3807,7 @@ U0 Vec__call_Vec_I64_TakePrefix(Vec__call_Vec_I64 *out, Vec__call_Vec_I64 *self,
   self->count = tail;
 }
 
-U0 Vec__call_Vec_I64_DeleteMarked(Vec__call_Vec_I64 *self, U8 *marks)
+U0 Vec__Vec__I64_DeleteMarked(Vec__Vec__I64 *self, U8 *marks)
 {
   U64 i = 0;
   while (i < self->count) {
@@ -4150,44 +4150,44 @@ Bool Map__I64_StructNamedPoint_Remove(Map__I64_StructNamedPoint *self, I64 value
   return TRUE;
 }
 
-U0 Map__I64_call_Vec_I64_CopyValue(Map__I64_call_Vec_I64 *out, Map__I64_call_Vec_I64 *src)
+U0 Map__I64_Vec__I64_CopyValue(Map__I64_Vec__I64 *out, Map__I64_Vec__I64 *src)
 {
   Vec__I64_CopyValue(&out->keys, &src->keys);
-  Vec__call_Vec_I64_CopyValue(&out->values, &src->values);
+  Vec__Vec__I64_CopyValue(&out->values, &src->values);
 }
 
-U0 Map__I64_call_Vec_I64_New(Map__I64_call_Vec_I64 *out)
+U0 Map__I64_Vec__I64_New(Map__I64_Vec__I64 *out)
 {
   Vec__I64_New(&out->keys);
-  Vec__call_Vec_I64_New(&out->values);
+  Vec__Vec__I64_New(&out->values);
 }
 
-U0 Map__I64_call_Vec_I64_WithCapacity(Map__I64_call_Vec_I64 *out, U64 n)
+U0 Map__I64_Vec__I64_WithCapacity(Map__I64_Vec__I64 *out, U64 n)
 {
   Vec__I64_WithCapacity(&out->keys, n);
-  Vec__call_Vec_I64_WithCapacity(&out->values, n);
+  Vec__Vec__I64_WithCapacity(&out->values, n);
 }
 
-U0 Map__I64_call_Vec_I64_Clone(Map__I64_call_Vec_I64 *out, Map__I64_call_Vec_I64 *src)
+U0 Map__I64_Vec__I64_Clone(Map__I64_Vec__I64 *out, Map__I64_Vec__I64 *src)
 {
   Vec__I64_Clone(&out->keys, &src->keys);
-  Vec__call_Vec_I64_Clone(&out->values, &src->values);
+  Vec__Vec__I64_Clone(&out->values, &src->values);
 }
 
-U0 Map__I64_call_Vec_I64_Clear(Map__I64_call_Vec_I64 *self)
+U0 Map__I64_Vec__I64_Clear(Map__I64_Vec__I64 *self)
 {
   Vec__I64_Clear(&self->keys);
-  Vec__call_Vec_I64_Clear(&self->values);
+  Vec__Vec__I64_Clear(&self->values);
 }
 
-U0 Map__I64_call_Vec_I64_Delete(Map__I64_call_Vec_I64 *self, Bool call_free)
+U0 Map__I64_Vec__I64_Delete(Map__I64_Vec__I64 *self, Bool call_free)
 {
   Vec__I64_Delete(&self->keys, FALSE);
-  Vec__call_Vec_I64_Delete(&self->values, FALSE);
+  Vec__Vec__I64_Delete(&self->values, FALSE);
   if (call_free) TilFree(self);
 }
 
-Bool Map__I64_call_Vec_I64_Find(Map__I64_call_Vec_I64 *self, I64 value, U64 *index)
+Bool Map__I64_Vec__I64_Find(Map__I64_Vec__I64 *self, I64 value, U64 *index)
 {
   U64 lo = 0;
   U64 hi = self->keys.count;
@@ -4202,25 +4202,25 @@ Bool Map__I64_call_Vec_I64_Find(Map__I64_call_Vec_I64 *self, I64 value, U64 *ind
   return FALSE;
 }
 
-Bool Map__I64_call_Vec_I64_Has(Map__I64_call_Vec_I64 *self, I64 value)
+Bool Map__I64_Vec__I64_Has(Map__I64_Vec__I64 *self, I64 value)
 {
   U64 i;
-  return Map__I64_call_Vec_I64_Find(self, value, &i);
+  return Map__I64_Vec__I64_Find(self, value, &i);
 }
 
-Vec__I64 *Map__I64_call_Vec_I64_Get(Map__I64_call_Vec_I64 *self, I64 value, I64 *err_kind)
+Vec__I64 *Map__I64_Vec__I64_Get(Map__I64_Vec__I64 *self, I64 value, I64 *err_kind)
 {
   U64 i;
   *err_kind = 0;
-  if (Map__I64_call_Vec_I64_Find(self, value, &i)) return &self->values.data[i];
+  if (Map__I64_Vec__I64_Find(self, value, &i)) return &self->values.data[i];
   *err_kind = 4;
   return NULL;
 }
 
-U0 Map__I64_call_Vec_I64_Set(Map__I64_call_Vec_I64 *self, I64 value, Vec__I64 *val)
+U0 Map__I64_Vec__I64_Set(Map__I64_Vec__I64 *self, I64 value, Vec__I64 *val)
 {
   U64 i;
-  if (Map__I64_call_Vec_I64_Find(self, value, &i)) {
+  if (Map__I64_Vec__I64_Find(self, value, &i)) {
     Vec__I64_Delete(&self->values.data[i], FALSE);
     TilMemCpy(&self->values.data[i], val, sizeof(Vec__I64));
     TilMemSet(val, 0, sizeof(Vec__I64));
@@ -4248,13 +4248,13 @@ U0 Map__I64_call_Vec_I64_Set(Map__I64_call_Vec_I64 *self, I64 value, Vec__I64 *v
   self->values.count++;
 }
 
-Bool Map__I64_call_Vec_I64_Remove(Map__I64_call_Vec_I64 *self, I64 value)
+Bool Map__I64_Vec__I64_Remove(Map__I64_Vec__I64 *self, I64 value)
 {
   U64 i;
-  if (!Map__I64_call_Vec_I64_Find(self, value, &i)) return FALSE;
+  if (!Map__I64_Vec__I64_Find(self, value, &i)) return FALSE;
   I64 err_kind = 0;
   Vec__I64_RemoveAt(&self->keys, i, &err_kind);
-  Vec__call_Vec_I64_RemoveAt(&self->values, i, &err_kind);
+  Vec__Vec__I64_RemoveAt(&self->values, i, &err_kind);
   return TRUE;
 }
 
@@ -5521,7 +5521,7 @@ U64 TilDynSize(TilStr *name)
   if (TilStrNameEq(name,"Map__CustomOrderedKey_I64")) return sizeof(Map__CustomOrderedKey_I64);
   if (TilStrNameEq(name,"Map__I64_Str")) return sizeof(Map__I64_Str);
   if (TilStrNameEq(name,"Map__I64_StructNamedPoint")) return sizeof(Map__I64_StructNamedPoint);
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64")) return sizeof(Map__I64_call_Vec_I64);
+  if (TilStrNameEq(name,"Map__I64_Vec__I64")) return sizeof(Map__I64_Vec__I64);
   if (TilStrNameEq(name,"Map__OrderedKey_Str")) return sizeof(Map__OrderedKey_Str);
   if (TilStrNameEq(name,"Map__OrderedTag_I64")) return sizeof(Map__OrderedTag_I64);
   if (TilStrNameEq(name,"Map__ReverseTag_I64")) return sizeof(Map__ReverseTag_I64);
@@ -5571,7 +5571,7 @@ U64 TilDynSize(TilStr *name)
   if (TilStrNameEq(name,"Vec__ReverseTag")) return sizeof(Vec__ReverseTag);
   if (TilStrNameEq(name,"Vec__Str")) return sizeof(Vec__Str);
   if (TilStrNameEq(name,"Vec__StructNamedPoint")) return sizeof(Vec__StructNamedPoint);
-  if (TilStrNameEq(name,"Vec__call_Vec_I64")) return sizeof(Vec__call_Vec_I64);
+  if (TilStrNameEq(name,"Vec__Vec__I64")) return sizeof(Vec__Vec__I64);
   if (TilStrNameEq(name,"WideSignal")) return sizeof(U64);
   TilReflectMissing("dyn_size_of",name);
   return 0;
@@ -5714,19 +5714,18 @@ Bool TilDynHasMethod(TilStr *name,TilStr *method)
   if (TilStrNameEq(name,"Map__I64_StructNamedPoint") && TilStrNameEq(method,"delete")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_StructNamedPoint") && TilStrNameEq(method,"clone")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_StructNamedPoint") && TilStrNameEq(method,"size")) return TRUE;
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"new")) return TRUE;
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"get")) return TRUE;
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"key_size")) return TRUE;
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"value_size")) return TRUE;
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"key_slot")) return TRUE;
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"value_slot")) return TRUE;
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"store_key")) return TRUE;
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"open_slot")) return TRUE;
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"set")) return TRUE;
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"remove")) return TRUE;
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"delete")) return TRUE;
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"clone")) return TRUE;
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"size")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"get")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"key_size")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"value_size")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"key_slot")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"value_slot")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"store_key")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"open_slot")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"set")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"remove")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"delete")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"clone")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"size")) return TRUE;
   if (TilStrNameEq(name,"Map__OrderedKey_Str") && TilStrNameEq(method,"has")) return TRUE;
   if (TilStrNameEq(name,"Map__OrderedKey_Str") && TilStrNameEq(method,"get")) return TRUE;
   if (TilStrNameEq(name,"Map__OrderedKey_Str") && TilStrNameEq(method,"key_size")) return TRUE;
@@ -6106,15 +6105,14 @@ Bool TilDynHasMethod(TilStr *name,TilStr *method)
   if (TilStrNameEq(name,"Vec__StructNamedPoint") && TilStrNameEq(method,"delete")) return TRUE;
   if (TilStrNameEq(name,"Vec__StructNamedPoint") && TilStrNameEq(method,"clone")) return TRUE;
   if (TilStrNameEq(name,"Vec__StructNamedPoint") && TilStrNameEq(method,"size")) return TRUE;
-  if (TilStrNameEq(name,"Vec__call_Vec_I64") && TilStrNameEq(method,"new")) return TRUE;
-  if (TilStrNameEq(name,"Vec__call_Vec_I64") && TilStrNameEq(method,"clear")) return TRUE;
-  if (TilStrNameEq(name,"Vec__call_Vec_I64") && TilStrNameEq(method,"push")) return TRUE;
-  if (TilStrNameEq(name,"Vec__call_Vec_I64") && TilStrNameEq(method,"unsafe_get")) return TRUE;
-  if (TilStrNameEq(name,"Vec__call_Vec_I64") && TilStrNameEq(method,"remove_at")) return TRUE;
-  if (TilStrNameEq(name,"Vec__call_Vec_I64") && TilStrNameEq(method,"unsafe_set")) return TRUE;
-  if (TilStrNameEq(name,"Vec__call_Vec_I64") && TilStrNameEq(method,"delete")) return TRUE;
-  if (TilStrNameEq(name,"Vec__call_Vec_I64") && TilStrNameEq(method,"clone")) return TRUE;
-  if (TilStrNameEq(name,"Vec__call_Vec_I64") && TilStrNameEq(method,"size")) return TRUE;
+  if (TilStrNameEq(name,"Vec__Vec__I64") && TilStrNameEq(method,"clear")) return TRUE;
+  if (TilStrNameEq(name,"Vec__Vec__I64") && TilStrNameEq(method,"push")) return TRUE;
+  if (TilStrNameEq(name,"Vec__Vec__I64") && TilStrNameEq(method,"unsafe_get")) return TRUE;
+  if (TilStrNameEq(name,"Vec__Vec__I64") && TilStrNameEq(method,"remove_at")) return TRUE;
+  if (TilStrNameEq(name,"Vec__Vec__I64") && TilStrNameEq(method,"unsafe_set")) return TRUE;
+  if (TilStrNameEq(name,"Vec__Vec__I64") && TilStrNameEq(method,"delete")) return TRUE;
+  if (TilStrNameEq(name,"Vec__Vec__I64") && TilStrNameEq(method,"clone")) return TRUE;
+  if (TilStrNameEq(name,"Vec__Vec__I64") && TilStrNameEq(method,"size")) return TRUE;
   if (TilStrNameEq(name,"WideSignal") && TilStrNameEq(method,"is")) return TRUE;
   if (TilStrNameEq(name,"WideSignal") && TilStrNameEq(method,"eq")) return TRUE;
   if (TilStrNameEq(name,"WideSignal") && TilStrNameEq(method,"delete")) return TRUE;
@@ -6704,7 +6702,7 @@ I64 TilReflect_struct_field_count(TilStr *name)
   if (TilStrNameEq(name,"Map__I64_StructNamedPoint")) {
     return 2;
   }
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64")) {
+  if (TilStrNameEq(name,"Map__I64_Vec__I64")) {
     return 2;
   }
   if (TilStrNameEq(name,"Map__OrderedKey_Str")) {
@@ -6818,7 +6816,7 @@ I64 TilReflect_struct_field_count(TilStr *name)
   if (TilStrNameEq(name,"Vec__StructNamedPoint")) {
     return 3;
   }
-  if (TilStrNameEq(name,"Vec__call_Vec_I64")) {
+  if (TilStrNameEq(name,"Vec__Vec__I64")) {
     return 3;
   }
   TilReflectMissing("struct_field_count",name);
@@ -6918,7 +6916,7 @@ U0 TilReflect_struct_field_name(TilStr *out,TilStr *name,I64 index)
     if (index==1) { TilStrInitLit(out,"values",6); return; }
     TilReflectIndex("struct_field_name",name,index);
   }
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64")) {
+  if (TilStrNameEq(name,"Map__I64_Vec__I64")) {
     if (index==0) { TilStrInitLit(out,"keys",4); return; }
     if (index==1) { TilStrInitLit(out,"values",6); return; }
     TilReflectIndex("struct_field_name",name,index);
@@ -7111,7 +7109,7 @@ U0 TilReflect_struct_field_name(TilStr *out,TilStr *name,I64 index)
     if (index==2) { TilStrInitLit(out,"cap",3); return; }
     TilReflectIndex("struct_field_name",name,index);
   }
-  if (TilStrNameEq(name,"Vec__call_Vec_I64")) {
+  if (TilStrNameEq(name,"Vec__Vec__I64")) {
     if (index==0) { TilStrInitLit(out,"data",4); return; }
     if (index==1) { TilStrInitLit(out,"count",5); return; }
     if (index==2) { TilStrInitLit(out,"cap",3); return; }
@@ -7213,9 +7211,9 @@ U0 TilReflect_struct_field_type(TilStr *out,TilStr *name,I64 index)
     if (index==1) { TilStrInitLit(out,"Vec__StructNamedPoint",21); return; }
     TilReflectIndex("struct_field_type",name,index);
   }
-  if (TilStrNameEq(name,"Map__I64_call_Vec_I64")) {
+  if (TilStrNameEq(name,"Map__I64_Vec__I64")) {
     if (index==0) { TilStrInitLit(out,"Vec__I64",8); return; }
-    if (index==1) { TilStrInitLit(out,"Vec__call_Vec_I64",17); return; }
+    if (index==1) { TilStrInitLit(out,"Vec__Vec__I64",13); return; }
     TilReflectIndex("struct_field_type",name,index);
   }
   if (TilStrNameEq(name,"Map__OrderedKey_Str")) {
@@ -7406,7 +7404,7 @@ U0 TilReflect_struct_field_type(TilStr *out,TilStr *name,I64 index)
     if (index==2) { TilStrInitLit(out,"USize",5); return; }
     TilReflectIndex("struct_field_type",name,index);
   }
-  if (TilStrNameEq(name,"Vec__call_Vec_I64")) {
+  if (TilStrNameEq(name,"Vec__Vec__I64")) {
     if (index==0) { TilStrInitLit(out,"U8",2); return; }
     if (index==1) { TilStrInitLit(out,"USize",5); return; }
     if (index==2) { TilStrInitLit(out,"USize",5); return; }
@@ -7599,13 +7597,13 @@ U8 * TilDyn_Map__I64_StructNamedPoint_clone(U8 *environment, U8 *arg0)
 }
 TilClosure TilDynValue_Map__I64_StructNamedPoint_clone;
 
-U8 * TilDyn_Map__I64_call_Vec_I64_clone(U8 *environment, U8 *arg0)
+U8 * TilDyn_Map__I64_Vec__I64_clone(U8 *environment, U8 *arg0)
 {
-  Map__I64_call_Vec_I64 *result=TilMAlloc(sizeof(Map__I64_call_Vec_I64))(Map__I64_call_Vec_I64 *);
-  Map__I64_call_Vec_I64_Clone(result,arg0);
+  Map__I64_Vec__I64 *result=TilMAlloc(sizeof(Map__I64_Vec__I64))(Map__I64_Vec__I64 *);
+  Map__I64_Vec__I64_Clone(result,arg0);
   return result;
 }
-TilClosure TilDynValue_Map__I64_call_Vec_I64_clone;
+TilClosure TilDynValue_Map__I64_Vec__I64_clone;
 
 U8 * TilDyn_Map__OrderedKey_Str_clone(U8 *environment, U8 *arg0)
 {
@@ -7999,13 +7997,13 @@ U8 * TilDyn_Vec__StructNamedPoint_clone(U8 *environment, U8 *arg0)
 }
 TilClosure TilDynValue_Vec__StructNamedPoint_clone;
 
-U8 * TilDyn_Vec__call_Vec_I64_clone(U8 *environment, U8 *arg0)
+U8 * TilDyn_Vec__Vec__I64_clone(U8 *environment, U8 *arg0)
 {
-  Vec__call_Vec_I64 *result=TilMAlloc(sizeof(Vec__call_Vec_I64))(Vec__call_Vec_I64 *);
-  Vec__call_Vec_I64_Clone(result,arg0);
+  Vec__Vec__I64 *result=TilMAlloc(sizeof(Vec__Vec__I64))(Vec__Vec__I64 *);
+  Vec__Vec__I64_Clone(result,arg0);
   return result;
 }
-TilClosure TilDynValue_Vec__call_Vec_I64_clone;
+TilClosure TilDynValue_Vec__Vec__I64_clone;
 
 U8 * TilDyn_WideSignal_clone(U8 *environment, U8 *arg0)
 {
@@ -8153,11 +8151,11 @@ U0 TilDyn_Map__I64_StructNamedPoint_delete(U8 *environment, U8 *arg0, Bool arg1)
 }
 TilClosure TilDynValue_Map__I64_StructNamedPoint_delete;
 
-U0 TilDyn_Map__I64_call_Vec_I64_delete(U8 *environment, U8 *arg0, Bool arg1)
+U0 TilDyn_Map__I64_Vec__I64_delete(U8 *environment, U8 *arg0, Bool arg1)
 {
-  Map__I64_call_Vec_I64_Delete(arg0,arg1);
+  Map__I64_Vec__I64_Delete(arg0,arg1);
 }
-TilClosure TilDynValue_Map__I64_call_Vec_I64_delete;
+TilClosure TilDynValue_Map__I64_Vec__I64_delete;
 
 U0 TilDyn_Map__OrderedKey_Str_delete(U8 *environment, U8 *arg0, Bool arg1)
 {
@@ -8453,11 +8451,11 @@ U0 TilDyn_Vec__StructNamedPoint_delete(U8 *environment, U8 *arg0, Bool arg1)
 }
 TilClosure TilDynValue_Vec__StructNamedPoint_delete;
 
-U0 TilDyn_Vec__call_Vec_I64_delete(U8 *environment, U8 *arg0, Bool arg1)
+U0 TilDyn_Vec__Vec__I64_delete(U8 *environment, U8 *arg0, Bool arg1)
 {
-  Vec__call_Vec_I64_Delete(arg0,arg1);
+  Vec__Vec__I64_Delete(arg0,arg1);
 }
-TilClosure TilDynValue_Vec__call_Vec_I64_delete;
+TilClosure TilDynValue_Vec__Vec__I64_delete;
 
 U0 TilDyn_WideSignal_delete(U8 *environment, U8 *arg0, Bool arg1)
 {
@@ -8502,7 +8500,7 @@ U8 *TilDynFn(TilStr *type_name,TilStr *method)
   if (TilStrNameEq(type_name,"Map__CustomOrderedKey_I64") && TilStrNameEq(method,"clone")) return &TilDynValue_Map__CustomOrderedKey_I64_clone;
   if (TilStrNameEq(type_name,"Map__I64_Str") && TilStrNameEq(method,"clone")) return &TilDynValue_Map__I64_Str_clone;
   if (TilStrNameEq(type_name,"Map__I64_StructNamedPoint") && TilStrNameEq(method,"clone")) return &TilDynValue_Map__I64_StructNamedPoint_clone;
-  if (TilStrNameEq(type_name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"clone")) return &TilDynValue_Map__I64_call_Vec_I64_clone;
+  if (TilStrNameEq(type_name,"Map__I64_Vec__I64") && TilStrNameEq(method,"clone")) return &TilDynValue_Map__I64_Vec__I64_clone;
   if (TilStrNameEq(type_name,"Map__OrderedKey_Str") && TilStrNameEq(method,"clone")) return &TilDynValue_Map__OrderedKey_Str_clone;
   if (TilStrNameEq(type_name,"Map__OrderedTag_I64") && TilStrNameEq(method,"clone")) return &TilDynValue_Map__OrderedTag_I64_clone;
   if (TilStrNameEq(type_name,"Map__ReverseTag_I64") && TilStrNameEq(method,"clone")) return &TilDynValue_Map__ReverseTag_I64_clone;
@@ -8552,7 +8550,7 @@ U8 *TilDynFn(TilStr *type_name,TilStr *method)
   if (TilStrNameEq(type_name,"Vec__ReverseTag") && TilStrNameEq(method,"clone")) return &TilDynValue_Vec__ReverseTag_clone;
   if (TilStrNameEq(type_name,"Vec__Str") && TilStrNameEq(method,"clone")) return &TilDynValue_Vec__Str_clone;
   if (TilStrNameEq(type_name,"Vec__StructNamedPoint") && TilStrNameEq(method,"clone")) return &TilDynValue_Vec__StructNamedPoint_clone;
-  if (TilStrNameEq(type_name,"Vec__call_Vec_I64") && TilStrNameEq(method,"clone")) return &TilDynValue_Vec__call_Vec_I64_clone;
+  if (TilStrNameEq(type_name,"Vec__Vec__I64") && TilStrNameEq(method,"clone")) return &TilDynValue_Vec__Vec__I64_clone;
   if (TilStrNameEq(type_name,"WideSignal") && TilStrNameEq(method,"clone")) return &TilDynValue_WideSignal_clone;
   if (TilStrNameEq(type_name,"Array__I64") && TilStrNameEq(method,"delete")) return &TilDynValue_Array__I64_delete;
   if (TilStrNameEq(type_name,"Array__StructNamedPoint") && TilStrNameEq(method,"delete")) return &TilDynValue_Array__StructNamedPoint_delete;
@@ -8577,7 +8575,7 @@ U8 *TilDynFn(TilStr *type_name,TilStr *method)
   if (TilStrNameEq(type_name,"Map__CustomOrderedKey_I64") && TilStrNameEq(method,"delete")) return &TilDynValue_Map__CustomOrderedKey_I64_delete;
   if (TilStrNameEq(type_name,"Map__I64_Str") && TilStrNameEq(method,"delete")) return &TilDynValue_Map__I64_Str_delete;
   if (TilStrNameEq(type_name,"Map__I64_StructNamedPoint") && TilStrNameEq(method,"delete")) return &TilDynValue_Map__I64_StructNamedPoint_delete;
-  if (TilStrNameEq(type_name,"Map__I64_call_Vec_I64") && TilStrNameEq(method,"delete")) return &TilDynValue_Map__I64_call_Vec_I64_delete;
+  if (TilStrNameEq(type_name,"Map__I64_Vec__I64") && TilStrNameEq(method,"delete")) return &TilDynValue_Map__I64_Vec__I64_delete;
   if (TilStrNameEq(type_name,"Map__OrderedKey_Str") && TilStrNameEq(method,"delete")) return &TilDynValue_Map__OrderedKey_Str_delete;
   if (TilStrNameEq(type_name,"Map__OrderedTag_I64") && TilStrNameEq(method,"delete")) return &TilDynValue_Map__OrderedTag_I64_delete;
   if (TilStrNameEq(type_name,"Map__ReverseTag_I64") && TilStrNameEq(method,"delete")) return &TilDynValue_Map__ReverseTag_I64_delete;
@@ -8627,7 +8625,7 @@ U8 *TilDynFn(TilStr *type_name,TilStr *method)
   if (TilStrNameEq(type_name,"Vec__ReverseTag") && TilStrNameEq(method,"delete")) return &TilDynValue_Vec__ReverseTag_delete;
   if (TilStrNameEq(type_name,"Vec__Str") && TilStrNameEq(method,"delete")) return &TilDynValue_Vec__Str_delete;
   if (TilStrNameEq(type_name,"Vec__StructNamedPoint") && TilStrNameEq(method,"delete")) return &TilDynValue_Vec__StructNamedPoint_delete;
-  if (TilStrNameEq(type_name,"Vec__call_Vec_I64") && TilStrNameEq(method,"delete")) return &TilDynValue_Vec__call_Vec_I64_delete;
+  if (TilStrNameEq(type_name,"Vec__Vec__I64") && TilStrNameEq(method,"delete")) return &TilDynValue_Vec__Vec__I64_delete;
   if (TilStrNameEq(type_name,"WideSignal") && TilStrNameEq(method,"delete")) return &TilDynValue_WideSignal_delete;
   if (TilStrNameEq(type_name,"CallableRuntime") && TilStrNameEq(method,"read")) return &TilDynValue_CallableRuntime_read;
   if (TilStrNameEq(type_name,"CallableRuntime") && TilStrNameEq(method,"twice")) return &TilDynValue_CallableRuntime_twice;
@@ -10248,10 +10246,10 @@ TilDynValue_Map__I64_StructNamedPoint_clone.call=&TilDyn_Map__I64_StructNamedPoi
 TilDynValue_Map__I64_StructNamedPoint_clone.env=NULL;
 TilDynValue_Map__I64_StructNamedPoint_clone.drop=NULL;
 TilDynValue_Map__I64_StructNamedPoint_clone.clone=NULL;
-TilDynValue_Map__I64_call_Vec_I64_clone.call=&TilDyn_Map__I64_call_Vec_I64_clone;
-TilDynValue_Map__I64_call_Vec_I64_clone.env=NULL;
-TilDynValue_Map__I64_call_Vec_I64_clone.drop=NULL;
-TilDynValue_Map__I64_call_Vec_I64_clone.clone=NULL;
+TilDynValue_Map__I64_Vec__I64_clone.call=&TilDyn_Map__I64_Vec__I64_clone;
+TilDynValue_Map__I64_Vec__I64_clone.env=NULL;
+TilDynValue_Map__I64_Vec__I64_clone.drop=NULL;
+TilDynValue_Map__I64_Vec__I64_clone.clone=NULL;
 TilDynValue_Map__OrderedKey_Str_clone.call=&TilDyn_Map__OrderedKey_Str_clone;
 TilDynValue_Map__OrderedKey_Str_clone.env=NULL;
 TilDynValue_Map__OrderedKey_Str_clone.drop=NULL;
@@ -10448,10 +10446,10 @@ TilDynValue_Vec__StructNamedPoint_clone.call=&TilDyn_Vec__StructNamedPoint_clone
 TilDynValue_Vec__StructNamedPoint_clone.env=NULL;
 TilDynValue_Vec__StructNamedPoint_clone.drop=NULL;
 TilDynValue_Vec__StructNamedPoint_clone.clone=NULL;
-TilDynValue_Vec__call_Vec_I64_clone.call=&TilDyn_Vec__call_Vec_I64_clone;
-TilDynValue_Vec__call_Vec_I64_clone.env=NULL;
-TilDynValue_Vec__call_Vec_I64_clone.drop=NULL;
-TilDynValue_Vec__call_Vec_I64_clone.clone=NULL;
+TilDynValue_Vec__Vec__I64_clone.call=&TilDyn_Vec__Vec__I64_clone;
+TilDynValue_Vec__Vec__I64_clone.env=NULL;
+TilDynValue_Vec__Vec__I64_clone.drop=NULL;
+TilDynValue_Vec__Vec__I64_clone.clone=NULL;
 TilDynValue_WideSignal_clone.call=&TilDyn_WideSignal_clone;
 TilDynValue_WideSignal_clone.env=NULL;
 TilDynValue_WideSignal_clone.drop=NULL;
@@ -10548,10 +10546,10 @@ TilDynValue_Map__I64_StructNamedPoint_delete.call=&TilDyn_Map__I64_StructNamedPo
 TilDynValue_Map__I64_StructNamedPoint_delete.env=NULL;
 TilDynValue_Map__I64_StructNamedPoint_delete.drop=NULL;
 TilDynValue_Map__I64_StructNamedPoint_delete.clone=NULL;
-TilDynValue_Map__I64_call_Vec_I64_delete.call=&TilDyn_Map__I64_call_Vec_I64_delete;
-TilDynValue_Map__I64_call_Vec_I64_delete.env=NULL;
-TilDynValue_Map__I64_call_Vec_I64_delete.drop=NULL;
-TilDynValue_Map__I64_call_Vec_I64_delete.clone=NULL;
+TilDynValue_Map__I64_Vec__I64_delete.call=&TilDyn_Map__I64_Vec__I64_delete;
+TilDynValue_Map__I64_Vec__I64_delete.env=NULL;
+TilDynValue_Map__I64_Vec__I64_delete.drop=NULL;
+TilDynValue_Map__I64_Vec__I64_delete.clone=NULL;
 TilDynValue_Map__OrderedKey_Str_delete.call=&TilDyn_Map__OrderedKey_Str_delete;
 TilDynValue_Map__OrderedKey_Str_delete.env=NULL;
 TilDynValue_Map__OrderedKey_Str_delete.drop=NULL;
@@ -10748,10 +10746,10 @@ TilDynValue_Vec__StructNamedPoint_delete.call=&TilDyn_Vec__StructNamedPoint_dele
 TilDynValue_Vec__StructNamedPoint_delete.env=NULL;
 TilDynValue_Vec__StructNamedPoint_delete.drop=NULL;
 TilDynValue_Vec__StructNamedPoint_delete.clone=NULL;
-TilDynValue_Vec__call_Vec_I64_delete.call=&TilDyn_Vec__call_Vec_I64_delete;
-TilDynValue_Vec__call_Vec_I64_delete.env=NULL;
-TilDynValue_Vec__call_Vec_I64_delete.drop=NULL;
-TilDynValue_Vec__call_Vec_I64_delete.clone=NULL;
+TilDynValue_Vec__Vec__I64_delete.call=&TilDyn_Vec__Vec__I64_delete;
+TilDynValue_Vec__Vec__I64_delete.env=NULL;
+TilDynValue_Vec__Vec__I64_delete.drop=NULL;
+TilDynValue_Vec__Vec__I64_delete.clone=NULL;
 TilDynValue_WideSignal_delete.call=&TilDyn_WideSignal_delete;
 TilDynValue_WideSignal_delete.env=NULL;
 TilDynValue_WideSignal_delete.drop=NULL;
@@ -12450,15 +12448,15 @@ I64 TilMain()
     Vec__I64_Delete(&prefix_numbers_1170, FALSE);
     Vec__I64_Delete(&moved_numbers_1187, FALSE);
     Vec__I64_Delete(&selected_numbers_1197, FALSE);
-    Vec__call_Vec_I64 nested_numbers_1230;
-    Vec__call_Vec_I64_New(&nested_numbers_1230);
+    Vec__Vec__I64 nested_numbers_1230;
+    Vec__Vec__I64_WithCapacity(&nested_numbers_1230, 0);
     Vec__I64 inner_numbers_1231;
     Vec__I64_WithCapacity(&inner_numbers_1231, 0);
     I64 hoisted__I64_g732_1232 = 52;
     Vec__I64_Push(&inner_numbers_1231, hoisted__I64_g732_1232);
-    Vec__call_Vec_I64_Push(&nested_numbers_1230, &inner_numbers_1231);
+    Vec__Vec__I64_Push(&nested_numbers_1230, &inner_numbers_1231);
     U64 hoisted__U64_g733_1233 = 0;
-    Vec__I64 *ref_value_1235 = Vec__call_Vec_I64_UnsafeGet(&nested_numbers_1230, hoisted__U64_g733_1233);
+    Vec__I64 *ref_value_1235 = Vec__Vec__I64_UnsafeGet(&nested_numbers_1230, hoisted__U64_g733_1233);
     U64 hoisted__U64_g734_1236 = 1;
     TilStrArray _va_Array_g126_1237;
     TilStrArrayNew(&_va_Array_g126_1237, hoisted__U64_g734_1236);
@@ -12470,7 +12468,7 @@ I64 TilMain()
     TilStrFromI64(&hoisted__Str_g738_1243, (*((TilCheckPtr(ref_value_1241))(I64 *))));
     TilStrArraySet(&_va_Array_g126_1237, hoisted__U64_g737_1242, &hoisted__Str_g738_1243);
     TilPrintln(&_va_Array_g126_1237);
-    Vec__call_Vec_I64_Delete(&nested_numbers_1230, FALSE);
+    Vec__Vec__I64_Delete(&nested_numbers_1230, FALSE);
     Map__Str_I64 fruit_values_1244;
     Map__Str_I64_WithCapacity(&fruit_values_1244, 0);
     TilStr hoisted__Str_g739_1245;
@@ -12962,18 +12960,18 @@ I64 TilMain()
     }
     Map__I64_StructNamedPoint_Delete(&named_values_1464, FALSE);
     Map__I64_StructNamedPoint_Delete(&named_values_copy_1469, FALSE);
-    Map__I64_call_Vec_I64 grouped_values_1502;
-    Map__I64_call_Vec_I64_New(&grouped_values_1502);
+    Map__I64_Vec__I64 grouped_values_1502;
+    Map__I64_Vec__I64_WithCapacity(&grouped_values_1502, 0);
     Vec__I64 grouped_numbers_1503;
     Vec__I64_WithCapacity(&grouped_numbers_1503, 0);
     I64 hoisted__I64_g863_1504 = 8;
     Vec__I64_Push(&grouped_numbers_1503, hoisted__I64_g863_1504);
     I64 hoisted__I64_g864_1505 = 2;
-    Map__I64_call_Vec_I64_Set(&grouped_values_1502, hoisted__I64_g864_1505, &grouped_numbers_1503);
-    Map__I64_call_Vec_I64 grouped_copy_1506;
-    Map__I64_call_Vec_I64_Clone(&grouped_copy_1506, &grouped_values_1502);
+    Map__I64_Vec__I64_Set(&grouped_values_1502, hoisted__I64_g864_1505, &grouped_numbers_1503);
+    Map__I64_Vec__I64 grouped_copy_1506;
+    Map__I64_Vec__I64_Clone(&grouped_copy_1506, &grouped_values_1502);
     I64 hoisted__I64_g865_1507 = 2;
-    Bool hoisted__Bool_g866_1508 = Map__I64_call_Vec_I64_Remove(&grouped_values_1502, hoisted__I64_g865_1507);
+    Bool hoisted__Bool_g866_1508 = Map__I64_Vec__I64_Remove(&grouped_values_1502, hoisted__I64_g865_1507);
     if (hoisted__Bool_g866_1508) {
         U64 hoisted__U64_g278_1509 = 1;
         TilStrArray _va_Array_g70_1510;
@@ -12986,7 +12984,7 @@ I64 TilMain()
         TilPrintln(&_va_Array_g70_1510);
     }
     I64 hoisted__I64_g867_1514 = 2;
-    Vec__I64 *ref_value_1516 = Map__I64_call_Vec_I64_Get(&grouped_copy_1506, hoisted__I64_g867_1514, &_err_kind_377);
+    Vec__I64 *ref_value_1516 = Map__I64_Vec__I64_Get(&grouped_copy_1506, hoisted__I64_g867_1514, &_err_kind_377);
     I64 hoisted__I64_g868_1517 = 4;
     Bool hoisted__Bool_g869_1518 = (_err_kind_377 == hoisted__I64_g868_1517);
     if (hoisted__Bool_g869_1518) {
@@ -13015,8 +13013,8 @@ I64 TilMain()
     TilStrFromI64(&hoisted__Str_g874_1533, (*((TilCheckPtr(ref_value_1531))(I64 *))));
     TilStrArraySet(&_va_Array_g135_1527, hoisted__U64_g873_1532, &hoisted__Str_g874_1533);
     TilPrintln(&_va_Array_g135_1527);
-    Map__I64_call_Vec_I64_Delete(&grouped_values_1502, FALSE);
-    Map__I64_call_Vec_I64_Delete(&grouped_copy_1506, FALSE);
+    Map__I64_Vec__I64_Delete(&grouped_values_1502, FALSE);
+    Map__I64_Vec__I64_Delete(&grouped_copy_1506, FALSE);
     Map__Str_I64 literal_values_1534;
     Map__Str_I64_WithCapacity(&literal_values_1534, 0);
     TilStr hoisted__Str_g875_1535;

@@ -260,7 +260,7 @@ typedef struct Vec__Token Vec__Token;
 typedef struct Vec__TokenType Vec__TokenType;
 typedef struct SymbolPool SymbolPool;
 typedef struct priv___src_self_parser_til__Parser priv___src_self_parser_til__Parser;
-typedef struct Vec__call_Vec_Str Vec__call_Vec_Str;
+typedef struct Vec__Vec__Str Vec__Vec__Str;
 typedef struct Vec__U32 Vec__U32;
 enum {
     Option__U32_TAG_None,
@@ -324,7 +324,7 @@ typedef struct Map__Str_Type Map__Str_Type;
 typedef struct Map__Str_StructLayout Map__Str_StructLayout;
 typedef struct Set__U32 Set__U32;
 typedef struct Map__Str_I64 Map__Str_I64;
-typedef struct Map__Str_call_Vec_Str Map__Str_call_Vec_Str;
+typedef struct Map__Str_Vec__Str Map__Str_Vec__Str;
 typedef struct HashMap__Str_Str HashMap__Str_Str;
 typedef struct HashMap__Str_USize HashMap__Str_USize;
 typedef struct Map__Str_Bool Map__Str_Bool;
@@ -467,14 +467,14 @@ typedef struct Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition Vec
 typedef struct Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
 typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState priv___src_self_codegen_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCLocalState priv___src_self_codegen_holyc_codegen_til__HolyCLocalState;
-typedef struct Map__Str_call_Map_Str_Bool Map__Str_call_Map_Str_Bool;
+typedef struct Map__Str_Map__Str_Bool Map__Str_Map__Str_Bool;
 typedef struct Map__Str_FuncSig Map__Str_FuncSig;
-typedef struct Map__Str_call_Set_Str Map__Str_call_Set_Str;
-typedef struct Map__Str_call_Set_USize Map__Str_call_Set_USize;
-typedef struct Vec__call_Map_Str_Bool Vec__call_Map_Str_Bool;
+typedef struct Map__Str_Set__Str Map__Str_Set__Str;
+typedef struct Map__Str_Set__USize Map__Str_Set__USize;
+typedef struct Vec__Map__Str_Bool Vec__Map__Str_Bool;
 typedef struct Vec__FuncSig Vec__FuncSig;
-typedef struct Vec__call_Set_Str Vec__call_Set_Str;
-typedef struct Vec__call_Set_USize Vec__call_Set_USize;
+typedef struct Vec__Set__Str Vec__Set__Str;
+typedef struct Vec__Set__USize Vec__Set__USize;
 typedef struct priv___src_self_codegen_theme_codegen_til__ThemeColorSpec priv___src_self_codegen_theme_codegen_til__ThemeColorSpec;
 typedef struct priv___src_self_codegen_theme_codegen_til__ThemeSpec priv___src_self_codegen_theme_codegen_til__ThemeSpec;
 typedef struct Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec;
@@ -864,11 +864,11 @@ typedef struct Vec__TokenType {
 } Vec__TokenType;
 
 
-typedef struct Vec__call_Vec_Str {
+typedef struct Vec__Vec__Str {
     TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
-} Vec__call_Vec_Str;
+} Vec__Vec__Str;
 
 
 typedef struct Vec__U32 {
@@ -1069,10 +1069,10 @@ typedef struct Map__Str_I64 {
 } Map__Str_I64;
 
 
-typedef struct Map__Str_call_Vec_Str {
+typedef struct Map__Str_Vec__Str {
     Vec__Str keys;
-    Vec__call_Vec_Str values;
-} Map__Str_call_Vec_Str;
+    Vec__Vec__Str values;
+} Map__Str_Vec__Str;
 
 
 typedef struct HashMap__Str_Str {
@@ -1764,11 +1764,11 @@ typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCLocalState {
 } priv___src_self_codegen_holyc_codegen_til__HolyCLocalState;
 
 
-typedef struct Vec__call_Map_Str_Bool {
+typedef struct Vec__Map__Str_Bool {
     TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
-} Vec__call_Map_Str_Bool;
+} Vec__Map__Str_Bool;
 
 
 typedef struct Vec__FuncSig {
@@ -1778,18 +1778,18 @@ typedef struct Vec__FuncSig {
 } Vec__FuncSig;
 
 
-typedef struct Vec__call_Set_Str {
+typedef struct Vec__Set__Str {
     TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
-} Vec__call_Set_Str;
+} Vec__Set__Str;
 
 
-typedef struct Vec__call_Set_USize {
+typedef struct Vec__Set__USize {
     TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
-} Vec__call_Set_USize;
+} Vec__Set__USize;
 
 
 typedef struct priv___src_self_codegen_theme_codegen_til__ThemeColorSpec {
@@ -2184,7 +2184,7 @@ typedef struct Map__Str_TokenType {
 
 typedef struct SymbolPool {
     Vec__Str names;
-    Vec__call_Vec_Str retired_names;
+    Vec__Vec__Str retired_names;
     Vec__U32 buckets;
     U32 next;
 } SymbolPool;
@@ -2401,7 +2401,7 @@ typedef struct priv___src_self_garbager_til__ReferenceNameChange {
 
 
 typedef struct priv___src_self_garbager_til__ReferenceLoans {
-    Map__Str_call_Vec_Str sources;
+    Map__Str_Vec__Str sources;
     Set__Str references;
     Vec__priv___src_self_garbager_til__ReferenceNameChange name_changes;
     USize next;
@@ -2472,10 +2472,10 @@ typedef struct Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal {
 } Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal;
 
 
-typedef struct Map__Str_call_Map_Str_Bool {
+typedef struct Map__Str_Map__Str_Bool {
     Vec__Str keys;
-    Vec__call_Map_Str_Bool values;
-} Map__Str_call_Map_Str_Bool;
+    Vec__Map__Str_Bool values;
+} Map__Str_Map__Str_Bool;
 
 
 typedef struct Map__Str_FuncSig {
@@ -2484,16 +2484,16 @@ typedef struct Map__Str_FuncSig {
 } Map__Str_FuncSig;
 
 
-typedef struct Map__Str_call_Set_Str {
+typedef struct Map__Str_Set__Str {
     Vec__Str keys;
-    Vec__call_Set_Str values;
-} Map__Str_call_Set_Str;
+    Vec__Set__Str values;
+} Map__Str_Set__Str;
 
 
-typedef struct Map__Str_call_Set_USize {
+typedef struct Map__Str_Set__USize {
     Vec__Str keys;
-    Vec__call_Set_USize values;
-} Map__Str_call_Set_USize;
+    Vec__Set__USize values;
+} Map__Str_Set__USize;
 
 
 typedef struct priv___src_self_codegen_theme_codegen_til__ThemeSpec {
@@ -2675,7 +2675,7 @@ typedef struct Context {
     Set__U32 script_globals;
     Set__U32 ref_globals;
     Vec__Str throw_type_registry;
-    Map__Str_call_Vec_Str throws_global;
+    Map__Str_Vec__Str throws_global;
     I64 bang_counter;
     I32 hoist_counter;
     I32 va_counter;
@@ -2685,7 +2685,7 @@ typedef struct Context {
     Map__Str_I64 synth_symbol_seq;
     I64 lazy_stmt_temp_counter;
     I32 errors;
-    Map__Str_call_Vec_Str priv_ref_edges;
+    Map__Str_Vec__Str priv_ref_edges;
     BuilderFuncScratch builder_func;
     HashMap__Str_Str builder_str_lit_symbols;
     Vec__Str builder_str_lit_values;
@@ -2806,7 +2806,7 @@ typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState {
     Set__Str user_functions;
     Map__Str_Str user_return_types;
     Set__Str ref_return_functions;
-    Map__Str_call_Set_USize user_ref_params;
+    Map__Str_Set__USize user_ref_params;
     Set__Str str_return_functions;
     Set__Str struct_names;
     Map__Str_Str enum_types;
@@ -2819,7 +2819,7 @@ typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState {
     Map__Str_Str map_values;
     Map__Str_Str map_key_vecs;
     Map__Str_Str map_value_vecs;
-    Map__Str_call_Map_Str_Bool needed_methods;
+    Map__Str_Map__Str_Bool needed_methods;
     Str method_prototypes;
     Str method_definitions;
     Str usize_ctype;
@@ -2845,8 +2845,8 @@ typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState {
     Str closure_classes;
     Set__Str emitted_closures;
     Set__Str reflection_uses;
-    Map__Str_call_Set_Str dyn_targets;
-    Map__Str_call_Set_Str dyn_target_sigs;
+    Map__Str_Set__Str dyn_targets;
+    Map__Str_Set__Str dyn_target_sigs;
     Set__Str dyn_lookup_sigs;
     Str dyn_prototypes;
     Str dyn_definitions;
@@ -2854,7 +2854,7 @@ typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState {
     Str extra_function_prototypes;
     Str extra_function_definitions;
     Map__Str_Str inline_call_sigs;
-    Map__Str_call_Set_USize inline_cleanup;
+    Map__Str_Set__USize inline_cleanup;
     Set__Str inline_indirect;
     priv___src_self_codegen_holyc_codegen_til__HolyCLocalState global_locals;
     Set__Str source_functions;

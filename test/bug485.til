@@ -1,0 +1,48 @@
+mode script
+
+// Issue #485: a nested type application names the instance it denotes.
+// `Vec(Vec(Str))` used to instantiate as Vec__call_Vec_Str while the alias
+// form `Vec(VS)` (VS := Vec(Str)) gave Vec__Vec__Str, so one type had two
+// names; and interpreting a GLOBAL container of containers panicked at
+// teardown ("container element has no registered size: call_Vec_Str"),
+// because the interpreter reads the element type off the instance name.
+// These are globals on purpose: teardown of a global takes that path.
+
+VS := Vec(Str)
+
+count_inner := func(v: Vec(VS)) returns USize {
+    mut total : USize = 0
+    for inner : VS in v { total = total + inner.len() }
+    return total
+}
+
+mut nested := Vec(Vec(Str)).new()
+mut first := Vec(Str).new()
+first.push(own "a")
+first.push(own "b")
+nested.push(own first)
+nested.push(own Vec(Str).new())
+// The alias spelling and the nested spelling are the same type.
+assert_eq(USize, count_inner(nested), 2)
+
+mut sets := Vec(Set(Str)).new()
+mut one := Set(Str).new()
+one.add(own "x")
+sets.push(own one)
+assert_eq(USize, sets.len(), 1)
+
+mut by_key := Map(Str, Vec(Str)).new()
+mut vals := Vec(Str).new()
+vals.push(own "v")
+by_key.set("k", own vals)
+assert_eq(USize, by_key["k"].len(), 1)
+
+mut deep := Vec(Vec(Vec(I64))).new()
+mut mid := Vec(Vec(I64)).new()
+mut leaf := Vec(I64).new()
+leaf.push(own 7)
+mid.push(own leaf)
+deep.push(own mid)
+assert_eq(USize, deep.len(), 1)
+
+println("bug485: ok")

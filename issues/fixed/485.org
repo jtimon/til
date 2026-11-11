@@ -1,0 +1,71 @@
+# priority: medium
+# category: bugs
+** FIXED #485 Interpreter panics at teardown on a global container of containers
+
+*** Post-mortem
+
+Root cause: a type-generator instance's name spelled a type argument that
+is itself an application (~Vec(Str)~ in ~Vec(Vec(Str))~) from the call's
+shape, ~call_Vec_Str~ (~initer.til::init_macro_inst_arg_name~, ~.FCall~
+arm), while an alias of the same application (~VS := Vec(Str)~; ~Vec(VS)~)
+resolves to the instance name ~Vec__Str~. So one type had two names: a
+~Vec(VS)~ parameter rejected a ~Vec(Vec(Str))~ argument ("expected
+Vec__Vec__Str, got Vec__call_Vec_Str"), and the interpreter, which takes a
+container's element type from its instance name, found no layout under
+~call_Vec_Str~ when freeing a global's buffer. The same unresolvable element
+name kept the constant folder from precomputing such a container.
+
+Fix: a nested application whose callee is a name is spelled as the
+instance it denotes, through ~init_macro_inst_name~, the function every
+other instance-naming path already uses (the direct and self-reference
+substitutions in ~init_subst_ident_name~ go through the same arm, so the
+expanded body and the declaration agree). Instance names change
+accordingly (~Vec__call_Set_Str~ -> ~Vec__Set__Str~), hence Two-pass; the
+TempleOS golden ~test/templeos/templeos_struct_runtime.expected~ is
+regenerated (the renames, plus the nested Vec's ~new()~ now folded to an
+empty precomputed sequence like every other empty Vec in that file).
+
+Regression: ~test/bug485.til~ (interpreted and compiled): globals of
+~Vec(Vec(Str))~, ~Vec(Set(Str))~, ~Map(Str, Vec(Str))~ and
+~Vec(Vec(Vec(I64)))~, and a ~Vec(VS)~ parameter taking a ~Vec(Vec(Str))~.
+Master's compiler rejects the file with the alias type error.
+
+Found while restoring ~test/lexing.til~ for [[./472.org][#472]] (a script importing
+~src/self/parser~, whose ~SymbolPool~ holds a ~Vec(Vec(Str))~). Reproduced at
+master f3dee9b.
+
+*** Symptom
+
+#+begin_src til
+mode script
+v := Vec(Vec(Str)).new()
+println("done")
+#+end_src
+
+~bin/til interpret~ prints ~done~, then exits 1 with
+~./src/self/interpreter.til:4598:19: panic: container element has no
+registered size: call_Vec_Str~. Also with ~Vec(Vec(I64))~, and whether the
+outer Vec is empty or not. Not affected: the compiled program
+(~bin/til run~), the same value as a local inside a ~proc~, or in a
+~mode test~ test function.
+
+*** Cause, as far as read
+
+The nested instance is named ~Vec__call_Vec_Str~: the inner type argument
+keeps its type-call spelling ~call_Vec_Str~ rather than ~Vec__Str~ (the
+compiler's own C has ~Vec__call_Set_Str~, ~Vec__call_Map_Str_Bool~, ...).
+Freeing the global's buffer at teardown goes through
+~interpreter.til::free_container_data~, which takes the element type from
+the instance name (~container_elem_type~ strips ~Vec__~) and asks
+~container_elem_size("call_Vec_Str")~; no layout is registered under that
+spelling (the inner Vec's layout is ~Vec__Str~), so it panics. Local
+values take another release path that does not ask for that size.
+
+Decide at the source whether the element spelling or the lookup is wrong:
+resolve the instance's element type through the type scope instead of
+string-splitting its name, or register/name the instance canonically.
+
+*** Regression
+
+The script above interpreted by the suite (exit 0, prints ~done~), plus a
+global ~Vec(Set(Str))~ and ~Map(Str, Vec(Str))~ in the same file.
