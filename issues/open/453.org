@@ -577,6 +577,55 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   passed, and the shared float/cast/format sources passed focused C ASAN runs
   at USize64 without sanitizer diagnostics. Native assembly is not ASAN-instrumented.
 
+**** Native Str.to_f32 / Str.to_f64 parsing
+
+  On base ~9e9a4ef0a~, the native str_parse_f32/f64 boundary accepts counted
+  C-locale numeric prefixes: ASCII space/sign, decimal/scientific and hex/p
+  forms, Inf/Infinity and NaN payloads. Views/embedded NUL and malformed
+  exponents follow the existing prefix contract. The ordinary Str wrappers
+  retain separator stripping, so text and file input use the same core methods.
+
+  Exact integer-ratio conversion rounds once to the destination width, with
+  normal/subnormal transitions and overflow/underflow. A fixed 1024-byte frame
+  holds two 3072-bit integers. 800 significant decimal digits or 32 hex nibbles
+  plus sticky information cover every binary64 midpoint; remaining input is
+  scanned and exponent saturation is relative to input length, preserving long
+  mantissa/exponent cancellation. Parsing itself allocates no heap workspace.
+
+  Shared float tests now run 14 cases, including F32 double-rounding avoidance,
+  long decimal/hex sticky tails and exponent cancellation. The 250-pattern
+  format corpus additionally verifies repr/parse bit round trips. The raw and
+  wrapper parser corpus compares grammar cases and 160 sampled decimal inputs
+  with C/interpreter at both widths. Allocation probes pin 0/0 for ordinary
+  parsing and 1/1 for underscore normalization; a file-input probe runs too.
+
+  A libc discrepancy required a shared boundary correction: glibc strtof returns zero for
+  0x1.000001p-150, although it is above the rounding midpoint and should produce
+  the minimum F32 subnormal. A standalone C probe confirmed that result. Native
+  parsing alone would leave host-folded values inconsistent with runtime ones.
+  The C boundary now rounds hexadecimal prefixes exactly in the default
+  nearest-even environment, while retaining libc's errno/fenv side effects and
+  non-nearest-mode behavior. Shared runtime and folded tests pin the correction.
+
+  Running all 43 string cases also exposed an existing native pointer handoff:
+  a Dynamic receiving typed scalar pointer storage (Str.c_str) loaded the first
+  byte instead of retaining its address. Declaration lowering now uses the
+  address path for that context; ~test_pointer_field_spellings~ regresses it.
+
+  Verification: ~make clean && make test~ passed 575/575; both FASM drivers
+  passed, including direct float/string suites at both widths. Focused C ASAN/UBSAN
+  runs covered the 14 float cases, 43 string cases and parsing/round-trip
+  programs without sanitizer diagnostics. A temporary linked-C probe also
+  verified non-nearest rounding modes and retained floating-environment flags.
+  Native assembly is not ASAN-instrumented.
+
+  Post-merge bootstrap check: the attempted merge onto ~7d6ff866e~ failed
+  self_translate_native because its callable bridge emitted
+  ~ffi_get_closure_size()~ in pass 1 but folded it to 56 when self-applied.
+  That base required two-pass regeneration. Rebasing the parser alone onto
+  ~a06e63e54~ passes the ordinary ~make clean && make test~ suite, 577/577,
+  including self_translate_native; both FASM integration drivers also pass.
+
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
   repeated work. In-process code allocation, relocation, lifetime management

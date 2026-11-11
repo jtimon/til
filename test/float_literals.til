@@ -200,3 +200,67 @@ test_float_interface_and_templates:=test() {
     large:=runtime_f32(16777216.0)
     assert_eq(F32,large+1.0,large)
 }
+
+parse_runtime_f32:=proc(text:Str) returns F32 { noop_proc(); return text.to_f32() }
+parse_runtime_f64:=proc(text:Str) returns F64 { noop_proc(); return text.to_f64() }
+float_bits32:=func(value:F32) returns U32 { mut bits:U32=0; memcpy(to_ptr(bits),to_ptr(value),4); return bits }
+float_bits64:=func(value:F64) returns U64 { mut bits:U64=0; memcpy(to_ptr(bits),to_ptr(value),8); return bits }
+
+test_float_text_prefixes_and_specials:=test() {
+    assert_eq(F64,parse_runtime_f64(" \t-1_2.5e-1tail"),-1.25)
+    assert_eq(F32,parse_runtime_f32("0X1.8P+2tail"),6.0)
+    assert_eq(F64,parse_runtime_f64("12e+"),12.0)
+    assert_eq(U64,float_bits64(parse_runtime_f64("-x")),0)
+    assert_eq(U64,float_bits64(parse_runtime_f64("-0")),9223372036854775808)
+    assert_eq(U32,float_bits32(parse_runtime_f32("-0x0p999999")),2147483648)
+    assert_eq(Str,parse_runtime_f64("-INFINITY").to_repr(),"-inf")
+    nan64:=parse_runtime_f64("-nan(0x123)")
+    nan32:=parse_runtime_f32("nan(0123)")
+    assert(nan64!=nan64)
+    assert(nan32!=nan32)
+    backing:="1e999"
+    view:=backing.substr(0,2)
+    assert_eq(F64,parse_runtime_f64(view),1.0)
+    embedded:="1\x00Ze999"
+    assert_eq(F64,parse_runtime_f64(embedded),1.0)
+}
+
+test_float_text_rounding_boundaries:=test() {
+    // Parsing to F64 and narrowing would double-round this one to 1.0.
+    assert_eq(U32,float_bits32(parse_runtime_f32("1.0000000596046448")),1065353217)
+    midpoint:="1.00000000000000011102230246251565404236316680908203125"
+    assert_eq(F64,parse_runtime_f64(midpoint),1.0)
+    mut above:=Str.with_capacity(1000)
+    above.push_str(midpoint)
+    for _ in 0..850 { above.push_str("0") }
+    above.push_str("1")
+    assert_eq(U64,float_bits64(parse_runtime_f64(above)),4607182418800017409)
+    mut below:=Str.with_capacity(1000)
+    below.push_str("1.00000000000000011102230246251565404236316680908203124")
+    for _ in 0..850 { below.push_str("9") }
+    assert_eq(F64,parse_runtime_f64(below),1.0)
+    assert_eq(U64,float_bits64(parse_runtime_f64("0x1p-1075")),0)
+    assert_eq(U64,float_bits64(parse_runtime_f64("0x8.000000000000000p-1078")),0)
+    assert_eq(U64,float_bits64(parse_runtime_f64("0x8.000000000000001p-1078")),1)
+    assert_eq(U64,float_bits64(parse_runtime_f64("0x1.0000000000000000000000000000000000000001p-1075")),1)
+    assert_eq(U64,float_bits64(parse_runtime_f64("5e-324")),1)
+    assert_eq(U32,float_bits32(parse_runtime_f32("0x1p-150")),0)
+    assert_eq(U32,float_bits32(parse_runtime_f32("0x1.000001p-150")),1)
+    assert_eq(U32,float_bits32(parse_runtime_f32("0x8.000000000000001p-153")),1)
+    assert_eq(U32,float_bits32("0x1.000001p-150".to_f32()),1)
+    assert_eq(Str,parse_runtime_f64("1e999999999999999999999999").to_repr(),"inf")
+    assert_eq(U64,float_bits64(parse_runtime_f64("-1e-999999999999999999999")),9223372036854775808)
+}
+
+test_float_text_long_exponent_cancellation:=test() {
+    mut whole:=Str.with_capacity(2100)
+    whole.push_str("1")
+    for _ in 0..2000 { whole.push_str("0") }
+    whole.push_str("e-2000")
+    assert_eq(F64,parse_runtime_f64(whole),1.0)
+    mut fraction:=Str.with_capacity(2100)
+    fraction.push_str("0.")
+    for _ in 0..2000 { fraction.push_str("0") }
+    fraction.push_str("1e2001")
+    assert_eq(F32,parse_runtime_f32(fraction),1.0)
+}

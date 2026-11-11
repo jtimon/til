@@ -1838,7 +1838,7 @@ priv fasm_runtime_call := proc(e: Expr, name: Str, mut state: FasmState, mut lp:
 priv fasm_runtime_name := func(name: Str) returns Str {
     switch name {
     case "exit", "print_single", "eprint_single", "print_flush", "print", "println", "panic", "format", "assert", "expect",
-        "malloc", "calloc", "realloc", "free", "memcpy", "memmove", "memset", "memcmp", "c_str_len", "ptr_eq",
+        "malloc", "calloc", "realloc", "free", "memcpy", "memmove", "memset", "memcmp", "c_str_len", "ptr_eq", "str_parse_f32", "str_parse_f64",
         "cfile_open", "cfile_open_update", "cfile_open_append", "cfile_close", "cfile_write_str", "cfile_read_n", "cfile_read_all",
         "cfile_exists", "cfile_remove", "cfile_tell", "cfile_seek", "cfile_seek_cur", "cfile_seek_end": return format("rt_", name)
     case "til_closure_delete", "til_closure_slot_delete", "til_closure_slot_clone", "til_closure_slot_take", "til_closure_slot_pop": return format("rt_", name)
@@ -2276,6 +2276,9 @@ priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram, 
                 continue
             }
             if boxed { fasm_owned(stmt.children[0], state, lp) }
+            // A Dynamic receiving typed scalar pointer storage keeps the
+            // address (for example Str.c_str), rather than loading its byte.
+            else if t.is(Type.Dynamic).and(stmt.children[0].til_type().is(Type.Primitive)) { fasm_pointer(stmt.children[0], state, lp) }
             else if pointer.or(dd.own_type.is(OwnType.Ref)) { fasm_pointer(stmt.children[0], state, lp) }
             else { fasm_expr(stmt.children[0], state, lp) }
             mut slot := fasm_slot(state)

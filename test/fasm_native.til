@@ -42,10 +42,13 @@ check_floating_point := proc(compiler: Str, work: Str) {
     File.writefile(format_path,format(
         "mode cli\nraw64:=proc(bits:U64) returns F64 { noop_proc(); mut out:F64=0; memcpy(to_ptr(out),to_ptr(bits),8); return out }\n",
         "raw32:=proc(bits:U32) returns F32 { noop_proc(); mut out:F32=0; memcpy(to_ptr(out),to_ptr(bits),4); return out }\n",
+        "bits64:=func(value:F64) returns U64 { mut bits:U64=0; memcpy(to_ptr(bits),to_ptr(value),8); return bits }\n",
+        "bits32:=func(value:F32) returns U32 { mut bits:U32=0; memcpy(to_ptr(bits),to_ptr(value),4); return bits }\n",
         "main:=proc() { mut bits:U64=1; for _ in 0..120 { bits=bits*6364136223846793005+1442695040888963407;\n",
-        "value:=raw64(bits); println(value.to_str(),\"|\",value.to_repr()); small:=raw32(bits.to_u32()); println(small.to_str(),\"|\",small.to_repr()) };\n",
+        "value:=raw64(bits); repr:=value.to_repr(); println(value.to_str(),\"|\",repr); parsed:=repr.to_f64(); if value==value { assert(bits64(parsed)==bits) } else { assert(parsed!=parsed) };\n",
+        "small:=raw32(bits.to_u32()); single:=small.to_repr(); println(small.to_str(),\"|\",single); parsed32:=single.to_f32(); if small==small { assert(bits32(parsed32)==bits.to_u32()) } else { assert(parsed32!=parsed32) } };\n",
         "for word:U64 in array(U64,0,9223372036854775808,1,4503599627370495,4503599627370496,9218868437227405311,9218868437227405312,18442240474082181120,9221120237041090560,18444492273895866368) {\n",
-        "value:=raw64(word); println(value.to_str(),\"|\",value.to_repr()) } }\n"))
+        "value:=raw64(word); repr:=value.to_repr(); println(value.to_str(),\"|\",repr); parsed:=repr.to_f64(); if value==value { assert(bits64(parsed)==word) } else { assert(parsed!=parsed) } } }\n"))
     check_shared(compiler,work,format_path)
     expressions:=array(Str,"runtime(128.0)","runtime(-129.0)","runtime(256.0)","runtime(-1.0)",
         "runtime(9223372036854775808.0)","runtime(18446744073709551616.0)",
@@ -57,6 +60,25 @@ check_floating_point := proc(compiler: Str, work: Str) {
             "main:=proc() { value:=",expressions[i],"; value.cast(",targets[i],") }\n"))
         check_shared(compiler,work,path,1)
     }
+}
+
+check_float_parsing := proc(compiler: Str, work: Str) {
+    path:=format(work,"/float_parsing.til")
+    File.writefile(path,format(
+        "mode cli\nbits64:=func(value:F64) returns U64 { mut bits:U64=0; memcpy(to_ptr(bits),to_ptr(value),8); return bits }\n",
+        "bits32:=func(value:F32) returns U32 { mut bits:U32=0; memcpy(to_ptr(bits),to_ptr(value),4); return bits }\n",
+        "main:=proc() { for text:Str in array(Str,\"\",\" \t\",\"-x\",\"-.x\",\"-0\",\"+.0\",\".5\",\"12e+\",\"12tail\",\"0x\",\"-0x.p1\",\"0X1.8P+2\",\"0x1e2\",\"0x1p-1074\",\"0x1p-1075\",\"1e309\",\"-1e-400\",\"1.7976931348623157e308\",\"1.7976931348623159e308\",\"2.2250738585072012e-308\",\"5e-324\",\"3.4028235677973366e38\",\"1.1754943508222875e-38\",\"1.401298464324817e-45\",\"inf\",\"-INFINITY\",\"nan\",\"-NaN(0x123)\",\"nan(0123)\",\"nan(08)\",\"nan(payload)\",\"nan(0x)\",\"nan(1_2)\",\"nan(123!bad)\",\"nan(999999999999999999999999999999999999)\",\"1_2.5e-1\",\"i_n_f\",\"1\\x00Ze99\") {\n",
+        "println(bits64(str_parse_f64(text)).to_str(),\"|\",bits32(str_parse_f32(text)).to_str(),\"|\",bits64(text.to_f64()).to_str(),\"|\",bits32(text.to_f32()).to_str()) };\n",
+        "mut bits:U64=1; for _ in 0..160 { bits=bits*6364136223846793005+1442695040888963407; exponent:=bits.mod(701).to_i64()-350;\n",
+        "text:=format(bits.to_str(),\"e\",exponent.to_str()); println(bits64(text.to_f64()).to_str(),\"|\",bits32(text.to_f32()).to_str()) } }\n"))
+    check_shared(compiler,work,path)
+    // Regress the hexadecimal underflow correction in the shared C boundary
+    // as well as the native parser, including host constant folding.
+    File.writefile(format(work,"/float_hex_tie.til"),format(
+        "mode cli\nparse:=proc(text:Str) returns F32 { noop_proc(); return str_parse_f32(text) }\n",
+        "main:=proc() { value:=parse(\"0x1.000001p-150\"); mut bits:U32=0; memcpy(to_ptr(bits),to_ptr(value),4); assert(bits==1);\n",
+        "folded:=\"0x1.000001p-150\".to_f32(); memcpy(to_ptr(bits),to_ptr(folded),4); assert(bits==1) }\n"))
+    check_shared(compiler,work,format(work,"/float_hex_tie.til"))
 }
 
 check_test_command := proc(compiler: Str, work: Str) {
@@ -188,13 +210,14 @@ main := proc(compiler_arg: Str) {
     expect(build_status == 0, build.out(), build.err())
     run := Cmd.new(format(work, "/bin/custom output"))
     expect(run.run() == 0, "empty main failed")
-    for source in array(Str, "test/templeos/holyc_continue.til", "examples/fizzbuzz.til", "examples/templeos_scalars.til", "test/scalar_control.til", "examples/templeos_calls.til", "test/aggregate_control.til", "test/reference_rebinding.til", "test/interfaces.til", "test/test_in_namespace.til", "test/float_literals.til") {
+    for source in array(Str, "test/templeos/holyc_continue.til", "examples/fizzbuzz.til", "examples/templeos_scalars.til", "test/scalar_control.til", "examples/templeos_calls.til", "test/aggregate_control.til", "test/reference_rebinding.til", "test/interfaces.til", "test/test_in_namespace.til", "test/float_literals.til", "test/strings.til") {
         check_shared(compiler, work, source)
     }
     check_shared(compiler, work, "test/script_bang_panic_msg.til", 1)
     check_shared(compiler, work, "test/script_bang_store_panic_msg.til", 1)
     check_test_command(compiler,work)
     check_floating_point(compiler,work)
+    check_float_parsing(compiler,work)
     check_rebuild(compiler, work)
     println("fasm_native PASS")
 }

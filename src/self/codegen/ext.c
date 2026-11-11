@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <errno.h>
 #include <math.h>
+#include <fenv.h>
+#include <locale.h>
 #include <fcntl.h>
 #if defined(__linux__)
 #include <linux/kcmp.h>
@@ -1402,12 +1404,99 @@ Str *F32_to_repr(F32 v) {
     return s;
 }
 
+static int float_hex_digit(unsigned char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    c |= 0x20;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
+}
+
+// Some libcs round a hex significand before shifting it into the subnormal
+// range (for example strtof("0x1.000001p-150") -> 0). Round the exact hex
+// prefix once in the default environment, including during constant folding.
+// Other rounding modes/radix locales keep libc's result; the caller invokes libc
+// first to retain its errno/floating-environment side effects.
+static Bool float_hex_nearest_bits(const Str *s, int precision, uint64_t *bits) {
+    if (fegetround() != FE_TONEAREST) return 0;
+    if (strcmp(localeconv()->decimal_point, ".") != 0) return 0;
+    const unsigned char *text = (const unsigned char *)TIL_OWN_GET(I8, s->c_str);
+    USize i = 0;
+    while (i < s->count && (text[i] == ' ' || (text[i] >= 9 && text[i] <= 13))) i++;
+    uint64_t sign = 0;
+    if (i < s->count && (text[i] == '+' || text[i] == '-')) sign = text[i++] == '-';
+    if (s->count - i < 2 || text[i] != '0' || (text[i+1] | 0x20) != 'x') return 0;
+    i += 2;
+    uint64_t coefficient = 0;
+    int kept = 0, dot = 0, sticky = 0;
+    int64_t fractional = 0, discarded = 0, exponent = 0;
+    while (i < s->count) {
+        int digit = float_hex_digit(text[i]);
+        if (digit < 0) {
+            if (text[i] == '.' && !dot) { dot = 1; i++; continue; }
+            break;
+        }
+        i++;
+        if (dot) fractional++;
+        if (!kept && !digit) continue;
+        if (kept < 16) { coefficient = coefficient * 16 + (unsigned)digit; kept++; }
+        else { discarded++; sticky |= digit != 0; }
+    }
+    if (i < s->count && (text[i] | 0x20) == 'p') {
+        i++;
+        int negative = 0;
+        if (i < s->count && (text[i] == '+' || text[i] == '-')) negative = text[i++] == '-';
+        int64_t bound = (int64_t)s->count * 4 + 4096;
+        while (i < s->count && text[i] >= '0' && text[i] <= '9') {
+            exponent = exponent * 10 + text[i++] - '0';
+            if (exponent > bound) exponent = bound;
+        }
+        if (negative) exponent = -exponent;
+    }
+    int mantissa = precision - 1;
+    int bias = precision == 24 ? 127 : 1023;
+    int minimum = 1 - bias;
+    int unit_minimum = minimum - mantissa;
+    uint64_t sign_word = sign << (precision == 24 ? 31 : 63);
+    uint64_t infinity = (uint64_t)(2*bias + 1) << mantissa;
+    *bits = sign_word;
+    if (!coefficient) return 1;
+    int length = 0;
+    for (uint64_t word = coefficient; word; word >>= 1) length++;
+    int64_t scale = exponent + (discarded - fractional) * 4;
+    int64_t binary_exponent = scale + length - 1;
+    if (binary_exponent > bias) { *bits |= infinity; return 1; }
+    if (binary_exponent < unit_minimum - 1) return 1;
+    int64_t unit = binary_exponent < minimum ? unit_minimum : binary_exponent - mantissa;
+    int64_t shift = unit - scale;
+    uint64_t rounded;
+    if (shift > 0) {
+        uint64_t halfway = UINT64_C(1) << (shift - 1);
+        uint64_t remainder;
+        if (shift == 64) { rounded = 0; remainder = coefficient; }
+        else { rounded = coefficient >> shift; remainder = coefficient & ((UINT64_C(1) << shift) - 1); }
+        if (remainder > halfway || (remainder == halfway && (sticky || (rounded & 1)))) rounded++;
+    } else { rounded = coefficient << -shift; }
+    if (binary_exponent < minimum) { *bits |= rounded; return 1; }
+    if (rounded == (UINT64_C(1) << precision)) {
+        rounded >>= 1;
+        if (++binary_exponent > bias) { *bits |= infinity; return 1; }
+    }
+    *bits |= (uint64_t)(binary_exponent + bias) << mantissa;
+    *bits |= rounded & ((UINT64_C(1) << mantissa) - 1);
+    return 1;
+}
+
 // Faithful decimal/scientific float parse (strtof) -- handles exponents
 // and full precision, unlike the old hand-rolled Str.to_f32. Backs
 // Str.to_f32 so folded F32 literals round-trip in interp and codegen.
 F32 str_parse_f32(const Str *s) {
     char *p = dup_n((const char *)TIL_OWN_GET(I8, s->c_str), s->count);
     float v = strtof(p, NULL);
+    uint64_t bits;
+    if (float_hex_nearest_bits(s, 24, &bits)) {
+        uint32_t word = (uint32_t)bits;
+        memcpy(&v, &word, sizeof(v));
+    }
     free(p);
     return (F32)v;
 }
@@ -1459,6 +1548,8 @@ Str *F64_to_repr(F64 v) {
 F64 str_parse_f64(const Str *s) {
     char *p = dup_n((const char *)TIL_OWN_GET(I8, s->c_str), s->count);
     double v = strtod(p, NULL);
+    uint64_t bits;
+    if (float_hex_nearest_bits(s, 53, &bits)) memcpy(&v, &bits, sizeof(v));
     free(p);
     return (F64)v;
 }

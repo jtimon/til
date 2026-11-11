@@ -953,6 +953,30 @@
   the descriptor uses caller-provided storage. This correctness-first conversion
   loop has no elapsed-time performance claim.
 
+  Str.to_f32/to_f64 use the native str_parse_f32/str_parse_f64 boundary. Counted
+  input accepts the C-locale prefix grammar: leading ASCII whitespace/sign,
+  decimal/scientific or hexadecimal/binary-exponent forms, Inf/Infinity and
+  NaN payloads. End-of-view and embedded NUL stop scanning; malformed exponents
+  leave the preceding numeric prefix intact. A nonnumeric input returns zero
+  as strtof/strtod do. The ordinary Str wrappers strip '_' separators first.
+
+  Parsing rounds directly to the requested width using exact integer ratios,
+  including normal/subnormal boundaries and overflow/underflow. A fixed
+  1024-byte frame holds two 3072-bit integers. At most 800 significant decimal
+  digits (32 hex nibbles) plus a sticky bit are needed: every binary64 rounding
+  midpoint terminates before that decimal bound. Arbitrarily long input is still
+  scanned, and exponent saturation is bounded by input length so long mantissas
+  and exponents can cancel correctly. Parsing has no heap workspace.
+
+  A shared regression preserves correct rounding for 0x1.000001p-150:
+  it lies above the zero/minimum-F32-subnormal midpoint and produces that
+  subnormal. The observed glibc strtof instead returned zero. The C boundary
+  corrects hexadecimal rounding in the default environment using exact bits,
+  keeping C, interpretation, host constant folding and native execution aligned.
+  Libc still runs for errno/floating-environment effects, and retains control of
+  non-nearest rounding modes and non-period radix locales. Probes compare raw bits, including
+  Linux NaN payload encodings.
+
   Til writes ~gen/fasm/<source>.fasm~, preserving the normal source hierarchy.
   The vendored FASM writes a standalone ELF64 executable to ~bin/<source>~
   or the existing ~-o~ override. There is no C compiler, libc or linker in
@@ -1183,7 +1207,7 @@
     Removal follows ext.c's unlink contract: a missing path is harmless, but
     directories and other failures are errors.
 
-  SIMD, explicit fused multiply-add, text-to-float parsing, general
+  SIMD, explicit fused multiply-add, general
   runtime-selected method/reflection lookup,
   unsupported external runtime services remain outside this
   subset. Array methods are no longer restricted to compiler-generated
@@ -1238,6 +1262,17 @@
   extreme F32/F64 bit patterns, and checks nine invalid-cast diagnostics/exits.
   The runtime driver pins zero allocation/free calls for scalar float work and
   two/two for two formatted results, at both USize widths.
+
+  Those 250 patterns now also exercise bitwise repr/parse round trips for finite
+  values, signed zeros and infinities, plus NaN classification. The separate
+  ~check_float_parsing~ corpus covers raw/wrapper grammar and 160 sampled decimal
+  inputs. Shared rounding tests include a direct-to-F32 double-rounding trap,
+  decimal/hex sticky tails beyond the retained prefix and long exponent
+  cancellation. All 43 existing ~test/strings.til~ cases run directly too.
+  The runtime driver checks zero heap calls for parsing without separators,
+  one normalized buffer for separator stripping, and floating-point file input.
+  Typed scalar pointer storage passed into Dynamic keeps its address instead of
+  loading its first byte; the existing Str.c_str pointer test pins that lowering.
 
   The owned alias captures in the shared float test also regress a C emitter
   defect: a borrowed local scalar alias must be copied into a private capture

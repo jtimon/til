@@ -36,6 +36,31 @@ output and the escape-error fixture's interpret/translate diagnostics match
 the baseline exactly. Merge-time measurements remain the elapsed-time check
 while other sessions are active.
 
+** FASM native text-to-float allocation checks (2026-11-10, #453)
+
+Base: ~9e9a4ef0a~. Native str_parse_f32/f64 use exact integer ratios and one
+nearest-even rounding to the requested width. Two fixed 3072-bit integers fit
+in a 1024-byte frame; there is no heap workspace. Input-length-bounded exponent
+saturation and retained significant digits plus sticky information handle long
+input without a variable-sized parser allocation.
+
+The existing ~fasm_runtime::check_float_allocations~ instrumentation verifies
+these counts at both USize widths, after interpreter/C semantic checks:
+
+| Probe                  | Native malloc | Native free | Storage                  |
+|------------------------+---------------+-------------+--------------------------|
+| float_parse            |             0 |           0 | Fixed parser frame       |
+| float_parse_separators |             1 |           1 | Str.replace's data buffer |
+
+The 250-value formatting corpus now also checks repr/parse round trips at both
+widths. Raw/wrapper text-prefix cases and 160 sampled decimal inputs compare
+their resulting bits with C and interpretation. Shared tests additionally pin
+rounding boundaries and long decimal/hex tails/exponent cancellation. The native
+hexadecimal midpoint regression corrects a glibc strtof discrepancy at the
+shared C boundary (0x1.000001p-150 previously became zero rather than the
+minimum subnormal). C, interpretation, host folding and native parsing now
+agree on that case. No parser elapsed-time speedup is claimed.
+
 ** FASM scalar floating-point allocation checks (2026-11-09, #453)
 
 Base: ~389200c8c~. Native F32/F64 operations and conversions use frame/register

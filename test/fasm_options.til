@@ -110,6 +110,7 @@ main := proc(compiler_arg: Str) {
             expect(float_status==0,floats.out(),floats.err())
             float_source:=File.readfile(format(work,"/gen/fasm/floating.fasm"))
             expect(float_source.contains("divss xmm0, xmm1") && float_source.contains("divsd xmm0, xmm1"),float_source)
+            expect(float_source.contains("call rt_str_parse_f32") && float_source.contains("call rt_str_parse_f64"),float_source)
         }
         File.writefile(format(work, "/bad_field.til"), "mode cli\nVector:=Simd(F32,4)\nBad:=struct { value:Vector=Vector.zero()\nnamespace:\ncmp:=func(_a:Bad,_b:Bad) returns I64 { return 0 }\n}\nmain:=proc() { mut b:=Bad(); b.value=Vector.splat(1.0); assert(b.value[0]==1.0) }\n")
         bad_field := Cmd.new(compiler, "translate", "--backend=fasm", "bad_field.til")

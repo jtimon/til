@@ -1022,6 +1022,608 @@ rt_float_to_str:
     leave
     ret
 
+; Counted, C-locale strtof/strtod prefix parsing. Decimal input is converted
+; as N / 5^k * 2^e (or N * 5^k * 2^e), with one nearest-even rounding.
+; Keep 800 significant decimal digits: every binary64 rounding midpoint has
+; fewer than 800, so discarded input only needs a sticky bit on an exact tie.
+; Hex input needs only 32 significant nibbles. Two 3072-bit integers cover
+; the retained input, powers of five, normalization and significand extraction.
+rt_str_parse_f32:
+    mov esi, 24
+    jmp rt_str_parse_float
+rt_str_parse_f64:
+    mov esi, 53
+rt_str_parse_float:
+    frame 1024
+    mov [rbp-32], rsi
+    load_size rcx, [rdi+8]
+    mov rax, [rdi]
+    mov [rbp-8], rax
+    add rax, rcx
+    mov [rbp-16], rax
+    lea rax, [rcx*4+4096]
+    mov [rbp-136], rax
+    mov qword [rbp-24], 0
+    mov qword [rbp-40], 52
+    mov qword [rbp-48], 1023
+    mov qword [rbp-56], -1022
+    mov qword [rbp-64], -1074
+    mov qword [rbp-72], 1023
+    cmp esi, 24
+    jne .layout
+    mov qword [rbp-40], 23
+    mov qword [rbp-48], 127
+    mov qword [rbp-56], -126
+    mov qword [rbp-64], -149
+    mov qword [rbp-72], 127
+.layout:
+    lea rdi, [rbp-1024]
+    xor eax, eax
+    mov ecx, 96
+    cld
+    rep stosq
+    mov qword [rbp-640], 1
+    mov qword [rbp-80], 0
+    mov qword [rbp-88], 0
+    mov qword [rbp-96], 0
+    mov qword [rbp-104], 0
+    mov qword [rbp-112], 0
+    mov qword [rbp-120], 0
+    mov qword [rbp-128], 0
+    mov qword [rbp-144], 0
+    mov qword [rbp-192], 800
+.space:
+    mov rsi, [rbp-8]
+    cmp rsi, [rbp-16]
+    jae .invalid
+    movzx eax, byte [rsi]
+    cmp al, ' '
+    je .skip_space
+    cmp al, 9
+    jb .optional_sign
+    cmp al, 13
+    jbe .skip_space
+    jmp .optional_sign
+.skip_space:
+    inc qword [rbp-8]
+    jmp .space
+.optional_sign:
+    cmp al, '-'
+    jne .plus
+    mov qword [rbp-24], 1
+    inc qword [rbp-8]
+    jmp .token
+.plus:
+    cmp al, '+'
+    jne .token
+    inc qword [rbp-8]
+.token:
+    mov rsi, [rbp-8]
+    lea rax, [rsi+3]
+    cmp rax, [rbp-16]
+    ja .hex_prefix
+    movzx eax, word [rsi]
+    movzx edx, byte [rsi+2]
+    shl edx, 16
+    or eax, edx
+    or eax, 202020h
+    cmp eax, 'inf'
+    je .infinity
+    cmp eax, 'nan'
+    je .nan_token
+.hex_prefix:
+    mov rsi, [rbp-8]
+    lea rax, [rsi+2]
+    cmp rax, [rbp-16]
+    ja .digits
+    cmp byte [rsi], '0'
+    jne .digits
+    mov al, [rsi+1]
+    or al, 20h
+    cmp al, 'x'
+    jne .digits
+    mov qword [rbp-80], 1
+    mov qword [rbp-192], 32
+    mov qword [rbp-104], 1
+    add qword [rbp-8], 2
+.digits:
+    mov rsi, [rbp-8]
+    cmp rsi, [rbp-16]
+    jae .finish_digits
+    movzx eax, byte [rsi]
+    mov edx, eax
+    sub eax, '0'
+    cmp eax, 9
+    jbe .digit
+    cmp qword [rbp-80], 0
+    je .not_digit
+    mov eax, edx
+    or eax, 20h
+    sub eax, 'a'
+    cmp eax, 5
+    ja .not_digit
+    add eax, 10
+    jmp .digit
+.not_digit:
+    cmp dl, '.'
+    jne .finish_digits
+    cmp qword [rbp-96], 0
+    jne .finish_digits
+    mov qword [rbp-96], 1
+    inc qword [rbp-8]
+    jmp .digits
+.digit:
+    mov qword [rbp-104], 1
+    inc qword [rbp-8]
+    cmp qword [rbp-96], 0
+    je .significant
+    inc qword [rbp-88]
+.significant:
+    cmp qword [rbp-112], 0
+    jne .retain_digit
+    test eax, eax
+    jz .digits
+.retain_digit:
+    mov rcx, [rbp-112]
+    cmp rcx, [rbp-192]
+    jae .discard_digit
+    inc qword [rbp-112]
+    mov edx, eax
+    mov esi, 10
+    cmp qword [rbp-80], 0
+    je .accumulate
+    mov esi, 16
+.accumulate:
+    lea rdi, [rbp-1024]
+    call rt_float_big_multiply
+    jmp .digits
+.discard_digit:
+    inc qword [rbp-120]
+    test eax, eax
+    jz .digits
+    mov qword [rbp-128], 1
+    jmp .digits
+.finish_digits:
+    cmp qword [rbp-104], 0
+    je .invalid
+    cmp qword [rbp-112], 0
+    je .zero
+    mov rsi, [rbp-8]
+    cmp rsi, [rbp-16]
+    jae .scale
+    mov al, [rsi]
+    or al, 20h
+    mov dl, 'e'
+    cmp qword [rbp-80], 0
+    je .exponent_marker
+    mov dl, 'p'
+.exponent_marker:
+    cmp al, dl
+    jne .scale
+    inc rsi
+    xor r9d, r9d
+    cmp rsi, [rbp-16]
+    jae .scale
+    cmp byte [rsi], '-'
+    jne .exponent_plus
+    mov r9d, 1
+    inc rsi
+    jmp .exponent_first
+.exponent_plus:
+    cmp byte [rsi], '+'
+    jne .exponent_first
+    inc rsi
+.exponent_first:
+    cmp rsi, [rbp-16]
+    jae .scale
+    movzx eax, byte [rsi]
+    sub eax, '0'
+    cmp eax, 9
+    ja .scale
+    xor r8d, r8d
+.exponent_digit:
+    imul r8, 10
+    add r8, rax
+    cmp r8, [rbp-136]
+    cmova r8, [rbp-136]
+    inc rsi
+    cmp rsi, [rbp-16]
+    jae .exponent_done
+    movzx eax, byte [rsi]
+    sub eax, '0'
+    cmp eax, 9
+    jbe .exponent_digit
+.exponent_done:
+    test r9d, r9d
+    jz .store_exponent
+    neg r8
+.store_exponent:
+    mov [rbp-144], r8
+.scale:
+    mov rax, [rbp-120]
+    sub rax, [rbp-88]
+    cmp qword [rbp-80], 0
+    je .decimal_scale
+    shl rax, 2
+    add rax, [rbp-144]
+    mov [rbp-152], rax
+    jmp .normalize
+.decimal_scale:
+    add rax, [rbp-144]
+    mov [rbp-152], rax
+    add rax, [rbp-112]
+    dec rax
+    mov edx, 308
+    mov rcx, -324
+    cmp qword [rbp-32], 24
+    jne .decimal_order
+    mov edx, 38
+    mov rcx, -46
+.decimal_order:
+    cmp rax, rdx
+    jg .infinity
+    cmp rax, rcx
+    jl .zero
+    mov rax, [rbp-152]
+    test rax, rax
+    jns .power_numerator
+    neg rax
+    mov [rbp-224], rax
+.power_denominator:
+    cmp qword [rbp-224], 0
+    je .normalize
+    lea rdi, [rbp-640]
+    mov esi, 5
+    xor edx, edx
+    call rt_float_big_multiply
+    dec qword [rbp-224]
+    jmp .power_denominator
+.power_numerator:
+    mov [rbp-224], rax
+.power_numerator_loop:
+    cmp qword [rbp-224], 0
+    je .normalize
+    lea rdi, [rbp-1024]
+    mov esi, 5
+    xor edx, edx
+    call rt_float_big_multiply
+    dec qword [rbp-224]
+    jmp .power_numerator_loop
+.normalize:
+    lea rdi, [rbp-1024]
+    call rt_float_big_bits
+    mov [rbp-200], rax
+    lea rdi, [rbp-640]
+    call rt_float_big_bits
+    mov rcx, [rbp-200]
+    sub rcx, rax
+    add [rbp-152], rcx
+    test rcx, rcx
+    jns .align_denominator
+    neg rcx
+    lea rdi, [rbp-1024]
+    jmp .align
+.align_denominator:
+    lea rdi, [rbp-640]
+.align:
+    call rt_float_big_shift_left
+    lea rdi, [rbp-1024]
+    lea rsi, [rbp-640]
+    call rt_float_big_compare
+    mov rdx, [rbp-152]
+    test rax, rax
+    jns .binary_exponent
+    dec rdx
+.binary_exponent:
+    mov [rbp-160], rdx
+    cmp rdx, [rbp-48]
+    jg .infinity
+    mov rax, [rbp-64]
+    dec rax
+    cmp rdx, rax
+    jl .zero
+    mov rax, [rbp-64]
+    cmp rdx, [rbp-56]
+    jl .unit
+    mov rax, rdx
+    sub rax, [rbp-40]
+.unit:
+    mov rcx, [rbp-152]
+    sub rcx, rax
+    test rcx, rcx
+    js .scale_denominator
+    lea rdi, [rbp-1024]
+    jmp .scale_binary
+.scale_denominator:
+    neg rcx
+    lea rdi, [rbp-640]
+.scale_binary:
+    call rt_float_big_shift_left
+    lea rdi, [rbp-1024]
+    call rt_float_big_bits
+    mov [rbp-200], rax
+    lea rdi, [rbp-640]
+    call rt_float_big_bits
+    mov rcx, [rbp-200]
+    sub rcx, rax
+    mov [rbp-176], rcx
+    mov qword [rbp-184], 0
+    test rcx, rcx
+    js .round
+    lea rdi, [rbp-640]
+    call rt_float_big_shift_left
+.divide:
+    shl qword [rbp-184], 1
+    lea rdi, [rbp-1024]
+    lea rsi, [rbp-640]
+    call rt_float_big_compare
+    test rax, rax
+    js .divide_next
+    call rt_float_big_subtract
+    or qword [rbp-184], 1
+.divide_next:
+    cmp qword [rbp-176], 0
+    je .round
+    lea rdi, [rbp-640]
+    call rt_float_big_shift_right
+    dec qword [rbp-176]
+    jmp .divide
+.round:
+    lea rdi, [rbp-1024]
+    mov ecx, 1
+    call rt_float_big_shift_left
+    lea rsi, [rbp-640]
+    call rt_float_big_compare
+    test rax, rax
+    jg .round_up
+    jl .pack
+    cmp qword [rbp-128], 0
+    jne .round_up
+    test qword [rbp-184], 1
+    jz .pack
+.round_up:
+    inc qword [rbp-184]
+.pack:
+    mov rax, [rbp-184]
+    mov rdx, [rbp-160]
+    cmp rdx, [rbp-56]
+    jl .sign
+    mov rcx, [rbp-32]
+    mov r8, 1
+    shl r8, cl
+    cmp rax, r8
+    jb .normal_pack
+    shr rax, 1
+    inc rdx
+    cmp rdx, [rbp-48]
+    jg .infinity
+.normal_pack:
+    mov rcx, [rbp-40]
+    mov r8, 1
+    shl r8, cl
+    dec r8
+    and rax, r8
+    add rdx, [rbp-72]
+    shl rdx, cl
+    or rax, rdx
+    jmp .sign
+.infinity:
+    mov rax, [rbp-72]
+    shl rax, 1
+    inc rax
+    mov rcx, [rbp-40]
+    shl rax, cl
+    jmp .sign
+.zero:
+    xor eax, eax
+.sign:
+    mov ecx, 63
+    cmp qword [rbp-32], 24
+    jne .sign_bit
+    mov ecx, 31
+.sign_bit:
+    mov rdx, [rbp-24]
+    shl rdx, cl
+    or rax, rdx
+    leave
+    ret
+.invalid:
+    xor eax, eax
+    leave
+    ret
+.nan_token:
+    add rsi, 3
+    xor r8d, r8d
+    cmp rsi, [rbp-16]
+    jae .nan_pack
+    cmp byte [rsi], '('
+    jne .nan_pack
+    inc rsi
+    mov r10, rsi
+.nan_scan:
+    cmp rsi, [rbp-16]
+    jae .nan_pack
+    mov al, [rsi]
+    cmp al, ')'
+    je .nan_payload
+    cmp al, '_'
+    je .nan_next
+    sub al, '0'
+    cmp al, 9
+    jbe .nan_next
+    mov al, [rsi]
+    or al, 20h
+    sub al, 'a'
+    cmp al, 25
+    ja .nan_pack
+.nan_next:
+    inc rsi
+    jmp .nan_scan
+.nan_payload:
+    mov r11, rsi
+    mov rsi, r10
+    mov r9d, 10
+    cmp rsi, r11
+    jae .nan_pack
+    cmp byte [rsi], '0'
+    jne .nan_integer
+    mov r9d, 8
+    lea rax, [rsi+1]
+    cmp rax, r11
+    jae .nan_integer
+    mov al, [rsi+1]
+    or al, 20h
+    cmp al, 'x'
+    jne .nan_integer
+    mov r9d, 16
+    add rsi, 2
+    cmp rsi, r11
+    jae .nan_pack
+.nan_integer:
+    xor r10d, r10d
+.nan_digit:
+    movzx ecx, byte [rsi]
+    sub ecx, '0'
+    cmp ecx, 9
+    jbe .nan_digit_value
+    movzx ecx, byte [rsi]
+    or ecx, 20h
+    sub ecx, 'a'
+    cmp ecx, 5
+    ja .nan_not_integer
+    add ecx, 10
+.nan_digit_value:
+    cmp rcx, r9
+    jae .nan_not_integer
+    mov rax, r8
+    mul r9
+    add rax, rcx
+    adc rdx, 0
+    test rdx, rdx
+    jz .nan_accumulated
+    mov r10d, 1
+.nan_accumulated:
+    mov r8, rax
+    inc rsi
+    cmp rsi, r11
+    jb .nan_digit
+    test r10d, r10d
+    jz .nan_pack
+    mov r8, -1
+    jmp .nan_pack
+.nan_not_integer:
+    xor r8d, r8d
+.nan_pack:
+    mov rcx, [rbp-40]
+    mov rdx, 1
+    shl rdx, cl
+    dec rdx
+    and r8, rdx
+    mov rax, [rbp-72]
+    shl rax, 1
+    inc rax
+    shl rax, cl
+    or rax, r8
+    dec ecx
+    mov rdx, 1
+    shl rdx, cl
+    or rax, rdx
+    jmp .sign
+
+; Fixed 48-word unsigned integer operations for float parsing. Callers retain
+; their pointers/counters in the parser frame; these helpers use volatile regs.
+rt_float_big_multiply:
+    mov r8, rdx
+    xor r9d, r9d
+    mov ecx, 48
+.word:
+    mov rax, [rdi+r9]
+    mul rsi
+    add rax, r8
+    adc rdx, 0
+    mov [rdi+r9], rax
+    mov r8, rdx
+    add r9, 8
+    loop .word
+    ret
+rt_float_big_bits:
+    mov r8d, 47
+.word:
+    mov rax, [rdi+r8*8]
+    test rax, rax
+    jnz .found
+    dec r8
+    jns .word
+    xor eax, eax
+    ret
+.found:
+    bsr rax, rax
+    shl r8, 6
+    lea rax, [rax+r8+1]
+    ret
+rt_float_big_compare:
+    mov r8d, 47
+.word:
+    mov rax, [rdi+r8*8]
+    cmp rax, [rsi+r8*8]
+    ja .greater
+    jb .less
+    dec r8
+    jns .word
+    xor eax, eax
+    ret
+.greater:
+    mov eax, 1
+    ret
+.less:
+    mov rax, -1
+    ret
+rt_float_big_subtract:
+    xor r8d, r8d
+    mov ecx, 48
+.word:
+    mov rax, [rdi+r8]
+    sbb rax, [rsi+r8]
+    mov [rdi+r8], rax
+    lea r8, [r8+8]
+    loop .word
+    ret
+rt_float_big_shift_left:
+    mov r8, rcx
+    shr r8, 6
+    mov r9, rcx
+    and r9d, 63
+    mov r10d, 47
+.word:
+    mov r11, r10
+    sub r11, r8
+    js .zero
+    mov rax, [rdi+r11*8]
+    xor edx, edx
+    test r11, r11
+    jz .bits
+    mov rdx, [rdi+r11*8-8]
+.bits:
+    mov ecx, r9d
+    shld rax, rdx, cl
+    jmp .store
+.zero:
+    xor eax, eax
+.store:
+    mov [rdi+r10*8], rax
+    dec r10
+    jns .word
+    ret
+rt_float_big_shift_right:
+    mov r8d, 47*8
+    mov ecx, 48
+    clc
+.word:
+    rcr qword [rdi+r8], 1
+    lea r8, [r8-8]
+    loop .word
+    ret
+
 ; Paths are counted Strs: copy and terminate instead of assuming views end
 ; at a NUL. File handles encode fd+1, keeping zero as the closed sentinel.
 rt_path:

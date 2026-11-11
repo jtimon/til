@@ -222,6 +222,17 @@ check_float_allocations := proc(compiler: Str, work: Str) {
         "mode cli\nmain:=proc() { mut value:F64=0.1; value=value+0.0; text:=value.to_repr();\n",
         "assert(text.eq(\"0.10000000000000001\")); mut small:F32=0.1; small=small+0.0;\n",
         "single:=small.to_repr(); assert(single.eq(\"0.100000001\")) }\n"),2,2)
+    check_allocations(compiler,work,"float_parse",format(
+        "mode cli\nparse64:=proc(text:Str) returns F64 { noop_proc(); return text.to_f64() }\n",
+        "parse32:=proc(text:Str) returns F32 { noop_proc(); return text.to_f32() }\n",
+        "main:=proc() { assert(parse64(\" 12.5e-1tail\")==1.25); assert(parse32(\"0x1.8p+2\")==6.0) }\n"),0,0)
+    check_allocations(compiler,work,"float_parse_separators",format(
+        "mode cli\nparse:=proc(text:Str) returns F64 { noop_proc(); return text.to_f64() }\n",
+        "main:=proc() { assert(parse(\"1_2.5e-1\")==1.25) }\n"),1,1)
+    check(compiler,work,"float_parse_file",format(
+        "mode cli\nimport(\"std/file\")\n",
+        "main:=proc() { File.writefile(\"float_input.txt\",\"  -1_2.5e1tail\\n\"); text:=File.readfile(\"float_input.txt\");\n",
+        "assert(text.to_f64()==-125.0); File.remove(\"float_input.txt\"); println(\"parse file passed\") }\n"),"parse file passed\n")
 }
 
 check_globals := proc(compiler: Str, work: Str) {
