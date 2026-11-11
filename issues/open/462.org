@@ -52,12 +52,137 @@ the NDK.
   4. Calling Java-only SDK services from til through JNI, sharing the bridge
      work with #463.
 
+*** Toolchain direction (agreed 2026-11-11)
+
+Do not vendor the NDK: it is 1-2 GB and Google distributes it under the
+Android SDK license. Instead vendor only what the host's own clang needs to
+target Android, the way vendor/macos/ lets the host clang build for macOS
+without an SDK (issue #25): upstream clang already knows the Android
+triples (~--target=aarch64-linux-android28~), it only lacks a sysroot.
+Everything in that sysroot is open source (bionic and the Linux UAPI
+headers from AOSP: BSD / Apache-2.0; compiler-rt from LLVM: Apache-2.0
+with the LLVM exception), so the subset can be redistributed with its
+notices, as vendor/macos/README.org does for Zig's darwin headers.
+
+The NDK is still the SOURCE of that subset and the reference to compare
+against: a session with an NDK installed extracts it once (and on
+upgrades), and CI can cross-check a vendored build against the NDK the
+GitHub Ubuntu runners preinstall (~$ANDROID_NDK_LATEST_HOME~).
+
+Development needs a device or emulator to run on, which the remote
+sessions do not have (no NDK, no SDK, and dl.google.com is not reachable
+from them). So the remote session prepares and documents; the
+implementation is done by a local session with the Android SDK installed
+(adb, an emulator or a phone), and CI runs it afterwards.
+
+*** Preparation notes (remote session, 2026-11-11)
+
+What the vendored sysroot must hold, per ABI (arm64-v8a first; x86_64 for
+the emulator; armeabi-v7a later) and for the one minimum API level:
+
+  - ~sysroot/usr/include~: the bionic C headers and the Linux UAPI headers,
+    plus ~usr/include/<triple>/~ (~asm/~ and friends). Not libc++.
+  - ~sysroot/usr/lib/<triple>/<api>/~: the linker stubs ~libc.so~,
+    ~libm.so~, ~libdl.so~, ~liblog.so~ (stage 2 adds ~libandroid.so~,
+    ~libEGL.so~, ~libGLESv3.so~), and the startup objects
+    ~crtbegin_dynamic.o~, ~crtend_android.o~, ~crtbegin_so.o~,
+    ~crtend_so.o~.
+  - ~libclang_rt.builtins-<arch>-android.a~ (and ~libunwind.a~ if the clang
+    driver asks for it): the host clang's resource directory has builtins
+    for the host only. Needed at least for 128-bit ~long double~ math, which
+    is the ~long double~ of arm64 and x86_64 Android.
+  - Measure the size of the subset before vendoring it; headers dominate.
+
+What ~src/self/codegen/ext.c~ and the targets need (Android defines
+~__linux__~, so every Linux branch applies unless guarded with
+~__ANDROID__~):
+
+  - ~spawn_cmd~ starts ~"/bin/sh"~, which Android does not have; its shell
+    is ~/system/bin/sh~. (The ~Cmd~ family uses ~posix_spawnp~ with a PATH
+    search and is fine.)
+  - ~posix_spawn~ / ~posix_spawnp~ exist from API 28 only. ext.c uses them
+    for every child process, so API 28 (Android 9) is the natural minimum.
+    ELF TLS (~__thread~, used only by the ~--prof~ profiler) needs API 29;
+    below that clang emits emulated TLS on its own.
+  - ~target_system_libs~ links ~-ldl -lrt -lm -lpthread~ on Linux; bionic
+    has no ~librt~ or ~libpthread~ (both are in ~libc~), so Android links
+    ~-ldl -lm~ (plus ~-llog~ if the runtime logs through logcat).
+  - ~current_rss_bytes~ walks ~/proc~ and calls ~kcmp~. Fine under ~adb
+    shell~; an APP process runs under Android's seccomp filter, where a
+    blocked syscall kills the process -- check ~kcmp~ there before stage 2.
+  - ~RTLD_DEFAULT~: bionic defines it (0 on 64-bit, ~0xffffffff~ on
+    32-bit), so ext.c's fallback definition never applies; matters only for
+    armeabi-v7a.
+  - Link with ~-Wl,-z,max-page-size=16384~: Android 15 devices can use 16 KB
+    pages, and Google Play requires 16 KB-aligned native libraries for apps
+    targeting it.
+  - Vendored libraries: compiled til programs do not reference libffi (see
+    the CI comments on the cross jobs), so stage 1 needs only ext.c and core.
+    raylib supports Android (~PLATFORM_ANDROID~) for stage 2; nng, secp256k1
+    and tinyfiledialogs are out of scope until a program needs them.
+
+For stage 3 (a til library in a Java/Kotlin app), the generated class's
+loader (~emit_jni_native_loader~ in src/self/codegen/c_codegen.til) must
+recognise Android: there ~os.name~ is ~"Linux"~, so today it would look for
+~native/linux-arm64/~ in the jar -- glibc natives a merged server jar may
+carry, which fail to load on bionic -- instead of loading from the APK's
+~jniLibs/<abi>/~. Detect Android (~java.vm.name~ is ~"Dalvik"~ on ART) and
+name the target ~android-<arch>~; with no such directory in the jar the
+class already falls back to ~System.loadLibrary~, which is how Android
+loads ~jniLibs/~.
+
+CI shape (after the local implementation): build with the vendored
+sysroot on ubuntu-latest, cross-check one program against the runner's
+NDK, and run the x86_64 build in an Android emulator (the runner has the
+SDK preinstalled at ~$ANDROID_HOME~ and supports KVM; the system image is
+downloaded in the job). arm64 is compile-only in CI and run on a real
+device by the local session.
+
+Hand-off checklist for the local session:
+
+  1. Install the Android SDK command-line tools, the NDK and the emulator,
+     and create virtual devices (AVDs): API 28 (the floor), the newest
+     API, and a 16 KB page-size image. x86_64 images run fast on an x86_64
+     host (KVM on Linux); arm64 images run natively only on an ARM host
+     (an Apple Silicon Mac), so on a PC ~android-arm64~ executables need a
+     phone with USB debugging or a cloud device farm. A session drives
+     them itself (~emulator -avd <name> [-no-window]~, ~adb install~,
+     ~adb shell~, ~adb shell screencap~ to show the human results); a
+     physical phone is for later, pre-release checks.
+  2. Extract the sysroot subset above from the NDK for API 28, arm64-v8a
+     and x86_64; measure it; write vendor/android/README.org (provenance:
+     NDK version, file list, licenses, upgrade steps), modelled on
+     vendor/macos/README.org. Needs approval of the decisions below first.
+  3. Add the targets, the ~__ANDROID__~ guards and the link flags; build
+     examples/hello_script.til, ~adb push~ it to ~/data/local/tmp~, run it
+     with ~adb shell~ and compare stdout with ~bin/til interpret~.
+  4. Run the layout corpus and the conformance programs the other cross
+     targets run, the same way.
+  5. Propose the CI job.
+
 *** Decisions needing approval before implementation
 
-  - The target spelling(s) in ~src/self/targets.til~, the ABIs covered, and
-    the minimum API level.
-  - How the NDK is located (environment variable, install path) and that it
-    is never required by a default build or ~make test~.
+  - APPROVED (2026-11-11): the targets ~android-arm64~ and ~android-x64~
+    first (~android-arm32~ later), in ~src/self/targets.til~.
+  - APPROVED (2026-11-11): minimum API level 28 (Android 9, 2018), the
+    first with ~posix_spawn~, which ext.c uses for every child process.
+    About 97% of Play devices in October 2026; Samsung: Galaxy S8 / Note 8
+    and later. It is a floor, not a limit: the same build runs on every
+    newer Android, and APIs newer than 28 are reached by run-time lookup
+    or an API-level check. Lowering it later is additive: re-extract the
+    sysroot for the lower level (a lower level's stubs run on newer
+    devices), add a fork/exec spawn path for bionic below 28, and add
+    ~android-arm32~ for the 32-bit phones of that era.
+  - The "roof" is not a fixed limit. The newest API a til program can call
+    is that of the vendored headers, so extract them from the newest NDK
+    (API 36-37 in late 2026) and re-vendor to raise it. An APK's
+    ~targetSdkVersion~ (the newest Android it declares tested, which Google
+    Play requires to be recent) is a stage 2 manifest choice, separate from
+    both.
+  - APPROVED (2026-11-11): the vendored sysroot lives in ~vendor/android/~
+    (one sysroot for the minimum API level), found as targets.til finds
+    vendor/macos/, with no environment variable. Neither it nor the NDK is
+    needed by a default build or ~make test~.
   - The APK packaging route (the SDK's ~aapt2~ / ~zipalign~ / ~apksigner~
     directly, or Gradle) and where generated manifests and APKs live.
   - For stage 3: whether ~--jni~ for an Android target produces an AAR, a
