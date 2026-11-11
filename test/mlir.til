@@ -151,6 +151,86 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_pointer_fields := proc(compiler:Str,work:Str) {
+    types:=array(Str,"I8","U8","I16","U16","I32","U32","I64","U64","F32","F64","Bool","USize","UPtr","Byte","F4","S4","U4","M4","Point")
+    ctypes:=array(Str,"char","unsigned char","short","unsigned short","int","unsigned int","long long","unsigned long long","float","double","bool","unsigned long long","unsigned long long","char","F4","S4","U4","M4","Point")
+    names:=format("Byte:=I8\nF4:=Simd(F32,4)\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\nM4:=Simd(Bool,4)\nPoint:=struct{a:I64=0;b:I64=0}\n",
+        "Raw:=struct{ref p:Dynamic=0}\nMixedRef:=struct{head:F32=0;ref p:I64}\nRefFloat:=struct{ref p:I64;tail:F64=0}\nRefPair:=struct{ref a:I64;ref b:F64}\nCountTail:=struct{count:USize=0;flag:Bool=false}\n",
+        "VectorRef:=struct{ref p:I64;v:F4=F4.zero()}\nNestedRef:=struct{tag:I8=0;view:MixedRef;m:M4=M4.zero()}\nNodeRef:=struct{value:I64=0;ref next:NodeRef}\nHandles:=struct{ref text:Str;ref bytes:Array(U8)}\n")
+    mut source:=format("mode lib\n",names)
+    mut declarations:=format("#include <assert.h>\n#include <stdint.h>\n#include <stdbool.h>\n#include <stddef.h>\n#include <stdlib.h>\n#include <string.h>\n",
+        "typedef struct{float v[4];}F4;typedef struct{int32_t v[4];}S4;typedef struct{uint32_t v[4];}U4;typedef struct{bool v[4];}M4;typedef struct{long long a,b;}Point;typedef struct{void*p;}Raw;typedef struct{float head;long long*p;}MixedRef;typedef struct{long long*p;double tail;}RefFloat;typedef struct{long long*a;double*b;}RefPair;typedef struct{uint64_t count;bool flag;}CountTail;typedef struct{long long*p;F4 v;}VectorRef;typedef struct{char tag;MixedRef view;M4 m;}NestedRef;typedef struct NodeRef{long long value;struct NodeRef*next;}NodeRef;typedef struct{char*data;uint64_t count,cap;}Text;typedef struct{void*data;uint64_t cap;}Buffer;typedef struct{Text*text;Buffer*bytes;}Handles;\n",
+        "_Static_assert(sizeof(CountTail)==16 && offsetof(CountTail,flag)==8,\"target width\");_Static_assert(sizeof(VectorRef)==24 && offsetof(VectorRef,v)==8,\"vector pointer layout\");_Static_assert(sizeof(NestedRef)==32 && offsetof(NestedRef,view)==8 && offsetof(NestedRef,m)==24,\"nested pointer layout\");\n")
+    mut checks:="int main(int argc,char**argv){(void)argv;if(argc>1){Box_I64 bad=make_I64(NULL);read_I64(bad);return 99;}\n"
+    mut bindings:=format("mode cli\nlink(\"gen/lib/libpointer_fields.so\")\n",names)
+    for i in 0..types.len() {
+        ref t:Str=types[i];ref ct:Str=ctypes[i]
+        source=format(source,"Box_",t,":=struct{ref value:",t,"}\nmake_",t,":=func(p:Dynamic) returns Box_",t,"{return Box_",t,"(value=p)}\ncopy_",t,":=func(shallow p:Box_",t,") returns Box_",t,"{return p.clone()}\nget_",t,":=func(p:Box_",t,") returns ref ",t,"{return p.value}\nread_",t,":=func(shallow p:Box_",t,") returns ",t,"{return p.value.clone()}\n")
+        mut qualifier:=""
+        if t=="Point" {qualifier="shallow "}
+        source=format(source,"write_",t,":=func(p:Box_",t,",",qualifier,"v:",t,"){ref mut slot:",t,"=p.value;slot=v}\nretarget_",t,":=func(mut p:Box_",t,",shallow q:Box_",t,"){p.value=q.value}\n")
+        declarations=format(declarations,"typedef struct{",ct,"*value;}Box_",t,";extern Box_",t," make_",t,"(void*),copy_",t,"(Box_",t,");extern const ",ct,"*get_",t,"(const Box_",t,"*);extern ",ct," read_",t,"(Box_",t,");extern void write_",t,"(Box_",t,"*,",ct,"),retarget_",t,"(Box_",t,"*,Box_",t,");\n")
+        mut init:=format(ct," a=(",ct,")-3,b=(",ct,")17,v=(",ct,")-123;")
+        if t=="Bool" {init="bool a=false,b=true,v=true;"}
+        if t=="F32" {init="uint32_t raw[3]={0x7f800001,0x80000000,0xffc12345};float a,b,v;memcpy(&a,raw,4);memcpy(&b,raw+1,4);memcpy(&v,raw+2,4);"}
+        if t=="F64" {init="uint64_t raw[3]={0x7ff0000000000001ULL,0x8000000000000000ULL,0xfff8123456789abcULL};double a,b,v;memcpy(&a,raw,8);memcpy(&b,raw+1,8);memcpy(&v,raw+2,8);"}
+        if t=="F4" {init="uint32_t raw[4]={0x7f800001,0xffc12345,0x80000000,1};F4 a,b,v;memcpy(&a,raw,16);memcpy(&b,raw,16);memcpy(&v,raw,16);"}
+        if t=="S4" {init="S4 a={{INT32_MIN,INT32_MAX,-1,0}},b={{1,2,3,4}},v={{-7,-8,-9,-10}};"}
+        if t=="U4" {init="U4 a={{UINT32_MAX,0,0x80000000,7}},b={{1,2,3,4}},v={{5,6,7,UINT32_MAX}};"}
+        if t=="M4" {init="M4 a={{true,false,true,false}},b={{false,true,false,true}},v={{true,true,false,false}};"}
+        if t=="Point" {init="Point a={1,2},b={3,4},v={-7,99};"}
+        checks=format(checks,"{",init,"Box_",t," p=make_",t,"(&a),q=make_",t,"(&b),saved=copy_",t,"(p);assert(p.value==&a && saved.value==&a && get_",t,"(&p)==&a);",ct," value=read_",t,"(p);assert(memcmp(&value,&a,sizeof a)==0);write_",t,"(&p,v);assert(p.value==&a && memcmp(&a,&v,sizeof a)==0);retarget_",t,"(&p,q);assert(p.value==&b && saved.value==&a && get_",t,"(&p)==&b);write_",t,"(&p,v);assert(memcmp(&b,&v,sizeof b)==0);}\n")
+        if i<8 || t=="USize" || t=="UPtr" || t=="Byte" {
+            source=format(source,"step_",t,":=func(mut p:Box_",t,"){p.value++}\n")
+            declarations=format(declarations,"extern void step_",t,"(Box_",t,"*);\n")
+            checks=format(checks,"{",ct," value=(",ct,")-1;Box_",t," p=make_",t,"(&value);step_",t,"(&p);assert(value==0 && p.value==&value);}\n")
+        }
+        bindings=format(bindings,"Box_",t,":=struct{ref value:",t,"}\n")
+    }
+    source=format(source,
+        "make_raw:=func(p:Dynamic) returns Raw{return Raw(p=p)}\ncopy_raw:=func(shallow p:Raw) returns Raw{return p.clone()}\ndefault_raw:=func() returns Raw{return Raw()}\nraw_equal:=func(shallow p:Raw,q:Dynamic) returns Bool{return ptr_eq(p.p,q)}\nraw_set:=func(mut p:Raw,q:Dynamic){p.p=q}\n",
+        "wide_byte:=func(shallow p:Box_I8) returns I64{return p.value.clone()}\nwide_unsigned_byte:=func(shallow p:Box_U8) returns U64{return p.value.clone()}\n",
+        "make_mixed:=func(shallow head:F32,p:Dynamic) returns MixedRef{return MixedRef(head=head,p=p)}\ncopy_mixed:=func(shallow p:MixedRef) returns MixedRef{return p.clone()}\ncopy_reverse:=func(shallow p:RefFloat) returns RefFloat{return p.clone()}\ncopy_pair:=func(shallow p:RefPair) returns RefPair{return p.clone()}\n",
+        "make_count:=func(n:USize,flag:Bool) returns CountTail{return CountTail(count=n,flag=flag)}\ncopy_count:=func(shallow p:CountTail) returns CountTail{return p.clone()}\n",
+        "make_vector:=func(p:Dynamic,shallow v:F4) returns VectorRef{return VectorRef(p=p,v=v)}\ncopy_vector:=func(shallow p:VectorRef) returns VectorRef{return p.clone()}\nreplace_vector:=func(mut p:VectorRef,v:F4){p.v=v}\n",
+        "make_nested:=func(p:Dynamic,shallow v:F32,shallow m:M4) returns NestedRef{return NestedRef(tag=-7,view=MixedRef(head=v,p=p),m=m)}\ncopy_nested:=func(shallow p:NestedRef) returns NestedRef{return p.clone()}\nread_nested:=func(shallow p:NestedRef) returns I64{ref n:I64=p.view.p;return n.clone()}\n",
+        "make_node:=func(p:Dynamic) returns NodeRef{return NodeRef(value=123,next=p)}\ncopy_node:=func(shallow p:NodeRef) returns NodeRef{return p.clone()}\nnode_next:=func(p:NodeRef) returns ref NodeRef{return p.next}\nnext_value:=func(p:NodeRef) returns I64{return p.next.value}\n",
+        "make_handles:=func(text:Dynamic,bytes:Dynamic) returns Handles{return Handles(text=text,bytes=bytes)}\ncopy_handles:=func(shallow p:Handles) returns Handles{return p.clone()}\ntext_ref:=func(p:Handles) returns ref Str{return p.text}\ntext_length:=func(shallow p:Handles) returns USize{return p.text.len()}\nbyte_read:=func(shallow p:Handles,i:USize) returns U8 throws OutOfBounds{ref v:U8=p.bytes.get(i)?;return v.clone()}\n",
+        "byte_write:=func(mut p:Handles,i:USize,v:U8) throws OutOfBounds{p.bytes.set(i,own v.clone())?}\narray_choice:=func(mut p:Handles,mut q:Handles,choice:Bool,v:U8) throws OutOfBounds{p.bytes.set(1,own v.clone())?;ref mut a:Array(U8)=p.bytes;if choice{a=q.bytes};a.set(0,own v.clone())?}\n",
+        "local_choice:=func(mut p:Box_I64,mut q:Box_I64,choice:Bool,v:I64){p.value++;ref mut r:I64=p.value;if choice{r=q.value};r=v;r++}\ncounted_ref:=func(p:Box_I64,mut count:I64) returns ref I64{count++;return p.value}\nstep_counted:=func(p:Box_I64,mut count:I64){counted_ref(p,count).inc()}\n",
+        "loop_choice:=func(mut p:Box_I64,mut q:Box_I64,n:USize){p.value++;q.value++;ref mut r:I64=p.value;mut i:USize=0;while i<n{if i.mod(2)==0{r=q.value}else{r=p.value};r++;i++}}\n",
+        "integer_budget:=func(shallow a:I64,shallow b:I64,shallow c:I64,shallow d:I64,shallow e:I64,shallow f:I64,shallow p:MixedRef,shallow last:F64) returns MixedRef{mut out:=p.clone();out.head=(a+b+c+d+e+f).cast(F32)+last.cast(F32);return out}\n",
+        "integer_relay:=func(shallow a:I64,shallow b:I64,shallow c:I64,shallow d:I64,shallow e:I64,shallow f:I64,shallow p:MixedRef,shallow last:F64) returns MixedRef{return integer_budget(a,b,c,d,e,f,p,last)}\n",
+        "sse_budget:=func(shallow a:F64,shallow b:F64,shallow c:F64,shallow d:F64,shallow e:F64,shallow f:F64,shallow g:F64,shallow h:F64,shallow p:MixedRef,shallow last:I64) returns MixedRef{mut out:=p.clone();out.head=(a+b+c+d+e+f+g+h+last.cast(F64)).cast(F32);return out}\n",
+        "sse_relay:=func(shallow a:F64,shallow b:F64,shallow c:F64,shallow d:F64,shallow e:F64,shallow f:F64,shallow g:F64,shallow h:F64,shallow p:MixedRef,shallow last:I64) returns MixedRef{return sse_budget(a,b,c,d,e,f,g,h,p,last)}\n",
+        "sret_budget:=func(shallow a:I64,shallow b:I64,shallow c:I64,shallow d:I64,shallow p:RefPair,shallow last:I64) returns VectorRef{return VectorRef(p=p.a,v=F4.new((a+b+c+d+last).cast(F32),2,3,4))}\n",
+        "sret_relay:=func(shallow a:I64,shallow b:I64,shallow c:I64,shallow d:I64,shallow p:RefPair,shallow last:I64) returns VectorRef{return sret_budget(a,b,c,d,p,last)}\n")
+    declarations=format(declarations,"extern Raw make_raw(void*),copy_raw(Raw),default_raw(void);extern bool raw_equal(Raw,const void*);extern void raw_set(Raw*,void*);extern MixedRef make_mixed(float,void*),copy_mixed(MixedRef),integer_budget(long long,long long,long long,long long,long long,long long,MixedRef,double),integer_relay(long long,long long,long long,long long,long long,long long,MixedRef,double),sse_budget(double,double,double,double,double,double,double,double,MixedRef,long long),sse_relay(double,double,double,double,double,double,double,double,MixedRef,long long);extern RefFloat copy_reverse(RefFloat);extern RefPair copy_pair(RefPair);extern CountTail make_count(uint64_t,bool),copy_count(CountTail);extern VectorRef make_vector(void*,F4),copy_vector(VectorRef),sret_budget(long long,long long,long long,long long,RefPair,long long),sret_relay(long long,long long,long long,long long,RefPair,long long);extern void replace_vector(VectorRef*,F4);extern NestedRef make_nested(void*,float,M4),copy_nested(NestedRef);extern long long read_nested(NestedRef);extern NodeRef make_node(void*),copy_node(NodeRef);extern const NodeRef*node_next(const NodeRef*);extern long long next_value(const NodeRef*);extern Handles make_handles(void*,void*),copy_handles(Handles);extern const Text*text_ref(const Handles*);extern uint64_t text_length(Handles);extern unsigned char byte_read(Handles,uint64_t,long long*);extern void byte_write(Handles*,uint64_t,unsigned char,long long*),array_choice(Handles*,Handles*,bool,unsigned char,long long*),local_choice(Box_I64*,Box_I64*,bool,long long),step_counted(Box_I64*,long long*),loop_choice(Box_I64*,Box_I64*,uint64_t);\n")
+    declarations=format(declarations,"extern long long wide_byte(Box_I8);extern unsigned long long wide_unsigned_byte(Box_U8);\n")
+    checks=format(checks,"char signed_byte=-1;unsigned char unsigned_byte=255;assert(wide_byte(make_I8(&signed_byte))==-1 && wide_unsigned_byte(make_U8(&unsigned_byte))==255);const uint64_t addresses[]={0,1,0x100000000ULL,0x8000000000000000ULL,UINT64_MAX};for(unsigned i=0;i<5;i++){void*p=(void*)(uintptr_t)addresses[i];Raw r=copy_raw(make_raw(p));assert(r.p==p && raw_equal(r,p));}assert(default_raw().p==NULL);unsigned char a_bytes[16],b_bytes[16];memset(a_bytes,0xaa,16);memset(b_bytes,0xbb,16);Raw r=make_raw(a_bytes);raw_set(&r,b_bytes);assert(r.p==b_bytes);for(unsigned i=0;i<16;i++)assert(a_bytes[i]==0xaa && b_bytes[i]==0xbb);long long n=7,other=11;double d=2.5;MixedRef mixed=copy_mixed(make_mixed(-0.0f,&n));assert(mixed.p==&n);RefFloat reverse=copy_reverse((RefFloat){&n,-0.0});assert(reverse.p==&n && memcmp(&reverse.tail,&(double){-0.0},8)==0);RefPair pair=copy_pair((RefPair){&n,&d});assert(pair.a==&n && pair.b==&d);CountTail count=copy_count(make_count(UINT64_MAX,true));assert(count.count==UINT64_MAX && count.flag);\n",
+        "uint32_t raw[4]={0x7f800001,0xffc12345,0x80000000,1};F4 f;memcpy(&f,raw,16);VectorRef v=copy_vector(make_vector(&n,f));assert(v.p==&n && memcmp(&v.v,raw,16)==0);replace_vector(&v,(F4){{1,2,3,4}});assert(v.p==&n && v.v.v[3]==4);M4 mask={{true,false,true,false}};NestedRef nested=copy_nested(make_nested(&n,-0.0f,mask));assert(nested.tag==-7 && nested.view.p==&n && read_nested(nested)==7 && memcmp(&nested.m,&mask,4)==0);NodeRef node;node=make_node(&node);NodeRef node_copy=copy_node(node);assert(node.next==&node && node_copy.next==&node && node_next(&node_copy)==&node && next_value(&node_copy)==123);\n",
+        "Text text={(char*)\"pointer fields\",14,UINT64_MAX};unsigned char bytes[3]={1,2,3},second[3]={4,5,6};Buffer buffer={bytes,3},buffer2={second,3};Handles handles=copy_handles(make_handles(&text,&buffer)),h2=make_handles(&text,&buffer2);assert(handles.text==&text && handles.bytes==&buffer && text_ref(&handles)==&text && text_length(handles)==14);long long error=0;assert(byte_read(handles,1,&error)==2 && error==0);byte_write(&handles,1,255,&error);assert(bytes[1]==255 && error==0);error=0;byte_read(handles,UINT64_MAX,&error);assert(error==1);for(unsigned choice=0;choice<2;choice++){bytes[0]=1;second[0]=4;error=0;array_choice(&handles,&h2,choice,77,&error);assert(error==0 && bytes[1]==77 && (choice?second[0]==77 && bytes[0]==1:bytes[0]==77 && second[0]==4) && handles.bytes==&buffer);}\n",
+        "for(unsigned choice=0;choice<2;choice++){n=7;other=11;Box_I64 x=make_I64(&n),y=make_I64(&other);local_choice(&x,&y,choice,17);assert((choice?n==8 && other==18:n==18 && other==11) && x.value==&n);long long calls=0;step_counted(&x,&calls);assert(calls==1 && n==(choice?9:19));}for(uint64_t iterations=0;iterations<7;iterations++){n=7;other=11;Box_I64 x=make_I64(&n),y=make_I64(&other);loop_choice(&x,&y,iterations);assert(n==8+(long long)(iterations/2) && other==12+(long long)((iterations+1)/2) && x.value==&n && y.value==&other);}mixed.p=&n;MixedRef ib=integer_budget(1,2,3,4,5,6,mixed,7.5),ir=integer_relay(1,2,3,4,5,6,mixed,7.5),sb=sse_budget(1,2,3,4,5,6,7,8,mixed,9),sr=sse_relay(1,2,3,4,5,6,7,8,mixed,9);assert(ib.p==&n && ir.p==&n && sb.p==&n && sr.p==&n && ib.head==28.5f && ir.head==28.5f && sb.head==45 && sr.head==45);VectorRef rb=sret_budget(1,2,3,4,pair,11),rr=sret_relay(1,2,3,4,pair,11);assert(rb.p==&n && rr.p==&n && rb.v.v[0]==21 && rr.v.v[0]==21 && rb.v.v[3]==4);return 0;}\n")
+    bindings=format(bindings,"make_I64:=ext_func(p:Dynamic) returns shallow Box_I64{}\nread_I64:=ext_func(shallow p:Box_I64) returns shallow I64{}\nlocal_choice:=ext_func(mut p:Box_I64,mut q:Box_I64,shallow choice:Bool,shallow v:I64){}\nloop_choice:=ext_func(mut p:Box_I64,mut q:Box_I64,shallow n:USize){}\nmake_raw:=ext_func(p:Dynamic) returns shallow Raw{}\nraw_equal:=ext_func(shallow p:Raw,q:Dynamic) returns shallow Bool{}\nraw_set:=ext_func(mut p:Raw,q:Dynamic){}\nmake_handles:=ext_func(text:Dynamic,bytes:Dynamic) returns shallow Handles{}\ntext_length:=ext_func(shallow p:Handles) returns shallow USize{}\nbyte_write:=ext_func(mut p:Handles,shallow i:USize,shallow v:U8) throws OutOfBounds{}\narray_choice:=ext_func(mut p:Handles,mut q:Handles,shallow choice:Bool,shallow v:U8) throws OutOfBounds{}\n")
+    reference_checks:="main:=proc(){mut x:I64=7;x=x+0;mut y:I64=11;y=y+0;mut p:=make_I64(to_ptr(x));mut q:=make_I64(to_ptr(y));local_choice(p,q,true,17);assert_eq(I64,x,8);assert_eq(I64,y,18);loop_choice(p,q,3);assert_eq(I64,x,10);assert_eq(I64,y,21);assert_eq(I64,read_I64(p),10);mut raw:=make_raw(to_ptr(x));assert(raw_equal(raw,to_ptr(x)));raw_set(raw,to_ptr(y));assert(raw_equal(raw,to_ptr(y)));null_pointer:Dynamic=0;raw_set(raw,null_pointer);assert(raw_equal(raw,null_pointer));text:=\"pointer fields\";mut a:=array(U8,1,2,3);mut b:=array(U8,4,5,6);mut h:=make_handles(to_ptr(text),to_ptr(a));mut j:=make_handles(to_ptr(text),to_ptr(b));assert_eq(USize,text_length(h),14);byte_write(h,2,255)!;array_choice(h,j,true,77)!;assert_eq(U8,a[1],77);assert_eq(U8,b[0],77);assert_eq(U8,a[2],255);println(\"pointer fields PASS\")}\n"
+    File.writefile(format(work,"/pointer_fields.til"),source)
+    File.writefile(format(work,"/pointer_field_caller.c"),format(declarations,checks))
+    File.writefile(format(work,"/pointer_field_reference.til"),format("mode cli\nimport(\"pointer_fields\")\n",reference_checks))
+    File.writefile(format(work,"/pointer_field_consumer.til"),format(bindings,reference_checks))
+    reference:=Cmd.new(compiler,"run","--usize=64","pointer_field_reference.til");checked(reference,work)
+    interpreted:=Cmd.new(compiler,"interpret","--usize=64","pointer_field_reference.til");checked(interpreted,work)
+    assert_eq(Str,reference.out(),interpreted.out())
+    for level in array(Str,"0","2","3") {
+        build:=Cmd.new(compiler,"build","--backend=mlir",format("--opt=",level),"pointer_fields.til");checked(build,work)
+        cc:=Cmd.new("clang-18","-O2","-fsigned-char","-fsanitize=address,undefined","-fno-sanitize-recover=all","-Wall","-Wextra","-Werror","pointer_field_caller.c","gen/lib/libpointer_fields.a","-lm","-o","pointer_field_caller");checked(cc,work)
+        native:=Cmd.new("./pointer_field_caller");checked(native,work)
+        consumer:=Cmd.new(compiler,"run","--usize=64","--asan","pointer_field_consumer.til");checked(consumer,work)
+        assert_eq(Str,consumer.out(),reference.out())
+        failure:=Cmd.new("./pointer_field_caller","null");failure.cwd(work).capture()
+        assert_eq(I64,failure.run(),1);assert_eq(Str,failure.out(),"");assert_eq(Str,failure.err(),"panic: null deref\n")
+    }
+}
+
 priv check_simd_fields := proc(compiler:Str,work:Str) {
     vectors:=array(Str,"F4","S4","U4","M4")
     boxes:=array(Str,"FBox","SBox","UBox","MBox")
@@ -1334,5 +1414,6 @@ main := proc(compiler_arg: Str) {
     check_integer_arithmetic(compiler,work)
     check_scalar_arrays(compiler,work)
     check_simd_fields(compiler,work)
+    check_pointer_fields(compiler,work)
     println("mlir PASS")
 }

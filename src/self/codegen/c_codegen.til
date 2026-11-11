@@ -3300,7 +3300,11 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             f.write(c_ident(fname))
             if set_pointee.len() > 0 { f.write("), (") } else { f.write(" = ") }
         }
-        if builder_fa_is_ptr(e, ctx) { emit_as_ptr(f, rhs_fa, depth, true, ctx) }
+        if builder_fa_is_ptr(e, ctx) {
+            // Rebinding a ref field borrows the source's address. Only an own
+            // pointer field transfers/boxes an outer wrapper.
+            emit_as_ptr(f, rhs_fa, depth, fa_own_type(e,ctx.scope,ctx.symbols).is(OwnType.Own), ctx)
+        }
         else { emit_deref(f, rhs_fa, depth, ctx) }
         emit_cptr_close(f, set_pointee)
         f.write(";\n")
@@ -4693,6 +4697,30 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                 } else if core_op.eq("inc").or(core_op.eq("dec")) {
                     step_name := callee_param_type_name(flat, 0, ctx)
                     step_type := til_type_name_c(type_from_name_init_name(step_name, ctx.scope, ctx.symbols), ctx.symbols)
+                    mut pointer_step:=false
+                    switch e.children[1].node_type {
+                    case .FieldAccess: pointer_step=builder_fa_is_ptr(e.children[1],ctx)
+                    case .FCall: pointer_step=fcall_returns_ref(e.children[1],ctx)
+                    case:
+                    }
+                    if pointer_step {
+                        // A typed ref field stores an address. Step its
+                        // pointee, not the pointer slot, and resolve a getter
+                        // exactly once before the DEREF null check.
+                        f.write("({ ").write(step_type).write(" *_t_step_pointer = ")
+                        emit_as_ptr(f,e.children[1],depth,false,ctx)
+                        f.write("; ")
+                        if step_type.eq("I32").or(step_type.eq("I64")) {
+                            mut unsigned_type:="U32";if step_type=="I64" {unsigned_type="U64"}
+                            f.write("DEREF(_t_step_pointer) = (").write(step_type).write(")((").write(unsigned_type).write(")DEREF(_t_step_pointer) ")
+                            if core_op=="inc" {f.write("+")}else{f.write("-")}
+                            f.write(" 1U); })")
+                        } else {
+                            if core_op=="inc" {f.write("++")}else{f.write("--")}
+                            f.write("DEREF(_t_step_pointer); })")
+                        }
+                        return f
+                    }
                     // Unsigned steps wrap natively. I8/I16 promote to C int,
                     // where the addition/subtraction cannot overflow either.
                     if step_type.eq("I32").or(step_type.eq("I64")).not() {

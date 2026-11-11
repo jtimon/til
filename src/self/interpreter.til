@@ -2064,7 +2064,9 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
         if base_o.is_some() { fl = place_field_layout(sname, fa.field_access_name(ctx.symbols.names), base_o.unwrap(), ctx) }
         // Generic instantiation may have replaced the USize/UPtr spelling
         // with its target primitive, so select the storage width by layout.
-        if raw_type_is_prim(field_resolved_type, ctx) {
+        // Only inline scalar fields use the field slot's layout width. A
+        // non-shallow slot holds a pointer, not an eight-byte scalar pointee.
+        if raw_type_is_prim(field_resolved_type, ctx).and(fdecl.own_type.is(OwnType.Shallow)) {
             mut field_type := field_word_type(field_resolved_type, fl.size, ctx)
             if (sname == ctx.eval.cached_str_name).and(fa.field_access_name(ctx.symbols.names) == "cap").and(fl.size == 4) {
                 field_type = Type.Primitive(Primitive.I32)
@@ -3186,12 +3188,12 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
             mut val_is_ref := false
             mut val_is_word := false
             mut val_source_type := val_expr.til_type().clone()
+            mut val_info := raw_result_info_new()
             if fad.transfers_own {
                 switch val_expr.node_type {
                 case .Ident(val_id):
                     val_raw = scope_move_bound_raw(scope, val_id.ident_name(ctx.symbols.names), ctx)
                 case:
-                    mut val_info := raw_result_info_new()
                     val_raw = eval_expr_raw_info(scope, val_expr, ctx, val_info)
                     val_is_ref = val_info.is_ref
                     val_is_word = val_info.is_word
@@ -3208,8 +3210,8 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     val_raw = source_raw
                     val_is_ref = true
                     val_source_type = hb_type(source_hb).clone()
+                    val_info.arg_deref=hb_type(source_hb).is(Type.Dynamic).and(source_hb.is_erased_dynamic.not())
                 case:
-                    mut val_info := raw_result_info_new()
                     val_raw = eval_expr_raw_info(scope, val_expr, ctx, val_info)
                     val_is_ref = val_info.is_ref
                     val_is_word = val_info.is_word
@@ -3304,7 +3306,10 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     if drop_field { mut owned_old : Dynamic = old; EvalHeap.heap_free(own owned_old) }
                     own_slot_store(slot, copied, wf_fl.size)
                 } else {
-                    write_field(base, fdecl, wf_fl.offset, wf_fl.size, val_raw, val_source_type, val_is_ref, drop_field, ctx)
+                    val_info.is_ref=val_is_ref
+                    val_info.is_word=val_is_word
+                    val_info.source_type_p=to_ptr(interp_intern_type(val_source_type,ctx))
+                    write_field(base, fdecl, wf_fl.offset, wf_fl.size, val_raw, val_info, drop_field, ctx)
                 }
             }
         case .FCall(fcd):
@@ -5830,7 +5835,8 @@ priv scope_set_borrowed := func(mut s: Scope, name: Str, til_type_w: Dynamic, ow
     source_hb_o := scope_lookup_heap_binding(source_scope, source_name)
     if source_hb_o.is_none() { panic("borrow source not found: ", source_name) }
     ref source_hb : HeapBinding = source_hb_o.unwrap()
-    if source_hb.ptr.is_null() { panic("borrow source not found: ", source_name) }
+    // The binding exists; a null raw Dynamic pointer is a value, not a missing
+    // source. moved_out, rather than its pointer bits, records a transfer.
     if source_hb.moved_out { panic("borrow of moved binding: ", source_name) }
     ref source_ptr : Dynamic = to_ptr(source_hb.ptr)
     is_erased_dynamic := source_hb.is_erased_dynamic.or(til_type.is(Type.Dynamic).and(hb_type(source_hb).is(Type.Dynamic).not()))
@@ -6557,7 +6563,9 @@ priv prepare_owned_str_wrapper := func(mut value: Dynamic, ctx: Context) {
     }
 }
 
-priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, mut raw: Dynamic, shallow raw_type: Type, raw_is_ref: Bool, drop_old: Bool, ctx: Context) {
+priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, mut raw: Dynamic, info:RawResultInfo, drop_old: Bool, ctx: Context) {
+    ref raw_type:Type=raw_result_source_type(info)
+    raw_is_ref:=info.is_ref
     ref mut dst : Dynamic = ptr_add(inst_data, field_offset)
     if decl_is_funcsig(dd, ctx) {
         ref mut old_callable : Dynamic = deref(dst)
@@ -6567,6 +6575,13 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         if raw_is_ref { write_ptr(dst, callable_storage_clone(stored)) }
         else { write_ptr(dst, stored); write_ptr(raw, bits_word(0)) }
         raw_result_drop_ptr(raw_type, raw, raw_is_ref, ctx)
+        return
+    }
+    if dd.own_type.is(OwnType.Ref) {
+        // Ref fields store addresses. Preserve the evaluator's distinction
+        // between an erased Dynamic address, a Dynamic word slot and null.
+        own_slot_store(dst,raw_arg_pointer(raw,info,ctx),field_size)
+        raw_result_drop_ptr(raw_type,raw,raw_is_ref,ctx)
         return
     }
     // #397: family-predicate form of the old .Struct/.Enum payload switch,
@@ -6585,8 +6600,6 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
                 own_slot_store(dst, source, field_size)
                 return
             }
-        } else if dd.own_type.is(OwnType.Ref) {
-            own_slot_store(dst, source, field_size)
         } else {
             if drop_old { free_inline_struct_slot(dst, name, ctx) }
             if raw_is_ref.not() {
@@ -6619,8 +6632,6 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
             if drop_old { free_owned_enum_slot(dst, field_size, ename, ctx) }
             if raw_is_ref { own_slot_store(dst, heap_clone_enum(ename, source, dispatch_enum_size(ename, ctx), ctx), field_size) }
             else { own_slot_store(dst, source, field_size); return }
-        } else if dd.own_type.is(OwnType.Ref) {
-            own_slot_store(dst, source, field_size)
         } else {
             if drop_old { heap_drop_enum(ename, dst, ctx) }
             // Raw enum results use a word-sized carrier even when their
@@ -6632,7 +6643,7 @@ priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: 
         raw_result_drop_ptr(raw_type, raw, raw_is_ref, ctx)
         return
     }
-    if dd.own_type.is(OwnType.Own).or(dd.own_type.is(OwnType.Ref)) {
+    if dd.own_type.is(OwnType.Own) {
         // The field stores a POINTER, so the value written is the source
         // ADDRESS. Only a Dynamic source hides it one level down (the slot
         // holds the pointer word). This started at 0 and was filled in for

@@ -11,6 +11,9 @@ priv MlirBinding := struct {
     is_signed := false
     is_ref := false
     is_stack := false
+    is_local_ref := false
+    is_dynamic := false
+    reference_slot := ""
     owns_wrapper := false
 }
 
@@ -110,9 +113,12 @@ priv mlir_type := func(shallow t: Type, lp: LoadedProgram) returns Str {
             mut fields := ""
             for i in 0..sd.fields.len() {
                 ref field : Declaration = sd.fields[i]
-                if field.own_type.is(OwnType.Shallow).not() { return "" }
-                ft := mlir_type(declaration_resolved_type(field, lp.ctx.scope, lp.ctx.symbols), lp)
-                if mlir_scalar(ft).or(mlir_pod(ft)).or(mlir_vector(ft)).not() { return "" }
+                if field.own_type.is(OwnType.Own) { return "" }
+                mut ft:="!llvm.ptr"
+                if field.own_type.is(OwnType.Ref).not() {
+                    ft=mlir_type(declaration_resolved_type(field, lp.ctx.scope, lp.ctx.symbols), lp)
+                    if mlir_scalar(ft).or(mlir_pod(ft)).or(mlir_vector(ft)).not() { return "" }
+                }
                 if i > 0 { fields = format(fields, ", ") }
                 fields = format(fields, mlir_field_storage(ft))
             }
@@ -172,15 +178,24 @@ priv mlir_return_sret := func(t: Str, lp: LoadedProgram) returns Bool {
 }
 
 // SysV's INTEGER class dominates SSE within each eightbyte, including nested
-// fields, including scalar-layout SIMD lanes. There are no pointers, packed
-// fields, native-vector fields or x87 classes in this subset.
+// fields, including scalar-layout SIMD lanes and native pointer/reference slots.
+// Packed fields, native-vector fields and x87 classes are outside this subset.
 priv mlir_pod_classify := func(t: Str, offset: USize, mut parts: Vec(Str), lp: LoadedProgram) {
     name := mlir_pod_name(t)
     ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(name, lp.ctx.symbols).unwrap())
-    ref layout : StructLayout = lp.ctx.struct_layouts[name]
+    mut cursor:USize=0
     for i in 0..sd.fields.len() {
-        ft := mlir_type(declaration_resolved_type(sd.fields[i], lp.ctx.scope, lp.ctx.symbols), lp)
-        position := offset+layout.fields[i].offset
+        ref field:Declaration=sd.fields[i]
+        mut ft:="!llvm.ptr"
+        mut size:USize=8
+        mut alignment:USize=8
+        if field.own_type.is(OwnType.Ref).not() {
+            ft=mlir_type(declaration_resolved_type(field, lp.ctx.scope, lp.ctx.symbols), lp)
+            target_value_size_align(decl_type_name_ref(field,lp.ctx.symbols),lp.ctx.scope,lp.ctx,size,alignment)
+        }
+        cursor=align_up(cursor,alignment)
+        position := offset+cursor
+        cursor=cursor+size
         if mlir_pod(ft) { mlir_pod_classify(ft, position, parts, lp) }
         else if mlir_vector(ft) {
             scalar:=mlir_vector_scalar(ft)
@@ -481,6 +496,27 @@ priv mlir_load := func(pointer: Str,t: Str,mut state: MlirState,alignment:Str=""
     if t=="i1" {return mlir_value(state,format("arith.trunci ",value," : i8 to i1"))}
     if t=="vector<4xi1>" {return mlir_unpack_mask(value,state)}
     return value
+}
+
+priv mlir_binding_address := func(binding:MlirBinding,mut state:MlirState) returns Str {
+    if binding.reference_slot.len()>0 {return mlir_load(binding.reference_slot,"!llvm.ptr",state)}
+    return binding.value.clone()
+}
+
+// Mirror the shared reference_assignment_rebinds contract for the locals the
+// emitter owns. Parameters remain write-through; namespace constants are values.
+priv mlir_reference_rhs := func(rhs:Expr,state:MlirState,lp:LoadedProgram) returns Bool {
+    switch rhs.node_type {
+    case .Ident(id):
+        ref name:Str=id.ident_name(lp.ctx.symbols.names)
+        return state.values.has(name).and(state.values[name].is_local_ref)
+    case .FieldAccess:
+        return mlir_pod(mlir_type(rhs.children[0].til_type(),lp))
+    case .FCall:
+        target:=resolve_direct_fcall(rhs,lp.ctx.scope,lp.ctx.symbols)
+        return target.is_some().and(funcdef_of(target.unwrap()).sig.return_own_type.is(OwnType.Ref))
+    case: return false
+    }
 }
 
 priv mlir_label := func(mut state: MlirState) returns Str {
@@ -1363,6 +1399,11 @@ priv mlir_construct_pod := proc(e: Expr, t: Str, borrow: Bool, mut state: MlirSt
     if e.children.len() != sd.fields.len()+1 { return mlir_error(e, "POD constructor fields were not lowered positionally", lp) }
     mut value := mlir_value(state, format("llvm.mlir.undef : ", t))
     for i in 0..sd.fields.len() {
+        if sd.fields[i].own_type.is(OwnType.Ref) {
+            pointer:=mlir_expr(e.children[i+1],state,lp,true)
+            value=mlir_value(state,format("llvm.insertvalue ",pointer,", ",value,"[",i.to_str(),"] : ",t))
+            continue
+        }
         ft := mlir_type(declaration_resolved_type(sd.fields[i], lp.ctx.scope, lp.ctx.symbols), lp)
         raw := mlir_expr(e.children[i+1], state, lp)
         mut field := mlir_coerce(raw, e.children[i+1], ft, state, lp)
@@ -1397,6 +1438,10 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
         ref name : Str = id.ident_name(lp.ctx.symbols.names)
         if state.values.has(name) {
             ref mut binding : MlirBinding = state.values[name]
+            if binding.reference_slot.len()>0 {
+                pointer:=mlir_load(binding.reference_slot,"!llvm.ptr",state)
+                return mlir_pointer_result(pointer,e,borrow,state,lp,binding.type_name,binding.is_signed)
+            }
             if borrow && binding.type_name != "!llvm.ptr" {
                 if binding.is_ref.or(binding.is_mut).not() {
                     slot := mlir_slot(binding.type_name, state)
@@ -1441,8 +1486,13 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
         parent_type := mlir_type(e.children[0].til_type(), lp)
         if mlir_pod(parent_type).not() { return mlir_error(e, "field access requires a supported scalar/nested POD struct", lp) }
         ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(mlir_pod_name(parent_type), lp.ctx.symbols).unwrap())
-        field_type := declaration_resolved_type(sd.fields[sd.fields_index[field.field_access_name(lp.ctx.symbols.names)]], lp.ctx.scope, lp.ctx.symbols)
+        ref declaration:Declaration=sd.fields[sd.fields_index[field.field_access_name(lp.ctx.symbols.names)]]
+        field_type := declaration_resolved_type(declaration, lp.ctx.scope, lp.ctx.symbols)
         address := mlir_pod_field_address(e.children[0], field.field_access_name(lp.ctx.symbols.names), state, lp)
+        if declaration.own_type.is(OwnType.Ref) {
+            pointer:=mlir_load(address,"!llvm.ptr",state,"1")
+            return mlir_pointer_result(pointer,e,borrow,state,lp,mlir_type(field_type,lp),mlir_signed(field_type))
+        }
         if borrow { return address }
         // As with identifier loads, memory retains its declared width even if
         // a consuming expression has stamped a wider value type on this read.
@@ -1638,21 +1688,28 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     return mlir_error(e, format("unsupported borrowed-buffer operation '", op, "'"), lp)
                 }
                 if op.eq("inc").or(op.eq("dec")) && e.children.len() == 2 && mlir_integer_type(owner_type) {
+                    mut known_slot:=false
                     switch e.children[1].node_type {
                     case .Ident(id):
                         ref name : Str = id.ident_name(lp.ctx.symbols.names)
                         if state.values.has(name).not() { return mlir_error(e, "increment requires a local", lp) }
                         ref binding : MlirBinding = state.values[name]
-                        if binding.is_mut.not() { return mlir_error(e, "increment requires mutable storage", lp) }
-                        value := mlir_expr(e.children[1], state, lp)
-                        one := mlir_value(state, format("arith.constant 1 : ", t))
-                        mut operation := "addi"
-                        if op == "dec" { operation = "subi" }
-                        result := mlir_value(state, format("arith.", operation, " ", value, ", ", one, " : ", t))
-                        mlir_store(binding.value, result, t, state,"1")
-                        return ""
-                    case: return mlir_error(e, "increment requires a local identifier", lp)
+                        // Mutability was checked before hoisting. A generated
+                        // binding for a ref-returning getter can be immutable
+                        // even though its borrowed pointee is writable.
+                        known_slot=binding.is_stack
+                    case .FieldAccess, .FCall:
+                    case: return mlir_error(e, "increment requires mutable storage", lp)
                     }
+                    address:=mlir_expr(e.children[1],state,lp,true)
+                    if known_slot.not() {mlir_check_pointer(address,state,lp)}
+                    value:=mlir_load(address,t,state,"1")
+                    one := mlir_value(state, format("arith.constant 1 : ", t))
+                    mut operation := "addi"
+                    if op == "dec" { operation = "subi" }
+                    result := mlir_value(state, format("arith.", operation, " ", value, ", ", one, " : ", t))
+                    mlir_store(address,result,t,state,"1")
+                    return ""
                 }
                 if op=="cmp" && e.children.len()==3 && mlir_integer_type(owner_type).or(mlir_float(t)) {
                     a:=mlir_expr(e.children[1],state,lp)
@@ -1917,8 +1974,10 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
             if local.own_type.is(OwnType.Ref) {
                 if mlir_scalar(t).or(mlir_vector(t)).not() && t != "!llvm.ptr" && mlir_record(t).or(mlir_pod(t)).not() { mlir_error(stmt, "unsupported borrowed local", lp); break }
                 address := mlir_expr(stmt.children[0], state, lp, true)
+                mut reference_slot:=""
+                if local.is_mut && local_type.is(Type.Dynamic).not() {reference_slot=mlir_slot("!llvm.ptr",state);mlir_store(reference_slot,address,"!llvm.ptr",state)}
                 state.values.set(local.name, own MlirBinding(value = address, type_name = t.clone(),
-                    is_mut = local.is_mut && t != "!llvm.ptr", is_ref = t != "!llvm.ptr", is_signed = mlir_signed(local_type)))
+                    is_mut = local.is_mut && local_type.is(Type.Dynamic).not(), is_ref = t != "!llvm.ptr", is_local_ref=true,is_dynamic=local_type.is(Type.Dynamic),reference_slot=reference_slot,is_signed = mlir_signed(local_type)))
                 continue
             }
             if t == "!llvm.ptr" && local_type.is(Type.Dynamic).not() { mlir_error(stmt, "numeric Array locals must borrow existing storage", lp); break }
@@ -1952,8 +2011,14 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
             parent_type := mlir_type(stmt.children[0].til_type(), lp)
             if mlir_pod(parent_type).not() { mlir_error(stmt, "field assignment requires a supported POD struct", lp); break }
             ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(mlir_pod_name(parent_type), lp.ctx.symbols).unwrap())
-            ft := mlir_type(declaration_resolved_type(sd.fields[sd.fields_index[assignment.name]], lp.ctx.scope, lp.ctx.symbols), lp)
+            ref declaration:Declaration=sd.fields[sd.fields_index[assignment.name]]
             address := mlir_pod_field_address(stmt.children[0], assignment.name, state, lp)
+            if declaration.own_type.is(OwnType.Ref) {
+                pointer:=mlir_expr(stmt.children[1],state,lp,true)
+                mlir_store(address,pointer,"!llvm.ptr",state,"1")
+                continue
+            }
+            ft := mlir_type(declaration_resolved_type(declaration, lp.ctx.scope, lp.ctx.symbols), lp)
             raw := mlir_expr(stmt.children[1], state, lp)
             value := mlir_coerce(raw, stmt.children[1], ft, state, lp)
             if ft == "i1" {
@@ -1964,18 +2029,28 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
             if state.values.has(assignment.name).not() { mlir_error(stmt, "assignment requires a local", lp); break }
             ref binding : MlirBinding = state.values[assignment.name]
             if binding.is_mut.not() { mlir_error(stmt, "assignment requires mutable storage", lp); break }
+            if binding.is_local_ref && binding.is_dynamic.not() && mlir_reference_rhs(stmt.children[0],state,lp) {
+                pointer:=mlir_expr(stmt.children[0],state,lp,true)
+                mlir_store(binding.reference_slot,pointer,"!llvm.ptr",state)
+                continue
+            }
+            if binding.is_local_ref && binding.type_name=="!llvm.ptr" && binding.is_dynamic.not() {
+                mlir_error(stmt,"array descriptor replacement is unsupported",lp)
+                break
+            }
+            address:=mlir_binding_address(binding,state)
             mut old := ""
             if assignment.save_old_delete && mlir_record(binding.type_name) {
                 old = mlir_slot(binding.type_name, state)
-                saved := mlir_value(state, format("llvm.load ", binding.value, " {alignment = 8 : i64} : !llvm.ptr -> ", binding.type_name))
+                saved := mlir_value(state, format("llvm.load ", address, " {alignment = 1 : i64} : !llvm.ptr -> ", binding.type_name))
                 mlir_store(old, saved, binding.type_name, state)
             }
             raw_value := mlir_expr(stmt.children[0], state, lp)
             value := mlir_coerce(raw_value, stmt.children[0], binding.type_name, state, lp)
             if binding.is_ref && binding.type_name == "i1" {
                 byte := mlir_value(state, format("arith.extui ", value, " : i1 to i8"))
-                mlir_store(binding.value, byte, "i8", state)
-            } else { mlir_store(binding.value, value, binding.type_name, state,"1") }
+                mlir_store(address, byte, "i8", state)
+            } else { mlir_store(address, value, binding.type_name, state,"1") }
             if old.len() > 0 {
                 mut destructor := "Array__Str_delete"
                 if binding.type_name == "!llvm.struct<(!llvm.ptr, i32, i32)>" || mlir_sret(binding.type_name) { destructor = "Str_delete" }

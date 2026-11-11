@@ -715,10 +715,11 @@
 *** Scalar and nested POD structs
 
   POD structs may contain Bool, all scalar integer widths, F32/F64, supported
-  four-lane SIMD values and nested structs from that same set. Constructors use the shared frontend's positional/default
+  four-lane SIMD values, non-owning ref fields and nested structs from that same
+  set. Constructors use the shared frontend's positional/default
   field lowering. Mutable locals, whole-value assignment, field reads/writes,
   nested field aliases, auto-generated clone and size are supported. These
-  values have no owning/reference/raw-pointer fields or nontrivial destructor;
+  values have no owning fields or nontrivial destructor;
   empty runtime structs are not yet supported in this increment.
   Source-defined clone functions can be emitted through the normal namespace
   callable path when their bodies use the supported subset. Heap-outer owning
@@ -731,6 +732,24 @@
   field offsets and padding, with Bool stored as a normalized byte. Borrowed
   whole-struct loads make no stronger alignment promise than their source;
   compiler-owned slots remain aligned and live in the entry block.
+
+  Ref fields occupy native pointer slots. The existing ref Dynamic spelling is
+  the nullable raw C-pointer boundary; typed refs borrow scalar, SIMD, POD, Str
+  or array-descriptor storage. Constructors and field assignment store the
+  borrowed address, and cloning a holder preserves that address. A borrowed
+  field read yields its referent; value reads/clone load the pointee at its
+  actual declared width. Raw Dynamic pointers remain opaque values. Self-ref
+  records terminate layout at the pointer slot rather than recursively inlining
+  their pointee. The shared lifetime/mutability checks still govern each loan.
+
+  Mutable typed-reference locals keep their selected address in an entry-block
+  pointer slot. Reference RHS assignments rebind that slot, including across
+  branches/loops; value RHS assignments write through it. Parameters stay
+  write-through places. Fields and ref-returning getters can be stepped with
+  numeric inc/dec, resolving the receiver once and updating its pointee.
+  C field rebinds also borrow value storage rather than boxing it, and the
+  interpreter retains raw-result metadata to distinguish erased Dynamic
+  addresses from slots containing pointer words (including null).
 
   F32x4, I32x4, U32x4 and Boolx4 fields keep their scalar-member layout, not
   LLVM native-vector alignment. The POD LLVM type stores four f32/i32/i8
@@ -757,6 +776,10 @@
   do not all fit, use whole-aggregate byval stack copies. A spill rolls back
   both banks. ABI coercion storage covers the full chunks, even when the source
   struct is smaller, so return padding never causes an out-of-bounds load.
+  Pointer/ref slots classify as INTEGER regardless of their pointee type.
+  Field offsets are computed with the existing target-layout query, not the
+  host interpreter's layout cache; USize64 fields therefore keep their target
+  offset/alignment when the compiler itself uses compact USize32 storage.
 
   Tests compare 14 scalar/mixed/nested layouts with native C and til/C callers
   at O0/O2/O3, including small-value auto-shallowing, pointer borrows, mutable
@@ -772,6 +795,15 @@
   signaling-NaN bits, all masks and integer/SSE register rollback at O0/O2/O3.
   The ordinary SIMD test also checks shared C/interpreter field behavior; the
   options test checks storage types/classification and imported-alias calls.
+
+  Pointer-field integration covers scalar/SIMD/POD pointees, raw pointer values,
+  nested and self-ref records, Str/array descriptor refs, pointer/FP mixed
+  register classes, stack rollback and sret. Native C and ASAN til/C consumers
+  check pointer identity, pointee writes versus field retargeting, reference
+  selection across branches, full-width/null pointers, raw float bits, target
+  width layout and typed null-read diagnostics at O0/O2/O3. The ordinary ref
+  test covers shared C/interpreter stepping and borrowing; options tests cover
+  emitted storage/classification without external LLVM tools.
 
 *** Temporary C-core runtime bridge
 

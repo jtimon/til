@@ -159,6 +159,51 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Non-owning pointer/reference fields (base a06e63e54)
+
+Structs now support native ref fields, including the established ref Dynamic
+raw C-pointer/null boundary. Typed refs can borrow supported scalar, SIMD, POD,
+Str and array-descriptor storage. Construction, field retargeting and holder
+clone preserve addresses; value use reads the pointee and raw Dynamic remains
+opaque. Recursive ref records stop layout at the pointer slot. Own fields and
+owning user-aggregate cleanup remain separate work.
+
+Reference fields are INTEGER eightbytes even when the pointee is floating-point
+or SIMD. Classification now computes field offsets with target_value_size_align
+instead of the host interpreter cache, aligning target USize64 fields correctly
+under the compact compiler. Existing whole-aggregate spills, rollback and sret
+cover nested pointer/SIMD layouts without adding a second layout cache.
+
+Mutable typed-reference locals use an entry-block pointer variable, so a rebind
+inside an if/loop changes later reads/writes through that alias. The emitter
+mirrors reference RHS rebinding versus value RHS write-through and keeps mutable
+parameters write-through. Borrowed array-reference locals select descriptor
+addresses, not the descriptor's first data-pointer member.
+
+The C/interpreter references exposed shared bugs: C ref-field steps
+advanced the stored pointer instead of the numeric pointee; C ref-field rebinds
+boxed scalar values rather than borrowing them; interpreted ref-field writes
+treated already-erased Dynamic addresses as pointer-word slots. C now binds and
+steps the actual target once, borrows on ref rebinds, and the interpreter uses
+the existing raw-result argument metadata for data-reference stores and null.
+A nullable Dynamic binding is also accepted as a borrow source: its presence
+and moved_out state, not nonzero pointer bits, distinguish a live binding.
+Reference pointee reads also retain their declared scalar type: a pointer
+slot's eight-byte width is not a reason to read an I8/F32 pointee as U64.
+
+test/mlir.til check_pointer_fields exercises scalar/alias/SIMD/POD ref boxes,
+full-width/raw/null pointers, nested/self-ref records, Str/array references,
+typed null-read diagnostics, field/pointee mutation, conditional scalar/array
+reference selection, pointer/FP register classes, rollback and hidden sret at
+O0/O2/O3 with native C and ASAN til/C consumers. test/ref.til covers shared
+stepping, getter evaluation count, clone identity and raw field rebind/null;
+test/mlir_options.til checks storage, target widths and ABI classification.
+
+Verification: make clean && make test_two_pass passes 577/577. The ASAN compiler
+and driver pass the full optional MLIR integration, including pointer/reference
+native C and ASAN til/C consumers at O0/O2/O3 and ASAN/UBSAN on the native caller.
+Two-pass regeneration includes the corrected C ref-field emission self-applied.
+
 *** Scalar-layout SIMD fields in POD structs (base 9e9a4ef0a)
 
 POD fields now accept F32x4, I32x4, U32x4 and Boolx4, including nested records.

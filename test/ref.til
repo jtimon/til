@@ -2,6 +2,53 @@ mode test
 
 # --- ref returns with I64 ---
 
+RefFieldSteps := struct { ref byte:I8;ref half:I16;ref word:I32;ref wide:I64;ref unsigned_value:U64;ref float_value:F32;ref raw:Dynamic=0 }
+RefFieldNumber := struct { ref value:I64 }
+RefFieldRaw := struct { ref value:Dynamic=0 }
+ref_field_counted := func(p:RefFieldNumber,mut calls:I64) returns ref I64 { calls++;return p.value }
+ref_field_retarget_raw := func(mut p:RefFieldRaw,value:Dynamic) { p.value=value }
+
+test_reference_field_values := test() {
+    mut byte:I8=I8.MAX;byte=byte+0
+    mut half:I16=I16.MAX;half=half+0
+    mut word:I32=I32.MAX;word=word+0
+    mut wide:I64=I64.MAX;wide=wide+0
+    mut unsigned_value:U64=U64.MAX;unsigned_value=unsigned_value+0
+    float_value:F32=1.25
+    mut fields:=RefFieldSteps(byte=byte,half=half,word=word,wide=wide,unsigned_value=unsigned_value,float_value=float_value,raw=to_ptr(wide))
+    snapshot:=fields.clone()
+    fields.byte++;fields.half++;fields.word++;fields.wide++;fields.unsigned_value++
+    assert(byte==I8.MIN && half==I16.MIN && word==I32.MIN && wide==I64.MIN && unsigned_value==0)
+    byte_value:=snapshot.byte.clone()
+    half_value:=snapshot.half.clone()
+    word_value:=snapshot.word.clone()
+    copied_float:=snapshot.float_value.clone()
+    assert_eq(I8,byte_value,I8.MIN)
+    assert_eq(I16,half_value,I16.MIN)
+    assert_eq(I32,word_value,I32.MIN)
+    assert_eq(F32,copied_float,1.25)
+    assert(ptr_eq(fields.raw,to_ptr(wide)) && ptr_eq(snapshot.wide,to_ptr(wide)))
+    mut replacement:I64=7;replacement++
+    fields.wide=replacement
+    fields.wide--
+    assert(replacement==7 && wide==I64.MIN && ptr_eq(snapshot.wide,to_ptr(wide)))
+    holder:=RefFieldNumber(value=replacement)
+    mut calls:I64=0
+    ref_field_counted(holder,calls).inc()
+    assert(calls==1 && replacement==8)
+    zero:=RefFieldRaw()
+    assert(zero.value.is_null())
+    mut raw:=RefFieldRaw(value=to_ptr(wide))
+    ref_field_retarget_raw(raw,to_ptr(replacement))
+    saved_raw:=raw.clone()
+    assert(ptr_eq(raw.value,to_ptr(replacement)))
+    raw.value=0
+    assert(raw.value.is_null() && ptr_eq(saved_raw.value,to_ptr(replacement)))
+    null_value:Dynamic=0
+    ref_field_retarget_raw(raw,null_value)
+    assert(raw.value.is_null())
+}
+
 min := func(a: I64, b: I64) returns ref I64 {
     if a.lt(b) { return a } else { return b }
 }
