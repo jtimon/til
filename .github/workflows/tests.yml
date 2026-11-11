@@ -1395,14 +1395,16 @@ jobs:
         shell: bash
         run: |
           set -eu
+          # upload-artifact roots each artifact at its paths' common
+          # ancestor, gen/: it holds lib/jni_lib.jar and til/java/...
           targets="linux-x64 linux-arm64 macos-arm64 macos-x64"
           for t in $targets; do
-            cmp hosts/jni-jar-linux-x64/gen/til/java/til/jni_lib/JniLib.java \
-              "hosts/jni-jar-$t/gen/til/java/til/jni_lib/JniLib.java"
+            cmp hosts/jni-jar-linux-x64/til/java/til/jni_lib/JniLib.java \
+              "hosts/jni-jar-$t/til/java/til/jni_lib/JniLib.java"
           done
           mkdir merged
           cd merged
-          for t in $targets; do "$JAVA_HOME/bin/jar" xf "../hosts/jni-jar-$t/gen/lib/jni_lib.jar"; done
+          for t in $targets; do "$JAVA_HOME/bin/jar" xf "../hosts/jni-jar-$t/lib/jni_lib.jar"; done
           rm -r META-INF
           "$JAVA_HOME/bin/jar" cf ../jni_lib.jar .
           cd ..
