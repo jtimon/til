@@ -49726,6 +49726,7 @@ static Vec__Token tokenize(Str * src, Str * path, Bool quiet, Vec__SourceDiagnos
             continue;
         }
         case 34: {
+            U32 str_line = (line);
             (++pos);
             while (1) {
                 Bool _wcond_Bool_114 = ((Bool)(pos < src_len));
@@ -49791,12 +49792,12 @@ static Vec__Token tokenize(Str * src, Str * path, Bool quiet, Vec__SourceDiagnos
                 U32 hoisted__U32_143 = 2;
                 U32 hoisted__U32_144 = ((U32)(start + hoisted__U32_141));
                 U32 hoisted__U32_145 = ((U32)(hoisted__U32_142 - hoisted__U32_143));
-                priv___src_self_lexer_til__push_tok(&tokens, &(TokenType){.tag = TokenType_TAG_StringTok}, hoisted__U32_144, hoisted__U32_145, line, col);
+                priv___src_self_lexer_til__push_tok(&tokens, &(TokenType){.tag = TokenType_TAG_StringTok}, hoisted__U32_144, hoisted__U32_145, str_line, col);
             } else {
                 Str hoisted__Str_tokenize_146 = (Str){.c_str = TIL_OWN_LIT("unterminated string", 19ULL), .count = 19ULL, .cap = TIL_CAP_LIT};
-                priv___src_self_lexer_til__lex_error(path, line, col, &hoisted__Str_tokenize_146, quiet, diagnostics);
+                priv___src_self_lexer_til__lex_error(path, str_line, col, &hoisted__Str_tokenize_146, quiet, diagnostics);
                 U32 hoisted__U32_147 = ((U32)(pos - start));
-                priv___src_self_lexer_til__push_tok(&tokens, &(TokenType){.tag = TokenType_TAG_Error}, start, hoisted__U32_147, line, col);
+                priv___src_self_lexer_til__push_tok(&tokens, &(TokenType){.tag = TokenType_TAG_Error}, start, hoisted__U32_147, str_line, col);
             }
             continue;
         }
@@ -459549,8 +459550,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-4e88da7be", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("4e88da7be8ae6b62bdb89c45f5447f0bb739fece", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-99697f4", 13ULL), .count=13ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("99697f432012c0e4dab47ea640bc4011777faca6", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

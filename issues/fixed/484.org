@@ -1,6 +1,21 @@
 # priority: low
 # category: bugs
-** OPEN #484 A multi-line string token records its end line with its start column
+** FIXED #484 A multi-line string token records its end line with its start column
+
+*** Post-mortem
+
+Root cause: ~lexer.til::tokenize~'s ~'"'~ case advanced ~line~ at each
+newline inside the string, then pushed the token (and, for an unterminated
+string, the diagnostic) with that END line next to the START column.
+
+Fix: save the opening quote's line before scanning, as the block-comment
+case already did with ~doc_line~, and use it for the token and the
+diagnostic. The following token's position is unchanged.
+
+Regression: ~test/lexing.til~ ~test_multiline_string~ now asserts the
+string token's own line/col (1:6 for a string spanning three lines; the
+old lexer gave 3:6), and ~test_multiline_unterminated_string~ asserts the
+diagnostic's ~lexfile:2:3~.
 
 Found while restoring ~test/lexing.til~ for [[./472.org][#472]]. Reproduced at master
 f3dee9b.

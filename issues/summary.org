@@ -9,7 +9,6 @@
 ** Low
 *** [[./open/427.org][#427]] func<G> fails when G appears inside another type in its signature
 *** [[./open/428.org][#428]] Errors inside an instantiated template point at the user's file and cascade
-*** [[./open/484.org][#484]] A multi-line string token records its end line with its start column
 * Cleanups
 ** High
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core

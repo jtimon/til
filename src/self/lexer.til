@@ -514,6 +514,9 @@ tokenize := proc(src: Str, path: Str, quiet: Bool = false, mut diagnostics: Vec(
 
         // Strings
         case '"':
+            // #484: a string may span lines; its token and any diagnostic
+            // carry the opening quote's line, like its column.
+            str_line := line
             pos++
             while pos < src_len {
                 if src.unsafe_get(pos) == '"' { break }
@@ -528,10 +531,10 @@ tokenize := proc(src: Str, path: Str, quiet: Bool = false, mut diagnostics: Vec(
             }
             if pos.lt(src_len).and(src.unsafe_get(pos).eq('"')) {
                 pos++
-                push_tok(tokens, TokenType.StringTok, start + 1, pos.sub(start) - 2, line, col)
+                push_tok(tokens, TokenType.StringTok, start + 1, pos.sub(start) - 2, str_line, col)
             } else {
-                lex_error(path, line, col, "unterminated string", quiet, diagnostics)
-                push_tok(tokens, TokenType.Error, start, pos - start, line, col)
+                lex_error(path, str_line, col, "unterminated string", quiet, diagnostics)
+                push_tok(tokens, TokenType.Error, start, pos - start, str_line, col)
             }
             continue
 
