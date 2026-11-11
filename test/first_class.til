@@ -1157,58 +1157,59 @@ test_macro_func_gen_mixed_params := test() {
 
 // --- Target-size and Boolean generator conditions (#441) ---
 // #441: primitive size comparisons use target facts before generated bodies
-// are typed. Test all comparisons, both outcomes, equality, numeric bases,
+// are typed. #472: a condition asks for the built program's size with
+// size_for_target(); a plain size() answers for the compiler running it. Test all comparisons, both outcomes, equality, numeric bases,
 // aliases, and an else-if chain with a literal on the left.
 size_lt441 := macro(T: Type, N: U64) returns FuncDef {
-    if T.size() < N { return func() returns Bool { return true } }
+    if T.size_for_target() < N { return func() returns Bool { return true } }
     else { return func() returns Bool { return false } }
 }
 size_lte441 := macro(T: Type, N: U64) returns FuncDef {
-    if T.size() <= N { return func() returns Bool { return true } }
+    if T.size_for_target() <= N { return func() returns Bool { return true } }
     else { return func() returns Bool { return false } }
 }
 size_eq441 := macro(T: Type, N: U64) returns FuncDef {
-    if T.size() == N { return func() returns Bool { return true } }
+    if T.size_for_target() == N { return func() returns Bool { return true } }
     else { return func() returns Bool { return false } }
 }
 size_neq441 := macro(T: Type, N: U64) returns FuncDef {
-    if T.size() != N { return func() returns Bool { return true } }
+    if T.size_for_target() != N { return func() returns Bool { return true } }
     else { return func() returns Bool { return false } }
 }
 size_gte441 := macro(T: Type, N: U64) returns FuncDef {
-    if T.size() >= N { return func() returns Bool { return true } }
+    if T.size_for_target() >= N { return func() returns Bool { return true } }
     else { return func() returns Bool { return false } }
 }
 size_gt441 := macro(T: Type, N: U64) returns FuncDef {
-    if T.size() > N { return func() returns Bool { return true } }
+    if T.size_for_target() > N { return func() returns Bool { return true } }
     else { return func() returns Bool { return false } }
 }
 size_chain441 := macro(T: Type) returns StructDef {
-    if 2 > T.size() { return struct { tag := 1 } }
-    else if T.size() == U16.size() { return struct { tag := 2 } }
+    if 2 > T.size_for_target() { return struct { tag := 1 } }
+    else if T.size_for_target() == U16.size_for_target() { return struct { tag := 2 } }
     else { return struct { tag := 3 } }
 }
 size_or441 := macro(T: Type) returns FuncDef {
-    if T.is(Type.Primitive(Primitive.U8)).or(T.size() == U16.size()) {
+    if T.is(Type.Primitive(Primitive.U8)).or(T.size_for_target() == U16.size_for_target()) {
         return func() returns Bool { return true }
     } else { return func() returns Bool { return false } }
 }
 size_bool_sugar441 := macro(T: Type) returns FuncDef {
-    if (T.size() == 1 || T.size() == 2) && T.size() < 4 {
+    if (T.size_for_target() == 1 || T.size_for_target() == 2) && T.size_for_target() < 4 {
         return func() returns Bool { return true }
     } else { return func() returns Bool { return false } }
 }
 size_nary441 := macro(T: Type) returns FuncDef {
-    if or(T.size() == 1, T.size() == 2, T.size() == 4) {
+    if or(T.size_for_target() == 1, T.size_for_target() == 2, T.size_for_target() == 4) {
         return func() returns Bool { return true }
     } else { return func() returns Bool { return false } }
 }
 size_short_or441 := macro() returns FuncDef {
-    if true.or(Str.size() == 1) { return func() returns Bool { return true } }
+    if true.or(Str.size_for_target() == 1) { return func() returns Bool { return true } }
     else { return func() returns Bool { return false } }
 }
 size_short_and441 := macro() returns FuncDef {
-    if false.and(Str.size() == 1) { return func() returns Bool { return true } }
+    if false.and(Str.size_for_target() == 1) { return func() returns Bool { return true } }
     else { return func() returns Bool { return false } }
 }
 SizeAlias441 := U16
@@ -1283,7 +1284,7 @@ namespace:
     size := func() returns USize { return size_method_value() }
 }
 general_size_is := macro(T: Type, expected: USize) returns FuncDef {
-    if T.size() == expected {
+    if T.size_for_target() == expected {
         return func() returns Bool { return true }
     } else {
         return func() returns Bool { return false }

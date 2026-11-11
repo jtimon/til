@@ -1,5 +1,5 @@
 #+TITLE: src/core/bool.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * and
@@ -49,6 +49,7 @@ namespace:
     ext_func clone(val: Bool) returns shallow Bool
     func delete(own self: Bool, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Bool, hasher: HashFn) returns U64
     func lt(a: Bool, b: Bool) returns Bool
     func gt(a: Bool, b: Bool) returns Bool
@@ -80,4 +81,30 @@ Comparison: false < true. Returns 0, -1, or 1.
 
 #+begin_src til
 func Bool.cmp(a: Bool, b: Bool) returns I64
+#+end_src
+
+* Bool.size
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.bool.Bool.size
+:group: Core
+:END:
+
+Size of one value in bytes, in the program that runs this call.
+
+#+begin_src til
+func Bool.size() returns USize
+#+end_src
+
+* Bool.size_for_target
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.bool.Bool.size_for_target
+:group: Core
+:END:
+
+Size of one value in bytes, in the program being built. Compile-time
+code that decides something from the built program's layout (a macro,
+a generator condition) asks this; everything else asks size().
+
+#+begin_src til
+func Bool.size_for_target() returns USize
 #+end_src

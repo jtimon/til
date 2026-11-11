@@ -1,5 +1,5 @@
 #+TITLE: src/self/codegen/theme_codegen.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * theme_codegen_translate
@@ -44,6 +44,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec) returns Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

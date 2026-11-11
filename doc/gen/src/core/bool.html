@@ -19,12 +19,12 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-389200c8c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e8e3f66</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
 <li><a href="../../src/core/numbers.html">src/core/numbers.til</a></li>
-<li><a class="current" href="../../src/core/bool.html">src/core/bool.til</a><ul><li><a href="#til.src.core.bool.and">and</a></li><li><a href="#til.src.core.bool.or">or</a></li><li><a href="#til.src.core.bool.not">not</a></li><li><a href="#til.src.core.bool.Bool">Bool</a></li><li><a href="#til.src.core.bool.Bool.to_str">Bool.to_str</a></li><li><a href="#til.src.core.bool.Bool.cmp">Bool.cmp</a></li></ul></li>
+<li><a class="current" href="../../src/core/bool.html">src/core/bool.til</a><ul><li><a href="#til.src.core.bool.and">and</a></li><li><a href="#til.src.core.bool.or">or</a></li><li><a href="#til.src.core.bool.not">not</a></li><li><a href="#til.src.core.bool.Bool">Bool</a></li><li><a href="#til.src.core.bool.Bool.to_str">Bool.to_str</a></li><li><a href="#til.src.core.bool.Bool.cmp">Bool.cmp</a></li><li><a href="#til.src.core.bool.Bool.size">Bool.size</a></li><li><a href="#til.src.core.bool.Bool.size_for_target">Bool.size_for_target</a></li></ul></li>
 <li><a href="../../src/core/map.html">src/core/map.til</a></li>
 <li><a href="../../src/core/option.html">src/core/option.til</a></li>
 <li><a href="../../src/core/ast.html">src/core/ast.til</a></li>
@@ -136,6 +136,7 @@ namespace:
     ext_func clone(val: Bool) returns shallow Bool
     func delete(own self: Bool, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Bool, hasher: HashFn) returns U64
     func lt(a: Bool, b: Bool) returns Bool
     func gt(a: Bool, b: Bool) returns Bool
@@ -161,6 +162,26 @@ namespace:
 <p>Comparison: false &lt; true. Returns 0, -1, or 1.</p>
 </div>
 <pre><code class="language-til">func (a: Bool, b: Bool) returns I64
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.bool.Bool.size">
+<h2>Bool.size</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Size of one value in bytes, in the program that runs this call.</p>
+</div>
+<pre><code class="language-til">func () returns USize
+</code></pre>
+</article>
+<article class="doc-entry" id="til.src.core.bool.Bool.size_for_target">
+<h2>Bool.size_for_target</h2>
+<dl class="meta"><dt>Group</dt><dd>Core</dd></dl>
+<div class="doc-body">
+<p>Size of one value in bytes, in the program being built. Compile-time
+code that decides something from the built program's layout (a macro,
+a generator condition) asks this; everything else asks size().</p>
+</div>
+<pre><code class="language-til">func () returns USize
 </code></pre>
 </article>
 </main></div>

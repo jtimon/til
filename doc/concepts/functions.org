@@ -195,13 +195,19 @@ see "Function generators" below.
 
 A macro body runs INSIDE THE COMPILER, not in the program being built.
 On a cross-size build (a ~--usize=64~ or 32-bit target from the default
-compiler) those are two different memory layouts, and ~T.size()~ in a
-macro body is the compiler's. Generator conditions are the exception
-today; see "Conditional definitions". Decided in #472, not implemented
-yet: ~T.size()~ means the size where the code runs everywhere, a macro
-or condition that needs the built program's size writes
-~T.size_for_target()~, and the exception goes away. The contract is in
-~doc/concepts/auto.org~, "size and size_for_target".
+compiler) those are two different memory layouts. ~T.size()~ is always
+the size where the code runs, so in a macro body, a generator condition
+or a macro argument it is the COMPILER's: right for any memory the macro
+itself handles, wrong as a statement about the program. When the macro
+needs the built program's size it asks ~T.size_for_target()~:
+
+#+begin_src til
+// Bakes the size Holder has in the program being built.
+holder_bytes := macro() returns shallow USize { return Holder.size_for_target() }
+#+end_src
+
+The contract of both methods is in ~doc/concepts/auto.org~, "size and
+size_for_target".
 
 ** test
 
@@ -443,7 +449,7 @@ short-circuit behavior: an operand skipped by ~or~ or ~and~ is not evaluated.
 
 #+begin_src til
 make_width_check := macro(T: Type, limit: U64) returns FuncDef {
-    if T.size() <= limit {
+    if T.size_for_target() <= limit {
         return func() returns Bool { return true }
     } else {
         return func() returns Bool { return false }
@@ -452,32 +458,24 @@ make_width_check := macro(T: Type, limit: U64) returns FuncDef {
 fits_word := make_width_check(USize, 4)
 #+end_src
 
-These size conditions describe the compilation TARGET. ~USize~, ~UPtr~ and
-type aliases resolve through the target type scope, including
-~--usize~ overrides. Ordinary interpreter storage-size queries remain
-host-sized; they are not used to make this decision. Two size queries can
-also be compared directly, for example ~USize.size() <= UPtr.size()~.
+A condition about the program being built asks ~size_for_target()~, which
+describes the compilation TARGET: ~USize~, ~UPtr~ and type aliases resolve
+through the target type scope, including ~--usize~ overrides, and a struct
+or enum answers with its layout on the target. Two such queries can be
+compared directly, for example
+~USize.size_for_target() <= UPtr.size_for_target()~. A type that wrote its
+own ~size~ answers with that function.
 
-Generated struct and enum size methods describe target layout too;
-user-defined ~size~ methods execute their ordinary bodies. Interpreter
-storage remains host-sized. Layout-dependent raw-memory calls are rejected
-when their size dependencies differ between host and target storage.
-This can prevent a user-defined condition from using a container during
-cross-target evaluation: its allocation or element stride may depend on a
-target size while its objects occupy host storage. Such calls in an untaken
-short-circuit operand are not executed or rejected for that storage mismatch.
+A plain ~T.size()~ in a condition means what it means everywhere: the size
+where the code runs, which here is the compiler. The condition is ordinary
+code executed by the compiler, so it may call functions and use containers
+on any build. (Before #472 a condition's ~size()~ was silently answered
+for the target while it ran, and a condition that touched a container was
+rejected on a cross-size build.)
+
 Unavailable runtime values and calls that cannot be evaluated produce an
 expansion error, not a false condition. The same selection rules apply to
 generators returning ~StructDef~ or ~EnumDef~.
-
-Decided in #472, not implemented yet: a condition asks for the target
-explicitly, ~if T.size_for_target() <= limit~. ~T.size()~ then means in a
-condition what it means everywhere else -- the size where the code runs,
-here the compiler -- so the special target mode above and its rejection
-of raw-memory calls are removed, and a condition may use containers on
-any build. Existing conditions that compare a generated ~size()~ change
-spelling; ~USize.size()~ and ~UPtr.size()~ already name the target's
-primitive and stay as they are.
 
 ~type_arg_is_ref(T)~ queries a compile-time type argument's qualifier. A
 generator can use it to select borrowing storage and operations:

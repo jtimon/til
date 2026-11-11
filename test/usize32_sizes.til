@@ -20,15 +20,15 @@ RefPair := struct {
     ref second : I64
 }
 
-// #472: a generator condition reads the TARGET layout (typer.til
-// target_value_size_align), which must model own pointer fields the way the
+// #472: a generator condition asks size_for_target(), the TARGET layout
+// (typer.til target_value_size_align), which must model own pointer fields the way the
 // emitted struct stores them: here tag(4) + own name(4, a cage offset) = 8.
 Holder := struct {
     tag : U32 = 0
     own name : Str = ""
 }
 holder_size_gen := macro() returns FuncDef {
-    if Holder.size() == 8 {
+    if Holder.size_for_target() == 8 {
         return func() returns USize { return 8 }
     } else {
         return func() returns USize { return 0 }
@@ -43,6 +43,11 @@ holder_size := holder_size_gen()
 // Holder.size() is 8. A compiler built with the other layout used to
 // bake its own number here.
 holder_twice := func() returns USize { return Holder.size() * 2 }
+// #472 (F3): compile-time code that needs the BUILT program's size asks
+// size_for_target(). A macro body runs inside the compiler, where a plain
+// size() is the compiler's own layout; this one must bake 8 whichever
+// compiler builds it.
+holder_bytes_at_compile_time := macro() returns shallow USize { return Holder.size_for_target() }
 HolderSizes := struct {
 namespace:
     BYTES : USize = Holder.size()
@@ -65,6 +70,10 @@ check("RefPair.size() (stored refs, still native)", RefPair.size(), 16)
 check("Holder.size()", Holder.size(), 8)
 check("generator Holder.size()", holder_size(), 8)
 check("folded call holder_twice()", holder_twice(), 16)
+check("Holder.size_for_target()", Holder.size_for_target(), 8)
+check("size_for_target() in a macro body", holder_bytes_at_compile_time(), 8)
+check("Str.size_for_target()", Str.size_for_target(), Str.size())
+check("USize.size_for_target()", USize.size_for_target(), USize.size())
 check("namespace constant from a size", HolderSizes.BYTES, 8)
 check("namespace constant from that constant", HolderSizes.DOUBLE, 16)
 

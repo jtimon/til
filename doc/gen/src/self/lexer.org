@@ -1,5 +1,5 @@
 #+TITLE: src/self/lexer.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * DiagnosticPhase
@@ -32,6 +32,7 @@ namespace:
     func to_str(self: DiagnosticPhase) returns Str
     func clone(self: DiagnosticPhase) returns DiagnosticPhase
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: DiagnosticPhase, b: DiagnosticPhase) returns Bool
     func gt(a: DiagnosticPhase, b: DiagnosticPhase) returns Bool
     func neq(a: DiagnosticPhase, b: DiagnosticPhase) returns Bool
@@ -62,6 +63,7 @@ namespace:
     func to_str(self: DiagnosticSeverity) returns Str
     func clone(self: DiagnosticSeverity) returns DiagnosticSeverity
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: DiagnosticSeverity, b: DiagnosticSeverity) returns Bool
     func gt(a: DiagnosticSeverity, b: DiagnosticSeverity) returns Bool
     func neq(a: DiagnosticSeverity, b: DiagnosticSeverity) returns Bool
@@ -89,6 +91,7 @@ namespace:
     func render(d: SourceDiagnostic) returns Str
     proc print(d: SourceDiagnostic)
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: SourceDiagnostic) returns SourceDiagnostic
     func delete(own self: SourceDiagnostic, call_free: Bool = true)
     func hash(self: SourceDiagnostic, hasher: HashFn) returns U64
@@ -283,6 +286,7 @@ namespace:
     func to_str(self: TokenType) returns Str
     func clone(self: TokenType) returns TokenType
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: TokenType, b: TokenType) returns Bool
     func gt(a: TokenType, b: TokenType) returns Bool
     func neq(a: TokenType, b: TokenType) returns Bool
@@ -306,6 +310,7 @@ struct Token {
     col : U32
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Token) returns Token
     func delete(own self: Token, call_free: Bool = true)
     func hash(self: Token, hasher: HashFn) returns U64
@@ -382,6 +387,7 @@ namespace:
     func delete(own self: Map__Str_TokenType, call_free: Bool = true)
     func clone(self: Map__Str_TokenType) returns Map__Str_TokenType
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_TokenType, hasher: HashFn) returns U64
 }
 #+end_src
@@ -510,6 +516,7 @@ namespace:
     func delete(own self: Vec__SourceDiagnostic, call_free: Bool = true)
     func clone(self: Vec__SourceDiagnostic) returns Vec__SourceDiagnostic
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -842,6 +849,7 @@ namespace:
     func delete(own self: Vec__Token, call_free: Bool = true)
     func clone(self: Vec__Token) returns Vec__Token
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -1174,6 +1182,7 @@ namespace:
     func delete(own self: Vec__TokenType, call_free: Bool = true)
     func clone(self: Vec__TokenType) returns Vec__TokenType
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

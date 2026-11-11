@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -121,6 +121,7 @@ namespace:
     func all(self: RootBits) returns U64
     func is_zero(self: RootBits) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: RootBits) returns RootBits
     func delete(own self: RootBits, call_free: Bool = true)
     func hash(self: RootBits, hasher: HashFn) returns U64
@@ -152,6 +153,7 @@ namespace:
     func eq(a: BorrowRoot, b: BorrowRoot) returns Bool
     func to_str(self: BorrowRoot) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: BorrowRoot) returns BorrowRoot
     func delete(own self: BorrowRoot, call_free: Bool = true)
     func hash(self: BorrowRoot, hasher: HashFn) returns U64
@@ -205,6 +207,7 @@ namespace:
     func eq(a: TypeBinding, b: TypeBinding) returns Bool
     func to_str(self: TypeBinding) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: TypeBinding) returns TypeBinding
     func delete(own self: TypeBinding, call_free: Bool = true)
     func hash(self: TypeBinding, hasher: HashFn) returns U64
@@ -230,6 +233,7 @@ namespace:
     func to_str(self: ScopeFind) returns Str
     func clone(self: ScopeFind) returns ScopeFind
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -331,6 +335,7 @@ struct TyperFuncState {
     mut deferred_dependent_throw : Bool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: TyperFuncState) returns TyperFuncState
     func delete(own self: TyperFuncState, call_free: Bool = true)
     func hash(self: TyperFuncState, hasher: HashFn) returns U64
@@ -414,6 +419,7 @@ namespace:
     func erase_ast_decl(mut self: TypeScope, name: Str, erase_decl_binding: Bool, symbols: SymbolPool)
     func set(mut self: TypeScope, name: Str, type: Type, is_mut: Bool, path: Str, line: U32, col: U32, is_param: Bool, shallow own_type: OwnType, mut symbols: SymbolPool)
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: TypeScope) returns TypeScope
     func delete(own self: TypeScope, call_free: Bool = true)
     func hash(self: TypeScope, hasher: HashFn) returns U64
@@ -556,6 +562,7 @@ namespace:
     func eq(a: GenericFuncSource, b: GenericFuncSource) returns Bool
     func to_str(self: GenericFuncSource) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: GenericFuncSource) returns GenericFuncSource
     func delete(own self: GenericFuncSource, call_free: Bool = true)
     func hash(self: GenericFuncSource, hasher: HashFn) returns U64
@@ -599,6 +606,7 @@ struct ImportUnit {
 namespace:
     func implicit_imports(self: ImportUnit) returns Vec__Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ImportUnit) returns ImportUnit
     func delete(own self: ImportUnit, call_free: Bool = true)
 }
@@ -652,6 +660,7 @@ struct BuilderFuncScratch {
     mut current_fdef : Option__ref_Expr
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: BuilderFuncScratch) returns BuilderFuncScratch
     func delete(own self: BuilderFuncScratch, call_free: Bool = true)
     func hash(self: BuilderFuncScratch, hasher: HashFn) returns U64
@@ -677,6 +686,7 @@ struct FfiState {
     mut failed_links : Map__Str_Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FfiState) returns FfiState
     func delete(own self: FfiState, call_free: Bool = true)
     func hash(self: FfiState, hasher: HashFn) returns U64
@@ -701,6 +711,7 @@ namespace:
     func clone(_self: InternedTypes) returns InternedTypes
     func delete(own self: InternedTypes, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: InternedTypes, hasher: HashFn) returns U64
 }
 #+end_src
@@ -719,6 +730,7 @@ struct ForeignPlace {
 namespace:
     func clone(self: ForeignPlace) returns ForeignPlace
     func size() returns USize
+    func size_for_target() returns USize
     func delete(own self: ForeignPlace, call_free: Bool = true)
 }
 #+end_src
@@ -743,6 +755,7 @@ namespace:
     func to_str(self: InterpOutputStream) returns Str
     func clone(self: InterpOutputStream) returns InterpOutputStream
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: InterpOutputStream, b: InterpOutputStream) returns Bool
     func gt(a: InterpOutputStream, b: InterpOutputStream) returns Bool
     func neq(a: InterpOutputStream, b: InterpOutputStream) returns Bool
@@ -763,6 +776,7 @@ struct InterpOutputEvent {
     mut text : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: InterpOutputEvent) returns InterpOutputEvent
     func delete(own self: InterpOutputEvent, call_free: Bool = true)
     func hash(self: InterpOutputEvent, hasher: HashFn) returns U64
@@ -790,6 +804,7 @@ struct ComptimeDefinition {
     mut is_type : Bool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ComptimeDefinition) returns ComptimeDefinition
     func delete(own self: ComptimeDefinition, call_free: Bool = true)
 }
@@ -808,9 +823,9 @@ struct ComptimePreparation {
     mut ready : Set__Str
     mut active : Set__Str
     mut globals : Vec__Str
-    mut storage_calls : Map__UPtr_Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ComptimePreparation) returns ComptimePreparation
     func delete(own self: ComptimePreparation, call_free: Bool = true)
     func hash(self: ComptimePreparation, hasher: HashFn) returns U64
@@ -836,7 +851,10 @@ struct EvalState {
     mut interp_cstr_arg : Bool
     mut interp_callable_arg_borrow : Bool
     mut constfold_active : Bool
-    mut target_size_queries : Bool
+    mut constfold_no_state_writes : Bool
+    mut size_observed : Bool
+    mut ns_size_dependent : Set__Str
+    mut generator_condition : Bool
     mut eval_aborted : Bool
     mut repl_session : Bool
     mut embedded : Bool
@@ -852,6 +870,7 @@ struct EvalState {
     mut cached_str_name : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: EvalState) returns EvalState
     func delete(own self: EvalState, call_free: Bool = true)
 }
@@ -923,7 +942,7 @@ struct Context {
     mut script_globals : Set__U32
     mut ref_globals : Set__U32
     mut throw_type_registry : Vec__Str
-    mut throws_global : Map__Str_call_Vec_Str
+    mut throws_global : Map__Str_Vec__Str
     mut bang_counter : I64
     mut hoist_counter : I32
     mut va_counter : I32
@@ -933,7 +952,7 @@ struct Context {
     mut synth_symbol_seq : Map__Str_I64
     mut lazy_stmt_temp_counter : I64
     mut errors : I32
-    mut priv_ref_edges : Map__Str_call_Vec_Str
+    mut priv_ref_edges : Map__Str_Vec__Str
     mut builder_func : BuilderFuncScratch
     mut builder_str_lit_symbols : HashMap__Str_Str
     mut builder_str_lit_values : Vec__Str
@@ -975,6 +994,7 @@ struct Context {
     mut symbols : SymbolPool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Context) returns Context
     func delete(own self: Context, call_free: Bool = true)
 }
@@ -1260,14 +1280,14 @@ ENUM_PAYLOAD_OFFSET is a USize
 func size_intrinsics_use_sizeof(ctx: Context) returns Bool
 #+end_src
 
-* size_intrinsics_emit_sizeof
+* funcdef_is_generated_size
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.context.size_intrinsics_emit_sizeof
+:CUSTOM_ID: til.src.self.context.funcdef_is_generated_size
 :group: Compiler frontend
 :END:
 
 #+begin_src til
-func size_intrinsics_emit_sizeof(ctx: Context) returns Bool
+func funcdef_is_generated_size(fd: FunctionDef, ctx: Context) returns Bool
 #+end_src
 
 * constfolder_classify_stmt
@@ -2064,6 +2084,7 @@ namespace:
     func delete(own self: Vec__BorrowRoot, call_free: Bool = true)
     func clone(self: Vec__BorrowRoot) returns Vec__BorrowRoot
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -2389,6 +2410,7 @@ namespace:
     func clone(self: SymMap__TypeBinding) returns SymMap__TypeBinding
     func delete(own self: SymMap__TypeBinding, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: SymMap__TypeBinding, hasher: HashFn) returns U64
 }
 #+end_src
@@ -2524,6 +2546,7 @@ namespace:
     func clone(self: SymMap__Dynamic) returns SymMap__Dynamic
     func delete(own self: SymMap__Dynamic, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: SymMap__Dynamic, hasher: HashFn) returns U64
 }
 #+end_src
@@ -2654,6 +2677,7 @@ namespace:
     func delete(own self: Option__ref_TypeScope, call_free: Bool = true)
     func clone(self: Option__ref_TypeScope) returns Option__ref_TypeScope
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -2717,6 +2741,7 @@ namespace:
     func to_str(self: Option__ref_TypeBinding) returns Str
     func clone(self: Option__ref_TypeBinding) returns Option__ref_TypeBinding
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -2778,6 +2803,7 @@ namespace:
     func delete(own self: Map__U32_Str, call_free: Bool = true)
     func clone(self: Map__U32_Str) returns Map__U32_Str
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__U32_Str, hasher: HashFn) returns U64
 }
 #+end_src
@@ -2894,6 +2920,7 @@ namespace:
     func delete(own self: Map__Str_FFIEntry, call_free: Bool = true)
     func clone(self: Map__Str_FFIEntry) returns Map__Str_FFIEntry
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_FFIEntry, hasher: HashFn) returns U64
 }
 #+end_src
@@ -3010,6 +3037,7 @@ namespace:
     func delete(own self: Map__Str_ExprPtrBox, call_free: Bool = true)
     func clone(self: Map__Str_ExprPtrBox) returns Map__Str_ExprPtrBox
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_ExprPtrBox, hasher: HashFn) returns U64
 }
 #+end_src
@@ -3126,6 +3154,7 @@ namespace:
     func delete(own self: Map__Str_FFITypePtrBox, call_free: Bool = true)
     func clone(self: Map__Str_FFITypePtrBox) returns Map__Str_FFITypePtrBox
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_FFITypePtrBox, hasher: HashFn) returns U64
 }
 #+end_src
@@ -3254,6 +3283,7 @@ namespace:
     func delete(own self: Vec__UPtr, call_free: Bool = true)
     func clone(self: Vec__UPtr) returns Vec__UPtr
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -3586,6 +3616,7 @@ namespace:
     func delete(own self: Vec__ComptimeDefinition, call_free: Bool = true)
     func clone(self: Vec__ComptimeDefinition) returns Vec__ComptimeDefinition
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -3909,6 +3940,7 @@ namespace:
     func to_str(self: Option__I64) returns Str
     func clone(self: Option__I64) returns Option__I64
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__I64, b: Option__I64) returns Bool
     func gt(a: Option__I64, b: Option__I64) returns Bool
     func neq(a: Option__I64, b: Option__I64) returns Bool
@@ -3975,6 +4007,7 @@ namespace:
     func delete(own self: Map__UPtr_Str, call_free: Bool = true)
     func clone(self: Map__UPtr_Str) returns Map__UPtr_Str
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__UPtr_Str, hasher: HashFn) returns U64
 }
 #+end_src
@@ -4103,6 +4136,7 @@ namespace:
     func delete(own self: Vec__InterpOutputEvent, call_free: Bool = true)
     func clone(self: Vec__InterpOutputEvent) returns Vec__InterpOutputEvent
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -4423,6 +4457,7 @@ namespace:
     func delete(own self: Map__UPtr_ForeignPlace, call_free: Bool = true)
     func clone(self: Map__UPtr_ForeignPlace) returns Map__UPtr_ForeignPlace
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__UPtr_ForeignPlace, hasher: HashFn) returns U64
 }
 #+end_src
@@ -4539,6 +4574,7 @@ namespace:
     func delete(own self: Map__Str_Mode, call_free: Bool = true)
     func clone(self: Map__Str_Mode) returns Map__Str_Mode
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_Mode, hasher: HashFn) returns U64
 }
 #+end_src
@@ -4655,6 +4691,7 @@ namespace:
     func delete(own self: Option__ComptimePreparation, call_free: Bool = true)
     func clone(self: Option__ComptimePreparation) returns Option__ComptimePreparation
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -4716,6 +4753,7 @@ namespace:
     func delete(own self: Map__Str_FuncType, call_free: Bool = true)
     func clone(self: Map__Str_FuncType) returns Map__Str_FuncType
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_FuncType, hasher: HashFn) returns U64
 }
 #+end_src
@@ -4832,6 +4870,7 @@ namespace:
     func delete(own self: Option__Scope, call_free: Bool = true)
     func clone(self: Option__Scope) returns Option__Scope
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -4893,6 +4932,7 @@ namespace:
     func delete(own self: Map__Str_ImportUnit, call_free: Bool = true)
     func clone(self: Map__Str_ImportUnit) returns Map__Str_ImportUnit
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_ImportUnit, hasher: HashFn) returns U64
 }
 #+end_src
@@ -5009,6 +5049,7 @@ namespace:
     func delete(own self: Map__UPtr_RootBits, call_free: Bool = true)
     func clone(self: Map__UPtr_RootBits) returns Map__UPtr_RootBits
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__UPtr_RootBits, hasher: HashFn) returns U64
 }
 #+end_src
@@ -5125,6 +5166,7 @@ namespace:
     func delete(own self: Map__Str_Type, call_free: Bool = true)
     func clone(self: Map__Str_Type) returns Map__Str_Type
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_Type, hasher: HashFn) returns U64
 }
 #+end_src
@@ -5241,6 +5283,7 @@ namespace:
     func delete(own self: Map__Str_StructLayout, call_free: Bool = true)
     func clone(self: Map__Str_StructLayout) returns Map__Str_StructLayout
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_StructLayout, hasher: HashFn) returns U64
 }
 #+end_src
@@ -5358,6 +5401,7 @@ namespace:
     func delete(own self: Set__U32, call_free: Bool = true)
     func clone(self: Set__U32) returns Set__U32
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -5483,6 +5527,7 @@ namespace:
     func delete(own self: Map__Str_I64, call_free: Bool = true)
     func clone(self: Map__Str_I64) returns Map__Str_I64
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_I64, hasher: HashFn) returns U64
 }
 #+end_src
@@ -5577,35 +5622,36 @@ Remove ~key~, dropping its key and value. Returns false if absent.
 func Map__Str_I64.remove(mut self: Map__Str_I64, key: Str) returns Bool
 #+end_src
 
-* Map__Str_call_Vec_Str
+* Map__Str_Vec__Str
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Map__Str_call_Vec_Str
+:CUSTOM_ID: til.src.self.context.Map__Str_Vec__Str
 :group: Compiler frontend
 :END:
 
 #+begin_src til
-struct Map__Str_call_Vec_Str {
+struct Map__Str_Vec__Str {
     mut keys : Vec__Str
-    mut values : Vec__call_Vec_Str
+    mut values : Vec__Vec__Str
 namespace:
-    func new() returns Map__Str_call_Vec_Str
-    func with_capacity(n: USize) returns Map__Str_call_Vec_Str
-    func len(self: Map__Str_call_Vec_Str) returns USize
-    func clear(mut self: Map__Str_call_Vec_Str)
-    func has(self: Map__Str_call_Vec_Str, key: Str) returns Bool
-    func get(self: Map__Str_call_Vec_Str, key: Str) returns ref Vec__Str throws KeyNotFound
-    func set(mut self: Map__Str_call_Vec_Str, key: Str, own val: Vec__Str)
-    func remove(mut self: Map__Str_call_Vec_Str, key: Str) returns Bool
-    func delete(own self: Map__Str_call_Vec_Str, call_free: Bool = true)
-    func clone(self: Map__Str_call_Vec_Str) returns Map__Str_call_Vec_Str
+    func new() returns Map__Str_Vec__Str
+    func with_capacity(n: USize) returns Map__Str_Vec__Str
+    func len(self: Map__Str_Vec__Str) returns USize
+    func clear(mut self: Map__Str_Vec__Str)
+    func has(self: Map__Str_Vec__Str, key: Str) returns Bool
+    func get(self: Map__Str_Vec__Str, key: Str) returns ref Vec__Str throws KeyNotFound
+    func set(mut self: Map__Str_Vec__Str, key: Str, own val: Vec__Str)
+    func remove(mut self: Map__Str_Vec__Str, key: Str) returns Bool
+    func delete(own self: Map__Str_Vec__Str, call_free: Bool = true)
+    func clone(self: Map__Str_Vec__Str) returns Map__Str_Vec__Str
     func size() returns USize
-    func hash(self: Map__Str_call_Vec_Str, hasher: HashFn) returns U64
+    func size_for_target() returns USize
+    func hash(self: Map__Str_Vec__Str, hasher: HashFn) returns U64
 }
 #+end_src
 
-* Map__Str_call_Vec_Str.new
+* Map__Str_Vec__Str.new
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Map__Str_call_Vec_Str.new
+:CUSTOM_ID: til.src.self.context.Map__Str_Vec__Str.new
 :group: Compiler frontend
 :END:
 
@@ -5613,12 +5659,12 @@ Create an empty Map of the types provided for the key and values respectively.
 The key type must implement ~cmp~.
 
 #+begin_src til
-func Map__Str_call_Vec_Str.new() returns Map__Str_call_Vec_Str
+func Map__Str_Vec__Str.new() returns Map__Str_Vec__Str
 #+end_src
 
-* Map__Str_call_Vec_Str.with_capacity
+* Map__Str_Vec__Str.with_capacity
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Map__Str_call_Vec_Str.with_capacity
+:CUSTOM_ID: til.src.self.context.Map__Str_Vec__Str.with_capacity
 :group: Compiler frontend
 :END:
 
@@ -5627,36 +5673,36 @@ Create an empty Map pre-sized for ~n~ entries, so inserting up to
 counterpart). n=0 behaves like new(): lazy-empty, no allocation.
 
 #+begin_src til
-func Map__Str_call_Vec_Str.with_capacity(n: USize) returns Map__Str_call_Vec_Str
+func Map__Str_Vec__Str.with_capacity(n: USize) returns Map__Str_Vec__Str
 #+end_src
 
-* Map__Str_call_Vec_Str.clear
+* Map__Str_Vec__Str.clear
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Map__Str_call_Vec_Str.clear
+:CUSTOM_ID: til.src.self.context.Map__Str_Vec__Str.clear
 :group: Compiler frontend
 :END:
 
 Drop all live keys and values but keep the allocated storage so the Map can be reused.
 
 #+begin_src til
-func Map__Str_call_Vec_Str.clear(mut self: Map__Str_call_Vec_Str)
+func Map__Str_Vec__Str.clear(mut self: Map__Str_Vec__Str)
 #+end_src
 
-* Map__Str_call_Vec_Str.has
+* Map__Str_Vec__Str.has
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Map__Str_call_Vec_Str.has
+:CUSTOM_ID: til.src.self.context.Map__Str_Vec__Str.has
 :group: Compiler frontend
 :END:
 
 True if a value exists for the given key.
 
 #+begin_src til
-func Map__Str_call_Vec_Str.has(self: Map__Str_call_Vec_Str, key: Str) returns Bool
+func Map__Str_Vec__Str.has(self: Map__Str_Vec__Str, key: Str) returns Bool
 #+end_src
 
-* Map__Str_call_Vec_Str.get
+* Map__Str_Vec__Str.get
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Map__Str_call_Vec_Str.get
+:CUSTOM_ID: til.src.self.context.Map__Str_Vec__Str.get
 :group: Compiler frontend
 :END:
 
@@ -5665,12 +5711,12 @@ Return a ref to the value for ~key~. Throws KeyNotFound if
 on a missing key.
 
 #+begin_src til
-func Map__Str_call_Vec_Str.get(self: Map__Str_call_Vec_Str, key: Str) returns ref Vec__Str throws KeyNotFound
+func Map__Str_Vec__Str.get(self: Map__Str_Vec__Str, key: Str) returns ref Vec__Str throws KeyNotFound
 #+end_src
 
-* Map__Str_call_Vec_Str.set
+* Map__Str_Vec__Str.set
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Map__Str_call_Vec_Str.set
+:CUSTOM_ID: til.src.self.context.Map__Str_Vec__Str.set
 :group: Compiler frontend
 :END:
 
@@ -5678,19 +5724,19 @@ Insert or overwrite. Ref-qualified keys/values borrow their sources;
 other keys are cloned and other values are taken by ownership.
 
 #+begin_src til
-func Map__Str_call_Vec_Str.set(mut self: Map__Str_call_Vec_Str, key: Str, own val: Vec__Str)
+func Map__Str_Vec__Str.set(mut self: Map__Str_Vec__Str, key: Str, own val: Vec__Str)
 #+end_src
 
-* Map__Str_call_Vec_Str.remove
+* Map__Str_Vec__Str.remove
 :PROPERTIES:
-:CUSTOM_ID: til.src.self.context.Map__Str_call_Vec_Str.remove
+:CUSTOM_ID: til.src.self.context.Map__Str_Vec__Str.remove
 :group: Compiler frontend
 :END:
 
 Remove ~key~, dropping its key and value. Returns false if absent.
 
 #+begin_src til
-func Map__Str_call_Vec_Str.remove(mut self: Map__Str_call_Vec_Str, key: Str) returns Bool
+func Map__Str_Vec__Str.remove(mut self: Map__Str_Vec__Str, key: Str) returns Bool
 #+end_src
 
 * HashMap__Str_Str
@@ -5724,6 +5770,7 @@ namespace:
     func delete(own self: HashMap__Str_Str, call_free: Bool = true)
     func remove(mut self: HashMap__Str_Str, key: Str) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: HashMap__Str_Str, hasher: HashFn) returns U64
 }
 #+end_src
@@ -5885,6 +5932,7 @@ namespace:
     func delete(own self: HashMap__Str_USize, call_free: Bool = true)
     func remove(mut self: HashMap__Str_USize, key: Str) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: HashMap__Str_USize, hasher: HashFn) returns U64
 }
 #+end_src
@@ -6037,6 +6085,7 @@ namespace:
     func delete(own self: Map__Str_Bool, call_free: Bool = true)
     func clone(self: Map__Str_Bool) returns Map__Str_Bool
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_Bool, hasher: HashFn) returns U64
 }
 #+end_src
@@ -6153,6 +6202,7 @@ namespace:
     func delete(own self: Map__Str_Dynamic, call_free: Bool = true)
     func clone(self: Map__Str_Dynamic) returns Map__Str_Dynamic
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_Dynamic, hasher: HashFn) returns U64
 }
 #+end_src
@@ -6269,6 +6319,7 @@ namespace:
     func delete(own self: Map__Str_Expr, call_free: Bool = true)
     func clone(self: Map__Str_Expr) returns Map__Str_Expr
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_Expr, hasher: HashFn) returns U64
 }
 #+end_src
@@ -6387,6 +6438,7 @@ namespace:
     func to_str(self: Option__ref_Expr) returns Str
     func clone(self: Option__ref_Expr) returns Option__ref_Expr
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -6460,6 +6512,7 @@ namespace:
     func delete(own self: Vec__TypeBinding, call_free: Bool = true)
     func clone(self: Vec__TypeBinding) returns Vec__TypeBinding
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -6792,6 +6845,7 @@ namespace:
     func delete(own self: Vec__FFIEntry, call_free: Bool = true)
     func clone(self: Vec__FFIEntry) returns Vec__FFIEntry
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -7124,6 +7178,7 @@ namespace:
     func delete(own self: Vec__ExprPtrBox, call_free: Bool = true)
     func clone(self: Vec__ExprPtrBox) returns Vec__ExprPtrBox
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -7456,6 +7511,7 @@ namespace:
     func delete(own self: Vec__FFITypePtrBox, call_free: Bool = true)
     func clone(self: Vec__FFITypePtrBox) returns Vec__FFITypePtrBox
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -7788,6 +7844,7 @@ namespace:
     func delete(own self: Vec__ForeignPlace, call_free: Bool = true)
     func clone(self: Vec__ForeignPlace) returns Vec__ForeignPlace
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -8120,6 +8177,7 @@ namespace:
     func delete(own self: Vec__Mode, call_free: Bool = true)
     func clone(self: Vec__Mode) returns Vec__Mode
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -8452,6 +8510,7 @@ namespace:
     func delete(own self: Vec__FuncType, call_free: Bool = true)
     func clone(self: Vec__FuncType) returns Vec__FuncType
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -8784,6 +8843,7 @@ namespace:
     func delete(own self: Vec__ImportUnit, call_free: Bool = true)
     func clone(self: Vec__ImportUnit) returns Vec__ImportUnit
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -9116,6 +9176,7 @@ namespace:
     func delete(own self: Vec__RootBits, call_free: Bool = true)
     func clone(self: Vec__RootBits) returns Vec__RootBits
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -9448,6 +9509,7 @@ namespace:
     func delete(own self: Vec__Type, call_free: Bool = true)
     func clone(self: Vec__Type) returns Vec__Type
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -9780,6 +9842,7 @@ namespace:
     func delete(own self: Vec__StructLayout, call_free: Bool = true)
     func clone(self: Vec__StructLayout) returns Vec__StructLayout
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

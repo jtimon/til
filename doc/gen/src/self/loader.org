@@ -1,5 +1,5 @@
 #+TITLE: src/self/loader.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * REPL_DOC_INDEX
@@ -53,6 +53,7 @@ struct ProgramUnit {
     mut path : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ProgramUnit) returns ProgramUnit
     func delete(own self: ProgramUnit, call_free: Bool = true)
     func hash(self: ProgramUnit, hasher: HashFn) returns U64
@@ -81,6 +82,7 @@ struct TargetLink {
     mut written : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: TargetLink) returns TargetLink
     func delete(own self: TargetLink, call_free: Bool = true)
     func hash(self: TargetLink, hasher: HashFn) returns U64
@@ -143,6 +145,7 @@ struct LoadedProgram {
 namespace:
     func uses_shared_runtime(self: LoadedProgram) returns Bool
     func runtime_abi_id(self: LoadedProgram) returns Str
+    func runtime_abi_tail(self: LoadedProgram) returns Str
     func runtime_stem(self: LoadedProgram) returns Str
     func runtime_shared_basename(self: LoadedProgram) returns Str
     func core_stem(self: LoadedProgram) returns Str
@@ -152,6 +155,7 @@ namespace:
     func include_flags_for_target(self: LoadedProgram) returns Str
     func delete(own self: LoadedProgram, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: LoadedProgram) returns LoadedProgram
 }
 #+end_src
@@ -201,6 +205,7 @@ struct DocMeta {
     mut hidden : Bool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: DocMeta) returns DocMeta
     func delete(own self: DocMeta, call_free: Bool = true)
     func hash(self: DocMeta, hasher: HashFn) returns U64
@@ -529,6 +534,7 @@ namespace:
     func delete(own self: Vec__TargetLink, call_free: Bool = true)
     func clone(self: Vec__TargetLink) returns Vec__TargetLink
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -861,6 +867,7 @@ namespace:
     func delete(own self: Vec__ProgramUnit, call_free: Bool = true)
     func clone(self: Vec__ProgramUnit) returns Vec__ProgramUnit
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -1193,6 +1200,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

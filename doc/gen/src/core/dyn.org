@@ -1,5 +1,5 @@
 #+TITLE: src/core/dyn.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * Dynamic
@@ -12,9 +12,23 @@
 struct Dynamic {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Dynamic) returns Dynamic
     func delete(own self: Dynamic, call_free: Bool = true)
 }
+#+end_src
+
+* Dynamic.size_for_target
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.dyn.Dynamic.size_for_target
+:group: Core
+:END:
+
+Size of one value in bytes, in the program being built: one pointer.
+See size_for_target on the numeric types.
+
+#+begin_src til
+func Dynamic.size_for_target() returns USize
 #+end_src
 
 * is_n

@@ -2329,7 +2329,7 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
             // Missing values are an expected "not known" result during
             // folding, not an interpreter binding invariant violation.
             if ctx.eval.constfold_active {
-                if ctx.eval.target_size_queries {
+                if ctx.eval.generator_condition {
                     e.type_error(format("generator condition value '", ident.ident_name(ctx.symbols.names), "' is not known at compile time"), ctx)
                 }
                 ctx.eval.eval_aborted = true
@@ -3475,7 +3475,10 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
     }
     ref mut body : Expr = func_def.children[0]
     // #472 (F2): the body about to run returns this compiler's layout.
-    if funcdef_is_generated_size(funcdef_of(func_def), ctx).and(size_read_is_storage(e).not()) { ctx.eval.size_observed = true }
+    // The generated size_for_target has the same shape and returns the
+    // TARGET's number, which is the one that may be baked.
+    if funcdef_is_generated_size(funcdef_of(func_def), ctx).and(size_read_is_storage(e).not())
+        .and(call_names_size_for_target(e, ctx.symbols).not()) { ctx.eval.size_observed = true }
 
     mut call_scope := scope_new(safe_ref(parent_scope))
     call_scope.is_call_scope = true
@@ -3991,19 +3994,6 @@ priv eval_interface_call := proc(mut scope: Scope, mut e: Expr, iface_name: Str,
 }
 
 priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Type, mut ctx: Context, mut info: RawResultInfo, mut destination: Dynamic = bits_word(0)) returns Dynamic {
-    if ctx.eval.target_size_queries {
-        switch ctx.comptime_preparation {
-        case .Some(frame):
-            address := word_bits(to_ptr(e)).to_uptr()
-            if frame.storage_calls.has(address) {
-                e.type_error(format("cannot evaluate layout-dependent raw call '", frame.storage_calls[address], "' with different host and target storage sizes"), ctx)
-                ctx.eval.eval_aborted = true
-                info.is_word = raw_type_is_prim(call_type, ctx)
-                return raw_unit_result(call_type, ctx)
-            }
-        case .None: panic("target-size evaluation has no preparation frame")
-        }
-    }
     ref mut callee_expr : Expr = e.children[0]
     info.is_ref = false
     info.is_word = destination.is_null().and(raw_type_is_prim(call_type, ctx))
@@ -4056,16 +4046,6 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         ref func_def : Expr = callable_raw_func_def(fn_raw)
         set_resolved_call_result_info(call_type, func_def, destination, info, ctx)
         ref iface_fd : FunctionDef = funcdef_of(func_def)
-        if ctx.eval.target_size_queries.and(iface_fd.auto_generated).and(iface_fd.is_enum_variant_ctor.not()) {
-            ref size_method : FieldAccessData = fieldaccess_of(callee_expr)
-            if size_method.field_access_name(ctx.symbols.names) == "size" {
-                mut size_fallback := ""
-                ref sized_name : Str = field_access_sname(callee_expr, size_fallback, ctx.symbols)
-                size := target_value_size(sized_name, ctx.scope, ctx)
-                if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
-                return raw_result_finish(call_type, bits_word(size.to_u64()), destination, false, ctx)
-            }
-        }
         if iface_fd.sig.func_type.is_ext() {
             mut iface_fallback := ""
             ref iface_name : Str = field_access_sname(callee_expr, iface_fallback, ctx.symbols)
@@ -6334,6 +6314,18 @@ priv scope_lookup_ns_binding := func(mut s: Scope, sname: Str, fname: Str) retur
         }
     }
     return Option(ref HeapBinding).None
+}
+
+// #472 (F3): is this call spelled `X.size_for_target()` (or the flattened
+// `X_size_for_target()`)? A call through anything else that reaches a
+// generated size-shaped body is taken to be `size()`.
+priv call_names_size_for_target := func(e: Expr, symbols: SymbolPool) returns Bool {
+    if e.node_type.is(NodeType.FCall).not().or(e.children.len() == 0) { return false }
+    switch e.children[0].node_type {
+    case .FieldAccess(member): return member.field_access_name(symbols.names) == "size_for_target"
+    case .Ident(callee): return callee.ident_name(symbols.names).ends_with("_size_for_target")
+    case: return false
+    }
 }
 
 // #472 (F2): a size query written in core/std addresses memory and does

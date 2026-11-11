@@ -385,14 +385,11 @@ enum {
 typedef struct Target Target;
 typedef struct TargetCpu TargetCpu;
 typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__CtorArg;
-typedef struct priv___src_self_typer_til__ComptimeFunction priv___src_self_typer_til__ComptimeFunction;
 typedef struct priv___src_self_typer_til__ReturnEscapeRoots priv___src_self_typer_til__ReturnEscapeRoots;
 typedef struct FactIndex FactIndex;
 typedef struct DepositAcc DepositAcc;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
 typedef struct Vec__priv___src_self_typer_til__CtorArg Vec__priv___src_self_typer_til__CtorArg;
-typedef struct Vec__priv___src_self_typer_til__ComptimeFunction Vec__priv___src_self_typer_til__ComptimeFunction;
-typedef struct Set__UPtr Set__UPtr;
 typedef struct Map__Str_RootBits Map__Str_RootBits;
 typedef struct Vec__priv___src_self_typer_til__CoverageNode Vec__priv___src_self_typer_til__CoverageNode;
 typedef struct PendingRefBinding PendingRefBinding;
@@ -419,6 +416,7 @@ typedef struct Vec__priv___src_self_garbager_til__GcBorrowEdge Vec__priv___src_s
 typedef struct Array__USize Array__USize;
 typedef struct Array__U8 Array__U8;
 typedef struct Vec__priv___src_self_garbager_til__LocalInfo Vec__priv___src_self_garbager_til__LocalInfo;
+typedef struct Set__UPtr Set__UPtr;
 typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock Vec__priv___src_self_garbager_til__GcCfgBlock;
 typedef struct Vec__priv___src_self_garbager_til__GcDeposit Vec__priv___src_self_garbager_til__GcDeposit;
 typedef struct Option__ref_FunctionDef Option__ref_FunctionDef;
@@ -1316,13 +1314,6 @@ struct priv___src_self_typer_til__CtorArg {
     Expr *data;
 };
 
-typedef struct priv___src_self_typer_til__ComptimeFunction {
-    Str owner;
-    Str name;
-    Expr *definition;
-} priv___src_self_typer_til__ComptimeFunction;
-
-
 typedef struct priv___src_self_typer_til__ReturnEscapeRoots {
     Vec__BorrowRoot direct;
     Vec__BorrowRoot indirect;
@@ -1345,20 +1336,6 @@ typedef struct Vec__priv___src_self_typer_til__CtorArg {
     USize count;
     USize cap;
 } Vec__priv___src_self_typer_til__CtorArg;
-
-
-typedef struct Vec__priv___src_self_typer_til__ComptimeFunction {
-    TIL_OWN_PTR(U8) data;
-    USize count;
-    USize cap;
-} Vec__priv___src_self_typer_til__ComptimeFunction;
-
-
-typedef struct Set__UPtr {
-    TIL_OWN_PTR(U8) data;
-    USize count;
-    USize cap;
-} Set__UPtr;
 
 
 typedef struct Map__Str_RootBits {
@@ -1436,15 +1413,6 @@ typedef struct priv___src_self_garbager_til__GcFlowKills {
 } priv___src_self_garbager_til__GcFlowKills;
 
 
-typedef struct priv___src_self_garbager_til__GcAssignVerdicts {
-    Set__UPtr consumed;
-    Bool mixed;
-    UPtr mixed_key;
-    U32 mixed_line;
-    U32 mixed_col;
-} priv___src_self_garbager_til__GcAssignVerdicts;
-
-
 typedef struct priv___src_self_garbager_til__BodyFacts {
     USize words;
     USize n_stmts;
@@ -1520,6 +1488,13 @@ typedef struct Vec__priv___src_self_garbager_til__LocalInfo {
     USize count;
     USize cap;
 } Vec__priv___src_self_garbager_til__LocalInfo;
+
+
+typedef struct Set__UPtr {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Set__UPtr;
 
 
 typedef struct Vec__priv___src_self_garbager_til__GcCfgBlock {
@@ -2437,7 +2412,6 @@ typedef struct ComptimePreparation {
     Set__Str ready;
     Set__Str active;
     Vec__Str globals;
-    Map__UPtr_Str storage_calls;
 } ComptimePreparation;
 
 
@@ -2537,6 +2511,15 @@ typedef struct priv___src_self_typer_til__CoverageNode {
     Vec__Str sub_names;
     Vec__priv___src_self_typer_til__CoverageNode sub_nodes;
 } priv___src_self_typer_til__CoverageNode;
+
+
+typedef struct priv___src_self_garbager_til__GcAssignVerdicts {
+    Set__UPtr consumed;
+    Bool mixed;
+    UPtr mixed_key;
+    U32 mixed_line;
+    U32 mixed_col;
+} priv___src_self_garbager_til__GcAssignVerdicts;
 
 
 typedef struct priv___src_self_garbager_til__ReferenceNameChange {
@@ -2776,7 +2759,7 @@ typedef struct EvalState {
     Bool constfold_no_state_writes;
     Bool size_observed;
     Set__Str ns_size_dependent;
-    Bool target_size_queries;
+    Bool generator_condition;
     Bool eval_aborted;
     Bool repl_session;
     Bool embedded;

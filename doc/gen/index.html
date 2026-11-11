@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-389200c8c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e8e3f66</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="src/core/str.html">src/core/str.til</a></li>
 <li><a href="src/core/dyn.html">src/core/dyn.til</a></li>
@@ -130,6 +130,7 @@ namespace:
     func to_vec(self: Array__Dynamic) returns Vec__Dynamic
     func clone(self: Array__Dynamic) returns Array__Dynamic
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -189,6 +190,7 @@ namespace:
     func delete(own self: Vec__Dynamic, call_free: Bool = true)
     func clone(self: Vec__Dynamic) returns Vec__Dynamic
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -300,6 +302,7 @@ namespace:
     mut incomplete : Bool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Utf8Read) returns Utf8Read
     func delete(own self: Utf8Read, call_free: Bool = true)
     func hash(self: Utf8Read, hasher: HashFn) returns U64
@@ -363,6 +366,7 @@ namespace:
     func to_f64(self: Str) returns F64
     func split(self: Str, delim: Str) returns Vec__Str
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Str, b: Str) returns Bool
     func gt(a: Str, b: Str) returns Bool
     func neq(a: Str, b: Str) returns Bool
@@ -567,6 +571,7 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: OutOfBounds) returns OutOfBounds
     func delete(own self: OutOfBounds, call_free: Bool = true)
     func hash(self: OutOfBounds, hasher: HashFn) returns U64
@@ -585,6 +590,7 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: KeyNotFound) returns KeyNotFound
     func delete(own self: KeyNotFound, call_free: Bool = true)
     func hash(self: KeyNotFound, hasher: HashFn) returns U64
@@ -615,6 +621,7 @@ namespace:
     func to_vec(self: Array__Str) returns Vec__Str
     func clone(self: Array__Str) returns Array__Str
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -674,6 +681,7 @@ namespace:
     func delete(own self: Vec__Str, call_free: Bool = true)
     func clone(self: Vec__Str) returns Vec__Str
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -765,9 +773,14 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Dynamic) returns Dynamic
     func delete(own self: Dynamic, call_free: Bool = true)
 }
+</code></pre>
+</li>
+<li><a href="src/core/dyn.html#til.src.core.dyn.Dynamic.size_for_target">Dynamic.size_for_target</a>
+<pre><code class="language-til">func () returns USize
 </code></pre>
 </li>
 <li><a href="src/core/dyn.html#til.src.core.dyn.is_n">is_n</a>
@@ -1035,6 +1048,7 @@ namespace:
     func distance(a: Dynamic, b: Dynamic) returns U64
     func delete(own self: U8, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func safe_add(a: U8, b: U8, loc: Str = __LOC__) returns U8 throws IntegerOverflow
     func safe_sub(a: U8, b: U8, loc: Str = __LOC__) returns U8 throws IntegerOverflow
     func safe_mul(a: U8, b: U8, loc: Str = __LOC__) returns U8 throws IntegerOverflow
@@ -1054,6 +1068,14 @@ namespace:
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.U8.distance">U8.distance</a>
 <pre><code class="language-til">func (a: Dynamic, b: Dynamic) returns U64
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.U8.size">U8.size</a>
+<pre><code class="language-til">func () returns USize
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.U8.size_for_target">U8.size_for_target</a>
+<pre><code class="language-til">func () returns USize
 </code></pre>
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.U8.safe_add">U8.safe_add</a>
@@ -1106,6 +1128,7 @@ namespace:
     func distance(a: Dynamic, b: Dynamic) returns U64
     func delete(own self: U16, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func safe_add(a: U16, b: U16, loc: Str = __LOC__) returns U16 throws IntegerOverflow
     func safe_sub(a: U16, b: U16, loc: Str = __LOC__) returns U16 throws IntegerOverflow
     func safe_mul(a: U16, b: U16, loc: Str = __LOC__) returns U16 throws IntegerOverflow
@@ -1125,6 +1148,14 @@ namespace:
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.U16.distance">U16.distance</a>
 <pre><code class="language-til">func (a: Dynamic, b: Dynamic) returns U64
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.U16.size">U16.size</a>
+<pre><code class="language-til">func () returns USize
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.U16.size_for_target">U16.size_for_target</a>
+<pre><code class="language-til">func () returns USize
 </code></pre>
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.U16.safe_add">U16.safe_add</a>
@@ -1183,6 +1214,7 @@ namespace:
     func distance(a: Dynamic, b: Dynamic) returns U64
     func delete(own self: U32, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func safe_add(a: U32, b: U32, loc: Str = __LOC__) returns U32 throws IntegerOverflow
     func safe_sub(a: U32, b: U32, loc: Str = __LOC__) returns U32 throws IntegerOverflow
     func safe_mul(a: U32, b: U32, loc: Str = __LOC__) returns U32 throws IntegerOverflow
@@ -1202,6 +1234,14 @@ namespace:
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.U32.distance">U32.distance</a>
 <pre><code class="language-til">func (a: Dynamic, b: Dynamic) returns U64
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.U32.size">U32.size</a>
+<pre><code class="language-til">func () returns USize
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.U32.size_for_target">U32.size_for_target</a>
+<pre><code class="language-til">func () returns USize
 </code></pre>
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.U32.safe_add">U32.safe_add</a>
@@ -1261,6 +1301,7 @@ namespace:
     func distance(a: Dynamic, b: Dynamic) returns U64
     func delete(own self: U64, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func safe_add(a: U64, b: U64, loc: Str = __LOC__) returns U64 throws IntegerOverflow
     func safe_sub(a: U64, b: U64, loc: Str = __LOC__) returns U64 throws IntegerOverflow
     func safe_mul(a: U64, b: U64, loc: Str = __LOC__) returns U64 throws IntegerOverflow
@@ -1280,6 +1321,14 @@ namespace:
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.U64.distance">U64.distance</a>
 <pre><code class="language-til">func (a: Dynamic, b: Dynamic) returns U64
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.U64.size">U64.size</a>
+<pre><code class="language-til">func () returns USize
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.U64.size_for_target">U64.size_for_target</a>
+<pre><code class="language-til">func () returns USize
 </code></pre>
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.U64.safe_add">U64.safe_add</a>
@@ -1334,6 +1383,7 @@ namespace:
     func distance(a: Dynamic, b: Dynamic) returns U64
     func delete(own self: I8, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     MIN : I8
     MAX : I8
     func hash(self: I8, hasher: HashFn) returns U64
@@ -1358,6 +1408,14 @@ namespace:
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.I8.distance">I8.distance</a>
 <pre><code class="language-til">func (a: Dynamic, b: Dynamic) returns U64
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.I8.size">I8.size</a>
+<pre><code class="language-til">func () returns USize
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.I8.size_for_target">I8.size_for_target</a>
+<pre><code class="language-til">func () returns USize
 </code></pre>
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.I8.MIN">I8.MIN</a>
@@ -1401,6 +1459,7 @@ namespace:
     func distance(a: Dynamic, b: Dynamic) returns U64
     func delete(own self: I16, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func safe_add(a: I16, b: I16, loc: Str = __LOC__) returns I16 throws IntegerOverflow
     func safe_sub(a: I16, b: I16, loc: Str = __LOC__) returns I16 throws IntegerOverflow
     func safe_mul(a: I16, b: I16, loc: Str = __LOC__) returns I16 throws IntegerOverflow
@@ -1428,6 +1487,14 @@ namespace:
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.I16.distance">I16.distance</a>
 <pre><code class="language-til">func (a: Dynamic, b: Dynamic) returns U64
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.I16.size">I16.size</a>
+<pre><code class="language-til">func () returns USize
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.I16.size_for_target">I16.size_for_target</a>
+<pre><code class="language-til">func () returns USize
 </code></pre>
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.I16.safe_add">I16.safe_add</a>
@@ -1484,6 +1551,7 @@ namespace:
     func distance(a: Dynamic, b: Dynamic) returns U64
     func delete(own self: I32, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func safe_add(a: I32, b: I32, loc: Str = __LOC__) returns I32 throws IntegerOverflow
     func safe_sub(a: I32, b: I32, loc: Str = __LOC__) returns I32 throws IntegerOverflow
     func safe_mul(a: I32, b: I32, loc: Str = __LOC__) returns I32 throws IntegerOverflow
@@ -1511,6 +1579,14 @@ namespace:
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.I32.distance">I32.distance</a>
 <pre><code class="language-til">func (a: Dynamic, b: Dynamic) returns U64
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.I32.size">I32.size</a>
+<pre><code class="language-til">func () returns USize
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.I32.size_for_target">I32.size_for_target</a>
+<pre><code class="language-til">func () returns USize
 </code></pre>
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.I32.safe_add">I32.safe_add</a>
@@ -1573,6 +1649,7 @@ namespace:
     func distance(a: Dynamic, b: Dynamic) returns U64
     func delete(own self: I64, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func safe_div(a: I64, b: I64, loc: Str = __LOC__) returns I64 throws DivideByZero
     func safe_add(a: I64, b: I64, loc: Str = __LOC__) returns I64 throws IntegerOverflow
     func safe_sub(a: I64, b: I64, loc: Str = __LOC__) returns I64 throws IntegerOverflow
@@ -1601,6 +1678,14 @@ namespace:
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.I64.distance">I64.distance</a>
 <pre><code class="language-til">func (a: Dynamic, b: Dynamic) returns U64
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.I64.size">I64.size</a>
+<pre><code class="language-til">func () returns USize
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.I64.size_for_target">I64.size_for_target</a>
+<pre><code class="language-til">func () returns USize
 </code></pre>
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.I64.safe_div">I64.safe_div</a>
@@ -1650,6 +1735,7 @@ namespace:
     ext_func clone(val: F32) returns shallow F32
     func delete(own self: F32, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func safe_div(a: F32, b: F32, loc: Str = __LOC__) returns F32 throws DivideByZero
     MIN : F32
     MAX : F32
@@ -1667,6 +1753,14 @@ namespace:
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.F32.fma">F32.fma</a>
 <pre><code class="language-til">core_func (shallow a: F32, shallow b: F32, shallow c: F32) returns shallow F32
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.F32.size">F32.size</a>
+<pre><code class="language-til">func () returns USize
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.F32.size_for_target">F32.size_for_target</a>
+<pre><code class="language-til">func () returns USize
 </code></pre>
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.F32.safe_div">F32.safe_div</a>
@@ -1704,6 +1798,7 @@ namespace:
     ext_func clone(val: F64) returns shallow F64
     func delete(own self: F64, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func safe_div(a: F64, b: F64, loc: Str = __LOC__) returns F64 throws DivideByZero
     MIN : F64
     MAX : F64
@@ -1723,6 +1818,14 @@ namespace:
 <pre><code class="language-til">core_func (shallow a: F64, shallow b: F64, shallow c: F64) returns shallow F64
 </code></pre>
 </li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.F64.size">F64.size</a>
+<pre><code class="language-til">func () returns USize
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.F64.size_for_target">F64.size_for_target</a>
+<pre><code class="language-til">func () returns USize
+</code></pre>
+</li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.F64.safe_div">F64.safe_div</a>
 <pre><code class="language-til">func (a: F64, b: F64, loc: Str = __LOC__) returns F64 throws DivideByZero
 </code></pre>
@@ -1740,6 +1843,7 @@ namespace:
     mut msg : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: DivideByZero) returns DivideByZero
     func delete(own self: DivideByZero, call_free: Bool = true)
     func hash(self: DivideByZero, hasher: HashFn) returns U64
@@ -1759,6 +1863,7 @@ namespace:
     mut msg : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: IntegerOverflow) returns IntegerOverflow
     func delete(own self: IntegerOverflow, call_free: Bool = true)
     func hash(self: IntegerOverflow, hasher: HashFn) returns U64
@@ -1799,6 +1904,7 @@ namespace:
     func cmp(a: U256, b: U256) returns I64
     func eq(a: U256, b: U256) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: U256) returns U256
     func delete(own self: U256, call_free: Bool = true)
     func hash(self: U256, hasher: HashFn) returns U64
@@ -1847,6 +1953,7 @@ namespace:
     ext_func clone(val: Bool) returns shallow Bool
     func delete(own self: Bool, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Bool, hasher: HashFn) returns U64
     func lt(a: Bool, b: Bool) returns Bool
     func gt(a: Bool, b: Bool) returns Bool
@@ -1862,6 +1969,14 @@ namespace:
 </li>
 <li><a href="src/core/bool.html#til.src.core.bool.Bool.cmp">Bool.cmp</a>
 <pre><code class="language-til">func (a: Bool, b: Bool) returns I64
+</code></pre>
+</li>
+<li><a href="src/core/bool.html#til.src.core.bool.Bool.size">Bool.size</a>
+<pre><code class="language-til">func () returns USize
+</code></pre>
+</li>
+<li><a href="src/core/bool.html#til.src.core.bool.Bool.size_for_target">Bool.size_for_target</a>
+<pre><code class="language-til">func () returns USize
 </code></pre>
 </li>
 <li><a href="src/core/map.html#til.src.core.map.Map">Map</a>
@@ -1904,6 +2019,7 @@ namespace:
     func to_str(self: Primitive) returns Str
     func clone(self: Primitive) returns Primitive
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Primitive, b: Primitive) returns Bool
     func gt(a: Primitive, b: Primitive) returns Bool
     func neq(a: Primitive, b: Primitive) returns Bool
@@ -1956,6 +2072,7 @@ namespace:
     func to_str(self: Type) returns Str
     func clone(self: Type) returns Type
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Type, b: Type) returns Bool
     func gt(a: Type, b: Type) returns Bool
     func neq(a: Type, b: Type) returns Bool
@@ -2003,6 +2120,7 @@ namespace:
     func to_str(self: FuncType) returns Str
     func clone(self: FuncType) returns FuncType
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: FuncType, b: FuncType) returns Bool
     func gt(a: FuncType, b: FuncType) returns Bool
     func neq(a: FuncType, b: FuncType) returns Bool
@@ -2035,6 +2153,7 @@ namespace:
     func to_str(self: OwnType) returns Str
     func clone(self: OwnType) returns OwnType
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: OwnType, b: OwnType) returns Bool
     func gt(a: OwnType, b: OwnType) returns Bool
     func neq(a: OwnType, b: OwnType) returns Bool
@@ -2067,6 +2186,7 @@ namespace:
     func to_str(self: GcStorage) returns Str
     func clone(self: GcStorage) returns GcStorage
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: GcStorage, b: GcStorage) returns Bool
     func gt(a: GcStorage, b: GcStorage) returns Bool
     func neq(a: GcStorage, b: GcStorage) returns Bool
@@ -2093,6 +2213,7 @@ namespace:
     func to_str(self: Option__Expr) returns Str
     func clone(self: Option__Expr) returns Option__Expr
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -2133,6 +2254,7 @@ namespace:
     func type_name(self: Declaration) returns Str
     func default_expr(self: Declaration) returns ref Expr
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Declaration) returns Declaration
     func delete(own self: Declaration, call_free: Bool = true)
     func hash(self: Declaration, hasher: HashFn) returns U64
@@ -2157,6 +2279,7 @@ namespace:
     func eq(a: FuncSig, b: FuncSig) returns Bool
     func to_str(self: FuncSig) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FuncSig) returns FuncSig
     func delete(own self: FuncSig, call_free: Bool = true)
     func hash(self: FuncSig, hasher: HashFn) returns U64
@@ -2182,6 +2305,7 @@ namespace:
     func eq(a: FunctionDef, b: FunctionDef) returns Bool
     func to_str(self: FunctionDef) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FunctionDef) returns FunctionDef
     func delete(own self: FunctionDef, call_free: Bool = true)
     func hash(self: FunctionDef, hasher: HashFn) returns U64
@@ -2206,10 +2330,12 @@ namespace:
     mut panic_on_error : Bool
     mut is_bang_check : Bool
     mut cast_path : U32
+    mut storage_size_read : Bool
 namespace:
     func eq(_a: FCallData, _b: FCallData) returns Bool
     func to_str(_self: FCallData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FCallData) returns FCallData
     func delete(own self: FCallData, call_free: Bool = true)
     func hash(self: FCallData, hasher: HashFn) returns U64
@@ -2242,6 +2368,7 @@ namespace:
     func literal_num_text(self: LiteralNumData) returns ref Str
     func is_float(self: LiteralNumData) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: LiteralNumData) returns LiteralNumData
     func delete(own self: LiteralNumData, call_free: Bool = true)
     func hash(self: LiteralNumData, hasher: HashFn) returns U64
@@ -2267,6 +2394,7 @@ namespace:
     func ident_sym(self: IdentData) returns U32
     func ident_name(self: IdentData, names: Vec__Str) returns ref Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: IdentData) returns IdentData
     func delete(own self: IdentData, call_free: Bool = true)
     func hash(self: IdentData, hasher: HashFn) returns U64
@@ -2293,6 +2421,7 @@ namespace:
     func field_access_sym(self: FieldAccessData) returns U32
     func field_access_name(self: FieldAccessData, names: Vec__Str) returns ref Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FieldAccessData) returns FieldAccessData
     func delete(own self: FieldAccessData, call_free: Bool = true)
     func hash(self: FieldAccessData, hasher: HashFn) returns U64
@@ -2327,6 +2456,7 @@ namespace:
     func member_name_at(self: StructDef, i: USize) returns ref Str
     func member_at(self: StructDef, i: USize) returns ref Declaration
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: StructDef) returns StructDef
     func delete(own self: StructDef, call_free: Bool = true)
 }
@@ -2373,6 +2503,7 @@ namespace:
     func eq(a: VariantDef, b: VariantDef) returns Bool
     func to_str(self: VariantDef) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: VariantDef) returns VariantDef
     func delete(own self: VariantDef, call_free: Bool = true)
     func hash(self: VariantDef, hasher: HashFn) returns U64
@@ -2403,6 +2534,7 @@ namespace:
     func member_name_at(self: EnumDef, i: USize) returns ref Str
     func member_at(self: EnumDef, i: USize) returns ref Declaration
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: EnumDef) returns EnumDef
     func delete(own self: EnumDef, call_free: Bool = true)
 }
@@ -2435,6 +2567,7 @@ namespace:
     func eq(a: FieldLayout, b: FieldLayout) returns Bool
     func to_str(self: FieldLayout) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FieldLayout) returns FieldLayout
     func delete(own self: FieldLayout, call_free: Bool = true)
     func hash(self: FieldLayout, hasher: HashFn) returns U64
@@ -2457,6 +2590,7 @@ namespace:
     func eq(a: StructLayout, b: StructLayout) returns Bool
     func to_str(self: StructLayout) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: StructLayout) returns StructLayout
     func delete(own self: StructLayout, call_free: Bool = true)
     func hash(self: StructLayout, hasher: HashFn) returns U64
@@ -2474,6 +2608,7 @@ namespace:
     func eq(a: AssignData, b: AssignData) returns Bool
     func to_str(self: AssignData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: AssignData) returns AssignData
     func delete(own self: AssignData, call_free: Bool = true)
     func hash(self: AssignData, hasher: HashFn) returns U64
@@ -2496,6 +2631,7 @@ namespace:
     func eq(a: FieldAssignData, b: FieldAssignData) returns Bool
     func to_str(self: FieldAssignData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FieldAssignData) returns FieldAssignData
     func delete(own self: FieldAssignData, call_free: Bool = true)
     func hash(self: FieldAssignData, hasher: HashFn) returns U64
@@ -2519,6 +2655,7 @@ namespace:
     func eq(a: ForInData, b: ForInData) returns Bool
     func to_str(self: ForInData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ForInData) returns ForInData
     func delete(own self: ForInData, call_free: Bool = true)
     func hash(self: ForInData, hasher: HashFn) returns U64
@@ -2552,6 +2689,7 @@ namespace:
     func to_str(self: Literal) returns Str
     func clone(self: Literal) returns Literal
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -2563,6 +2701,7 @@ namespace:
     func eq(a: MatchData, b: MatchData) returns Bool
     func to_str(_self: MatchData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: MatchData) returns MatchData
     func delete(own self: MatchData, call_free: Bool = true)
     func hash(self: MatchData, hasher: HashFn) returns U64
@@ -2582,6 +2721,7 @@ namespace:
     func eq(a: CaseData, b: CaseData) returns Bool
     func to_str(_self: CaseData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: CaseData) returns CaseData
     func delete(own self: CaseData, call_free: Bool = true)
     func hash(self: CaseData, hasher: HashFn) returns U64
@@ -2602,6 +2742,7 @@ namespace:
     func eq(a: CaptureBlockData, b: CaptureBlockData) returns Bool
     func to_str(_self: CaptureBlockData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: CaptureBlockData) returns CaptureBlockData
     func delete(own self: CaptureBlockData, call_free: Bool = true)
     func hash(self: CaptureBlockData, hasher: HashFn) returns U64
@@ -2618,6 +2759,7 @@ namespace:
     func eq(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns Bool
     func to_str(_self: PrecomputedSequenceData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: PrecomputedSequenceData) returns PrecomputedSequenceData
     func delete(own self: PrecomputedSequenceData, call_free: Bool = true)
     func hash(self: PrecomputedSequenceData, hasher: HashFn) returns U64
@@ -2762,6 +2904,7 @@ namespace:
     func delete(own self: NodeType, call_free: Bool = true)
     func clone(self: NodeType) returns NodeType
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -2787,6 +2930,7 @@ namespace:
     func to_str_with_symbols(self: Expr, names: Vec__Str) returns Str
     func to_str(_self: Expr) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Expr) returns Expr
     func hash(self: Expr, hasher: HashFn) returns U64
 }
@@ -2882,6 +3026,7 @@ namespace:
     func to_str(self: Option__ref_Declaration) returns Str
     func clone(self: Option__ref_Declaration) returns Option__ref_Declaration
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -2912,6 +3057,7 @@ namespace:
     func to_str(self: Option__ref_Str) returns Str
     func clone(self: Option__ref_Str) returns Option__ref_Str
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__ref_Str, b: Option__ref_Str) returns Bool
     func gt(a: Option__ref_Str, b: Option__ref_Str) returns Bool
     func neq(a: Option__ref_Str, b: Option__ref_Str) returns Bool
@@ -2944,6 +3090,7 @@ namespace:
     func delete(own self: Map__Str_USize, call_free: Bool = true)
     func clone(self: Map__Str_USize) returns Map__Str_USize
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_USize, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -3004,6 +3151,7 @@ namespace:
     func delete(own self: Vec__VariantDef, call_free: Bool = true)
     func clone(self: Vec__VariantDef) returns Vec__VariantDef
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -3115,6 +3263,7 @@ namespace:
     func delete(own self: Vec__FieldLayout, call_free: Bool = true)
     func clone(self: Vec__FieldLayout) returns Vec__FieldLayout
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -3226,6 +3375,7 @@ namespace:
     func delete(own self: Vec__Declaration, call_free: Bool = true)
     func clone(self: Vec__Declaration) returns Vec__Declaration
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -3337,6 +3487,7 @@ namespace:
     func delete(own self: Vec__Expr, call_free: Bool = true)
     func clone(self: Vec__Expr) returns Vec__Expr
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -3448,6 +3599,7 @@ namespace:
     func delete(own self: Vec__USize, call_free: Bool = true)
     func clone(self: Vec__USize) returns Vec__USize
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -3588,6 +3740,7 @@ namespace:
     func delete(own self: Tuple, call_free: Bool = true)
     func clone(self: Tuple) returns Tuple
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -3639,6 +3792,7 @@ namespace:
     func type_at(self: KwargsMap, key: Str) returns ref Str
     func size_at(self: KwargsMap, key: Str) returns ref USize
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: KwargsMap) returns KwargsMap
     func delete(own self: KwargsMap, call_free: Bool = true)
     func hash(self: KwargsMap, hasher: HashFn) returns U64
@@ -3685,6 +3839,7 @@ namespace:
     func delete(own self: Map__Str_Tuple, call_free: Bool = true)
     func clone(self: Map__Str_Tuple) returns Map__Str_Tuple
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_Tuple, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -3745,6 +3900,7 @@ namespace:
     func delete(own self: Vec__Tuple, call_free: Bool = true)
     func clone(self: Vec__Tuple) returns Vec__Tuple
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -4015,6 +4171,7 @@ namespace:
     func clone(val: Range) returns Range
     func delete(own self: Range, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Range, hasher: HashFn) returns U64
     func cmp(a: Range, b: Range) returns I64
     func to_str(self: Range) returns Str
@@ -4069,6 +4226,7 @@ namespace:
     mut build_hint : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Mode) returns Mode
     func delete(own self: Mode, call_free: Bool = true)
     func hash(self: Mode, hasher: HashFn) returns U64
@@ -4192,6 +4350,7 @@ namespace:
     func delete(own self: File, call_free: Bool = true)
     proc fwrite(self: File, parts: ..Str) returns ref File
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: File) returns File
 }
 </code></pre>
@@ -4289,6 +4448,7 @@ namespace:
     proc list(path: Str) returns Vec__Str
     func delete(own self: Dir, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Dir) returns Dir
 }
 </code></pre>
@@ -4482,6 +4642,7 @@ namespace:
     proc err(self: Cmd) returns Str
     func delete(own self: Cmd, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Cmd) returns Cmd
 }
 </code></pre>
@@ -4642,6 +4803,7 @@ namespace:
     func delete(own self: Vec__I64, call_free: Bool = true)
     func clone(self: Vec__I64) returns Vec__I64
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -4753,6 +4915,7 @@ namespace:
     func delete(own self: Vec__U64, call_free: Bool = true)
     func clone(self: Vec__U64) returns Vec__U64
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -4849,6 +5012,7 @@ namespace:
     mut msg : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: CryptoError) returns CryptoError
     func delete(own self: CryptoError, call_free: Bool = true)
     func hash(self: CryptoError, hasher: HashFn) returns U64
@@ -4884,6 +5048,7 @@ namespace:
     func to_hex(self: Signature) returns Str
     func to_str(self: Signature) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Signature) returns Signature
     func delete(own self: Signature, call_free: Bool = true)
     func hash(self: Signature, hasher: HashFn) returns U64
@@ -4933,6 +5098,7 @@ namespace:
     func to_vec(self: Array__U32) returns Vec__U32
     func clone(self: Array__U32) returns Array__U32
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -5030,6 +5196,7 @@ namespace:
     func delete(own self: DynVec, call_free: Bool = true)
     func clone(self: DynVec) returns DynVec
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -5138,6 +5305,7 @@ namespace:
     func to_vec(self: DynArray) returns DynVec
     func clone(self: DynArray) returns DynArray
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -5197,6 +5365,7 @@ namespace:
     func delete(own self: DynHashMap, call_free: Bool = true)
     func remove(mut self: DynHashMap, key: Dynamic) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: DynHashMap, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -5251,6 +5420,7 @@ namespace:
     func delete(own self: DynHashSet, call_free: Bool = true)
     func remove(mut self: DynHashSet, val: Dynamic) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: DynHashSet, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -5296,6 +5466,7 @@ namespace:
     func delete(own self: DynMap, call_free: Bool = true)
     func clone(self: DynMap) returns DynMap
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: DynMap, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -5348,6 +5519,7 @@ namespace:
     func delete(own self: DynSet, call_free: Bool = true)
     func clone(self: DynSet) returns DynSet
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -5388,6 +5560,7 @@ namespace:
     proc lookup(mut self: TilVm, name: Str, signature: Type = Type.None) returns TilVmCallback throws TilVmError
     func delete(own self: TilVm, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: TilVm, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -5481,6 +5654,7 @@ namespace:
     func to_str(self: DiagnosticPhase) returns Str
     func clone(self: DiagnosticPhase) returns DiagnosticPhase
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: DiagnosticPhase, b: DiagnosticPhase) returns Bool
     func gt(a: DiagnosticPhase, b: DiagnosticPhase) returns Bool
     func neq(a: DiagnosticPhase, b: DiagnosticPhase) returns Bool
@@ -5505,6 +5679,7 @@ namespace:
     func to_str(self: DiagnosticSeverity) returns Str
     func clone(self: DiagnosticSeverity) returns DiagnosticSeverity
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: DiagnosticSeverity, b: DiagnosticSeverity) returns Bool
     func gt(a: DiagnosticSeverity, b: DiagnosticSeverity) returns Bool
     func neq(a: DiagnosticSeverity, b: DiagnosticSeverity) returns Bool
@@ -5526,6 +5701,7 @@ namespace:
     func render(d: SourceDiagnostic) returns Str
     proc print(d: SourceDiagnostic)
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: SourceDiagnostic) returns SourceDiagnostic
     func delete(own self: SourceDiagnostic, call_free: Bool = true)
     func hash(self: SourceDiagnostic, hasher: HashFn) returns U64
@@ -5714,6 +5890,7 @@ namespace:
     func to_str(self: TokenType) returns Str
     func clone(self: TokenType) returns TokenType
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: TokenType, b: TokenType) returns Bool
     func gt(a: TokenType, b: TokenType) returns Bool
     func neq(a: TokenType, b: TokenType) returns Bool
@@ -5731,6 +5908,7 @@ namespace:
     col : U32
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Token) returns Token
     func delete(own self: Token, call_free: Bool = true)
     func hash(self: Token, hasher: HashFn) returns U64
@@ -5777,6 +5955,7 @@ namespace:
     func delete(own self: Map__Str_TokenType, call_free: Bool = true)
     func clone(self: Map__Str_TokenType) returns Map__Str_TokenType
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_TokenType, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -5837,6 +6016,7 @@ namespace:
     func delete(own self: Vec__SourceDiagnostic, call_free: Bool = true)
     func clone(self: Vec__SourceDiagnostic) returns Vec__SourceDiagnostic
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -5948,6 +6128,7 @@ namespace:
     func delete(own self: Vec__Token, call_free: Bool = true)
     func clone(self: Vec__Token) returns Vec__Token
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -6059,6 +6240,7 @@ namespace:
     func delete(own self: Vec__TokenType, call_free: Bool = true)
     func clone(self: Vec__TokenType) returns Vec__TokenType
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -6157,7 +6339,7 @@ namespace:
 <li><a href="src/self/parser.html#til.src.self.parser.SymbolPool">SymbolPool</a>
 <pre><code class="language-til">struct {
     mut names : Vec__Str
-    mut retired_names : Vec__call_Vec_Str
+    mut retired_names : Vec__Vec__Str
     mut buckets : Vec__U32
     mut next : U32
 namespace:
@@ -6167,6 +6349,7 @@ namespace:
     func grow_names(mut self: SymbolPool)
     func resolve(self: SymbolPool, sym: U32) returns ref Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: SymbolPool) returns SymbolPool
     func delete(own self: SymbolPool, call_free: Bool = true)
     func hash(self: SymbolPool, hasher: HashFn) returns U64
@@ -6313,115 +6496,116 @@ namespace:
 <pre><code class="language-til"> is a None
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str">Vec__call_Vec_Str</a>
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str">Vec__Vec__Str</a>
 <pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__call_Vec_Str
-    func with_capacity(n: USize) returns Vec__call_Vec_Str
-    func len(self: Vec__call_Vec_Str) returns USize
-    func clear(mut self: Vec__call_Vec_Str)
-    func delete_marked(mut self: Vec__call_Vec_Str, marks: Dynamic)
-    func push(mut self: Vec__call_Vec_Str, own val: Vec__Str)
-    func append(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
-    func take(mut self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
-    func move_to(own self: Vec__call_Vec_Str, mut dest: Vec__call_Vec_Str)
-    func move_from(mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
-    func unsafe_get(self: Vec__call_Vec_Str, i: USize) returns ref Vec__Str
-    func get(self: Vec__call_Vec_Str, shallow i: USize) returns ref Vec__Str throws OutOfBounds
-    func pop(mut self: Vec__call_Vec_Str) returns Vec__Str
-    func remove_at(mut self: Vec__call_Vec_Str, i: USize) throws OutOfBounds
-    func take_prefix(mut self: Vec__call_Vec_Str, n: USize) returns Vec__call_Vec_Str
-    func truncate(mut self: Vec__call_Vec_Str, n: USize)
-    func unsafe_set(mut self: Vec__call_Vec_Str, i: USize, own val: Vec__Str)
-    func set(mut self: Vec__call_Vec_Str, i: USize, own val: Vec__Str) throws OutOfBounds
-    func push_take(mut self: Vec__call_Vec_Str, mut src: Vec__call_Vec_Str, i: USize)
-    func delete(own self: Vec__call_Vec_Str, call_free: Bool = true)
-    func clone(self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
+    func new() returns Vec__Vec__Str
+    func with_capacity(n: USize) returns Vec__Vec__Str
+    func len(self: Vec__Vec__Str) returns USize
+    func clear(mut self: Vec__Vec__Str)
+    func delete_marked(mut self: Vec__Vec__Str, marks: Dynamic)
+    func push(mut self: Vec__Vec__Str, own val: Vec__Str)
+    func append(mut self: Vec__Vec__Str, own other: Vec__Vec__Str)
+    func take(mut self: Vec__Vec__Str) returns Vec__Vec__Str
+    func move_to(own self: Vec__Vec__Str, mut dest: Vec__Vec__Str)
+    func move_from(mut self: Vec__Vec__Str, own other: Vec__Vec__Str)
+    func unsafe_get(self: Vec__Vec__Str, i: USize) returns ref Vec__Str
+    func get(self: Vec__Vec__Str, shallow i: USize) returns ref Vec__Str throws OutOfBounds
+    func pop(mut self: Vec__Vec__Str) returns Vec__Str
+    func remove_at(mut self: Vec__Vec__Str, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__Vec__Str, n: USize) returns Vec__Vec__Str
+    func truncate(mut self: Vec__Vec__Str, n: USize)
+    func unsafe_set(mut self: Vec__Vec__Str, i: USize, own val: Vec__Str)
+    func set(mut self: Vec__Vec__Str, i: USize, own val: Vec__Str) throws OutOfBounds
+    func push_take(mut self: Vec__Vec__Str, mut src: Vec__Vec__Str, i: USize)
+    func delete(own self: Vec__Vec__Str, call_free: Bool = true)
+    func clone(self: Vec__Vec__Str) returns Vec__Vec__Str
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.new">Vec__call_Vec_Str.new</a>
-<pre><code class="language-til">func () returns Vec__call_Vec_Str
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.new">Vec__Vec__Str.new</a>
+<pre><code class="language-til">func () returns Vec__Vec__Str
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.with_capacity">Vec__call_Vec_Str.with_capacity</a>
-<pre><code class="language-til">func (n: USize) returns Vec__call_Vec_Str
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.with_capacity">Vec__Vec__Str.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Vec__Vec__Str
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.clear">Vec__call_Vec_Str.clear</a>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str)
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.clear">Vec__Vec__Str.clear</a>
+<pre><code class="language-til">func (mut self: Vec__Vec__Str)
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.delete_marked">Vec__call_Vec_Str.delete_marked</a>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, marks: Dynamic)
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.delete_marked">Vec__Vec__Str.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__Vec__Str, marks: Dynamic)
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.push">Vec__call_Vec_Str.push</a>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, own val: Vec__Str)
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.push">Vec__Vec__Str.push</a>
+<pre><code class="language-til">func (mut self: Vec__Vec__Str, own val: Vec__Str)
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.append">Vec__call_Vec_Str.append</a>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.append">Vec__Vec__Str.append</a>
+<pre><code class="language-til">func (mut self: Vec__Vec__Str, own other: Vec__Vec__Str)
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.take">Vec__call_Vec_Str.take</a>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.take">Vec__Vec__Str.take</a>
+<pre><code class="language-til">func (mut self: Vec__Vec__Str) returns Vec__Vec__Str
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.move_to">Vec__call_Vec_Str.move_to</a>
-<pre><code class="language-til">func (own self: Vec__call_Vec_Str, mut dest: Vec__call_Vec_Str)
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.move_to">Vec__Vec__Str.move_to</a>
+<pre><code class="language-til">func (own self: Vec__Vec__Str, mut dest: Vec__Vec__Str)
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.move_from">Vec__call_Vec_Str.move_from</a>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, own other: Vec__call_Vec_Str)
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.move_from">Vec__Vec__Str.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__Vec__Str, own other: Vec__Vec__Str)
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.unsafe_get">Vec__call_Vec_Str.unsafe_get</a>
-<pre><code class="language-til">func (self: Vec__call_Vec_Str, i: USize) returns ref Vec__Str
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.unsafe_get">Vec__Vec__Str.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__Vec__Str, i: USize) returns ref Vec__Str
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.get">Vec__call_Vec_Str.get</a>
-<pre><code class="language-til">func (self: Vec__call_Vec_Str, shallow i: USize) returns ref Vec__Str throws OutOfBounds
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.get">Vec__Vec__Str.get</a>
+<pre><code class="language-til">func (self: Vec__Vec__Str, shallow i: USize) returns ref Vec__Str throws OutOfBounds
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.pop">Vec__call_Vec_Str.pop</a>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str) returns Vec__Str
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.pop">Vec__Vec__Str.pop</a>
+<pre><code class="language-til">func (mut self: Vec__Vec__Str) returns Vec__Str
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.remove_at">Vec__call_Vec_Str.remove_at</a>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, i: USize) throws OutOfBounds
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.remove_at">Vec__Vec__Str.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__Vec__Str, i: USize) throws OutOfBounds
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.take_prefix">Vec__call_Vec_Str.take_prefix</a>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, n: USize) returns Vec__call_Vec_Str
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.take_prefix">Vec__Vec__Str.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__Vec__Str, n: USize) returns Vec__Vec__Str
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.truncate">Vec__call_Vec_Str.truncate</a>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, n: USize)
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.truncate">Vec__Vec__Str.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__Vec__Str, n: USize)
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.unsafe_set">Vec__call_Vec_Str.unsafe_set</a>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, i: USize, own val: Vec__Str)
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.unsafe_set">Vec__Vec__Str.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__Vec__Str, i: USize, own val: Vec__Str)
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.set">Vec__call_Vec_Str.set</a>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, i: USize, own val: Vec__Str) throws OutOfBounds
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.set">Vec__Vec__Str.set</a>
+<pre><code class="language-til">func (mut self: Vec__Vec__Str, i: USize, own val: Vec__Str) throws OutOfBounds
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.push_take">Vec__call_Vec_Str.push_take</a>
-<pre><code class="language-til">func (mut self: Vec__call_Vec_Str, mut src: Vec__call_Vec_Str, i: USize)
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.push_take">Vec__Vec__Str.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__Vec__Str, mut src: Vec__Vec__Str, i: USize)
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.delete">Vec__call_Vec_Str.delete</a>
-<pre><code class="language-til">func (own self: Vec__call_Vec_Str, call_free: Bool = true)
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.delete">Vec__Vec__Str.delete</a>
+<pre><code class="language-til">func (own self: Vec__Vec__Str, call_free: Bool = true)
 </code></pre>
 </li>
-<li><a href="src/self/parser.html#til.src.self.parser.Vec__call_Vec_Str.clone">Vec__call_Vec_Str.clone</a>
-<pre><code class="language-til">func (self: Vec__call_Vec_Str) returns Vec__call_Vec_Str
+<li><a href="src/self/parser.html#til.src.self.parser.Vec__Vec__Str.clone">Vec__Vec__Str.clone</a>
+<pre><code class="language-til">func (self: Vec__Vec__Str) returns Vec__Vec__Str
 </code></pre>
 </li>
 <li><a href="src/self/parser.html#til.src.self.parser.Vec__U32">Vec__U32</a>
@@ -6452,6 +6636,7 @@ namespace:
     func delete(own self: Vec__U32, call_free: Bool = true)
     func clone(self: Vec__U32) returns Vec__U32
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -6554,6 +6739,7 @@ namespace:
     func to_str(self: Option__U32) returns Str
     func clone(self: Option__U32) returns Option__U32
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__U32, b: Option__U32) returns Bool
     func gt(a: Option__U32, b: Option__U32) returns Bool
     func neq(a: Option__U32, b: Option__U32) returns Bool
@@ -6587,6 +6773,7 @@ namespace:
     func delete(own self: Set__Str, call_free: Bool = true)
     func clone(self: Set__Str) returns Set__Str
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -6634,6 +6821,7 @@ namespace:
     func delete(own self: Map__Str_Str, call_free: Bool = true)
     func clone(self: Map__Str_Str) returns Map__Str_Str
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_Str, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -6694,6 +6882,7 @@ namespace:
     func delete(own self: Vec__Bool, call_free: Bool = true)
     func clone(self: Vec__Bool) returns Vec__Bool
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -6850,6 +7039,7 @@ namespace:
     func all(self: RootBits) returns U64
     func is_zero(self: RootBits) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: RootBits) returns RootBits
     func delete(own self: RootBits, call_free: Bool = true)
     func hash(self: RootBits, hasher: HashFn) returns U64
@@ -6875,6 +7065,7 @@ namespace:
     func eq(a: BorrowRoot, b: BorrowRoot) returns Bool
     func to_str(self: BorrowRoot) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: BorrowRoot) returns BorrowRoot
     func delete(own self: BorrowRoot, call_free: Bool = true)
     func hash(self: BorrowRoot, hasher: HashFn) returns U64
@@ -6922,6 +7113,7 @@ namespace:
     func eq(a: TypeBinding, b: TypeBinding) returns Bool
     func to_str(self: TypeBinding) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: TypeBinding) returns TypeBinding
     func delete(own self: TypeBinding, call_free: Bool = true)
     func hash(self: TypeBinding, hasher: HashFn) returns U64
@@ -6941,6 +7133,7 @@ namespace:
     func to_str(self: ScopeFind) returns Str
     func clone(self: ScopeFind) returns ScopeFind
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -6988,6 +7181,7 @@ namespace:
     mut deferred_dependent_throw : Bool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: TyperFuncState) returns TyperFuncState
     func delete(own self: TyperFuncState, call_free: Bool = true)
     func hash(self: TyperFuncState, hasher: HashFn) returns U64
@@ -7053,6 +7247,7 @@ namespace:
     func erase_ast_decl(mut self: TypeScope, name: Str, erase_decl_binding: Bool, symbols: SymbolPool)
     func set(mut self: TypeScope, name: Str, type: Type, is_mut: Bool, path: Str, line: U32, col: U32, is_param: Bool, shallow own_type: OwnType, mut symbols: SymbolPool)
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: TypeScope) returns TypeScope
     func delete(own self: TypeScope, call_free: Bool = true)
     func hash(self: TypeScope, hasher: HashFn) returns U64
@@ -7117,6 +7312,7 @@ namespace:
     func eq(a: GenericFuncSource, b: GenericFuncSource) returns Bool
     func to_str(self: GenericFuncSource) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: GenericFuncSource) returns GenericFuncSource
     func delete(own self: GenericFuncSource, call_free: Bool = true)
     func hash(self: GenericFuncSource, hasher: HashFn) returns U64
@@ -7148,6 +7344,7 @@ namespace:
 namespace:
     func implicit_imports(self: ImportUnit) returns Vec__Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ImportUnit) returns ImportUnit
     func delete(own self: ImportUnit, call_free: Bool = true)
 }
@@ -7183,6 +7380,7 @@ namespace:
     mut current_fdef : Option__ref_Expr
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: BuilderFuncScratch) returns BuilderFuncScratch
     func delete(own self: BuilderFuncScratch, call_free: Bool = true)
     func hash(self: BuilderFuncScratch, hasher: HashFn) returns U64
@@ -7202,6 +7400,7 @@ namespace:
     mut failed_links : Map__Str_Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FfiState) returns FfiState
     func delete(own self: FfiState, call_free: Bool = true)
     func hash(self: FfiState, hasher: HashFn) returns U64
@@ -7220,6 +7419,7 @@ namespace:
     func clone(_self: InternedTypes) returns InternedTypes
     func delete(own self: InternedTypes, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: InternedTypes, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -7232,6 +7432,7 @@ namespace:
 namespace:
     func clone(self: ForeignPlace) returns ForeignPlace
     func size() returns USize
+    func size_for_target() returns USize
     func delete(own self: ForeignPlace, call_free: Bool = true)
 }
 </code></pre>
@@ -7250,6 +7451,7 @@ namespace:
     func to_str(self: InterpOutputStream) returns Str
     func clone(self: InterpOutputStream) returns InterpOutputStream
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: InterpOutputStream, b: InterpOutputStream) returns Bool
     func gt(a: InterpOutputStream, b: InterpOutputStream) returns Bool
     func neq(a: InterpOutputStream, b: InterpOutputStream) returns Bool
@@ -7264,6 +7466,7 @@ namespace:
     mut text : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: InterpOutputEvent) returns InterpOutputEvent
     func delete(own self: InterpOutputEvent, call_free: Bool = true)
     func hash(self: InterpOutputEvent, hasher: HashFn) returns U64
@@ -7285,6 +7488,7 @@ namespace:
     mut is_type : Bool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ComptimeDefinition) returns ComptimeDefinition
     func delete(own self: ComptimeDefinition, call_free: Bool = true)
 }
@@ -7297,9 +7501,9 @@ namespace:
     mut ready : Set__Str
     mut active : Set__Str
     mut globals : Vec__Str
-    mut storage_calls : Map__UPtr_Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ComptimePreparation) returns ComptimePreparation
     func delete(own self: ComptimePreparation, call_free: Bool = true)
     func hash(self: ComptimePreparation, hasher: HashFn) returns U64
@@ -7319,7 +7523,10 @@ namespace:
     mut interp_cstr_arg : Bool
     mut interp_callable_arg_borrow : Bool
     mut constfold_active : Bool
-    mut target_size_queries : Bool
+    mut constfold_no_state_writes : Bool
+    mut size_observed : Bool
+    mut ns_size_dependent : Set__Str
+    mut generator_condition : Bool
     mut eval_aborted : Bool
     mut repl_session : Bool
     mut embedded : Bool
@@ -7335,6 +7542,7 @@ namespace:
     mut cached_str_name : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: EvalState) returns EvalState
     func delete(own self: EvalState, call_free: Bool = true)
 }
@@ -7400,7 +7608,7 @@ namespace:
     mut script_globals : Set__U32
     mut ref_globals : Set__U32
     mut throw_type_registry : Vec__Str
-    mut throws_global : Map__Str_call_Vec_Str
+    mut throws_global : Map__Str_Vec__Str
     mut bang_counter : I64
     mut hoist_counter : I32
     mut va_counter : I32
@@ -7410,7 +7618,7 @@ namespace:
     mut synth_symbol_seq : Map__Str_I64
     mut lazy_stmt_temp_counter : I64
     mut errors : I32
-    mut priv_ref_edges : Map__Str_call_Vec_Str
+    mut priv_ref_edges : Map__Str_Vec__Str
     mut builder_func : BuilderFuncScratch
     mut builder_str_lit_symbols : HashMap__Str_Str
     mut builder_str_lit_values : Vec__Str
@@ -7452,6 +7660,7 @@ namespace:
     mut symbols : SymbolPool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Context) returns Context
     func delete(own self: Context, call_free: Bool = true)
 }
@@ -7569,8 +7778,8 @@ namespace:
 <pre><code class="language-til">func (ctx: Context) returns Bool
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.size_intrinsics_emit_sizeof">size_intrinsics_emit_sizeof</a>
-<pre><code class="language-til">func (ctx: Context) returns Bool
+<li><a href="src/self/context.html#til.src.self.context.funcdef_is_generated_size">funcdef_is_generated_size</a>
+<pre><code class="language-til">func (fd: FunctionDef, ctx: Context) returns Bool
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.constfolder_classify_stmt">constfolder_classify_stmt</a>
@@ -7905,6 +8114,7 @@ namespace:
     func delete(own self: Vec__BorrowRoot, call_free: Bool = true)
     func clone(self: Vec__BorrowRoot) returns Vec__BorrowRoot
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -8009,6 +8219,7 @@ namespace:
     func clone(self: SymMap__TypeBinding) returns SymMap__TypeBinding
     func delete(own self: SymMap__TypeBinding, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: SymMap__TypeBinding, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -8066,6 +8277,7 @@ namespace:
     func clone(self: SymMap__Dynamic) returns SymMap__Dynamic
     func delete(own self: SymMap__Dynamic, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: SymMap__Dynamic, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -8118,6 +8330,7 @@ namespace:
     func delete(own self: Option__ref_TypeScope, call_free: Bool = true)
     func clone(self: Option__ref_TypeScope) returns Option__ref_TypeScope
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -8147,6 +8360,7 @@ namespace:
     func to_str(self: Option__ref_TypeBinding) returns Str
     func clone(self: Option__ref_TypeBinding) returns Option__ref_TypeBinding
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -8174,6 +8388,7 @@ namespace:
     func delete(own self: Map__U32_Str, call_free: Bool = true)
     func clone(self: Map__U32_Str) returns Map__U32_Str
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__U32_Str, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -8222,6 +8437,7 @@ namespace:
     func delete(own self: Map__Str_FFIEntry, call_free: Bool = true)
     func clone(self: Map__Str_FFIEntry) returns Map__Str_FFIEntry
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_FFIEntry, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -8270,6 +8486,7 @@ namespace:
     func delete(own self: Map__Str_ExprPtrBox, call_free: Bool = true)
     func clone(self: Map__Str_ExprPtrBox) returns Map__Str_ExprPtrBox
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_ExprPtrBox, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -8318,6 +8535,7 @@ namespace:
     func delete(own self: Map__Str_FFITypePtrBox, call_free: Bool = true)
     func clone(self: Map__Str_FFITypePtrBox) returns Map__Str_FFITypePtrBox
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_FFITypePtrBox, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -8378,6 +8596,7 @@ namespace:
     func delete(own self: Vec__UPtr, call_free: Bool = true)
     func clone(self: Vec__UPtr) returns Vec__UPtr
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -8489,6 +8708,7 @@ namespace:
     func delete(own self: Vec__ComptimeDefinition, call_free: Bool = true)
     func clone(self: Vec__ComptimeDefinition) returns Vec__ComptimeDefinition
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -8591,6 +8811,7 @@ namespace:
     func to_str(self: Option__I64) returns Str
     func clone(self: Option__I64) returns Option__I64
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__I64, b: Option__I64) returns Bool
     func gt(a: Option__I64, b: Option__I64) returns Bool
     func neq(a: Option__I64, b: Option__I64) returns Bool
@@ -8623,6 +8844,7 @@ namespace:
     func delete(own self: Map__UPtr_Str, call_free: Bool = true)
     func clone(self: Map__UPtr_Str) returns Map__UPtr_Str
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__UPtr_Str, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -8683,6 +8905,7 @@ namespace:
     func delete(own self: Vec__InterpOutputEvent, call_free: Bool = true)
     func clone(self: Vec__InterpOutputEvent) returns Vec__InterpOutputEvent
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -8782,6 +9005,7 @@ namespace:
     func delete(own self: Map__UPtr_ForeignPlace, call_free: Bool = true)
     func clone(self: Map__UPtr_ForeignPlace) returns Map__UPtr_ForeignPlace
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__UPtr_ForeignPlace, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -8830,6 +9054,7 @@ namespace:
     func delete(own self: Map__Str_Mode, call_free: Bool = true)
     func clone(self: Map__Str_Mode) returns Map__Str_Mode
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_Mode, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -8878,6 +9103,7 @@ namespace:
     func delete(own self: Option__ComptimePreparation, call_free: Bool = true)
     func clone(self: Option__ComptimePreparation) returns Option__ComptimePreparation
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -8905,6 +9131,7 @@ namespace:
     func delete(own self: Map__Str_FuncType, call_free: Bool = true)
     func clone(self: Map__Str_FuncType) returns Map__Str_FuncType
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_FuncType, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -8953,6 +9180,7 @@ namespace:
     func delete(own self: Option__Scope, call_free: Bool = true)
     func clone(self: Option__Scope) returns Option__Scope
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -8980,6 +9208,7 @@ namespace:
     func delete(own self: Map__Str_ImportUnit, call_free: Bool = true)
     func clone(self: Map__Str_ImportUnit) returns Map__Str_ImportUnit
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_ImportUnit, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -9028,6 +9257,7 @@ namespace:
     func delete(own self: Map__UPtr_RootBits, call_free: Bool = true)
     func clone(self: Map__UPtr_RootBits) returns Map__UPtr_RootBits
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__UPtr_RootBits, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -9076,6 +9306,7 @@ namespace:
     func delete(own self: Map__Str_Type, call_free: Bool = true)
     func clone(self: Map__Str_Type) returns Map__Str_Type
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_Type, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -9124,6 +9355,7 @@ namespace:
     func delete(own self: Map__Str_StructLayout, call_free: Bool = true)
     func clone(self: Map__Str_StructLayout) returns Map__Str_StructLayout
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_StructLayout, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -9173,6 +9405,7 @@ namespace:
     func delete(own self: Set__U32, call_free: Bool = true)
     func clone(self: Set__U32) returns Set__U32
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -9220,6 +9453,7 @@ namespace:
     func delete(own self: Map__Str_I64, call_free: Bool = true)
     func clone(self: Map__Str_I64) returns Map__Str_I64
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_I64, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -9252,52 +9486,53 @@ namespace:
 <pre><code class="language-til">func (mut self: Map__Str_I64, key: Str) returns Bool
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.Map__Str_call_Vec_Str">Map__Str_call_Vec_Str</a>
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Vec__Str">Map__Str_Vec__Str</a>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
-    mut values : Vec__call_Vec_Str
+    mut values : Vec__Vec__Str
 namespace:
-    func new() returns Map__Str_call_Vec_Str
-    func with_capacity(n: USize) returns Map__Str_call_Vec_Str
-    func len(self: Map__Str_call_Vec_Str) returns USize
-    func clear(mut self: Map__Str_call_Vec_Str)
-    func has(self: Map__Str_call_Vec_Str, key: Str) returns Bool
-    func get(self: Map__Str_call_Vec_Str, key: Str) returns ref Vec__Str throws KeyNotFound
-    func set(mut self: Map__Str_call_Vec_Str, key: Str, own val: Vec__Str)
-    func remove(mut self: Map__Str_call_Vec_Str, key: Str) returns Bool
-    func delete(own self: Map__Str_call_Vec_Str, call_free: Bool = true)
-    func clone(self: Map__Str_call_Vec_Str) returns Map__Str_call_Vec_Str
+    func new() returns Map__Str_Vec__Str
+    func with_capacity(n: USize) returns Map__Str_Vec__Str
+    func len(self: Map__Str_Vec__Str) returns USize
+    func clear(mut self: Map__Str_Vec__Str)
+    func has(self: Map__Str_Vec__Str, key: Str) returns Bool
+    func get(self: Map__Str_Vec__Str, key: Str) returns ref Vec__Str throws KeyNotFound
+    func set(mut self: Map__Str_Vec__Str, key: Str, own val: Vec__Str)
+    func remove(mut self: Map__Str_Vec__Str, key: Str) returns Bool
+    func delete(own self: Map__Str_Vec__Str, call_free: Bool = true)
+    func clone(self: Map__Str_Vec__Str) returns Map__Str_Vec__Str
     func size() returns USize
-    func hash(self: Map__Str_call_Vec_Str, hasher: HashFn) returns U64
+    func size_for_target() returns USize
+    func hash(self: Map__Str_Vec__Str, hasher: HashFn) returns U64
 }
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.Map__Str_call_Vec_Str.new">Map__Str_call_Vec_Str.new</a>
-<pre><code class="language-til">func () returns Map__Str_call_Vec_Str
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Vec__Str.new">Map__Str_Vec__Str.new</a>
+<pre><code class="language-til">func () returns Map__Str_Vec__Str
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.Map__Str_call_Vec_Str.with_capacity">Map__Str_call_Vec_Str.with_capacity</a>
-<pre><code class="language-til">func (n: USize) returns Map__Str_call_Vec_Str
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Vec__Str.with_capacity">Map__Str_Vec__Str.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Map__Str_Vec__Str
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.Map__Str_call_Vec_Str.clear">Map__Str_call_Vec_Str.clear</a>
-<pre><code class="language-til">func (mut self: Map__Str_call_Vec_Str)
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Vec__Str.clear">Map__Str_Vec__Str.clear</a>
+<pre><code class="language-til">func (mut self: Map__Str_Vec__Str)
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.Map__Str_call_Vec_Str.has">Map__Str_call_Vec_Str.has</a>
-<pre><code class="language-til">func (self: Map__Str_call_Vec_Str, key: Str) returns Bool
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Vec__Str.has">Map__Str_Vec__Str.has</a>
+<pre><code class="language-til">func (self: Map__Str_Vec__Str, key: Str) returns Bool
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.Map__Str_call_Vec_Str.get">Map__Str_call_Vec_Str.get</a>
-<pre><code class="language-til">func (self: Map__Str_call_Vec_Str, key: Str) returns ref Vec__Str throws KeyNotFound
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Vec__Str.get">Map__Str_Vec__Str.get</a>
+<pre><code class="language-til">func (self: Map__Str_Vec__Str, key: Str) returns ref Vec__Str throws KeyNotFound
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.Map__Str_call_Vec_Str.set">Map__Str_call_Vec_Str.set</a>
-<pre><code class="language-til">func (mut self: Map__Str_call_Vec_Str, key: Str, own val: Vec__Str)
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Vec__Str.set">Map__Str_Vec__Str.set</a>
+<pre><code class="language-til">func (mut self: Map__Str_Vec__Str, key: Str, own val: Vec__Str)
 </code></pre>
 </li>
-<li><a href="src/self/context.html#til.src.self.context.Map__Str_call_Vec_Str.remove">Map__Str_call_Vec_Str.remove</a>
-<pre><code class="language-til">func (mut self: Map__Str_call_Vec_Str, key: Str) returns Bool
+<li><a href="src/self/context.html#til.src.self.context.Map__Str_Vec__Str.remove">Map__Str_Vec__Str.remove</a>
+<pre><code class="language-til">func (mut self: Map__Str_Vec__Str, key: Str) returns Bool
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.HashMap__Str_Str">HashMap__Str_Str</a>
@@ -9325,6 +9560,7 @@ namespace:
     func delete(own self: HashMap__Str_Str, call_free: Bool = true)
     func remove(mut self: HashMap__Str_Str, key: Str) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: HashMap__Str_Str, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -9386,6 +9622,7 @@ namespace:
     func delete(own self: HashMap__Str_USize, call_free: Bool = true)
     func remove(mut self: HashMap__Str_USize, key: Str) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: HashMap__Str_USize, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -9438,6 +9675,7 @@ namespace:
     func delete(own self: Map__Str_Bool, call_free: Bool = true)
     func clone(self: Map__Str_Bool) returns Map__Str_Bool
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_Bool, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -9486,6 +9724,7 @@ namespace:
     func delete(own self: Map__Str_Dynamic, call_free: Bool = true)
     func clone(self: Map__Str_Dynamic) returns Map__Str_Dynamic
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_Dynamic, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -9534,6 +9773,7 @@ namespace:
     func delete(own self: Map__Str_Expr, call_free: Bool = true)
     func clone(self: Map__Str_Expr) returns Map__Str_Expr
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_Expr, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -9584,6 +9824,7 @@ namespace:
     func to_str(self: Option__ref_Expr) returns Str
     func clone(self: Option__ref_Expr) returns Option__ref_Expr
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -9623,6 +9864,7 @@ namespace:
     func delete(own self: Vec__TypeBinding, call_free: Bool = true)
     func clone(self: Vec__TypeBinding) returns Vec__TypeBinding
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -9734,6 +9976,7 @@ namespace:
     func delete(own self: Vec__FFIEntry, call_free: Bool = true)
     func clone(self: Vec__FFIEntry) returns Vec__FFIEntry
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -9845,6 +10088,7 @@ namespace:
     func delete(own self: Vec__ExprPtrBox, call_free: Bool = true)
     func clone(self: Vec__ExprPtrBox) returns Vec__ExprPtrBox
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -9956,6 +10200,7 @@ namespace:
     func delete(own self: Vec__FFITypePtrBox, call_free: Bool = true)
     func clone(self: Vec__FFITypePtrBox) returns Vec__FFITypePtrBox
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -10067,6 +10312,7 @@ namespace:
     func delete(own self: Vec__ForeignPlace, call_free: Bool = true)
     func clone(self: Vec__ForeignPlace) returns Vec__ForeignPlace
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -10178,6 +10424,7 @@ namespace:
     func delete(own self: Vec__Mode, call_free: Bool = true)
     func clone(self: Vec__Mode) returns Vec__Mode
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -10289,6 +10536,7 @@ namespace:
     func delete(own self: Vec__FuncType, call_free: Bool = true)
     func clone(self: Vec__FuncType) returns Vec__FuncType
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -10400,6 +10648,7 @@ namespace:
     func delete(own self: Vec__ImportUnit, call_free: Bool = true)
     func clone(self: Vec__ImportUnit) returns Vec__ImportUnit
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -10511,6 +10760,7 @@ namespace:
     func delete(own self: Vec__RootBits, call_free: Bool = true)
     func clone(self: Vec__RootBits) returns Vec__RootBits
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -10622,6 +10872,7 @@ namespace:
     func delete(own self: Vec__Type, call_free: Bool = true)
     func clone(self: Vec__Type) returns Vec__Type
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -10733,6 +10984,7 @@ namespace:
     func delete(own self: Vec__StructLayout, call_free: Bool = true)
     func clone(self: Vec__StructLayout) returns Vec__StructLayout
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -10927,6 +11179,7 @@ namespace:
     func to_str(self: Option__ref_Mode) returns Str
     func clone(self: Option__ref_Mode) returns Option__ref_Mode
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__ref_Mode, b: Option__ref_Mode) returns Bool
     func gt(a: Option__ref_Mode, b: Option__ref_Mode) returns Bool
     func neq(a: Option__ref_Mode, b: Option__ref_Mode) returns Bool
@@ -11034,6 +11287,7 @@ namespace:
     mut late : Bool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: GenericSources) returns GenericSources
     func delete(own self: GenericSources, call_free: Bool = true)
     func hash(self: GenericSources, hasher: HashFn) returns U64
@@ -11096,6 +11350,10 @@ namespace:
 <pre><code class="language-til">proc (elem: Str, width: USize, line: U32, col: U32, mut ctx: Context) returns Str
 </code></pre>
 </li>
+<li><a href="src/self/initer.html#til.src.self.initer.init_require_callable_method">init_require_callable_method</a>
+<pre><code class="language-til">proc (type_name: Str, method: Str, slot_input: Bool, mut ctx: Context) returns Str
+</code></pre>
+</li>
 <li><a href="src/self/initer.html#til.src.self.initer.Map__Str_GenericFuncSource">Map__Str_GenericFuncSource</a>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
@@ -11112,6 +11370,7 @@ namespace:
     func delete(own self: Map__Str_GenericFuncSource, call_free: Bool = true)
     func clone(self: Map__Str_GenericFuncSource) returns Map__Str_GenericFuncSource
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_GenericFuncSource, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -11172,6 +11431,7 @@ namespace:
     func delete(own self: Vec__GenericFuncSource, call_free: Bool = true)
     func clone(self: Vec__GenericFuncSource) returns Vec__GenericFuncSource
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -11543,6 +11803,14 @@ namespace:
 <pre><code class="language-til">func (type_name: Str, scope: TypeScope, ctx: Context) returns USize
 </code></pre>
 </li>
+<li><a href="src/self/typer.html#til.src.self.typer.gen_size_for_target_method_for_stmt">gen_size_for_target_method_for_stmt</a>
+<pre><code class="language-til">func (mut stmt: Expr, scope: TypeScope, mut ctx: Context)
+</code></pre>
+</li>
+<li><a href="src/self/typer.html#til.src.self.typer.target_emitted_size">target_emitted_size</a>
+<pre><code class="language-til">func (type_name: Str, scope: TypeScope, ctx: Context) returns USize
+</code></pre>
+</li>
 <li><a href="src/self/typer.html#til.src.self.typer.str_method_returns_view">str_method_returns_view</a>
 <pre><code class="language-til">func (name: Str) returns Bool
 </code></pre>
@@ -11577,6 +11845,7 @@ namespace:
     mut idx : Map__Str_USize
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FactIndex) returns FactIndex
     func delete(own self: FactIndex, call_free: Bool = true)
     func hash(self: FactIndex, hasher: HashFn) returns U64
@@ -11676,6 +11945,7 @@ namespace:
     func eq(a: DepositAcc, b: DepositAcc) returns Bool
     func to_str(self: DepositAcc) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: DepositAcc) returns DepositAcc
     func delete(own self: DepositAcc, call_free: Bool = true)
     func hash(self: DepositAcc, hasher: HashFn) returns U64
@@ -11692,10 +11962,6 @@ namespace:
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.rhs_is_payload_binding">rhs_is_payload_binding</a>
 <pre><code class="language-til">func (rhs: Expr, symbols: SymbolPool) returns Bool
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__ComptimeFunction">Vec__ComptimeFunction</a>
-<pre><code class="language-til"> is a None
 </code></pre>
 </li>
 <li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__CtorArg">Vec__priv___src_self_typer_til__CtorArg</a>
@@ -11726,6 +11992,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_typer_til__CtorArg, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_typer_til__CtorArg) returns Vec__priv___src_self_typer_til__CtorArg
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -11809,165 +12076,6 @@ namespace:
 <pre><code class="language-til">func (self: Vec__priv___src_self_typer_til__CtorArg) returns Vec__priv___src_self_typer_til__CtorArg
 </code></pre>
 </li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction">Vec__priv___src_self_typer_til__ComptimeFunction</a>
-<pre><code class="language-til">struct {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Vec__priv___src_self_typer_til__ComptimeFunction
-    func with_capacity(n: USize) returns Vec__priv___src_self_typer_til__ComptimeFunction
-    func len(self: Vec__priv___src_self_typer_til__ComptimeFunction) returns USize
-    func clear(mut self: Vec__priv___src_self_typer_til__ComptimeFunction)
-    func delete_marked(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, marks: Dynamic)
-    func push(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, own val: priv___src_self_typer_til__ComptimeFunction)
-    func append(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, own other: Vec__priv___src_self_typer_til__ComptimeFunction)
-    func take(mut self: Vec__priv___src_self_typer_til__ComptimeFunction) returns Vec__priv___src_self_typer_til__ComptimeFunction
-    func move_to(own self: Vec__priv___src_self_typer_til__ComptimeFunction, mut dest: Vec__priv___src_self_typer_til__ComptimeFunction)
-    func move_from(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, own other: Vec__priv___src_self_typer_til__ComptimeFunction)
-    func unsafe_get(self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize) returns ref priv___src_self_typer_til__ComptimeFunction
-    func get(self: Vec__priv___src_self_typer_til__ComptimeFunction, shallow i: USize) returns ref priv___src_self_typer_til__ComptimeFunction throws OutOfBounds
-    func pop(mut self: Vec__priv___src_self_typer_til__ComptimeFunction) returns priv___src_self_typer_til__ComptimeFunction
-    func remove_at(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize) throws OutOfBounds
-    func take_prefix(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, n: USize) returns Vec__priv___src_self_typer_til__ComptimeFunction
-    func truncate(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, n: USize)
-    func unsafe_set(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize, own val: priv___src_self_typer_til__ComptimeFunction)
-    func set(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize, own val: priv___src_self_typer_til__ComptimeFunction) throws OutOfBounds
-    func push_take(mut self: Vec__priv___src_self_typer_til__ComptimeFunction, mut src: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize)
-    func delete(own self: Vec__priv___src_self_typer_til__ComptimeFunction, call_free: Bool = true)
-    func clone(self: Vec__priv___src_self_typer_til__ComptimeFunction) returns Vec__priv___src_self_typer_til__ComptimeFunction
-    func size() returns USize
-}
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.new">Vec__priv___src_self_typer_til__ComptimeFunction.new</a>
-<pre><code class="language-til">func () returns Vec__priv___src_self_typer_til__ComptimeFunction
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.with_capacity">Vec__priv___src_self_typer_til__ComptimeFunction.with_capacity</a>
-<pre><code class="language-til">func (n: USize) returns Vec__priv___src_self_typer_til__ComptimeFunction
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.clear">Vec__priv___src_self_typer_til__ComptimeFunction.clear</a>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__ComptimeFunction)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.delete_marked">Vec__priv___src_self_typer_til__ComptimeFunction.delete_marked</a>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__ComptimeFunction, marks: Dynamic)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.push">Vec__priv___src_self_typer_til__ComptimeFunction.push</a>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__ComptimeFunction, own val: priv___src_self_typer_til__ComptimeFunction)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.append">Vec__priv___src_self_typer_til__ComptimeFunction.append</a>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__ComptimeFunction, own other: Vec__priv___src_self_typer_til__ComptimeFunction)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.take">Vec__priv___src_self_typer_til__ComptimeFunction.take</a>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__ComptimeFunction) returns Vec__priv___src_self_typer_til__ComptimeFunction
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.move_to">Vec__priv___src_self_typer_til__ComptimeFunction.move_to</a>
-<pre><code class="language-til">func (own self: Vec__priv___src_self_typer_til__ComptimeFunction, mut dest: Vec__priv___src_self_typer_til__ComptimeFunction)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.move_from">Vec__priv___src_self_typer_til__ComptimeFunction.move_from</a>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__ComptimeFunction, own other: Vec__priv___src_self_typer_til__ComptimeFunction)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.unsafe_get">Vec__priv___src_self_typer_til__ComptimeFunction.unsafe_get</a>
-<pre><code class="language-til">func (self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize) returns ref priv___src_self_typer_til__ComptimeFunction
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.get">Vec__priv___src_self_typer_til__ComptimeFunction.get</a>
-<pre><code class="language-til">func (self: Vec__priv___src_self_typer_til__ComptimeFunction, shallow i: USize) returns ref priv___src_self_typer_til__ComptimeFunction throws OutOfBounds
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.pop">Vec__priv___src_self_typer_til__ComptimeFunction.pop</a>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__ComptimeFunction) returns priv___src_self_typer_til__ComptimeFunction
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.remove_at">Vec__priv___src_self_typer_til__ComptimeFunction.remove_at</a>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize) throws OutOfBounds
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.take_prefix">Vec__priv___src_self_typer_til__ComptimeFunction.take_prefix</a>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__ComptimeFunction, n: USize) returns Vec__priv___src_self_typer_til__ComptimeFunction
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.truncate">Vec__priv___src_self_typer_til__ComptimeFunction.truncate</a>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__ComptimeFunction, n: USize)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.unsafe_set">Vec__priv___src_self_typer_til__ComptimeFunction.unsafe_set</a>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize, own val: priv___src_self_typer_til__ComptimeFunction)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.set">Vec__priv___src_self_typer_til__ComptimeFunction.set</a>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize, own val: priv___src_self_typer_til__ComptimeFunction) throws OutOfBounds
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.push_take">Vec__priv___src_self_typer_til__ComptimeFunction.push_take</a>
-<pre><code class="language-til">func (mut self: Vec__priv___src_self_typer_til__ComptimeFunction, mut src: Vec__priv___src_self_typer_til__ComptimeFunction, i: USize)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.delete">Vec__priv___src_self_typer_til__ComptimeFunction.delete</a>
-<pre><code class="language-til">func (own self: Vec__priv___src_self_typer_til__ComptimeFunction, call_free: Bool = true)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Vec__priv___src_self_typer_til__ComptimeFunction.clone">Vec__priv___src_self_typer_til__ComptimeFunction.clone</a>
-<pre><code class="language-til">func (self: Vec__priv___src_self_typer_til__ComptimeFunction) returns Vec__priv___src_self_typer_til__ComptimeFunction
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Set__UPtr">Set__UPtr</a>
-<pre><code class="language-til">struct {
-    own mut data : U8
-    mut count : USize
-    mut cap : USize
-namespace:
-    func new() returns Set__UPtr
-    func with_capacity(n: USize) returns Set__UPtr
-    func len(self: Set__UPtr) returns USize
-    func unsafe_get(self: Set__UPtr, i: USize) returns ref UPtr
-    func clear(mut self: Set__UPtr)
-    func has(self: Set__UPtr, val: UPtr) returns Bool
-    func add(mut self: Set__UPtr, own val: UPtr)
-    func remove(mut self: Set__UPtr, val: UPtr) returns Bool
-    func delete(own self: Set__UPtr, call_free: Bool = true)
-    func clone(self: Set__UPtr) returns Set__UPtr
-    func size() returns USize
-}
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Set__UPtr.new">Set__UPtr.new</a>
-<pre><code class="language-til">func () returns Set__UPtr
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Set__UPtr.with_capacity">Set__UPtr.with_capacity</a>
-<pre><code class="language-til">func (n: USize) returns Set__UPtr
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Set__UPtr.unsafe_get">Set__UPtr.unsafe_get</a>
-<pre><code class="language-til">func (self: Set__UPtr, i: USize) returns ref UPtr
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Set__UPtr.clear">Set__UPtr.clear</a>
-<pre><code class="language-til">func (mut self: Set__UPtr)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Set__UPtr.has">Set__UPtr.has</a>
-<pre><code class="language-til">func (self: Set__UPtr, val: UPtr) returns Bool
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Set__UPtr.add">Set__UPtr.add</a>
-<pre><code class="language-til">func (mut self: Set__UPtr, own val: UPtr)
-</code></pre>
-</li>
-<li><a href="src/self/typer.html#til.src.self.typer.Set__UPtr.remove">Set__UPtr.remove</a>
-<pre><code class="language-til">func (mut self: Set__UPtr, val: UPtr) returns Bool
-</code></pre>
-</li>
 <li><a href="src/self/typer.html#til.src.self.typer.Option__ref_Scope">Option__ref_Scope</a>
 <pre><code class="language-til">enum {
     None
@@ -11984,6 +12092,7 @@ namespace:
     func delete(own self: Option__ref_Scope, call_free: Bool = true)
     func clone(self: Option__ref_Scope) returns Option__ref_Scope
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -12011,6 +12120,7 @@ namespace:
     func delete(own self: Map__Str_RootBits, call_free: Bool = true)
     func clone(self: Map__Str_RootBits) returns Map__Str_RootBits
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_RootBits, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -12071,6 +12181,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_typer_til__CoverageNode, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_typer_til__CoverageNode) returns Vec__priv___src_self_typer_til__CoverageNode
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -12162,10 +12273,6 @@ namespace:
 <pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_typer_til__CtorArg)
 </code></pre>
 </li>
-<li><a href="src/self/typer.html#til.src.self.typer.adopt__priv___src_self_typer_til__ComptimeFunction">adopt__priv___src_self_typer_til__ComptimeFunction</a>
-<pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_typer_til__ComptimeFunction)
-</code></pre>
-</li>
 <li><a href="src/self/typer.html#til.src.self.typer.adopt__priv___src_self_typer_til__CoverageNode">adopt__priv___src_self_typer_til__CoverageNode</a>
 <pre><code class="language-til">func (mut dest: Dynamic, own src: priv___src_self_typer_til__CoverageNode)
 </code></pre>
@@ -12242,6 +12349,7 @@ namespace:
     mut col : U32
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: PendingRefBinding) returns PendingRefBinding
     func delete(own self: PendingRefBinding, call_free: Bool = true)
     func hash(self: PendingRefBinding, hasher: HashFn) returns U64
@@ -12332,6 +12440,7 @@ namespace:
     func delete(own self: Vec__I32, call_free: Bool = true)
     func clone(self: Vec__I32) returns Vec__I32
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -12443,6 +12552,7 @@ namespace:
     func delete(own self: Vec__PendingRefBinding, call_free: Bool = true)
     func clone(self: Vec__PendingRefBinding) returns Vec__PendingRefBinding
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -12555,6 +12665,7 @@ namespace:
     mut path : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ProgramUnit) returns ProgramUnit
     func delete(own self: ProgramUnit, call_free: Bool = true)
     func hash(self: ProgramUnit, hasher: HashFn) returns U64
@@ -12577,6 +12688,7 @@ namespace:
     mut written : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: TargetLink) returns TargetLink
     func delete(own self: TargetLink, call_free: Bool = true)
     func hash(self: TargetLink, hasher: HashFn) returns U64
@@ -12627,6 +12739,7 @@ namespace:
 namespace:
     func uses_shared_runtime(self: LoadedProgram) returns Bool
     func runtime_abi_id(self: LoadedProgram) returns Str
+    func runtime_abi_tail(self: LoadedProgram) returns Str
     func runtime_stem(self: LoadedProgram) returns Str
     func runtime_shared_basename(self: LoadedProgram) returns Str
     func core_stem(self: LoadedProgram) returns Str
@@ -12636,6 +12749,7 @@ namespace:
     func include_flags_for_target(self: LoadedProgram) returns Str
     func delete(own self: LoadedProgram, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: LoadedProgram) returns LoadedProgram
 }
 </code></pre>
@@ -12661,6 +12775,7 @@ namespace:
     mut hidden : Bool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: DocMeta) returns DocMeta
     func delete(own self: DocMeta, call_free: Bool = true)
     func hash(self: DocMeta, hasher: HashFn) returns U64
@@ -12815,6 +12930,7 @@ namespace:
     func delete(own self: Vec__TargetLink, call_free: Bool = true)
     func clone(self: Vec__TargetLink) returns Vec__TargetLink
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -12926,6 +13042,7 @@ namespace:
     func delete(own self: Vec__ProgramUnit, call_free: Bool = true)
     func clone(self: Vec__ProgramUnit) returns Vec__ProgramUnit
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -13037,6 +13154,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -13157,6 +13275,7 @@ namespace:
     func to_str(self: Lang) returns Str
     func clone(self: Lang) returns Lang
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Lang, b: Lang) returns Bool
     func gt(a: Lang, b: Lang) returns Bool
     func neq(a: Lang, b: Lang) returns Bool
@@ -13199,6 +13318,7 @@ namespace:
     func to_str(self: Target) returns Str
     func clone(self: Target) returns Target
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Target, b: Target) returns Bool
     func gt(a: Target, b: Target) returns Bool
     func neq(a: Target, b: Target) returns Bool
@@ -13238,6 +13358,7 @@ namespace:
     mut c_flags : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: TargetCpu) returns TargetCpu
     func delete(own self: TargetCpu, call_free: Bool = true)
     func hash(self: TargetCpu, hasher: HashFn) returns U64
@@ -13348,6 +13469,7 @@ namespace:
     func to_vec(self: Array__Bool) returns Vec__Bool
     func clone(self: Array__Bool) returns Array__Bool
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -13407,6 +13529,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_garbager_til__ReferenceNameChange, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_garbager_til__ReferenceNameChange) returns Vec__priv___src_self_garbager_til__ReferenceNameChange
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -13509,6 +13632,7 @@ namespace:
     func to_str(self: Option__Str) returns Str
     func clone(self: Option__Str) returns Option__Str
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__Str, b: Option__Str) returns Bool
     func gt(a: Option__Str, b: Option__Str) returns Bool
     func neq(a: Option__Str, b: Option__Str) returns Bool
@@ -13553,6 +13677,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -13652,6 +13777,7 @@ namespace:
     func to_vec(self: Array__USize) returns Vec__USize
     func clone(self: Array__USize) returns Array__USize
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -13699,6 +13825,7 @@ namespace:
     func to_vec(self: Array__U8) returns Vec__U8
     func clone(self: Array__U8) returns Array__U8
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -13758,6 +13885,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_garbager_til__LocalInfo, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_garbager_til__LocalInfo) returns Vec__priv___src_self_garbager_til__LocalInfo
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -13841,6 +13969,55 @@ namespace:
 <pre><code class="language-til">func (self: Vec__priv___src_self_garbager_til__LocalInfo) returns Vec__priv___src_self_garbager_til__LocalInfo
 </code></pre>
 </li>
+<li><a href="src/self/garbager.html#til.src.self.garbager.Set__UPtr">Set__UPtr</a>
+<pre><code class="language-til">struct {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Set__UPtr
+    func with_capacity(n: USize) returns Set__UPtr
+    func len(self: Set__UPtr) returns USize
+    func unsafe_get(self: Set__UPtr, i: USize) returns ref UPtr
+    func clear(mut self: Set__UPtr)
+    func has(self: Set__UPtr, val: UPtr) returns Bool
+    func add(mut self: Set__UPtr, own val: UPtr)
+    func remove(mut self: Set__UPtr, val: UPtr) returns Bool
+    func delete(own self: Set__UPtr, call_free: Bool = true)
+    func clone(self: Set__UPtr) returns Set__UPtr
+    func size() returns USize
+    func size_for_target() returns USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/garbager.html#til.src.self.garbager.Set__UPtr.new">Set__UPtr.new</a>
+<pre><code class="language-til">func () returns Set__UPtr
+</code></pre>
+</li>
+<li><a href="src/self/garbager.html#til.src.self.garbager.Set__UPtr.with_capacity">Set__UPtr.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Set__UPtr
+</code></pre>
+</li>
+<li><a href="src/self/garbager.html#til.src.self.garbager.Set__UPtr.unsafe_get">Set__UPtr.unsafe_get</a>
+<pre><code class="language-til">func (self: Set__UPtr, i: USize) returns ref UPtr
+</code></pre>
+</li>
+<li><a href="src/self/garbager.html#til.src.self.garbager.Set__UPtr.clear">Set__UPtr.clear</a>
+<pre><code class="language-til">func (mut self: Set__UPtr)
+</code></pre>
+</li>
+<li><a href="src/self/garbager.html#til.src.self.garbager.Set__UPtr.has">Set__UPtr.has</a>
+<pre><code class="language-til">func (self: Set__UPtr, val: UPtr) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/garbager.html#til.src.self.garbager.Set__UPtr.add">Set__UPtr.add</a>
+<pre><code class="language-til">func (mut self: Set__UPtr, own val: UPtr)
+</code></pre>
+</li>
+<li><a href="src/self/garbager.html#til.src.self.garbager.Set__UPtr.remove">Set__UPtr.remove</a>
+<pre><code class="language-til">func (mut self: Set__UPtr, val: UPtr) returns Bool
+</code></pre>
+</li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock">Vec__priv___src_self_garbager_til__GcCfgBlock</a>
 <pre><code class="language-til">struct {
     own mut data : U8
@@ -13869,6 +14046,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_garbager_til__GcCfgBlock, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns Vec__priv___src_self_garbager_til__GcCfgBlock
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -13980,6 +14158,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_garbager_til__GcDeposit, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_garbager_til__GcDeposit) returns Vec__priv___src_self_garbager_til__GcDeposit
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -14081,6 +14260,7 @@ namespace:
     func to_str(self: Option__ref_FunctionDef) returns Str
     func clone(self: Option__ref_FunctionDef) returns Option__ref_FunctionDef
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -14120,6 +14300,7 @@ namespace:
     func delete(own self: Vec__U8, call_free: Bool = true)
     func clone(self: Vec__U8) returns Vec__U8
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -14348,6 +14529,7 @@ namespace:
     func clone(self: SymMap__U8) returns SymMap__U8
     func delete(own self: SymMap__U8, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: SymMap__U8, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -14400,6 +14582,7 @@ namespace:
     func delete(own self: Map__Str_priv___src_self_scavenger_til__DeclRef, call_free: Bool = true)
     func clone(self: Map__Str_priv___src_self_scavenger_til__DeclRef) returns Map__Str_priv___src_self_scavenger_til__DeclRef
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_priv___src_self_scavenger_til__DeclRef, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -14460,6 +14643,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_scavenger_til__DeclRef, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_scavenger_til__DeclRef) returns Vec__priv___src_self_scavenger_til__DeclRef
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -14551,6 +14735,10 @@ namespace:
 <pre><code class="language-til"> is a Str
 </code></pre>
 </li>
+<li><a href="src/self/codegen/c_codegen.html#til.src.self.codegen.c_codegen._priv___src_self_codegen_c_codegen_til__C_RESERVED_NAMES_ek">_priv___src_self_codegen_c_codegen_til__C_RESERVED_NAMES_ek</a>
+<pre><code class="language-til"> is a I64
+</code></pre>
+</li>
 <li><a href="src/self/codegen/c_codegen.html#til.src.self.codegen.c_codegen.C_LIB_ABI_LAYOUT">C_LIB_ABI_LAYOUT</a>
 <pre><code class="language-til"> is a Str
 </code></pre>
@@ -14628,6 +14816,7 @@ namespace:
     func delete(own self: Set__USize, call_free: Bool = true)
     func clone(self: Set__USize) returns Set__USize
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -14687,6 +14876,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_c_codegen_til__CollectionInfo, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_c_codegen_til__CollectionInfo) returns Vec__priv___src_self_codegen_c_codegen_til__CollectionInfo
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -14798,6 +14988,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_c_codegen_til__DynCallInfo, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_c_codegen_til__DynCallInfo) returns Vec__priv___src_self_codegen_c_codegen_til__DynCallInfo
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -14897,6 +15088,7 @@ namespace:
     func delete(own self: Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites, call_free: Bool = true)
     func clone(self: Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites) returns Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__UPtr_priv___src_self_codegen_c_codegen_til__BuilderFuncSites, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -14957,6 +15149,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_c_codegen_til__BuilderFuncSites, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_c_codegen_til__BuilderFuncSites) returns Vec__priv___src_self_codegen_c_codegen_til__BuilderFuncSites
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -15101,6 +15294,7 @@ namespace:
     mut deprecated : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: DocEntry) returns DocEntry
     func delete(own self: DocEntry, call_free: Bool = true)
     func hash(self: DocEntry, hasher: HashFn) returns U64
@@ -15120,6 +15314,7 @@ namespace:
     mut entries : Vec__DocEntry
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: DocCatalog) returns DocCatalog
     func delete(own self: DocCatalog, call_free: Bool = true)
     func hash(self: DocCatalog, hasher: HashFn) returns U64
@@ -15158,6 +15353,7 @@ namespace:
     func delete(own self: Vec__DocEntry, call_free: Bool = true)
     func clone(self: Vec__DocEntry) returns Vec__DocEntry
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -15351,6 +15547,7 @@ namespace:
     func set_bool(mut ptr: Dynamic, val: Bool)
     func get_bool(ptr: Dynamic) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: EvalHeap) returns EvalHeap
     func hash(self: EvalHeap, hasher: HashFn) returns U64
     func cmp(a: EvalHeap, b: EvalHeap) returns I64
@@ -15375,6 +15572,7 @@ namespace:
     mut env : Option__Scope
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: InterpCallableBox) returns InterpCallableBox
     func delete(own self: InterpCallableBox, call_free: Bool = true)
 }
@@ -15403,6 +15601,7 @@ namespace:
     mut foreign_root : UPtr
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: HeapBinding) returns HeapBinding
     func delete(own self: HeapBinding, call_free: Bool = true)
 }
@@ -15416,6 +15615,7 @@ namespace:
     mut is_call_scope : Bool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Scope) returns Scope
     func delete(own self: Scope, call_free: Bool = true)
     func hash(self: Scope, hasher: HashFn) returns U64
@@ -15435,6 +15635,7 @@ namespace:
 namespace:
     func shared_i64(mut self: InterpSession) returns ref I64
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: InterpSession) returns InterpSession
     func delete(own self: InterpSession, call_free: Bool = true)
     func hash(self: InterpSession, hasher: HashFn) returns U64
@@ -15453,6 +15654,7 @@ namespace:
 namespace:
     func to_str(self: TilVmError) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: TilVmError) returns TilVmError
     func delete(own self: TilVmError, call_free: Bool = true)
     func hash(self: TilVmError, hasher: HashFn) returns U64
@@ -15468,6 +15670,7 @@ namespace:
     func clone(self: TilVmCallback) returns TilVmCallback
     func delete(own self: TilVmCallback, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -15490,6 +15693,7 @@ namespace:
     mut output : Vec__InterpOutputEvent
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: InterpRunResult) returns InterpRunResult
     func delete(own self: InterpRunResult, call_free: Bool = true)
     func hash(self: InterpRunResult, hasher: HashFn) returns U64
@@ -15731,6 +15935,7 @@ namespace:
 namespace:
     func clone(self: FFIEntry) returns FFIEntry
     func size() returns USize
+    func size_for_target() returns USize
     func delete(own self: FFIEntry, call_free: Bool = true)
 }
 </code></pre>
@@ -15740,6 +15945,7 @@ namespace:
     ref mut ptr : Expr
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ExprPtrBox) returns ExprPtrBox
     func delete(own self: ExprPtrBox, call_free: Bool = true)
 }
@@ -15753,6 +15959,7 @@ namespace:
 namespace:
     func clone(self: FFITypePtrBox) returns FFITypePtrBox
     func size() returns USize
+    func size_for_target() returns USize
     func delete(own self: FFITypePtrBox, call_free: Bool = true)
 }
 </code></pre>
@@ -15832,6 +16039,7 @@ namespace:
     func to_str(self: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Str
     func clone(self: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Option__priv___src_self_interpreter_til__InterpSharedI64
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__priv___src_self_interpreter_til__InterpSharedI64, b: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
     func gt(a: Option__priv___src_self_interpreter_til__InterpSharedI64, b: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
     func neq(a: Option__priv___src_self_interpreter_til__InterpSharedI64, b: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
@@ -15864,6 +16072,7 @@ namespace:
     func delete(own self: Option__ref_InterpSession, call_free: Bool = true)
     func clone(self: Option__ref_InterpSession) returns Option__ref_InterpSession
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -15894,6 +16103,7 @@ namespace:
     func to_str(self: Option__ref_U8) returns Str
     func clone(self: Option__ref_U8) returns Option__ref_U8
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__ref_U8, b: Option__ref_U8) returns Bool
     func gt(a: Option__ref_U8, b: Option__ref_U8) returns Bool
     func neq(a: Option__ref_U8, b: Option__ref_U8) returns Bool
@@ -15938,6 +16148,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -16037,6 +16248,7 @@ namespace:
     func delete(own self: Map__Str_HeapBinding, call_free: Bool = true)
     func clone(self: Map__Str_HeapBinding) returns Map__Str_HeapBinding
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_HeapBinding, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -16085,6 +16297,7 @@ namespace:
     func delete(own self: Option__ref_Dynamic, call_free: Bool = true)
     func clone(self: Option__ref_Dynamic) returns Option__ref_Dynamic
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -16114,6 +16327,7 @@ namespace:
     func to_str(self: Option__FuncSig) returns Str
     func clone(self: Option__FuncSig) returns Option__FuncSig
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -16141,6 +16355,7 @@ namespace:
     func delete(own self: Option__ref_HeapBinding, call_free: Bool = true)
     func clone(self: Option__ref_HeapBinding) returns Option__ref_HeapBinding
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -16168,6 +16383,7 @@ namespace:
     func delete(own self: Option__Tuple, call_free: Bool = true)
     func clone(self: Option__Tuple) returns Option__Tuple
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -16207,6 +16423,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_interpreter_til__DynPtrBox, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns Vec__priv___src_self_interpreter_til__DynPtrBox
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -16318,6 +16535,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_interpreter_til__InterpAlias, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_interpreter_til__InterpAlias) returns Vec__priv___src_self_interpreter_til__InterpAlias
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -16417,6 +16635,7 @@ namespace:
     func delete(own self: Option__ref_ffi_type, call_free: Bool = true)
     func clone(self: Option__ref_ffi_type) returns Option__ref_ffi_type
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -16444,6 +16663,7 @@ namespace:
     func to_vec(self: Array__U64) returns Vec__U64
     func clone(self: Array__U64) returns Array__U64
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -16503,6 +16723,7 @@ namespace:
     func delete(own self: Vec__HeapBinding, call_free: Bool = true)
     func clone(self: Vec__HeapBinding) returns Vec__HeapBinding
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -16658,6 +16879,7 @@ namespace:
     func delete(own self: Map__Str_priv___src_self_binder_til__AuditedDecl, call_free: Bool = true)
     func clone(self: Map__Str_priv___src_self_binder_til__AuditedDecl) returns Map__Str_priv___src_self_binder_til__AuditedDecl
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_priv___src_self_binder_til__AuditedDecl, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -16718,6 +16940,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_binder_til__AuditedDecl, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_binder_til__AuditedDecl) returns Vec__priv___src_self_binder_til__AuditedDecl
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -16934,6 +17157,7 @@ namespace:
     own mut extra_modes : Vec__Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: CliArgs) returns CliArgs
     func delete(own self: CliArgs, call_free: Bool = true)
 }
@@ -17096,6 +17320,7 @@ namespace:
     own mut elements : U8
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ffi_type) returns ffi_type
     func delete(own self: ffi_type, call_free: Bool = true)
 }
@@ -17137,6 +17362,7 @@ namespace:
     mut extra_cif_fields_6 : U32
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ffi_cif) returns ffi_cif
     func delete(own self: ffi_cif, call_free: Bool = true)
 }
@@ -17210,6 +17436,7 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: ffi_closure) returns ffi_closure
     func delete(own self: ffi_closure, call_free: Bool = true)
     func hash(self: ffi_closure, hasher: HashFn) returns U64
@@ -17240,6 +17467,7 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: ffi_raw_closure) returns ffi_raw_closure
     func delete(own self: ffi_raw_closure, call_free: Bool = true)
     func hash(self: ffi_raw_closure, hasher: HashFn) returns U64
@@ -17258,6 +17486,7 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: ffi_java_raw_closure) returns ffi_java_raw_closure
     func delete(own self: ffi_java_raw_closure, call_free: Bool = true)
     func hash(self: ffi_java_raw_closure, hasher: HashFn) returns U64
@@ -17292,6 +17521,7 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: ffi_go_closure) returns ffi_go_closure
     func delete(own self: ffi_go_closure, call_free: Bool = true)
     func hash(self: ffi_go_closure, hasher: HashFn) returns U64
@@ -17330,6 +17560,7 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: ffi_call_plan) returns ffi_call_plan
     func delete(own self: ffi_call_plan, call_free: Bool = true)
     func hash(self: ffi_call_plan, hasher: HashFn) returns U64
@@ -17364,6 +17595,7 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: secp256k1_context) returns secp256k1_context
     func delete(own self: secp256k1_context, call_free: Bool = true)
     func hash(self: secp256k1_context, hasher: HashFn) returns U64
@@ -17390,6 +17622,7 @@ namespace:
     mut d7 : U64
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: secp256k1_pubkey) returns secp256k1_pubkey
     func delete(own self: secp256k1_pubkey, call_free: Bool = true)
     func hash(self: secp256k1_pubkey, hasher: HashFn) returns U64
@@ -17416,6 +17649,7 @@ namespace:
     mut d7 : U64
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: secp256k1_ecdsa_signature) returns secp256k1_ecdsa_signature
     func delete(own self: secp256k1_ecdsa_signature, call_free: Bool = true)
     func hash(self: secp256k1_ecdsa_signature, hasher: HashFn) returns U64
@@ -17610,6 +17844,7 @@ namespace:
     mut d7 : U64
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: secp256k1_xonly_pubkey) returns secp256k1_xonly_pubkey
     func delete(own self: secp256k1_xonly_pubkey, call_free: Bool = true)
     func hash(self: secp256k1_xonly_pubkey, hasher: HashFn) returns U64
@@ -17640,6 +17875,7 @@ namespace:
     mut d11 : U64
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: secp256k1_keypair) returns secp256k1_keypair
     func delete(own self: secp256k1_keypair, call_free: Bool = true)
     func hash(self: secp256k1_keypair, hasher: HashFn) returns U64
@@ -17702,6 +17938,7 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: secp256k1_schnorrsig_extraparams) returns secp256k1_schnorrsig_extraparams
     func delete(own self: secp256k1_schnorrsig_extraparams, call_free: Bool = true)
     func hash(self: secp256k1_schnorrsig_extraparams, hasher: HashFn) returns U64
@@ -17773,6 +18010,7 @@ namespace:
     func delete(own self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding, call_free: Bool = true)
     func clone(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -17821,6 +18059,7 @@ namespace:
     func delete(own self: Map__Str_U64, call_free: Bool = true)
     func clone(self: Map__Str_U64) returns Map__Str_U64
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_U64, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -17872,6 +18111,7 @@ namespace:
     func to_str(self: Option__U64) returns Str
     func clone(self: Option__U64) returns Option__U64
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__U64, b: Option__U64) returns Bool
     func gt(a: Option__U64, b: Option__U64) returns Bool
     func neq(a: Option__U64, b: Option__U64) returns Bool
@@ -17907,6 +18147,7 @@ namespace:
     func to_str(self: Option__Bool) returns Str
     func clone(self: Option__Bool) returns Option__Bool
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__Bool, b: Option__Bool) returns Bool
     func gt(a: Option__Bool, b: Option__Bool) returns Bool
     func neq(a: Option__Bool, b: Option__Bool) returns Bool
@@ -17951,6 +18192,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -18050,6 +18292,7 @@ namespace:
     func delete(own self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, call_free: Bool = true)
     func clone(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -18098,6 +18341,7 @@ namespace:
     func delete(own self: Map__Str_UPtr, call_free: Bool = true)
     func clone(self: Map__Str_UPtr) returns Map__Str_UPtr
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_UPtr, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -18146,6 +18390,7 @@ namespace:
     func delete(own self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature, call_free: Bool = true)
     func clone(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -18173,6 +18418,7 @@ namespace:
     func delete(own self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, call_free: Bool = true)
     func clone(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -18233,6 +18479,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -18344,6 +18591,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -18463,6 +18711,7 @@ namespace:
     func delete(own self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition, call_free: Bool = true)
     func clone(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition) returns Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -18511,6 +18760,7 @@ namespace:
     func delete(own self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal, call_free: Bool = true)
     func clone(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal) returns Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -18571,6 +18821,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition) returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -18682,6 +18933,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal) returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -18777,52 +19029,53 @@ namespace:
 <pre><code class="language-til">proc (mut lp: LoadedProgram, output_path: Str) returns I32
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool">Map__Str_call_Map_Str_Bool</a>
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Map__Str_Bool">Map__Str_Map__Str_Bool</a>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
-    mut values : Vec__call_Map_Str_Bool
+    mut values : Vec__Map__Str_Bool
 namespace:
-    func new() returns Map__Str_call_Map_Str_Bool
-    func with_capacity(n: USize) returns Map__Str_call_Map_Str_Bool
-    func len(self: Map__Str_call_Map_Str_Bool) returns USize
-    func clear(mut self: Map__Str_call_Map_Str_Bool)
-    func has(self: Map__Str_call_Map_Str_Bool, key: Str) returns Bool
-    func get(self: Map__Str_call_Map_Str_Bool, key: Str) returns ref Map__Str_Bool throws KeyNotFound
-    func set(mut self: Map__Str_call_Map_Str_Bool, key: Str, own val: Map__Str_Bool)
-    func remove(mut self: Map__Str_call_Map_Str_Bool, key: Str) returns Bool
-    func delete(own self: Map__Str_call_Map_Str_Bool, call_free: Bool = true)
-    func clone(self: Map__Str_call_Map_Str_Bool) returns Map__Str_call_Map_Str_Bool
+    func new() returns Map__Str_Map__Str_Bool
+    func with_capacity(n: USize) returns Map__Str_Map__Str_Bool
+    func len(self: Map__Str_Map__Str_Bool) returns USize
+    func clear(mut self: Map__Str_Map__Str_Bool)
+    func has(self: Map__Str_Map__Str_Bool, key: Str) returns Bool
+    func get(self: Map__Str_Map__Str_Bool, key: Str) returns ref Map__Str_Bool throws KeyNotFound
+    func set(mut self: Map__Str_Map__Str_Bool, key: Str, own val: Map__Str_Bool)
+    func remove(mut self: Map__Str_Map__Str_Bool, key: Str) returns Bool
+    func delete(own self: Map__Str_Map__Str_Bool, call_free: Bool = true)
+    func clone(self: Map__Str_Map__Str_Bool) returns Map__Str_Map__Str_Bool
     func size() returns USize
-    func hash(self: Map__Str_call_Map_Str_Bool, hasher: HashFn) returns U64
+    func size_for_target() returns USize
+    func hash(self: Map__Str_Map__Str_Bool, hasher: HashFn) returns U64
 }
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.new">Map__Str_call_Map_Str_Bool.new</a>
-<pre><code class="language-til">func () returns Map__Str_call_Map_Str_Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Map__Str_Bool.new">Map__Str_Map__Str_Bool.new</a>
+<pre><code class="language-til">func () returns Map__Str_Map__Str_Bool
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.with_capacity">Map__Str_call_Map_Str_Bool.with_capacity</a>
-<pre><code class="language-til">func (n: USize) returns Map__Str_call_Map_Str_Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Map__Str_Bool.with_capacity">Map__Str_Map__Str_Bool.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Map__Str_Map__Str_Bool
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.clear">Map__Str_call_Map_Str_Bool.clear</a>
-<pre><code class="language-til">func (mut self: Map__Str_call_Map_Str_Bool)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Map__Str_Bool.clear">Map__Str_Map__Str_Bool.clear</a>
+<pre><code class="language-til">func (mut self: Map__Str_Map__Str_Bool)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.has">Map__Str_call_Map_Str_Bool.has</a>
-<pre><code class="language-til">func (self: Map__Str_call_Map_Str_Bool, key: Str) returns Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Map__Str_Bool.has">Map__Str_Map__Str_Bool.has</a>
+<pre><code class="language-til">func (self: Map__Str_Map__Str_Bool, key: Str) returns Bool
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.get">Map__Str_call_Map_Str_Bool.get</a>
-<pre><code class="language-til">func (self: Map__Str_call_Map_Str_Bool, key: Str) returns ref Map__Str_Bool throws KeyNotFound
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Map__Str_Bool.get">Map__Str_Map__Str_Bool.get</a>
+<pre><code class="language-til">func (self: Map__Str_Map__Str_Bool, key: Str) returns ref Map__Str_Bool throws KeyNotFound
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.set">Map__Str_call_Map_Str_Bool.set</a>
-<pre><code class="language-til">func (mut self: Map__Str_call_Map_Str_Bool, key: Str, own val: Map__Str_Bool)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Map__Str_Bool.set">Map__Str_Map__Str_Bool.set</a>
+<pre><code class="language-til">func (mut self: Map__Str_Map__Str_Bool, key: Str, own val: Map__Str_Bool)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Map_Str_Bool.remove">Map__Str_call_Map_Str_Bool.remove</a>
-<pre><code class="language-til">func (mut self: Map__Str_call_Map_Str_Bool, key: Str) returns Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Map__Str_Bool.remove">Map__Str_Map__Str_Bool.remove</a>
+<pre><code class="language-til">func (mut self: Map__Str_Map__Str_Bool, key: Str) returns Bool
 </code></pre>
 </li>
 <li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_FuncSig">Map__Str_FuncSig</a>
@@ -18841,6 +19094,7 @@ namespace:
     func delete(own self: Map__Str_FuncSig, call_free: Bool = true)
     func clone(self: Map__Str_FuncSig) returns Map__Str_FuncSig
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_FuncSig, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -18873,211 +19127,214 @@ namespace:
 <pre><code class="language-til">func (mut self: Map__Str_FuncSig, key: Str) returns Bool
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str">Map__Str_call_Set_Str</a>
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__Str">Map__Str_Set__Str</a>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
-    mut values : Vec__call_Set_Str
+    mut values : Vec__Set__Str
 namespace:
-    func new() returns Map__Str_call_Set_Str
-    func with_capacity(n: USize) returns Map__Str_call_Set_Str
-    func len(self: Map__Str_call_Set_Str) returns USize
-    func clear(mut self: Map__Str_call_Set_Str)
-    func has(self: Map__Str_call_Set_Str, key: Str) returns Bool
-    func get(self: Map__Str_call_Set_Str, key: Str) returns ref Set__Str throws KeyNotFound
-    func set(mut self: Map__Str_call_Set_Str, key: Str, own val: Set__Str)
-    func remove(mut self: Map__Str_call_Set_Str, key: Str) returns Bool
-    func delete(own self: Map__Str_call_Set_Str, call_free: Bool = true)
-    func clone(self: Map__Str_call_Set_Str) returns Map__Str_call_Set_Str
+    func new() returns Map__Str_Set__Str
+    func with_capacity(n: USize) returns Map__Str_Set__Str
+    func len(self: Map__Str_Set__Str) returns USize
+    func clear(mut self: Map__Str_Set__Str)
+    func has(self: Map__Str_Set__Str, key: Str) returns Bool
+    func get(self: Map__Str_Set__Str, key: Str) returns ref Set__Str throws KeyNotFound
+    func set(mut self: Map__Str_Set__Str, key: Str, own val: Set__Str)
+    func remove(mut self: Map__Str_Set__Str, key: Str) returns Bool
+    func delete(own self: Map__Str_Set__Str, call_free: Bool = true)
+    func clone(self: Map__Str_Set__Str) returns Map__Str_Set__Str
     func size() returns USize
-    func hash(self: Map__Str_call_Set_Str, hasher: HashFn) returns U64
+    func size_for_target() returns USize
+    func hash(self: Map__Str_Set__Str, hasher: HashFn) returns U64
 }
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.new">Map__Str_call_Set_Str.new</a>
-<pre><code class="language-til">func () returns Map__Str_call_Set_Str
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__Str.new">Map__Str_Set__Str.new</a>
+<pre><code class="language-til">func () returns Map__Str_Set__Str
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.with_capacity">Map__Str_call_Set_Str.with_capacity</a>
-<pre><code class="language-til">func (n: USize) returns Map__Str_call_Set_Str
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__Str.with_capacity">Map__Str_Set__Str.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Map__Str_Set__Str
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.clear">Map__Str_call_Set_Str.clear</a>
-<pre><code class="language-til">func (mut self: Map__Str_call_Set_Str)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__Str.clear">Map__Str_Set__Str.clear</a>
+<pre><code class="language-til">func (mut self: Map__Str_Set__Str)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.has">Map__Str_call_Set_Str.has</a>
-<pre><code class="language-til">func (self: Map__Str_call_Set_Str, key: Str) returns Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__Str.has">Map__Str_Set__Str.has</a>
+<pre><code class="language-til">func (self: Map__Str_Set__Str, key: Str) returns Bool
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.get">Map__Str_call_Set_Str.get</a>
-<pre><code class="language-til">func (self: Map__Str_call_Set_Str, key: Str) returns ref Set__Str throws KeyNotFound
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__Str.get">Map__Str_Set__Str.get</a>
+<pre><code class="language-til">func (self: Map__Str_Set__Str, key: Str) returns ref Set__Str throws KeyNotFound
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.set">Map__Str_call_Set_Str.set</a>
-<pre><code class="language-til">func (mut self: Map__Str_call_Set_Str, key: Str, own val: Set__Str)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__Str.set">Map__Str_Set__Str.set</a>
+<pre><code class="language-til">func (mut self: Map__Str_Set__Str, key: Str, own val: Set__Str)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_Str.remove">Map__Str_call_Set_Str.remove</a>
-<pre><code class="language-til">func (mut self: Map__Str_call_Set_Str, key: Str) returns Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__Str.remove">Map__Str_Set__Str.remove</a>
+<pre><code class="language-til">func (mut self: Map__Str_Set__Str, key: Str) returns Bool
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize">Map__Str_call_Set_USize</a>
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__USize">Map__Str_Set__USize</a>
 <pre><code class="language-til">struct {
     mut keys : Vec__Str
-    mut values : Vec__call_Set_USize
+    mut values : Vec__Set__USize
 namespace:
-    func new() returns Map__Str_call_Set_USize
-    func with_capacity(n: USize) returns Map__Str_call_Set_USize
-    func len(self: Map__Str_call_Set_USize) returns USize
-    func clear(mut self: Map__Str_call_Set_USize)
-    func has(self: Map__Str_call_Set_USize, key: Str) returns Bool
-    func get(self: Map__Str_call_Set_USize, key: Str) returns ref Set__USize throws KeyNotFound
-    func set(mut self: Map__Str_call_Set_USize, key: Str, own val: Set__USize)
-    func remove(mut self: Map__Str_call_Set_USize, key: Str) returns Bool
-    func delete(own self: Map__Str_call_Set_USize, call_free: Bool = true)
-    func clone(self: Map__Str_call_Set_USize) returns Map__Str_call_Set_USize
+    func new() returns Map__Str_Set__USize
+    func with_capacity(n: USize) returns Map__Str_Set__USize
+    func len(self: Map__Str_Set__USize) returns USize
+    func clear(mut self: Map__Str_Set__USize)
+    func has(self: Map__Str_Set__USize, key: Str) returns Bool
+    func get(self: Map__Str_Set__USize, key: Str) returns ref Set__USize throws KeyNotFound
+    func set(mut self: Map__Str_Set__USize, key: Str, own val: Set__USize)
+    func remove(mut self: Map__Str_Set__USize, key: Str) returns Bool
+    func delete(own self: Map__Str_Set__USize, call_free: Bool = true)
+    func clone(self: Map__Str_Set__USize) returns Map__Str_Set__USize
     func size() returns USize
-    func hash(self: Map__Str_call_Set_USize, hasher: HashFn) returns U64
+    func size_for_target() returns USize
+    func hash(self: Map__Str_Set__USize, hasher: HashFn) returns U64
 }
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.new">Map__Str_call_Set_USize.new</a>
-<pre><code class="language-til">func () returns Map__Str_call_Set_USize
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__USize.new">Map__Str_Set__USize.new</a>
+<pre><code class="language-til">func () returns Map__Str_Set__USize
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.with_capacity">Map__Str_call_Set_USize.with_capacity</a>
-<pre><code class="language-til">func (n: USize) returns Map__Str_call_Set_USize
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__USize.with_capacity">Map__Str_Set__USize.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Map__Str_Set__USize
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.clear">Map__Str_call_Set_USize.clear</a>
-<pre><code class="language-til">func (mut self: Map__Str_call_Set_USize)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__USize.clear">Map__Str_Set__USize.clear</a>
+<pre><code class="language-til">func (mut self: Map__Str_Set__USize)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.has">Map__Str_call_Set_USize.has</a>
-<pre><code class="language-til">func (self: Map__Str_call_Set_USize, key: Str) returns Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__USize.has">Map__Str_Set__USize.has</a>
+<pre><code class="language-til">func (self: Map__Str_Set__USize, key: Str) returns Bool
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.get">Map__Str_call_Set_USize.get</a>
-<pre><code class="language-til">func (self: Map__Str_call_Set_USize, key: Str) returns ref Set__USize throws KeyNotFound
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__USize.get">Map__Str_Set__USize.get</a>
+<pre><code class="language-til">func (self: Map__Str_Set__USize, key: Str) returns ref Set__USize throws KeyNotFound
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.set">Map__Str_call_Set_USize.set</a>
-<pre><code class="language-til">func (mut self: Map__Str_call_Set_USize, key: Str, own val: Set__USize)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__USize.set">Map__Str_Set__USize.set</a>
+<pre><code class="language-til">func (mut self: Map__Str_Set__USize, key: Str, own val: Set__USize)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_call_Set_USize.remove">Map__Str_call_Set_USize.remove</a>
-<pre><code class="language-til">func (mut self: Map__Str_call_Set_USize, key: Str) returns Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Map__Str_Set__USize.remove">Map__Str_Set__USize.remove</a>
+<pre><code class="language-til">func (mut self: Map__Str_Set__USize, key: Str) returns Bool
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool">Vec__call_Map_Str_Bool</a>
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool">Vec__Map__Str_Bool</a>
 <pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__call_Map_Str_Bool
-    func with_capacity(n: USize) returns Vec__call_Map_Str_Bool
-    func len(self: Vec__call_Map_Str_Bool) returns USize
-    func clear(mut self: Vec__call_Map_Str_Bool)
-    func delete_marked(mut self: Vec__call_Map_Str_Bool, marks: Dynamic)
-    func push(mut self: Vec__call_Map_Str_Bool, own val: Map__Str_Bool)
-    func append(mut self: Vec__call_Map_Str_Bool, own other: Vec__call_Map_Str_Bool)
-    func take(mut self: Vec__call_Map_Str_Bool) returns Vec__call_Map_Str_Bool
-    func move_to(own self: Vec__call_Map_Str_Bool, mut dest: Vec__call_Map_Str_Bool)
-    func move_from(mut self: Vec__call_Map_Str_Bool, own other: Vec__call_Map_Str_Bool)
-    func unsafe_get(self: Vec__call_Map_Str_Bool, i: USize) returns ref Map__Str_Bool
-    func get(self: Vec__call_Map_Str_Bool, shallow i: USize) returns ref Map__Str_Bool throws OutOfBounds
-    func pop(mut self: Vec__call_Map_Str_Bool) returns Map__Str_Bool
-    func remove_at(mut self: Vec__call_Map_Str_Bool, i: USize) throws OutOfBounds
-    func take_prefix(mut self: Vec__call_Map_Str_Bool, n: USize) returns Vec__call_Map_Str_Bool
-    func truncate(mut self: Vec__call_Map_Str_Bool, n: USize)
-    func unsafe_set(mut self: Vec__call_Map_Str_Bool, i: USize, own val: Map__Str_Bool)
-    func set(mut self: Vec__call_Map_Str_Bool, i: USize, own val: Map__Str_Bool) throws OutOfBounds
-    func push_take(mut self: Vec__call_Map_Str_Bool, mut src: Vec__call_Map_Str_Bool, i: USize)
-    func delete(own self: Vec__call_Map_Str_Bool, call_free: Bool = true)
-    func clone(self: Vec__call_Map_Str_Bool) returns Vec__call_Map_Str_Bool
+    func new() returns Vec__Map__Str_Bool
+    func with_capacity(n: USize) returns Vec__Map__Str_Bool
+    func len(self: Vec__Map__Str_Bool) returns USize
+    func clear(mut self: Vec__Map__Str_Bool)
+    func delete_marked(mut self: Vec__Map__Str_Bool, marks: Dynamic)
+    func push(mut self: Vec__Map__Str_Bool, own val: Map__Str_Bool)
+    func append(mut self: Vec__Map__Str_Bool, own other: Vec__Map__Str_Bool)
+    func take(mut self: Vec__Map__Str_Bool) returns Vec__Map__Str_Bool
+    func move_to(own self: Vec__Map__Str_Bool, mut dest: Vec__Map__Str_Bool)
+    func move_from(mut self: Vec__Map__Str_Bool, own other: Vec__Map__Str_Bool)
+    func unsafe_get(self: Vec__Map__Str_Bool, i: USize) returns ref Map__Str_Bool
+    func get(self: Vec__Map__Str_Bool, shallow i: USize) returns ref Map__Str_Bool throws OutOfBounds
+    func pop(mut self: Vec__Map__Str_Bool) returns Map__Str_Bool
+    func remove_at(mut self: Vec__Map__Str_Bool, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__Map__Str_Bool, n: USize) returns Vec__Map__Str_Bool
+    func truncate(mut self: Vec__Map__Str_Bool, n: USize)
+    func unsafe_set(mut self: Vec__Map__Str_Bool, i: USize, own val: Map__Str_Bool)
+    func set(mut self: Vec__Map__Str_Bool, i: USize, own val: Map__Str_Bool) throws OutOfBounds
+    func push_take(mut self: Vec__Map__Str_Bool, mut src: Vec__Map__Str_Bool, i: USize)
+    func delete(own self: Vec__Map__Str_Bool, call_free: Bool = true)
+    func clone(self: Vec__Map__Str_Bool) returns Vec__Map__Str_Bool
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.new">Vec__call_Map_Str_Bool.new</a>
-<pre><code class="language-til">func () returns Vec__call_Map_Str_Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.new">Vec__Map__Str_Bool.new</a>
+<pre><code class="language-til">func () returns Vec__Map__Str_Bool
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.with_capacity">Vec__call_Map_Str_Bool.with_capacity</a>
-<pre><code class="language-til">func (n: USize) returns Vec__call_Map_Str_Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.with_capacity">Vec__Map__Str_Bool.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Vec__Map__Str_Bool
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.clear">Vec__call_Map_Str_Bool.clear</a>
-<pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.clear">Vec__Map__Str_Bool.clear</a>
+<pre><code class="language-til">func (mut self: Vec__Map__Str_Bool)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.delete_marked">Vec__call_Map_Str_Bool.delete_marked</a>
-<pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, marks: Dynamic)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.delete_marked">Vec__Map__Str_Bool.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__Map__Str_Bool, marks: Dynamic)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.push">Vec__call_Map_Str_Bool.push</a>
-<pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, own val: Map__Str_Bool)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.push">Vec__Map__Str_Bool.push</a>
+<pre><code class="language-til">func (mut self: Vec__Map__Str_Bool, own val: Map__Str_Bool)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.append">Vec__call_Map_Str_Bool.append</a>
-<pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, own other: Vec__call_Map_Str_Bool)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.append">Vec__Map__Str_Bool.append</a>
+<pre><code class="language-til">func (mut self: Vec__Map__Str_Bool, own other: Vec__Map__Str_Bool)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.take">Vec__call_Map_Str_Bool.take</a>
-<pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool) returns Vec__call_Map_Str_Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.take">Vec__Map__Str_Bool.take</a>
+<pre><code class="language-til">func (mut self: Vec__Map__Str_Bool) returns Vec__Map__Str_Bool
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.move_to">Vec__call_Map_Str_Bool.move_to</a>
-<pre><code class="language-til">func (own self: Vec__call_Map_Str_Bool, mut dest: Vec__call_Map_Str_Bool)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.move_to">Vec__Map__Str_Bool.move_to</a>
+<pre><code class="language-til">func (own self: Vec__Map__Str_Bool, mut dest: Vec__Map__Str_Bool)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.move_from">Vec__call_Map_Str_Bool.move_from</a>
-<pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, own other: Vec__call_Map_Str_Bool)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.move_from">Vec__Map__Str_Bool.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__Map__Str_Bool, own other: Vec__Map__Str_Bool)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.unsafe_get">Vec__call_Map_Str_Bool.unsafe_get</a>
-<pre><code class="language-til">func (self: Vec__call_Map_Str_Bool, i: USize) returns ref Map__Str_Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.unsafe_get">Vec__Map__Str_Bool.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__Map__Str_Bool, i: USize) returns ref Map__Str_Bool
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.get">Vec__call_Map_Str_Bool.get</a>
-<pre><code class="language-til">func (self: Vec__call_Map_Str_Bool, shallow i: USize) returns ref Map__Str_Bool throws OutOfBounds
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.get">Vec__Map__Str_Bool.get</a>
+<pre><code class="language-til">func (self: Vec__Map__Str_Bool, shallow i: USize) returns ref Map__Str_Bool throws OutOfBounds
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.pop">Vec__call_Map_Str_Bool.pop</a>
-<pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool) returns Map__Str_Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.pop">Vec__Map__Str_Bool.pop</a>
+<pre><code class="language-til">func (mut self: Vec__Map__Str_Bool) returns Map__Str_Bool
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.remove_at">Vec__call_Map_Str_Bool.remove_at</a>
-<pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, i: USize) throws OutOfBounds
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.remove_at">Vec__Map__Str_Bool.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__Map__Str_Bool, i: USize) throws OutOfBounds
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.take_prefix">Vec__call_Map_Str_Bool.take_prefix</a>
-<pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, n: USize) returns Vec__call_Map_Str_Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.take_prefix">Vec__Map__Str_Bool.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__Map__Str_Bool, n: USize) returns Vec__Map__Str_Bool
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.truncate">Vec__call_Map_Str_Bool.truncate</a>
-<pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, n: USize)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.truncate">Vec__Map__Str_Bool.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__Map__Str_Bool, n: USize)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.unsafe_set">Vec__call_Map_Str_Bool.unsafe_set</a>
-<pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, i: USize, own val: Map__Str_Bool)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.unsafe_set">Vec__Map__Str_Bool.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__Map__Str_Bool, i: USize, own val: Map__Str_Bool)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.set">Vec__call_Map_Str_Bool.set</a>
-<pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, i: USize, own val: Map__Str_Bool) throws OutOfBounds
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.set">Vec__Map__Str_Bool.set</a>
+<pre><code class="language-til">func (mut self: Vec__Map__Str_Bool, i: USize, own val: Map__Str_Bool) throws OutOfBounds
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.push_take">Vec__call_Map_Str_Bool.push_take</a>
-<pre><code class="language-til">func (mut self: Vec__call_Map_Str_Bool, mut src: Vec__call_Map_Str_Bool, i: USize)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.push_take">Vec__Map__Str_Bool.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__Map__Str_Bool, mut src: Vec__Map__Str_Bool, i: USize)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.delete">Vec__call_Map_Str_Bool.delete</a>
-<pre><code class="language-til">func (own self: Vec__call_Map_Str_Bool, call_free: Bool = true)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.delete">Vec__Map__Str_Bool.delete</a>
+<pre><code class="language-til">func (own self: Vec__Map__Str_Bool, call_free: Bool = true)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Map_Str_Bool.clone">Vec__call_Map_Str_Bool.clone</a>
-<pre><code class="language-til">func (self: Vec__call_Map_Str_Bool) returns Vec__call_Map_Str_Bool
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Map__Str_Bool.clone">Vec__Map__Str_Bool.clone</a>
+<pre><code class="language-til">func (self: Vec__Map__Str_Bool) returns Vec__Map__Str_Bool
 </code></pre>
 </li>
 <li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__FuncSig">Vec__FuncSig</a>
@@ -19108,6 +19365,7 @@ namespace:
     func delete(own self: Vec__FuncSig, call_free: Bool = true)
     func clone(self: Vec__FuncSig) returns Vec__FuncSig
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -19191,226 +19449,228 @@ namespace:
 <pre><code class="language-til">func (self: Vec__FuncSig) returns Vec__FuncSig
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str">Vec__call_Set_Str</a>
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str">Vec__Set__Str</a>
 <pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__call_Set_Str
-    func with_capacity(n: USize) returns Vec__call_Set_Str
-    func len(self: Vec__call_Set_Str) returns USize
-    func clear(mut self: Vec__call_Set_Str)
-    func delete_marked(mut self: Vec__call_Set_Str, marks: Dynamic)
-    func push(mut self: Vec__call_Set_Str, own val: Set__Str)
-    func append(mut self: Vec__call_Set_Str, own other: Vec__call_Set_Str)
-    func take(mut self: Vec__call_Set_Str) returns Vec__call_Set_Str
-    func move_to(own self: Vec__call_Set_Str, mut dest: Vec__call_Set_Str)
-    func move_from(mut self: Vec__call_Set_Str, own other: Vec__call_Set_Str)
-    func unsafe_get(self: Vec__call_Set_Str, i: USize) returns ref Set__Str
-    func get(self: Vec__call_Set_Str, shallow i: USize) returns ref Set__Str throws OutOfBounds
-    func pop(mut self: Vec__call_Set_Str) returns Set__Str
-    func remove_at(mut self: Vec__call_Set_Str, i: USize) throws OutOfBounds
-    func take_prefix(mut self: Vec__call_Set_Str, n: USize) returns Vec__call_Set_Str
-    func truncate(mut self: Vec__call_Set_Str, n: USize)
-    func unsafe_set(mut self: Vec__call_Set_Str, i: USize, own val: Set__Str)
-    func set(mut self: Vec__call_Set_Str, i: USize, own val: Set__Str) throws OutOfBounds
-    func push_take(mut self: Vec__call_Set_Str, mut src: Vec__call_Set_Str, i: USize)
-    func delete(own self: Vec__call_Set_Str, call_free: Bool = true)
-    func clone(self: Vec__call_Set_Str) returns Vec__call_Set_Str
+    func new() returns Vec__Set__Str
+    func with_capacity(n: USize) returns Vec__Set__Str
+    func len(self: Vec__Set__Str) returns USize
+    func clear(mut self: Vec__Set__Str)
+    func delete_marked(mut self: Vec__Set__Str, marks: Dynamic)
+    func push(mut self: Vec__Set__Str, own val: Set__Str)
+    func append(mut self: Vec__Set__Str, own other: Vec__Set__Str)
+    func take(mut self: Vec__Set__Str) returns Vec__Set__Str
+    func move_to(own self: Vec__Set__Str, mut dest: Vec__Set__Str)
+    func move_from(mut self: Vec__Set__Str, own other: Vec__Set__Str)
+    func unsafe_get(self: Vec__Set__Str, i: USize) returns ref Set__Str
+    func get(self: Vec__Set__Str, shallow i: USize) returns ref Set__Str throws OutOfBounds
+    func pop(mut self: Vec__Set__Str) returns Set__Str
+    func remove_at(mut self: Vec__Set__Str, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__Set__Str, n: USize) returns Vec__Set__Str
+    func truncate(mut self: Vec__Set__Str, n: USize)
+    func unsafe_set(mut self: Vec__Set__Str, i: USize, own val: Set__Str)
+    func set(mut self: Vec__Set__Str, i: USize, own val: Set__Str) throws OutOfBounds
+    func push_take(mut self: Vec__Set__Str, mut src: Vec__Set__Str, i: USize)
+    func delete(own self: Vec__Set__Str, call_free: Bool = true)
+    func clone(self: Vec__Set__Str) returns Vec__Set__Str
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.new">Vec__call_Set_Str.new</a>
-<pre><code class="language-til">func () returns Vec__call_Set_Str
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.new">Vec__Set__Str.new</a>
+<pre><code class="language-til">func () returns Vec__Set__Str
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.with_capacity">Vec__call_Set_Str.with_capacity</a>
-<pre><code class="language-til">func (n: USize) returns Vec__call_Set_Str
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.with_capacity">Vec__Set__Str.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Vec__Set__Str
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.clear">Vec__call_Set_Str.clear</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_Str)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.clear">Vec__Set__Str.clear</a>
+<pre><code class="language-til">func (mut self: Vec__Set__Str)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.delete_marked">Vec__call_Set_Str.delete_marked</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_Str, marks: Dynamic)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.delete_marked">Vec__Set__Str.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__Set__Str, marks: Dynamic)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.push">Vec__call_Set_Str.push</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_Str, own val: Set__Str)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.push">Vec__Set__Str.push</a>
+<pre><code class="language-til">func (mut self: Vec__Set__Str, own val: Set__Str)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.append">Vec__call_Set_Str.append</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_Str, own other: Vec__call_Set_Str)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.append">Vec__Set__Str.append</a>
+<pre><code class="language-til">func (mut self: Vec__Set__Str, own other: Vec__Set__Str)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.take">Vec__call_Set_Str.take</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_Str) returns Vec__call_Set_Str
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.take">Vec__Set__Str.take</a>
+<pre><code class="language-til">func (mut self: Vec__Set__Str) returns Vec__Set__Str
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.move_to">Vec__call_Set_Str.move_to</a>
-<pre><code class="language-til">func (own self: Vec__call_Set_Str, mut dest: Vec__call_Set_Str)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.move_to">Vec__Set__Str.move_to</a>
+<pre><code class="language-til">func (own self: Vec__Set__Str, mut dest: Vec__Set__Str)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.move_from">Vec__call_Set_Str.move_from</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_Str, own other: Vec__call_Set_Str)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.move_from">Vec__Set__Str.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__Set__Str, own other: Vec__Set__Str)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.unsafe_get">Vec__call_Set_Str.unsafe_get</a>
-<pre><code class="language-til">func (self: Vec__call_Set_Str, i: USize) returns ref Set__Str
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.unsafe_get">Vec__Set__Str.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__Set__Str, i: USize) returns ref Set__Str
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.get">Vec__call_Set_Str.get</a>
-<pre><code class="language-til">func (self: Vec__call_Set_Str, shallow i: USize) returns ref Set__Str throws OutOfBounds
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.get">Vec__Set__Str.get</a>
+<pre><code class="language-til">func (self: Vec__Set__Str, shallow i: USize) returns ref Set__Str throws OutOfBounds
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.pop">Vec__call_Set_Str.pop</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_Str) returns Set__Str
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.pop">Vec__Set__Str.pop</a>
+<pre><code class="language-til">func (mut self: Vec__Set__Str) returns Set__Str
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.remove_at">Vec__call_Set_Str.remove_at</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_Str, i: USize) throws OutOfBounds
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.remove_at">Vec__Set__Str.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__Set__Str, i: USize) throws OutOfBounds
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.take_prefix">Vec__call_Set_Str.take_prefix</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_Str, n: USize) returns Vec__call_Set_Str
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.take_prefix">Vec__Set__Str.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__Set__Str, n: USize) returns Vec__Set__Str
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.truncate">Vec__call_Set_Str.truncate</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_Str, n: USize)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.truncate">Vec__Set__Str.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__Set__Str, n: USize)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.unsafe_set">Vec__call_Set_Str.unsafe_set</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_Str, i: USize, own val: Set__Str)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.unsafe_set">Vec__Set__Str.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__Set__Str, i: USize, own val: Set__Str)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.set">Vec__call_Set_Str.set</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_Str, i: USize, own val: Set__Str) throws OutOfBounds
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.set">Vec__Set__Str.set</a>
+<pre><code class="language-til">func (mut self: Vec__Set__Str, i: USize, own val: Set__Str) throws OutOfBounds
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.push_take">Vec__call_Set_Str.push_take</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_Str, mut src: Vec__call_Set_Str, i: USize)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.push_take">Vec__Set__Str.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__Set__Str, mut src: Vec__Set__Str, i: USize)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.delete">Vec__call_Set_Str.delete</a>
-<pre><code class="language-til">func (own self: Vec__call_Set_Str, call_free: Bool = true)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.delete">Vec__Set__Str.delete</a>
+<pre><code class="language-til">func (own self: Vec__Set__Str, call_free: Bool = true)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_Str.clone">Vec__call_Set_Str.clone</a>
-<pre><code class="language-til">func (self: Vec__call_Set_Str) returns Vec__call_Set_Str
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__Str.clone">Vec__Set__Str.clone</a>
+<pre><code class="language-til">func (self: Vec__Set__Str) returns Vec__Set__Str
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize">Vec__call_Set_USize</a>
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize">Vec__Set__USize</a>
 <pre><code class="language-til">struct {
     own mut data : U8
     mut count : USize
     mut cap : USize
 namespace:
-    func new() returns Vec__call_Set_USize
-    func with_capacity(n: USize) returns Vec__call_Set_USize
-    func len(self: Vec__call_Set_USize) returns USize
-    func clear(mut self: Vec__call_Set_USize)
-    func delete_marked(mut self: Vec__call_Set_USize, marks: Dynamic)
-    func push(mut self: Vec__call_Set_USize, own val: Set__USize)
-    func append(mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
-    func take(mut self: Vec__call_Set_USize) returns Vec__call_Set_USize
-    func move_to(own self: Vec__call_Set_USize, mut dest: Vec__call_Set_USize)
-    func move_from(mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
-    func unsafe_get(self: Vec__call_Set_USize, i: USize) returns ref Set__USize
-    func get(self: Vec__call_Set_USize, shallow i: USize) returns ref Set__USize throws OutOfBounds
-    func pop(mut self: Vec__call_Set_USize) returns Set__USize
-    func remove_at(mut self: Vec__call_Set_USize, i: USize) throws OutOfBounds
-    func take_prefix(mut self: Vec__call_Set_USize, n: USize) returns Vec__call_Set_USize
-    func truncate(mut self: Vec__call_Set_USize, n: USize)
-    func unsafe_set(mut self: Vec__call_Set_USize, i: USize, own val: Set__USize)
-    func set(mut self: Vec__call_Set_USize, i: USize, own val: Set__USize) throws OutOfBounds
-    func push_take(mut self: Vec__call_Set_USize, mut src: Vec__call_Set_USize, i: USize)
-    func delete(own self: Vec__call_Set_USize, call_free: Bool = true)
-    func clone(self: Vec__call_Set_USize) returns Vec__call_Set_USize
+    func new() returns Vec__Set__USize
+    func with_capacity(n: USize) returns Vec__Set__USize
+    func len(self: Vec__Set__USize) returns USize
+    func clear(mut self: Vec__Set__USize)
+    func delete_marked(mut self: Vec__Set__USize, marks: Dynamic)
+    func push(mut self: Vec__Set__USize, own val: Set__USize)
+    func append(mut self: Vec__Set__USize, own other: Vec__Set__USize)
+    func take(mut self: Vec__Set__USize) returns Vec__Set__USize
+    func move_to(own self: Vec__Set__USize, mut dest: Vec__Set__USize)
+    func move_from(mut self: Vec__Set__USize, own other: Vec__Set__USize)
+    func unsafe_get(self: Vec__Set__USize, i: USize) returns ref Set__USize
+    func get(self: Vec__Set__USize, shallow i: USize) returns ref Set__USize throws OutOfBounds
+    func pop(mut self: Vec__Set__USize) returns Set__USize
+    func remove_at(mut self: Vec__Set__USize, i: USize) throws OutOfBounds
+    func take_prefix(mut self: Vec__Set__USize, n: USize) returns Vec__Set__USize
+    func truncate(mut self: Vec__Set__USize, n: USize)
+    func unsafe_set(mut self: Vec__Set__USize, i: USize, own val: Set__USize)
+    func set(mut self: Vec__Set__USize, i: USize, own val: Set__USize) throws OutOfBounds
+    func push_take(mut self: Vec__Set__USize, mut src: Vec__Set__USize, i: USize)
+    func delete(own self: Vec__Set__USize, call_free: Bool = true)
+    func clone(self: Vec__Set__USize) returns Vec__Set__USize
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.new">Vec__call_Set_USize.new</a>
-<pre><code class="language-til">func () returns Vec__call_Set_USize
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.new">Vec__Set__USize.new</a>
+<pre><code class="language-til">func () returns Vec__Set__USize
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.with_capacity">Vec__call_Set_USize.with_capacity</a>
-<pre><code class="language-til">func (n: USize) returns Vec__call_Set_USize
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.with_capacity">Vec__Set__USize.with_capacity</a>
+<pre><code class="language-til">func (n: USize) returns Vec__Set__USize
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.clear">Vec__call_Set_USize.clear</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_USize)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.clear">Vec__Set__USize.clear</a>
+<pre><code class="language-til">func (mut self: Vec__Set__USize)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.delete_marked">Vec__call_Set_USize.delete_marked</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_USize, marks: Dynamic)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.delete_marked">Vec__Set__USize.delete_marked</a>
+<pre><code class="language-til">func (mut self: Vec__Set__USize, marks: Dynamic)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.push">Vec__call_Set_USize.push</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_USize, own val: Set__USize)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.push">Vec__Set__USize.push</a>
+<pre><code class="language-til">func (mut self: Vec__Set__USize, own val: Set__USize)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.append">Vec__call_Set_USize.append</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.append">Vec__Set__USize.append</a>
+<pre><code class="language-til">func (mut self: Vec__Set__USize, own other: Vec__Set__USize)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.take">Vec__call_Set_USize.take</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_USize) returns Vec__call_Set_USize
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.take">Vec__Set__USize.take</a>
+<pre><code class="language-til">func (mut self: Vec__Set__USize) returns Vec__Set__USize
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.move_to">Vec__call_Set_USize.move_to</a>
-<pre><code class="language-til">func (own self: Vec__call_Set_USize, mut dest: Vec__call_Set_USize)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.move_to">Vec__Set__USize.move_to</a>
+<pre><code class="language-til">func (own self: Vec__Set__USize, mut dest: Vec__Set__USize)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.move_from">Vec__call_Set_USize.move_from</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_USize, own other: Vec__call_Set_USize)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.move_from">Vec__Set__USize.move_from</a>
+<pre><code class="language-til">func (mut self: Vec__Set__USize, own other: Vec__Set__USize)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.unsafe_get">Vec__call_Set_USize.unsafe_get</a>
-<pre><code class="language-til">func (self: Vec__call_Set_USize, i: USize) returns ref Set__USize
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.unsafe_get">Vec__Set__USize.unsafe_get</a>
+<pre><code class="language-til">func (self: Vec__Set__USize, i: USize) returns ref Set__USize
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.get">Vec__call_Set_USize.get</a>
-<pre><code class="language-til">func (self: Vec__call_Set_USize, shallow i: USize) returns ref Set__USize throws OutOfBounds
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.get">Vec__Set__USize.get</a>
+<pre><code class="language-til">func (self: Vec__Set__USize, shallow i: USize) returns ref Set__USize throws OutOfBounds
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.pop">Vec__call_Set_USize.pop</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_USize) returns Set__USize
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.pop">Vec__Set__USize.pop</a>
+<pre><code class="language-til">func (mut self: Vec__Set__USize) returns Set__USize
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.remove_at">Vec__call_Set_USize.remove_at</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_USize, i: USize) throws OutOfBounds
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.remove_at">Vec__Set__USize.remove_at</a>
+<pre><code class="language-til">func (mut self: Vec__Set__USize, i: USize) throws OutOfBounds
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.take_prefix">Vec__call_Set_USize.take_prefix</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_USize, n: USize) returns Vec__call_Set_USize
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.take_prefix">Vec__Set__USize.take_prefix</a>
+<pre><code class="language-til">func (mut self: Vec__Set__USize, n: USize) returns Vec__Set__USize
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.truncate">Vec__call_Set_USize.truncate</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_USize, n: USize)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.truncate">Vec__Set__USize.truncate</a>
+<pre><code class="language-til">func (mut self: Vec__Set__USize, n: USize)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.unsafe_set">Vec__call_Set_USize.unsafe_set</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_USize, i: USize, own val: Set__USize)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.unsafe_set">Vec__Set__USize.unsafe_set</a>
+<pre><code class="language-til">func (mut self: Vec__Set__USize, i: USize, own val: Set__USize)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.set">Vec__call_Set_USize.set</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_USize, i: USize, own val: Set__USize) throws OutOfBounds
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.set">Vec__Set__USize.set</a>
+<pre><code class="language-til">func (mut self: Vec__Set__USize, i: USize, own val: Set__USize) throws OutOfBounds
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.push_take">Vec__call_Set_USize.push_take</a>
-<pre><code class="language-til">func (mut self: Vec__call_Set_USize, mut src: Vec__call_Set_USize, i: USize)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.push_take">Vec__Set__USize.push_take</a>
+<pre><code class="language-til">func (mut self: Vec__Set__USize, mut src: Vec__Set__USize, i: USize)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.delete">Vec__call_Set_USize.delete</a>
-<pre><code class="language-til">func (own self: Vec__call_Set_USize, call_free: Bool = true)
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.delete">Vec__Set__USize.delete</a>
+<pre><code class="language-til">func (own self: Vec__Set__USize, call_free: Bool = true)
 </code></pre>
 </li>
-<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__call_Set_USize.clone">Vec__call_Set_USize.clone</a>
-<pre><code class="language-til">func (self: Vec__call_Set_USize) returns Vec__call_Set_USize
+<li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.Vec__Set__USize.clone">Vec__Set__USize.clone</a>
+<pre><code class="language-til">func (self: Vec__Set__USize) returns Vec__Set__USize
 </code></pre>
 </li>
 <li><a href="src/self/codegen/holyc_codegen.html#til.src.self.codegen.holyc_codegen.adopt__Map__Str_Bool">adopt__Map__Str_Bool</a>
@@ -19461,6 +19721,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec) returns Vec__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </li>
@@ -19760,6 +20021,7 @@ namespace:
     func to_str(self: EditAction) returns Str
     func clone(self: EditAction) returns EditAction
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: EditAction, b: EditAction) returns Bool
     func gt(a: EditAction, b: EditAction) returns Bool
     func neq(a: EditAction, b: EditAction) returns Bool
@@ -19787,6 +20049,7 @@ namespace:
     mut saved_cursor : USize
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ReplEditor) returns ReplEditor
     func delete(own self: ReplEditor, call_free: Bool = true)
 }
@@ -19798,6 +20061,7 @@ namespace:
     mut params : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: AnsiDecoder) returns AnsiDecoder
     func delete(own self: AnsiDecoder, call_free: Bool = true)
     func hash(self: AnsiDecoder, hasher: HashFn) returns U64

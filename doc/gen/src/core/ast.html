@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-389200c8c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e8e3f66</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -142,6 +142,7 @@ namespace:
     func to_str(self: Primitive) returns Str
     func clone(self: Primitive) returns Primitive
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Primitive, b: Primitive) returns Bool
     func gt(a: Primitive, b: Primitive) returns Bool
     func neq(a: Primitive, b: Primitive) returns Bool
@@ -200,6 +201,7 @@ namespace:
     func to_str(self: Type) returns Str
     func clone(self: Type) returns Type
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Type, b: Type) returns Bool
     func gt(a: Type, b: Type) returns Bool
     func neq(a: Type, b: Type) returns Bool
@@ -252,6 +254,7 @@ namespace:
     func to_str(self: FuncType) returns Str
     func clone(self: FuncType) returns FuncType
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: FuncType, b: FuncType) returns Bool
     func gt(a: FuncType, b: FuncType) returns Bool
     func neq(a: FuncType, b: FuncType) returns Bool
@@ -293,6 +296,7 @@ namespace:
     func to_str(self: OwnType) returns Str
     func clone(self: OwnType) returns OwnType
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: OwnType, b: OwnType) returns Bool
     func gt(a: OwnType, b: OwnType) returns Bool
     func neq(a: OwnType, b: OwnType) returns Bool
@@ -331,6 +335,7 @@ namespace:
     func to_str(self: GcStorage) returns Str
     func clone(self: GcStorage) returns GcStorage
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: GcStorage, b: GcStorage) returns Bool
     func gt(a: GcStorage, b: GcStorage) returns Bool
     func neq(a: GcStorage, b: GcStorage) returns Bool
@@ -359,6 +364,7 @@ namespace:
     func to_str(self: Option__Expr) returns Str
     func clone(self: Option__Expr) returns Option__Expr
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </article>
@@ -428,6 +434,7 @@ namespace:
     func type_name(self: Declaration) returns Str
     func default_expr(self: Declaration) returns ref Expr
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Declaration) returns Declaration
     func delete(own self: Declaration, call_free: Bool = true)
     func hash(self: Declaration, hasher: HashFn) returns U64
@@ -465,6 +472,7 @@ namespace:
     func eq(a: FuncSig, b: FuncSig) returns Bool
     func to_str(self: FuncSig) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FuncSig) returns FuncSig
     func delete(own self: FuncSig, call_free: Bool = true)
     func hash(self: FuncSig, hasher: HashFn) returns U64
@@ -495,6 +503,7 @@ namespace:
     func eq(a: FunctionDef, b: FunctionDef) returns Bool
     func to_str(self: FunctionDef) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FunctionDef) returns FunctionDef
     func delete(own self: FunctionDef, call_free: Bool = true)
     func hash(self: FunctionDef, hasher: HashFn) returns U64
@@ -542,10 +551,12 @@ markers in fcall.children:</p>
     mut panic_on_error : Bool
     mut is_bang_check : Bool
     mut cast_path : U32
+    mut storage_size_read : Bool
 namespace:
     func eq(_a: FCallData, _b: FCallData) returns Bool
     func to_str(_self: FCallData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FCallData) returns FCallData
     func delete(own self: FCallData, call_free: Bool = true)
     func hash(self: FCallData, hasher: HashFn) returns U64
@@ -580,6 +591,7 @@ namespace:
     func literal_num_text(self: LiteralNumData) returns ref Str
     func is_float(self: LiteralNumData) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: LiteralNumData) returns LiteralNumData
     func delete(own self: LiteralNumData, call_free: Bool = true)
     func hash(self: LiteralNumData, hasher: HashFn) returns U64
@@ -617,6 +629,7 @@ namespace:
     func ident_sym(self: IdentData) returns U32
     func ident_name(self: IdentData, names: Vec__Str) returns ref Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: IdentData) returns IdentData
     func delete(own self: IdentData, call_free: Bool = true)
     func hash(self: IdentData, hasher: HashFn) returns U64
@@ -647,6 +660,7 @@ namespace:
     func field_access_sym(self: FieldAccessData) returns U32
     func field_access_name(self: FieldAccessData, names: Vec__Str) returns ref Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FieldAccessData) returns FieldAccessData
     func delete(own self: FieldAccessData, call_free: Bool = true)
     func hash(self: FieldAccessData, hasher: HashFn) returns U64
@@ -689,6 +703,7 @@ namespace:
     func member_name_at(self: StructDef, i: USize) returns ref Str
     func member_at(self: StructDef, i: USize) returns ref Declaration
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: StructDef) returns StructDef
     func delete(own self: StructDef, call_free: Bool = true)
 }
@@ -794,6 +809,7 @@ namespace:
     func eq(a: VariantDef, b: VariantDef) returns Bool
     func to_str(self: VariantDef) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: VariantDef) returns VariantDef
     func delete(own self: VariantDef, call_free: Bool = true)
     func hash(self: VariantDef, hasher: HashFn) returns U64
@@ -840,6 +856,7 @@ namespace:
     func member_name_at(self: EnumDef, i: USize) returns ref Str
     func member_at(self: EnumDef, i: USize) returns ref Declaration
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: EnumDef) returns EnumDef
     func delete(own self: EnumDef, call_free: Bool = true)
 }
@@ -889,6 +906,7 @@ namespace:
     func eq(a: FieldLayout, b: FieldLayout) returns Bool
     func to_str(self: FieldLayout) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FieldLayout) returns FieldLayout
     func delete(own self: FieldLayout, call_free: Bool = true)
     func hash(self: FieldLayout, hasher: HashFn) returns U64
@@ -913,6 +931,7 @@ namespace:
     func eq(a: StructLayout, b: StructLayout) returns Bool
     func to_str(self: StructLayout) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: StructLayout) returns StructLayout
     func delete(own self: StructLayout, call_free: Bool = true)
     func hash(self: StructLayout, hasher: HashFn) returns U64
@@ -935,6 +954,7 @@ namespace:
     func eq(a: AssignData, b: AssignData) returns Bool
     func to_str(self: AssignData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: AssignData) returns AssignData
     func delete(own self: AssignData, call_free: Bool = true)
     func hash(self: AssignData, hasher: HashFn) returns U64
@@ -959,6 +979,7 @@ namespace:
     func eq(a: FieldAssignData, b: FieldAssignData) returns Bool
     func to_str(self: FieldAssignData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: FieldAssignData) returns FieldAssignData
     func delete(own self: FieldAssignData, call_free: Bool = true)
     func hash(self: FieldAssignData, hasher: HashFn) returns U64
@@ -989,6 +1010,7 @@ namespace:
     func eq(a: ForInData, b: ForInData) returns Bool
     func to_str(self: ForInData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ForInData) returns ForInData
     func delete(own self: ForInData, call_free: Bool = true)
     func hash(self: ForInData, hasher: HashFn) returns U64
@@ -1029,6 +1051,7 @@ namespace:
     func to_str(self: Literal) returns Str
     func clone(self: Literal) returns Literal
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </article>
@@ -1046,6 +1069,7 @@ namespace:
     func eq(a: MatchData, b: MatchData) returns Bool
     func to_str(_self: MatchData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: MatchData) returns MatchData
     func delete(own self: MatchData, call_free: Bool = true)
     func hash(self: MatchData, hasher: HashFn) returns U64
@@ -1075,6 +1099,7 @@ namespace:
     func eq(a: CaseData, b: CaseData) returns Bool
     func to_str(_self: CaseData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: CaseData) returns CaseData
     func delete(own self: CaseData, call_free: Bool = true)
     func hash(self: CaseData, hasher: HashFn) returns U64
@@ -1105,6 +1130,7 @@ namespace:
     func eq(a: CaptureBlockData, b: CaptureBlockData) returns Bool
     func to_str(_self: CaptureBlockData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: CaptureBlockData) returns CaptureBlockData
     func delete(own self: CaptureBlockData, call_free: Bool = true)
     func hash(self: CaptureBlockData, hasher: HashFn) returns U64
@@ -1129,6 +1155,7 @@ namespace:
     func eq(a: PrecomputedSequenceData, b: PrecomputedSequenceData) returns Bool
     func to_str(_self: PrecomputedSequenceData) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: PrecomputedSequenceData) returns PrecomputedSequenceData
     func delete(own self: PrecomputedSequenceData, call_free: Bool = true)
     func hash(self: PrecomputedSequenceData, hasher: HashFn) returns U64
@@ -1306,6 +1333,7 @@ namespace:
     func delete(own self: NodeType, call_free: Bool = true)
     func clone(self: NodeType) returns NodeType
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </article>
@@ -1336,6 +1364,7 @@ namespace:
     func to_str_with_symbols(self: Expr, names: Vec__Str) returns Str
     func to_str(_self: Expr) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Expr) returns Expr
     func hash(self: Expr, hasher: HashFn) returns U64
 }
@@ -1497,6 +1526,7 @@ namespace:
     func to_str(self: Option__ref_Declaration) returns Str
     func clone(self: Option__ref_Declaration) returns Option__ref_Declaration
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </article>
@@ -1551,6 +1581,7 @@ namespace:
     func to_str(self: Option__ref_Str) returns Str
     func clone(self: Option__ref_Str) returns Option__ref_Str
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__ref_Str, b: Option__ref_Str) returns Bool
     func gt(a: Option__ref_Str, b: Option__ref_Str) returns Bool
     func neq(a: Option__ref_Str, b: Option__ref_Str) returns Bool
@@ -1607,6 +1638,7 @@ namespace:
     func delete(own self: Map__Str_USize, call_free: Bool = true)
     func clone(self: Map__Str_USize) returns Map__Str_USize
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_USize, hasher: HashFn) returns U64
 }
 </code></pre>
@@ -1710,6 +1742,7 @@ namespace:
     func delete(own self: Vec__VariantDef, call_free: Bool = true)
     func clone(self: Vec__VariantDef) returns Vec__VariantDef
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </article>
@@ -1976,6 +2009,7 @@ namespace:
     func delete(own self: Vec__FieldLayout, call_free: Bool = true)
     func clone(self: Vec__FieldLayout) returns Vec__FieldLayout
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </article>
@@ -2242,6 +2276,7 @@ namespace:
     func delete(own self: Vec__Declaration, call_free: Bool = true)
     func clone(self: Vec__Declaration) returns Vec__Declaration
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </article>
@@ -2508,6 +2543,7 @@ namespace:
     func delete(own self: Vec__Expr, call_free: Bool = true)
     func clone(self: Vec__Expr) returns Vec__Expr
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </article>
@@ -2774,6 +2810,7 @@ namespace:
     func delete(own self: Vec__USize, call_free: Bool = true)
     func clone(self: Vec__USize) returns Vec__USize
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </article>

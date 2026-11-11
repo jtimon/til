@@ -1,5 +1,5 @@
 #+TITLE: src/std/hashmap.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * HASHMAP_INIT_BUCKETS
@@ -56,6 +56,7 @@ namespace:
     func delete(own self: Vec__I64, call_free: Bool = true)
     func clone(self: Vec__I64) returns Vec__I64
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -388,6 +389,7 @@ namespace:
     func delete(own self: Vec__U64, call_free: Bool = true)
     func clone(self: Vec__U64) returns Vec__U64
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

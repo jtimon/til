@@ -1,5 +1,5 @@
 #+TITLE: src/core/str.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * CAP_LIT
@@ -75,6 +75,7 @@ struct Utf8Read {
     mut incomplete : Bool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Utf8Read) returns Utf8Read
     func delete(own self: Utf8Read, call_free: Bool = true)
     func hash(self: Utf8Read, hasher: HashFn) returns U64
@@ -151,6 +152,7 @@ namespace:
     func to_f64(self: Str) returns F64
     func split(self: Str, delim: Str) returns Vec__Str
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Str, b: Str) returns Bool
     func gt(a: Str, b: Str) returns Bool
     func neq(a: Str, b: Str) returns Bool
@@ -790,6 +792,7 @@ fieldless error, avoiding an allocation on every successful accessor call.
 struct OutOfBounds {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: OutOfBounds) returns OutOfBounds
     func delete(own self: OutOfBounds, call_free: Bool = true)
     func hash(self: OutOfBounds, hasher: HashFn) returns U64
@@ -817,6 +820,7 @@ absent. The throw tag identifies this fieldless error.
 struct KeyNotFound {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: KeyNotFound) returns KeyNotFound
     func delete(own self: KeyNotFound, call_free: Bool = true)
     func hash(self: KeyNotFound, hasher: HashFn) returns U64
@@ -853,6 +857,7 @@ namespace:
     func to_vec(self: Array__Str) returns Vec__Str
     func clone(self: Array__Str) returns Array__Str
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -992,6 +997,7 @@ namespace:
     func delete(own self: Vec__Str, call_free: Bool = true)
     func clone(self: Vec__Str) returns Vec__Str
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

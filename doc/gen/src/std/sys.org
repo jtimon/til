@@ -1,5 +1,5 @@
 #+TITLE: src/std/sys.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * system_cmd
@@ -436,6 +436,7 @@ namespace:
     proc err(self: Cmd) returns Str
     func delete(own self: Cmd, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Cmd) returns Cmd
 }
 #+end_src

@@ -720,6 +720,48 @@ priv fold_generated_sizes_to_target := proc(mut lp: LoadedProgram) {
         context_enter_file(lp.ctx, upath)
         fold_generated_sizes_in(lp.ctx.imported[upath].ast, lp.ctx)
         retarget_generated_hashes_in(lp.ctx.imported[upath].ast, lp.ctx)
+        check_generated_sizes_for_target_in(lp.ctx.imported[upath].ast, lp.ctx)
+    }
+}
+
+priv first_numeric_literal_text := func(e: Expr) returns Str {
+    switch e.node_type {
+    case .Literal(Literal.Num(number)): return number.text.clone()
+    case:
+    }
+    for child : Expr in e.children {
+        text := first_numeric_literal_text(child)
+        if text.len() > 0 { return text }
+    }
+    return ""
+}
+
+// #472 (F3): a generated size_for_target() carries its number from the
+// moment the method was generated, because compile-time code may fold it
+// long before emission. That is only sound if the layout computation gave
+// the same answer then as it gives now, with every type resolved. Check it
+// for every type, here where the answer is final: a number that moved was
+// already used by a macro or a generator condition, so this is a compiler
+// bug to stop on, not something to patch up.
+priv check_generated_sizes_for_target_in := func(program: Expr, ctx: Context) {
+    for stmt : Expr in program.children {
+        if is_struct_or_enum(stmt).not() { continue }
+        ref def : Expr = stmt.children[0]
+        member_o := def_ns_get(def, "size_for_target")
+        if member_o.is_none() { continue }
+        ref member : Declaration = member_o.unwrap()
+        if member.default_value.is_none() { continue }
+        if member.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+        if funcdef_of(member.default_expr()).auto_generated.not() { continue }
+        // A forwarder to the type's own size() has no literal.
+        generated := first_numeric_literal_text(member.default_expr())
+        if generated.len() == 0 { continue }
+        ref type_name : Str = decl_of(stmt).name
+        current := target_value_size(type_name, ctx.scope, ctx).to_str()
+        if generated != current {
+            panic("size_for_target() of ", type_name, " was generated as ", generated,
+                " but its target layout is ", current)
+        }
     }
 }
 
@@ -768,6 +810,36 @@ priv retarget_generated_hashes_in := proc(mut program: Expr, ctx: Context) {
     }
 }
 
+priv size_for_target_calls_to_size := proc(mut e: Expr, ctx: Context) {
+    for mut child : Expr in e.children { size_for_target_calls_to_size(child, ctx) }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref mut members : Vec(Declaration) = def_ns_decls(e)
+        for mut member : Declaration in members {
+            if member.default_value.is_none() { continue }
+            size_for_target_calls_to_size(member.default_expr(), ctx)
+        }
+        return
+    }
+    if e.node_type.is(NodeType.FCall).not().or(e.children.len() != 1) { return }
+    called := fcall_callee_fdef(e, ctx.scope, ctx.symbols)
+    if called.is_none() { return }
+    if funcdef_of(called.unwrap()).auto_generated.not() { return }
+    ref callee : Expr = e.children[0]
+    if callee.node_type.is(NodeType.FieldAccess).not() { return }
+    if fieldaccess_of(callee).field_access_name(ctx.symbols.names) != "size_for_target" { return }
+    mut renamed := Expr.new(own field_access_node(ctx.symbols.lookup("size").unwrap()), callee.line, callee.col)
+    renamed.set_til_type(callee.til_type())
+    renamed.add_child(own callee.children[0].clone())
+    e.children[0] = renamed
+}
+
+priv holyc_size_for_target_is_size := proc(mut lp: LoadedProgram) {
+    for upath : Str in lp.unit_paths() {
+        context_enter_file(lp.ctx, upath)
+        size_for_target_calls_to_size(lp.ctx.imported[upath].ast, lp.ctx)
+    }
+}
+
 priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths, target: Target, functions: Set(Str) = Set(Str).new()) returns I32 {
     if lp.mode_str == "theme" {
         return theme_codegen_translate(lp, paths.theme_path)
@@ -775,7 +847,10 @@ priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths, target: Tar
     // HolyC lays aggregates out differently from C (payload enums,
     // pointer-bearing structs), so its emitter keeps spelling sizes as its
     // own sizeof; til's target layout computation describes the C targets.
-    if target_lang(target).is(Lang.HolyC).not() { fold_generated_sizes_to_target(lp) }
+    // In the built program size_for_target() IS size(), so the calls that
+    // reach emission are handed to that same path.
+    if target_lang(target).is(Lang.HolyC) { holyc_size_for_target_is_size(lp) }
+    else { fold_generated_sizes_to_target(lp) }
     switch paths.backend {
     case "mlir":
         if c_codegen_translate_runtime(lp, paths.runtime_c_path, paths.runtime_fwd_path, paths.name) != 0 { return 1 }

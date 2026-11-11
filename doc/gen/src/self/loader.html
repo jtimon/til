@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-389200c8c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e8e3f66</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -135,6 +135,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     mut path : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ProgramUnit) returns ProgramUnit
     func delete(own self: ProgramUnit, call_free: Bool = true)
     func hash(self: ProgramUnit, hasher: HashFn) returns U64
@@ -159,6 +160,7 @@ namespace:
     mut written : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: TargetLink) returns TargetLink
     func delete(own self: TargetLink, call_free: Bool = true)
     func hash(self: TargetLink, hasher: HashFn) returns U64
@@ -213,6 +215,7 @@ namespace:
 namespace:
     func uses_shared_runtime(self: LoadedProgram) returns Bool
     func runtime_abi_id(self: LoadedProgram) returns Str
+    func runtime_abi_tail(self: LoadedProgram) returns Str
     func runtime_stem(self: LoadedProgram) returns Str
     func runtime_shared_basename(self: LoadedProgram) returns Str
     func core_stem(self: LoadedProgram) returns Str
@@ -222,6 +225,7 @@ namespace:
     func include_flags_for_target(self: LoadedProgram) returns Str
     func delete(own self: LoadedProgram, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: LoadedProgram) returns LoadedProgram
 }
 </code></pre>
@@ -255,6 +259,7 @@ namespace:
     mut hidden : Bool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: DocMeta) returns DocMeta
     func delete(own self: DocMeta, call_free: Bool = true)
     func hash(self: DocMeta, hasher: HashFn) returns U64
@@ -467,6 +472,7 @@ namespace:
     func delete(own self: Vec__TargetLink, call_free: Bool = true)
     func clone(self: Vec__TargetLink) returns Vec__TargetLink
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </article>
@@ -733,6 +739,7 @@ namespace:
     func delete(own self: Vec__ProgramUnit, call_free: Bool = true)
     func clone(self: Vec__ProgramUnit) returns Vec__ProgramUnit
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </article>
@@ -999,6 +1006,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_loader_til__ImportCheckEntry, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_loader_til__ImportCheckEntry) returns Vec__priv___src_self_loader_til__ImportCheckEntry
     func size() returns USize
+    func size_for_target() returns USize
 }
 </code></pre>
 </article>

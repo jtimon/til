@@ -15871,7 +15871,9 @@ priv builder_size_method_omitted := func(type_name: Str, member: Str, ctx: Conte
     // hand for the primitives (`func() returns USize { return 1 }`), and
     // the argument is the same either way -- the constfolder folds every
     // call to a literal, so the out-of-line definition has no caller.
-    if member.eq("size").not() { return false }
+    // `size_for_target` (#472) is the same case: a literal body, folded at
+    // its call sites, and written by hand for the same primitives.
+    if member.eq("size").or(member.eq("size_for_target")).not() { return false }
     if ctx.builder_keep_all_exports { return false }
     // The generated C that could still call it. A `_dyn` wrapper does, so
     // ask the same predicate that decides whether one is emitted at all --

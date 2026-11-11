@@ -63,7 +63,12 @@ namespace:
     delete := func(own self: U8, call_free: Bool = true) {
         if call_free { free(own self) }
     }
+    /// Size of one value in bytes, in the program that runs this call.
     size := func() returns USize { return 1 }
+    /// Size of one value in bytes, in the program being built. Compile-time
+    /// code that decides something from the built program's layout (a macro,
+    /// a generator condition) asks this; everything else asks size().
+    size_for_target := func() returns USize { return 1 }
 
     /// Addition that throws IntegerOverflow on unsigned wrap.
     /// Use U8.add for the wrapping variant.
@@ -145,7 +150,12 @@ namespace:
     delete := func(own self: U16, call_free: Bool = true) {
         if call_free { free(own self) }
     }
+    /// Size of one value in bytes, in the program that runs this call.
     size := func() returns USize { return 2 }
+    /// Size of one value in bytes, in the program being built. Compile-time
+    /// code that decides something from the built program's layout (a macro,
+    /// a generator condition) asks this; everything else asks size().
+    size_for_target := func() returns USize { return 2 }
 
     /// Addition that throws IntegerOverflow on unsigned wrap.
     /// Use U16.add for the wrapping variant.
@@ -233,7 +243,12 @@ namespace:
     delete := func(own self: U32, call_free: Bool = true) {
         if call_free { free(own self) }
     }
+    /// Size of one value in bytes, in the program that runs this call.
     size := func() returns USize { return 4 }
+    /// Size of one value in bytes, in the program being built. Compile-time
+    /// code that decides something from the built program's layout (a macro,
+    /// a generator condition) asks this; everything else asks size().
+    size_for_target := func() returns USize { return 4 }
 
     /// Addition that throws IntegerOverflow on unsigned wrap.
     /// Use U32.add for the wrapping variant.
@@ -323,7 +338,12 @@ namespace:
     delete := func(own self: U64, call_free: Bool = true) {
         if call_free { free(own self) }
     }
+    /// Size of one value in bytes, in the program that runs this call.
     size := func() returns USize { return 8 }
+    /// Size of one value in bytes, in the program being built. Compile-time
+    /// code that decides something from the built program's layout (a macro,
+    /// a generator condition) asks this; everything else asks size().
+    size_for_target := func() returns USize { return 8 }
 
     /// Addition that throws IntegerOverflow on unsigned wrap.
     /// Use U64.add for the wrapping variant.
@@ -409,7 +429,12 @@ namespace:
     delete := func(own self: I8, call_free: Bool = true) {
         if call_free { free(own self) }
     }
+    /// Size of one value in bytes, in the program that runs this call.
     size := func() returns USize { return 1 }
+    /// Size of one value in bytes, in the program being built. Compile-time
+    /// code that decides something from the built program's layout (a macro,
+    /// a generator condition) asks this; everything else asks size().
+    size_for_target := func() returns USize { return 1 }
     /// Minimum representable value.
     MIN : I8 = -128
     /// Maximum representable value.
@@ -462,7 +487,12 @@ namespace:
     delete := func(own self: I16, call_free: Bool = true) {
         if call_free { free(own self) }
     }
+    /// Size of one value in bytes, in the program that runs this call.
     size := func() returns USize { return 2 }
+    /// Size of one value in bytes, in the program being built. Compile-time
+    /// code that decides something from the built program's layout (a macro,
+    /// a generator condition) asks this; everything else asks size().
+    size_for_target := func() returns USize { return 2 }
 
     /// Addition that throws IntegerOverflow on signed wrap.
     /// Use I16.add for the wrapping variant.
@@ -567,7 +597,12 @@ namespace:
     delete := func(own self: I32, call_free: Bool = true) {
         if call_free { free(own self) }
     }
+    /// Size of one value in bytes, in the program that runs this call.
     size := func() returns USize { return 4 }
+    /// Size of one value in bytes, in the program being built. Compile-time
+    /// code that decides something from the built program's layout (a macro,
+    /// a generator condition) asks this; everything else asks size().
+    size_for_target := func() returns USize { return 4 }
 
     /// Addition that throws IntegerOverflow on signed wrap.
     /// Use I32.add for the wrapping variant.
@@ -690,7 +725,12 @@ namespace:
     delete := func(own self: I64, call_free: Bool = true) {
         if call_free { free(own self) }
     }
+    /// Size of one value in bytes, in the program that runs this call.
     size := func() returns USize { return 8 }
+    /// Size of one value in bytes, in the program being built. Compile-time
+    /// code that decides something from the built program's layout (a macro,
+    /// a generator condition) asks this; everything else asks size().
+    size_for_target := func() returns USize { return 8 }
 
     /// Issue #198: division that throws DivideByZero when dividing by
     /// zero. Use I64.div for the zero-result variant.
@@ -788,7 +828,12 @@ namespace:
     delete := func(own self: F32, call_free: Bool = true) {
         if call_free { free(own self) }
     }
+    /// Size of one value in bytes, in the program that runs this call.
     size := func() returns USize { return 4 }
+    /// Size of one value in bytes, in the program being built. Compile-time
+    /// code that decides something from the built program's layout (a macro,
+    /// a generator condition) asks this; everything else asks size().
+    size_for_target := func() returns USize { return 4 }
 
     /// Division that throws DivideByZero when dividing by zero.
     /// Reuses the DivideByZero type defined below.
@@ -837,7 +882,12 @@ namespace:
     delete := func(own self: F64, call_free: Bool = true) {
         if call_free { free(own self) }
     }
+    /// Size of one value in bytes, in the program that runs this call.
     size := func() returns USize { return 8 }
+    /// Size of one value in bytes, in the program being built. Compile-time
+    /// code that decides something from the built program's layout (a macro,
+    /// a generator condition) asks this; everything else asks size().
+    size_for_target := func() returns USize { return 8 }
 
     /// Division that throws DivideByZero when dividing by zero.
     /// Use F64.div for the silent (NaN/Inf) variant.

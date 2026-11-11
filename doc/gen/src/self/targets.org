@@ -1,5 +1,5 @@
 #+TITLE: src/self/targets.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * Lang
@@ -24,6 +24,7 @@ namespace:
     func to_str(self: Lang) returns Str
     func clone(self: Lang) returns Lang
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Lang, b: Lang) returns Bool
     func gt(a: Lang, b: Lang) returns Bool
     func neq(a: Lang, b: Lang) returns Bool
@@ -72,6 +73,7 @@ namespace:
     func to_str(self: Target) returns Str
     func clone(self: Target) returns Target
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Target, b: Target) returns Bool
     func gt(a: Target, b: Target) returns Bool
     func neq(a: Target, b: Target) returns Bool
@@ -153,6 +155,7 @@ struct TargetCpu {
     mut c_flags : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: TargetCpu) returns TargetCpu
     func delete(own self: TargetCpu, call_free: Bool = true)
     func hash(self: TargetCpu, hasher: HashFn) returns U64

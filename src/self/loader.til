@@ -636,6 +636,11 @@ priv constfolder_imported := proc(mut lp: LoadedProgram) {
                         .and(enum_has_payloads(stmt.children[0])).not()) { continue }
                 ref decl : Declaration = decl_of(stmt)
                 lp.ctx.constfolder_foldables.remove(format(decl.name, "_size"))
+                // #472: til's target layout computation describes the C
+                // targets; HolyC's own sizeof is the only authority here,
+                // for the built program's size as well (builder.til spells
+                // the surviving calls as size()).
+                lp.ctx.constfolder_foldables.remove(format(decl.name, "_size_for_target"))
             }
         }
     }

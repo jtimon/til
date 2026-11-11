@@ -1,5 +1,5 @@
 #+TITLE: src/std/dyn_hashmap.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * DynHashMap
@@ -36,6 +36,7 @@ namespace:
     func delete(own self: DynHashMap, call_free: Bool = true)
     func remove(mut self: DynHashMap, key: Dynamic) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: DynHashMap, hasher: HashFn) returns U64
 }
 #+end_src

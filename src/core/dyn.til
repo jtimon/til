@@ -7,6 +7,9 @@ import("str")
 Dynamic : StructDef = struct {
 namespace:
     size := func() returns USize { return UPtr.size() }
+    /// Size of one value in bytes, in the program being built: one pointer.
+    /// See size_for_target on the numeric types.
+    size_for_target := func() returns USize { return UPtr.size() }
     // Generic Vec/Map clone passes a pointer to the Dynamic slot; return a
     // fresh slot so the caller can copy+zero it without clearing the source.
     clone := func(self: Dynamic) returns Dynamic {

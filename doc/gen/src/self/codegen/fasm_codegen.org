@@ -1,5 +1,5 @@
 #+TITLE: src/self/codegen/fasm_codegen.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * fasm_source_declarations
@@ -41,6 +41,7 @@ namespace:
     func delete(own self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition, call_free: Bool = true)
     func clone(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition) returns Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmDefinition, hasher: HashFn) returns U64
 }
 #+end_src
@@ -149,6 +150,7 @@ namespace:
     func delete(own self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal, call_free: Bool = true)
     func clone(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal) returns Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_priv___src_self_codegen_fasm_codegen_til__FasmGlobal, hasher: HashFn) returns U64
 }
 #+end_src
@@ -269,6 +271,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition) returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmDefinition
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -580,6 +583,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal) returns Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

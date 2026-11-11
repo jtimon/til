@@ -1,5 +1,5 @@
 #+TITLE: src/self/desugarer.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * desugar_fcall_args_for_fdef
@@ -166,6 +166,7 @@ struct PendingRefBinding {
     mut col : U32
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: PendingRefBinding) returns PendingRefBinding
     func delete(own self: PendingRefBinding, call_free: Bool = true)
     func hash(self: PendingRefBinding, hasher: HashFn) returns U64
@@ -346,6 +347,7 @@ namespace:
     func delete(own self: Vec__I32, call_free: Bool = true)
     func clone(self: Vec__I32) returns Vec__I32
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -678,6 +680,7 @@ namespace:
     func delete(own self: Vec__PendingRefBinding, call_free: Bool = true)
     func clone(self: Vec__PendingRefBinding) returns Vec__PendingRefBinding
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

@@ -1,5 +1,5 @@
 #+TITLE: src/self/builder.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * fasm_prepare
@@ -111,6 +111,7 @@ struct DocEntry {
     mut deprecated : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: DocEntry) returns DocEntry
     func delete(own self: DocEntry, call_free: Bool = true)
     func hash(self: DocEntry, hasher: HashFn) returns U64
@@ -136,6 +137,7 @@ struct DocCatalog {
     mut entries : Vec__DocEntry
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: DocCatalog) returns DocCatalog
     func delete(own self: DocCatalog, call_free: Bool = true)
     func hash(self: DocCatalog, hasher: HashFn) returns U64
@@ -186,6 +188,7 @@ namespace:
     func delete(own self: Vec__DocEntry, call_free: Bool = true)
     func clone(self: Vec__DocEntry) returns Vec__DocEntry
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

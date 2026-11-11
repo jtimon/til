@@ -1,5 +1,5 @@
 #+TITLE: src/self/interpreter.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * CALLABLE_BOX_MAGIC
@@ -25,6 +25,7 @@ struct InterpCallableBox {
     mut env : Option__Scope
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: InterpCallableBox) returns InterpCallableBox
     func delete(own self: InterpCallableBox, call_free: Bool = true)
 }
@@ -65,6 +66,7 @@ struct HeapBinding {
     mut foreign_root : UPtr
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: HeapBinding) returns HeapBinding
     func delete(own self: HeapBinding, call_free: Bool = true)
 }
@@ -84,6 +86,7 @@ struct Scope {
     mut is_call_scope : Bool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Scope) returns Scope
     func delete(own self: Scope, call_free: Bool = true)
     func hash(self: Scope, hasher: HashFn) returns U64
@@ -109,6 +112,7 @@ struct InterpSession {
 namespace:
     func shared_i64(mut self: InterpSession) returns ref I64
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: InterpSession) returns InterpSession
     func delete(own self: InterpSession, call_free: Bool = true)
     func hash(self: InterpSession, hasher: HashFn) returns U64
@@ -139,6 +143,7 @@ struct TilVmError {
 namespace:
     func to_str(self: TilVmError) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: TilVmError) returns TilVmError
     func delete(own self: TilVmError, call_free: Bool = true)
     func hash(self: TilVmError, hasher: HashFn) returns U64
@@ -164,6 +169,7 @@ namespace:
     func clone(self: TilVmCallback) returns TilVmCallback
     func delete(own self: TilVmCallback, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -222,6 +228,7 @@ struct InterpRunResult {
     mut output : Vec__InterpOutputEvent
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: InterpRunResult) returns InterpRunResult
     func delete(own self: InterpRunResult, call_free: Bool = true)
     func hash(self: InterpRunResult, hasher: HashFn) returns U64
@@ -793,6 +800,7 @@ struct FFIEntry {
 namespace:
     func clone(self: FFIEntry) returns FFIEntry
     func size() returns USize
+    func size_for_target() returns USize
     func delete(own self: FFIEntry, call_free: Bool = true)
 }
 #+end_src
@@ -808,6 +816,7 @@ struct ExprPtrBox {
     ref mut ptr : Expr
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ExprPtrBox) returns ExprPtrBox
     func delete(own self: ExprPtrBox, call_free: Bool = true)
 }
@@ -827,6 +836,7 @@ struct FFITypePtrBox {
 namespace:
     func clone(self: FFITypePtrBox) returns FFITypePtrBox
     func size() returns USize
+    func size_for_target() returns USize
     func delete(own self: FFITypePtrBox, call_free: Bool = true)
 }
 #+end_src
@@ -996,6 +1006,7 @@ namespace:
     func to_str(self: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Str
     func clone(self: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Option__priv___src_self_interpreter_til__InterpSharedI64
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__priv___src_self_interpreter_til__InterpSharedI64, b: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
     func gt(a: Option__priv___src_self_interpreter_til__InterpSharedI64, b: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
     func neq(a: Option__priv___src_self_interpreter_til__InterpSharedI64, b: Option__priv___src_self_interpreter_til__InterpSharedI64) returns Bool
@@ -1062,6 +1073,7 @@ namespace:
     func delete(own self: Option__ref_InterpSession, call_free: Bool = true)
     func clone(self: Option__ref_InterpSession) returns Option__ref_InterpSession
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -1126,6 +1138,7 @@ namespace:
     func to_str(self: Option__ref_U8) returns Str
     func clone(self: Option__ref_U8) returns Option__ref_U8
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__ref_U8, b: Option__ref_U8) returns Bool
     func gt(a: Option__ref_U8, b: Option__ref_U8) returns Bool
     func neq(a: Option__ref_U8, b: Option__ref_U8) returns Bool
@@ -1204,6 +1217,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_interpreter_til__InterfaceCallBox, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_interpreter_til__InterfaceCallBox) returns Vec__priv___src_self_interpreter_til__InterfaceCallBox
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -1524,6 +1538,7 @@ namespace:
     func delete(own self: Map__Str_HeapBinding, call_free: Bool = true)
     func clone(self: Map__Str_HeapBinding) returns Map__Str_HeapBinding
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_HeapBinding, hasher: HashFn) returns U64
 }
 #+end_src
@@ -1640,6 +1655,7 @@ namespace:
     func delete(own self: Option__ref_Dynamic, call_free: Bool = true)
     func clone(self: Option__ref_Dynamic) returns Option__ref_Dynamic
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -1703,6 +1719,7 @@ namespace:
     func to_str(self: Option__FuncSig) returns Str
     func clone(self: Option__FuncSig) returns Option__FuncSig
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -1764,6 +1781,7 @@ namespace:
     func delete(own self: Option__ref_HeapBinding, call_free: Bool = true)
     func clone(self: Option__ref_HeapBinding) returns Option__ref_HeapBinding
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -1825,6 +1843,7 @@ namespace:
     func delete(own self: Option__Tuple, call_free: Bool = true)
     func clone(self: Option__Tuple) returns Option__Tuple
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -1898,6 +1917,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_interpreter_til__DynPtrBox, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_interpreter_til__DynPtrBox) returns Vec__priv___src_self_interpreter_til__DynPtrBox
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -2230,6 +2250,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_interpreter_til__InterpAlias, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_interpreter_til__InterpAlias) returns Vec__priv___src_self_interpreter_til__InterpAlias
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -2550,6 +2571,7 @@ namespace:
     func delete(own self: Option__ref_ffi_type, call_free: Bool = true)
     func clone(self: Option__ref_ffi_type) returns Option__ref_ffi_type
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -2611,6 +2633,7 @@ namespace:
     func to_vec(self: Array__U64) returns Vec__U64
     func clone(self: Array__U64) returns Array__U64
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -2750,6 +2773,7 @@ namespace:
     func delete(own self: Vec__HeapBinding, call_free: Bool = true)
     func clone(self: Vec__HeapBinding) returns Vec__HeapBinding
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

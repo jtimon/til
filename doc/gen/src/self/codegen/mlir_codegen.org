@@ -1,5 +1,5 @@
 #+TITLE: src/self/codegen/mlir_codegen.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * mlir_source_declarations
@@ -77,6 +77,7 @@ namespace:
     func delete(own self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding, call_free: Bool = true)
     func clone(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirBinding, hasher: HashFn) returns U64
 }
 #+end_src
@@ -185,6 +186,7 @@ namespace:
     func delete(own self: Map__Str_U64, call_free: Bool = true)
     func clone(self: Map__Str_U64) returns Map__Str_U64
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_U64, hasher: HashFn) returns U64
 }
 #+end_src
@@ -296,6 +298,7 @@ namespace:
     func to_str(self: Option__U64) returns Str
     func clone(self: Option__U64) returns Option__U64
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__U64, b: Option__U64) returns Bool
     func gt(a: Option__U64, b: Option__U64) returns Bool
     func neq(a: Option__U64, b: Option__U64) returns Bool
@@ -362,6 +365,7 @@ namespace:
     func to_str(self: Option__Bool) returns Str
     func clone(self: Option__Bool) returns Option__Bool
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__Bool, b: Option__Bool) returns Bool
     func gt(a: Option__Bool, b: Option__Bool) returns Bool
     func neq(a: Option__Bool, b: Option__Bool) returns Bool
@@ -437,6 +441,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -736,6 +741,7 @@ namespace:
     func delete(own self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, call_free: Bool = true)
     func clone(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable) returns Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable, hasher: HashFn) returns U64
 }
 #+end_src
@@ -844,6 +850,7 @@ namespace:
     func delete(own self: Map__Str_UPtr, call_free: Bool = true)
     func clone(self: Map__Str_UPtr) returns Map__Str_UPtr
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_UPtr, hasher: HashFn) returns U64
 }
 #+end_src
@@ -952,6 +959,7 @@ namespace:
     func delete(own self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature, call_free: Bool = true)
     func clone(self: Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) returns Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -1010,6 +1018,7 @@ namespace:
     func delete(own self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, call_free: Bool = true)
     func clone(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, hasher: HashFn) returns U64
 }
 #+end_src
@@ -1130,6 +1139,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -1441,6 +1451,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi) returns Vec__priv___src_self_codegen_mlir_codegen_til__MlirLlvmAbi
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

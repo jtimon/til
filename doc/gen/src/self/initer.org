@@ -1,5 +1,5 @@
 #+TITLE: src/self/initer.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * generate_requested_value_method
@@ -215,6 +215,7 @@ struct GenericSources {
     mut late : Bool
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: GenericSources) returns GenericSources
     func delete(own self: GenericSources, call_free: Bool = true)
     func hash(self: GenericSources, hasher: HashFn) returns U64
@@ -361,6 +362,16 @@ proc init_require_comptime_type(name: Str, mut scope: TypeScope, mut ctx: Contex
 proc init_require_simd(elem: Str, width: USize, line: U32, col: U32, mut ctx: Context) returns Str
 #+end_src
 
+* init_require_callable_method
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.initer.init_require_callable_method
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+proc init_require_callable_method(type_name: Str, method: Str, slot_input: Bool, mut ctx: Context) returns Str
+#+end_src
+
 * Map__Str_GenericFuncSource
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.initer.Map__Str_GenericFuncSource
@@ -383,6 +394,7 @@ namespace:
     func delete(own self: Map__Str_GenericFuncSource, call_free: Bool = true)
     func clone(self: Map__Str_GenericFuncSource) returns Map__Str_GenericFuncSource
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_GenericFuncSource, hasher: HashFn) returns U64
 }
 #+end_src
@@ -511,6 +523,7 @@ namespace:
     func delete(own self: Vec__GenericFuncSource, call_free: Bool = true)
     func clone(self: Vec__GenericFuncSource) returns Vec__GenericFuncSource
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

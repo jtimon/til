@@ -1,5 +1,5 @@
 #+TITLE: src/self/eval_heap.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * word_bits
@@ -229,6 +229,7 @@ namespace:
     func set_bool(mut ptr: Dynamic, val: Bool)
     func get_bool(ptr: Dynamic) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: EvalHeap) returns EvalHeap
     func hash(self: EvalHeap, hasher: HashFn) returns U64
     func cmp(a: EvalHeap, b: EvalHeap) returns I64

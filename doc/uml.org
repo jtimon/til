@@ -163,6 +163,7 @@
 *** panic_on_error := false
 *** is_bang_check := false
 *** cast_path : Sym = 0
+*** storage_size_read := false
 ** LiteralNumData: StructDef
 *** text := ""
 *** til_type := Type.Unknown
@@ -444,7 +445,6 @@
 *** ready := Set(Str).new()
 *** active := Set(Str).new()
 *** globals := Vec(Str).new()
-*** storage_calls := Map(UPtr, Str).new()
 ** EvalState: StructDef
 *** has_return := false
 *** has_break := false
@@ -457,7 +457,10 @@
 *** interp_cstr_arg := false
 *** interp_callable_arg_borrow := false
 *** constfold_active := false
-*** target_size_queries := false
+*** constfold_no_state_writes := false
+*** size_observed := false
+*** ns_size_dependent := Set(Str).new()
+*** generator_condition := false
 *** eval_aborted := false
 *** repl_session := false
 *** embedded := false
@@ -582,10 +585,6 @@
 ** CtorArg: EnumDef
 *** Unfilled
 *** Filled:Expr
-** ComptimeFunction: StructDef
-*** owner: Str
-*** name: Str
-*** ref definition: Expr
 ** ReturnEscapeRoots: StructDef
 *** direct := Vec(BorrowRoot).new()
 *** indirect := Vec(BorrowRoot).new()

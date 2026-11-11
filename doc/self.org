@@ -334,9 +334,9 @@
   ~make check_usize64~ enforces it: the native-layout compiler must
   reproduce ~boot/~ byte for byte. Before #472 sizes folded only when the
   compiler's layout and the target's agreed and were emitted as C ~sizeof~
-  otherwise. ~size_for_target()~, which gives compile-time code the
-  target's number, is decided and not implemented yet
-  (~doc/concepts/auto.org~, "size and size_for_target").
+  otherwise. Compile-time code that needs the target's number asks
+  ~size_for_target()~ (~doc/concepts/auto.org~, "size and
+  size_for_target").
 
   ~make check_usize64~ (and its CI job) keeps the native layout alive: the
   whole suite through an ASAN compiler built ~--usize=64~, with every

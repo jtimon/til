@@ -1,5 +1,5 @@
 #+TITLE: src/core/vec.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * vec
@@ -46,6 +46,7 @@ namespace:
     func to_vec(self: Array__Dynamic) returns Vec__Dynamic
     func clone(self: Array__Dynamic) returns Array__Dynamic
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -185,6 +186,7 @@ namespace:
     func delete(own self: Vec__Dynamic, call_free: Bool = true)
     func clone(self: Vec__Dynamic) returns Vec__Dynamic
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

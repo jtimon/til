@@ -1,5 +1,5 @@
 #+TITLE: src/std/tilvm.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * TilVm
@@ -21,6 +21,7 @@ namespace:
     proc lookup(mut self: TilVm, name: Str, signature: Type = Type.None) returns TilVmCallback throws TilVmError
     func delete(own self: TilVm, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: TilVm, hasher: HashFn) returns U64
 }
 #+end_src

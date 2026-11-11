@@ -1,5 +1,5 @@
 #+TITLE: src/std/dyn_array.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * DynArray
@@ -31,6 +31,7 @@ namespace:
     func to_vec(self: DynArray) returns DynVec
     func clone(self: DynArray) returns DynArray
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

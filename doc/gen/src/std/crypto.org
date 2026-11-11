@@ -1,5 +1,5 @@
 #+TITLE: src/std/crypto.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * CryptoError
@@ -17,6 +17,7 @@ struct CryptoError {
     mut msg : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: CryptoError) returns CryptoError
     func delete(own self: CryptoError, call_free: Bool = true)
     func hash(self: CryptoError, hasher: HashFn) returns U64
@@ -84,6 +85,7 @@ namespace:
     func to_hex(self: Signature) returns Str
     func to_str(self: Signature) returns Str
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: Signature) returns Signature
     func delete(own self: Signature, call_free: Bool = true)
     func hash(self: Signature, hasher: HashFn) returns U64
@@ -186,6 +188,7 @@ namespace:
     func to_vec(self: Array__U32) returns Vec__U32
     func clone(self: Array__U32) returns Array__U32
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

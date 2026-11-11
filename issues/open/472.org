@@ -1130,3 +1130,81 @@ Not run here: ~make check_usize64~ as a whole.
   compiler's number. That is F3 (~size_for_target()~).
 - HolyC: the generated ~hash~ count and sizes keep their existing paths.
 
+*** Progress: step F3 (base master e8e3f66)
+
+One commit, not the planned preparation and use pair. The pair was needed
+only if the compiler's own sources called the new method, because
+til_boot compiles them. They do not: core containers keep ~size()~, and
+the callers are tests and user code, which the freshly built compiler
+compiles.
+
+**** What landed
+
+- ~typer.til::gen_size_for_target_method_for_stmt~, called right after the
+  size generators at their three sites: every struct and enum gets
+  ~size_for_target()~ unless it defines one. The body is the literal
+  ~target_value_size~, or ~return X.size()~ when the type wrote its own
+  ~size~. Core writes it by hand, with doc comments, for the ten numeric
+  primitives, ~Bool~ and ~Dynamic~; a function type's is routed to
+  ~Dynamic~'s like its ~size~.
+- It is an ordinary foldable function. The size-observation rule of F2 and
+  the "never lift a generated size literal" rule recognise it by the
+  call's spelling and leave it alone.
+- The generator frame's special mode is gone: no more target answer for a
+  condition's ~size()~ (~eval_call_info~), no
+  ~comptime_check_storage_domains~ and its "layout-dependent raw call"
+  rejection, no ~storage_calls~. What is left of the flag is its other
+  job, now named ~ctx.eval.generator_condition~: diagnosing a value the
+  condition cannot know.
+- ~builder.til::check_generated_sizes_for_target_in~: when emission starts,
+  every generated ~size_for_target~ literal must still equal the final
+  target layout, or the compiler panics. The number is fixed when the
+  method is generated and may have been folded since.
+- HolyC: til's layout computation describes the C targets, so for
+  TempleOS ~size_for_target~ is not folded and the calls that reach
+  emission are spelled as ~size()~, which HolyC emits as its own
+  ~sizeof~. At compile time it is still the C computation there, as the
+  generator mode's answer was.
+- An unused hand-written ~size_for_target~ is omitted from the C like an
+  unused ~size~ (~builder_size_method_omitted~).
+
+**** Tests and documents
+
+- Generator conditions that mean the built program's size now say
+  ~size_for_target()~: ~test/first_class.til~ (the #441 block and
+  ~general_size_is~), ~test/usize32_sizes.til~, ~test/usize64_sizes.til~,
+  ~test/dynamic_widths.til~.
+- ~test/dynamic_widths.til~: a condition that runs a custom ~size~ which
+  builds an array used to be rejected on a cross-width target; it is now
+  accepted, because the condition runs in the compiler's own layout.
+- New checks: ~size_for_target()~ in a macro body bakes the target's
+  number (~usize64_sizes~: 16 from the compact compiler), equals
+  ~size()~ at run time, and in ~test/layout_corpus.til~ equals the C
+  compiler's ~sizeof~ on whatever target a CI job builds for.
+- ~test/gc_audit.expected~ regenerated: 21 added lines, the three structs'
+  new method bodies, nothing removed.
+- ~doc/concepts/auto.org~, ~doc/concepts/functions.org~ and ~doc/self.org~
+  describe both methods in the present tense.
+
+**** Verified here (compact compiler, Linux x64)
+
+- ~make clean && make test_two_pass~: 578/578, wall 384.3 s.
+- A native-layout compiler reproduces ~boot/~ byte for byte.
+- Sweep of every test and example plus the F3 fixture with both compiler
+  layouts for ~--usize=32~: 241 identical except the stamp line, 0
+  different, 77 that neither translates.
+- ~linux-x86~ compile-only at both widths for the corpus: no assert fails.
+
+Not run here: ~make check_usize64~ as a whole, the TempleOS guest, and the
+cross jobs; the CI run is their evidence.
+
+**** Size determinism: where it stands
+
+F1, F2 and F3 are done. A generated size reaches the program only as
+til's target number; nothing the compiler evaluates in its own layout is
+baked except through a macro that asks plain ~size()~ for a value, which
+is the documented misuse. Remaining in this issue: F4 (source identity,
+decided as no change: only the contract sentence and the Windows check),
+F5 (~VERSION~ length), F6 (audits), F7 (translation stamp), the
+observation track, and levels 2 and 3.
+

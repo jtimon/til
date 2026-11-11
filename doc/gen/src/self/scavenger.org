@@ -1,5 +1,5 @@
 #+TITLE: src/self/scavenger.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * vec_push_str
@@ -119,6 +119,7 @@ namespace:
     func clone(self: SymMap__U8) returns SymMap__U8
     func delete(own self: SymMap__U8, call_free: Bool = true)
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: SymMap__U8, hasher: HashFn) returns U64
 }
 #+end_src
@@ -249,6 +250,7 @@ namespace:
     func delete(own self: Map__Str_priv___src_self_scavenger_til__DeclRef, call_free: Bool = true)
     func clone(self: Map__Str_priv___src_self_scavenger_til__DeclRef) returns Map__Str_priv___src_self_scavenger_til__DeclRef
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_priv___src_self_scavenger_til__DeclRef, hasher: HashFn) returns U64
 }
 #+end_src
@@ -377,6 +379,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_scavenger_til__DeclRef, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_scavenger_til__DeclRef) returns Vec__priv___src_self_scavenger_til__DeclRef
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

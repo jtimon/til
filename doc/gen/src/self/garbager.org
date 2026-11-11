@@ -1,5 +1,5 @@
 #+TITLE: src/self/garbager.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * garbager_destroy_body
@@ -124,6 +124,7 @@ namespace:
     func to_vec(self: Array__Bool) returns Vec__Bool
     func clone(self: Array__Bool) returns Array__Bool
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -263,6 +264,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_garbager_til__ReferenceNameChange, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_garbager_til__ReferenceNameChange) returns Vec__priv___src_self_garbager_til__ReferenceNameChange
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -586,6 +588,7 @@ namespace:
     func to_str(self: Option__Str) returns Str
     func clone(self: Option__Str) returns Option__Str
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: Option__Str, b: Option__Str) returns Bool
     func gt(a: Option__Str, b: Option__Str) returns Bool
     func neq(a: Option__Str, b: Option__Str) returns Bool
@@ -664,6 +667,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_garbager_til__GcBorrowEdge, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_garbager_til__GcBorrowEdge) returns Vec__priv___src_self_garbager_til__GcBorrowEdge
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -984,6 +988,7 @@ namespace:
     func to_vec(self: Array__USize) returns Vec__USize
     func clone(self: Array__USize) returns Array__USize
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -1111,6 +1116,7 @@ namespace:
     func to_vec(self: Array__U8) returns Vec__U8
     func clone(self: Array__U8) returns Array__U8
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -1250,6 +1256,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_garbager_til__LocalInfo, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_garbager_til__LocalInfo) returns Vec__priv___src_self_garbager_til__LocalInfo
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -1548,6 +1555,133 @@ Deep-copy the Vec and all its elements via elem_clone.
 func Vec__priv___src_self_garbager_til__LocalInfo.clone(self: Vec__priv___src_self_garbager_til__LocalInfo) returns Vec__priv___src_self_garbager_til__LocalInfo
 #+end_src
 
+* Set__UPtr
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Set__UPtr
+:group: Compiler backend
+:END:
+
+#+begin_src til
+struct Set__UPtr {
+    own mut data : U8
+    mut count : USize
+    mut cap : USize
+namespace:
+    func new() returns Set__UPtr
+    func with_capacity(n: USize) returns Set__UPtr
+    func len(self: Set__UPtr) returns USize
+    func unsafe_get(self: Set__UPtr, i: USize) returns ref UPtr
+    func clear(mut self: Set__UPtr)
+    func has(self: Set__UPtr, val: UPtr) returns Bool
+    func add(mut self: Set__UPtr, own val: UPtr)
+    func remove(mut self: Set__UPtr, val: UPtr) returns Bool
+    func delete(own self: Set__UPtr, call_free: Bool = true)
+    func clone(self: Set__UPtr) returns Set__UPtr
+    func size() returns USize
+    func size_for_target() returns USize
+}
+#+end_src
+
+* Set__UPtr.new
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Set__UPtr.new
+:group: Compiler backend
+:END:
+
+Create an empty Set. T must implement ~cmp~. Allocates nothing:
+like Vec.new, an empty Set is lazy (cap 0) and ~add~ seeds the
+first slot. Short-lived empty Sets are common -- the garbager
+builds four per statement for its per-statement name facts, most
+of them never added to.
+
+#+begin_src til
+func Set__UPtr.new() returns Set__UPtr
+#+end_src
+
+* Set__UPtr.with_capacity
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Set__UPtr.with_capacity
+:group: Compiler backend
+:END:
+
+Create an empty Set pre-sized for ~n~ elements, so adding up to
+~n~ reallocs zero times (Vec.with_capacity's counterpart). Use it
+where the final size is known or well predicted; ~new()~ grows
+0->1->2->4, which is the right default but costs a realloc per
+doubling. n=0 behaves like new(): lazy-empty, no allocation.
+
+#+begin_src til
+func Set__UPtr.with_capacity(n: USize) returns Set__UPtr
+#+end_src
+
+* Set__UPtr.unsafe_get
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Set__UPtr.unsafe_get
+:group: Compiler backend
+:END:
+
+Unchecked element access: return a reference to the element at
+index ~i~ (in sorted order) with NO bounds check. The caller must
+prove ~i < len()~. This is what makes ~for x in set~ work: for-in
+uses ~unsafe_get~ when a type has it, and its ~_fi < len()~
+termination test proves the index in bounds (issue #284).
+
+#+begin_src til
+func Set__UPtr.unsafe_get(self: Set__UPtr, i: USize) returns ref UPtr
+#+end_src
+
+* Set__UPtr.clear
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Set__UPtr.clear
+:group: Compiler backend
+:END:
+
+Drop all live elements but keep the allocated storage so the Set can be reused.
+
+#+begin_src til
+func Set__UPtr.clear(mut self: Set__UPtr)
+#+end_src
+
+* Set__UPtr.has
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Set__UPtr.has
+:group: Compiler backend
+:END:
+
+True if the set contains an element equal to ~val~.
+
+#+begin_src til
+func Set__UPtr.has(self: Set__UPtr, val: UPtr) returns Bool
+#+end_src
+
+* Set__UPtr.add
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Set__UPtr.add
+:group: Compiler backend
+:END:
+
+Insert ~val~ into the set (sorted order). If an equal element
+already exists, ~val~ is dropped. ~val~ is owned.
+
+#+begin_src til
+func Set__UPtr.add(mut self: Set__UPtr, own val: UPtr)
+#+end_src
+
+* Set__UPtr.remove
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.Set__UPtr.remove
+:group: Compiler backend
+:END:
+
+Remove the element equal to ~val~, dropping it. Returns false if
+absent (Map.remove's counterpart: ~add~ is the Set's ~set~, so
+this is its removal half). Later elements shift left to keep the
+storage sorted and dense.
+
+#+begin_src til
+func Set__UPtr.remove(mut self: Set__UPtr, val: UPtr) returns Bool
+#+end_src
+
 * Vec__priv___src_self_garbager_til__GcCfgBlock
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.garbager.Vec__priv___src_self_garbager_til__GcCfgBlock
@@ -1582,6 +1716,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_garbager_til__GcCfgBlock, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_garbager_til__GcCfgBlock) returns Vec__priv___src_self_garbager_til__GcCfgBlock
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -1914,6 +2049,7 @@ namespace:
     func delete(own self: Vec__priv___src_self_garbager_til__GcDeposit, call_free: Bool = true)
     func clone(self: Vec__priv___src_self_garbager_til__GcDeposit) returns Vec__priv___src_self_garbager_til__GcDeposit
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -2236,6 +2372,7 @@ namespace:
     func to_str(self: Option__ref_FunctionDef) returns Str
     func clone(self: Option__ref_FunctionDef) returns Option__ref_FunctionDef
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -2309,6 +2446,7 @@ namespace:
     func delete(own self: Vec__U8, call_free: Bool = true)
     func clone(self: Vec__U8) returns Vec__U8
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

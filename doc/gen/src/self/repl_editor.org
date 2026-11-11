@@ -1,5 +1,5 @@
 #+TITLE: src/self/repl_editor.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * repl_term_is_interactive
@@ -407,6 +407,7 @@ namespace:
     func to_str(self: EditAction) returns Str
     func clone(self: EditAction) returns EditAction
     func size() returns USize
+    func size_for_target() returns USize
     func lt(a: EditAction, b: EditAction) returns Bool
     func gt(a: EditAction, b: EditAction) returns Bool
     func neq(a: EditAction, b: EditAction) returns Bool
@@ -444,6 +445,7 @@ struct ReplEditor {
     mut saved_cursor : USize
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ReplEditor) returns ReplEditor
     func delete(own self: ReplEditor, call_free: Bool = true)
 }
@@ -460,6 +462,7 @@ struct AnsiDecoder {
     mut params : Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: AnsiDecoder) returns AnsiDecoder
     func delete(own self: AnsiDecoder, call_free: Bool = true)
     func hash(self: AnsiDecoder, hasher: HashFn) returns U64

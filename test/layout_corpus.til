@@ -145,4 +145,18 @@ if owner_twice().neq(dyn_size_of(owner_name) * 2) { fail("a folded call baked th
 if OwnerSizes.BYTES.neq(dyn_size_of(owner_name)) { fail("a namespace constant baked the compiler's size") }
 if OwnerSizes.DOUBLE.neq(dyn_size_of(owner_name) * 2) { fail("a namespace constant read one that baked the compiler's size") }
 
+// #472 (step F3): size_for_target() is what compile-time code asks for the
+// built program's size. In the running program it equals size(), and a
+// macro that bakes it must have baked the number the C compiler agrees
+// with, on whatever target this was built for by whatever compiler.
+owner_bytes_at_compile_time := macro() returns shallow USize { return Owner.size_for_target() }
+nested_bytes_at_compile_time := macro() returns shallow USize { return Nested.size_for_target() }
+payload_bytes_at_compile_time := macro() returns shallow USize { return StrPayload.size_for_target() }
+check_size("Owner", Owner.size_for_target())
+check_size("Nested", Nested.size_for_target())
+check_size("WidePayload", WidePayload.size_for_target())
+check_size("Owner", owner_bytes_at_compile_time())
+check_size("Nested", nested_bytes_at_compile_time())
+check_size("StrPayload", payload_bytes_at_compile_time())
+
 println("layout corpus OK")

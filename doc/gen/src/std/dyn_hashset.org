@@ -1,5 +1,5 @@
 #+TITLE: src/std/dyn_hashset.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * DynHashSet
@@ -34,6 +34,7 @@ namespace:
     func delete(own self: DynHashSet, call_free: Bool = true)
     func remove(mut self: DynHashSet, val: Dynamic) returns Bool
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: DynHashSet, hasher: HashFn) returns U64
 }
 #+end_src

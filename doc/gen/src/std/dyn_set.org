@@ -1,5 +1,5 @@
 #+TITLE: src/std/dyn_set.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * DynSet
@@ -30,6 +30,7 @@ namespace:
     func delete(own self: DynSet, call_free: Bool = true)
     func clone(self: DynSet) returns DynSet
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

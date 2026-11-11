@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="../../search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-389200c8c</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="../../index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-e8e3f66</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="../../src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="../../src/core/str.html">src/core/str.til</a></li>
 <li><a href="../../src/core/dyn.html">src/core/dyn.til</a></li>
@@ -312,6 +312,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
     own mut elements : U8
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ffi_type) returns ffi_type
     func delete(own self: ffi_type, call_free: Bool = true)
 }
@@ -365,6 +366,7 @@ namespace:
     mut extra_cif_fields_6 : U32
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: ffi_cif) returns ffi_cif
     func delete(own self: ffi_cif, call_free: Bool = true)
 }
@@ -472,6 +474,7 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: ffi_closure) returns ffi_closure
     func delete(own self: ffi_closure, call_free: Bool = true)
     func hash(self: ffi_closure, hasher: HashFn) returns U64
@@ -510,6 +513,7 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: ffi_raw_closure) returns ffi_raw_closure
     func delete(own self: ffi_raw_closure, call_free: Bool = true)
     func hash(self: ffi_raw_closure, hasher: HashFn) returns U64
@@ -530,6 +534,7 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: ffi_java_raw_closure) returns ffi_java_raw_closure
     func delete(own self: ffi_java_raw_closure, call_free: Bool = true)
     func hash(self: ffi_java_raw_closure, hasher: HashFn) returns U64
@@ -574,6 +579,7 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: ffi_go_closure) returns ffi_go_closure
     func delete(own self: ffi_go_closure, call_free: Bool = true)
     func hash(self: ffi_go_closure, hasher: HashFn) returns U64
@@ -624,6 +630,7 @@ namespace:
 <pre><code class="language-til">struct {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: ffi_call_plan) returns ffi_call_plan
     func delete(own self: ffi_call_plan, call_free: Bool = true)
     func hash(self: ffi_call_plan, hasher: HashFn) returns U64

@@ -41,5 +41,10 @@ namespace:
     delete := func(own self: Bool, call_free: Bool = true) {
         if call_free { free(own self) }
     }
+    /// Size of one value in bytes, in the program that runs this call.
     size := func() returns USize { return 1 }
+    /// Size of one value in bytes, in the program being built. Compile-time
+    /// code that decides something from the built program's layout (a macro,
+    /// a generator condition) asks this; everything else asks size().
+    size_for_target := func() returns USize { return 1 }
 }

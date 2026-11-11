@@ -1,5 +1,5 @@
 #+TITLE: vendor/bindings/secp256k1.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * secp256k1_context
@@ -50,6 +50,7 @@ Opaque data structure that holds context information
 struct secp256k1_context {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: secp256k1_context) returns secp256k1_context
     func delete(own self: secp256k1_context, call_free: Bool = true)
     func hash(self: secp256k1_context, hasher: HashFn) returns U64
@@ -91,6 +92,7 @@ struct secp256k1_pubkey {
     mut d7 : U64
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: secp256k1_pubkey) returns secp256k1_pubkey
     func delete(own self: secp256k1_pubkey, call_free: Bool = true)
     func hash(self: secp256k1_pubkey, hasher: HashFn) returns U64
@@ -132,6 +134,7 @@ struct secp256k1_ecdsa_signature {
     mut d7 : U64
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: secp256k1_ecdsa_signature) returns secp256k1_ecdsa_signature
     func delete(own self: secp256k1_ecdsa_signature, call_free: Bool = true)
     func hash(self: secp256k1_ecdsa_signature, hasher: HashFn) returns U64
@@ -1129,6 +1132,7 @@ struct secp256k1_xonly_pubkey {
     mut d7 : U64
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: secp256k1_xonly_pubkey) returns secp256k1_xonly_pubkey
     func delete(own self: secp256k1_xonly_pubkey, call_free: Bool = true)
     func hash(self: secp256k1_xonly_pubkey, hasher: HashFn) returns U64
@@ -1172,6 +1176,7 @@ struct secp256k1_keypair {
     mut d11 : U64
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: secp256k1_keypair) returns secp256k1_keypair
     func delete(own self: secp256k1_keypair, call_free: Bool = true)
     func hash(self: secp256k1_keypair, hasher: HashFn) returns U64
@@ -1498,6 +1503,7 @@ Data structure that contains additional arguments for schnorrsig_sign_custom.
 struct secp256k1_schnorrsig_extraparams {
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(_self: secp256k1_schnorrsig_extraparams) returns secp256k1_schnorrsig_extraparams
     func delete(own self: secp256k1_schnorrsig_extraparams, call_free: Bool = true)
     func hash(self: secp256k1_schnorrsig_extraparams, hasher: HashFn) returns U64

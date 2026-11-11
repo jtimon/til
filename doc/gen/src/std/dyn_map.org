@@ -1,5 +1,5 @@
 #+TITLE: src/std/dyn_map.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * DynMap
@@ -27,6 +27,7 @@ namespace:
     func delete(own self: DynMap, call_free: Bool = true)
     func clone(self: DynMap) returns DynMap
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: DynMap, hasher: HashFn) returns U64
 }
 #+end_src

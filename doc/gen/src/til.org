@@ -1,5 +1,5 @@
 #+TITLE: src/til.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * BASE_VERSION
@@ -276,6 +276,7 @@ struct CliArgs {
     own mut extra_modes : Vec__Str
 namespace:
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: CliArgs) returns CliArgs
     func delete(own self: CliArgs, call_free: Bool = true)
 }

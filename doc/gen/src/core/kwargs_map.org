@@ -1,5 +1,5 @@
 #+TITLE: src/core/kwargs_map.til
-#+SUBTITLE: til 0.0.1-389200c8c
+#+SUBTITLE: til 0.0.1-e8e3f66
 #+OPTIONS: toc:t
 
 * KwargsMap
@@ -22,6 +22,7 @@ namespace:
     func type_at(self: KwargsMap, key: Str) returns ref Str
     func size_at(self: KwargsMap, key: Str) returns ref USize
     func size() returns USize
+    func size_for_target() returns USize
     func clone(self: KwargsMap) returns KwargsMap
     func delete(own self: KwargsMap, call_free: Bool = true)
     func hash(self: KwargsMap, hasher: HashFn) returns U64
@@ -122,6 +123,7 @@ namespace:
     func delete(own self: Map__Str_Tuple, call_free: Bool = true)
     func clone(self: Map__Str_Tuple) returns Map__Str_Tuple
     func size() returns USize
+    func size_for_target() returns USize
     func hash(self: Map__Str_Tuple, hasher: HashFn) returns U64
 }
 #+end_src
@@ -250,6 +252,7 @@ namespace:
     func delete(own self: Vec__Tuple, call_free: Bool = true)
     func clone(self: Vec__Tuple) returns Vec__Tuple
     func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 

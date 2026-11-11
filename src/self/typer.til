@@ -2310,7 +2310,7 @@ priv infer_provisional_generated_method := func(method: Str, receiver: Expr, mut
         call.set_til_type(Type.Primitive(Primitive.I64))
     case "to_str":
         call.set_til_type(Type.StructSym(ctx.symbols.intern("Str")))
-    case "size":
+    case "size", "size_for_target":
         call.set_til_type(type_from_name("USize", scope, ctx))
     case "hash":
         call.set_til_type(Type.Primitive(Primitive.U64))
@@ -2594,7 +2594,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
     // type-token's `.size()` through Dynamic (the universal 8-byte pointer,
     // src/core/dyn.til), which reports pointer size. Lifecycle methods above
     // retain the concrete signature and release capturing environments.
-    if obj.til_type().is_funcptr().and(method.eq("size")) {
+    if obj.til_type().is_funcptr().and(method.eq("size").or(method.eq("size_for_target"))) {
         switch obj.node_type {
         case .Ident:
             mut dyn_recv := Expr.new(own ident_node(ctx.symbols.intern("Dynamic")), obj.line, obj.col)
@@ -9602,6 +9602,7 @@ priv comptime_prepare_type := proc(type_name: Str, mut prep: ComptimePreparation
         if ctx.errors > 0 { return }
         compute_struct_layout(name, def, ctx.scope, ctx)
         gen_struct_size_method_for_stmt(stmt, ctx)
+        gen_size_for_target_method_for_stmt(stmt, ctx.scope, ctx)
         gen_struct_clone_delete_for_stmt(stmt, ctx.scope, ctx)
     } else if def.node_type.is(NodeType.EnumDef) {
         if enum_is_niche(def).not() {
@@ -9614,6 +9615,7 @@ priv comptime_prepare_type := proc(type_name: Str, mut prep: ComptimePreparation
         }
         compute_enum_layout(name, def, ctx.scope, ctx)
         gen_enum_size_method_for_stmt(stmt, ctx.scope, ctx)
+        gen_size_for_target_method_for_stmt(stmt, ctx.scope, ctx)
     }
     prep.active.remove(request)
 }
@@ -9856,100 +9858,6 @@ priv comptime_prepare_expr := proc(mut e: Expr, mut scope: TypeScope, mut prep: 
     }
 }
 
-priv ComptimeFunction := struct {
-    owner: Str
-    name: Str
-    ref definition: Expr
-}
-
-priv comptime_collect_functions := func(program: Expr, mut functions: Vec(ComptimeFunction)) {
-    for stmt : Expr in program.children {
-        if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len() == 0) { continue }
-        ref decl : Declaration = decl_of(stmt)
-        ref def : Expr = stmt.children[0]
-        if def.node_type.is(NodeType.FuncDef) {
-            functions.push(own ComptimeFunction(owner = "", name = decl.name.clone(), definition = def))
-        } else if def.node_type.is(NodeType.StructDef).or(def.node_type.is(NodeType.EnumDef)) {
-            mut index : USize = 0
-            ref members : Vec(Declaration) = def_ns_decls(def)
-            for member : Declaration in members {
-                method := def_ns_name_at(def, index).clone()
-                index++
-                if member.default_value.is_some().and(member.default_expr().node_type.is(NodeType.FuncDef)) {
-                    functions.push(own ComptimeFunction(owner = decl.name.clone(), name = method.clone(), definition = member.default_expr()))
-                }
-            }
-        }
-    }
-}
-
-priv comptime_layout_dependency := func(e: Expr, queries: Set(UPtr), ctx: Context) returns Bool {
-    if e.node_type.is(NodeType.FCall).and(fcall_is_direct(e)) {
-        called := fcall_callee_fdef(e, ctx.scope, ctx.symbols)
-        if called.is_some().and(queries.has(word_bits(to_ptr(called.unwrap())).to_uptr())) { return true }
-    }
-    for child : Expr in e.children {
-        if comptime_layout_dependency(child, queries, ctx) { return true }
-    }
-    return false
-}
-
-priv comptime_raw_storage_calls := func(e: Expr, mut calls: Map(UPtr, Str), ctx: Context) {
-    if e.node_type.is(NodeType.FCall).and(fcall_is_direct(e)) {
-        called := fcall_callee_fdef(e, ctx.scope, ctx.symbols)
-        if called.is_some() {
-            ref fd : FunctionDef = funcdef_of(called.unwrap())
-            mut raw := fd.sig.return_type == "Dynamic"
-            mut numeric := false
-            for param : Declaration in fd.sig.params {
-                pt := declaration_resolved_type(param, ctx.scope, ctx.symbols)
-                if pt.is(Type.Dynamic) { raw = true }
-                if is_numeric_type(pt) { numeric = true }
-            }
-            if raw.and(numeric) {
-                calls.set(word_bits(to_ptr(e)).to_uptr(), own e.children[0].node_type.head_str(ctx.symbols.names))
-            }
-        }
-    }
-    for child : Expr in e.children { comptime_raw_storage_calls(child, calls, ctx) }
-}
-
-// Target sizeof facts can be used as ordinary values. They cannot also be
-// used to address/copy a differently laid-out host object. Keep such opaque
-// byte operations non-foldable and diagnose only if execution reaches them;
-// an untaken branch must remain untaken, including error-reporting paths.
-priv comptime_check_storage_domains := func(function: Expr, mut prep: ComptimePreparation, ctx: Context) {
-    mut functions := Vec(ComptimeFunction).new()
-    for program : Expr in prep.definitions.values { comptime_collect_functions(program, functions) }
-    functions.push(own ComptimeFunction(owner = "", name = "generator condition", definition = function))
-    mut queries := Set(UPtr).new()
-    for f : ComptimeFunction in functions {
-        ref fd : FunctionDef = funcdef_of(f.definition)
-        if f.name.eq("size").and(fd.auto_generated).and(fd.is_enum_variant_ctor.not()) {
-            if target_value_size(f.owner, ctx.scope, ctx) != container_elem_size(f.owner, ctx) {
-                queries.add(own word_bits(to_ptr(f.definition)).to_uptr())
-            }
-        }
-    }
-    mut changed := true
-    while changed {
-        changed = false
-        for f : ComptimeFunction in functions {
-            address := word_bits(to_ptr(f.definition)).to_uptr()
-            if queries.has(address) { continue }
-            if comptime_layout_dependency(f.definition, queries, ctx) {
-                queries.add(own address)
-                changed = true
-            }
-        }
-    }
-    for f : ComptimeFunction in functions {
-        if queries.has(word_bits(to_ptr(f.definition)).to_uptr()) {
-            comptime_raw_storage_calls(f.definition, prep.storage_calls, ctx)
-        }
-    }
-}
-
 // Generator branches use the same typed interpreter as ordinary macro
 // folding. Preparation is local to this evaluation; no parallel size/Boolean
 // expression language or persistent copy of declarations is maintained.
@@ -9993,7 +9901,6 @@ eval_generator_condition := proc(mut condition: Expr, mut scope: TypeScope, mut 
     if ctx.errors == 0 { comptime_prepare_expr(function.children[0], local, prep, ctx) }
     mut result : I32 = -1
     if ctx.errors == 0 {
-        comptime_check_storage_domains(function, prep, ctx)
         mut runtime := scope_new_owned(Option(ref Scope).None)
         for mut program : Expr in prep.definitions.values {
             populate_cached_aggregate_defs(ctx, program)
@@ -10169,6 +10076,7 @@ priv type_repl_delta_decls_from := proc(mut program: Expr, start_idx: USize, mut
             case:
             }
             gen_struct_size_method_for_stmt(stmt, ctx)
+            gen_size_for_target_method_for_stmt(stmt, ctx.scope, ctx)
             gen_struct_clone_delete_for_stmt(stmt, ctx.scope, ctx)
         } else if rhs.node_type.is(NodeType.EnumDef) {
             switch stmt.node_type {
@@ -10177,6 +10085,7 @@ priv type_repl_delta_decls_from := proc(mut program: Expr, start_idx: USize, mut
             case:
             }
             gen_enum_size_method_for_stmt(stmt, ctx.scope, ctx)
+            gen_size_for_target_method_for_stmt(stmt, ctx.scope, ctx)
         }
         gen_cmp_derived_for_stmt(stmt, ctx.symbols)
         gen_unity_derived_for_stmt(stmt, ctx.symbols)
@@ -10294,6 +10203,7 @@ priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
             case:
             }
             gen_struct_size_method_for_stmt(stmt, ctx)
+            gen_size_for_target_method_for_stmt(stmt, ctx.scope, ctx)
             gen_struct_clone_delete_for_stmt(stmt, ctx.scope, ctx)
         } else if rhs.node_type.is(NodeType.EnumDef) {
             switch stmt.node_type {
@@ -10302,6 +10212,7 @@ priv type_decls_file := proc(path: Str, mut ctx: Context) returns I32 {
             case:
             }
             gen_enum_size_method_for_stmt(stmt, ctx.scope, ctx)
+            gen_size_for_target_method_for_stmt(stmt, ctx.scope, ctx)
         }
         // gen_cmp_derived_for_stmt / gen_unity_derived_for_stmt self-guard
         // on is_struct_or_enum, so calling them for FuncDef stmts is a
@@ -11405,6 +11316,59 @@ target_value_size := func(type_name: Str, scope: TypeScope, ctx: Context) return
     mut al : USize = 1
     target_value_size_align(type_name, scope, ctx, sz, al)
     return sz
+}
+
+// #472 (F3): generate `size_for_target()` beside `size()`: the size of the
+// type in the program being BUILT, where `size()` is the size in the
+// program that is executing the call (inside the compiler, the compiler's
+// own layout). Same rule as every generated method: skipped when the type
+// defines it. The body is one of two things:
+//   - a literal, til's layout computation for the target
+//     (target_value_size). It does not depend on the running compiler, so
+//     unlike `size()` it is an ordinary foldable function, and compile-time
+//     code that decides something from the built program's layout (a macro,
+//     a generator condition) can use it on any build.
+//   - `return X.size()` when the type wrote its own `size`: that function
+//     is the type's own statement of its size, and it runs the same in the
+//     compiler and in the program.
+// Called right after the size generators, which decide what `size` is.
+gen_size_for_target_method_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut ctx: Context) {
+    if is_struct_or_enum(stmt).not() { return }
+    ref mut def : Expr = stmt.children[0]
+    if def_ns_has(def, "size_for_target") { return }
+    type_name := decl_of(stmt).name.clone()
+    mut own_size := false
+    size_o := def_ns_get(def, "size")
+    if size_o.is_some() {
+        ref size_decl : Declaration = size_o.unwrap()
+        if size_decl.default_value.is_some().and(size_decl.default_expr().node_type.is(NodeType.FuncDef)) {
+            own_size = funcdef_of(size_decl.default_expr()).auto_generated.not()
+        }
+    }
+    mut value := Expr.new(own literal_num_node(target_value_size(type_name, scope, ctx).to_str()), stmt.line, stmt.col)
+    if own_size {
+        value = make_method_call_fcall(own Expr.new(own ident_node(ctx.symbols.intern(type_name)), stmt.line, stmt.col),
+            "size", stmt.line, stmt.col, ctx.symbols)
+    }
+    mut ret := Expr.new(own NodeType.Return, stmt.line, stmt.col)
+    ret.add_child(own value)
+    mut body := Expr.new(own NodeType.Body, stmt.line, stmt.col)
+    body.add_child(own ret)
+    mut decl := FunctionDef(auto_generated = true)
+    decl.sig.func_type = FuncType.Func
+    decl.sig.return_type = "USize"
+    decl.sig.variadic_index = -1
+    decl.sig.kwargs_index = -1
+    mut func_def := Expr.new(own NodeType.FuncDef(decl), stmt.line, stmt.col)
+    func_def.add_child(own body)
+    member := Declaration(name = "size_for_target", default_value = Option(Expr).Some(own func_def))
+    if def.node_type.is(NodeType.StructDef) {
+        ref mut sd : StructDef = structdef_of(def)
+        sd.push_member(own member)
+    } else {
+        ref mut ed : EnumDef = enumdef_of(def)
+        ed.push_member(own member)
+    }
 }
 
 // #472 (F1b): the size the EMITTED program gets for `type_name`. Zero is

@@ -1493,9 +1493,6 @@ ComptimePreparation := struct {
     ready := Set(Str).new()
     active := Set(Str).new()
     globals := Vec(Str).new()
-    // Calls that cannot use target byte counts on host interpreter buffers.
-    // This table lives only for the current evaluation frame.
-    storage_calls := Map(UPtr, Str).new()
 }
 
 EvalState := struct {
@@ -1560,9 +1557,12 @@ EvalState := struct {
     // Namespace values ("Owner.member") whose compile-time initializer
     // observed a size, directly or through another such value.
     ns_size_dependent := Set(Str).new()
-    // Definition-generating conditions query target layouts. Their actual
-    // interpreter buffers still use the ordinary host layout tables.
-    target_size_queries := false
+    // A generator condition is being evaluated: a value it needs and cannot
+    // know is a diagnostic at the condition, and an abort does not kill the
+    // build. (Until #472 this also made a generated size() answer for the
+    // target while the condition ran; a condition that means the built
+    // program's size now says size_for_target().)
+    generator_condition := false
     // "Abandon this evaluation and unwind like an early return", checked by
     // eval_body / eval_while. Two producers, one meaning: a const-fold eval
     // that reached exit() (the fold is abandoned, the call is left for
@@ -2438,10 +2438,6 @@ size_intrinsics_use_sizeof := func(ctx: Context) returns Bool {
 // emission starts. The old rule folded exactly when the two layouts agreed
 // (#309, #313) and left a C sizeof otherwise, which made the emitted source
 // depend on how the compiler itself had been built.
-//
-// Generator conditions are the exception that predates this: their frame
-// (ctx.eval.target_size_queries) answers a generated size with the target
-// number while it evaluates, so there they stay foldable.
 // #472: the generated size method, by shape. gen_struct_size_method_for_stmt
 // / gen_enum_size_method_for_stmt build exactly this, and no other generated
 // member takes nothing and returns a USize (variant constants return their
@@ -2481,7 +2477,7 @@ constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
                 if fdd.default_value.is_none() { continue }
                 switch fdd.default_expr().node_type {
                 case .FuncDef(ffd):
-                    if mname.eq("size").and(ffd.auto_generated).and(ctx.eval.target_size_queries.not()) {
+                    if mname.eq("size").and(ffd.auto_generated) {
                         // #472: see above.
                     } else {
                         qname := sdd.name.concat3("_", mname)
@@ -2507,7 +2503,7 @@ constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
                 if nsd.default_value.is_none() { continue }
                 switch nsd.default_expr().node_type {
                 case .FuncDef(ffd):
-                    if mname.eq("size").and(ffd.auto_generated).and(ctx.eval.target_size_queries.not()) {
+                    if mname.eq("size").and(ffd.auto_generated) {
                         // #472: see above.
                     } else {
                         qname := sdd.name.concat3("_", mname)
