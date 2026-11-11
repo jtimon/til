@@ -580,6 +580,46 @@ retarget_loaded_aliases := func(mut lp: LoadedProgram) {
     retarget_alias_binding(lp.ctx.scope, "USize", target_int_alias_name(lp, "USize", target_usize_name(lp.target)), lp.ctx.symbols)
 }
 
+// #472 (F2): mark the size queries written in core/std (FCallData
+// .storage_size_read says why they are different). By shape, not by
+// resolving the callee: a mark on a call that turns out not to be a generated
+// size is never read.
+priv mark_storage_size_reads_in := proc(mut e: Expr, symbols: SymbolPool) {
+    for mut child : Expr in e.children { mark_storage_size_reads_in(child, symbols) }
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref mut members : Vec(Declaration) = def_ns_decls(e)
+        for mut member : Declaration in members {
+            if member.default_value.is_none() { continue }
+            mark_storage_size_reads_in(member.default_expr(), symbols)
+        }
+        return
+    }
+    if e.node_type.is(NodeType.FCall).not().or(e.children.len() == 0) { return }
+    mut is_size_query := false
+    switch e.children[0].node_type {
+    case .FieldAccess(member):
+        is_size_query = e.children.len().eq(1).and(member.field_access_name(symbols.names) == "size")
+    case .Ident(callee):
+        ref callee_name : Str = callee.ident_name(symbols.names)
+        is_size_query = callee_name.eq("dyn_size_of").or(e.children.len().eq(1).and(callee_name.ends_with("_size")))
+    case:
+    }
+    if is_size_query.not() { return }
+    ref mut call : FCallData = fcall_of(e)
+    call.storage_size_read = true
+}
+
+priv mark_storage_size_reads := proc(mut lp: LoadedProgram) {
+    source_prefix := compiler_src_prefix(lp.ctx)
+    core_prefix := format(source_prefix, "core/")
+    std_prefix := format(source_prefix, "std/")
+    for upath : Str in lp.unit_paths() {
+        real := realpath_str(upath)
+        if real.starts_with(core_prefix).or(real.starts_with(std_prefix)).not() { continue }
+        mark_storage_size_reads_in(lp.ctx.imported[upath].ast, lp.ctx.symbols)
+    }
+}
+
 // Constfolder across per-file units (rstil-style): fold macros/pure funcs in the
 // canonical ASTs stored in lp.ctx.imported.
 priv constfolder_imported := proc(mut lp: LoadedProgram) {
@@ -4643,6 +4683,10 @@ register_target_int_aliases := func(mut lp: LoadedProgram) {
 
 type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 {
     lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
+    // #472 (F2): on the freshly parsed trees, before anything is
+    // instantiated, so that every instance of a core/std generic inherits
+    // the mark from its template whichever unit it ends up in.
+    mark_storage_size_reads(lp)
     lp.cpu = resolve_target_cpu(lp.target, lp.cpu.name)
     lp.ctx.target_simd_bits = lp.cpu.simd_bits
     lp.ctx.target_scalar64_align = 8

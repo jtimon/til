@@ -638,6 +638,7 @@ typedef struct FCallData {
     Bool panic_on_error;
     Bool is_bang_check;
     U32 cast_path;
+    Bool storage_size_read;
 } FCallData;
 
 
@@ -2599,6 +2600,8 @@ typedef struct EvalState {
     Bool interp_callable_arg_borrow;
     Bool constfold_active;
     Bool constfold_no_state_writes;
+    Bool size_observed;
+    Set__Str ns_size_dependent;
     Bool target_size_queries;
     Bool eval_aborted;
     Bool repl_session;

@@ -1531,6 +1531,20 @@ EvalState := struct {
     // program would never see it (a destructor counting deletes ran at
     // compile time and the run-time counter stayed 0).
     constfold_no_state_writes := false
+    // #472 (F2): set whenever the interpreter answers a generated size
+    // query -- a generated `X.size()` body, `dyn_size_of`, or a read of a
+    // namespace value recorded in ns_size_dependent. The number it answers
+    // with is the RUNNING COMPILER's layout: right for the memory the
+    // interpreter is moving, wrong to write into the program unless the
+    // target happens to share that layout. Whoever is about to turn an
+    // evaluation's result into a literal clears this before the evaluation
+    // and refuses the literal if it is set afterwards (try_eval_call for a
+    // folded func, fold_ns_data_value for namespace data). On every host,
+    // so the same calls fold whichever layout the compiler was built with.
+    size_observed := false
+    // Namespace values ("Owner.member") whose compile-time initializer
+    // observed a size, directly or through another such value.
+    ns_size_dependent := Set(Str).new()
     // Definition-generating conditions query target layouts. Their actual
     // interpreter buffers still use the ordinary host layout tables.
     target_size_queries := false
@@ -2412,6 +2426,18 @@ size_intrinsics_use_sizeof := func(ctx: Context) returns Bool {
 // Generator conditions are the exception that predates this: their frame
 // (ctx.eval.target_size_queries) answers a generated size with the target
 // number while it evaluates, so there they stay foldable.
+// #472: the generated size method, by shape. gen_struct_size_method_for_stmt
+// / gen_enum_size_method_for_stmt build exactly this, and no other generated
+// member takes nothing and returns a USize (variant constants return their
+// enum and are flagged). A hand-written `size` is not auto_generated. The
+// return type is written "USize" by the generators and is the target's
+// primitive once the aliases have been retargeted.
+funcdef_is_generated_size := func(fd: FunctionDef, ctx: Context) returns Bool {
+    if fd.auto_generated.not().or(fd.is_enum_variant_ctor) { return false }
+    if fd.sig.params.len() > 0 { return false }
+    return fd.sig.return_type.eq("USize").or(fd.sig.return_type.eq(ctx.target_usize_pname))
+}
+
 constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).not() { return }
     switch stmt.children[0].node_type {

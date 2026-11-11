@@ -1906,6 +1906,7 @@ priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context
         if ns_def_o.is_some() {
             ns_hb_o := scope_lookup_ns_binding(ns_scope(ctx), ns_sname, fa.field_access_name(ctx.symbols.names))
             if ns_hb_o.is_some() {
+                ns_note_size_dependent_read(ns_sname, fa.field_access_name(ctx.symbols.names), ctx)
                 ref ns_hb : HeapBinding = ns_hb_o.unwrap()
                 ref ns_stored : Dynamic = to_ptr(ns_hb.ptr)
                 return safe_ref(Dynamic, ns_stored)
@@ -1982,6 +1983,7 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
                 }
             }
             stored_hb_o := scope_lookup_ns_binding(ns_scope(ctx), sname, fa.field_access_name(ctx.symbols.names))
+            if stored_hb_o.is_some() { ns_note_size_dependent_read(sname, fa.field_access_name(ctx.symbols.names), ctx) }
             if stored_hb_o.is_none() {
                 static_fdef_o := def_static_ns_func_def(namespace_def, fa.field_access_name(ctx.symbols.names))
                 if static_fdef_o.is_some() {
@@ -3442,6 +3444,8 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
         exit(1)
     }
     ref mut body : Expr = func_def.children[0]
+    // #472 (F2): the body about to run returns this compiler's layout.
+    if funcdef_is_generated_size(funcdef_of(func_def), ctx).and(size_read_is_storage(e).not()) { ctx.eval.size_observed = true }
 
     mut call_scope := scope_new(safe_ref(parent_scope))
     call_scope.is_call_scope = true
@@ -6219,7 +6223,15 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, mut program: Ex
                     continue
                 }
                 mut info := raw_result_info_new()
+                // #472 (F2): remember a constant whose initializer read a
+                // size, so its value is not baked into the program
+                // (fold_ns_data_value) and its readers are marked in turn.
+                ctx.eval.size_observed = false
                 mut raw : Dynamic = eval_expr_raw_info(global, nsd.default_expr(), ctx, info)
+                if ctx.eval.size_observed {
+                    ctx.eval.ns_size_dependent.add(own ns_qname(dd.name, def_ns_name_at(sdef, cur_nci)))
+                    ctx.eval.size_observed = false
+                }
                 if info.is_ref {
                     owned : Dynamic = heap_clone_by_type(ns_decl_raw_type(nsd), raw, ctx)
                     raw = owned
@@ -6270,6 +6282,23 @@ priv scope_lookup_ns_binding := func(mut s: Scope, sname: Str, fname: Str) retur
         }
     }
     return Option(ref HeapBinding).None
+}
+
+// #472 (F2): a size query written in core/std addresses memory and does
+// not reach its caller as a value (FCallData.storage_size_read).
+priv size_read_is_storage := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case .FCall(call): return call.storage_size_read
+    case: return false
+    }
+}
+
+// #472 (F2): reading a namespace value whose initializer observed a size
+// observes it too. The set is empty for almost every program, so the common
+// read pays one length test.
+priv ns_note_size_dependent_read := func(sname: Str, fname: Str, mut ctx: Context) {
+    if ctx.eval.ns_size_dependent.len() == 0 { return }
+    if ctx.eval.ns_size_dependent.has(ns_qname(sname, fname)) { ctx.eval.size_observed = true }
 }
 
 ns_get := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref Dynamic) {
@@ -6335,6 +6364,7 @@ priv ns_field_type := func(sname: Str, fname: Str, mut ctx: Context) returns Typ
 
 interpreter_free_ns := func(mut ctx: Context) {
     if ctx.eval.ns_fields.is_none() { return }
+    ctx.eval.ns_size_dependent = Set(Str).new()
     scope_drop_owned_bindings(ns_scope(ctx))
     // Move the table OUT of the field before freeing: the field is None the
     // moment the free runs, and no later reassignment drains a dead value.
@@ -8922,6 +8952,8 @@ priv h_dyn_size_of := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: C
     // no size() of their own, so dyn_size_of("USize") used to die with
     // "USize has no size() method" while every concrete name worked.
     type_name := resolve_type_alias(ctx.scope, eval_str_owned(s, e.children[1], ctx), ctx.symbols).clone()
+    // #472 (F2): answered from this compiler's layout, like a generated size.
+    if size_read_is_storage(e).not() { ctx.eval.size_observed = true }
     mut sz : USize = UPtr.size()
     if type_name_is_callable_storage(type_name, ctx).not() {
         // The emitted dispatcher is one `if (name == T) return sizeof(T);`
@@ -10177,6 +10209,7 @@ priv get_payload_field_addr := func(mut s: Scope, arg: Expr, mut ctx: Context) r
     if ns_def_o.is_some() {
         ns_hb_o := scope_lookup_ns_binding(ns_scope(ctx), ns_sname, fname)
         if ns_hb_o.is_some() {
+            ns_note_size_dependent_read(ns_sname, fname, ctx)
             ref ns_hb : HeapBinding = ns_hb_o.unwrap()
             switch hb_type(ns_hb) {
             case .Enum, .EnumSym: return to_ptr(ns_hb.ptr)

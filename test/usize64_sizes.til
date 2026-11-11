@@ -34,6 +34,19 @@ holder_size_gen := macro() returns FuncDef {
 }
 holder_size := holder_size_gen()
 
+// #472 (F2): a size reaching the program through compile-time evaluation.
+// The compiler evaluates these in its OWN layout, which is only the target's
+// when the two happen to match, so it must not bake the results: the call
+// and the namespace initializers are left for the program, where
+// Holder.size() is 16. A compiler built with the other layout used to
+// bake its own number here.
+holder_twice := func() returns USize { return Holder.size() * 2 }
+HolderSizes := struct {
+namespace:
+    BYTES : USize = Holder.size()
+    DOUBLE : USize = HolderSizes.BYTES * 2
+}
+
 check := proc(label: Str, got: USize, want: USize) {
     if got.neq(want) {
         println(format("FAIL: ", label, " = ", got.to_str(), ", want ", want.to_str()))
@@ -48,6 +61,9 @@ check("dyn_size_of Str", dyn_size_of("Str"), 24)
 check("RefPair.size()", RefPair.size(), 16)
 check("Holder.size()", Holder.size(), 16)
 check("generator Holder.size()", holder_size(), 16)
+check("folded call holder_twice()", holder_twice(), 32)
+check("namespace constant from a size", HolderSizes.BYTES, 16)
+check("namespace constant from that constant", HolderSizes.DOUBLE, 32)
 
 // A vec must stride at the wide width too: 3 pushes stay addressable and
 // round-trip (a host-width 16-byte stride over 24-byte structs would misplace

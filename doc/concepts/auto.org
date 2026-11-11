@@ -46,6 +46,10 @@
    ~size~ on a user type wins and is an ordinary function.
 
 ** hash := func(self: T, hasher: HashFn) returns U64
+   ~return hasher(self, <byte count>)~. The count in the generated body is
+   the struct's size in the running compiler's layout, which is what the
+   interpreter hashes; the built program gets the target's count, put in
+   when emission starts, like a generated ~size()~ (#472).
    Generated only when every field is shallow (no own / no ref). This
    avoids bytewise hashing pointer addresses for managed content. Types
    with owned or borrowed fields must define a content-aware hash if they

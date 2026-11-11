@@ -128,8 +128,10 @@ Two modules sit underneath every phase below:
 - Responsibilities:
   - fold macros
   - fold comptime-known pure calls recursively when possible; a func
-    whose evaluation writes a ~mut~ global or namespace value is not
-    folded (see [[file:./concepts/functions.org][functions]])
+    whose evaluation writes a ~mut~ global or namespace value, or reads
+    a generated type size, is not folded (see [[file:./concepts/functions.org][functions]])
+  - a generated ~T.size()~ itself is NOT folded here: the builder
+    replaces it with the target's size when emission starts (#472)
   - track known literal values
 - After constfolder, macros should be gone from the AST.
 

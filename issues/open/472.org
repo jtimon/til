@@ -1063,3 +1063,70 @@ row was run by hand as above; the MLIR change is covered only by
   contract. Needed before level 2 can compare script-mode programs across
   hosts (#473 step C6).
 
+*** Progress: step F2 (base master 09b120e)
+
+**** What landed
+
+- The interpreter notes when an evaluation reads a generated size
+  (~ctx.eval.size_observed~): a generated ~size()~ body about to run
+  (~eval_user_func_call~), ~dyn_size_of~, or a read of a namespace value
+  whose own initializer read one (~ctx.eval.ns_size_dependent~).
+- ~constfolder.til::try_eval_call~ does not bake the result of a plain
+  func's evaluation that read one; the call stays in the program.
+  ~fold_ns_data_value~ leaves a namespace constant initialized from a
+  size for the program to compute. On every host. Macros are not refused.
+- Size queries written in ~src/core~ and ~src/std~ do not count
+  (~FCallData.storage_size_read~, set by ~loader.til::mark_storage_size_reads~
+  on the parsed trees before anything is instantiated, so instances of a
+  core/std generic inherit it wherever they land).
+- The generated ~hash~ of an all-shallow struct baked its byte count from
+  the compiler's layout (~initer.til~). ~builder.til::retarget_generated_hashes_in~
+  gives the program the target's count when emission starts.
+
+**** Why core/std reads are exempt (the plan did not have this)
+
+The plan's rule was "any evaluation that read a size is not baked". Run as
+written it discarded 161 folds over the 316 test and example programs and
+9 in the compiler, nearly all of them funcs that merely build a container
+(~format~, ~split~, a ~Map~), because containers read sizes to address
+memory. The suite then failed in three ways: ~fold_print_*~ (a pure func
+that prints was no longer folded, so it printed at compile time AND at
+run time), ~test/first_class.til~ (the C emitter left unused ~dyn_fn~
+helpers for calls that used to fold) and a HolyC expected file. That is
+the "construct that requires such a fold" case the plan said to stop on.
+The plan also said not to special-case names; this does not: the mark is
+on the call's source location (core/std), not on any name. With it, what
+is left for run time in the compiler is one call that really uses a size
+as a value (~interpreter.til~'s ~stored_ref_size~), and in the tests only
+the fixtures written for this step. Checked by reading every size use in
+core/std: each is byte arithmetic or a ~priv~ storage helper
+(~slot_size~, ~key_size~, ~value_size~). ~std/dyn_vec~ and ~std/dyn_set~
+keep an element size in a field of their value; code that reads that
+field as a number is outside what this rule covers.
+
+Cost: a user-written container (outside core/std) that reads sizes makes
+the funcs using it unfoldable. Under decision 1 that is the stated limit.
+
+**** Verified here (compact compiler, Linux x64)
+
+- ~make clean && make test_two_pass~: 577/577, wall 389.9 s.
+- ~test/usize64_sizes.til~ is the regression: built by the compact
+  compiler for ~--usize=64~ it now gets 32 from a folded
+  ~Holder.size() * 2~ and 16 / 32 from the two namespace constants; the
+  compiler before this step baked 16, 8 and 16.
+- A native-layout compiler (~bin/til build --usize=64 -o tmp/til64
+  src/til.til~) still reproduces ~boot/~ byte for byte.
+- Sweep: every ~test/*.til~ and ~examples/*.til~ translated for
+  ~--usize=32~ by both compiler layouts: 239 programs identical except the
+  translation stamp line, 0 different, 77 that neither translates (error
+  fixtures and the like, same exit status from both). Before the hash fix
+  ~test/first_class.til~ differed in 30 places.
+
+Not run here: ~make check_usize64~ as a whole.
+
+**** Still open after F1 and F2
+
+- A macro that uses ~size()~ as a value on a cross-layout build bakes the
+  compiler's number. That is F3 (~size_for_target()~).
+- HolyC: the generated ~hash~ count and sizes keep their existing paths.
+

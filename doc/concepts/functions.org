@@ -68,6 +68,32 @@ time. Folding it anyway would apply the write inside the compiler and drop it
 from the program. Macros are exempt: their writes are compile-time by design.
 Regression test: ~test_fold_keeps_state_writes~ in ~test/ref.til~.
 
+A func that reads a generated type size is not folded either. While the
+compiler evaluates a call, ~X.size()~ and ~dyn_size_of~ answer with the
+layout of the compiler itself, which is the target's only when the two
+happen to match (they do not for a ~--usize=64~ or 32-bit target built by
+the default compiler). So when an evaluation reads one -- directly, or
+through a namespace constant that was initialized from one -- its result is
+not baked: the call stays in the program, where the size is the target's.
+Namespace constants initialized from a size are likewise left for the
+program to compute. This happens on every build, not only when the layouts
+differ, so the same calls fold whichever way the compiler was built.
+
+Size queries written in the compiler's own ~src/core~ and ~src/std~ do not
+count. Containers read sizes only to address memory (an element stride, an
+allocation, a copy length), so a func that builds a ~Vec~, a ~Map~ or a
+variadic argument list while it is evaluated still folds. That is a rule
+core and std have to keep: a size read there must never reach the caller
+as a value. The loader marks those calls on the parsed sources, and every
+instance of a core/std generic inherits the mark. A container written
+outside core/std gets no such trust, so funcs that use it are left for run
+time.
+
+Macros are exempt because they must produce their node at compile time; one
+that needs the built program's size is what ~size_for_target()~ is for
+(~doc/concepts/auto.org~). Regression tests: ~test/usize64_sizes.til~,
+~test/usize32_sizes.til~ and ~test/layout_corpus.til~.
+
 ** ext_func / ext_proc
 
 No body (~{}~). The implementation is a hand-written C symbol in

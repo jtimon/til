@@ -719,6 +719,52 @@ priv fold_generated_sizes_to_target := proc(mut lp: LoadedProgram) {
     for upath : Str in lp.unit_paths() {
         context_enter_file(lp.ctx, upath)
         fold_generated_sizes_in(lp.ctx.imported[upath].ast, lp.ctx)
+        retarget_generated_hashes_in(lp.ctx.imported[upath].ast, lp.ctx)
+    }
+}
+
+// The one numeric literal in a generated hash body is the byte count.
+priv retarget_hash_byte_count := proc(mut e: Expr, size_text: Str) {
+    for i in 0..e.children.len() {
+        ref mut child : Expr = e.children[i]
+        if child.node_type.is_literal_num() {
+            mut literal := Expr.new(own literal_num_node(size_text), child.line, child.col)
+            literal.set_til_type(child.til_type())
+            e.children[i] = literal
+        } else {
+            retarget_hash_byte_count(child, size_text)
+        }
+    }
+}
+
+// #472 (F2): the generated `hash(self, hasher)` of an all-shallow struct is
+// `return hasher(self, <byte count>)`, and initer.til writes that count as a
+// literal from the running COMPILER's layout -- right for the interpreter,
+// which hashes the compiler's bytes, and the same defect as an early-folded
+// size once it reaches the program: a compiler with the other layout hashed
+// past the end of the target's struct (144 bytes of a Declaration against
+// 224). So it gets the target's count here, with the sizes. A primitive's
+// count is its width on every target and stays as written.
+priv retarget_generated_hashes_in := proc(mut program: Expr, ctx: Context) {
+    for mut stmt : Expr in program.children {
+        if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len() == 0) { continue }
+        if stmt.children[0].node_type.is(NodeType.StructDef).not() { continue }
+        type_name := decl_of(stmt).name.clone()
+        mut primitive := Primitive.U8
+        if builtin_primitive_from_name(type_name, primitive) { continue }
+        ref mut def : Expr = stmt.children[0]
+        ref mut members : Vec(Declaration) = def_ns_decls(def)
+        mut index : USize = 0
+        for mut member : Declaration in members {
+            member_index := index
+            index = index + 1
+            if def_ns_name_at(def, member_index) != "hash" { continue }
+            if member.default_value.is_none() { continue }
+            if member.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
+            if funcdef_of(member.default_expr()).auto_generated.not() { continue }
+            size_text := target_emitted_size(type_name, ctx.scope, ctx).to_str()
+            retarget_hash_byte_count(member.default_expr(), size_text)
+        }
     }
 }
 

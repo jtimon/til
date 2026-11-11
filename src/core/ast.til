@@ -631,6 +631,16 @@ FCallData := struct {
     // entered another unit. Retain the typing unit's path, like __LOC__ does.
     // Appended to preserve existing bootstrap-visible field offsets.
     cast_path : Sym = 0
+    // #472 (F2): this call is a size query written in the compiler's own
+    // core/std sources, where a size is only ever used to address memory
+    // (an element stride, an allocation, a copy length) and never reaches
+    // the caller as a value. The constfolder refuses to bake the result of
+    // an evaluation that read a generated size, because that number is the
+    // running compiler's layout; a read marked here does not count, or no
+    // function that builds a container while it is evaluated could fold.
+    // Set by the loader before folding. Appended to preserve existing
+    // bootstrap-visible field offsets.
+    storage_size_read := false
 namespace:
     eq := func(_a: FCallData, _b: FCallData) returns Bool {
         return true

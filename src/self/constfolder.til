@@ -1136,9 +1136,12 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
     // Printing and other effects execute normally during the evaluation.
     ctx.eval.constfold_active = true
     ctx.eval.constfold_no_state_writes = is_macro_mode.not()
+    ctx.eval.size_observed = false
     mut result : Dynamic = eval_expr_raw(eval_scope, ec, ctx)
     ctx.eval.constfold_no_state_writes = false
     ctx.eval.constfold_active = false
+    size_dependent := ctx.eval.size_observed
+    ctx.eval.size_observed = false
 
     // The eval reached a panic/abort with these comptime inputs. Don't bake a
     // value. For a macro that is a hard compile-time error (the macro genuinely
@@ -1156,6 +1159,20 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
                 ": error: macro aborted (panic/exit) during compile-time evaluation",
             )
         }
+        return Option(Expr).None
+    }
+
+    // #472 (F2): the evaluation read a generated size, so its result may be
+    // built from this COMPILER's layout rather than the target's. Leave a
+    // plain func's call for run time, where the size is the target's; the
+    // same calls are left on every host, so the emitted source does not
+    // depend on which layout the compiler has. A macro has to produce its
+    // node now and is not refused here: one that needs the built program's
+    // size is what size_for_target() is for (issue #472, step F3).
+    if is_macro_mode.not().and(size_dependent) {
+        raw_result_drop(fcall.til_type(), result, false, ctx)
+        scope_drop_owned_bindings(eval_scope)
+        scope_free(own eval_scope)
         return Option(Expr).None
     }
 
@@ -1906,6 +1923,10 @@ priv fold_ns_data_value := func(owner: Str, def: Expr, idx: USize, mut nsd: Decl
     if def.node_type.is(NodeType.EnumDef).and(enum_variant_index(def, member).gte(0)) { return }
     value_type := original.til_type().clone()
     if result_type_can_fold_to_expr(value_type, ctx).not() { return }
+    // #472 (F2): this value was computed from the compiler's layout
+    // (interpreter_init_ns recorded it); the program evaluates the
+    // initializer itself.
+    if ctx.eval.ns_size_dependent.has(format(owner, ".", member)) { return }
     raw_o := ns_get(owner, member, ctx)
     if raw_o.is_none() { panic(__LOC__, "evaluated namespace value missing: ", owner, ".", member) }
     ref raw_ref : Dynamic = raw_o.unwrap()
