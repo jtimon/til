@@ -119,7 +119,9 @@ check_notes := proc(err: Str) {
     require_contains(err, "note: JNI binding til.jni_lib.JniLib: adopt__F64 not bound: parameter 'dest' of type Dynamic\n")
 }
 
-EXPECTED := "127\n250\n-2000\n65000\n1999999999\n4294967295\n1099511627783\n18446744073709551615\n42\n1.5\n2.5\nfalse true\n42\n6\nhello, jvm\n<owned>\n42\ncaught DivideByZero / DivideByZero: b is zero\ncaught JniBad / JniBad\nada:36\ngrace:37 true\nanon 0 true\n5\nmoved: JniPerson handle is closed or moved\n42 false\nholder: n: a mut parameter takes a one-element array\n49 12 0\n7 own 0\npayload: JniShape is not Label\n2 held held\n5 renamed\nborrowed: cannot move a borrowed JniPerson\n90\n[cb]\n36\nmade:9\ntrue\nx|y||z\np|q\n303\nanon 0\n46\n[0, 1, 4, 9, 16] 0\n[3.0, 4.0, 2.0]\n2\n3 ccc 2 ccc\n3 a\nq [0, 1]\n[4, 5, 6]\n121\n42\nJniErr neg -1 7\nDivideByZero []\nJniBad\n42 abc true 2:9 p|q\nmm:11\n504\nkept 30\n2 z b\n3 new a false\nmut vec: JniPerson handle is closed or moved\nborrowed vec: cannot move a borrowed JniPerson\n2 z\nt:a2\nb!\np-q\np-r\npre-x\ntil-pre-x\nJniErr neg\nclosed: JniStrFn closure is closed or moved\nborrowed: cannot move a borrowed JniStrFn\nm-own\ntrue 15\n200 true\n8 8\n21\ntrue\n101 5\n2 v w\nloop ok\n"
+// JniLibTest's output; CI's jni-jar-run diffs the merged jar's run against
+// the same file (.github/workflows/tests.yml).
+EXPECTED_PATH := "test/JniLibTest.expected"
 
 main := proc(args: ..Str) {
     // TEMPORARY (#464): make test passes no sanitizer flag; test_asan does.
@@ -142,10 +144,11 @@ main := proc(args: ..Str) {
     println("jni text ok")
     if run_jvm.not() { return }
 
+    expected := File.readfile(EXPECTED_PATH)
     java_home := jni_java_home()
     jni_javac(java_home, "tmp/jni_classes", JAR, "test/JniLibTest.java")
     out := jni_run(java_home, CLASS_PATH, "JniLibTest")
-    if out != EXPECTED { panic("JniLibTest output mismatch:\n", out) }
+    if out != expected { panic("JniLibTest output mismatch:\n", out) }
     println("jni jvm ok")
 
     // A target the jar does not carry (os.arch "none") loads the bridge from
@@ -154,7 +157,7 @@ main := proc(args: ..Str) {
         "-Djava.library.path=gen/lib", "-cp", CLASS_PATH, "JniLibTest")
     other.capture_out()
     if other.run() != 0 { panic("JniLibTest from java.library.path failed:\n", other.out()) }
-    if other.out() != EXPECTED { panic("JniLibTest output mismatch from java.library.path:\n", other.out()) }
+    if other.out() != expected { panic("JniLibTest output mismatch from java.library.path:\n", other.out()) }
     missing := Cmd.new(format(java_home, "/bin/java"), "-Dos.arch=none", "-cp", CLASS_PATH, "JniLibTest")
     missing.capture()
     if missing.run() == 0 { panic("JniLibTest ran with no natives for its target") }
@@ -165,7 +168,7 @@ main := proc(args: ..Str) {
     if asan.and(host_os() == "linux") {
         jni_til_build("test/jni_lib.til", true)
         out_asan := jni_run_asan(java_home, CLASS_PATH, "JniLibTest")
-        if out_asan != EXPECTED { panic("JniLibTest output mismatch under ASAN:\n", out_asan) }
+        if out_asan != expected { panic("JniLibTest output mismatch under ASAN:\n", out_asan) }
         println("jni jvm asan ok")
     }
 }

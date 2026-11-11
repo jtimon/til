@@ -97,6 +97,16 @@ jobs:
           ./bin/til build --target=linux-x64 -o bin/hello_script_x64 examples/hello_script.til
           file bin/hello_script_x64 | grep -q "x86-64"
           ./bin/hello_script_x64
+      # This host's JNI jar, for jni-jar-merge.
+      - name: Build the JNI test jar
+        run: ./bin/til build --jni test/jni_lib.til
+      - name: Upload the JNI test jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: jni-jar-linux-x64
+          path: |
+            gen/lib/jni_lib.jar
+            gen/til/java/til/jni_lib/JniLib.java
       - name: Cancel the rest of this run
         if: failure()
         shell: bash
@@ -165,6 +175,16 @@ jobs:
           file bin/hello_script_arm64_native | grep -q "aarch64"
           ./bin/hello_script_arm64_native
           ./bin/hello_script_arm64_native | grep -q "Hello World"
+      # This host's JNI jar, for jni-jar-merge.
+      - name: Build the JNI test jar
+        run: ./bin/til build --jni test/jni_lib.til
+      - name: Upload the JNI test jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: jni-jar-linux-arm64
+          path: |
+            gen/lib/jni_lib.jar
+            gen/til/java/til/jni_lib/JniLib.java
       - name: Cancel the rest of this run
         if: failure()
         shell: bash
@@ -1107,6 +1127,16 @@ jobs:
           file bin/hello_script_macos_arm64 | grep -q "Mach-O"
           ./bin/hello_script_macos_arm64
           ./bin/hello_script_macos_arm64 | grep -q "Hello World"
+      # This host's JNI jar, for jni-jar-merge.
+      - name: Build the JNI test jar
+        run: ./bin/til build --jni test/jni_lib.til
+      - name: Upload the JNI test jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: jni-jar-macos-arm64
+          path: |
+            gen/lib/jni_lib.jar
+            gen/til/java/til/jni_lib/JniLib.java
       # Native mac GUI: build every mode-gui example (chess, go, shootil,
       # ...) against the real Apple SDK frameworks, which the SDK-less
       # cross toolchain lacks. This is the only way mac GUI can be built
@@ -1278,6 +1308,16 @@ jobs:
           file bin/hello_script_macos_x64 | grep -q "Mach-O"
           ./bin/hello_script_macos_x64
           ./bin/hello_script_macos_x64 | grep -q "Hello World"
+      # This host's JNI jar, for jni-jar-merge.
+      - name: Build the JNI test jar
+        run: ./bin/til build --jni test/jni_lib.til
+      - name: Upload the JNI test jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: jni-jar-macos-x64
+          path: |
+            gen/lib/jni_lib.jar
+            gen/til/java/til/jni_lib/JniLib.java
       # Native mac GUI build -- see the macos-arm64 job for the rationale.
       - name: Build native mac examples (gui + portable)
         run: make build_mac
@@ -1328,6 +1368,89 @@ jobs:
           name: crash-macos-x64
           path: tmp/crash/
           if-no-files-found: ignore
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
+
+  # One JNI jar for four platforms (doc/ffi.org "One jar for several
+  # platforms"): the four native jobs each upload the test/jni_lib.til jar
+  # they built, this job merges them with the documented recipe, and
+  # jni-jar-run runs JniLibTest against the merged jar on each of the four.
+  # The generated Java source must be byte-identical across the hosts: the
+  # class names every directory's natives by one runtime ABI.
+  jni-jar-merge:
+    needs: [linux-x64, linux-arm64-native, macos-arm64, macos-x64]
+    name: JNI jar (merge the four hosts' jars)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the hosts' JNI jars
+        uses: actions/download-artifact@v4
+        with:
+          pattern: jni-jar-*
+          path: hosts
+      - name: Merge the jars
+        shell: bash
+        run: |
+          set -eu
+          targets="linux-x64 linux-arm64 macos-arm64 macos-x64"
+          for t in $targets; do
+            cmp hosts/jni-jar-linux-x64/gen/til/java/til/jni_lib/JniLib.java \
+              "hosts/jni-jar-$t/gen/til/java/til/jni_lib/JniLib.java"
+          done
+          mkdir merged
+          cd merged
+          for t in $targets; do "$JAVA_HOME/bin/jar" xf "../hosts/jni-jar-$t/gen/lib/jni_lib.jar"; done
+          rm -r META-INF
+          "$JAVA_HOME/bin/jar" cf ../jni_lib.jar .
+          cd ..
+          unzip -Z1 jni_lib.jar | grep '^til/jni_lib/native/'
+          [ "$(unzip -Z1 jni_lib.jar | grep -c '^til/jni_lib/native/[^/]*/$')" = 4 ]
+          for t in $targets; do
+            [ "$(unzip -Z1 jni_lib.jar | grep -c "^til/jni_lib/native/$t/lib")" = 4 ]
+          done
+      - name: Upload the merged jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: jni-jar-merged
+          path: jni_lib.jar
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
+
+  jni-jar-run:
+    needs: jni-jar-merge
+    strategy:
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel]
+    name: JNI jar (run the merged jar on ${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download the merged jar
+        uses: actions/download-artifact@v4
+        with:
+          name: jni-jar-merged
+          path: merged
+      # The JDK as test/jni_support.til finds it. No java.library.path: the
+      # class loads this runner's natives from the jar.
+      - name: Run JniLibTest against the merged jar
+        shell: bash
+        run: |
+          set -eu
+          if [ -n "${JAVA_HOME:-}" ]; then jdk=$JAVA_HOME
+          elif [ -x /usr/libexec/java_home ]; then jdk=$(/usr/libexec/java_home)
+          else jdk=$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")"); fi
+          mkdir -p tmp/jni_classes
+          "$jdk/bin/javac" --release 8 -Xlint:all -Xlint:-options -Werror -cp merged/jni_lib.jar \
+            -d tmp/jni_classes test/JniLibTest.java
+          "$jdk/bin/java" -Xcheck:jni -cp merged/jni_lib.jar:tmp/jni_classes JniLibTest > tmp/jni_merged.out
+          diff test/JniLibTest.expected tmp/jni_merged.out
       - name: Cancel the rest of this run
         if: failure()
         shell: bash

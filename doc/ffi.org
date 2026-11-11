@@ -1120,7 +1120,12 @@ Python check reads and writes. On Linux both then rerun with ~til build --asan
 leaks (macOS's signed JDK launchers refuse the preloaded sanitizer).
 test/install.til has the installed compiler ~til install --jni~ a library and
 runs a Java caller against the installed jar and bridge. The shared steps are
-in test/jni_support.til.
+in test/jni_support.til. In CI the linux-x64, linux-arm64, macos-arm64 and
+macos-x64 jobs each upload their test/jni_lib.til jar; ~jni-jar-merge~ checks
+the generated Java source is identical across them and merges the jars with
+the recipe above, and ~jni-jar-run~ runs JniLibTest against the merged jar on
+all four, diffing its output with test/JniLibTest.expected -- the file
+test/jni.til checks too.
 
 ** Passing a Str to a C string parameter
 

@@ -1,0 +1,81 @@
+127
+250
+-2000
+65000
+1999999999
+4294967295
+1099511627783
+18446744073709551615
+42
+1.5
+2.5
+false true
+42
+6
+hello, jvm
+<owned>
+42
+caught DivideByZero / DivideByZero: b is zero
+caught JniBad / JniBad
+ada:36
+grace:37 true
+anon 0 true
+5
+moved: JniPerson handle is closed or moved
+42 false
+holder: n: a mut parameter takes a one-element array
+49 12 0
+7 own 0
+payload: JniShape is not Label
+2 held held
+5 renamed
+borrowed: cannot move a borrowed JniPerson
+90
+[cb]
+36
+made:9
+true
+x|y||z
+p|q
+303
+anon 0
+46
+[0, 1, 4, 9, 16] 0
+[3.0, 4.0, 2.0]
+2
+3 ccc 2 ccc
+3 a
+q [0, 1]
+[4, 5, 6]
+121
+42
+JniErr neg -1 7
+DivideByZero []
+JniBad
+42 abc true 2:9 p|q
+mm:11
+504
+kept 30
+2 z b
+3 new a false
+mut vec: JniPerson handle is closed or moved
+borrowed vec: cannot move a borrowed JniPerson
+2 z
+t:a2
+b!
+p-q
+p-r
+pre-x
+til-pre-x
+JniErr neg
+closed: JniStrFn closure is closed or moved
+borrowed: cannot move a borrowed JniStrFn
+m-own
+true 15
+200 true
+8 8
+21
+true
+101 5
+2 v w
+loop ok
