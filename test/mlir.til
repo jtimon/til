@@ -151,6 +151,76 @@ priv check_buffers := proc(compiler: Str, work: Str) {
     }
 }
 
+priv check_simd_fields := proc(compiler:Str,work:Str) {
+    vectors:=array(Str,"F4","S4","U4","M4")
+    boxes:=array(Str,"FBox","SBox","UBox","MBox")
+    lanes:=array(Str,"F32","I32","U32","Bool")
+    clanes:=array(Str,"float","int32_t","uint32_t","bool")
+    names:=format("F4:=Simd(F32,4)\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\nM4:=Simd(Bool,4)\n",
+        "FBox:=struct{v:F4=F4.zero()}\nSBox:=struct{v:S4=S4.zero()}\nUBox:=struct{v:U4=U4.zero()}\nMBox:=struct{v:M4=M4.zero()}\n",
+        "FPad:=struct{head:I8=0;v:F4=F4.zero();tail:U16=0}\nMaskLead:=struct{lead:Bool=false;v:M4=M4.zero()}\nCrossMask:=struct{head:F32=0;inner:MaskLead;tail:F32=0}\nFloatMask:=struct{head:F32=0;v:M4=M4.zero();tail:F32=0}\n",
+        "NestedVectors:=struct{tag:U8=0;f:FBox=FBox();s:SBox=SBox();u:UBox=UBox();m:MaskLead=MaskLead();last:F64=0}\n")
+    mut source:=format("mode lib\n",names)
+    mut declarations:=format("#include <assert.h>\n#include <stdbool.h>\n#include <stdint.h>\n#include <stddef.h>\n#include <string.h>\n",
+        "typedef struct{float v[4];}F4;typedef struct{int32_t v[4];}S4;typedef struct{uint32_t v[4];}U4;typedef struct{bool v[4];}M4;\n",
+        "typedef struct{F4 v;}FBox;typedef struct{S4 v;}SBox;typedef struct{U4 v;}UBox;typedef struct{M4 v;}MBox;typedef struct{char head;F4 v;unsigned short tail;}FPad;typedef struct{bool lead;M4 v;}MaskLead;typedef struct{float head;MaskLead inner;float tail;}CrossMask;typedef struct{float head;M4 v;float tail;}FloatMask;typedef struct{unsigned char tag;FBox f;SBox s;UBox u;MaskLead m;double last;}NestedVectors;\n",
+        "_Static_assert(sizeof(FPad)==24 && offsetof(FPad,v)==4 && offsetof(FPad,tail)==20,\"FPad layout\");_Static_assert(sizeof(MaskLead)==5 && _Alignof(MaskLead)==1,\"mask layout\");_Static_assert(sizeof(CrossMask)==16 && offsetof(CrossMask,inner)==4 && offsetof(CrossMask,tail)==12,\"crossing mask layout\");_Static_assert(sizeof(NestedVectors)==72 && offsetof(NestedVectors,f)==4 && offsetof(NestedVectors,m)==52 && offsetof(NestedVectors,last)==64,\"nested layout\");\n")
+    mut bindings:=format("mode cli\nlink(\"gen/lib/libsimd_fields.so\")\n",names)
+    mut reference_body:="main:=proc(){\n"
+    mut checks:="int main(void){for(unsigned mask=0;mask<16;mask++){uint32_t bits[4]={0x7f800001,0xffc12345,0x80000000,1},other[4]={1,0x80000000,0x7f800001,0xffc54321};F4 f,wf;memcpy(&f,bits,16);memcpy(&wf,other,16);S4 s={{INT32_MIN,INT32_MAX,-1,17}},ws={{1,-2,3,-4}};U4 u={{UINT32_MAX,0,0x80000000,123}},wu={{1,2,3,4}};M4 m,wm;for(unsigned i=0;i<4;i++){m.v[i]=(mask>>i)&1;wm.v[i]=!m.v[i];}\n"
+    inputs:=array(Str,"f","s","u","m")
+    others:=array(Str,"wf","ws","wu","wm")
+    for i in 0..vectors.len() {
+        ref v:Str=vectors[i];ref b:Str=boxes[i];ref lane:Str=lanes[i];ref clane:Str=clanes[i]
+        source=format(source,"make_",b,":=func(v:",v,") returns ",b,"{return ",b,"(v=v)}\n",
+            "copy_",b,":=func(shallow p:",b,") returns ",b,"{return p.clone()}\nrelay_",b,":=func(shallow p:",b,") returns ",b,"{return copy_",b,"(p)}\n",
+            "read_",b,":=func(shallow p:",b,") returns ",v,"{return p.v.clone()}\nfield_",b,":=func(p:",b,") returns ref ",v,"{return p.v}\n",
+            "replace_",b,":=func(mut p:",b,",v:",v,"){p.v=v}\nlocal_",b,":=func(v:",v,",w:",v,") returns ",b,"{mut p:=",b,"(v=v);p=",b,"(v=w);return p.clone()}\n",
+            "lane_",b,":=func(mut p:",b,",i:USize,x:",lane,") throws OutOfBounds{ref mut v:",v,"=p.v;v.set(i,own x)?}\n",
+            "default_",b,":=func() returns ",b,"{return ",b,"()}\n")
+        declarations=format(declarations,"extern ",b," make_",b,"(",v,"),copy_",b,"(",b,"),relay_",b,"(",b,"),local_",b,"(",v,",",v,"),default_",b,"(void);extern ",v," read_",b,"(",b,");extern const ",v,"*field_",b,"(const ",b,"*);extern void replace_",b,"(",b,"*,",v,"),lane_",b,"(",b,"*,uint64_t,",clane,",long long*);\n")
+        mut replacement:="1.25f"
+        if v=="S4" {replacement="-17"};if v=="U4" {replacement="0xfedcba98U"};if v=="M4" {replacement="true"}
+        checks=format(checks,"{",b," a=make_",b,"(",inputs[i],"),copy=relay_",b,"(copy_",b,"(a)),local=local_",b,"(",inputs[i],",",others[i],"),zero=default_",b,"();",v," read=read_",b,"(a),zeros={0};assert(memcmp(&a.v,&",inputs[i],",sizeof a.v)==0 && memcmp(&copy.v,&a.v,sizeof a.v)==0 && memcmp(&local.v,&",others[i],",sizeof a.v)==0 && memcmp(&read,&a.v,sizeof a.v)==0 && memcmp(&zero.v,&zeros,sizeof zeros)==0);assert(field_",b,"(&a)==&a.v);replace_",b,"(&a,",others[i],");assert(memcmp(&a.v,&",others[i],",sizeof a.v)==0);const uint64_t indices[]={0,1,2,3,4,UINT64_MAX};for(unsigned k=0;k<6;k++){struct{unsigned char before;",b," body;unsigned char after;}guard;memset(&guard,0x5a,sizeof guard);memcpy(&guard.body.v,&",inputs[i],",sizeof guard.body.v);",v," want=",inputs[i],";",clane," x=",replacement,";uint64_t index=indices[k];if(index<4)memcpy((unsigned char*)&want+index*sizeof x,&x,sizeof x);long long error=0;lane_",b,"(&guard.body,index,x,&error);assert(error==(index<4?0:1) && guard.before==0x5a && guard.after==0x5a && memcmp(&guard.body.v,&want,sizeof want)==0);}}\n")
+        bindings=format(bindings,"make_",b,":=ext_func(shallow v:",v,") returns shallow ",b,"{}\nrelay_",b,":=ext_func(shallow p:",b,") returns shallow ",b,"{}\nfield_",b,":=ext_func(p:",b,") returns ref ",v,"{}\nreplace_",b,":=ext_func(mut p:",b,",shallow v:",v,"){}\nlane_",b,":=ext_func(mut p:",b,",shallow i:USize,shallow x:",lane,") throws OutOfBounds{}\n")
+        mut vector:="F4.new(1,2,3,4)";mut scalar:="9"
+        if v=="S4" {vector="S4.new(-1,2,-3,4)"};if v=="U4" {vector="U4.new(U32.MAX,2,3,4)"};if v=="M4" {vector="M4.new(true,false,true,false)";scalar="true"}
+        reference_body=format(reference_body,"mut p_",b,":=make_",b,"(",vector,");replace_",b,"(p_",b,",",v,".zero());ref mut field_",v,":",v,"=field_",b,"(p_",b,");field_",v,".set(2,own ",scalar,")!;assert_eq(",lane,",p_",b,".v[2],",scalar,");copy_",v,":=relay_",b,"(p_",b,");assert(copy_",v,".v.eq(p_",b,".v).all());lane_",b,"(p_",b,",1,",scalar,")!;assert_eq(",lane,",p_",b,".v[1],",scalar,");\n")
+    }
+    source=format(source,"make_pad:=func(v:F4,head:I8,tail:U16) returns FPad{return FPad(head=head,v=v,tail=tail)}\ncopy_pad:=func(shallow p:FPad) returns FPad{return p.clone()}\nfield_pad:=func(p:FPad) returns ref F4{return p.v}\n",
+        "make_cross:=func(m:M4) returns CrossMask{return CrossMask(head=-0.0,inner=MaskLead(lead=true,v=m),tail=3.25)}\ncopy_cross:=func(shallow p:CrossMask) returns CrossMask{return p.clone()}\n",
+        "make_floatmask:=func(a:F32,m:M4,b:F32) returns FloatMask{return FloatMask(head=a,v=m,tail=b)}\ncopy_floatmask:=func(shallow p:FloatMask) returns FloatMask{return p.clone()}\n",
+        "make_nested:=func(f:F4,s:S4,u:U4,m:M4) returns NestedVectors{return NestedVectors(tag=9,f=FBox(v=f),s=SBox(v=s),u=UBox(v=u),m=MaskLead(lead=true,v=m),last=3.5)}\ncopy_nested:=func(shallow p:NestedVectors) returns NestedVectors{return p.clone()}\ndefault_nested:=func() returns NestedVectors{return NestedVectors()}\n",
+        "replace_nested:=func(mut p:NestedVectors,f:F4,s:S4,u:U4,m:M4){p.f.v=f;p.s.v=s;p.u.v=u;p.m.v=m}\nfield_nested:=func(p:NestedVectors) returns ref M4{return p.m.v}\n",
+        "sse_budget:=func(a:F64,b:F64,c:F64,d:F64,e:F64,f:F64,g:F64,shallow p:FBox,last:F64) returns FBox{mut out:=p.clone();ref mut v:F4=out.v;v.set(0,own (a+b+c+d+e+f+g+last).cast(F32))!;return out}\n",
+        "sse_relay:=func(a:F64,b:F64,c:F64,d:F64,e:F64,f:F64,g:F64,shallow p:FBox,last:F64) returns FBox{return sse_budget(a,b,c,d,e,f,g,p,last)}\n",
+        "integer_budget:=func(a:I64,b:I64,c:I64,d:I64,e:I64,shallow p:CrossMask,last:I64) returns CrossMask{mut out:=p.clone();out.tail=(a+b+c+d+e+last).cast(F32);return out}\n",
+        "integer_relay:=func(a:I64,b:I64,c:I64,d:I64,e:I64,shallow p:CrossMask,last:I64) returns CrossMask{return integer_budget(a,b,c,d,e,p,last)}\n",
+        "sret_budget:=func(a:I64,b:I64,c:I64,d:I64,shallow p:SBox,last:I64) returns FPad{return FPad(head=(a+b+c+d+last).to_i8(),v=p.v.cast(F32),tail=1234)}\n",
+        "sret_relay:=func(a:I64,b:I64,c:I64,d:I64,shallow p:SBox,last:I64) returns FPad{return sret_budget(a,b,c,d,p,last)}\n",
+        "size_pad:=func() returns USize{return FPad.size()}\nsize_nested:=func() returns USize{return NestedVectors.size()}\n")
+    declarations=format(declarations,"extern FPad make_pad(F4,char,unsigned short),copy_pad(FPad),sret_budget(long long,long long,long long,long long,SBox,long long),sret_relay(long long,long long,long long,long long,SBox,long long);extern const F4*field_pad(const FPad*);extern CrossMask make_cross(M4),copy_cross(CrossMask),integer_budget(long long,long long,long long,long long,long long,CrossMask,long long),integer_relay(long long,long long,long long,long long,long long,CrossMask,long long);extern FloatMask make_floatmask(float,M4,float),copy_floatmask(FloatMask);extern NestedVectors make_nested(F4,S4,U4,M4),copy_nested(NestedVectors),default_nested(void);extern void replace_nested(NestedVectors*,F4,S4,U4,M4);extern const M4*field_nested(const NestedVectors*);extern FBox sse_budget(double,double,double,double,double,double,double,FBox,double),sse_relay(double,double,double,double,double,double,double,FBox,double);extern uint64_t size_pad(void),size_nested(void);\n")
+    checks=format(checks,"assert(size_pad()==sizeof(FPad) && size_nested()==sizeof(NestedVectors));FPad padded=make_pad(f,-7,65535),pad_copy=copy_pad(padded);assert(padded.head==-7 && padded.tail==65535 && memcmp(&padded.v,&f,16)==0 && pad_copy.head==-7 && pad_copy.tail==65535 && memcmp(&pad_copy.v,&f,16)==0 && field_pad(&padded)==&padded.v);CrossMask cross=make_cross(m),cross_copy=copy_cross(cross);assert(cross.inner.lead && memcmp(&cross.inner.v,&m,4)==0 && memcmp(&cross_copy.head,&cross.head,4)==0 && memcmp(&cross_copy.inner,&cross.inner,5)==0 && cross_copy.tail==3.25f);FloatMask mixed=make_floatmask(f.v[0],m,f.v[2]),mixed_copy=copy_floatmask(mixed);assert(memcmp(&mixed_copy.head,&f.v[0],4)==0 && memcmp(&mixed_copy.v,&m,4)==0 && memcmp(&mixed_copy.tail,&f.v[2],4)==0);\n",
+        "NestedVectors n=make_nested(f,s,u,m),nc=copy_nested(n),nz=default_nested();assert(n.tag==9 && n.last==3.5 && memcmp(&nc.f.v,&f,16)==0 && memcmp(&nc.s.v,&s,16)==0 && memcmp(&nc.u.v,&u,16)==0 && nc.m.lead && memcmp(&nc.m.v,&m,4)==0 && field_nested(&n)==&n.m.v);assert(nz.tag==0 && nz.last==0 && !nz.m.lead);for(unsigned i=0;i<4;i++)assert(nz.f.v.v[i]==0 && nz.s.v.v[i]==0 && nz.u.v.v[i]==0 && !nz.m.v.v[i]);replace_nested(&n,wf,ws,wu,wm);assert(n.tag==9 && n.last==3.5 && memcmp(&n.f.v,&wf,16)==0 && memcmp(&n.s.v,&ws,16)==0 && memcmp(&n.u.v,&wu,16)==0 && memcmp(&n.m.v,&wm,4)==0);\n",
+        "FBox fb=make_FBox(f);FBox sb=sse_budget(1,2,3,4,5,6,7,fb,11),sr=sse_relay(1,2,3,4,5,6,7,fb,11);assert(sb.v.v[0]==39 && sr.v.v[0]==39 && memcmp(&sb.v.v[1],&f.v[1],12)==0 && memcmp(&sr.v.v[1],&f.v[1],12)==0);CrossMask ib=integer_budget(1,2,3,4,5,cross,11),ir=integer_relay(1,2,3,4,5,cross,11);assert(ib.tail==26 && ir.tail==26 && memcmp(&ib.head,&cross.head,4)==0 && memcmp(&ir.inner,&cross.inner,5)==0);SBox small={{{1,2,3,4}}};FPad ret=sret_budget(1,2,3,4,small,11),relay=sret_relay(1,2,3,4,small,11);assert(ret.head==21 && relay.head==21 && ret.tail==1234 && relay.tail==1234);for(unsigned i=0;i<4;i++)assert(ret.v.v[i]==(float)(i+1) && relay.v.v[i]==(float)(i+1));}return 0;}\n")
+    bindings=format(bindings,"make_nested:=ext_func(shallow f:F4,shallow s:S4,shallow u:U4,shallow m:M4) returns shallow NestedVectors{}\ncopy_nested:=ext_func(shallow p:NestedVectors) returns shallow NestedVectors{}\nreplace_nested:=ext_func(mut p:NestedVectors,shallow f:F4,shallow s:S4,shallow u:U4,shallow m:M4){}\n")
+    reference_body=format(reference_body,"mut n:=make_nested(F4.new(1,2,3,4),S4.new(-1,2,-3,4),U4.new(1,2,3,4),M4.splat(true));replace_nested(n,F4.splat(9),S4.splat(-7),U4.splat(U32.MAX),M4.zero());snapshot:=copy_nested(n);assert_eq(F32,snapshot.f.v[2],9);assert_eq(I32,snapshot.s.v[0],-7);assert_eq(U32,snapshot.u.v[1],U32.MAX);assert(snapshot.m.v.any().not());assert_eq(F64,snapshot.last,3.5);println(\"SIMD fields PASS\")}\n")
+    File.writefile(format(work,"/simd_fields.til"),source)
+    File.writefile(format(work,"/simd_field_caller.c"),format(declarations,checks))
+    File.writefile(format(work,"/simd_field_reference.til"),format("mode cli\nimport(\"simd_fields\")\n",reference_body))
+    File.writefile(format(work,"/simd_field_consumer.til"),format(bindings,reference_body))
+    reference:=Cmd.new(compiler,"run","--usize=64","simd_field_reference.til");checked(reference,work)
+    interpreted:=Cmd.new(compiler,"interpret","--usize=64","simd_field_reference.til");checked(interpreted,work)
+    assert_eq(Str,reference.out(),interpreted.out())
+    for level in array(Str,"0","2","3") {
+        build:=Cmd.new(compiler,"build","--backend=mlir",format("--opt=",level),"simd_fields.til");checked(build,work)
+        cc:=Cmd.new("clang-18","-O2","-fsigned-char","-fsanitize=address,undefined","-fno-sanitize-recover=all","-Wall","-Wextra","-Werror","simd_field_caller.c","gen/lib/libsimd_fields.a","-lm","-o","simd_field_caller");checked(cc,work)
+        native:=Cmd.new("./simd_field_caller");checked(native,work)
+        consumer:=Cmd.new(compiler,"run","--usize=64","--asan","simd_field_consumer.til");checked(consumer,work)
+        assert_eq(Str,consumer.out(),reference.out())
+    }
+}
+
 priv check_scalar_arrays := proc(compiler:Str,work:Str) {
     types:=array(Str,"I8","U8","I16","U16","I32","U32","I64","U64","F32","F64","Bool","USize","UPtr","Byte")
     ctypes:=array(Str,"char","unsigned char","short","unsigned short","int","unsigned int","long long","unsigned long long","float","double","bool","unsigned long long","unsigned long long","char")
@@ -1263,5 +1333,6 @@ main := proc(compiler_arg: Str) {
     check_memory(compiler,work)
     check_integer_arithmetic(compiler,work)
     check_scalar_arrays(compiler,work)
+    check_simd_fields(compiler,work)
     println("mlir PASS")
 }

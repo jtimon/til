@@ -14,6 +14,41 @@ F64x16 := Simd(F64, 16)
 // An ordinary constructor whose name resembles the intrinsic dispatch names.
 Simd__ordinary_add := struct { value: I64 = 0 }
 
+FieldMask := Simd(Bool,4)
+FieldUnsigned := Simd(U32,4)
+SimdFieldBox := struct {
+    tag:I8=0
+    f:F4=F4.zero()
+    s:I4=I4.zero()
+    u:FieldUnsigned=FieldUnsigned.zero()
+    mask:FieldMask=FieldMask.zero()
+}
+SimdFieldOuter := struct { prefix:Bool=false;box:SimdFieldBox=SimdFieldBox() }
+
+test_simd_pod_fields := test() {
+    mut outer:=SimdFieldOuter(prefix=true,box=SimdFieldBox(tag=-7,
+        f=F4.new(1,2,3,4),s=I4.new(-1,2,-3,4),u=FieldUnsigned.splat(U32.MAX),
+        mask=FieldMask.new(true,false,true,false)))
+    snapshot:=outer.clone()
+    ref mut f:F4=outer.box.f
+    f.set(1,own 9.0)!
+    outer.box.s=outer.box.s+I4.splat(3)
+    outer.box.mask=FieldMask.splat(true)
+    assert_eq(F32,outer.box.f[1],9)
+    assert_eq(F32,snapshot.box.f[1],2)
+    assert_eq(I32,outer.box.s[0],2)
+    assert_eq(I32,snapshot.box.s[0],-1)
+    assert(outer.box.mask.all())
+    assert(snapshot.box.mask.eq(FieldMask.new(true,false,true,false)).all())
+    assert(snapshot.box.u.eq(FieldUnsigned.splat(U32.MAX)).all())
+    assert(outer.prefix && outer.box.tag == -7)
+    outer=SimdFieldOuter(box=SimdFieldBox(f=F4.splat(5)))
+    assert(outer.box.f.eq(F4.splat(5)).all() && outer.prefix.not())
+    assert_eq(F32,snapshot.box.f[1],2)
+    zero:=SimdFieldOuter()
+    assert(zero.box.f.eq(F4.zero()).all() && zero.box.mask.any().not())
+}
+
 test_simd_dispatch_identity := test() {
     value := Simd__ordinary_add(value = 7)
     assert_eq(I64, value.value, 7)

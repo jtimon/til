@@ -112,10 +112,9 @@ priv mlir_type := func(shallow t: Type, lp: LoadedProgram) returns Str {
                 ref field : Declaration = sd.fields[i]
                 if field.own_type.is(OwnType.Shallow).not() { return "" }
                 ft := mlir_type(declaration_resolved_type(field, lp.ctx.scope, lp.ctx.symbols), lp)
-                if mlir_scalar(ft).or(mlir_pod(ft)).not() { return "" }
+                if mlir_scalar(ft).or(mlir_pod(ft)).or(mlir_vector(ft)).not() { return "" }
                 if i > 0 { fields = format(fields, ", ") }
-                if ft == "i1" { fields = format(fields, "i8") }
-                else { fields = format(fields, ft) }
+                fields = format(fields, mlir_field_storage(ft))
             }
             return format("!llvm.struct<\"til.mlir.pod.", name, "\", (", fields, ")>")
         }
@@ -173,7 +172,8 @@ priv mlir_return_sret := func(t: Str, lp: LoadedProgram) returns Bool {
 }
 
 // SysV's INTEGER class dominates SSE within each eightbyte, including nested
-// fields. This subset has no pointers, packed fields, vectors or x87 classes.
+// fields, including scalar-layout SIMD lanes. There are no pointers, packed
+// fields, native-vector fields or x87 classes in this subset.
 priv mlir_pod_classify := func(t: Str, offset: USize, mut parts: Vec(Str), lp: LoadedProgram) {
     name := mlir_pod_name(t)
     ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(name, lp.ctx.symbols).unwrap())
@@ -182,6 +182,16 @@ priv mlir_pod_classify := func(t: Str, offset: USize, mut parts: Vec(Str), lp: L
         ft := mlir_type(declaration_resolved_type(sd.fields[i], lp.ctx.scope, lp.ctx.symbols), lp)
         position := offset+layout.fields[i].offset
         if mlir_pod(ft) { mlir_pod_classify(ft, position, parts, lp) }
+        else if mlir_vector(ft) {
+            scalar:=mlir_vector_scalar(ft)
+            mut stride:USize=4
+            if scalar=="i1" {stride=1}
+            for lane in 0..4 {
+                chunk:=(position+lane.to_usize()*stride)/8
+                if scalar=="f32" {if parts[chunk].len()==0 {parts.set(chunk,own "vector<2xf32>")!}}
+                else {parts.set(chunk,own "i64")!}
+            }
+        }
         else {
             chunk := position/8
             if mlir_float(ft) { if parts[chunk].len() == 0 { parts.set(chunk, own "vector<2xf32>")! } }
@@ -454,6 +464,14 @@ priv mlir_storage_type := func(t: Str) returns Str {
     if t=="i1" {return "i8"}
     if t=="vector<4xi1>" {return "i32"}
     return t.clone()
+}
+
+priv mlir_field_storage := func(t:Str) returns Str {
+    if mlir_vector(t) {
+        scalar:=mlir_storage_type(mlir_vector_scalar(t))
+        return format("!llvm.struct<(",scalar,", ",scalar,", ",scalar,", ",scalar,")>")
+    }
+    return mlir_storage_type(t)
 }
 
 priv mlir_load := func(pointer: Str,t: Str,mut state: MlirState,alignment:Str="") returns Str {
@@ -1057,9 +1075,9 @@ priv mlir_checked_lane := proc(e: Expr, t: Str, store: Bool, mut state: MlirStat
     }
     mut value := receiver.clone()
     if store {
-        value = mlir_load(receiver,t,state)
+        value = mlir_load(receiver,t,state,"1")
         updated := mlir_value(state, format("llvm.insertelement ", replacement, ", ", value, "[", index, " : ", count_type, "] : ", t))
-        mlir_store(receiver, updated, t, state)
+        mlir_store(receiver, updated, t, state,"1")
     } else {
         value = mlir_value(state, format("llvm.extractelement ", value, "[", index, " : ", count_type, "] : ", t))
         if checked { mlir_store(result_slot, value, scalar, state) }
@@ -1349,6 +1367,13 @@ priv mlir_construct_pod := proc(e: Expr, t: Str, borrow: Bool, mut state: MlirSt
         raw := mlir_expr(e.children[i+1], state, lp)
         mut field := mlir_coerce(raw, e.children[i+1], ft, state, lp)
         if ft == "i1" { field = mlir_value(state, format("arith.extui ", field, " : i1 to i8")) }
+        if mlir_vector(ft) {
+            // The register vector and its scalar-layout field occupy the same
+            // bytes, but have different LLVM aggregate types and alignments.
+            slot:=mlir_slot(ft,state)
+            mlir_store(slot,field,ft,state)
+            field=mlir_value(state,format("llvm.load ",slot," {alignment = 1 : i64} : !llvm.ptr -> ",mlir_field_storage(ft)))
+        }
         value = mlir_value(state, format("llvm.insertvalue ", field, ", ", value, "[", i.to_str(), "] : ", t))
     }
     if borrow {

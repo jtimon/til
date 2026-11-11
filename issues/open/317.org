@@ -159,6 +159,41 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Scalar-layout SIMD fields in POD structs (base 9e9a4ef0a)
+
+POD fields now accept F32x4, I32x4, U32x4 and Boolx4, including nested records.
+Their LLVM field types are four scalar members rather than native vectors, so
+numeric alignment stays 4 and mask alignment stays 1, matching C field offsets,
+padding and sizes. Construction snapshots register values into that storage;
+reads, assignments, borrowed aliases, checked lane updates and clone preserve
+the existing vector/mask computations and raw numeric bits.
+
+SysV classification visits every scalar SIMD lane. INTEGER still dominates
+SSE in each eightbyte, including masks that straddle two chunks inside a nested
+record. Existing shared register budgeting, whole-aggregate byval spills and
+sret returns cover these types without changing the public native ABI.
+
+Two shared frontend prerequisites surfaced in the regression fixtures. Struct
+comparison capability inference recursed into SIMD's scalar lanes and invented
+a nonexistent scalar cmp (while SIMD eq returns a mask); it now respects that
+boundary instead of generating ill-typed comparison bodies. Reachability also
+missed static calls through imported aliases stamped with their concrete SIMD
+type, pruning new/zero/splat metadata and making C emit nonexistent boxed calls.
+Those direct calls now root the concrete namespace member the emitter uses.
+
+test/mlir.til check_simd_fields exercises defaults/constructors, whole-record
+clone and reassignment, nested field/borrow mutation, numeric/mask layouts,
+mixed/crossing-mask register classes, integer/SSE rollback and hidden sret with
+native C and ASAN til/C consumers at O0/O2/O3. Raw NaN/zero bits and all 16 masks
+are checked alongside size/offsets and failed lane writes. test/simd.til adds a
+shared C/interpreter field regression; test/mlir_options.til checks storage/class
+emission and imported aliases without external LLVM tools. No scalar ordering
+for SIMD or new aggregate comparison API is introduced.
+
+Verification: make clean && make test passes 575/575. The ASAN compiler and
+driver pass the full optional MLIR integration, including SIMD-field native C
+and ASAN til/C consumers at O0/O2/O3 and ASAN/UBSAN on the native C caller.
+
 *** Borrowed arrays of all scalar types (base 389200c8c)
 
 The existing borrowed Array ABI now covers I8/U8, I16/U16, I32/U32, I64/U64,

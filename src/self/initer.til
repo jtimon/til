@@ -106,6 +106,16 @@ priv struct_field_supports_generated_method := func(fd: Declaration, method: Str
     def_o := scope.get_struct(type_name, symbols)
     if def_o.is_none() { return false }
     ref def : Expr = def_o.unwrap()
+    switch def.node_type {
+    case .StructDef(sd):
+        if sd.simd_width>0 {
+            // SIMD eq returns a lane mask, not scalar Bool; its scalar fields
+            // also do not imply a cmp method on the SIMD type itself.
+            if method=="eq" {return false}
+            if method=="cmp" {return init_ns_has_func(def,method)}
+        }
+    case:
+    }
     if init_ns_has_func(def, method) { return true }
     if method.eq("eq").and(init_ns_has_func(def, "cmp")) { return true }
     // Issue #380: the declaration sweep visits source order, so a nested

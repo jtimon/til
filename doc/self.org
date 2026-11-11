@@ -713,12 +713,12 @@
 
 *** Scalar and nested POD structs
 
-  POD structs may contain Bool, all scalar integer widths, F32/F64 and nested structs from
-  that same set. Constructors use the shared frontend's positional/default
+  POD structs may contain Bool, all scalar integer widths, F32/F64, supported
+  four-lane SIMD values and nested structs from that same set. Constructors use the shared frontend's positional/default
   field lowering. Mutable locals, whole-value assignment, field reads/writes,
   nested field aliases, auto-generated clone and size are supported. These
   values have no owning/reference/raw-pointer fields or nontrivial destructor;
-  SIMD fields and empty runtime structs are not yet supported in this increment.
+  empty runtime structs are not yet supported in this increment.
   Source-defined clone functions can be emitted through the normal namespace
   callable path when their bodies use the supported subset. Heap-outer owning
   user parameters remain outside this slice; borrowed returns preserve the
@@ -731,8 +731,26 @@
   whole-struct loads make no stronger alignment promise than their source;
   compiler-owned slots remain aligned and live in the entry block.
 
+  F32x4, I32x4, U32x4 and Boolx4 fields keep their scalar-member layout, not
+  LLVM native-vector alignment. The POD LLVM type stores four f32/i32/i8
+  members respectively; constructors convert register vectors into those
+  field aggregates. Field reads/writes and borrowed lane updates use the
+  existing vector/normalized-mask computations over the same bytes. Numeric
+  SIMD fields have alignment 4, Bool masks alignment 1; a preceding byte therefore
+  places F32x4 at offset 4 and Boolx4 at offset 1. Nested padding/size remain
+  identical to C, and raw NaN/zero bits survive construction and cloning.
+
+  The shared initializer does not infer scalar cmp/eq from a SIMD type's
+  scalar lanes: SIMD eq returns a mask, and SIMD has no implicit scalar cmp.
+  Explicit comparison functions keep their existing rules. Direct calls through
+  imported type aliases also root the receiver's concrete namespace function,
+  so static new/zero/splat intrinsics retain their metadata after reachability
+  pruning, just as field-based calls do.
+
   For values up to 16 bytes, recursive SysV eightbyte classification merges
-  nested fields: INTEGER dominates SSE within an eightbyte. Parameters and
+  nested fields and each SIMD lane: INTEGER dominates SSE within an eightbyte.
+  A byte-aligned Bool mask crossing an eightbyte boundary marks BOTH chunks,
+  even when it is nested between floating-point fields. Parameters and
   returns use the corresponding integer/SSE register chunks. Larger returns
   use sret; larger shallow arguments, or small arguments whose required banks
   do not all fit, use whole-aggregate byval stack copies. A spill rolls back
@@ -745,6 +763,14 @@
   Cases cover mixed-class register rollback, hidden returns, raw NaN/zero bits,
   scalar-aligned array elements and a million-iteration bounded-stack copy loop.
   User POD bodies are emitted as MLIR, not additional C wrappers.
+
+  SIMD-field integration adds numeric/mask wrappers, byte prefixes, nested
+  fields, mixed INTEGER/SSE chunks, masks crossing an eightbyte, larger shallow
+  arguments and sret results. Native C and ASAN til/C consumers verify defaults,
+  constructors, field/alias mutation, whole-record cloning, size/offsets, raw
+  signaling-NaN bits, all masks and integer/SSE register rollback at O0/O2/O3.
+  The ordinary SIMD test also checks shared C/interpreter field behavior; the
+  options test checks storage types/classification and imported-alias calls.
 
 *** Temporary C-core runtime bridge
 

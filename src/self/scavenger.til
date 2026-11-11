@@ -356,6 +356,15 @@ priv collect_refs_node := func(e: Expr, mut refs: Vec(Str), symbols: SymbolPool,
                     }
                     return
                 }
+                // Imported aliases can carry the resolved concrete type on
+                // the receiver (`F4.new` stamped Simd__F32_n1_4), rather than
+                // a StructDef stamp. The emitter calls that concrete method;
+                // root it too, then walk the lexical alias and arguments below.
+                ref callee:Expr=e.children[0]
+                resolved_owner:=expr_type_name_ref(callee.children[0],symbols)
+                if resolved_owner.is_some() {
+                    push_qn(refs,resolved_owner.unwrap(),fieldaccess_of(callee).field_access_name(symbols.names))
+                }
             }
         }
         // array()/vec() builtins need Array/Vec constructor methods
