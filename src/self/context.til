@@ -2395,29 +2395,32 @@ size_intrinsics_use_sizeof := func(ctx: Context) returns Bool {
     return ctx.target_usize_pname.eq(host_usize).and(ctx.target_uptr_pname.eq(host_uptr)).not()
 }
 
-// #313: the emitted struct layout differs from the host's whenever the widths
-// do, and also when exactly one side stores own pointer fields as 4-byte cage
-// offsets (a --usize=32 target built by a native compiler, or a native target
-// built by a --usize=32 compiler). Sizes baked from the host layout are then
-// wrong, so they are emitted as sizeof; like #309's width mismatch, such a
-// cross-layout translation is not byte-identical to a same-layout one.
-// Separate from size_intrinsics_use_sizeof, which also decides the
-// interpreter's FFI marshaling: compile-time FFI still calls host code.
-size_intrinsics_emit_sizeof := func(ctx: Context) returns Bool {
-    return size_intrinsics_use_sizeof(ctx).or(ctx.target_cptr32.neq(host_own_ptr_compressed()))
-}
-
+// #472 (F1b): a generated `X.size()` and `dyn_size_of` are NEVER classified
+// foldable here, on any host. Folding one early put a single literal into a
+// tree that has two readers which want different numbers whenever the
+// running compiler's layout is not the target's: the compile-time interpreter
+// may still run that code later (a macro calling Vec.push needs the size of
+// the COMPILER's memory), and the emitter writes it into the program (which
+// needs the TARGET's). So the call stays in the tree while compile-time
+// evaluation can still run it -- the interpreter executes the generated
+// body, whose literal is the compiler's layout -- and builder.til's
+// fold_generated_sizes_to_target replaces it with til's target number when
+// emission starts. The old rule folded exactly when the two layouts agreed
+// (#309, #313) and left a C sizeof otherwise, which made the emitted source
+// depend on how the compiler itself had been built.
+//
+// Generator conditions are the exception that predates this: their frame
+// (ctx.eval.target_size_queries) answers a generated size with the target
+// number while it evaluates, so there they stay foldable.
 constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)).not() { return }
     switch stmt.children[0].node_type {
     case .FuncDef(fd):
         switch stmt.node_type {
         case .Decl(dd):
-            if dd.name.eq("dyn_size_of").and(size_intrinsics_emit_sizeof(ctx)) {
-                // Issue #309: leave dyn_size_of unfolded on a width-mismatched
-                // target so a constant-arg call reaches the runtime
-                // dyn_size_of() (sizeof, target width) instead of folding to a
-                // host-width literal.
+            if dd.name.eq("dyn_size_of") {
+                // #472: see above; a constant-argument call is folded to the
+                // target number when emission starts.
             } else if fd.sig.func_type.is(FuncType.Macro) {
                 ctx.constfolder_foldables.set(dd.name, own FuncType.Macro)
             } else if fd.sig.func_type.is(FuncType.Func)
@@ -2436,10 +2439,8 @@ constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
                 if fdd.default_value.is_none() { continue }
                 switch fdd.default_expr().node_type {
                 case .FuncDef(ffd):
-                    if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_emit_sizeof(ctx)).and(ctx.eval.target_size_queries.not()) {
-                        // Issue #309: skip the auto-generated size method on a
-                        // width-mismatched target so the emitted X_size()
-                        // returns sizeof(ctype) (target width).
+                    if mname.eq("size").and(ffd.auto_generated).and(ctx.eval.target_size_queries.not()) {
+                        // #472: see above.
                     } else {
                         qname := sdd.name.concat3("_", mname)
                         if ffd.sig.func_type.is(FuncType.Macro) {
@@ -2464,9 +2465,8 @@ constfolder_classify_stmt := func(stmt: Expr, mut ctx: Context) {
                 if nsd.default_value.is_none() { continue }
                 switch nsd.default_expr().node_type {
                 case .FuncDef(ffd):
-                    if mname.eq("size").and(ffd.auto_generated).and(size_intrinsics_emit_sizeof(ctx)).and(ctx.eval.target_size_queries.not()) {
-                        // Issue #309: skip the auto-generated enum size method on
-                        // a width-mismatched target (emitted X_size() -> sizeof).
+                    if mname.eq("size").and(ffd.auto_generated).and(ctx.eval.target_size_queries.not()) {
+                        // #472: see above.
                     } else {
                         qname := sdd.name.concat3("_", mname)
                         if ffd.sig.func_type.is(FuncType.Macro) {

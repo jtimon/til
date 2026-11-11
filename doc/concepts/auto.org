@@ -21,22 +21,29 @@
    Calls free(own self) when call_free is true.
 
 ** size := func() returns USize
-   The size of a value in the program that EXECUTES the call. The body is
-   a literal computed from the field layout with alignment padding, in
-   the layout of the RUNNING COMPILER: own and ref fields are pointers
-   (compact when the compiler itself was built ~--usize=32~), ~USize~ and
-   ~UPtr~ fields take the compiler's own widths. When the compiler's
-   layout and the target's agree, calls fold to that literal. When they
-   differ (a ~--usize=64~ or 32-bit target from the default compiler) the
-   call is left unfolded and the C backend emits the body as
-   ~sizeof(T)~. See "size and size_for_target" below for what replaces
-   that split.
+   The size of a value in the program that EXECUTES the call. The
+   generated body is a literal computed from the field layout with
+   alignment padding, in the layout of the RUNNING COMPILER: own and ref
+   fields are pointers (compact when the compiler itself was built
+   ~--usize=32~), ~USize~ and ~UPtr~ fields take the compiler's own
+   widths. That literal is what the compile-time interpreter gets, so a
+   container moving bytes inside the compiler stays correct.
+
+   The built program never gets that literal. til computes the TARGET's
+   layout itself and, when emission starts, replaces every direct call of
+   a generated ~size()~ with that number; a generated ~X_size~ that is
+   still emitted (dyn dispatch, an export) returns the same number. No C
+   ~sizeof~ supplies a size, so compilers built with either layout emit
+   the same source for a target. HolyC is the exception: its aggregate
+   layout differs from C's and its emitter keeps spelling sizes as its own
+   ~sizeof~.
 
    Not generated: the primitives' and ~Bool~'s ~size~ are hand-written
    literals in core (~U8.size()~ is ~return 1~), and ~USize~ / ~UPtr~ are
    aliases of one of them per target. A function type has no ~size~;
    ~F.size()~ is routed to ~Dynamic.size()~, one pointer. ~Dynamic~'s own
-   hand-written ~size~ is replaced by a generated one.
+   hand-written ~size~ is replaced by a generated one. A hand-written
+   ~size~ on a user type wins and is an ordinary function.
 
 ** hash := func(self: T, hasher: HashFn) returns U64
    Generated only when every field is shallow (no own / no ref). This
@@ -123,10 +130,10 @@
 
 * size and size_for_target
 
-  DECIDED IN #472, NOT IMPLEMENTED YET. Today only ~size~ exists, as
-  described under Structs and Enums. This section is the contract the
-  implementation follows; the commits that land it rewrite this section
-  in the present tense.
+  Decided in #472. ~size()~ behaves as described here today.
+  ~size_for_target()~ is NOT IMPLEMENTED YET; until it is, a generator
+  condition's ~T.size()~ is still answered for the target by a special
+  mode (~doc/concepts/functions.org~, "Conditional definitions").
 
 ** size() -- write it once, right everywhere
    The size where the code is RUNNING. In the built program that is the
@@ -155,13 +162,13 @@
 
 ** Folding and the C compiler
    til computes both numbers; neither comes from C ~sizeof~.
-   ~size_for_target()~ folds like any pure function. A generated ~size()~
-   folds once compile-time evaluation is over, to the target's number,
-   because until then the same code may still run inside the compiler.
-   The C backend emits one static assert per emitted type that its
-   ~sizeof~ equals til's number, so a wrong layout computation is a
-   compile error, not corrupted memory. This part IS implemented (#472
-   step F1a): every generated ~.c~ carries the asserts today.
+   ~size_for_target()~ will fold like any pure function. A generated
+   ~size()~ folds once compile-time evaluation is over, to the target's
+   number, because until then the same code may still run inside the
+   compiler. Only the literal is substituted; arithmetic around it is left
+   to the C compiler. The C backend emits one static assert per emitted
+   type that its ~sizeof~ equals til's number, so a wrong layout
+   computation is a compile error, not corrupted memory.
 
 * Derived from cmp (structs and enums)
 

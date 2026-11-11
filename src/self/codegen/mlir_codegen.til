@@ -168,7 +168,7 @@ priv mlir_pod_name := func(t: Str) returns Str {
 
 priv mlir_return_sret := func(t: Str, lp: LoadedProgram) returns Bool {
     if mlir_sret(t) { return true }
-    if mlir_pod(t) { return lp.ctx.struct_layouts[mlir_pod_name(t)].total_size > 16 }
+    if mlir_pod(t) { return target_emitted_size(mlir_pod_name(t), lp.ctx.scope, lp.ctx) > 16 }
     return false
 }
 
@@ -191,7 +191,7 @@ priv mlir_pod_classify := func(t: Str, offset: USize, mut parts: Vec(Str), lp: L
 }
 
 priv mlir_pod_parts := func(t: Str, lp: LoadedProgram) returns Vec(Str) {
-    size := lp.ctx.struct_layouts[mlir_pod_name(t)].total_size
+    size := target_emitted_size(mlir_pod_name(t), lp.ctx.scope, lp.ctx)
     mut parts := Vec(Str).new()
     if size > 16 { return parts }
     for _ in 0..(size+7)/8 { parts.push(own "") }
@@ -1583,7 +1583,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     return mlir_value(state,format("arith.constant ",size.to_str()," : ",mlir_count_type(lp)))
                 }
                 if mlir_pod(t) && op == "size" && e.children.len() == 1 {
-                    size := lp.ctx.struct_layouts[mlir_pod_name(t)].total_size
+                    size := target_emitted_size(mlir_pod_name(t), lp.ctx.scope, lp.ctx)
                     return mlir_value(state, format("arith.constant ", size.to_str(), " : ", mlir_count_type(lp)))
                 }
                 if mlir_record(t) || op == "to_str" || op == "to_repr" {

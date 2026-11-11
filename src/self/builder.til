@@ -624,10 +624,112 @@ priv make_build_dirs := proc(paths: BuildPaths) {
     }
 }
 
+// #472 (F1b): the literal a generated-size query becomes in the EMITTED
+// program, or None when `e` is not one. Two shapes:
+//   - a direct call of a generated `X.size()`, spelled `X.size()` or the
+//     typer-flattened `X_size()`. A hand-written `size` is an ordinary
+//     function and is not touched: its answer is whatever its body says.
+//   - `dyn_size_of("X")` with a literal name til has a layout for. A name
+//     it has none for stays a call, so the program reports it at run time
+//     exactly as before.
+priv target_size_literal := func(e: Expr, ctx: Context) returns Option(Expr) {
+    if e.node_type.is(NodeType.FCall).not() { return Option(Expr).None }
+    if fcall_is_direct(e).not() { return Option(Expr).None }
+    ref callee : Expr = e.children[0]
+    mut size : USize = 0
+    if e.children.len() == 1 {
+        called := fcall_callee_fdef(e, ctx.scope, ctx.symbols)
+        if called.is_none() { return Option(Expr).None }
+        ref fd : FunctionDef = funcdef_of(called.unwrap())
+        if fd.auto_generated.not().or(fd.is_enum_variant_ctor).or(fd.sig.params.len() > 0) { return Option(Expr).None }
+        mut type_name := ""
+        switch callee.node_type {
+        case .FieldAccess(member):
+            if member.field_access_name(ctx.symbols.names) != "size" { return Option(Expr).None }
+            ref receiver : Expr = callee.children[0]
+            switch receiver.node_type {
+            case .Ident(type_ident):
+                if ctx.scope.get_struct_by_sym(type_ident.ident_sym()).is_some() {
+                    type_name = type_ident.ident_name(ctx.symbols.names).clone()
+                } else {
+                    type_name = til_type_name_c(receiver.til_type(), ctx.symbols)
+                }
+            case: type_name = til_type_name_c(receiver.til_type(), ctx.symbols)
+            }
+        case .Ident(flat):
+            ref flat_name : Str = flat.ident_name(ctx.symbols.names)
+            if flat_name.ends_with("_size").not() { return Option(Expr).None }
+            type_name = flat_name.substr(0, flat_name.len() - 5)
+        case: return Option(Expr).None
+        }
+        size = target_emitted_size(type_name, ctx.scope, ctx)
+    } else if e.children.len() == 2 {
+        switch callee.node_type {
+        case .Ident(callee_ident):
+            if callee_ident.ident_name(ctx.symbols.names) != "dyn_size_of" { return Option(Expr).None }
+        case: return Option(Expr).None
+        }
+        switch e.children[1].node_type {
+        case .Literal(Literal.Str(type_name)):
+            size = target_value_size(type_name, ctx.scope, ctx)
+        case: return Option(Expr).None
+        }
+        if size == 0 { return Option(Expr).None }
+    } else {
+        return Option(Expr).None
+    }
+    mut literal := Expr.new(own literal_num_node(size.to_str()), e.line, e.col)
+    literal.set_til_type(e.til_type())
+    return Option(Expr).Some(own literal)
+}
+
+priv fold_generated_sizes_in := proc(mut e: Expr, ctx: Context) {
+    for i in 0..e.children.len() {
+        ref mut child : Expr = e.children[i]
+        fold_generated_sizes_in(child, ctx)
+        literal_o := target_size_literal(child, ctx)
+        if literal_o.is_some() { e.children[i] = Option(Expr).take(own literal_o) }
+    }
+    // Namespace members live outside the children tree.
+    if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
+        ref mut members : Vec(Declaration) = def_ns_decls(e)
+        for mut member : Declaration in members {
+            if member.default_value.is_none() { continue }
+            fold_generated_sizes_in(member.default_expr(), ctx)
+            literal_o := target_size_literal(member.default_expr(), ctx)
+            if literal_o.is_some() { member.default_value = Option(Expr).Some(own Option(Expr).take(own literal_o)) }
+        }
+    }
+}
+
+// #472 (F1b): generated sizes are folded LAST, here, when emission starts
+// and nothing will be interpreted any more (this is also after the
+// interpret half of `til test`). Until this point the calls are still in
+// the tree, so the compile-time interpreter answered them with the running
+// compiler's own layout -- what a container moving bytes in the compiler's
+// memory needs. From here on the program gets the number til computed for
+// the TARGET, which depends on the target alone, so compilers built with
+// either layout emit the same source for it. See constfolder_classify_stmt
+// (context.til) for why folding them any earlier is the defect.
+//
+// Only the literal is substituted. Arithmetic around it is left for the C
+// compiler; evaluating it here would mean running functions whose own
+// sizes this pass has just switched to the target's.
+priv fold_generated_sizes_to_target := proc(mut lp: LoadedProgram) {
+    for upath : Str in lp.unit_paths() {
+        context_enter_file(lp.ctx, upath)
+        fold_generated_sizes_in(lp.ctx.imported[upath].ast, lp.ctx)
+    }
+}
+
 priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths, target: Target, functions: Set(Str) = Set(Str).new()) returns I32 {
     if lp.mode_str == "theme" {
         return theme_codegen_translate(lp, paths.theme_path)
     }
+    // HolyC lays aggregates out differently from C (payload enums,
+    // pointer-bearing structs), so its emitter keeps spelling sizes as its
+    // own sizeof; til's target layout computation describes the C targets.
+    if target_lang(target).is(Lang.HolyC).not() { fold_generated_sizes_to_target(lp) }
     switch paths.backend {
     case "mlir":
         if c_codegen_translate_runtime(lp, paths.runtime_c_path, paths.runtime_fwd_path, paths.name) != 0 { return 1 }

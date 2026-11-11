@@ -323,14 +323,18 @@
   pointer-field slot with ~own_slot_load~ / ~own_slot_store~, size-aware
   twins of ~deref~ / ~write_ptr~ that the typer's raw-store rules name
   alongside ~write_ptr~. ~ext_struct~ fields mirror C library structs and
-  always stay native. Like #309's width split, sizes fold only when host and
-  target agree; a native (~--usize=64~) compiler building a compact program
-  (or the reverse) emits ~X.size()~ as C ~sizeof~, so that translation is
-  not byte-identical to a same-layout one. #472 decided to remove that
-  split (not implemented yet): til computes the target's layout itself,
-  a generated ~size()~ folds to it on every build once compile-time
-  evaluation is over, ~size_for_target()~ gives compile-time code the
-  target's number, and ~sizeof~ remains only in static asserts
+  always stay native. A generated ~X.size()~ is not folded while
+  compile-time evaluation can still run it: the interpreter needs the
+  running compiler's number there. When emission starts, every direct call
+  becomes the number til computes for the TARGET (#472), so a native
+  (~--usize=64~) compiler building a compact program emits the same source
+  as a compact compiler does; ~sizeof~ remains only in the static asserts
+  that check til's numbers. The ~self_translate~ row under
+  ~make check_usize64~ enforces it: the native-layout compiler must
+  reproduce ~boot/~ byte for byte. Before #472 sizes folded only when the
+  compiler's layout and the target's agreed and were emitted as C ~sizeof~
+  otherwise. ~size_for_target()~, which gives compile-time code the
+  target's number, is decided and not implemented yet
   (~doc/concepts/auto.org~, "size and size_for_target").
 
   ~make check_usize64~ (and its CI job) keeps the native layout alive: the

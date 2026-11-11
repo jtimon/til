@@ -954,7 +954,7 @@ static Str format(Array__Str * parts) {
             if (!(_wcond_Bool_1)) {
                 break;
             }
-            Str *s = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Array__Str_0->data))) + (((U64)(((U64)(_fi_USize_0)) * 12ULL))))));
+            Str *s = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Array__Str_0->data))) + (((U64)(((U64)(_fi_USize_0)) * ((U64)(12))))))));
             U32 hoisted__U32_3 = 1;
             U32 hoisted__U32_4 = ((U32)(_fi_USize_0 + hoisted__U32_3));
             _fi_USize_0 = hoisted__U32_4;
@@ -973,7 +973,7 @@ static Str format(Array__Str * parts) {
             if (!(_wcond_Bool_8)) {
                 break;
             }
-            Str *s = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Array__Str_7->data))) + (((U64)(((U64)(_fi_USize_7)) * 12ULL))))));
+            Str *s = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Array__Str_7->data))) + (((U64)(((U64)(_fi_USize_7)) * ((U64)(12))))))));
             U32 hoisted__U32_10 = 1;
             U32 hoisted__U32_11 = ((U32)(_fi_USize_7 + hoisted__U32_10));
             _fi_USize_7 = hoisted__U32_11;
@@ -1184,7 +1184,8 @@ static Bool Str_neq(Str * a, Str * b) {
 }
 
 static Array__Str Array__Str_new(USize cap) {
-    void * hoisted__v_1 = calloc(((U64)(cap)), 12ULL);
+    U32 hoisted__U32_0 = 12;
+    void * hoisted__v_1 = calloc(((U64)(cap)), ((U64)(hoisted__U32_0)));
     Array__Str hoisted__Array__Str_2 = {0};
     TIL_OWN_SET((hoisted__Array__Str_2.data), (hoisted__v_1));
     hoisted__Array__Str_2.cap = cap;
@@ -1192,9 +1193,9 @@ static Array__Str Array__Str_new(USize cap) {
 }
 
 static void Array__Str_unsafe_set(Array__Str * self, USize i, Str * val) {
-    Str *hoisted__Str_Array__Str_unsafe_set_0 = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (((U64)(((U64)(i)) * 12ULL))))));
+    Str *hoisted__Str_Array__Str_unsafe_set_0 = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (((U64)(((U64)(i)) * ((U64)(12))))))));
     Str_delete(hoisted__Str_Array__Str_unsafe_set_0, 0);
-    Str *hoisted__Str_Array__Str_unsafe_set_1 = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (((U64)(((U64)(i)) * 12ULL))))));
+    Str *hoisted__Str_Array__Str_unsafe_set_1 = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (((U64)(((U64)(i)) * ((U64)(12))))))));
     adopt__Str(hoisted__Str_Array__Str_unsafe_set_1, val);
 }
 
@@ -1224,8 +1225,9 @@ static void Array__Str_delete(Array__Str * self, Bool call_free) {
             }
             U32 i = (_rc_U32_0);
             (++_rc_U32_0);
+            U32 hoisted__U32_2 = 12;
             U64 hoisted__U64_3 = ((U64)(i));
-            U64 hoisted__U64_4 = 12ULL;
+            U64 hoisted__U64_4 = ((U64)(hoisted__U32_2));
             U64 hoisted__U64_5 = ((U64)(hoisted__U64_3 * hoisted__U64_4));
             Str *hoisted__Str_Array__Str_delete_6 = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_5)));
             Str_delete(hoisted__Str_Array__Str_delete_6, 0);
@@ -1238,8 +1240,9 @@ static void Array__Str_delete(Array__Str * self, Bool call_free) {
 }
 
 static Array__Str Array__Str_clone(Array__Str * self) {
+    U32 hoisted__U32_12 = 12;
     U64 hoisted__U64_13 = ((U64)(self->cap));
-    U64 hoisted__U64_14 = 12ULL;
+    U64 hoisted__U64_14 = ((U64)(hoisted__U32_12));
     U8 *new_data = malloc(((U64)(hoisted__U64_13 * hoisted__U64_14)));
     {
         U32 _re_U32_0 = self->cap;
@@ -1251,12 +1254,14 @@ static Array__Str Array__Str_clone(Array__Str * self) {
             }
             U32 i = (_rc_U32_0);
             (++_rc_U32_0);
+            U32 hoisted__U32_2 = 12;
             U64 hoisted__U64_3 = ((U64)(i));
-            U64 hoisted__U64_4 = 12ULL;
+            U64 hoisted__U64_4 = ((U64)(hoisted__U32_2));
             U64 hoisted__U64_5 = ((U64)(hoisted__U64_3 * hoisted__U64_4));
             Str *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_5)));
+            U32 hoisted__U32_6 = 12;
             U64 hoisted__U64_7 = ((U64)(i));
-            U64 hoisted__U64_8 = 12ULL;
+            U64 hoisted__U64_8 = ((U64)(hoisted__U32_6));
             U64 hoisted__U64_9 = ((U64)(hoisted__U64_7 * hoisted__U64_8));
             void *hoisted__v_10 = ((void *)((U8 *)(new_data) + (hoisted__U64_9)));
             Str hoisted__Str_Array__Str_clone_11 = Str_clone(src);
@@ -1280,8 +1285,9 @@ static void Vec__Str_clear(Vec__Str * self) {
             }
             U32 i = (_rc_U32_0);
             (++_rc_U32_0);
+            U32 hoisted__U32_2 = 12;
             U64 hoisted__U64_3 = ((U64)(i));
-            U64 hoisted__U64_4 = 12ULL;
+            U64 hoisted__U64_4 = ((U64)(hoisted__U32_2));
             U64 hoisted__U64_5 = ((U64)(hoisted__U64_3 * hoisted__U64_4));
             Str *hoisted__Str_Vec__Str_clear_6 = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_5)));
             Str_delete(hoisted__Str_Vec__Str_clear_6, 0);
@@ -1292,9 +1298,9 @@ static void Vec__Str_clear(Vec__Str * self) {
 }
 
 static void Vec__Str_unsafe_set(Vec__Str * self, USize i, Str * val) {
-    Str *hoisted__Str_Vec__Str_unsafe_set_0 = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (((U64)(((U64)(i)) * 12ULL))))));
+    Str *hoisted__Str_Vec__Str_unsafe_set_0 = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (((U64)(((U64)(i)) * ((U64)(12))))))));
     Str_delete(hoisted__Str_Vec__Str_unsafe_set_0, 0);
-    Str *hoisted__Str_Vec__Str_unsafe_set_1 = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (((U64)(((U64)(i)) * 12ULL))))));
+    Str *hoisted__Str_Vec__Str_unsafe_set_1 = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (((U64)(((U64)(i)) * ((U64)(12))))))));
     adopt__Str(hoisted__Str_Vec__Str_unsafe_set_1, val);
 }
 
@@ -1331,8 +1337,9 @@ static Vec__Str Vec__Str_clone(Vec__Str * self) {
         hoisted__Vec__Str_0.cap = 0;
         return hoisted__Vec__Str_0;
     }
+    U32 hoisted__U32_15 = 12;
     U64 hoisted__U64_16 = ((U64)(self->cap));
-    U64 hoisted__U64_17 = 12ULL;
+    U64 hoisted__U64_17 = ((U64)(hoisted__U32_15));
     U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
@@ -1344,12 +1351,14 @@ static Vec__Str Vec__Str_clone(Vec__Str * self) {
             }
             U32 i = (_rc_U32_1);
             (++_rc_U32_1);
+            U32 hoisted__U32_3 = 12;
             U64 hoisted__U64_4 = ((U64)(i));
-            U64 hoisted__U64_5 = 12ULL;
+            U64 hoisted__U64_5 = ((U64)(hoisted__U32_3));
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             Str *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
+            U32 hoisted__U32_7 = 12;
             U64 hoisted__U64_8 = ((U64)(i));
-            U64 hoisted__U64_9 = 12ULL;
+            U64 hoisted__U64_9 = ((U64)(hoisted__U32_7));
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
             Str hoisted__Str_Vec__Str_clone_12 = Str_clone(src);
@@ -1364,7 +1373,8 @@ static Vec__Str Vec__Str_clone(Vec__Str * self) {
 }
 
 static void adopt__Str(void * dest, Str * src) {
-    U64 hoisted__U64_1 = 12ULL;
+    U32 hoisted__U32_0 = 12;
+    U64 hoisted__U64_1 = ((U64)(hoisted__U32_0));
     memcpy(dest, src, hoisted__U64_1);
     ((void)src);
 }
@@ -1493,7 +1503,7 @@ static void println(Array__Str * parts) {
             if (!(_wcond_Bool_1)) {
                 break;
             }
-            Str *s = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Array__Str_0->data))) + (((U64)(((U64)(_fi_USize_0)) * 12ULL))))));
+            Str *s = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Array__Str_0->data))) + (((U64)(((U64)(_fi_USize_0)) * ((U64)(12))))))));
             U32 hoisted__U32_3 = 1;
             U32 hoisted__U32_4 = ((U32)(_fi_USize_0 + hoisted__U32_3));
             _fi_USize_0 = hoisted__U32_4;
@@ -1988,7 +1998,7 @@ static void test_collection_return_fold(void) {
     U32 hoisted__U32_117 = 2;
     assert_eq__USize(hoisted__U32_116, hoisted__U32_117, &hoisted__Str_test_collection_return_fold_118);
     U32 hoisted__U32_119 = 0;
-    CfNestedValues *first_nested = (((Bool)((U32)(hoisted__U32_119) < nested.count)) ? (CfNestedValues *)((CfNestedValues *)((void *)((U8 *)(TIL_OWN_GET(U8, (nested.data))) + (((U64)(((U64)((U32)(hoisted__U32_119))) * 12ULL)))))) : (_err_kind = 1, (CfNestedValues *)NULL));
+    CfNestedValues *first_nested = (((Bool)((U32)(hoisted__U32_119) < nested.count)) ? (CfNestedValues *)((CfNestedValues *)((void *)((U8 *)(TIL_OWN_GET(U8, (nested.data))) + (((U64)(((U64)((U32)(hoisted__U32_119))) * ((U64)(12)))))))) : (_err_kind = 1, (CfNestedValues *)NULL));
     I64 hoisted__I64_120 = 1;
     Bool hoisted__Bool_121 = ((Bool)(_err_kind == hoisted__I64_120));
     if (hoisted__Bool_121) {
@@ -2002,7 +2012,7 @@ static void test_collection_return_fold(void) {
         panic(&_va_Array_6, &hoisted__Str_test_collection_return_fold_34);
     }
     U32 hoisted__U32_122 = 1;
-    CfNestedValues *second_nested = (((Bool)((U32)(hoisted__U32_122) < nested.count)) ? (CfNestedValues *)((CfNestedValues *)((void *)((U8 *)(TIL_OWN_GET(U8, (nested.data))) + (((U64)(((U64)((U32)(hoisted__U32_122))) * 12ULL)))))) : (_err_kind = 1, (CfNestedValues *)NULL));
+    CfNestedValues *second_nested = (((Bool)((U32)(hoisted__U32_122) < nested.count)) ? (CfNestedValues *)((CfNestedValues *)((void *)((U8 *)(TIL_OWN_GET(U8, (nested.data))) + (((U64)(((U64)((U32)(hoisted__U32_122))) * ((U64)(12)))))))) : (_err_kind = 1, (CfNestedValues *)NULL));
     I64 hoisted__I64_123 = 1;
     Bool hoisted__Bool_124 = ((Bool)(_err_kind == hoisted__I64_123));
     if (hoisted__Bool_124) {
@@ -2064,7 +2074,7 @@ static void test_collection_return_fold(void) {
         panic(&_va_Array_10, &hoisted__Str_test_collection_return_fold_54);
     }
     U32 hoisted__U32_139 = 0;
-    Str *_bang_ret_8 = (((Bool)((U32)(hoisted__U32_139) < left.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (left.data))) + (((U64)(((U64)((U32)(hoisted__U32_139))) * 12ULL)))))) : (_err_kind = 1, (Str *)NULL));
+    Str *_bang_ret_8 = (((Bool)((U32)(hoisted__U32_139) < left.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (left.data))) + (((U64)(((U64)((U32)(hoisted__U32_139))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
     I64 hoisted__I64_140 = 1;
     Bool hoisted__Bool_141 = ((Bool)(_err_kind == hoisted__I64_140));
     if (hoisted__Bool_141) {
@@ -2080,7 +2090,7 @@ static void test_collection_return_fold(void) {
     assert_eq__Str(_bang_ret_8, &_til_str_lits.hd0b1c236fb8f, &hoisted__Str_test_collection_return_fold_143);
     Vec__Str_delete(&left, 0);
     U32 hoisted__U32_144 = 0;
-    Str *_bang_ret_9 = (((Bool)((U32)(hoisted__U32_144) < right.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (right.data))) + (((U64)(((U64)((U32)(hoisted__U32_144))) * 12ULL)))))) : (_err_kind = 1, (Str *)NULL));
+    Str *_bang_ret_9 = (((Bool)((U32)(hoisted__U32_144) < right.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (right.data))) + (((U64)(((U64)((U32)(hoisted__U32_144))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
     I64 hoisted__I64_145 = 1;
     Bool hoisted__Bool_146 = ((Bool)(_err_kind == hoisted__I64_145));
     if (hoisted__Bool_146) {
@@ -2539,7 +2549,7 @@ static I64 * Map__Str_I64_get(Map__Str_I64 * self, Str * key, I64 * _err_kind) {
         U32 hoisted__U32_8 = 2;
         U32 hoisted__U32_9 = ({ U32 _cf_a = hoisted__U32_7; U32 _cf_b = hoisted__U32_8; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
         USize mid = ((U32)(lo + hoisted__U32_9));
-        Str *hoisted__Str_Map__Str_I64_get_10 = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (self->keys.data))) + (((U64)(((U64)(mid)) * 12ULL))))));
+        Str *hoisted__Str_Map__Str_I64_get_10 = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (self->keys.data))) + (((U64)(((U64)(mid)) * ((U64)(12))))))));
         I64 c = Str_cmp(hoisted__Str_Map__Str_I64_get_10, key);
         I64 hoisted__I64_11 = 0;
         Bool hoisted__Bool_12 = ((Bool)(c < hoisted__I64_11));
@@ -2638,8 +2648,9 @@ static void Vec__CfNestedValues_clear(Vec__CfNestedValues * self) {
             }
             U32 i = (_rc_U32_0);
             (++_rc_U32_0);
+            U32 hoisted__U32_2 = 12;
             U64 hoisted__U64_3 = ((U64)(i));
-            U64 hoisted__U64_4 = 12ULL;
+            U64 hoisted__U64_4 = ((U64)(hoisted__U32_2));
             U64 hoisted__U64_5 = ((U64)(hoisted__U64_3 * hoisted__U64_4));
             CfNestedValues *hoisted__CfNestedValues_6 = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_5)));
             CfNestedValues_delete(hoisted__CfNestedValues_6, 0);
@@ -2667,8 +2678,9 @@ static Vec__CfNestedValues Vec__CfNestedValues_clone(Vec__CfNestedValues * self)
         hoisted__Vec__CfNestedValues_0.cap = 0;
         return hoisted__Vec__CfNestedValues_0;
     }
+    U32 hoisted__U32_15 = 12;
     U64 hoisted__U64_16 = ((U64)(self->cap));
-    U64 hoisted__U64_17 = 12ULL;
+    U64 hoisted__U64_17 = ((U64)(hoisted__U32_15));
     U8 *new_data = malloc(((U64)(hoisted__U64_16 * hoisted__U64_17)));
     {
         U32 _re_U32_1 = self->count;
@@ -2680,12 +2692,14 @@ static Vec__CfNestedValues Vec__CfNestedValues_clone(Vec__CfNestedValues * self)
             }
             U32 i = (_rc_U32_1);
             (++_rc_U32_1);
+            U32 hoisted__U32_3 = 12;
             U64 hoisted__U64_4 = ((U64)(i));
-            U64 hoisted__U64_5 = 12ULL;
+            U64 hoisted__U64_5 = ((U64)(hoisted__U32_3));
             U64 hoisted__U64_6 = ((U64)(hoisted__U64_4 * hoisted__U64_5));
             CfNestedValues *src = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_6)));
+            U32 hoisted__U32_7 = 12;
             U64 hoisted__U64_8 = ((U64)(i));
-            U64 hoisted__U64_9 = 12ULL;
+            U64 hoisted__U64_9 = ((U64)(hoisted__U32_7));
             U64 hoisted__U64_10 = ((U64)(hoisted__U64_8 * hoisted__U64_9));
             void *hoisted__v_11 = ((void *)((U8 *)(new_data) + (hoisted__U64_10)));
             CfNestedValues hoisted__CfNestedValues_12 = CfNestedValues_clone(src);
@@ -2772,7 +2786,8 @@ static void adopt__I64(void * dest, I64 src) {
 }
 
 static void adopt__CfNestedValues(void * dest, CfNestedValues * src) {
-    U64 hoisted__U64_1 = 12ULL;
+    U32 hoisted__U32_0 = 12;
+    U64 hoisted__U64_1 = ((U64)(hoisted__U32_0));
     memcpy(dest, src, hoisted__U64_1);
     ((void)src);
 }

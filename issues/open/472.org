@@ -977,3 +977,89 @@ windows-x86, wasm32. The CI run of this commit is the evidence for those;
 a red job there names the type and both numbers. F1b starts once that run
 is read.
 
+*** Progress: step F1b (base master efbab2b)
+
+**** F1a's CI run (3015)
+
+Every job that compiles for another target passed with the asserts and
+the layout corpus: linux-arm64, linux-riscv64, linux-x86, linux-arm32,
+linux-riscv32 (built and run under qemu at both widths), wasm32 (node),
+windows-x64 and windows-x86 (built; ~til.exe~ and its programs also ran on
+Windows, and the Windows runner's own gcc compiled a program with the
+asserts), macos-arm64 and macos-x64 (built). No type disagreed on any
+target. The long native suites of that run were still in progress when
+this was written.
+
+**** What landed
+
+- A generated ~size()~ and ~dyn_size_of~ are never classified foldable
+  while compile-time evaluation can run (~context.til::constfolder_classify_stmt~),
+  on every host. The interpreter keeps answering them from the generated
+  body, the running compiler's layout.
+- ~builder.til::fold_generated_sizes_to_target~ runs when emission starts
+  (~translate_ast~, so also after the interpret half of ~til test~) and
+  replaces every direct call of a generated ~size()~ with
+  ~typer.til::target_emitted_size~.
+- A generated ~X_size~ that is still emitted returns that number instead
+  of ~sizeof~. ~size_intrinsics_emit_sizeof~ is gone.
+- MLIR's three POD size reads use the target computation.
+- ~src/tests.til~: the ~self_reference~ accommodation is removed. Under
+  ~check_usize64~ the native-layout compiler must reproduce ~boot/~.
+- ~test/layout_corpus.til~ additionally compares each folded ~size()~ with
+  ~dyn_size_of~ of a run-time name, whose arms are still C ~sizeof~: til's
+  number against the C compiler's, in the running program, on each target.
+
+**** Verified here (compact compiler, Linux x64)
+
+- ~make clean && make test_two_pass~: 575/575, wall 375.0 s (F1a: 371.7 s).
+- A native-layout compiler (~bin/til build --usize=64 -o tmp/til64
+  src/til.til~) translating ~src/til.til~ for ~--usize=32~ reproduces
+  ~boot/til.c~ and ~boot/til_forward.h~ byte for byte, and for
+  ~--usize=64~ equals the compact compiler's translation. Before this step
+  the two differed from the first type section on.
+- The corpus, ~usize32_sizes~, ~enums~, ~structs~ and ~hello_script~ at
+  both widths: identical from both compilers except the translation stamp
+  (below).
+- ~boot/til.c~: 452401 -> 453091 lines, 28.97 -> 29.04 MB.
+
+Not run here: ~make check_usize64~ as a whole (a second full suite under
+ASAN) and ~test/mlir.til~ (no MLIR tools in this session). The ~self_translate~
+row was run by hand as above; the MLIR change is covered only by
+~mlir_options~.
+
+**** Differences from the plan, and findings
+
+- Only the literal is substituted. The plan also had the arithmetic and
+  branches around it folded; that is left to the C compiler, because doing
+  it here means evaluating code whose sizes were just switched to the
+  target's. Nothing in the suite needed it.
+- HolyC is excluded: its aggregate layout differs from C's
+  (~loader.til::constfolder_imported~ already kept its sizes
+  backend-resolved), so its emitter keeps its own ~sizeof~ and
+  ~target_value_size~ describes the C targets only.
+- A constant-argument ~dyn_size_of("X")~ is folded only when the argument
+  is still a literal node at emission. After hoisting it usually is not,
+  so it stays a run-time lookup, where a same-layout build used to fold
+  it. Its arms are still ~sizeof~.
+- MLIR's fourth read (~mlir_pod_classify~) takes FIELD OFFSETS from
+  ~ctx.struct_layouts~; there is no target field-offset computation yet.
+  Its PODs have no pointers, so both layouts agree today.
+- F2 is still needed: this step fixes direct queries. A folded call whose
+  evaluation used a size still bakes the compiler's number. The compiler's
+  own source has no such fold, which is why ~boot/~ already matches.
+- NEW, not fixed here: the translation stamp. A script-mode program's
+  generated ~.c~ carries ~/* til-translation-stamp: N */~
+  (~builder.til::set_reuse_stamps~, #442), hashed from the compiler
+  executable's real path, the source's and every unit's ABSOLUTE path and
+  the output path. Two checkouts, two compilers or two output names give
+  different generated C for the same program. This is step F7 below.
+
+**** Plan changes
+
+- F3b no longer removes the ~self_reference~ accommodation; it is gone.
+- F7 (new). The translation stamp must not make generated source depend
+  on where it was built: keep the reuse decision's inputs out of the
+  compared output, or hash only inputs that are part of the build
+  contract. Needed before level 2 can compare script-mode programs across
+  hosts (#473 step C6).
+

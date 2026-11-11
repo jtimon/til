@@ -881,24 +881,20 @@ main := proc(args: ..Str) returns I64 {
     //
     // Under an explicit --usize (make check_usize64) the compiler under test
     // was itself built --usize=64, native, while boot/ comes from a compact
-    // (--usize=32) compiler. Its interpreter needs host (native) sizes, so
-    // for this compact target it leaves size() unfolded -- a cross-layout
-    // translation, not a fixed-point break. There the row keeps the
-    // repeatability half: two processes must emit identical bytes.
-    mut self_reference := "boot/til"
-    mut self_reference_cmd := ""
-    if usize_flag.len().gt(0) {
-        self_reference = "tmp/self_det_ref"
-        self_reference_cmd = format(" '&&' rm -f tmp/self_det_ref.c tmp/self_det_ref_forward.h",
-            " '&&' ", til_bin, " translate --usize=32 -c tmp/self_det_ref.c src/til.til")
-    }
+    // (--usize=32) compiler: a cross-layout translation. It must still
+    // reproduce boot/ byte for byte (#472): a generated size is the number
+    // til computes for the TARGET, folded when emission starts
+    // (builder.til fold_generated_sizes_to_target), so what is emitted no
+    // longer depends on the layout of the compiler doing the emitting. This
+    // row used to compare two translations by the same compiler instead,
+    // because a native compiler left sizeof calls where the compact one
+    // folded literals.
     if til_bin != TIL {
         add_single(tests, "self_translate", "self_check", 0, "",
             format("rm -f tmp/self_det.c tmp/self_det_forward.h",
                 " '&&' ", til_bin, " translate --usize=32 -c tmp/self_det.c src/til.til",
-                self_reference_cmd,
-                " '&&' cmp tmp/self_det.c ", self_reference, ".c",
-                " '&&' cmp tmp/self_det_forward.h ", self_reference, "_forward.h"))
+                " '&&' cmp tmp/self_det.c boot/til.c",
+                " '&&' cmp tmp/self_det_forward.h boot/til_forward.h"))
     }
     // The native compiler's self-translate is the canonical self_ms/self_mem
     // benchmark. It also checks the default compiler's bootstrap fixed point.
@@ -1442,7 +1438,7 @@ main := proc(args: ..Str) returns I64 {
         "r.data.FCall = *val;\n    return r;", 1,
         "cat boot/til.c")
     add_count(tests, "niche_enum_ctor_keeps_heap_payload", "build",
-        "Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr))", 77,
+        "Option__Expr_Some(({ Expr *_oa = malloc(TIL_BOX(Expr))", 79,
         "cat boot/til.c")
     add_count(tests, "stack_delete_no_outer_box", "build",
         "Expr_delete(({ Expr *_oa = malloc(TIL_BOX(Expr))", 0,

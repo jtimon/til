@@ -105,4 +105,29 @@ mut counts := Map(Str, I64).new()
 counts.set("one", own 1)
 if strings.len().neq(2).or(counts.len().neq(1)) { fail("containers") }
 
+// #472 (step F1b): a generated size() is the number til computed for the
+// target, folded when emission starts. dyn_size_of with a name that is
+// only known at run time still asks the C compiler (its arms are sizeof),
+// so comparing the two checks til's number against the C compiler's a
+// second time, in the running program, on whatever target this was built
+// for.
+check_size := proc(name: Str, size: USize) {
+    if dyn_size_of(name).neq(size) {
+        fail(format(name, ".size() is ", size.to_str(), " but the C compiler says ", dyn_size_of(name).to_str()))
+    }
+}
+check_size("Str", Str.size())
+check_size("ByteThenWide", ByteThenWide.size())
+check_size("ByteThenDouble", ByteThenDouble.size())
+check_size("Widths", Widths.size())
+check_size("Owner", Owner.size())
+check_size("Nested", Nested.size())
+check_size("TagOnly", TagOnly.size())
+check_size("WideTag", WideTag.size())
+check_size("BytePayload", BytePayload.size())
+check_size("WidePayload", WidePayload.size())
+check_size("StrPayload", StrPayload.size())
+check_size("StructPayload", StructPayload.size())
+if Nested.size() < ByteThenWide.size().add(Widths.size()).add(1) { fail("Nested is smaller than its fields") }
+
 println("layout corpus OK")

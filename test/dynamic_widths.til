@@ -106,8 +106,11 @@ priv check_dynamic_widths := proc(compiler: Str) {
             if emitted.contains("read_word(Nested x)").and(emitted.contains("read_pair(Pair * x)")).not() {
                 panic("target auto-shallow classification: ", target, " ", flag)
             }
-            if emitted.contains("Dynamic_size(void) {\n    return sizeof(void *);").not() {
-                panic("Dynamic.size lost target sizeof: ", target, " ", flag)
+            // #472: the exported size is the number til computed for the
+            // target -- one 4-byte word on all five -- not the 8 of the
+            // compiler that emitted it, and no longer a C sizeof.
+            if emitted.contains("Dynamic_size(void) {\n    return 4;").not() {
+                panic("Dynamic.size is not the target's pointer size: ", target, " ", flag)
             }
             // Inspect C before optimization: only the narrowing specialization
             // may contain the overflow path. Runtime tests below check its limits.

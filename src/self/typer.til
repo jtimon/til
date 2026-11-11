@@ -11407,6 +11407,16 @@ target_value_size := func(type_name: Str, scope: TypeScope, ctx: Context) return
     return sz
 }
 
+// #472 (F1b): the size the EMITTED program gets for `type_name`. Zero is
+// target_value_size's "no layout yet" answer for an unresolved name; a
+// caller about to write the number into the program cannot use that, so
+// reaching here without a layout is a compiler bug, not a size.
+target_emitted_size := func(type_name: Str, scope: TypeScope, ctx: Context) returns USize {
+    sz := target_value_size(type_name, scope, ctx)
+    if sz == 0 { panic("no target layout for an emitted size: ", type_name) }
+    return sz
+}
+
 // #392 stage B: how many bytes a value of this type occupies, when that is
 // MORE than the single word a raw Dynamic slot holds -- 0 otherwise, which is
 // also the answer for a name with no registered layout, since an unknown size
