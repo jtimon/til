@@ -2276,6 +2276,7 @@ main := proc(args: ..Str) returns I64 {
     add_both(tests, "test/repl_editor.til", flags)
     add_both(tests, "test/files.til", flags)
     add_both(tests, "test/copy_file.til", flags)
+    add_both(tests, "test/c_reserved_names.til", flags)
     add_both(tests, "test/process.til", flags)
     add_both(tests, "test/circular_imports.til", flags)
     add_both(tests, "test/import_diamond.til", flags)

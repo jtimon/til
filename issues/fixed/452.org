@@ -1,6 +1,53 @@
 # priority: medium
 # category: bugs
-** OPEN #452 til names that collide with C keywords, macros or libc names break C emission
+** FIXED #452 til names that collide with C keywords, macros or libc names break C emission
+
+*** Post-mortem (2026-11-11)
+
+Root cause: the C backend wrote a til name into the generated C exactly
+as the program spelled it. A name C reserves -- a keyword, a macro the
+compiler predefines, a libc object from the runtime's headers -- then
+produced C that did not compile, while the interpreter ran the same
+program. Not one site but every site that writes a name: locals,
+parameters, globals, top-level functions, struct fields, enum payload
+members, closure environment members, loop and catch variables, switch
+payload bindings, constructor targets, and the library bindings.
+
+What changed, all in src/self/codegen/c_codegen.til:
+
+- ~C_RESERVED_NAMES~ lists the spellings: the C keywords through C23 and
+  the GNU ones, the predefined macros without a reserved prefix
+  (~linux~, ~unix~, ~i386~, ~WIN32~, ~WIN64~, ~WINNT~), and libc's objects
+  and object-like macros (~stdin~, ~stdout~, ~stderr~, ~errno~,
+  ~environ~, ~EOF~).
+- ~c_ident(name)~ returns ~_cname_<name>~ for those and the name itself
+  otherwise. A leading underscore is reserved for compiler-made names, so
+  the escaped spelling cannot collide with a til name. It depends on the
+  spelling alone, so a declaration and each of its uses agree without
+  sharing any state.
+- Every site that writes a user's name goes through it: uses already
+  shared ~builder_resolve_c_ident_name~; top-level functions shared
+  ~func_to_c~ (which carried a lone special case for ~double~); the
+  declaration, parameter, field, payload and capture sites were changed
+  one by one. The til binding of a library now spells an exported
+  function's C symbol through ~func_to_c~ like the Python and JNI ones.
+- Names that are data, not C identifiers, are untouched: reflection
+  (~struct_field_name~) and the generated til/Python/Java bindings still
+  say ~short~.
+
+The compiler's own source uses none of these names, so ~boot/til.c~ is
+unchanged apart from the new code and the commit needs one pass.
+
+Not covered: a til top-level FUNCTION named like a libc function
+(~remove~, ~signal~, ...). An ext declaration binds a C function by its
+own name, so the spelling cannot tell that from a til definition, and
+escaping it would break the binding. It still fails in the C compiler
+("conflicting types"), as before.
+
+Regression test: ~test/c_reserved_names.til~, interpreted and compiled
+(~add_both~).
+
+*** Original report
 
 Found while adding #443 regressions on base bf835288e. A local named
 ~short~ is accepted and runs in the interpreter, but the C backend emits

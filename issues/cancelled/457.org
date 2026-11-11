@@ -4,7 +4,7 @@
 
 *** Cancellation reasoning (2026-11-11)
 
-Duplicate of [[file:../open/452.org][#452]], the older report of the same C emission defect. The
+Duplicate of [[file:../fixed/452.org][#452]], the older report of the same C emission defect. The
 reproducers, sightings and fix sketch below were consolidated into #452;
 the original text is kept as history.
 
