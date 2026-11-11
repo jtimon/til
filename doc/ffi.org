@@ -108,7 +108,8 @@ any nesting depth, in arguments, results and declared errors. There is no
 VM-specific address or I64-only restriction. Explicit own-pointer record
 fields are copied recursively, including boxed scalars, Str, records and
 enums. Raw owned byte buffers (U8/I8/Dynamic) have no field-level length
-contract and remain unsupported, as do callable payloads.
+contract and remain unsupported. Callable enum payloads use the adapters
+described below.
 Declared guest errors are supported through the typed
 adapter below. Native library functions can still use
 their ordinary FFI throws contracts, and records can cross through the native
@@ -233,7 +234,8 @@ Shared enums can cross as arguments, results or declared errors. Supported
 variants are payload-free, scalar/Str-bearing, or carry another shared record
 or enum. Both tagged unions and owned-box niche enums (such
 as an optional record) retain their normal representation. Callable payloads
-remain rejected. Borrowed-reference payloads preserve ordinary Til reference
+use the explicit VM-failure and lifetime contract below. Borrowed-reference
+payloads preserve ordinary Til reference
 semantics, including nested values and non-I64 referents.
 
 Checked lookup compares tag type/width, ordered variant names, discriminant
@@ -356,7 +358,8 @@ does not create a persistent schema cache. Copying follows the finite owned
 value tree, without traversing borrowed pointees. Explicit own-pointer record
 fields preserve separate allocations, decoding and encoding the actual pointer
 slot width in both compact and native layouts. Nested borrowed references keep
-their original referents. Callable enum payloads remain unsupported.
+their original referents. Callable enum payloads preserve the callable's own
+capture ownership through the native adapters below.
 
 ~test/tilvm_cases.til::owned_field_callback_tests~ covers nested owned fields,
 boxed scalars and narrow enums, borrowed mutation, independent owned inputs,
@@ -581,13 +584,44 @@ Owned native transfers materialize VM literals/views so stored strings survive
 VM teardown. A native throw has no return value: the error slot is checked before
 decoding its result, and zeroed error-only enum storage owns no payload.
 
-This does not make native and interpreted closure carriers interchangeable.
-Signatures containing callable enum payloads remain unavailable through FFI and
-report an error when called; importing an unused declaration is allowed. Retain
-guest commands through ~TilVmCallback~ or the command-table pattern below.
+**** Callable enum payloads
+
+Value callable enum payloads cross through an adapter, not a pointer cast between
+native ~TilClosure~ objects and interpreted callable storage. The existing
+libffi dependency supplies in-memory native entrypoints. Their signatures and
+executable storage belong to the VM; no generated files or compiler subprocess
+are needed at invocation time.
+
+A shared native callable signature must declare ~TilVmError~ alongside its
+application errors. At ~TilVmCallback~ lookup, a guest payload signature may
+omit that extra host-facing error: the application parameters, result and
+ordered application errors must still match. The adapter forwards application
+errors unchanged and reports guest panic/exit as ~TilVmError~, preserving owned
+diagnostics and exit status. A native FFI declaration uses its full native
+signature, including the failure channel. Signatures without that channel are
+rejected instead of swallowing a VM failure or terminating the host.
+
+An adapted guest closure owns its callable environment according to ordinary
+~own/ref~ capture semantics, and borrows its VM. Cloning an enum or command
+table copies owned captures; borrowed captures and guest globals remain shared.
+Borrowing a native callable for invocation preserves its existing mutable
+environment rather than invoking a fresh clone on every call.
+
+Destroy every retained guest-backed callable before its VM. Reload retirement
+must release configuration tables, cloned registrations and queued callbacks,
+and wait for executing calls to return. Removing or replacing a registration
+during its invocation defers that environment's destruction until the call
+returns; this does not keep the VM alive automatically. Native-to-guest-to-native
+re-entry preserves the suspended interpreter's diagnostics and control flow.
+
+~callable_enum_callback_tests~ checks factories, owned and borrowed inputs,
+independent captures, shared guest state, cloned tables and recoverable failures.
+~native_enum_test~ additionally checks native retention, self-removal, replacement,
+and successful/rejected reload publication through a prebuilt native library.
 ~test/library_namespace.til~ covers compiled/interpreted enum round trips and
 cross-width boxed references; ~native_enum_test~ in the installed ASAN host
-checks native-owned strings after VM destruction and unsupported callable enums.
+checks native-owned strings after VM destruction and rejection of callable
+signatures without a VM-failure channel.
 
 *** Composing generated Til bindings
 
@@ -646,9 +680,12 @@ possible extensions:
   semantics in fixed, variadic and keyword inputs, results and declared errors.
   The ~call_throwing(E)~ adapter supports the same schemas, including multiple
   errors through its signature-based form.
-- Callable enum payloads cannot cross the native FFI boundary. Supporting them
-  requires a defined native callable representation and capture/code lifetime
-  contract, rather than treating interpreter closures as native function pointers.
+- Adapting a guest callable to a nonthrowing native signature requires an
+  application wrapper that explicitly handles VM failures; the bridge does not
+  invent an error channel absent from that signature.
+- A ~ref~ payload pointing to a callable slot is not a callable value and
+  remains unsupported across this boundary. Borrowing an enum containing an
+  ordinary callable value is supported and preserves its existing environment.
 
 These are unsupported extensions, not unfinished #370 acceptance checks. The
 historical manual-registration proposal in that issue is not the current API.

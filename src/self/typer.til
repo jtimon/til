@@ -11931,6 +11931,10 @@ priv return_escape_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool)
         if fd_o.is_none() { return out }
         switch fd_o.unwrap().node_type {
         case .FuncDef(fd):
+            if fd.is_enum_variant_ctor {
+                for root: BorrowRoot in expr_borrow_roots(scope, e, symbols) { push_root_unique(out.indirect, root) }
+                return out
+            }
             for pi in 0..fd.sig.params.len() {
                 bit := summary_param_bit(pi)
                 arg_o := fcall_arg_for_param(e, pi, scope, symbols)
@@ -12937,6 +12941,35 @@ priv mut carries_borrow_no := Set(Str).new()
 // exclude callable captures. Keep them separate from the broader result memo.
 priv mut ref_type_arg_carriers := Set(Str).new()
 
+priv type_contains_callable_value := func(scope: TypeScope, name: Str, mut visited: Set(Str), symbols: SymbolPool) returns Bool {
+    if name.len() == 0 { return false }
+    ref resolved: Str = resolve_type_alias(scope, name, symbols)
+    if type_is_callable_storage(type_from_name_init_name(resolved, scope, symbols)) { return true }
+    if visited.has(resolved) { return false }
+    visited.add(own resolved.clone())
+    definition := scope.get_struct(resolved, symbols)
+    if definition.is_none() { return false }
+    switch definition.unwrap().node_type {
+    case .StructDef(sd):
+        for field: Declaration in sd.fields {
+            field_type := declaration_resolved_type(field, scope, symbols)
+            if type_is_callable_storage(field_type) { return true }
+            if field.own_type.is(OwnType.Ref).not() {
+                if type_contains_callable_value(scope, decl_type_name(field, symbols), visited, symbols) { return true }
+            }
+        }
+    case .EnumDef(ed):
+        for variant: VariantDef in ed.variants {
+            if variant.payload_funcsig { return true }
+            if variant.payload_ref.not() {
+                if type_contains_callable_value(scope, variant.payload_type, visited, symbols) { return true }
+            }
+        }
+    case:
+    }
+    return false
+}
+
 priv type_carries_borrow_v := func(scope: TypeScope, tname: Str, mut visited: Set(Str), symbols: SymbolPool, callables: Bool = true) returns Bool {
     if tname.len() == 0 { return false }
     ref resolved : Str = resolve_type_alias(scope, tname, symbols)
@@ -12954,8 +12987,16 @@ priv type_carries_borrow_v := func(scope: TypeScope, tname: Str, mut visited: Se
             if type_name_is_interface(scope, resolve_type_alias(scope, decl_type_name_ref(fd, symbols), symbols), symbols) { continue }
             if type_carries_borrow_v(scope, decl_type_name_ref(fd, symbols), visited, symbols, callables) { return true }
         }
-    case .EnumDef:
+    case .EnumDef(ed):
         if enum_has_ref_payload(tdef) { return true }
+        // Copying a callable carrier preserves its borrowed captures. This is
+        // separate from ABI ref-field classification (callables = false).
+        if callables {
+            mut callable_types := Set(Str).new()
+            for variant: VariantDef in ed.variants {
+                if type_contains_callable_value(scope, variant.payload_type, callable_types, symbols) { return true }
+            }
+        }
     case:
     }
     return false
@@ -13318,6 +13359,18 @@ expr_borrow_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool) return
         }
         switch fd_o.unwrap().node_type {
         case .FuncDef(cfd):
+            if cfd.is_enum_variant_ctor {
+                // Ref payloads were handled above. Value payloads copy/move
+                // their carried borrows, not the source carrier's storage.
+                if type_carries_borrow(scope, cfd.sig.return_type, symbols).not() { return out }
+                for pi in 0..cfd.sig.params.len() {
+                    if type_carries_borrow(scope, decl_type_name(cfd.sig.params[pi], symbols), symbols).not() { continue }
+                    arg := fcall_arg_for_param(e, pi, scope, symbols)
+                    if arg.is_none() { continue }
+                    for root: BorrowRoot in deposit_src_roots(scope, arg.unwrap(), symbols) { push_root_unique(out, root) }
+                }
+                return out
+            }
             for pi in 0..cfd.sig.params.len() {
                 pb := summary_param_bit(pi)
                 mut relevant := cfd.ref_return_params.band(pb)
@@ -14241,9 +14294,14 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
             if cfd.is_enum_variant_ctor {
                 edef_o := scope.get_struct(cfd.sig.return_type, symbols)
                 if edef_o.is_none() { return RootBits() }
-                if enum_has_ref_payload(edef_o.unwrap()).not() { return RootBits() }
+                if type_carries_borrow(scope, cfd.sig.return_type, symbols).not() { return RootBits() }
                 for ai in 1..e.children.len() {
-                    bits = bits.bor(summary_ctor_wrap(summary_expr_bits(e.children[ai], roots, scope, self_type, params, symbols, ctx)))
+                    source := summary_expr_bits(e.children[ai], roots, scope, self_type, params, symbols, ctx)
+                    if enum_ref_payload_ctor_arg(e, scope, symbols).is_some() {
+                        bits = bits.bor(summary_ctor_wrap(source))
+                    } else {
+                        bits = bits.bor(RootBits(into = source.into, carried = source.alias.bor(source.carried)))
+                    }
                 }
                 return bits
             }
@@ -14461,6 +14519,10 @@ priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut 
         if hn.eq("memcpy").or(hn == "memmove") {
             for param : Declaration in params {
                 if aggregate_borrows_type(scope, param.til_type, "", ctx) { dest_i = 1 }
+                // A sized copy from an owned erased value (Tuple's append
+                // boundary) deposits that value's borrows too. Call sites
+                // still have its concrete type and can retain its owners.
+                if param.own_type.is(OwnType.Own).and(decl_type_name_ref(param, symbols) == "Dynamic") { dest_i = 1 }
             }
         }
         if dest_i > 0 {

@@ -7,6 +7,13 @@ make_multiplier := func(factor: I64) returns UnaryOp {
     return func(x: I64) returns I64 [local_factor] { return x.mul(local_factor) }
 }
 
+BorrowedCallable := enum { None, Some: UnaryOp }
+make_borrowed_enum := func(factor: I64) returns BorrowedCallable {
+    local_factor := factor
+    callback: UnaryOp = func(x: I64) returns I64 [local_factor] { return x.mul(local_factor) }
+    return BorrowedCallable.Some(callback)
+}
+
 test_returned_borrowed_closure_error := test() {
     triple := make_multiplier(3)
     println(triple(6).to_str())

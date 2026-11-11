@@ -1556,6 +1556,244 @@ owned_field_callback_tests := proc(root: Str) {
     }
 }
 
+NativeAction := proc(I64) returns I64 throws TransformError, TilVmError
+NativeActionEnum := enum { None, Run: NativeAction }
+NativeActionFactory := func(I64) returns NativeActionEnum
+NativeSharedActionFactory := func() returns NativeActionEnum
+NativeActionInvoke := proc(own NativeActionEnum, I64) returns I64 throws TransformError
+NativeActionBorrow := proc(NativeActionEnum, I64) returns I64 throws TransformError
+NativeTextAction := proc(mut Str) returns Str throws TransformError, TilVmError
+NativeTextChoice := enum { None, Run: NativeTextAction }
+NativeTextFactory := func() returns NativeTextChoice
+NativeEnvelope := struct { own record: CallbackRecord = CallbackRecord() }
+NativeEnvelopeAction := proc(mut NativeEnvelope) returns Str throws TransformError, TilVmError
+NativeEnvelopeChoice := enum { None, Run: NativeEnvelopeAction }
+NativeEnvelopeFactory := func() returns NativeEnvelopeChoice
+NativeStateAction := proc(Bool) returns CallbackState throws TransformError, TilVmError
+NativeStateChoice := enum { None, Run: NativeStateAction }
+NativeStateFactory := func() returns NativeStateChoice
+NativeVoidAction := proc() throws TransformError, TilVmError
+NativeVoidChoice := enum { None, Run: NativeVoidAction }
+NativeVoidFactory := func() returns NativeVoidChoice
+EarlierAction := proc(mut Str) returns Str throws TransformError, TilVmError
+EarlierChoice := enum { None, Run: EarlierAction }
+EarlierInvoke := proc(EarlierChoice, mut Str) returns Str throws TransformError
+
+callable_enum_callback_tests := proc(root: Str) {
+    File.writefile("guest.til", format("mode lib\n",
+        "TransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "NativeAction := proc(I64) returns I64 throws TransformError\n",
+        "NativeActionEnum := enum { None, Run: NativeAction }\n",
+        "NativeVoidAction := proc() throws TransformError\nNativeVoidChoice := enum { None, Run: NativeVoidAction }\nmut void_calls := 0\n",
+        "make_void := func() returns NativeVoidChoice { action: NativeVoidAction = proc() throws TransformError { noop_proc(); void_calls++; if void_calls == 2 { throw TransformError(code = 26) }; if void_calls == 3 { panic(\"void callback panic\") } }; return NativeVoidChoice.Run(action) }\n",
+        "CallbackState := enum(U16) { Idle = 400, Busy = 900 }\nNativeStateAction := proc(Bool) returns CallbackState throws TransformError\nNativeStateChoice := enum { None, Run: NativeStateAction }\n",
+        "make_state := func() returns NativeStateChoice { action: NativeStateAction = proc(fail: Bool) returns CallbackState throws TransformError { noop_proc(); if fail { throw TransformError(code = 25) }; return CallbackState.Busy }; return NativeStateChoice.Run(action) }\n",
+        "NativeTextAction := proc(mut Str) returns Str throws TransformError\nNativeTextChoice := enum { None, Run: NativeTextAction }\n",
+        "CallbackRecord := struct { number: I32 = 0; enabled := false; text := \"\" }\nNativeEnvelope := struct { own record: CallbackRecord = CallbackRecord() }\n",
+        "NativeEnvelopeAction := proc(mut NativeEnvelope) returns Str throws TransformError\nNativeEnvelopeChoice := enum { None, Run: NativeEnvelopeAction }\n",
+        "make_envelope := func() returns NativeEnvelopeChoice { action: NativeEnvelopeAction = proc(mut value: NativeEnvelope) returns Str throws TransformError { noop_proc(); if value.record.number < 0 { throw TransformError() }; value.record.text = \"guest owned field\"; return value.record.text.clone() }; return NativeEnvelopeChoice.Run(action) }\n",
+        "EarlierAction := proc(mut Str) returns Str throws TransformError\nEarlierChoice := enum { None, Run: EarlierAction }\n",
+        "invoke_earlier := proc(value: EarlierChoice, mut text: Str) returns Str throws TransformError { noop_proc(); switch value { case .Run(action): return action(text)?; case: return \"\" } }\n",
+        "make_text := func() returns NativeTextChoice { action: NativeTextAction = proc(mut text: Str) returns Str throws TransformError { noop_proc(); if text.len() == 0 { throw TransformError() }; text = \"guest borrowed\"; return text.substr(6, 8) }; return NativeTextChoice.Run(action) }\n",
+        "mut shared_count := 0\nmake_shared := func() returns NativeActionEnum { action: NativeAction = proc(amount: I64) returns I64 throws TransformError { noop_proc(); if amount < 0 { throw TransformError() }; shared_count = shared_count + amount; return shared_count }; return NativeActionEnum.Run(action) }\n",
+        "make := func(seed: I64) returns NativeActionEnum { count := seed; action: NativeAction = proc(amount: I64) returns I64 throws TransformError [own mut count] { noop_proc(); count = count + amount; if amount == -1 { panic(\"native guest panic\") }; if amount == -2 { exit(9) }; if amount == -3 { throw TransformError(code = 17, message = \"native guest error\") }; return count }; return NativeActionEnum.Run(action) }\n",
+        "invoke := proc(own value: NativeActionEnum, amount: I64) returns I64 throws TransformError { noop_proc(); switch value { case .Run(action): return action(amount)?; case: return 0 } }\n",
+        "borrow_invoke := proc(value: NativeActionEnum, amount: I64) returns I64 throws TransformError { noop_proc(); switch value { case .Run(action): return action(amount)?; case: return 0 } }\n"))
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")?
+    catch (error: TilVmError) { panic(error.to_str()) }
+    mut factory := vm.lookup("make", NativeActionFactory)!
+    mut shared_factory := vm.lookup("make_shared", NativeSharedActionFactory)!
+    mut text_factory := vm.lookup("make_text", NativeTextFactory)!
+    mut envelope_factory := vm.lookup("make_envelope", NativeEnvelopeFactory)!
+    mut state_factory := vm.lookup("make_state", NativeStateFactory)!
+    mut void_factory := vm.lookup("make_void", NativeVoidFactory)!
+    mut earlier := vm.lookup("invoke_earlier", EarlierInvoke)!
+    mut host_text := format("host", " input")
+    mut returned_text := ""
+    mut envelope := NativeEnvelope(record = CallbackRecord(text = "host owned field"))
+    mut invoke := vm.lookup("invoke", NativeActionInvoke)!
+    mut borrow_invoke := vm.lookup("borrow_invoke", NativeActionBorrow)!
+    {
+        mut arguments := Tuple.new()
+        arguments.push(I64, own 40)
+        result := factory.call(arguments)!
+        ref original: NativeActionEnum = result.get(0)
+        copy := original.clone()
+        mut table := vec(NativeActionEnum, original.clone())
+        copied_table := table.clone()
+        table.set(0, own NativeActionEnum.None)!
+        switch copied_table[0] {
+        case .Run(action): assert(action(3)! == 43)
+        case: panic("cloned command table lost its callable")
+        }
+        switch original {
+        case .Run(action):
+            assert(action(1)! == 41)
+            assert(action(1)! == 42)
+            mut caught := false
+            action(-3)?
+            catch (error: TransformError) { assert(error.code == 17 && error.message == "native guest error"); caught = true }
+            catch (error: TilVmError) { panic(error.to_str()) }
+            assert(caught)
+            for failure in -2..0 {
+                mut failed := false
+                action(failure)?
+                catch (error: TransformError) { panic(error.message) }
+                catch (error: TilVmError) {
+                    if failure == -1 { assert(error.to_str().contains("native guest panic")) }
+                    else { assert(error.exit_status.unwrap() == 9) }
+                    failed = true
+                }
+                assert(failed)
+            }
+        case: panic("guest factory did not return a callable")
+        }
+        switch copy {
+        case .Run(action): assert(action(2)! == 42)
+        case: panic("callable enum clone lost its payload")
+        }
+        // First native-call registration happens while another native call is
+        // suspended. EarlierAction sorts before NativeAction and has a different
+        // return ABI, so moving inline FFI entries would corrupt the outer call.
+        earlier_host: EarlierAction = proc(mut text: Str) returns Str throws TransformError, TilVmError {
+            noop_proc()
+            if text.len() == 0 { throw TransformError() }
+            if text == "vm failure" { throw TilVmError(phase = "nested native callback") }
+            text = format(text, "!")
+            return text.clone()
+        }
+        mut earlier_arguments := Tuple.new()
+        earlier_arguments.push(EarlierChoice, own EarlierChoice.Run(earlier_host))
+        earlier_arguments.push(Str, own format("nest", "ed"))
+        reenter: NativeAction = proc(amount: I64) returns I64 throws TransformError, TilVmError [mut earlier, mut earlier_arguments] {
+            value := call_throwing(TransformError)(earlier, earlier_arguments)?
+            ref text: Str = value.get(0)
+            return text.len().to_i64() + amount
+        }
+        mut reentrant_arguments := Tuple.new()
+        reentrant_arguments.push(NativeActionEnum, own NativeActionEnum.Run(reenter))
+        reentrant_arguments.push(I64, own 5)
+        nested_result := call_throwing(TransformError)(borrow_invoke, reentrant_arguments)?
+        catch (error: TransformError) { panic(error.message) }
+        catch (error: TilVmError) { panic(error.to_str()) }
+        ref nested_value: I64 = nested_result.get(0)
+        assert(nested_value == 12)
+
+        seed := 100
+        host_action: NativeAction = proc(amount: I64) returns I64 throws TransformError, TilVmError [own mut seed] {
+            noop_proc()
+            if amount == -1 { throw TransformError(code = 18, message = "native application error") }
+            if amount == -2 { throw TilVmError(phase = "native callback") }
+            seed = seed + amount
+            return seed
+        }
+        mut packet := Tuple.new()
+        packet.push(NativeActionEnum, own NativeActionEnum.Run(host_action))
+        packet.push(I64, own 5)
+        invoked := call_throwing(TransformError)(invoke, packet)!
+        ref number: I64 = invoked.get(0)
+        assert(number == 105)
+        again := call_throwing(TransformError)(invoke, packet)!
+        ref unchanged: I64 = again.get(0)
+        assert(unchanged == 105)
+        for expected: I64 in array(I64, 105, 110) {
+            borrowed := call_throwing(TransformError)(borrow_invoke, packet)!
+            ref value: I64 = borrowed.get(0)
+            assert(value == expected)
+        }
+        ref live: NativeActionEnum = packet.get(0)
+        switch live {
+        case .Run(action): assert(action(0)! == 110)
+        case: panic("borrowed callback changed the enum tag")
+        }
+        ref mut argument: I64 = packet.get(1)
+        for failure in -2..0 {
+            argument = failure
+            mut caught := false
+            call_throwing(TransformError)(borrow_invoke, packet)?
+            catch (error: TransformError) {
+                assert(failure == -1 && error.code == 18 && error.message == "native application error")
+                caught = true
+            }
+            catch (error: TilVmError) {
+                assert(failure == -2 && error.to_str().contains("native callback"))
+                caught = true
+            }
+            assert(caught)
+        }
+        shared_result := shared_factory.call()!
+        ref shared_action: NativeActionEnum = shared_result.get(0)
+        shared_copy := shared_action.clone()
+        switch shared_action {
+        case .Run(action): assert(action(1)! == 1)
+        case: panic("shared callback is absent")
+        }
+        switch shared_copy {
+        case .Run(action): assert(action(1)! == 2)
+        case: panic("shared callback copy is absent")
+        }
+        text_result := text_factory.call()!
+        ref text_action: NativeTextChoice = text_result.get(0)
+        switch text_action {
+        case .Run(action): returned_text = action(host_text)!
+        case: panic("text callback is absent")
+        }
+        envelope_result := envelope_factory.call()!
+        ref envelope_action: NativeEnvelopeChoice = envelope_result.get(0)
+        switch envelope_action {
+        case .Run(action): assert(action(envelope)! == "guest owned field")
+        case: panic("record callback is absent")
+        }
+        state_result := state_factory.call()!
+        ref state_action: NativeStateChoice = state_result.get(0)
+        switch state_action {
+        case .Run(action):
+            assert(action(false)! == CallbackState.Busy)
+            mut caught := false
+            action(true)?
+            catch (error: TransformError) { assert(error.code == 25); caught = true }
+            catch (error: TilVmError) { panic(error.to_str()) }
+            assert(caught)
+        case: panic("enum-result callback is absent")
+        }
+        void_result := void_factory.call()!
+        ref void_action: NativeVoidChoice = void_result.get(0)
+        switch void_action {
+        case .Run(action):
+            action()!
+            for call_number in 2..4 {
+                mut caught := false
+                action()?
+                catch (error: TransformError) { assert(call_number == 2 && error.code == 26); caught = true }
+                catch (error: TilVmError) { assert(call_number == 3 && error.to_str().contains("void callback panic")); caught = true }
+                assert(caught)
+            }
+        case: panic("void callback is absent")
+        }
+    }
+    own void_factory.delete()
+    own state_factory.delete()
+    own envelope_factory.delete()
+    own text_factory.delete()
+    own earlier.delete()
+    own shared_factory.delete()
+    own borrow_invoke.delete()
+    own invoke.delete()
+    own factory.delete()
+    own vm.delete()
+    assert(host_text == "guest borrowed" && returned_text == "borrowed")
+    assert(envelope.record.text == "guest owned field")
+    File.writefile("guest.til", format("mode lib\n",
+        "TransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "NativeAction := proc(I64) returns I64 throws TransformError\n",
+        "NativeActionEnum := enum { None, Run: ref NativeAction }\n",
+        "make := func() returns NativeActionEnum { return NativeActionEnum.None }\n"))
+    mut mismatch := TilVm.new(root)
+    mismatch.load_file("guest.til")!
+    expect_lookup_failure(mismatch, "make", "result schema", signature = NativeSharedActionFactory)
+}
+
 CallbackEnum := enum(U8) { Empty = 5, Number: I64 = 7, Text: Str = 9, Record: CallbackRecord = 11 }
 CallbackMaybe := enum { None, Some: CallbackRecord }
 CallbackState := enum(U16) { Idle = 400, Busy = 900 }
@@ -1570,6 +1808,7 @@ StateRoundtrip := func(CallbackState) returns CallbackState
 CallableRoundtrip := func(CallbackCallable) returns CallbackCallable
 
 enum_callback_tests := proc(root: Str) {
+    callable_enum_callback_tests(root)
     File.writefile("guest.til", format(
         "mode lib\nCallbackRecord := struct { number: I32 = 0; enabled := false; text := \"\" }\n",
         "CallbackEnum := enum(U8) { Empty = 5, Number: I64 = 7, Text: Str = 9, Record: CallbackRecord = 11 }\n",

@@ -15,8 +15,13 @@ struct TilClosure {
 typedef struct Mode Mode;
 typedef struct Vec__Dynamic Vec__Dynamic;
 typedef struct Str Str;
+typedef struct OutOfBounds OutOfBounds;
+typedef struct KeyNotFound KeyNotFound;
 typedef struct Array__Str Array__Str;
 typedef struct Vec__Str Vec__Str;
+typedef struct Dynamic Dynamic;
+typedef struct DivideByZero DivideByZero;
+typedef struct IntegerOverflow IntegerOverflow;
 enum {
     Primitive_TAG_I16,
     Primitive_TAG_U16,
@@ -148,6 +153,11 @@ typedef struct Vec__FieldLayout Vec__FieldLayout;
 typedef struct Vec__Declaration Vec__Declaration;
 typedef struct Vec__Expr Vec__Expr;
 typedef struct Vec__USize Vec__USize;
+typedef struct Tuple Tuple;
+typedef struct KwargsMap KwargsMap;
+typedef struct Map__Str_Tuple Map__Str_Tuple;
+typedef struct Vec__Tuple Vec__Tuple;
+typedef struct Range Range;
 typedef struct File File;
 typedef struct Dir Dir;
 typedef struct Cmd Cmd;
@@ -295,17 +305,21 @@ typedef struct ComptimeDefinition ComptimeDefinition;
 typedef struct ComptimePreparation ComptimePreparation;
 typedef struct EvalState EvalState;
 typedef struct Context Context;
+typedef struct priv___src_self_context_til__HostOwnPtrProbe priv___src_self_context_til__HostOwnPtrProbe;
 typedef struct Vec__BorrowRoot Vec__BorrowRoot;
 typedef struct SymMap__TypeBinding SymMap__TypeBinding;
 typedef struct SymMap__Dynamic SymMap__Dynamic;
 typedef struct Option__ref_TypeScope Option__ref_TypeScope;
 typedef struct Option__ref_TypeBinding Option__ref_TypeBinding;
 typedef struct Map__U32_Str Map__U32_Str;
-typedef struct Map__Str_FFIEntry Map__Str_FFIEntry;
+typedef struct Map__Str_FFIEntryBox Map__Str_FFIEntryBox;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
 typedef struct Map__Str_FFITypePtrBox Map__Str_FFITypePtrBox;
+typedef struct Map__Str_NativeCallableThunk Map__Str_NativeCallableThunk;
+typedef struct Map__Str_FuncSig Map__Str_FuncSig;
 typedef struct Vec__UPtr Vec__UPtr;
 typedef struct Vec__ComptimeDefinition Vec__ComptimeDefinition;
+typedef struct Option__ref_Scope Option__ref_Scope;
 enum {
     Option__I64_TAG_None,
     Option__I64_TAG_Some
@@ -332,9 +346,11 @@ typedef struct Map__Str_Dynamic Map__Str_Dynamic;
 typedef struct Map__Str_Expr Map__Str_Expr;
 typedef struct Option__ref_Expr Option__ref_Expr;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
-typedef struct Vec__FFIEntry Vec__FFIEntry;
+typedef struct Vec__FFIEntryBox Vec__FFIEntryBox;
 typedef struct Vec__ExprPtrBox Vec__ExprPtrBox;
 typedef struct Vec__FFITypePtrBox Vec__FFITypePtrBox;
+typedef struct Vec__NativeCallableThunk Vec__NativeCallableThunk;
+typedef struct Vec__FuncSig Vec__FuncSig;
 typedef struct Vec__ForeignPlace Vec__ForeignPlace;
 typedef struct Vec__Mode Vec__Mode;
 typedef struct Vec__FuncType Vec__FuncType;
@@ -377,7 +393,6 @@ typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til
 typedef struct Vec__priv___src_self_typer_til__CtorArg Vec__priv___src_self_typer_til__CtorArg;
 typedef struct Vec__priv___src_self_typer_til__ComptimeFunction Vec__priv___src_self_typer_til__ComptimeFunction;
 typedef struct Set__UPtr Set__UPtr;
-typedef struct Option__ref_Scope Option__ref_Scope;
 typedef struct Map__Str_RootBits Map__Str_RootBits;
 typedef struct Vec__priv___src_self_typer_til__CoverageNode Vec__priv___src_self_typer_til__CoverageNode;
 typedef struct PendingRefBinding PendingRefBinding;
@@ -468,11 +483,9 @@ typedef struct Vec__priv___src_self_codegen_fasm_codegen_til__FasmGlobal Vec__pr
 typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState priv___src_self_codegen_holyc_codegen_til__HolyCEmitState;
 typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCLocalState priv___src_self_codegen_holyc_codegen_til__HolyCLocalState;
 typedef struct Map__Str_Map__Str_Bool Map__Str_Map__Str_Bool;
-typedef struct Map__Str_FuncSig Map__Str_FuncSig;
 typedef struct Map__Str_Set__Str Map__Str_Set__Str;
 typedef struct Map__Str_Set__USize Map__Str_Set__USize;
 typedef struct Vec__Map__Str_Bool Vec__Map__Str_Bool;
-typedef struct Vec__FuncSig Vec__FuncSig;
 typedef struct Vec__Set__Str Vec__Set__Str;
 typedef struct Vec__Set__USize Vec__Set__USize;
 typedef struct priv___src_self_codegen_theme_codegen_til__ThemeColorSpec priv___src_self_codegen_theme_codegen_til__ThemeColorSpec;
@@ -484,19 +497,28 @@ typedef struct HeapBinding HeapBinding;
 typedef struct Scope Scope;
 typedef struct priv___src_self_interpreter_til__InterpSharedI64 priv___src_self_interpreter_til__InterpSharedI64;
 typedef struct InterpSession InterpSession;
+typedef struct TilVmError TilVmError;
+typedef struct TilVmCallback TilVmCallback;
 typedef struct priv___src_self_interpreter_til__RawResultInfo priv___src_self_interpreter_til__RawResultInfo;
 typedef struct priv___src_self_interpreter_til__InterfaceCallBox priv___src_self_interpreter_til__InterfaceCallBox;
 typedef struct priv___src_self_interpreter_til__DynPtrBox priv___src_self_interpreter_til__DynPtrBox;
 typedef struct priv___src_self_interpreter_til__InterpAlias priv___src_self_interpreter_til__InterpAlias;
+typedef struct priv___src_self_interpreter_til__NativeCallablePrefix priv___src_self_interpreter_til__NativeCallablePrefix;
+typedef struct NativeCallableThunk NativeCallableThunk;
+typedef struct priv___src_self_interpreter_til__NativeGuestCallable priv___src_self_interpreter_til__NativeGuestCallable;
+typedef struct priv___src_self_interpreter_til__NativeImportedCallable priv___src_self_interpreter_til__NativeImportedCallable;
 typedef struct priv___src_self_interpreter_til__ExtStr priv___src_self_interpreter_til__ExtStr;
 typedef struct FFIEntry FFIEntry;
+typedef struct FFIEntryBox FFIEntryBox;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
 typedef struct Option__priv___src_self_interpreter_til__InterpSharedI64 Option__priv___src_self_interpreter_til__InterpSharedI64;
+typedef struct Option__ref_InterpSession Option__ref_InterpSession;
 typedef struct Option__ref_U8 Option__ref_U8;
 typedef struct Vec__priv___src_self_interpreter_til__InterfaceCallBox Vec__priv___src_self_interpreter_til__InterfaceCallBox;
 typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
 typedef struct Option__ref_Dynamic Option__ref_Dynamic;
+typedef struct Option__FuncSig Option__FuncSig;
 typedef struct Option__ref_HeapBinding Option__ref_HeapBinding;
 typedef struct Vec__priv___src_self_interpreter_til__DynPtrBox Vec__priv___src_self_interpreter_til__DynPtrBox;
 typedef struct Vec__priv___src_self_interpreter_til__InterpAlias Vec__priv___src_self_interpreter_til__InterpAlias;
@@ -524,6 +546,7 @@ typedef struct AnsiDecoder AnsiDecoder;
 typedef struct CliArgs CliArgs;
 
 typedef TilClosure *HashFn;
+typedef TilClosure *priv___src_self_interpreter_til__NativeFfiHandler;
 typedef TilClosure *priv___src_self_interpreter_til__DispatchFn;
 
 typedef struct Vec__Dynamic {
@@ -540,6 +563,16 @@ typedef struct Str {
 } Str;
 
 
+typedef struct OutOfBounds {
+    char _;
+} OutOfBounds;
+
+
+typedef struct KeyNotFound {
+    char _;
+} KeyNotFound;
+
+
 typedef struct Array__Str {
     TIL_OWN_PTR(U8) data;
     USize cap;
@@ -553,6 +586,9 @@ typedef struct Vec__Str {
 } Vec__Str;
 
 
+typedef struct Dynamic {
+    char _;
+} Dynamic;
 
 
 
@@ -561,6 +597,18 @@ typedef struct Vec__Str {
 
 
 
+
+
+
+
+typedef struct DivideByZero {
+    Str msg;
+} DivideByZero;
+
+
+typedef struct IntegerOverflow {
+    Str msg;
+} IntegerOverflow;
 
 
 
@@ -795,6 +843,28 @@ typedef struct Vec__USize {
 } Vec__USize;
 
 
+typedef struct Tuple {
+    TIL_OWN_PTR(U8) data;
+    USize total_size;
+    USize cap;
+    Vec__Str type_names;
+    Vec__USize type_sizes;
+} Tuple;
+
+
+typedef struct Vec__Tuple {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__Tuple;
+
+
+typedef struct Range {
+    U64 start;
+    U64 end;
+} Range;
+
+
 typedef struct File {
     U8 *handle;
     Bool is_write;
@@ -986,6 +1056,11 @@ typedef struct ComptimeDefinition {
 } ComptimeDefinition;
 
 
+typedef struct priv___src_self_context_til__HostOwnPtrProbe {
+    TIL_OWN_PTR(U8) p;
+} priv___src_self_context_til__HostOwnPtrProbe;
+
+
 typedef struct Vec__BorrowRoot {
     TIL_OWN_PTR(U8) data;
     USize count;
@@ -1027,6 +1102,10 @@ typedef struct Vec__ComptimeDefinition {
     USize cap;
 } Vec__ComptimeDefinition;
 
+
+struct Option__ref_Scope {
+    Scope *data;
+};
 
 struct Option__I64 {
     U8 tag;
@@ -1123,11 +1202,11 @@ typedef struct Vec__TypeBinding {
 } Vec__TypeBinding;
 
 
-typedef struct Vec__FFIEntry {
+typedef struct Vec__FFIEntryBox {
     TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
-} Vec__FFIEntry;
+} Vec__FFIEntryBox;
 
 
 typedef struct Vec__ExprPtrBox {
@@ -1142,6 +1221,20 @@ typedef struct Vec__FFITypePtrBox {
     USize count;
     USize cap;
 } Vec__FFITypePtrBox;
+
+
+typedef struct Vec__NativeCallableThunk {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__NativeCallableThunk;
+
+
+typedef struct Vec__FuncSig {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__FuncSig;
 
 
 typedef struct Vec__ForeignPlace {
@@ -1267,10 +1360,6 @@ typedef struct Set__UPtr {
     USize cap;
 } Set__UPtr;
 
-
-struct Option__ref_Scope {
-    Scope *data;
-};
 
 typedef struct Map__Str_RootBits {
     Vec__Str keys;
@@ -1772,13 +1861,6 @@ typedef struct Vec__Map__Str_Bool {
 } Vec__Map__Str_Bool;
 
 
-typedef struct Vec__FuncSig {
-    TIL_OWN_PTR(U8) data;
-    USize count;
-    USize cap;
-} Vec__FuncSig;
-
-
 typedef struct Vec__Set__Str {
     TIL_OWN_PTR(U8) data;
     USize count;
@@ -1831,6 +1913,11 @@ typedef struct {
 } ffi_cif;
 
 
+typedef struct {
+    char _;
+} ffi_closure;
+
+
 typedef struct InterpCallableBox {
     U64 magic;
     Expr *func_def;
@@ -1841,6 +1928,13 @@ typedef struct InterpCallableBox {
 typedef struct priv___src_self_interpreter_til__InterpSharedI64 {
     I64 value;
 } priv___src_self_interpreter_til__InterpSharedI64;
+
+
+typedef struct TilVmError {
+    Str phase;
+    Vec__SourceDiagnostic diagnostics;
+    Option__I64 exit_status;
+} TilVmError;
 
 
 typedef struct priv___src_self_interpreter_til__RawResultInfo {
@@ -1868,6 +1962,22 @@ typedef struct priv___src_self_interpreter_til__InterpAlias {
 } priv___src_self_interpreter_til__InterpAlias;
 
 
+typedef struct priv___src_self_interpreter_til__NativeCallablePrefix {
+    void * *call;
+    void * *env;
+    void * *drop;
+    void * *copy;
+} priv___src_self_interpreter_til__NativeCallablePrefix;
+
+
+typedef struct NativeCallableThunk {
+    TIL_OWN_PTR(U8) cif;
+    TIL_OWN_PTR(U8) argument_types;
+    void * *executable;
+    void * *allocation;
+} NativeCallableThunk;
+
+
 typedef struct priv___src_self_interpreter_til__ExtStr {
     TIL_OWN_PTR(U8) data;
     USize count;
@@ -1893,6 +2003,11 @@ typedef struct FFIEntry {
 } FFIEntry;
 
 
+typedef struct FFIEntryBox {
+    TIL_OWN_PTR(U8) value;
+} FFIEntryBox;
+
+
 typedef struct ExprPtrBox {
     Expr *ptr;
 } ExprPtrBox;
@@ -1909,6 +2024,10 @@ struct Option__priv___src_self_interpreter_til__InterpSharedI64 {
     priv___src_self_interpreter_til__InterpSharedI64 *data;
 };
 
+struct Option__ref_InterpSession {
+    InterpSession *data;
+};
+
 struct Option__ref_U8 {
     U8 *data;
 };
@@ -1922,6 +2041,10 @@ typedef struct Vec__priv___src_self_interpreter_til__InterfaceCallBox {
 
 struct Option__ref_Dynamic {
     void *data;
+};
+
+struct Option__FuncSig {
+    FuncSig *data;
 };
 
 struct Option__ref_HeapBinding {
@@ -2177,6 +2300,12 @@ typedef struct Map__Str_USize {
 } Map__Str_USize;
 
 
+typedef struct Map__Str_Tuple {
+    Vec__Str keys;
+    Vec__Tuple values;
+} Map__Str_Tuple;
+
+
 typedef struct Map__Str_TokenType {
     Vec__Str keys;
     Vec__TokenType values;
@@ -2316,10 +2445,10 @@ typedef struct SymMap__TypeBinding {
 } SymMap__TypeBinding;
 
 
-typedef struct Map__Str_FFIEntry {
+typedef struct Map__Str_FFIEntryBox {
     Vec__Str keys;
-    Vec__FFIEntry values;
-} Map__Str_FFIEntry;
+    Vec__FFIEntryBox values;
+} Map__Str_FFIEntryBox;
 
 
 typedef struct Map__Str_ExprPtrBox {
@@ -2332,6 +2461,18 @@ typedef struct Map__Str_FFITypePtrBox {
     Vec__Str keys;
     Vec__FFITypePtrBox values;
 } Map__Str_FFITypePtrBox;
+
+
+typedef struct Map__Str_NativeCallableThunk {
+    Vec__Str keys;
+    Vec__NativeCallableThunk values;
+} Map__Str_NativeCallableThunk;
+
+
+typedef struct Map__Str_FuncSig {
+    Vec__Str keys;
+    Vec__FuncSig values;
+} Map__Str_FuncSig;
 
 
 typedef struct Map__UPtr_ForeignPlace {
@@ -2479,12 +2620,6 @@ typedef struct Map__Str_Map__Str_Bool {
 } Map__Str_Map__Str_Bool;
 
 
-typedef struct Map__Str_FuncSig {
-    Vec__Str keys;
-    Vec__FuncSig values;
-} Map__Str_FuncSig;
-
-
 typedef struct Map__Str_Set__Str {
     Vec__Str keys;
     Vec__Set__Str values;
@@ -2544,6 +2679,35 @@ typedef struct InterpSession {
 } InterpSession;
 
 
+typedef struct TilVmCallback {
+    Option__ref_InterpSession session;
+    TIL_OWN_PTR(U8) callable;
+} TilVmCallback;
+
+
+typedef struct priv___src_self_interpreter_til__NativeGuestCallable {
+    Context *context;
+    FuncSig signature;
+    TIL_OWN_PTR(U8) callable;
+    Bool borrowed_callable;
+    USize active;
+    Bool retired;
+} priv___src_self_interpreter_til__NativeGuestCallable;
+
+
+typedef struct priv___src_self_interpreter_til__NativeImportedCallable {
+    U64 magic;
+    Expr *func_def;
+    Context *context;
+    Str name;
+    FuncSig signature;
+    void * *native;
+    Bool borrowed;
+    USize active;
+    Bool retired;
+} priv___src_self_interpreter_til__NativeImportedCallable;
+
+
 typedef struct Map__Str_HeapBinding {
     Vec__Str keys;
     Vec__HeapBinding values;
@@ -2559,6 +2723,11 @@ typedef struct Map__Str_priv___src_self_binder_til__AuditedDecl {
     Vec__Str keys;
     Vec__priv___src_self_binder_til__AuditedDecl values;
 } Map__Str_priv___src_self_binder_til__AuditedDecl;
+
+
+typedef struct KwargsMap {
+    Map__Str_Tuple items;
+} KwargsMap;
 
 
 typedef struct TypeScope {
@@ -2577,12 +2746,14 @@ typedef struct TypeScope {
 typedef struct FfiState {
     Map__Str_Dynamic dispatch_map;
     Bool dispatch_inited;
-    Map__Str_FFIEntry entries;
+    Map__Str_FFIEntryBox entries;
     Bool entries_inited;
     Bool loaded;
     Map__Str_ExprPtrBox struct_defs;
     Map__Str_FFITypePtrBox type_cache;
     Bool type_cache_inited;
+    Map__Str_NativeCallableThunk callable_thunks;
+    Map__Str_FuncSig callable_signatures;
     Map__Str_Str failed_links;
 } FfiState;
 
@@ -2606,6 +2777,7 @@ typedef struct EvalState {
     Bool eval_aborted;
     Bool repl_session;
     Bool embedded;
+    Option__ref_Scope callback_global;
     Option__I64 exit_status;
     SourceDiagnostic failure_site;
     Str guest_output;

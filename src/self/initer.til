@@ -5784,6 +5784,7 @@ priv init_normalize_dynamic_zero_defaults := func(mut e: Expr) {
 priv init_declarations_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope, mut ctx: Context, flush_pending: Bool = true) returns I32 {
     context_enter_file(ctx, path)
     mut errors : I32 = 0
+    errors_before := ctx.errors
     register_body_type_token(ctx, scope)
 
     // #321: normalize `Dynamic = 0` param defaults to the null node before
@@ -5818,7 +5819,7 @@ priv init_declarations_unit := proc(path: Str, mut program: Expr, mut scope: Typ
     // body's return literal with type-params substituted, so X becomes a
     // normal named struct/enum decl for the registration walk below.
     init_expand_type_gen_macros(program, scope, ctx)
-    if ctx.errors > 0 { return ctx.errors }
+    if ctx.errors > errors_before { return ctx.errors - errors_before }
     if flush_pending && ctx.comptime_requests.len() == 0 && ctx.generic_pending.children.len() > 0 {
         pending_start := program.children.len()
         program.take_children(ctx.generic_pending)

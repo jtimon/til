@@ -751,7 +751,13 @@ priv enum_payload_deep_free := func(enum_name: Str, mut data: Dynamic, ctx: Cont
     if enum_payload_is_ref(enum_name, data, ctx) { return }
     if payload_type == "Str" { enum_free_str_payload(data, ctx); return }
     resolved := type_from_name_init_name(payload_type, ctx.scope, ctx.symbols)
-    if resolved.is(Type.Primitive).or(resolved.is(Type.Dynamic)).or(resolved.is_funcptr()).or(resolved.is(Type.Body)) { return }
+    if heap_type_is_callable(resolved) {
+        ref mut slot: Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET)
+        callable_storage_free(deref(slot))
+        write_ptr(slot, bits_word(0))
+        return
+    }
+    if resolved.is(Type.Primitive).or(resolved.is(Type.Dynamic)) { return }
     payload_def_o := lookup_interp_type_def(payload_type, ctx)
     if payload_def_o.is_none() { panic("enum payload has no registered type def: ", payload_type) }
     ref payload_def : Expr = payload_def_o.unwrap()
@@ -798,7 +804,12 @@ priv enum_payload_deep_clone := func(enum_name: Str, mut data: Dynamic, ctx: Con
     if enum_payload_is_ref(enum_name, data, ctx) { return }
     if payload_type == "Str" { enum_clone_str_payload(data, ctx); return }
     resolved := type_from_name_init_name(payload_type, ctx.scope, ctx.symbols)
-    if resolved.is(Type.Primitive).or(resolved.is(Type.Dynamic)).or(resolved.is_funcptr()).or(resolved.is(Type.Body)) { return }
+    if heap_type_is_callable(resolved) {
+        ref mut slot: Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET)
+        write_ptr(slot, callable_storage_clone(deref(slot)))
+        return
+    }
+    if resolved.is(Type.Primitive).or(resolved.is(Type.Dynamic)) { return }
     payload_def_o := lookup_interp_type_def(payload_type, ctx)
     if payload_def_o.is_none() { panic("enum payload has no registered type def: ", payload_type) }
     ref payload_def : Expr = payload_def_o.unwrap()
@@ -1470,6 +1481,10 @@ priv raw_arg_pointer := func(raw: Dynamic, info: RawResultInfo, ctx: Context) re
 }
 
 priv callable_storage_func_def := func(stored: Dynamic) returns ref Expr {
+    if native_callable_box_is(stored) {
+        ref box: NativeImportedCallable = to_ptr(stored)
+        return box.func_def
+    }
     if callable_box_is(stored) {
         ref box : InterpCallableBox = to_ptr(stored)
         return box.func_def
@@ -1505,6 +1520,10 @@ priv eval_callable_callee_raw := proc(mut scope: Scope, mut callee: Expr,
             if heap_type_is_callable(hb_type(hb)) {
                 if hb.moved_out { panic("call of moved binding: ", id.ident_name(ctx.symbols.names)) }
                 owned = false
+                if ffi_place_is_foreign(to_ptr(hb.ptr), ctx) {
+                    owned = true
+                    return native_callable_slot_import(resolved_type_name(hb_type(hb), ctx.symbols), hb.ptr, ctx, true)
+                }
                 return to_ptr(hb.ptr)
             }
         }
@@ -1514,6 +1533,10 @@ priv eval_callable_callee_raw := proc(mut scope: Scope, mut callee: Expr,
             // callable as a value still clones it in eval_expr_field_raw.
             ref slot : Dynamic = field_access_base(scope, callee, ctx).unwrap()
             owned = false
+            if ffi_place_is_foreign(slot, ctx) {
+                owned = true
+                return native_callable_slot_import(resolved_type_name(callee.til_type(), ctx.symbols), slot, ctx, true)
+            }
             result : Dynamic = slot
             return result
         }
@@ -1865,8 +1888,9 @@ priv ffi_borrow_place_walk := proc(type_name: Str, data: Dynamic, root: UPtr, mu
             panic("invalid borrowed native enum tag: ", type_name)
         }
         ref variant : VariantDef = ed.variants[index.to_usize()]
-        if variant.payload_type.len().eq(0).or(variant.payload_funcsig) { return }
+        if variant.payload_type.len() == 0 { return }
         ref slot : Dynamic = ffi_enum_payload_slot(type_name, data, false, ctx)
+        if variant.payload_funcsig { ffi_remember_place(variant.payload_type, slot, root, ctx); return }
         if variant.payload_ref.or(enum_is_niche(def)) {
             ffi_borrow_place_walk(variant.payload_type, deref(slot), root, visited, ctx)
         } else { ffi_borrow_place_walk(variant.payload_type, slot, root, visited, ctx) }
@@ -1875,10 +1899,11 @@ priv ffi_borrow_place_walk := proc(type_name: Str, data: Dynamic, root: UPtr, mu
             ref fd : Declaration = sd.fields[i]
             fl := place_field_layout(type_name, sd.field_name_at(i), data, ctx)
             ref slot : Dynamic = ptr_add(data, fl.offset)
+            if fl.is_funcptr { ffi_remember_place(decl_type_name_ref(fd, ctx.symbols), slot, root, ctx); continue }
             if fd.own_type.is(OwnType.Shallow) {
                 ffi_borrow_place_walk(decl_type_name_ref(fd, ctx.symbols), slot, root, visited, ctx)
             } else {
-                ffi_borrow_place_walk(decl_type_name_ref(fd, ctx.symbols), deref(slot), root, visited, ctx)
+                ffi_borrow_place_walk(decl_type_name_ref(fd, ctx.symbols), own_slot_load(slot, fl.size), root, visited, ctx)
             }
         }
     case: UNREACHABLE("FFI layout without an aggregate definition")
@@ -3795,6 +3820,14 @@ priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callab
     if check_dynamic_callable_signature(callable, e.children[0].til_type(), e, ctx).not() {
         return raw_unit_result(e.til_type(), ctx)
     }
+    if native_callable_box_is(deref(callable)) {
+        ref mut box: NativeImportedCallable = to_ptr(deref(callable))
+        box.active = box.active + 1
+        result: Dynamic = native_callable_import_invoke(box, caller_scope, e, ctx, destination)
+        box.active = box.active - 1
+        if box.retired.and(box.active == 0) { NativeImportedCallable.delete(own to_ptr(box), true) }
+        return result
+    }
     ref mut func_def : Expr = callable_raw_func_def(callable)
     ref parent_scope : Scope = callable_raw_env(callable, caller_scope)
     switch func_def.node_type {
@@ -5225,7 +5258,7 @@ priv heap_slot_is_static_callable := func(shallow til_type: Type, ptr: Dynamic) 
     if heap_type_is_callable(til_type).not() { return false }
     ref stored : Dynamic = deref(ptr)
     if stored.is_null() { panic("callable heap slot is empty") }
-    return callable_box_is(stored).not()
+    return callable_box_is(stored).or(native_callable_box_is(stored)).not()
 }
 
 // The FuncDef Expr a binding stands for, or None when it holds a VALUE.
@@ -5404,6 +5437,9 @@ priv primitive_heap_clone := func(prim: Primitive, ptr: Dynamic) returns Dynamic
 }
 
 priv heap_clone_by_type := func(shallow til_type: Type, ptr: Dynamic, ctx: Context) returns Dynamic {
+    if heap_type_is_callable(til_type).and(ffi_place_is_foreign(ptr, ctx)) {
+        return native_callable_slot_import(resolved_type_name(til_type, ctx.symbols), ptr, ctx)
+    }
     switch til_type {
     case .Primitive(prim):
         return primitive_heap_clone(prim, ptr)
@@ -5918,6 +5954,10 @@ priv callable_box_is := func(ptr: Dynamic) returns Bool {
 }
 
 priv callable_storage_clone := func(ptr: Dynamic) returns Dynamic {
+    if native_callable_box_is(ptr) {
+        ref box: NativeImportedCallable = to_ptr(ptr)
+        return native_callable_import(box.name, box.native, box.signature, box.context)
+    }
     if callable_box_is(ptr).not() { return ptr }
     ref src : InterpCallableBox = to_ptr(ptr)
     mut dst : Dynamic = EvalHeap.heap_alloc(InterpCallableBox.size())
@@ -5929,6 +5969,12 @@ priv callable_storage_clone := func(ptr: Dynamic) returns Dynamic {
 }
 
 priv callable_storage_free := func(mut ptr: Dynamic) {
+    if native_callable_box_is(ptr) {
+        ref mut box: NativeImportedCallable = to_ptr(ptr)
+        if box.active > 0 { box.retired = true }
+        else { NativeImportedCallable.delete(own to_ptr(box), true) }
+        return
+    }
     if callable_box_is(ptr) { callable_box_free(ptr) }
 }
 
@@ -6462,10 +6508,7 @@ priv find_field_decl := func(struct_def: Expr, fname: Str) returns Option(ref De
 read_field := func(inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, ctx: Context) returns Dynamic {
     ref ptr : Dynamic = ptr_add(inst_data, field_offset.to_uptr())
     if decl_is_funcsig(dd, ctx) {
-        ref stored_callable : Dynamic = deref(ptr)
-        mut result : Dynamic = dispatch_result_alloc(dd.til_type, ctx)
-        write_ptr(result, callable_storage_clone(stored_callable))
-        return result
+        return heap_clone_by_type(declaration_resolved_type(dd, ctx.scope, ctx.symbols), ptr, ctx)
     }
     if dd.own_type.is(OwnType.Shallow).not() {
         mut result : Dynamic = dispatch_result_alloc(Type.Dynamic, ctx)
@@ -6934,6 +6977,460 @@ interp_session_lookup_function := proc(mut session: InterpSession, mut lp: Loade
     return binding_o
 }
 
+// The native callable prefix is the existing TilClosure ABI. These pointers
+// are native addresses, including executable libffi memory outside the cage.
+priv NativeCallablePrefix := struct {
+    ref call: Dynamic
+    ref env: Dynamic
+    ref drop: Dynamic
+    ref copy: Dynamic
+}
+
+NativeCallableThunk := struct {
+    own cif: U8
+    own argument_types: U8
+    ref executable: Dynamic
+    ref allocation: Dynamic
+}
+
+priv NativeGuestCallable := struct {
+    ref context: Context
+    signature := FuncSig()
+    own callable: U8
+    borrowed_callable := false
+    active: USize = 0
+    retired := false
+namespace:
+    delete := func(own self: NativeGuestCallable, call_free: Bool = true) {
+        if self.borrowed_callable { free(own self.callable) }
+        else { callable_raw_free(self.callable, self.context) }
+        FuncSig.delete(own self.signature, false)
+        if call_free { free(own self) }
+    }
+}
+
+// libffi supplies (cif, result, arguments, user_data). A static compiled Til
+// closure's unused environment occupies that first position; its three real
+// parameters therefore have exactly the libffi callback ABI.
+priv NativeFfiHandler := proc(mut Dynamic, mut Dynamic, Dynamic)
+
+priv NativeImportedCallable := struct {
+    magic: U64 = 0
+    ref func_def: Expr
+    ref context: Context
+    name := ""
+    signature := FuncSig()
+    ref native: Dynamic
+    borrowed := false
+    active: USize = 0
+    retired := false
+namespace:
+    delete := func(own self: NativeImportedCallable, call_free: Bool = true) {
+        if self.borrowed.not() { til_closure_delete(to_ptr(self.native)) }
+        Str.delete(own self.name, false)
+        FuncSig.delete(own self.signature, false)
+        if call_free { free(own self) }
+    }
+}
+
+priv NATIVE_CALLABLE_MAGIC: U64 = 7811882221234791352
+priv native_callable_box_is := func(value: Dynamic) returns Bool {
+    if value.is_null() { return false } // Empty/moved callable slots.
+    ref magic: U64 = value
+    return magic == NATIVE_CALLABLE_MAGIC
+}
+
+priv native_callable_import := func(name: Str, source: Dynamic, signature: FuncSig, ctx: Context, borrowed: Bool = false) returns Dynamic {
+    mut copied: Dynamic = source
+    if borrowed.not() {
+        mut source_slot: U8 = malloc(Dynamic.size())
+        write_ptr(source_slot, source)
+        copied_slot: Dynamic = til_closure_slot_clone(source_slot)
+        copied = deref(copied_slot)
+        free(own copied_slot)
+        free(own source_slot)
+    }
+    mut storage: Dynamic = EvalHeap.heap_alloc(NativeImportedCallable.size())
+    adopt(NativeImportedCallable, storage, own NativeImportedCallable(magic = NATIVE_CALLABLE_MAGIC,
+        func_def = ctx.scope.lookup_func_name(name, ctx.symbols).unwrap(), context = ctx,
+        name = name.clone(), signature = signature.clone(), native = copied, borrowed = borrowed))
+    return storage
+}
+
+priv native_callable_signature := func(name: Str, ctx: Context) returns FuncSig {
+    if ctx.ffi.callable_signatures.has(name) { return ctx.ffi.callable_signatures[name].clone() }
+    return interp_lookup_signature(funcdef_of(ctx.scope.lookup_func_name(name, ctx.symbols).unwrap()), ctx).unwrap().clone()
+}
+
+priv native_callable_slot_import := func(name: Str, source: Dynamic, ctx: Context, borrowed: Bool = false) returns Dynamic {
+    mut slot: Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+    write_ptr(slot, native_callable_import(name, deref(source), native_callable_signature(name, ctx), ctx, borrowed))
+    return slot
+}
+
+priv native_callable_import_invoke := proc(box: NativeImportedCallable, mut caller: Scope, mut e: Expr,
+    mut ctx: Context, mut destination: Dynamic) returns Dynamic {
+    ref native: NativeCallablePrefix = to_ptr(box.native)
+    key := format("TilVm.native.", box.name, ".", word_bits(native.call).to_str())
+    ref guest: FunctionDef = funcdef_of(box.func_def)
+    if ctx.ffi.entries.has(key).not() {
+        mut signature := box.signature.clone()
+        signature.func_type = FuncType.ExtProc
+        if box.signature.func_type.is(FuncType.Func) { signature.func_type = FuncType.ExtFunc }
+        signature.return_own_type = OwnType.Shallow
+        if box.signature.return_own_type.is(OwnType.Ref) { signature.return_own_type = OwnType.Ref }
+        mut parameters := Vec(Declaration).new()
+        parameters.push(own Declaration(name = "environment", til_type = Type.Dynamic, own_type = OwnType.Shallow))
+        for parameter: Declaration in signature.params { parameters.push(own parameter.clone()) }
+        if signature.throw_types.len() > 0 {
+            parameters.push(own Declaration(name = "_err_kind", til_type = Type.Primitive(Primitive.I64), own_type = OwnType.Ref, is_mut = true))
+            for error: Str in signature.throw_types {
+                if error == "TilVmError" {
+                    parameters.push(own Declaration(name = "_err_TilVmError", til_type = Type.Dynamic, own_type = OwnType.Ref, is_mut = true))
+                } else if throw_type_has_payload(ctx, error) {
+                    parameters.push(own Declaration(name = format("_err_", error), til_type = type_from_name_init_name(error, ctx.scope, ctx.symbols), own_type = OwnType.Ref, is_mut = true))
+                }
+            }
+        }
+        signature.params = parameters
+        definition := Expr.new(own NodeType.FuncDef(FunctionDef(sig = signature)), e.line, e.col)
+        // This is a native value ABI, not an interpreter runtime intrinsic:
+        // callable payloads still need conversion when byte widths coincide.
+        ffi_register(key, native.call, definition, false, ctx)
+        if ctx.ffi.entries.has(key).not() { panic("native callable ABI could not be registered: ", box.name) }
+        // FFIEntry borrows the return spelling. Its canonical guest signature
+        // lives with the Context; the temporary synthetic definition does not.
+        if guest.sig.return_type.len() > 0 {
+            ref mut entry: FFIEntry = to_ptr(ctx.ffi.entries[key].value)
+            entry.return_type = safe_ref(guest.sig.return_type)
+        }
+    }
+    mut scope := scope_new(safe_ref(caller))
+    mut environment: Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+    write_ptr(environment, native.env)
+    scope_set_raw_owned(scope, "TilVm.native_environment", environment, interp_intern_type(Type.Dynamic, ctx), OwnType.Own, ctx)
+    mut kind: I64 = 0
+    mut failure := TilVmError()
+    scope_set_heap_owned(scope, "TilVm.native_kind", kind, interp_intern_type(Type.Primitive(Primitive.I64), ctx), OwnType.Ref, ctx, false, true)
+    scope_set_heap_owned(scope, "TilVm.native_failure", failure, interp_intern_type(Type.Dynamic, ctx), OwnType.Ref, ctx, false, true, true)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), e.line, e.col)
+    call.add_child(own Expr.new(own ident_node(ctx.symbols.intern(key)), e.line, e.col))
+    mut env_arg := Expr.new(own ident_node(ctx.symbols.intern("TilVm.native_environment")), e.line, e.col)
+    env_arg.set_til_type(Type.Dynamic)
+    call.add_child(own env_arg)
+    for i in 0..guest.sig.params.len() {
+        if guest.sig.params[i].name.starts_with("_err_") { continue }
+        call.add_child(own e.children[i + 1].clone())
+        if get_own_arg(e, i + 1) { set_own_arg(call, call.children.len() - 1) }
+    }
+    if box.signature.throw_types.len() > 0 {
+        mut kind_arg := Expr.new(own ident_node(ctx.symbols.intern("TilVm.native_kind")), e.line, e.col)
+        kind_arg.set_til_type(Type.Primitive(Primitive.I64))
+        call.add_child(own kind_arg)
+        for error: Str in box.signature.throw_types {
+            if error == "TilVmError" {
+                mut failure_arg := Expr.new(own ident_node(ctx.symbols.intern("TilVm.native_failure")), e.line, e.col)
+                failure_arg.set_til_type(Type.Dynamic)
+                call.add_child(own failure_arg)
+            } else if throw_type_has_payload(ctx, error) {
+                for i in 0..guest.sig.params.len() {
+                    if guest.sig.params[i].name == format("_err_", error) { call.add_child(own e.children[i + 1].clone()) }
+                }
+            }
+        }
+    }
+    call.set_til_type(e.til_type())
+    mut output: Dynamic = destination
+    if output.is_null() { output = EvalHeap.heap_alloc(raw_type_size(e.til_type(), ctx)) }
+    if ext_dispatch_ffi(key, scope, call, output, ctx).not() { panic("native callable is not registered") }
+    if kind == throw_type_tag("TilVmError") {
+        ctx.eval.eval_aborted = true
+        ctx.eval.exit_status = failure.exit_status.clone()
+        if failure.diagnostics.len() == 0 {
+            // A native caller may supply only a phase/status. Preserve that
+            // message instead of turning its failure into an empty VM error.
+            context_diagnostic(ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
+                ctx.path, e.line, e.col, failure.to_str())
+        } else {
+            for diagnostic: SourceDiagnostic in failure.diagnostics { ctx.diagnostics.push(own diagnostic.clone()) }
+        }
+    } else if kind != 0 {
+        for i in 0..guest.sig.params.len() {
+            if guest.sig.params[i].name == "_err_kind" {
+                mut info := raw_result_info_new()
+                mut slot: Dynamic = eval_expr_raw_info(caller, e.children[i + 1], ctx, info)
+                write_i64(slot, kind)
+            }
+        }
+    }
+    scope_drop_owned_bindings(scope)
+    scope_free(own scope)
+    if destination.is_null().not() { return destination }
+    if box.signature.return_own_type.is(OwnType.Ref) {
+        ref borrowed: Dynamic = deref(output)
+        result: Dynamic = borrowed
+        EvalHeap.heap_free(own output)
+        return result
+    }
+    if raw_type_is_prim(e.til_type(), ctx) {
+        result: Dynamic = scalar_word_load(e.til_type(), output, ctx)
+        EvalHeap.heap_free(own output)
+        return result
+    }
+    return output
+}
+
+priv native_callable_handler := proc(mut result: Dynamic, mut arguments: Dynamic, user_data: Dynamic) {
+    noop_proc()
+    ref mut environment_slot: Dynamic = deref(arguments)
+    ref mut environment: Dynamic = deref(environment_slot)
+    ref mut state: NativeGuestCallable = to_ptr(environment)
+    operation := word_bits(user_data)
+    if operation == 1 {
+        mut slot: U8 = malloc(Dynamic.size())
+        write_ptr(slot, callable_storage_clone(deref(state.callable)))
+        mut copy: Dynamic = EvalHeap.heap_alloc(NativeGuestCallable.size())
+        adopt(NativeGuestCallable, copy, own NativeGuestCallable(context = state.context, signature = state.signature.clone(), callable = slot))
+        write_ptr(result, copy)
+        return
+    }
+    if operation == 2 {
+        // Removing a registration during its own invocation releases the owner,
+        // but the invocation still borrows its environment until it returns.
+        if state.active > 0 { state.retired = true }
+        else { NativeGuestCallable.delete(own to_ptr(state), true) }
+        return
+    }
+    if operation != 0 { panic("invalid native callable operation") }
+    state.active = state.active + 1
+    native_callable_invoke(state, result, arguments)
+    state.active = state.active - 1
+    if state.retired.and(state.active == 0) { NativeGuestCallable.delete(own to_ptr(state), true) }
+}
+
+priv native_callable_thunk := proc(name: Str, signature: FuncSig, operation: I64, mut ctx: Context) returns Dynamic {
+    key := format(name, ":", operation.to_str())
+    if ctx.ffi.callable_thunks.has(key) {
+        ref thunk: NativeCallableThunk = ctx.ffi.callable_thunks[key]
+        return thunk.executable
+    }
+    mut count: USize = 1 // Native closure environment.
+    if operation == 0 {
+        count = count + signature.params.len()
+        if signature.throw_types.len() > 0 {
+            count = count + 1
+            for error: Str in signature.throw_types {
+                if error.eq("TilVmError").or(throw_type_has_payload(ctx, error)) { count = count + 1 }
+            }
+        }
+    }
+    mut types: U8 = calloc(count, Dynamic.size())
+    write_ptr(types, ffi_type_ref("ffi_type_pointer"))
+    mut index: USize = 1
+    if operation == 0 {
+        for parameter: Declaration in signature.params {
+            ref mut type: ffi_type = ffi_type_ref("ffi_type_pointer")
+            if parameter.own_type.is(OwnType.Shallow) { type = shallow_ffi_type(parameter.type_name(), ctx, true) }
+            write_ptr(ptr_add(types, index.mul(Dynamic.size())), type)
+            index++
+        }
+        while index < count {
+            write_ptr(ptr_add(types, index.mul(Dynamic.size())), ffi_type_ref("ffi_type_pointer"))
+            index++
+        }
+    }
+    ref mut result_type: ffi_type = ffi_type_ref("ffi_type_void")
+    if operation == 1 { result_type = ffi_type_ref("ffi_type_pointer") }
+    if operation.eq(0).and(signature.return_type.len() > 0) {
+        if signature.return_own_type.is(OwnType.Ref) { result_type = ffi_type_ref("ffi_type_pointer") }
+        else { result_type = shallow_ffi_type(signature.return_type, ctx, true) }
+    }
+    mut cif_storage: U8 = malloc(ffi_cif.size())
+    ref mut cif: ffi_cif = to_ptr(cif_storage)
+    if ffi_prep_cif(cif, ffi_host_default_abi(), count.to_u32(), result_type, types) != FFI_OK {
+        panic("cannot prepare native callable ABI: ", name)
+    }
+    mut executable_slot: U8 = calloc(1, Dynamic.size())
+    mut allocation: Dynamic = ffi_closure_alloc(ffi_get_closure_size(), executable_slot)
+    if allocation.is_null() { panic("libffi could not allocate callable adapter") }
+    ref mut executable: Dynamic = deref(executable_slot)
+    handler: NativeFfiHandler = native_callable_handler
+    ref native_handler: Dynamic = deref(to_ptr(handler))
+    ref handler_address: Dynamic = deref(native_handler)
+    ref mut closure: ffi_closure = to_ptr(allocation)
+    mut user_data: Dynamic = bits_word(operation.cast(U64))
+    if ffi_prep_closure_loc(closure, cif, handler_address, user_data, executable) != FFI_OK {
+        panic("cannot prepare native callable entry: ", name)
+    }
+    thunk := NativeCallableThunk(cif = cif_storage, argument_types = types, executable = executable, allocation = allocation)
+    ctx.ffi.callable_thunks.set(key, own thunk)
+    result: Dynamic = executable
+    free(own executable_slot)
+    return result
+}
+
+priv native_callable_entry := func(name: Str, operation: I64, ctx: Context) returns Dynamic {
+    return ctx.ffi.callable_thunks[format(name, ":", operation.to_str())].executable
+}
+
+priv native_callable_export := func(name: Str, source: Dynamic, signature: FuncSig, ctx: Context,
+    borrowed: Bool = false, take: Bool = false) returns Dynamic {
+    if native_callable_box_is(source).and(borrowed.not()) {
+        ref imported: NativeImportedCallable = to_ptr(source)
+        mut slot: U8 = malloc(Dynamic.size())
+        write_ptr(slot, imported.native)
+        copied_slot: Dynamic = til_closure_slot_clone(slot)
+        ref copied: Dynamic = deref(copied_slot)
+        result: Dynamic = copied
+        free(own copied_slot)
+        free(own slot)
+        if take { mut released: Dynamic = source; callable_storage_free(released) }
+        return result
+    }
+    mut has_vm_error := false
+    for error: Str in signature.throw_types { if error == "TilVmError" { has_vm_error = true } }
+    if has_vm_error.not() { panic("native guest callable must declare TilVmError: ", name) }
+    mut slot: U8 = malloc(Dynamic.size())
+    if borrowed.or(take) { write_ptr(slot, source) }
+    else { write_ptr(slot, callable_storage_clone(source)) }
+    mut state: Dynamic = EvalHeap.heap_alloc(NativeGuestCallable.size())
+    adopt(NativeGuestCallable, state, own NativeGuestCallable(context = ctx, signature = signature.clone(), callable = slot, borrowed_callable = borrowed))
+    mut native: NativeCallablePrefix = malloc(NativeCallablePrefix.size())
+    adopt(NativeCallablePrefix, native, own NativeCallablePrefix(
+        call = native_callable_entry(name, 0, ctx), env = state,
+        drop = native_callable_entry(name, 2, ctx), copy = native_callable_entry(name, 1, ctx)))
+    return to_ptr(native)
+}
+
+priv native_callable_error_slot := func(signature: FuncSig, name: Str, arguments: Dynamic, ctx: Context) returns Dynamic {
+    mut index := signature.params.len() + 1
+    if name != "_err_kind" {
+        index++
+        for error: Str in signature.throw_types {
+            if error.eq("TilVmError").or(throw_type_has_payload(ctx, error)).not() { continue }
+            if name == format("_err_", error) { return deref(deref(ptr_add(arguments, index.mul(Dynamic.size())))) }
+            index++
+        }
+        panic("native callable error slot is absent: ", name)
+    }
+    return deref(deref(ptr_add(arguments, index.mul(Dynamic.size()))))
+}
+
+priv native_callable_invoke := proc(mut state: NativeGuestCallable, mut native_result: Dynamic, arguments: Dynamic) {
+    ref mut ctx: Context = state.context
+    // A native function may invoke a guest callback before its own guest call
+    // returns. Only this nested invocation's failure crosses its native error
+    // slot; preserve the suspended interpreter's control flow and diagnostics.
+    saved_return := ctx.eval.has_return
+    ref saved_return_value: Dynamic = ctx.eval.return_value
+    saved_break := ctx.eval.has_break
+    saved_continue := ctx.eval.has_continue
+    saved_aborted := ctx.eval.eval_aborted
+    saved_embedded := ctx.eval.embedded
+    saved_path := ctx.path.clone()
+    saved_site := ctx.eval.failure_site.clone()
+    mut saved_exit := Option(I64).None
+    swap(Option(I64), saved_exit, ctx.eval.exit_status)
+    mut saved_diagnostics := Vec(SourceDiagnostic).new()
+    swap(Vec(SourceDiagnostic), saved_diagnostics, ctx.diagnostics)
+    ctx.eval.has_return = false
+    ctx.eval.return_value = bits_word(0)
+    ctx.eval.has_break = false
+    ctx.eval.has_continue = false
+    ctx.eval.eval_aborted = false
+    ctx.eval.embedded = true
+    ref def: Expr = callable_raw_func_def(state.callable)
+    ref fd: FunctionDef = funcdef_of(def)
+    ctx.path = ctx.eval.function_paths[word_bits(to_ptr(def)).to_uptr()].clone()
+    ctx.eval.failure_site = SourceDiagnostic(phase = DiagnosticPhase.Runtime, path = ctx.path.clone(), line = def.line, col = def.col)
+    mut temps := scope_new(ctx.eval.callback_global)
+    mut call := Expr.new(own NodeType.FCall(FCallData()), def.line, def.col)
+    call.add_child(own Expr.new(own ident_node(ctx.symbols.intern("TilVm.native_callable")), def.line, def.col))
+    mut source_index: USize = 0
+    for i in 0..fd.sig.params.len() {
+        ref parameter: Declaration = fd.sig.params[i]
+        mut type := declaration_resolved_type(parameter, ctx.scope, ctx.symbols)
+        if i.to_i32() == fd.sig.variadic_index {
+            type = type_from_name_init_name(variadic_carrier_type_name(ctx.scope, decl_type_name(parameter, ctx.symbols), ctx.symbols), ctx.scope, ctx.symbols)
+        }
+        name := format("TilVm.native_argument.", i.to_str())
+        mut value: Dynamic = 0
+        mut owned := false
+        if parameter.name.starts_with("_err_") {
+            value = native_callable_error_slot(state.signature, parameter.name, arguments, ctx)
+            if is_aggregate(type) { ffi_borrow_place(resolved_type_name(type, ctx.symbols), value, ctx) }
+        } else {
+            ref native_parameter: Declaration = state.signature.params[source_index]
+            value = deref(ptr_add(arguments, (source_index + 1).mul(Dynamic.size())))
+            if native_parameter.own_type.is(OwnType.Shallow).not() { value = deref(value) }
+            owned = native_parameter.own_type.is(OwnType.Own)
+            if owned.not().and(is_aggregate(type)) {
+                ffi_borrow_place(resolved_type_name(type, ctx.symbols), value, ctx)
+            }
+            source_index++
+        }
+        scope_set_heap_owned(temps, name, value, interp_intern_type(type, ctx), parameter.own_type, ctx, true, owned.not())
+        mut argument := Expr.new(own ident_node(ctx.symbols.intern(name)), def.line, def.col)
+        argument.set_til_type(type)
+        call.add_child(own argument)
+        if owned { set_own_arg(call, i + 1) }
+    }
+    mut result_type := Type.None
+    mut destination: Dynamic = 0
+    call.set_til_type(result_type)
+    if state.signature.return_type.len() > 0 {
+        result_type = type_from_name_init_name(state.signature.return_type, ctx.scope, ctx.symbols)
+        call.set_til_type(result_type)
+        if state.signature.return_own_type.is(OwnType.Ref).not() { destination = EvalHeap.heap_alloc(raw_type_size(result_type, ctx)) }
+    }
+    value: Dynamic = eval_callable_call(temps, call, state.callable, ctx, destination)
+    ref returned_kind: I64 = to_ptr(native_callable_error_slot(state.signature, "_err_kind", arguments, ctx))
+    if ctx.eval.eval_aborted {
+        ref mut error: TilVmError = to_ptr(native_callable_error_slot(state.signature, "_err_TilVmError", arguments, ctx))
+        mut failure := TilVmError(phase = "call", diagnostics = ctx.diagnostics.clone(), exit_status = ctx.eval.exit_status.clone())
+        swap(TilVmError, error, failure)
+        ref mut kind: I64 = to_ptr(native_callable_error_slot(state.signature, "_err_kind", arguments, ctx))
+        kind = throw_type_tag("TilVmError")
+        if state.signature.return_type.len() > 0 {
+            if state.signature.return_own_type.is(OwnType.Ref) { write_ptr(native_result, bits_word(0)) }
+            else {
+                ctx.eval.eval_aborted = false
+                default_value: Dynamic = interp_callback_default(state.signature.return_type, temps, ctx)
+                memcpy(native_result, default_value, interp_callback_native_size(result_type, ctx))
+                EvalHeap.heap_free(own default_value)
+                ctx.eval.eval_aborted = true
+            }
+        }
+    } else if state.signature.return_type.len() > 0 {
+        if state.signature.return_own_type.is(OwnType.Ref) { write_ptr(native_result, value) }
+        else if returned_kind != 0 {
+            // A declared throw returns an unused ABI placeholder. It need not
+            // be a valid enum tag; transfer its initialized storage without
+            // interpreting it as a successful value.
+            memcpy(native_result, destination, interp_callback_native_size(result_type, ctx))
+        }
+        else {
+            copied: Dynamic = interp_callback_error_copy(state.signature.return_type, value, ctx)
+            memcpy(native_result, copied, interp_callback_native_size(result_type, ctx))
+            EvalHeap.heap_free(own copied)
+            heap_drop_by_type(result_type, destination, ctx)
+        }
+    }
+    if destination.is_null().not() { EvalHeap.heap_free(own destination) }
+    scope_drop_owned_bindings(temps)
+    scope_free(own temps)
+    ctx.eval.has_return = saved_return
+    ctx.eval.return_value = saved_return_value
+    ctx.eval.has_break = saved_break
+    ctx.eval.has_continue = saved_continue
+    ctx.eval.eval_aborted = saved_aborted
+    ctx.eval.embedded = saved_embedded
+    ctx.path = saved_path
+    ctx.eval.failure_site = saved_site
+    ctx.eval.exit_status = saved_exit
+    ctx.diagnostics = saved_diagnostics
+}
+
 // Shared boundary schema for error payloads, ordinary arguments and results.
 // The visited set belongs to this one validation, not to the VM. An owned
 // niche can close a type-graph cycle; every distinct schema still has all its
@@ -6959,8 +7456,37 @@ priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut 
             ref hv : VariantDef = host.variants[i]
             if gv.name != hv.name || gv.tag_value != hv.tag_value || gv.payload_type != hv.payload_type { return false }
             if gv.payload_const != hv.payload_const { return false }
-            if gv.payload_funcsig.or(hv.payload_funcsig) { return false }
             if gv.payload_ref != hv.payload_ref { return false }
+            if gv.payload_funcsig.or(hv.payload_funcsig) {
+                if gv.payload_funcsig.and(hv.payload_funcsig).not() { return false }
+                if gv.payload_ref { return false }
+                guest_callable := ctx.scope.lookup_func_name(gv.payload_type, ctx.symbols)
+                if guest_callable.is_none() { return false }
+                guest_signature := interp_lookup_signature(funcdef_of(guest_callable.unwrap()), ctx)
+                if guest_signature.is_none() { return false }
+                mut native_signature := interp_callback_contract(func_sig_of(hv.payload_type), ctx)
+                ctx.ffi.callable_signatures.set(hv.payload_type, own native_signature.clone())
+                mut application_errors := Vec(Str).new()
+                mut has_vm_error := false
+                for error: Str in native_signature.throw_types {
+                    if error == "TilVmError" { has_vm_error = true }
+                    else { application_errors.push(own error.clone()) }
+                }
+                if has_vm_error.not() { return false }
+                native_signature.throw_types = application_errors
+                if native_signature.eq(guest_signature.unwrap()).not() { return false }
+                for parameter: Declaration in native_signature.params {
+                    if interp_callback_schema_visit(parameter.type_name(), visited, ctx).not() { return false }
+                }
+                if native_signature.return_type.len() > 0 {
+                    if interp_callback_schema_visit(native_signature.return_type, visited, ctx).not() { return false }
+                }
+                for error: Str in native_signature.throw_types {
+                    if interp_callback_schema_visit(error, visited, ctx).not() { return false }
+                }
+                for operation in 0..3 { _ : Dynamic = native_callable_thunk(hv.payload_type, ctx.ffi.callable_signatures[hv.payload_type], operation, ctx) }
+                continue
+            }
             if gv.payload_type.len() == 0 { continue }
             if interp_callback_schema_visit(gv.payload_type, visited, ctx).not() { return false }
             pt := type_from_name_init_name(gv.payload_type, ctx.scope, ctx.symbols)
@@ -7033,6 +7559,15 @@ priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Con
         ref variant : VariantDef = enumdef_of(def).variants[index.to_usize()]
         if variant.payload_type.len() > 0 {
             ref offset : U64 = ptr_add(layout.offsets, 8)
+            if variant.payload_funcsig {
+                ref source_callable: Dynamic = deref(ptr_add(source, offset.to_usize()))
+                signature := func_sig_of(variant.payload_type)
+                mut converted: Dynamic = 0
+                if to_guest { converted = native_callable_import(variant.payload_type, source_callable, signature, ctx) }
+                else { converted = native_callable_export(variant.payload_type, source_callable, signature, ctx) }
+                write_ptr(ptr_add(out, offset.to_usize()), converted)
+                return out
+            }
             if variant.payload_ref {
                 memcpy(ptr_add(out, offset.to_usize()), ptr_add(source, offset.to_usize()), stored_ref_size())
                 return out
@@ -7328,6 +7863,8 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
             input_index := interp_callback_param_argument(expected, arguments.len(), i)
             if param.own_type.is(OwnType.Ref) {
                 t := type_from_name_init_name(name, lp.ctx.scope, lp.ctx.symbols)
+                mut callable_types := Set(Str).new()
+                if ffi_enum_has_callable(name, lp.ctx, callable_types) { ffi_borrow_place(name, arguments.get(input_index), lp.ctx) }
                 scope_set_heap_owned(temps, arg_name, arguments.get(input_index), interp_intern_type(t, lp.ctx),
                     OwnType.Ref, lp.ctx, false, true)
                 continue
@@ -7493,6 +8030,7 @@ interp_session_result := func(mut ctx: Context) returns InterpRunResult {
 }
 
 interp_session_prepare_context := proc(mut session: InterpSession, mut lp: LoadedProgram, fwd_path: Str) returns I32 {
+    lp.ctx.eval.callback_global = safe_ref(session_global(session))
     // Every REPL turn interprets a freshly loaded/cloned program, so the flag
     // has to be restamped on each turn's Context.
     lp.ctx.eval.repl_session = session.is_repl
@@ -8108,6 +8646,28 @@ namespace:
     }
 }
 
+// A native call can re-enter the interpreter and register another callable.
+// Keep active entries stable when the map's sorted value buffer moves.
+FFIEntryBox := struct {
+    // Raw allocation containing exactly one FFIEntry. Its destructor/clone
+    // below own the typed contents as well as this stable outer allocation.
+    own value: U8
+namespace:
+    new := func(own value: FFIEntry) returns FFIEntryBox {
+        mut storage: U8 = malloc(FFIEntry.size())
+        adopt(FFIEntry, storage, own value)
+        return FFIEntryBox(value = storage)
+    }
+    clone := func(self: FFIEntryBox) returns FFIEntryBox {
+        ref value: FFIEntry = to_ptr(self.value)
+        return FFIEntryBox.new(own value.clone())
+    }
+    delete := func(own self: FFIEntryBox, call_free: Bool = true) {
+        FFIEntry.delete(own to_ptr(self.value), true)
+        if call_free { free(own self) }
+    }
+}
+
 ExprPtrBox := struct {
     ref ptr : Expr
 }
@@ -8169,8 +8729,6 @@ ffi_reset := proc(mut ctx: Context) {
 priv ffi_type_ref := func(name: Str) returns ref ffi_type {
     return to_ptr(ffi_global_symbol(name))
 }
-
-priv ffi_alloc_cif := func() returns Dynamic { return malloc(ffi_cif.size()) }
 
 // ffi_abi is a per-architecture C enum and FFI_DEFAULT_ABI's VALUE
 // differs per arch (vendor/libffi/src/*/ffitarget.h). The binding
@@ -10026,6 +10584,11 @@ priv h_til_closure_slot_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, m
     mut info := raw_result_info_new()
     mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     mut slot : Dynamic = raw_arg_pointer(raw, info, ctx)
+    if ffi_place_is_foreign(slot, ctx) {
+        til_closure_slot_delete(slot)
+        raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
+        return true
+    }
     ref mut stored : Dynamic = deref(slot)
     if stored.is_null().not() {
         eval_callable_capture_delete(stored, e, ctx)
@@ -10871,7 +11434,19 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
         ref destination_offset : U64 = ptr_add(destination_layout.offsets, 8)
         ref source_payload : Dynamic = ptr_add(src, source_offset.to_uptr())
         ref mut destination_payload : Dynamic = ptr_add(dst, destination_offset.to_uptr())
-        if variant.payload_ref.or(variant.payload_funcsig) {
+        if variant.payload_funcsig.and(src_host != dst_host) {
+            ref stored: Dynamic = deref(source_payload)
+            signature := native_callable_signature(variant.payload_type, ctx)
+            mut converted: Dynamic = 0
+            if dst_host { converted = native_callable_import(variant.payload_type, stored, signature, ctx) }
+            else { converted = native_callable_export(variant.payload_type, stored, signature, ctx, transfer_owned.not(), transfer_owned) }
+            if reuse_payload {
+                ref old: Dynamic = deref(destination_payload)
+                if dst_host { mut released: Dynamic = old; callable_storage_free(released) }
+                else { til_closure_delete(to_ptr(old)) }
+            }
+            write_ptr(destination_payload, converted)
+        } else if variant.payload_ref.or(variant.payload_funcsig) {
             memcpy(destination_payload, source_payload, Dynamic.size())
         } else if variant.payload_type.eq("USize").or(variant.payload_type.eq("UPtr")) {
             ffi_copy_width_field(type_name, variant.payload_type, "", source_payload, src_host,
@@ -10990,7 +11565,15 @@ priv ffi_release_conversion_storage := func(type_name: Str, mut data: Dynamic, h
             panic("invalid converted enum tag: ", type_name)
         }
         ref variant : VariantDef = ed.variants[index.to_usize()]
-        if variant.payload_type.len().eq(0).or(variant.payload_ref).or(variant.payload_funcsig) { return }
+        if variant.payload_type.len().eq(0).or(variant.payload_ref) { return }
+        if variant.payload_funcsig {
+            ref mut slot: Dynamic = ffi_enum_payload_slot(type_name, data, host_layout, ctx)
+            ref stored: Dynamic = deref(slot)
+            if host_layout { mut released: Dynamic = stored; callable_storage_free(released) }
+            else { til_closure_delete(to_ptr(stored)) }
+            write_ptr(slot, bits_word(0))
+            return
+        }
         if is_aggregate(type_from_name_init_name(variant.payload_type, ctx.scope, ctx.symbols)).not() { return }
         if enum_is_niche(def) {
             ref stored_box : Dynamic = deref(data)
@@ -11306,7 +11889,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
     if ctx.ffi.loaded.not() { return false }
     if ctx.ffi.entries.has(name).not() { return false }
 
-    ref mut fe : FFIEntry = ctx.ffi.entries[name]
+    ref mut fe : FFIEntry = to_ptr(ctx.ffi.entries[name].value)
     nargs := e.children.len() - 1
     mut alloc_n := nargs
     if alloc_n == 0 { alloc_n = 1 }
@@ -11372,7 +11955,10 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
             }
         }
         write_bool(ptr_add(arg_raws, arg_raw_off.add(10)), moves_owned)
-        if source_host.neq(fe.host_layout).and(size_intrinsics_use_sizeof(ctx).or(moves_owned)).and(i.lt(fe.param_types.len())) {
+        mut callable_types := Set(Str).new()
+        mut has_callable := false
+        if i < fe.param_types.len() { has_callable = ffi_enum_has_callable(fe.param_types[i], ctx, callable_types) }
+        if source_host.neq(fe.host_layout).and(size_intrinsics_use_sizeof(ctx).or(moves_owned).or(has_callable)).and(i.lt(fe.param_types.len())) {
             ref param_type : Str = fe.param_types[i]
             ref param_ffi_type : ffi_type = shallow_ffi_type(param_type, ctx, false)
             if param_ffi_type.type == FFI_TYPE_STRUCT.to_u16() {
@@ -11490,7 +12076,8 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, mut e: Expr, mut resu
     mut return_buffer : Dynamic = raw
     if ret_sdef_o.is_some() {
         return_buffer = result
-        if fe.host_layout.not().and(size_intrinsics_use_sizeof(ctx)) {
+        mut callable_types := Set(Str).new()
+        if fe.host_layout.not().and(size_intrinsics_use_sizeof(ctx).or(ffi_enum_has_callable(fe.return_type.unwrap(), ctx, callable_types))) {
             ref return_layout : FFITypePtrBox = ffi_struct_layout(fe.return_type.unwrap(), ctx, false)
             shallow_struct_raw = calloc(1, return_layout.ptr.size.to_usize())
             return_buffer = shallow_struct_raw
@@ -12215,10 +12802,8 @@ priv ext_function_dispatch := proc(name: Str, mut scope: Scope, mut e: Expr, mut
     if enum_core_is_eval(name, scope, e, result, ctx) { return true }
     return ext_dispatch_ffi(name, scope, e, result, ctx)
 }
-// Native closure carriers and interpreter callables are different ABIs. An
-// enum containing one is not made interoperable by giving its pointer the
-// right size. As with a rejected CIF, leave that signature unavailable until
-// called, rather than making an unused declaration reject the whole module.
+// Callable payloads require conversion even when the aggregate byte layouts
+// happen to match. This query also reaches payloads nested in owned records.
 priv ffi_enum_has_callable := func(type_name: Str, ctx: Context, mut visited: Set(Str)) returns Bool {
     if visited.has(type_name).or(ctx.ffi.struct_defs.has(type_name).not()) { return false }
     visited.add(own type_name.clone())
@@ -12240,12 +12825,42 @@ priv ffi_enum_has_callable := func(type_name: Str, ctx: Context, mut visited: Se
     return false
 }
 
+priv ffi_prepare_callable_payloads := proc(type_name: Str, mut visited: Set(Str), mut ctx: Context) returns Bool {
+    if visited.has(type_name).or(ctx.ffi.struct_defs.has(type_name).not()) { return true }
+    visited.add(own type_name.clone())
+    ref definition: Expr = ctx.ffi.struct_defs[type_name].ptr
+    switch definition.node_type {
+    case .EnumDef(ed):
+        for variant: VariantDef in ed.variants {
+            if variant.payload_funcsig {
+                if variant.payload_ref { return false }
+                declaration := ctx.scope.lookup_func_name(variant.payload_type, ctx.symbols)
+                if declaration.is_none() { return false }
+                if interp_lookup_signature(funcdef_of(declaration.unwrap()), ctx).is_none() { return false }
+                signature := native_callable_signature(variant.payload_type, ctx)
+                mut has_vm_error := false
+                for error: Str in signature.throw_types { if error == "TilVmError" { has_vm_error = true } }
+                if has_vm_error.not() { return false }
+                for operation in 0..3 { _ : Dynamic = native_callable_thunk(variant.payload_type, signature, operation, ctx) }
+            } else if variant.payload_type.len() > 0 {
+                if ffi_prepare_callable_payloads(variant.payload_type, visited, ctx).not() { return false }
+            }
+        }
+    case .StructDef(sd):
+        for field: Declaration in sd.fields {
+            if ffi_prepare_callable_payloads(decl_type_name_ref(field, ctx.symbols), visited, ctx).not() { return false }
+        }
+    case: UNREACHABLE("FFI type inventory contains a non-aggregate")
+    }
+    return true
+}
+
 priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool, mut ctx: Context) {
     ref fd : FunctionDef = funcdef_of(fdef)
     mut visited := Set(Str).new()
-    if ffi_enum_has_callable(fd.sig.return_type, ctx, visited) { return }
+    if ffi_prepare_callable_payloads(fd.sig.return_type, visited, ctx).not() { return }
     for parameter : Declaration in fd.sig.params {
-        if ffi_enum_has_callable(decl_type_name_ref(parameter, ctx.symbols), ctx, visited) { return }
+        if ffi_prepare_callable_payloads(decl_type_name_ref(parameter, ctx.symbols), visited, ctx).not() { return }
     }
     np := fd.sig.params.len()
     mut alloc_np := np
@@ -12282,12 +12897,9 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool,
         }
     }
     ret_shallow := fd.sig.return_own_type.is(OwnType.Shallow)
-    mut cif : Dynamic = ffi_alloc_cif()
+    mut cif : ffi_cif = malloc(ffi_cif.size())
 
-    // #324: resolve the return ffi_type and PREP before any of the four
-    // allocations transfers into an entry -- the fields are `own` now, so
-    // the failure path must free the locals while they are still the
-    // owners, and constructing first would leave it holding moved names.
+    // Resolve the return descriptor before transferring the raw allocations.
     mut ret_type_o := Option(ref Str).None
     if fd.sig.return_type.len() > 0 { ret_type_o = safe_ref(fd.sig.return_type) }
     ref mut rtype : Dynamic = ffi_type_ref("ffi_type_void")
@@ -12298,8 +12910,23 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool,
             rtype = to_ptr(ffi_type_ref("ffi_type_pointer"))
         }
     }
-    ref mut prep_cif : ffi_cif = to_ptr(cif)
-    prep_status := ffi_prep_cif(prep_cif, ffi_host_default_abi(), np.to_u32(), rtype, atypes)
+    // The entry owns all six allocations on both success and failure. Prepare
+    // through its fields, so no borrow of a consumed raw local survives boxing.
+    mut entry := FFIEntry(fn = fn, cif = cif, arg_types = atypes,
+        param_shallows = pshallows, param_dynamics = pdynamics,
+        param_types = ptypes, param_mutables = pmutables, param_owns = powns)
+    entry.return_type = ret_type_o
+    entry.nparam = np
+    entry.return_is_shallow = ret_shallow
+    entry.return_is_ref = fd.sig.return_own_type.is(OwnType.Ref)
+    entry.host_layout = host_layout
+    if fd.sig.throw_types.len() > 0 {
+        for i in 0..fd.sig.params.len() {
+            if fd.sig.params[i].name == "_err_kind" { entry.throw_kind_index = i.to_i64() }
+        }
+    }
+    ref mut prep_cif : ffi_cif = to_ptr(entry.cif)
+    prep_status := ffi_prep_cif(prep_cif, ffi_host_default_abi(), np.to_u32(), rtype, entry.arg_types)
     if prep_status.eq(FFI_OK).not() {
         // A failed prep leaves the cif garbage, so this entry must never
         // reach ffi_call -- but it must NOT take the program down either.
@@ -12314,39 +12941,14 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool,
         // Drop the entry instead and leave the name unregistered. Calling
         // it then fails loudly at the call site (see ext_dispatch_ffi's
         // caller), naming the function the program actually used.
-        // Same six raw allocations ffi_cleanup reclaims for a live entry.
-        free(own pshallows)
-        free(own pdynamics)
-        free(own pmutables)
-        free(own powns)
-        free(own atypes)
-        free(own cif)
+        // Entry teardown reclaims the same allocations as ffi_cleanup.
         return
-    }
-
-    // Build the entry; the six raw allocations transfer into its `own` fields.
-    // All four ride the CTOR call: an `own U8 = 0` field default would
-    // otherwise materialize as a malloc'd one-byte box that the island's
-    // raw field-writes overwrite without a drain -- 2 leaked bytes per
-    // entry, found by ASAN the moment the fields stopped being `ref`.
-    mut entry := FFIEntry(fn = fn, cif = cif, arg_types = atypes,
-        param_shallows = pshallows, param_dynamics = pdynamics,
-        param_types = ptypes, param_mutables = pmutables, param_owns = powns)
-    entry.return_type = ret_type_o
-    entry.nparam = np
-    entry.return_is_shallow = ret_shallow
-    entry.return_is_ref = fd.sig.return_own_type.is(OwnType.Ref)
-    entry.host_layout = host_layout
-    if fd.sig.throw_types.len() > 0 {
-        for i in 0..fd.sig.params.len() {
-            if fd.sig.params[i].name == "_err_kind" { entry.throw_kind_index = i.to_i64() }
-        }
     }
 
     // Store in ctx.ffi.entries. Map.set borrows the key and deep-clones it
     // internally (ELEM_BOXED), so `name` can be passed directly; the
     // old clone+box dance here leaked both the box and the cloned Str.
-    // The value box is a transient that Map.set consumes.
+    // The map owns a stable entry allocation, not the entry's inline bytes.
     // Re-registering a name overwrites its FFIEntry, but the entry's cif /
     // arg_types / parameter flags are `ref` raw C pointers Map.set's delete
     // does NOT reclaim. ffi_init_scan_program scans every import unit in a
@@ -12361,13 +12963,8 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool,
     // `own` fields free the six raw allocations. The old manual frees
     // this replaces was #324's hole (own-passing ref fields).
     if ctx.ffi.entries.has(name) { ctx.ffi.entries.remove(name) }
-    mut val : FFIEntry = malloc(FFIEntry.size())
-    // #275: the byte-move goes through core's `adopt_from` rather than a
-    // hand-rolled memcpy+memset pair. Same two instructions, but it says
-    // MOVE at the call site instead of leaving a bare copy of a managed
-    // aggregate's bytes for a reader (or the typer) to have to prove safe.
-    adopt_from(val, entry, FFIEntry.size())
-    ctx.ffi.entries.set(name, own val)
+    boxed := FFIEntryBox.new(own entry)
+    ctx.ffi.entries.set(name, own boxed)
 }
 
 
@@ -12387,7 +12984,7 @@ ffi_init_scan_program := proc(program: Expr, mut ctx: Context, runtime_decl: Boo
     // Embedded sessions resolve both SDK and imported prebuilt-library symbols
     // from the process loader; ffi_resolve excludes the user link_c bridge.
     if ctx.ffi.entries_inited.not() {
-        ctx.ffi.entries = Map(Str, FFIEntry).new()
+        ctx.ffi.entries = Map(Str, FFIEntryBox).new()
         ctx.ffi.entries_inited = true
     }
     for stmt : Expr in program.children {
@@ -12490,13 +13087,19 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
     return 0
 }
 ffi_cleanup := proc(mut ctx: Context) {
+    for _, thunk in ctx.ffi.callable_thunks {
+        mut allocation: Dynamic = thunk.allocation
+        ffi_closure_free(allocation)
+    }
+    ctx.ffi.callable_thunks = Map(Str, NativeCallableThunk).new()
+    ctx.ffi.callable_signatures = Map(Str, FuncSig).new()
     if ctx.ffi.loaded.and(ctx.eval.embedded.not()) { ffi_close_user_so() }
     if ctx.ffi.entries_inited {
         // The reset's drain runs FFIEntry.delete per entry, whose `own`
         // fields free the six raw allocations -- the manual per-entry
         // frees this replaces were #324's hole and, with owned fields,
         // a double free (ASAN caught it via Map delete -> FFIEntry_delete).
-        ctx.ffi.entries = Map(Str, FFIEntry).new()
+        ctx.ffi.entries = Map(Str, FFIEntryBox).new()
         ctx.ffi.struct_defs = Map(Str, ExprPtrBox).new()
         ctx.ffi.entries_inited = false
     }

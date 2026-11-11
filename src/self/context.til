@@ -1366,7 +1366,7 @@ BuilderFuncScratch := struct {
 FfiState := struct {
     dispatch_map := Map(Str, Dynamic).new()
     dispatch_inited := false
-    entries := Map(Str, FFIEntry).new()
+    entries := Map(Str, FFIEntryBox).new()
     entries_inited := false
     loaded := false
     struct_defs := Map(Str, ExprPtrBox).new()
@@ -1374,11 +1374,26 @@ FfiState := struct {
     // Target widths are fixed until ffi_reset clears this cache.
     type_cache := Map(Str, FFITypePtrBox).new()
     type_cache_inited := false
+    // Executable libffi adapters borrow this Context's ABI descriptors. Their
+    // native callable environments borrow the VM, just like TilVmCallback.
+    callable_thunks := Map(Str, NativeCallableThunk).new()
+    callable_signatures := Map(Str, FuncSig).new()
     // #313 follow-up: `link("name")` targets (the -l form) whose shared
     // object did not load, with the loader's error, keyed by soname. Not an
     // error by itself -- some names (m, pthread) resolve from the process
     // without a library -- but named when an ext function is then missing.
     failed_links := Map(Str, Str).new()
+namespace:
+    // Executable adapters borrow their owning Context's CIF/type allocations.
+    // A copied analysis context rebuilds them at lookup/FFI registration;
+    // copying their raw executable allocations would give them two owners.
+    clone := func(self: FfiState) returns FfiState {
+        return FfiState(dispatch_map = self.dispatch_map.clone(), dispatch_inited = self.dispatch_inited,
+            entries = self.entries.clone(), entries_inited = self.entries_inited, loaded = self.loaded,
+            struct_defs = self.struct_defs.clone(), type_cache = self.type_cache.clone(),
+            type_cache_inited = self.type_cache_inited, failed_links = self.failed_links.clone(),
+            callable_signatures = self.callable_signatures.clone())
+    }
 }
 
 // #286 follow-up: canonical heap Type blocks that HeapBinding.til_type
@@ -1560,6 +1575,7 @@ EvalState := struct {
     // session. See h_exit.
     repl_session := false
     embedded := false
+    callback_global := Option(ref Scope).None
     exit_status := Option(I64).None
     failure_site := SourceDiagnostic()
     guest_output := ""

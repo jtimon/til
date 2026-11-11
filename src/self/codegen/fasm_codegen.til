@@ -309,6 +309,9 @@ priv fasm_enum_constructor := proc(e: Expr, shallow t: Type, variant: I32, mut s
         } else if enum_variant_payload_ref(definition, variant) {
             fasm_pointer(value, state, lp)
             fasm_emit(state, format("mov rcx, ", destination, "\n    mov [rcx+", fasm_enum_payload_offset(definition, lp).to_str(), "], rax"))
+        } else if type_is_callable_storage(pt) {
+            fasm_callable_copy(value, true, state, lp)
+            fasm_emit(state, format("mov rcx, ", destination, "\n    mov [rcx+", fasm_enum_payload_offset(definition, lp).to_str(), "], rax"))
         } else if fasm_aggregate(pt, lp) {
             snapshot := fasm_snapshot(value, pt, state, lp)
             fasm_emit(state, format("mov rdi, ", destination, "\n    add rdi, ", fasm_enum_payload_offset(definition, lp).to_str(),

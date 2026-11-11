@@ -2935,12 +2935,14 @@ main := proc(args: ..Str) returns I64 {
         format(til_bin, " run", asan_flag, " test/closures_interp.til"))
     add_single(tests, "closures_compile_escape", "closures", 0, "",
         format(til_bin, " run", asan_flag, " test/closures_compile_escape.til"))
-    add_count(tests, "capture_escape_error_interp", "typer",
-        "returned closure borrows captured local", 1,
-        format(til_bin, " interpret test/capture_escape_error.til"))
-    add_count(tests, "capture_escape_error_build", "typer",
-        "returned closure borrows captured local", 1,
-        format(til_bin, " build", asan_flag, " test/capture_escape_error.til"))
+    capture_escape_checks := array(CountCheck,
+        CountCheck(needle = "returned closure borrows captured local", expected_count = 1),
+        CountCheck(needle = "cannot return a borrow of local 'local_factor' inside 'BorrowedCallable'", expected_count = 1),
+        CountCheck(needle = "2 type error(s) found", expected_count = 1))
+    add_counts(tests, "capture_escape_error_interp", "typer",
+        format(til_bin, " interpret test/capture_escape_error.til"), ..capture_escape_checks)
+    add_counts(tests, "capture_escape_error_build", "typer",
+        format(til_bin, " build", asan_flag, " test/capture_escape_error.til"), ..capture_escape_checks)
     // #54: the same escape via a GLOBAL slot rather than a return.
     add_count(tests, "capture_global_escape_error_interp", "typer",
         "borrows captured local", 2,

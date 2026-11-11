@@ -422,6 +422,10 @@ host_prelude_test := proc(root: Str) {
     println("installed TilVm host prelude PASS")
 }
 
+til_vm_x5fnative__native_action_clear_bridge := ext_proc() {}
+til_vm_x5fnative__native_action_present_bridge := ext_proc() returns shallow Bool {}
+til_vm_x5fnative__native_action_run_bridge := ext_proc(shallow amount: I64) returns shallow I64 throws NativeError, TilVmError {}
+
 native_enum_test := proc(root: Str) {
     File.writefile("enum_guest.til", format(
         "mode lib\nmut guest_choice := NativeChoice.Empty\n",
@@ -453,6 +457,56 @@ native_enum_test := proc(root: Str) {
         expect(err.to_str().contains("native_callable_choice"), err.to_str())
     }
     assert(rejected)
+    File.writefile("action_guest.til", format("mode lib\nimport(\"", root, "/src/self/lexer\")\n",
+        "TilVmError := struct { phase := \"\"; diagnostics := Vec(SourceDiagnostic).new(); exit_status := Option(I64).None }\n",
+        "NativeInteropAction := proc(I64) returns I64 throws NativeError, TilVmError\nNativeInteropChoice := enum { None, Action: NativeInteropAction }\n",
+        "til_vm_x5fnative__native_action_store_bridge := ext_proc(own value: NativeInteropChoice) {}\ntil_vm_x5fnative__native_action_clear_bridge := ext_proc() {}\n",
+        "til_vm_x5fnative__native_action_check_bridge := ext_proc(shallow amount: I64) throws TilVmError {}\n",
+        "install_action := proc() { count := 10; action: NativeInteropAction = proc(amount: I64) returns I64 throws NativeError, TilVmError [own mut count] { til_vm_x5fnative__native_action_check_bridge(amount)?; if amount == -1 { til_vm_x5fnative__native_action_clear_bridge() }; if amount == -2 { panic(\"retained action panic\") }; if amount == -3 { exit(7) }; if amount == -4 { throw NativeError(code = 29) }; count = count + amount; return count }; til_vm_x5fnative__native_action_store_bridge(own NativeInteropChoice.Action(action)) }\n"))
+    mut action_vm := TilVm.new(root)
+    action_vm.load_file("action_guest.til", prelude_source = "import(\"vm_native\")\n",
+        prelude_name = "native-action-api", prelude_base = realpath_str("gen/til"))?
+    catch (error: TilVmError) { panic(error.to_str()) }
+    mut install_action := action_vm.lookup("install_action")!
+    install_action.call()!
+    assert(til_vm_x5fnative__native_action_run_bridge(1)! == 11)
+    assert(til_vm_x5fnative__native_action_run_bridge(1)! == 12)
+    for amount: I64 in array(I64, -4, -2, -3) {
+        mut caught := false
+        til_vm_x5fnative__native_action_run_bridge(amount)?
+        catch (error: NativeError) { assert(amount == -4 && error.code == 29); caught = true }
+        catch (error: TilVmError) {
+            if amount == -2 { assert(error.to_str().contains("retained action panic")) }
+            else { assert(amount == -3 && error.exit_status.unwrap() == 7) }
+            caught = true
+        }
+        assert(caught)
+    }
+    // Dropping the registration during its call must defer environment release
+    // until the invocation has finished using it.
+    assert(til_vm_x5fnative__native_action_run_bridge(-1)! == 11)
+    assert(til_vm_x5fnative__native_action_present_bridge().not())
+    install_action.call()!
+    assert(til_vm_x5fnative__native_action_run_bridge(2)! == 12)
+    mut candidate := TilVm.new(root)
+    File.writefile("action_candidate.til", "mode lib\nbroken := proc( {\n")
+    mut rejected_candidate := false
+    candidate.load_file("action_candidate.til")?
+    catch (error: TilVmError) { assert(error.phase == "load"); rejected_candidate = true }
+    assert(rejected_candidate)
+    assert(til_vm_x5fnative__native_action_run_bridge(1)! == 13)
+    File.writefile("action_candidate.til", File.readfile("action_guest.til").replace("count := 10", "count := 100"))
+    candidate.load_file("action_candidate.til", prelude_source = "import(\"vm_native\")\n",
+        prelude_name = "native-action-api", prelude_base = realpath_str("gen/til"))!
+    mut install_candidate := candidate.lookup("install_action")!
+    install_candidate.call()!
+    // Publication replaced and destroyed the old registration before its VM.
+    own install_action.delete()
+    own action_vm.delete()
+    assert(til_vm_x5fnative__native_action_run_bridge(1)! == 101)
+    til_vm_x5fnative__native_action_clear_bridge()
+    own install_candidate.delete()
+    own candidate.delete()
     own unsupported.delete()
     own key.delete()
     own vm.delete()

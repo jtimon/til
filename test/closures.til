@@ -260,6 +260,29 @@ test_capturing_closure_owned_aggregate_parameter := test() {
     assert_eq(USize, consume(own box), 8)
 }
 
+EnumCounter := proc() returns I64
+EnumCallable := enum { None, Value: EnumCounter }
+make_enum_callable := func(seed: I64) returns EnumCallable {
+    count := seed
+    next: EnumCounter = proc() returns I64 [own mut count] { noop_proc(); count++; return count }
+    return EnumCallable.Value(next)
+}
+call_enum_callable := proc(value: EnumCallable) returns I64 {
+    switch value {
+    case .Value(next): return next()
+    case: panic("missing callable payload")
+    }
+}
+test_callable_enum_owns_and_clones_captures := test() {
+    mut original := make_enum_callable(40)
+    copy := original.clone()
+    assert(call_enum_callable(original) == 41)
+    original = EnumCallable.None
+    assert(original.is(EnumCallable.None))
+    assert(call_enum_callable(copy) == 41)
+    assert(call_enum_callable(copy) == 42)
+}
+
 // A literal local is a DCE candidate, but copying it into a closure's
 // environment is a real reference even if the body's arithmetic folds.
 test_dce_literal_capture := test() {

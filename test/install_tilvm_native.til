@@ -97,8 +97,19 @@ main := proc(args: ..Str) returns I64 {
     // A prebuilt Til library, consumed through its generated bindings by BOTH
     // the compiled host and the guest. Library construction is a test setup
     // step; runtime loading must work with an empty PATH.
+    File.writefile(format(work, "/native_actions.c"), format(
+        "#include <stdlib.h>\n#include \"ext.h\"\n",
+        "typedef void BridgeVoid;\ntypedef BridgeVoid (*NativeBridgeDrop)(void *);\ntypedef I64 (*NativeBridgeCall)(void *, I64, I64 *, void *, void *);\n",
+        "typedef struct { void *call; void *env; NativeBridgeDrop drop; void *clone; } NativeBridgeClosure;\n",
+        "typedef struct { I32 tag; union { void *action; void *alignment; } data; } NativeBridgeEnum;\n",
+        "static NativeBridgeEnum native_bridge_action;\n",
+        "void native_action_clear_bridge(void) { NativeBridgeClosure *old = native_bridge_action.data.action; native_bridge_action = (NativeBridgeEnum){0}; if (old && old->drop) { old->drop(old->env); free(old); } }\n",
+        "void native_action_store_bridge(NativeBridgeEnum *value) { native_action_clear_bridge(); native_bridge_action = *value; free(value); }\n",
+        "Bool native_action_present_bridge(void) { return native_bridge_action.tag == 1; }\n",
+        "I64 native_action_run_bridge(I64 amount, I64 *kind, void *application_error, void *vm_error) { NativeBridgeClosure *action = native_bridge_action.data.action; if (!native_bridge_action.tag) return 0; return ((NativeBridgeCall)action->call)(action->env, amount, kind, application_error, vm_error); }\n",
+        "void native_action_check_bridge(I64 amount, I64 *kind, void *vm_error) { (void)amount; (void)kind; (void)vm_error; }\n"))
     File.writefile(format(work, "/vm_native.til"), format(
-        "mode lib\nmut native_counter : I64 = 0\n",
+        "mode lib\nlink_c(\"native_actions.c\")\nmut native_counter : I64 = 0\n",
         "native_set := proc(value: I64) { noop_proc(); native_counter = value }\n",
         "native_increment := proc() { noop_proc(); native_counter++ }\n",
         "native_get := proc() returns I64 { noop_proc(); return native_counter }\n",

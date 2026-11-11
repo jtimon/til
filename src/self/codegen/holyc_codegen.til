@@ -1282,6 +1282,13 @@ priv holyc_enum_init := func(type_name: Str, dest: Str, e: Expr, depth: USize,
         if holyc_aggregate_type(payload_type, state) {
             return format(out, holyc_struct_init(payload_type, field, value, depth, ctx, state, locals, error))
         }
+        if holyc_callable_type(payload_type, state) {
+            mut init := holyc_expr(value, ctx, state, locals, error)
+            if value.node_type.is(NodeType.Ident).or(value.node_type.is(NodeType.FieldAccess)) {
+                init = format("TilClosureClone(", init, ")")
+            }
+            return format(out, prefix, field, " = ", init, ";\n")
+        }
         init := holyc_expr(value, ctx, state, locals, error)
         return format(out, prefix, field, " = ", init, ";\n")
     }

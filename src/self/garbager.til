@@ -2326,7 +2326,15 @@ priv collect_call_ref_return_edges := func(e: Expr, borrower: Str, minimum_reach
         if fd_o.is_some() {
             switch fd_o.unwrap().node_type {
             case .FuncDef(fd):
-                if fd.is_enum_variant_ctor.not() {
+                if fd.is_enum_variant_ctor {
+                    // A callable payload owns its environment but still
+                    // borrows ref captures. Follow those owners through the
+                    // enum just like an ordinary borrow-carrying call result.
+                    for root: BorrowRoot in expr_borrow_roots(scope, e, symbols) {
+                        gc_add_borrow_edge(edges, root.name, borrower, minimum_reach,
+                            gc_carried_loan_start(root, scope, minimum_reach, symbols))
+                    }
+                } else {
                     for pi in 0..fd.sig.params.len() {
                         bit := summary_param_bit(pi)
                         mut relevant := fd.ref_return_params.band(bit)
