@@ -15,13 +15,15 @@ payload bindings, constructor targets, and the library bindings.
 
 What changed, all in src/self/codegen/c_codegen.til:
 
-- ~C_RESERVED_NAMES~ lists the spellings: the C keywords through C23 and
+- ~c_name_is_reserved~ knows the spellings: the C keywords through C23 and
   the GNU ones, the predefined macros without a reserved prefix
   (~linux~, ~unix~, ~i386~, ~WIN32~, ~WIN64~, ~WINNT~), and libc's objects
   and object-like macros (~stdin~, ~stdout~, ~stderr~, ~errno~,
   ~environ~, ~EOF~).
 - ~c_ident(name)~ returns ~_cname_<name>~ for those and the name itself
-  otherwise. A leading underscore is reserved for compiler-made names, so
+  otherwise (a view of its argument, with the test bucketed by length:
+  it runs for every name written, and the first version's allocation
+  and linear scan per name showed up in the suite's totals). A leading underscore is reserved for compiler-made names, so
   the escaped spelling cannot collide with a til name. It depends on the
   spelling alone, so a declaration and each of its uses agree without
   sharing any state.

@@ -975,7 +975,7 @@ priv c_type_name := func(shallow t: Type, struct_name: Str, mut ctx: Context) re
 
 priv func_to_c := func(name: Str) returns Str {
     if name == "double" { return "double_" }
-    return c_ident(name)
+    return c_ident(name).clone()
 }
 
 priv type_name_to_c := func(name: Str, mut ctx: Context) returns Str {
@@ -1872,27 +1872,51 @@ priv builder_register_str_lit_ident := func(mut ctx: Context, name: Str, s: Str)
 // never comes through here. A libc FUNCTION is not in this list: an ext
 // declaration binds one by its own name, and nothing in the spelling
 // tells that from a til definition that happens to be called `remove`.
-priv C_RESERVED_NAMES := array(Str,
-    "auto", "char", "const", "double", "extern", "float", "goto", "int",
-    "long", "register", "short", "signed", "sizeof", "static", "typedef",
-    "union", "unsigned", "void", "volatile", "do", "default",
-    "inline", "restrict",
-    "alignas", "alignof", "bool", "constexpr", "nullptr", "static_assert",
-    "thread_local", "typeof", "typeof_unqual",
-    "asm",
-    "linux", "unix", "i386", "WIN32", "WIN64", "WINNT",
-    "stdin", "stdout", "stderr", "errno", "environ", "EOF")
+// Checked by length first: this runs for every name the backend writes,
+// and almost none of them is reserved, so the common answer has to cost
+// a length test and at most a few comparisons.
+priv c_name_is_reserved := func(name: Str) returns Bool {
+    n := name.len()
+    if n < 2 { return false }
+    if n > 13 { return false }
+    if n == 2 { return name == "do" }
+    if n == 3 { return (name == "int").or(name == "asm").or(name == "EOF") }
+    if n == 4 {
+        return (name == "auto").or(name == "char").or(name == "goto").or(name == "long")
+            .or(name == "void").or(name == "bool").or(name == "unix").or(name == "i386")
+    }
+    if n == 5 {
+        return (name == "const").or(name == "float").or(name == "short").or(name == "union")
+            .or(name == "linux").or(name == "stdin").or(name == "errno")
+            .or(name == "WIN32").or(name == "WIN64").or(name == "WINNT")
+    }
+    if n == 6 {
+        return (name == "double").or(name == "extern").or(name == "signed").or(name == "sizeof")
+            .or(name == "static").or(name == "inline").or(name == "typeof")
+            .or(name == "stdout").or(name == "stderr")
+    }
+    if n == 7 {
+        return (name == "typedef").or(name == "default").or(name == "alignas").or(name == "alignof")
+            .or(name == "nullptr").or(name == "environ")
+    }
+    if n == 8 {
+        return (name == "register").or(name == "unsigned").or(name == "volatile").or(name == "restrict")
+    }
+    if n == 9 { return name == "constexpr" }
+    if n == 12 { return name == "thread_local" }
+    if n == 13 { return (name == "static_assert").or(name == "typeof_unqual") }
+    return false
+}
 
 // The C spelling of a til name. A leading underscore is reserved for
 // compiler-made names, so no til name can collide with the escaped form.
 // Every site that writes a user's name into C goes through here, for the
-// declaration and for each use alike.
+// declaration and for each use alike. An ordinary name comes back as a
+// VIEW of the argument -- no allocation on the path every name takes --
+// so the result is for writing at once; a caller that keeps it clones.
 priv c_ident := func(name: Str) returns Str {
-    if name.len() > 13 { return name.clone() }
-    for reserved : Str in C_RESERVED_NAMES {
-        if reserved == name { return format("_cname_", name) }
-    }
-    return name.clone()
+    if c_name_is_reserved(name) { return format("_cname_", name) }
+    return name.substr(0, name.len())
 }
 
 priv builder_resolve_c_ident_name := func(name: Str, mut ctx: Context) returns Str {
@@ -1908,7 +1932,7 @@ priv builder_resolve_c_ident_name := func(name: Str, mut ctx: Context) returns S
             return ctx.builder_external_globals[name].clone()
         }
     }
-    return c_ident(name)
+    return c_ident(name).clone()
 }
 
 // #326: an immutable Str-literal Decl whose value was pooled into
