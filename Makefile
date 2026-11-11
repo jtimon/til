@@ -68,7 +68,13 @@ $(error unsupported build host architecture '$(UNAME_M)')
 endif
 HOST_TARGET := $(HOST_OS)-$(HOST_ARCH)
 LIBFFI_HOST_DIR := $(LIBFFI_DIR)/build-$(HOST_TARGET)
-LIBFFI_FLAGS = -L$(LIBFFI_HOST_DIR)/.libs -lffi
+# The archive by path, never -L/-lffi: the build also leaves a loadable
+# twin (libffi.so, no soname) beside it, which -lffi would prefer. A
+# bin/til_boot linked that way loads whatever "libffi.so" the SYSTEM
+# has at run time instead of the vendored release, so it cannot fold
+# ext_funcs the system copy lacks (ffi_get_closure_size) and its boot/
+# output stops matching bin/til's.
+LIBFFI_FLAGS = $(LIBFFI_HOST_DIR)/.libs/libffi.a
 
 CORE := $(wildcard src/core/*.til)
 STD := $(wildcard src/std/*.til)

@@ -76,6 +76,30 @@ composition, alternate process APIs, transitive helpers, direct file imports,
 new FFI/link directives, and compile-time macros. These are proposed checks
 for this feature, not claims that a safe_script test suite already exists.
 
+**** Use case: confirming privileged writes (2026-11-11)
+
+Installation is a concrete use case: a safe_script install script could
+ask the person at the terminal y/n before it creates or replaces a
+directory that only elevated privileges can write (~/usr/local/bin/til~,
+~/usr/local/lib/til~), one question per destination directory rather
+than per file. rstil's own TODO list had the same item ("user
+confirmation prompts instead of always failing for non-whitelisted
+commands"), which differs from the hard-errors-only direction above and
+is undecided.
+
+This was prototyped inside ~install_executable~ and withdrawn before
+merging: ~make install~ / ~til install~ must keep working with no input
+from the user, and for them ~sudo~ is already the consent. Prompts
+belong to a script that opts into the mode, not to the install commands.
+Two findings from the prototype for whoever picks this up:
+
+- The check has to key on the destination path ("could the invoking
+  user write here without elevation?"), not on a command name. Under
+  sudo the invoking user is ~SUDO_UID~.
+- It has to sit at the ~ext_proc~ boundary (~mkdir_p~, ~copy_file~,
+  ~copy_tree~, file opens) to cover compiled programs; an
+  interpreter-side check never runs in ~bin/make~ or ~bin/til~.
+
 *** Historical rstil research and local proposal
 
 Idea taken from Roc's platforms.  Researched in the rstil repo

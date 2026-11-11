@@ -661,8 +661,9 @@ build_debug := proc(mut b: Build) {
     add_matching(argv, "src/self/codegen", ".c")
     argv.push(own "-rdynamic")
     argv.push(own "-ldl")
-    argv.push(own format("-L", LIBFFI_DIR, "/build-", b.host.target_name(), "/.libs"))
-    argv.push(own "-lffi")
+    // The archive by path: -lffi would prefer its loadable twin, whose
+    // run-time lookup finds the system's libffi.so (see the Makefile).
+    argv.push(own libffi_lib(b.host.target_name()))
     argv.push(own format("-L", RAYLIB_DIR, "/build-", b.host.target_name()))
     argv.push(own "-lraylib")
     argv.push(own "-lm")

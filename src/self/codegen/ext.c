@@ -1034,36 +1034,106 @@ static int mkdir_p_cstr(const char *path) {
     return 0;
 }
 
+// Says which step of a copy failed and why; a bare status left the caller
+// guessing between an unreadable source and a refused destination.
+static int copy_file_fail(const char *step, const char *path, const char *tmp) {
+    fprintf(stderr, "copy_file: cannot %s '%s': %s\n", step, path, strerror(errno));
+    if (tmp) remove(tmp);
+    return 1;
+}
+
+// The destination is replaced, never rewritten in place: the bytes go to a
+// sibling temporary that is renamed over it once complete. Truncating the
+// destination instead fails with ETXTBSY while that file is a running
+// executable (installing til over the til that is in use), leaves a
+// half-written file behind when the copy dies midway, and writes THROUGH a
+// symlink sitting at the destination -- which matters when root installs.
 static int copy_file_cstr(const char *src, const char *dst) {
     char *parent = path_dirname(dst);
     if (parent) {
         if (mkdir_p_cstr(parent) != 0) {
+            int rc = copy_file_fail("create directory", parent, NULL);
             free(parent);
-            return 1;
+            return rc;
         }
         free(parent);
     }
 
     FILE *in = fopen(src, "rb");
-    if (!in) return 1;
-    FILE *out = fopen(dst, "wb");
-    if (!out) {
+    if (!in) return copy_file_fail("read", src, NULL);
+
+    size_t tmp_len = strlen(dst) + 32;
+    char *tmp = malloc(tmp_len);
+    if (!tmp) {
         fclose(in);
         return 1;
+    }
+#ifdef _WIN32
+    snprintf(tmp, tmp_len, "%s.tmp.%lu", dst, (unsigned long)GetCurrentProcessId());
+    FILE *out = fopen(tmp, "wb");
+#else
+    snprintf(tmp, tmp_len, "%s.tmp.%ld", dst, (long)getpid());
+    // A leftover of a killed copy with this pid; O_EXCL below then proves
+    // the file is ours, and O_NOFOLLOW refuses a symlink planted there.
+    // Private until complete: the source's mode is applied before the rename.
+    unlink(tmp);
+    FILE *out = NULL;
+    int out_fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+    if (out_fd >= 0) {
+        out = fdopen(out_fd, "wb");
+        if (!out) {
+            int saved = errno;
+            close(out_fd);
+            unlink(tmp);
+            errno = saved;
+        }
+    }
+#endif
+    if (!out) {
+        int rc = copy_file_fail("create", tmp, NULL);
+        fclose(in);
+        free(tmp);
+        return rc;
     }
 
     char buf[65536];
     size_t n = 0;
     while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
         if (fwrite(buf, 1, n, out) != n) {
+            int saved = errno;
             fclose(in);
             fclose(out);
-            return 1;
+            errno = saved;
+            int rc = copy_file_fail("write", tmp, tmp);
+            free(tmp);
+            return rc;
         }
     }
     // A read error ends the loop exactly the way a clean EOF does, so
     // without ferror a half-read source copies as a complete file.
-    int bad = ferror(in) != 0;
+    if (ferror(in)) {
+        int saved = errno;
+        fclose(in);
+        fclose(out);
+        errno = saved;
+        int rc = copy_file_fail("read", src, tmp);
+        free(tmp);
+        return rc;
+    }
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+    // The mode of the file that was read, not of whatever the path names
+    // by now.
+    struct stat st;
+    if (fstat(fileno(in), &st) != 0 || fchmod(fileno(out), st.st_mode & 0777) != 0) {
+        int saved = errno;
+        fclose(in);
+        fclose(out);
+        errno = saved;
+        int rc = copy_file_fail("set the mode of", tmp, tmp);
+        free(tmp);
+        return rc;
+    }
+#endif
     // fclose(in) is not checked: the bytes were already read, and ferror
     // above is what says whether they were all of them.
     fclose(in);
@@ -1071,14 +1141,26 @@ static int copy_file_cstr(const char *src, const char *dst) {
     // buffered, so a full disk typically leaves every fwrite above happy
     // and fails here at the flush -- which is how a truncated copy used to
     // be reported as success.
-    if (fclose(out) != 0) bad = 1;
-    if (bad) return 1;
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
-    struct stat st;
-    if (stat(src, &st) == 0) {
-        chmod(dst, st.st_mode & 0777);
+    if (fclose(out) != 0) {
+        int rc = copy_file_fail("write", tmp, tmp);
+        free(tmp);
+        return rc;
+    }
+#ifdef _WIN32
+    if (!MoveFileExA(tmp, dst, MOVEFILE_REPLACE_EXISTING)) {
+        fprintf(stderr, "copy_file: cannot replace '%s': error %lu\n", dst, (unsigned long)GetLastError());
+        remove(tmp);
+        free(tmp);
+        return 1;
+    }
+#else
+    if (rename(tmp, dst) != 0) {
+        int rc = copy_file_fail("replace", dst, tmp);
+        free(tmp);
+        return rc;
     }
 #endif
+    free(tmp);
     return 0;
 }
 

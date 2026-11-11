@@ -174,6 +174,30 @@ main := proc(args: ..Str) returns I64 {
         expect(probe_status == 0, probe.out(), probe.err())
         assert_eq(Str, probe.out(), "core queries OK\n")
     }
+    // Installing over the til that is running: copy_file used to truncate
+    // the destination in place, which the kernel refuses for a running
+    // executable (ETXTBSY), so `make install` failed whenever an installed
+    // til was in use. Windows cannot replace a running image at all.
+    if host_os() != "windows" {
+        File.writefile(format(WORK, "/reinstall_self.til"), format(
+            "mode script\nimport(\"std/sys\")\n",
+            "if copy_file(\"../../bin/til\", \"../install_test/bin/til\") != 0 { panic(\"busy reinstall failed\") }\n",
+            "println(\"reinstalled while running\")\n"))
+        reinstall := Cmd.new(installed_til, "interpret", "reinstall_self.til")
+        reinstall.cwd(WORK).capture()
+        reinstall_status := reinstall.run()
+        expect(reinstall_status == 0, reinstall.out(), reinstall.err())
+        assert_eq(Str, reinstall.out(), "reinstalled while running\n")
+        // A symlink at the destination is replaced, never written through.
+        File.writefile(format(WORK, "/link_target.txt"), "keep")
+        File.writefile(format(WORK, "/link_source.txt"), "new")
+        link := Cmd.new("ln", "-sf", "link_target.txt", "copy_link")
+        link.cwd(WORK)
+        link.run_checked()
+        assert_eq(I32, copy_file(format(WORK, "/link_source.txt"), format(WORK, "/copy_link")), 0)
+        assert_eq(Str, File.readfile(format(WORK, "/link_target.txt")), "keep")
+        assert_eq(Str, File.readfile(format(WORK, "/copy_link")), "new")
+    }
     File.writefile(format(WORK, "/installed_probe.til"), format(
         "mode cli\n\n",
         "import(\"std/file\")\nimport(\"std/unicode\")\n\n",
