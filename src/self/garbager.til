@@ -3126,12 +3126,23 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
         if stmt.node_type.is(NodeType.Return).or(return_only.not().and(stmt.node_type.is(NodeType.Break).or(stmt.node_type.is(NodeType.Continue)))) {
             for li in 0..live.len() {
                 ref local : LocalInfo = live[li]
+                // The return-hoist invariant: a return operand may name an
+                // owned local only when it IS that local (the return moves
+                // it). The desugarer hoists every other operand that reads
+                // one (hoist_return_expr) so it is evaluated before these
+                // deletes; one that still mentions an owned local here would
+                // either leak it (skipped below) or read it after its delete.
+                mut operand_uses := false
+                mut operand_moves := false
                 if stmt.children.len() > 0 {
                     ref retval : Expr = stmt.children[0]
-                    if expr_uses_var(retval, local.name, ctx.symbols) {
-                        continue
+                    operand_uses = expr_uses_var(retval, local.name, ctx.symbols)
+                    switch retval.node_type {
+                    case .Ident(rid): operand_moves = rid.ident_name(ctx.symbols.names).eq(local.name)
+                    case:
                     }
                 }
+                if operand_moves { continue }
                 // #302 stage 3: the DATAFLOW says whether this exit still
                 // owns the local. Moved on every path reaching it means
                 // the value is already consumed -- the shape the
@@ -3158,6 +3169,10 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
                 mut st : U8 = FLOW_UNREACHED
                 st = flow_table[li.mul(old.len()).add(i)]
                 if st.eq(FLOW_OWNED).not() { continue }
+                if operand_uses {
+                    panic(__LOC__, ctx.path, ":", stmt.line.to_str(), ": return operand reads owned local '", local.name,
+                        "' without moving it; the desugarer must hoist it (hoist_return_expr)")
+                }
                 // #302 stage 2: exit deletes are always PRECEDING statements,
                 // never Return children. The garbager already excludes any
                 // local used (or aliased) by the return operand above, so

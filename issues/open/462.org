@@ -24,6 +24,13 @@ So the natural first apps draw their own UI (raylib-style, GL), and anything
 needing the Java SDK goes through generated JNI calls later
 ([[../fixed/463.org][#463]]).
 
+The other direction matters as much: an ordinary Java or Kotlin app using a
+til ~mode lib~ library through the binding #463 generates (a Java class
+over a JNI bridge). JNI is the only bridge needed for that -- Android has no
+FFM, and a JNA-like shim was cancelled (#477): it would still need a native
+build per ABI. What is missing is building the library and its bridge with
+the NDK.
+
 *** Staged plan
 
   1. Command-line programs on a device or emulator: an NDK cross target
@@ -35,7 +42,14 @@ needing the Java SDK goes through generated JNI calls later
      manifest, packaged into a signed APK. The vendored raylib supports this
      route on Android; check how much of its Android build the vendoring
      keeps.
-  3. Calling Java-only SDK services from til through JNI, sharing the bridge
+  3. A til ~mode lib~ library inside a Java or Kotlin app: the library and
+     its generated JNI bridge (~gen/til/<name>_jni.c~) built with the NDK
+     for each ABI and packaged as ~jniLibs/<abi>/lib<name>.so~ and
+     ~lib<name>_jni.so~ (or an AAR) beside the generated Java class, which
+     already compiles at the Java 8 source level Android takes.
+     ~til build --jni~ is host-only today; for an Android target it would
+     cross-compile the bridge with the NDK's clang.
+  4. Calling Java-only SDK services from til through JNI, sharing the bridge
      work with #463.
 
 *** Decisions needing approval before implementation
@@ -46,6 +60,8 @@ needing the Java SDK goes through generated JNI calls later
     is never required by a default build or ~make test~.
   - The APK packaging route (the SDK's ~aapt2~ / ~zipalign~ / ~apksigner~
     directly, or Gradle) and where generated manifests and APKs live.
+  - For stage 3: whether ~--jni~ for an Android target produces an AAR, a
+    ~jniLibs/~ tree, or only the ~.so~ files for the app's own build.
   - Whether an emulator-based check runs anywhere automated (CI only, or
     opt-in locally).
 
@@ -55,5 +71,7 @@ needing the Java SDK goes through generated JNI calls later
     device or emulator with output matching the interpreter.
   - [ ] A ~NativeActivity~ til program packages into an installable APK
     and runs (window, input, exit).
+  - [ ] A Java or Kotlin app on a device or emulator calls a til ~mode lib~
+    library through its generated JNI binding, built with the NDK.
   - [ ] A default build and ~make test~ need neither the NDK nor the
     Android SDK.

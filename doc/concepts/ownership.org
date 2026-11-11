@@ -427,9 +427,19 @@ cross-language terminology check is in [[file:./garbager.org][the garbager guide
       per-statement pass can delete the local after the read. The garbager
       then relies on an invariant the hoist establishes: the only owned
       local a ~return~ operand may name is the one it MOVES (bare
-      ~return x~, under ~returns T~ or ~returns shallow T~). A hoist gap
-      shows up as a skipped delete (a leak), not an error; that gap was
-      ~return c.n~ on a plain local (fixed with #399's hoist, 2026-10-30).
+      ~return x~, under ~returns T~ or ~returns shallow T~). The hoist is
+      one rule (~hoist_return_expr~): every call and literal, and every
+      other operand except a bare identifier that reads an owned binding
+      (a local, or an ~own~ parameter; borrowed parameters are the
+      caller's), with three exemptions -- a ~returns ref~ function (it
+      hands back an address, and the typer limits it to parameters and
+      ~ref~ variables), a namespace member, and an aggregate field that
+      owns heap (rejected by the typer; ~.clone()~ is the spelling). The
+      garbager enforces it: at an exit that still owns a local, an operand
+      mentioning that local without being exactly it panics in the
+      compiler instead of skipping the delete. A gap used to show up as a
+      leak, not an error -- ~return c.n~ on a plain local was one (fixed
+      with #399's hoist, 2026-10-30).
     - Moving a FIELD out of its holder (~own h.f~, or a field passed to a
       consuming constructor) is REJECTED (#415): with whole-holder
       destruction nothing could track the partially moved holder, so the

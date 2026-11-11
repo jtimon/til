@@ -861,6 +861,18 @@ call any Java library -- handles are ~AutoCloseable~, callback types are
 parameters are ordinary Java arrays. No language gets generated wrappers of
 its own.
 
+*Why JNI, and only JNI.* A JVM reaches native code three ways: JNI (built
+into every JVM since Java 1.1, Android's ART included; it needs a small
+per-library C bridge, which til generates and ~--jni~ compiles), JNA (a
+third-party jar calling through libffi, no per-library C but slower calls
+and an extra dependency), and FFM / ~java.lang.foreign~ (built in, no
+bridge, but final only since Java 22 and absent on Android). The uses that
+matter are server JVMs -- typically Java 8 to 21, so no FFM -- and Android,
+where JNI through the NDK is the standard route. JNI covers both, so it is
+the one bridge; a JNA-like generic shim was considered and cancelled (#477):
+it would still need a native build per OS, CPU and Android ABI, and would
+only save the per-library compile ~--jni~ already automates.
+
 | File | Contents |
 |------+----------|
 | ~gen/til/java/til/<pkg>/<Cls>.java~ | ~til.<pkg>.<Cls>~: one public static method per bound function |
@@ -891,9 +903,17 @@ compiler's support tree. The bridge finds ~lib<name>~ through its rpath
 install names, so no ~DYLD_*~ variable is needed). On macOS it also links
 with ~-Wl,-undefined,dynamic_lookup~: the bridge calls the til runtime's
 allocator directly, and Mach-O, unlike ELF, wants every symbol bound to a
-library at link time; the runtime is already loaded by ~lib<name>~. On
-Android the same bridge source goes into the NDK build beside the library
-(#462).
+library at link time; the runtime is already loaded by ~lib<name>~.
+
+Still to do, so the binding reaches the places Java runs:
+  - Android (#462): build the library and its bridge with the NDK for each
+    ABI (~arm64-v8a~, ~armeabi-v7a~, ~x86_64~) and ship them under
+    ~jniLibs/<abi>/~ (or in an AAR) beside the Java class. Needs an Android
+    target in til; ~--jni~ is host-only today.
+  - Servers: ~--jni~ builds the bridge for the host only. A Java deployment
+    usually wants one jar carrying the bridge (and library) for every OS
+    and CPU it runs on, unpacked at load time, as the SQLite JDBC jar does;
+    that packaging does not exist yet and needs a design decision.
 
 Bound: public top-level ~func~ / ~proc~ (and function aliases), user-written
 struct/enum namespace functions and enum variant constructors (as

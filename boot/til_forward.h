@@ -2598,6 +2598,7 @@ typedef struct EvalState {
     Bool interp_cstr_arg;
     Bool interp_callable_arg_borrow;
     Bool constfold_active;
+    Bool constfold_no_state_writes;
     Bool target_size_queries;
     Bool eval_aborted;
     Bool repl_session;

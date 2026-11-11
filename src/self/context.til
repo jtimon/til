@@ -1525,6 +1525,12 @@ EvalState := struct {
     // closure state rather than the stored closure.
     interp_callable_arg_borrow := false
     constfold_active := false
+    // A plain func being folded (not a macro): a write to state that outlives
+    // the call -- a `mut` global or namespace value -- abandons the fold like
+    // an abort. The fold would apply the write inside the compiler, and the
+    // program would never see it (a destructor counting deletes ran at
+    // compile time and the run-time counter stayed 0).
+    constfold_no_state_writes := false
     // Definition-generating conditions query target layouts. Their actual
     // interpreter buffers still use the ordinary host layout tables.
     target_size_queries := false

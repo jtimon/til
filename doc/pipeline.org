@@ -127,7 +127,9 @@ Two modules sit underneath every phase below:
 - Implemented in til: [[file:../src/self/constfolder.til][src/self/constfolder.til]]
 - Responsibilities:
   - fold macros
-  - fold comptime-known pure calls recursively when possible
+  - fold comptime-known pure calls recursively when possible; a func
+    whose evaluation writes a ~mut~ global or namespace value is not
+    folded (see [[file:./concepts/functions.org][functions]])
   - track known literal values
 - After constfolder, macros should be gone from the AST.
 

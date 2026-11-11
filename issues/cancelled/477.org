@@ -1,6 +1,15 @@
 # priority: low
 # category: experiments
-** OPEN #477 JVM bindings through one generic JNI shim plus libffi (JNA-like)
+** CANCELLED #477 JVM bindings through one generic JNI shim plus libffi (JNA-like)
+
+*** Cancelled (2026-11-09)
+
+It would only remove the per-library bridge compile, which ~til build --jni~
+already automates (#463). The shim itself would still have to be built for
+every OS, CPU and Android ABI, JNI stays needed anyway (Android, call speed),
+and calls would get slower behind generic marshalling -- a second binding
+path to maintain for no gain on the use cases that matter: Java 8-21 server
+JVMs (where FFM is not available either) and Android (#462).
 
 Today (#463) every ~mode lib~ library gets its own generated C bridge,
 ~gen/til/<name>_jni.c~, which has to be compiled against ~jni.h~ into

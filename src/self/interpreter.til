@@ -3044,6 +3044,13 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
             ref mut rhs : Expr = stmt.children[0]
             mut assign_hb_o := scope_lookup_heap_binding(scope, ad.name)
             if assign_hb_o.is_none() { panic("assignment binding not found: ", ad.name) }
+            // A global lives in the root scope; a folded func may not change it.
+            if ctx.eval.constfold_no_state_writes {
+                if scope_get_binding_scope(scope, ad.name).parent.is_none() {
+                    ctx.eval.eval_aborted = true
+                    continue
+                }
+            }
             ref mut assign_hb : HeapBinding = assign_hb_o.unwrap()
             ffi_refresh_external_place(assign_hb, ctx)
             if ad.is_payload_alias.not() && eval_reference_rebind(scope, ad.name, rhs, assign_hb, ctx) { continue }
@@ -3130,6 +3137,14 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
             }
         case .FieldAssign(fad):
             fname := fad.name
+            // A namespace value outlives the call; a folded func may not
+            // change it. Checked before the value is evaluated.
+            if ctx.eval.constfold_no_state_writes {
+                if interp_fa_namespace_def(scope, stmt, ctx).is_some() {
+                    ctx.eval.eval_aborted = true
+                    continue
+                }
+            }
             ref mut val_expr : Expr = stmt.children[1]
             // #302 stage 4: a marked move consumes the clone's ARG -- the
             // same substitution the builder does at consumption. Without

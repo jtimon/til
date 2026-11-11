@@ -763,3 +763,66 @@ test_return_field_of_local := test() {
     assert_eq(I64, Bp399Counted.deletes, 1)
     assert_eq(I64, bp399_local_heap_field(Bp399Counted.deletes.add(2)), 3)
 }
+
+# A func call with constant arguments is folded at compile time -- unless
+# evaluating it writes state that outlives the call: a destructor bumping a
+# namespace counter, or a namespace method writing a `mut` global. Folded,
+# the write happened inside the compiler and the program's counter stayed 0;
+# now the call is left to run.
+mut fold_global_writes : I64 = 0
+
+Bp399Bump := struct {
+    namespace:
+    bump := func(x: I64) returns I64 {
+        fold_global_writes = fold_global_writes.add(1)
+        return x
+    }
+}
+
+bp399_via_method := func(v: I64) returns I64 { return Bp399Bump.bump(v) }
+
+test_fold_keeps_state_writes := test() {
+    Bp399Counted.deletes = 0
+    assert_eq(I64, bp399_local_field(5), 5)
+    assert_eq(I64, Bp399Counted.deletes, 1)
+    fold_global_writes = 0
+    assert_eq(I64, bp399_via_method(3), 3)
+    assert_eq(I64, fold_global_writes, 1)
+}
+
+# The return-hoist invariant as one rule: any operand other than a bare
+# identifier that reads an owned binding (a local or an `own` parameter) is
+# evaluated before the exit deletes, and the garbager panics if one is not.
+# Each shape below must still run c's destructor exactly once.
+Bp399Box := struct { inner := Bp399Counted(); k := 1 }
+
+bp399_nested_field := func(v: I64) returns I64 {
+    b := Bp399Box(inner = Bp399Counted(n = v))
+    return b.inner.n
+}
+
+bp399_own_param_field := func(own c: Bp399Counted) returns I64 { return c.n }
+
+bp399_field_arith := func(v: I64) returns I64 {
+    c := Bp399Counted(n = v)
+    return c.n.add(1)
+}
+
+bp399_field_method := func(v: I64) returns Str {
+    c := Bp399Counted(n = v)
+    return c.n.to_str()
+}
+
+# Arguments derive from the counter so no call is folded at compile time
+# (a folded call never runs the destructor at run time).
+test_return_operand_reads_owned_local := test() {
+    Bp399Counted.deletes = 0
+    assert_eq(I64, bp399_nested_field(Bp399Counted.deletes.add(4)), 4)
+    assert_eq(I64, Bp399Counted.deletes, 1)
+    assert_eq(I64, bp399_own_param_field(own Bp399Counted(n = Bp399Counted.deletes.add(5))), 6)
+    assert_eq(I64, Bp399Counted.deletes, 2)
+    assert_eq(I64, bp399_field_arith(Bp399Counted.deletes.add(6)), 9)
+    assert_eq(I64, Bp399Counted.deletes, 3)
+    assert_eq(Str, bp399_field_method(Bp399Counted.deletes.add(7)), "10")
+    assert_eq(I64, Bp399Counted.deletes, 4)
+}

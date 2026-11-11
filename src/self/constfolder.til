@@ -1135,7 +1135,9 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
     // set ctx.eval.eval_aborted and unwind instead of terminating the build.
     // Printing and other effects execute normally during the evaluation.
     ctx.eval.constfold_active = true
+    ctx.eval.constfold_no_state_writes = is_macro_mode.not()
     mut result : Dynamic = eval_expr_raw(eval_scope, ec, ctx)
+    ctx.eval.constfold_no_state_writes = false
     ctx.eval.constfold_active = false
 
     // The eval reached a panic/abort with these comptime inputs. Don't bake a

@@ -58,6 +58,16 @@ This does not make proc calls foldable. The constfolder walks proc and test
 definitions to optimize eligible expressions inside them, without executing
 the enclosing proc or test at compile time.
 
+A func may write a ~mut~ global or a namespace value (a destructor counting
+deletes, a memo table). That write outlives the call, so it disqualifies the
+call from folding: the constfolder evaluates a func call whose arguments are
+all compile-time constants, and the moment that evaluation writes such state
+-- directly, through a method, or in an implicit destructor -- the fold is
+abandoned and the call stays in the program, where the write happens at run
+time. Folding it anyway would apply the write inside the compiler and drop it
+from the program. Macros are exempt: their writes are compile-time by design.
+Regression test: ~test_fold_keeps_state_writes~ in ~test/ref.til~.
+
 ** ext_func / ext_proc
 
 No body (~{}~). The implementation is a hand-written C symbol in
