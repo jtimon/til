@@ -7,9 +7,11 @@
 *** [[./open/448.org][#448]] Same top-level function name in two units compiles silently; last definition wins everywhere
 *** [[./open/452.org][#452]] til names that collide with C keywords, macros or libc names break C emission
 *** [[./open/465.org][#465]] Enum switch payload binding reevaluates a side-effecting scrutinee
+*** [[./open/485.org][#485]] Interpreter panics at teardown on a global container of containers
 ** Low
 *** [[./open/427.org][#427]] func<G> fails when G appears inside another type in its signature
 *** [[./open/428.org][#428]] Errors inside an instantiated template point at the user's file and cascade
+*** [[./open/484.org][#484]] A multi-line string token records its end line with its start column
 * Cleanups
 ** High
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core

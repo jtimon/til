@@ -1,0 +1,43 @@
+# priority: medium
+# category: bugs
+** OPEN #485 Interpreter panics at teardown on a global container of containers
+
+Found while restoring ~test/lexing.til~ for [[./472.org][#472]] (a script importing
+~src/self/parser~, whose ~SymbolPool~ holds a ~Vec(Vec(Str))~). Reproduced at
+master f3dee9b.
+
+*** Symptom
+
+#+begin_src til
+mode script
+v := Vec(Vec(Str)).new()
+println("done")
+#+end_src
+
+~bin/til interpret~ prints ~done~, then exits 1 with
+~./src/self/interpreter.til:4598:19: panic: container element has no
+registered size: call_Vec_Str~. Also with ~Vec(Vec(I64))~, and whether the
+outer Vec is empty or not. Not affected: the compiled program
+(~bin/til run~), the same value as a local inside a ~proc~, or in a
+~mode test~ test function.
+
+*** Cause, as far as read
+
+The nested instance is named ~Vec__call_Vec_Str~: the inner type argument
+keeps its type-call spelling ~call_Vec_Str~ rather than ~Vec__Str~ (the
+compiler's own C has ~Vec__call_Set_Str~, ~Vec__call_Map_Str_Bool~, ...).
+Freeing the global's buffer at teardown goes through
+~interpreter.til::free_container_data~, which takes the element type from
+the instance name (~container_elem_type~ strips ~Vec__~) and asks
+~container_elem_size("call_Vec_Str")~; no layout is registered under that
+spelling (the inner Vec's layout is ~Vec__Str~), so it panics. Local
+values take another release path that does not ask for that size.
+
+Decide at the source whether the element spelling or the lookup is wrong:
+resolve the instance's element type through the type scope instead of
+string-splitting its name, or register/name the instance canonically.
+
+*** Regression
+
+The script above interpreted by the suite (exit 0, prints ~done~), plus a
+global ~Vec(Set(Str))~ and ~Map(Str, Vec(Str))~ in the same file.

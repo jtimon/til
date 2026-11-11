@@ -1,0 +1,40 @@
+# priority: low
+# category: bugs
+** OPEN #484 A multi-line string token records its end line with its start column
+
+Found while restoring ~test/lexing.til~ for [[./472.org][#472]]. Reproduced at master
+f3dee9b.
+
+*** Symptom
+
+A diagnostic that points at a string literal spanning lines names the line
+where the string ENDS, with the column where it STARTS:
+
+#+begin_src til
+mode script
+f := func(a: I64) returns I64 { return a }
+y := f(
+    "a
+b")
+#+end_src
+
+~bin/til interpret~ reports ~5:5: error: argument type mismatch for 'a'~;
+the literal starts at 4:5 (the same call with a one-line ~"ab"~ reports
+4:5). Tokenizing ~x := "a\nb\nc" y~ gives the StringTok ~line=3 col=6~; it
+starts at 1:6.
+
+*** Cause
+
+~src/self/lexer.til::tokenize~, the ~'"'~ case: the scan loop increments
+~line~ (and moves ~line_start~) at each newline inside the string, and the
+token is pushed afterwards with that ~line~ but the ~col~ computed at the
+opening quote. Its "unterminated string" diagnostic has the same mix. The
+block-comment case already saves ~doc_line~ before scanning; the string
+case needs the same.
+
+*** Fix and regression
+
+Push the string token (and the unterminated-string diagnostic) with the
+line of the opening quote. ~test/lexing.til~ ~test_multiline_string~
+currently checks only the token after the string; make it assert the
+string's own ~line~/~col~ too.
