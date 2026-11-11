@@ -1,0 +1,149 @@
+# priority: medium
+# category: features
+** OPEN #486 Compile-time conditionals on the build target (Jai's #if), so link() and declarations can be selected per OS
+
+til has no way to select top-level code by build target at compile time,
+the job the C preprocessor's ~#ifdef _WIN32~ does and Jai's ~#if~ does
+properly. The need showed up through ~link()~ (issue #313's follow-ups):
+system libraries are spelled by hand, Linux-flavoured, and patched up
+elsewhere.
+
+*** What exists today, and why it is not enough
+
+- ~host_os()~ / ~host_arch()~ (src/std/sys.til) are ~ext_proc~s. The
+  front end gives them no special treatment: never folded, called at run
+  time, with ~if~ or ~switch~ alike. Their "compile time" is the C
+  compiler's (an ~#if defined(_WIN32)~ chain in ext.c fixes the string per
+  binary).
+- Inside a ~macro~ they do run at til compile time (verified:
+  ~os_name := macro() returns Str { return host_os() }~ emits the literal
+  "linux"), but they report the machine RUNNING THE COMPILER, not
+  ~--target~: cross-compiling for Windows from Linux answers "linux".
+- ~link()~, ~link_macos()~, ~link_c()~ and ~import()~ are collected by the
+  loader from top-level statements, with literal arguments only, BEFORE
+  macros expand or anything folds. A ~link()~ under an ~if~, a ~switch~ or
+  a macro is never seen.
+- The per-target mechanism that does exist is a string list:
+  ~link("ws2_32", "windows-x64 windows-x86")~ (issue #422). It covers
+  ~link()~ only, repeats every target name per line (src/modes/gui.til
+  lists six linux targets four times), and cannot select declarations,
+  ~ext_func~ bindings, constants or imports.
+- Untargeted system links (~link("m")~, ~pthread~, ~rt~, ~dl~, ~atomic~;
+  12 of the 25 ~link()~ uses in the tree) are written for Linux and the
+  builder silently drops them for Windows, wasm and macOS targets
+  (src/self/builder.til, "drop the -l flags a program's untargeted
+  link()s carry for linux"). The interpreter needs none of them (its own
+  binary links m/pthread/dl), so a missing one only fails compiled.
+
+*** Prior art: Jai
+
+- ~OS~ (and ~CPU~) are compile-time constants describing the TARGET.
+- ~#if~ is a static conditional: its condition must be a compile-time
+  constant, only the taken branch is compiled, and it is legal at file
+  scope around declarations, imports and library directives:
+  ~#if OS == .WINDOWS { ... } else #if OS == .LINUX { ... }~.
+- Libraries are declarations too (~lib :: #library "name";~,
+  ~#system_library~), bound per function with ~#foreign lib~, so they sit
+  under the same ~#if~ as the bindings that need them.
+- ~#run~ executes arbitrary code at compile time; til's ~macro~ is the
+  nearest equivalent.
+
+Sources: the Jai community wiki's "Modules and Libraries" and
+"Metaprogramming" pages (github.com/Jai-Community/Jai-Community-Library
+wiki) and BSVino's JaiPrimer. The wiki mirror could not be fetched from
+the session that filed this (host not in its allowed network), so the
+~#system_library~ details above are from memory and need checking.
+
+*** Prior art: Odin
+
+- ~ODIN_OS~ / ~ODIN_ARCH~ are compile-time constants for the TARGET
+  (enum values today: ~.Windows~, ~.Linux~, ~.Darwin~).
+- ~when~ is the compile-time branch: legal at file scope, and the
+  discarded branch is never type-checked, so it may name things that only
+  exist on the other platform. It is a separate keyword from ~if~, which
+  answers design question 2 the "dedicated form" way without a ~#~
+  directive.
+- Libraries are bound with ~foreign import name "system:lib"~ (the
+  ~system:~ prefix means "search the system's library path"), typically
+  inside ~when ODIN_OS == .Linux { foreign import foo "foo.a" }~, next to
+  the ~foreign~ block that declares its procedures.
+- Whole files can also be per-platform by name (the core library has
+  ~os_specific_windows.odin~ and the like); the exact suffix rule was not
+  confirmed from the official docs by the session that filed this.
+
+Sources: odin-lang.org/news/binding-to-c, the Odin overview
+(odin-lang.org/docs/overview), and third-party lessons on ~when~ and build
+flags; some are older and spell ~ODIN_OS~ as a string.
+
+Both languages agree on the shape: a TARGET constant, a static branch
+usable at file scope whose dead side is not checked, and library
+references that are ordinary declarations living under that branch.
+
+*** Design questions to settle before code
+
+1. The target query. A compile-time value for the BUILD TARGET
+   (~target_os()~ / ~target_arch()~, or a ~TARGET~ constant), distinct from
+   ~host_os()~, folded from ~--target~ before typing. Whether ~host_os()~
+   keeps its name and meaning (the running binary) or is renamed to avoid
+   exactly this confusion.
+2. The conditional's spelling. Either a dedicated static form (Jai's
+   ~#if~) that is the only thing allowed around top-level directives, or
+   ordinary top-level ~if~ / ~switch~ whose condition must fold to a
+   constant. The second adds no syntax but needs a clear error when the
+   condition is not constant.
+3. When it resolves. The loader collects directives before macro
+   expansion and folding; a static conditional has to be resolved at load
+   time, per file, with only target constants available (the same "must
+   not depend on what it decides" rule doc/self.org states for a USize
+   directive), or directive collection has to move after a first
+   constant-evaluation pass.
+4. What happens to ~link(name, "<targets>")~: kept as sugar, or migrated
+   to the conditional and removed.
+5. Whether the platform's system libraries (m, pthread, dl, rt on Linux)
+   should instead be linked implicitly by the builder, which removes the
+   most common use without any new feature; the two are compatible.
+6. Interaction with the interpreter and the REPL (the target is the host
+   there) and with ~mode~ files.
+
+*** Decisions (2026-11-11)
+
+1. Target query: compile-time CONSTANTS for the build target, enum-valued
+   (~TARGET_OS~ / ~TARGET_ARCH~ or similar), which is what Jai (~OS~) and
+   Odin (~ODIN_OS~) have -- the criterion given was "like Jai/Odin".
+   ~host_os()~ keeps its name and meaning (the running binary). Flip to
+   Str-returning functions only if the human says so.
+2. Spelling: ordinary top-level ~if~ / ~switch~ whose condition is a
+   compile-time constant. No new keyword, no ~#~ directive. The branch not
+   taken is not type-checked; a condition that does not fold is an error
+   naming what was not constant.
+3. Resolution: at compile time, with full constant evaluation, macros
+   included (a macro may compute the condition). So directive collection
+   (~link~, ~link_c~, ~import~) moves after the first constant-evaluation
+   pass, or that pass runs on top-level conditions at load. A condition
+   that depends on something only its own branch would import or define
+   is an error, not a fixpoint.
+4. ~link(name, "<targets>")~ migrates to the conditional and is removed,
+   but only once everything above works; no hurry.
+5. System libraries stay EXPLICIT, done properly: under the conditional,
+   each target links only the system libraries it needs, has, and can
+   link (m/pthread/dl/rt on Linux, the winsock set on Windows where
+   used, nothing extra on macOS). The builder's "drop linux -l flags on
+   other targets" rewrite goes away with the untargeted spellings. Once
+   every remaining ~link()~ names a library its target really has, a
+   failed ~link()~ load in the interpreter becomes a hard error at load
+   (replacing the "named when a symbol is missing" stopgap of #313).
+6. Interpreter and REPL: the target is the host; the conditional resolves
+   the same way, no special case.
+
+*** Plan sketch (to refine when work starts)
+
+- Preparation: the target constants, folded from ~--target~ before typing.
+- Top-level constant ~if~ / ~switch~: the loader (or a pre-pass) evaluates
+  the condition, keeps the taken branch's statements as top-level
+  statements, drops the rest unchecked; directive collection runs on the
+  result. Tests: a per-target ~link()~, a per-target ~ext_func~ binding, a
+  dead branch naming an undefined symbol, a non-constant condition error,
+  a macro-computed condition, cross-compiling.
+- Migration: system ~link()~ lines and ~link(name, "<targets>")~ uses move
+  under the conditional; remove the target-list form and the builder's
+  flag rewrite; make interpreter ~link()~ load failures errors.
