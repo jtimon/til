@@ -234,6 +234,37 @@ main := proc(args: ..Str) {
     }
     c_time = mtime("gen/til/deps/main.c")
 
+    // link_macos()'s frameworks link off a mac through the .tbd stubs, by
+    // a glob that names no file: a changed or added stub must relink. The
+    // stand-in C compiler records each link and writes an executable that
+    // carries the build stamp, as a real link would. It pauses first, as a
+    // real link takes time: written in the C's own clock tick, the
+    // executable would count as stale (an input as new as its output) and
+    // relink once.
+    if host_os() != "macos" && host_os() != "windows" {
+        mkdir_p(format(WORK, "/vendor/macos/frameworks"))
+        File.writefile(format(WORK, "/vendor/macos/frameworks/TilStub.tbd"), "stub 1\n")
+        File.writefile(format(WORK, "/stubs.til"), "mode script\nlink_macos(\"TilStub\")\nprintln(\"stubs\")\n")
+        File.writefile(format(WORK, "/fakecc.sh"), format(
+            "#!/bin/sh\nout=\"\"; stamp=\"\"\n",
+            "while [ $# -gt 0 ]; do case \"$1\" in -o) out=\"$2\"; shift;; -DTIL_BUILD_STAMP=*) stamp=\"${1#-DTIL_BUILD_STAMP=}\";; esac; shift; done\n",
+            "sleep 0.05\necho link >> links.log\nprintf 'til-build-stamp:%s;' \"$stamp\" > \"$out\"\n"))
+        check_command(Cmd.new("chmod", "+x", "fakecc.sh"), "")
+        for expected_links : Str in array(Str, "1", "1", "2", "3") {
+            if expected_links == "2" {
+                edit(format(WORK, "/vendor/macos/frameworks/TilStub.tbd"), "stub 2\n")
+            } else if expected_links == "3" {
+                edit(format(WORK, "/vendor/macos/frameworks/TilOther.tbd"), "other\n")
+            }
+            check_command(Cmd.new(compiler, "build", "--target=macos-arm64", "--cc=./fakecc.sh",
+                "-o", "bin/stubs", "stubs.til"), "")
+            links := File.readfile(format(WORK, "/links.log")).split("\n").len() - 1
+            if links.to_str() != expected_links {
+                panic("framework stub links: expected ", expected_links, ", got ", links.to_str())
+            }
+        }
+    }
+
     // --force-rebuild regenerates both phases with nothing changed.
     next_tick()
     check_command(Cmd.new(compiler, "run", "--force-rebuild", "--usize=64", "deps/main.til"), "direct2-transitive2 2\n")

@@ -57,7 +57,8 @@
   output path, target, layout, CPU profile, loaded units); a current
   translation skips preparation and emission. The executable is current
   when newer than that C, the C runtime, link_c sources and the headers
-  they include, linked archives and the compiler, and it carries this
+  they include, linked archives, the macOS framework stubs a cross link
+  uses and the compiler, and it carries this
   invocation's executable stamp (ext.c's ~til_build_stamp~: the
   translation stamp plus every compile option). A timestamp alone cannot
   establish which program or options produced a file (#406); the stamps

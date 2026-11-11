@@ -918,10 +918,15 @@ priv macos_framework_stubs_dir := proc(lp: LoadedProgram) returns Str {
     return stubs
 }
 
-priv report_missing_target_archives := proc(lp: LoadedProgram) returns I32 {
-    needs_stubs := lp.macos_frameworks.len().gt(0).and(host_os() != "macos")
+// Does this link take link_macos()'s frameworks from the .tbd stubs: a
+// macOS target built off a mac?
+priv links_framework_stubs := proc(lp: LoadedProgram) returns Bool {
+    return lp.macos_frameworks.len().gt(0).and(host_os() != "macos")
         .and(lp.target.is(Target.MacosX64).or(lp.target.is(Target.MacosArm64)))
-    if needs_stubs.and(File.is_dir(macos_framework_stubs_dir(lp)).not()) {
+}
+
+priv report_missing_target_archives := proc(lp: LoadedProgram) returns I32 {
+    if links_framework_stubs(lp).and(File.is_dir(macos_framework_stubs_dir(lp)).not()) {
         println(format("error: this program links macOS frameworks (link_macos) for --target=",
             target_to_str(lp.target), ", and off a mac those link through stubs that are not built"))
         println("  build them first, in the til source tree: bin/make vendor/macos/frameworks/.stamp")
@@ -1437,6 +1442,20 @@ priv executable_inputs := proc(lp: LoadedProgram, paths: BuildPaths) returns Vec
         if token.len() == 0 { continue }
         if token.starts_with("-") { continue }
         if File.is_file(token) { inputs.push(own token.clone()) }
+    }
+    // The framework stubs link through a *.tbd glob the shell expands, so
+    // the flags name no file: list each stub, and the directory itself,
+    // whose mtime moves when a stub is added or removed.
+    if links_framework_stubs(lp) {
+        stubs := macos_framework_stubs_dir(lp)
+        inputs.push(own stubs.clone())
+        // REM Stubs not built: the missing input fails the reuse check, and
+        // the compile reports it (report_missing_target_archives).
+        if File.is_dir(stubs) {
+            for name : Str in Dir.list(stubs) {
+                if name.ends_with(".tbd") { inputs.push(own format(stubs, "/", name)) }
+            }
+        }
     }
     return inputs
 }
