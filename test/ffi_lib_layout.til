@@ -59,5 +59,37 @@ main := proc(args: ..Str) {
     mut flip := "--usize=64"
     if has_flag(args, "--usize=64") { flip = "--usize=32" }
     expect_refused(args, flip)
+
+    // A til library with NO layout record (one built before the export) is
+    // refused as well, where it used to load unchecked. Stood in for by a C
+    // library whose binding declares a name under the library's til prefix,
+    // which is what identifies a til library; a plain C binding still loads.
+    mut extension := ".so"
+    mut shared_flag := "-shared"
+    if host_os() == "macos" { extension = ".dylib"; shared_flag = "-dynamiclib" }
+    File.writefile(format(WORK, "/old.c"), "long til_layoutold__value(void) { return 7; }\nlong plain_value(void) { return 9; }\n")
+    for name in vec(Str, "layoutold", "layoutplain") {
+        Cmd.new("cc", shared_flag, "-fPIC", "-o", format("gen/lib/lib", name, extension), format(WORK, "/old.c")).run_checked()
+    }
+    File.writefile(format(WORK, "/old_consumer.til"), format(
+        "mode script\nlink(\"layoutold\")\n",
+        "til_layoutold__value := ext_proc() returns shallow I64 {}\n",
+        "println(til_layoutold__value().to_str())\n"))
+    File.writefile(format(WORK, "/plain_consumer.til"), format(
+        "mode script\nlink(\"layoutplain\")\n",
+        "plain_value := ext_proc() returns shallow I64 {}\n",
+        "println(plain_value().to_str())\n"))
+    old := Cmd.new(args[0], "interpret", format(WORK, "/old_consumer.til"))
+    old.env("LD_LIBRARY_PATH", "gen/lib")
+    old.env("DYLD_LIBRARY_PATH", "gen/lib")
+    old.capture()
+    if old.run() == 0 { panic("a til library with no layout record was loaded: ", old.out()) }
+    if old.err().contains("no layout record").not() { panic("not refused for its missing layout: ", old.out(), old.err()) }
+    plain := Cmd.new(args[0], "interpret", format(WORK, "/plain_consumer.til"))
+    plain.env("LD_LIBRARY_PATH", "gen/lib")
+    plain.env("DYLD_LIBRARY_PATH", "gen/lib")
+    plain.capture()
+    if plain.run() != 0 { panic("a C library was refused: ", plain.out(), plain.err()) }
+    if plain.out().contains("9").not() { panic("C library call failed: ", plain.out()) }
     println("ffi lib layout passed")
 }

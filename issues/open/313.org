@@ -300,10 +300,14 @@ and ~Dynamic~ stay native.
     panic names those libraries. Regression: the named_missing probe in
     test/link_libraries.til. The link() position is known only on the
     embedded per-directive path; the flag-string path has lost it.
-  - Libraries built by a compiler from before the layout export carry no
-    ~til_<lib>___til_abi_layout~ and are loaded unchecked, as C libraries
-    are; such a library with the other layout still segfaults until it is
-    rebuilt.
+  - (Fixed 2026-11-11.) A til library built before the layout export
+    carries no ~til_<lib>___til_abi_layout~ and used to load unchecked, as
+    C libraries do, segfaulting if its layout differed. It is refused now
+    ("a til library with no layout record ... rebuild it"). What tells it
+    from a C library is the program: a til library's binding declares names
+    under the library's own C prefix (~til_<lib>__...~), which
+    ffi_program_binds_til_lib looks for. Regression: the layoutold /
+    layoutplain pair in test/ffi_lib_layout.til (refused / still loads).
 
 #309 made USize (container width: sizes, counts, indices, caps) default to U32,
 which shrank Str/Vec/DynVec headers and cut mem_total ~6% and self-host time

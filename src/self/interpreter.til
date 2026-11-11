@@ -8880,10 +8880,30 @@ priv ffi_init_link_libs := proc(link_flags: Str, mut ctx: Context, origin: Str =
 // it was built for (c_lib_abi_layout_symbol); any other is refused here,
 // before a call reads a native pointer as a cage offset or a U32 count as a
 // U64 one (both segfaulted). A C library has no such symbol: nothing to
-// check.
+// check. A TIL library without it -- built by a compiler from before the
+// export -- is refused too: its layout is unknown, and it used to load
+// unchecked and segfault the same way. What tells the two apart is the
+// program itself: a til library's binding declares names under the
+// library's own C prefix (til_<lib>__...), which no C library's does.
+priv ffi_program_binds_til_lib := func(lib: Str, ctx: Context) returns Bool {
+    prefix := c_lib_abi_layout_symbol(lib).strip_suffix(C_LIB_ABI_LAYOUT)
+    for _, unit in ctx.imported {
+        for stmt : Expr in unit.ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            if decl_of(stmt).name.starts_with(prefix) { return true }
+        }
+    }
+    return false
+}
+
 priv ffi_check_lib_layout := proc(lib: Str, soname: Str, mut ctx: Context, origin: Str, line: U32, col: U32) returns I32 {
     ref built_addr : U8 = ffi_global_symbol(c_lib_abi_layout_symbol(lib))
-    if built_addr.is_null() { return 0 }
+    if built_addr.is_null() {
+        if ffi_program_binds_til_lib(lib, ctx).not() { return 0 }
+        ffi_link_error(soname, format("a til library with no layout record (built by an older til): its layout cannot be checked -- rebuild it with this compiler"),
+            ctx, origin, line, col)
+        return 1
+    }
     built := Str.from_c_str(built_addr)
     host := abi_layout_id(host_usize_pname())
     want := abi_layout_id(ctx.target_usize_pname)
