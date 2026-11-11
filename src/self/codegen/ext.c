@@ -1213,8 +1213,19 @@ static int copy_tree_cstr(const char *src, const char *dst) {
             rc = 1;
             break;
         }
+        // lstat, and a symlink is refused: following one copies whatever it
+        // points at, anywhere on the host, into the destination -- as root
+        // when the copy is an installation.
         struct stat st;
-        if (stat(child_src, &st) != 0) {
+        if (lstat(child_src, &st) != 0) {
+            fprintf(stderr, "copy_tree: cannot stat '%s': %s\n", child_src, strerror(errno));
+            free(child_src);
+            free(child_dst);
+            rc = 1;
+            break;
+        }
+        if (S_ISLNK(st.st_mode)) {
+            fprintf(stderr, "copy_tree: refusing to follow symlink '%s'\n", child_src);
             free(child_src);
             free(child_dst);
             rc = 1;

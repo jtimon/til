@@ -6575,6 +6575,7 @@ static void adopt__priv___src_self_codegen_theme_codegen_til__ThemeColorSpec(voi
 static Str default_install_prefix(void);
 static I32 priv___src_self_install_til__check_install_rc(I32 rc, Str * what);
 static Str support_root(Str * prefix);
+static I32 priv___src_self_install_til__drop_shared_write(Str * dst, Str * what);
 static I32 install_file(Str * src, Str * dst, Str * what);
 static I32 priv___src_self_install_til__install_tree(Str * src, Str * dst, Str * what);
 static I32 install_compiler_support(Str * root, Str * prefix);
@@ -390448,10 +390449,70 @@ static Str support_root(Str * prefix) {
     { Str _ret = hoisted__Str_support_root_5; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
 }
 
+static I32 priv___src_self_install_til__drop_shared_write(Str * dst, Str * what) {
+    Str hoisted__Str_self_install_drop_shared_write_2 = ({ Str *_hp = (Str *)host_os(); Str _hv = *_hp; if (_hp->cap != TIL_CAP_LIT) { free(_hp); } if (_hv.cap == TIL_CAP_LIT) { _hv.cap = TIL_CAP_VIEW; } _hv; });
+    Bool hoisted__Bool_4 = Str_eq(&hoisted__Str_self_install_drop_shared_write_2, &_til_str_lits.hd0b7c8feca70);
+    Str_delete(&hoisted__Str_self_install_drop_shared_write_2, 0);
+    if (hoisted__Bool_4) {
+        I32 hoisted__I32_0 = 0;
+        return hoisted__I32_0;
+    }
+    U32 hoisted__U32_5 = 4;
+    Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_5);
+    I64 _va_Array_0_ek = 0;
+    U32 hoisted__U32_6 = 0;
+    Array__Str_set(&_va_Array_0, hoisted__U32_6, &_til_str_lits.h00310f395fd0, &_va_Array_0_ek);
+    U32 hoisted__U32_8 = 1;
+    Str hoisted__Str_self_install_drop_shared_write_9 = (Str){.c_str = TIL_OWN_LIT("-R", 2ULL), .count = 2ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_0, hoisted__U32_8, &hoisted__Str_self_install_drop_shared_write_9, &_va_Array_0_ek);
+    U32 hoisted__U32_10 = 2;
+    Str hoisted__Str_self_install_drop_shared_write_11 = (Str){.c_str = TIL_OWN_LIT("go-w", 4ULL), .count = 4ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_0, hoisted__U32_10, &hoisted__Str_self_install_drop_shared_write_11, &_va_Array_0_ek);
+    U32 hoisted__U32_12 = 3;
+    Str hoisted__Str_self_install_drop_shared_write_13 = Str_clone(dst);
+    Array__Str_set(&_va_Array_0, hoisted__U32_12, &hoisted__Str_self_install_drop_shared_write_13, &_va_Array_0_ek);
+    Cmd tighten = Cmd_new(&_va_Array_0);
+    I32 rc = 0;
+    I64 hoisted__I64_14 = Cmd_run(&tighten);
+    I64 hoisted__I64_15 = 0;
+    Bool hoisted__Bool_16 = ((Bool)(hoisted__I64_14 != hoisted__I64_15));
+    if (hoisted__Bool_16) {
+        I32 hoisted__I32_1 = 1;
+        rc = hoisted__I32_1;
+    }
+    U32 hoisted__U32_17 = 5;
+    Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_17);
+    I64 _va_Array_1_ek = 0;
+    U32 hoisted__U32_18 = 0;
+    Str hoisted__Str_self_install_drop_shared_write_19 = (Str){.c_str = TIL_OWN_LIT("restrict the permissions of '", 29ULL), .count = 29ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_1, hoisted__U32_18, &hoisted__Str_self_install_drop_shared_write_19, &_va_Array_1_ek);
+    U32 hoisted__U32_20 = 1;
+    Str hoisted__Str_self_install_drop_shared_write_21 = Str_clone(dst);
+    Array__Str_set(&_va_Array_1, hoisted__U32_20, &hoisted__Str_self_install_drop_shared_write_21, &_va_Array_1_ek);
+    U32 hoisted__U32_22 = 2;
+    Array__Str_set(&_va_Array_1, hoisted__U32_22, &_til_str_lits.h00000b875d14, &_va_Array_1_ek);
+    U32 hoisted__U32_24 = 3;
+    Str hoisted__Str_self_install_drop_shared_write_25 = Str_clone(what);
+    Array__Str_set(&_va_Array_1, hoisted__U32_24, &hoisted__Str_self_install_drop_shared_write_25, &_va_Array_1_ek);
+    U32 hoisted__U32_26 = 4;
+    Array__Str_set(&_va_Array_1, hoisted__U32_26, &_til_str_lits.h00000002b5ce, &_va_Array_1_ek);
+    Str hoisted__Str_self_install_drop_shared_write_28 = format(&_va_Array_1);
+    I32 hoisted__I32_29 = priv___src_self_install_til__check_install_rc(rc, &hoisted__Str_self_install_drop_shared_write_28);
+    Str_delete(&hoisted__Str_self_install_drop_shared_write_28, 0);
+    Cmd_delete(&tighten, 0);
+    return hoisted__I32_29;
+}
+
 static I32 install_file(Str * src, Str * dst, Str * what) {
     I32 hoisted__I32_0 = copy_file(src, dst);
-    I32 hoisted__I32_1 = priv___src_self_install_til__check_install_rc(hoisted__I32_0, what);
-    return hoisted__I32_1;
+    I32 rc = priv___src_self_install_til__check_install_rc(hoisted__I32_0, what);
+    I32 hoisted__I32_1 = 0;
+    Bool hoisted__Bool_2 = ((Bool)(rc != hoisted__I32_1));
+    if (hoisted__Bool_2) {
+        return rc;
+    }
+    I32 hoisted__I32_3 = priv___src_self_install_til__drop_shared_write(dst, what);
+    return hoisted__I32_3;
 }
 
 static I32 priv___src_self_install_til__install_tree(Str * src, Str * dst, Str * what) {
@@ -391071,7 +391132,6 @@ static I32 install_compiler_support(Str * root, Str * prefix) {
     Array__Str_set(&_va_Array_37, hoisted__U32_316, &_til_str_lits.he4e4f790bbd3, &_va_Array_37_ek);
     Str hoisted__Str_install_compiler_support_318 = format(&_va_Array_36);
     Str hoisted__Str_install_compiler_support_319 = format(&_va_Array_37);
-    Str_delete(&dst_root, 0);
     Str hoisted__Str_install_compiler_support_320 = (Str){.c_str = TIL_OWN_LIT("install generated compiler documentation", 40ULL), .count = 40ULL, .cap = TIL_CAP_LIT};
     I32 hoisted__I32_321 = priv___src_self_install_til__install_tree(&hoisted__Str_install_compiler_support_318, &hoisted__Str_install_compiler_support_319, &hoisted__Str_install_compiler_support_320);
     Str_delete(&hoisted__Str_install_compiler_support_318, 0);
@@ -391080,10 +391140,13 @@ static I32 install_compiler_support(Str * root, Str * prefix) {
     I32 hoisted__I32_322 = 0;
     Bool hoisted__Bool_323 = ((Bool)(rc != hoisted__I32_322));
     if (hoisted__Bool_323) {
+        Str_delete(&dst_root, 0);
         return rc;
     }
-    I32 hoisted__I32_324 = 0;
-    return hoisted__I32_324;
+    Str hoisted__Str_install_compiler_support_324 = (Str){.c_str = TIL_OWN_LIT("install compiler support tree", 29ULL), .count = 29ULL, .cap = TIL_CAP_LIT};
+    I32 hoisted__I32_325 = priv___src_self_install_til__drop_shared_write(&dst_root, &hoisted__Str_install_compiler_support_324);
+    Str_delete(&dst_root, 0);
+    return hoisted__I32_325;
 }
 
 static Vec__Str priv___src_self_install_til__support_link_artifacts(void) {
@@ -450775,8 +450838,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-eaa47ee41", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("eaa47ee41893f82dc97986716d4633a260bacb1f", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-92904696e", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("92904696e852a84a95ee13c84df8c1fe7c2bcfb1", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

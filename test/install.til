@@ -197,6 +197,31 @@ main := proc(args: ..Str) returns I64 {
         assert_eq(I32, copy_file(format(WORK, "/link_source.txt"), format(WORK, "/copy_link")), 0)
         assert_eq(Str, File.readfile(format(WORK, "/link_target.txt")), "keep")
         assert_eq(Str, File.readfile(format(WORK, "/copy_link")), "new")
+        // A symlink INSIDE a copied tree is refused: following it would
+        // install whatever it points at.
+        mkdir_p(format(WORK, "/tree_src"))
+        File.writefile(format(WORK, "/tree_src/plain.txt"), "plain")
+        tree_link := Cmd.new("ln", "-sf", "../link_target.txt", "tree_src/escape")
+        tree_link.cwd(WORK)
+        tree_link.run_checked()
+        expect(copy_tree(format(WORK, "/tree_src"), format(WORK, "/tree_dst")) != 0, "copy_tree followed a symlink")
+        expect(File.exists(format(WORK, "/tree_dst/escape")).not(), "copy_tree copied a symlink's target")
+        // An installed file does not inherit group/other write from its
+        // source; find prints the path when either bit is still set.
+        File.writefile(format(WORK, "/loose_src.txt"), "loose")
+        loosen := Cmd.new("chmod", "666", format(WORK, "/loose_src.txt"))
+        loosen.run_checked()
+        assert_eq(I32, install_file(format(WORK, "/loose_src.txt"), format(WORK, "/loose_dst.txt"), "install loose file"), 0)
+        writable := Cmd.new("find", format(WORK, "/loose_dst.txt"), "(", "-perm", "-020", "-o", "-perm", "-002", ")")
+        writable.capture()
+        writable_status := writable.run()
+        expect(writable_status == 0, writable.err())
+        assert_eq(Str, writable.out(), "")
+        tree_writable := Cmd.new("find", format(PREFIX, "/lib/til"), "(", "-perm", "-020", "-o", "-perm", "-002", ")")
+        tree_writable.capture()
+        tree_writable_status := tree_writable.run()
+        expect(tree_writable_status == 0, tree_writable.err())
+        assert_eq(Str, tree_writable.out(), "")
     }
     File.writefile(format(WORK, "/installed_probe.til"), format(
         "mode cli\n\n",

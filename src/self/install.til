@@ -25,8 +25,22 @@ support_root := func(prefix: Str) returns Str {
     return format(prefix, "/lib/til")
 }
 
+// A copy keeps its source's permission bits, and a checkout is not a
+// policy for an installation: a file that happens to be group- or
+// world-writable there must not become one any local user can rewrite
+// under the prefix. Windows has no such bits.
+priv drop_shared_write := proc(dst: Str, what: Str) returns I32 {
+    if host_os() == "windows" { return 0 }
+    tighten := Cmd.new("chmod", "-R", "go-w", dst)
+    mut rc : I32 = 0
+    if tighten.run() != 0 { rc = 1 }
+    return check_install_rc(rc, format("restrict the permissions of '", dst, "' (", what, ")"))
+}
+
 install_file := proc(src: Str, dst: Str, what: Str) returns I32 {
-    return check_install_rc(copy_file(src, dst), what)
+    rc := check_install_rc(copy_file(src, dst), what)
+    if rc != 0 { return rc }
+    return drop_shared_write(dst, what)
 }
 
 priv install_tree := proc(src: Str, dst: Str, what: Str) returns I32 {
@@ -124,7 +138,9 @@ install_compiler_support := proc(root: Str, prefix: Str) returns I32 {
     if rc != 0 { return rc }
     rc = install_tree(format(root, "/doc/gen"), format(dst_root, "/doc/gen"), "install generated compiler documentation")
     if rc != 0 { return rc }
-    return 0
+    // Once, over the whole tree: the copied trees and the directories
+    // created for them.
+    return drop_shared_write(dst_root, "install compiler support tree")
 }
 
 // The vendored artifacts installed mode gui and std/crypto need,

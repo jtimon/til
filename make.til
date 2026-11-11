@@ -661,18 +661,16 @@ build_debug := proc(mut b: Build) {
     add_matching(argv, "src/self/codegen", ".c")
     argv.push(own "-rdynamic")
     argv.push(own "-ldl")
-    // The archive by path: -lffi would prefer its loadable twin, whose
-    // run-time lookup finds the system's libffi.so (see the Makefile).
+    // Every vendored archive by path: -l<name> would prefer the loadable
+    // twin beside it, whose run-time lookup finds whatever the system has
+    // under that name (see LIBFFI_FLAGS in the Makefile).
     argv.push(own libffi_lib(b.host.target_name()))
-    argv.push(own format("-L", RAYLIB_DIR, "/build-", b.host.target_name()))
-    argv.push(own "-lraylib")
+    argv.push(own raylib_lib(b.host.target_name()))
     argv.push(own "-lm")
     argv.push(own "-lpthread")
     argv.append(own raylib_sys_flags(b.host))
-    argv.push(own format("-L", TINYFD_DIR, "/build-", b.host.target_name()))
-    argv.push(own "-ltinyfd")
-    argv.push(own format("-L", NNG_DIR, "/build-", b.host.target_name()))
-    argv.push(own "-lnng")
+    argv.push(own tinyfd_lib(b.host.target_name()))
+    argv.push(own nng_lib(b.host.target_name()))
     argv.push(own "-lpthread")
     argv.append(own nng_sys_flags(b.host))
     argv.push(own "-o")
