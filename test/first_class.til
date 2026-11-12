@@ -1341,6 +1341,33 @@ GenericSizeCustom := struct {
 namespace:
     size := func() returns USize { return size_method_value() }
 }
+// A method named size is not necessarily a layout query (#472).
+GenericSizeSetter := struct {
+    count: USize = 0
+namespace:
+    size := func(mut self: GenericSizeSetter, value: USize) { self.count = value.clone() }
+}
+GenericSizeArgument := struct {
+    count: USize = 0
+namespace:
+    size := func(value: USize) returns USize { return value }
+}
+GenericSizeText := struct {
+    count: USize = 0
+namespace:
+    size := func() returns Str { return "named size" }
+}
+GenericSizeProc := struct {
+    count: USize = 0
+namespace:
+    size := proc() returns USize { noop_proc(); return 17 }
+}
+GenericSizeError := struct {}
+GenericSizeThrowing := struct {
+    count: USize = 0
+namespace:
+    size := func() returns USize throws GenericSizeError { throw GenericSizeError() }
+}
 general_size_is := macro(T: Type, expected: USize) returns FuncDef {
     if T.size_for_target() == expected {
         return func() returns Bool { return true }
@@ -1352,6 +1379,7 @@ general_point_size := general_size_is(GenericSizePoint, 8)
 general_tag_size := general_size_is(GenericSizeTag, 1)
 general_custom_size := general_size_is(GenericSizeCustom, 6)
 general_custom_not_storage := general_size_is(GenericSizeCustom, 8)
+general_setter_layout := general_size_is(GenericSizeSetter, USize.size_for_target())
 general_payload_fit := size_gt441(GenericSizePayload, 1)
 
 GenericNamespaceSize := struct {
@@ -1370,6 +1398,25 @@ test_general_size_methods_in_generators := test() {
     assert(general_custom_size())
     assert(general_custom_not_storage().not())
     assert(general_namespace_size())
+}
+
+test_unrelated_size_methods_keep_target_layout := test() {
+    mut args := GenericSizeSetter()
+    args.size(7)
+    assert(args.count == 7)
+    assert(general_setter_layout())
+    assert(GenericSizeSetter.size_for_target() == USize.size_for_target())
+    assert(GenericSizeArgument.size(19) == 19)
+    assert(GenericSizeArgument.size_for_target() == USize.size_for_target())
+    assert(GenericSizeText.size() == "named size")
+    assert(GenericSizeText.size_for_target() == USize.size_for_target())
+    assert(GenericSizeProc.size() == 17)
+    assert(GenericSizeProc.size_for_target() == USize.size_for_target())
+    assert(GenericSizeThrowing.size_for_target() == USize.size_for_target())
+    mut caught := false
+    GenericSizeThrowing.size()?
+    catch (error: GenericSizeError) { caught = true }
+    assert(caught)
 }
 
 // init's pre-pass evaluates `T.is(Type.<Variant>)` at expand time and

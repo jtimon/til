@@ -11362,9 +11362,9 @@ target_value_size := func(type_name: Str, scope: TypeScope, ctx: Context) return
 //     unlike `size()` it is an ordinary foldable function, and compile-time
 //     code that decides something from the built program's layout (a macro,
 //     a generator condition) can use it on any build.
-//   - `return X.size()` when the type wrote its own `size`: that function
-//     is the type's own statement of its size, and it runs the same in the
-//     compiler and in the program.
+//   - `return X.size()` when the type wrote a nonthrowing, zero-argument
+//     func returning a USize value: that is its own layout query. An unrelated
+//     member with the same name does not replace the generated target layout.
 // Called right after the size generators, which decide what `size` is.
 gen_size_for_target_method_for_stmt := func(mut stmt: Expr, scope: TypeScope, mut ctx: Context) {
     if is_struct_or_enum(stmt).not() { return }
@@ -11376,7 +11376,13 @@ gen_size_for_target_method_for_stmt := func(mut stmt: Expr, scope: TypeScope, mu
     if size_o.is_some() {
         ref size_decl : Declaration = size_o.unwrap()
         if size_decl.default_value.is_some().and(size_decl.default_expr().node_type.is(NodeType.FuncDef)) {
-            own_size = funcdef_of(size_decl.default_expr()).auto_generated.not()
+            ref size : FunctionDef = funcdef_of(size_decl.default_expr())
+            own_size = size.auto_generated.not().and(size.sig.params.len() == 0)
+                .and(size.sig.func_type.is_plain().or(size.sig.func_type.is_ext()))
+                .and(size.sig.func_type.is_proc().not()).and(size.sig.throw_types.len() == 0)
+                .and(size.sig.return_own_type.is(OwnType.Ref).not())
+                .and(resolve_type_alias(scope, size.sig.return_type, ctx.symbols)
+                    == resolve_type_alias(scope, "USize", ctx.symbols))
         }
     }
     mut value := Expr.new(own literal_num_node(target_value_size(type_name, scope, ctx).to_str()), stmt.line, stmt.col)

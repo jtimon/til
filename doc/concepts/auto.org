@@ -152,11 +152,15 @@
    The size in the program being BUILT. Generated for every struct and
    enum under the same rule as ~size~ (skipped when the type defines it),
    with a literal til computes from the TARGET's layout. A type that
-   defines its own ~size~ and no ~size_for_target~ gets one that forwards
-   to its ~size~. Core writes it by hand next to ~size~ for the primitives,
+   defines its own zero-argument, nonthrowing ~func size() returns USize~
+   and no ~size_for_target~ gets one that forwards to its ~size~. A receiver
+   method, a parameterized method, or a member with another result/effect
+   contract merely shares the name: ~size_for_target~ still reports the
+   computed layout. Core writes it by hand next to ~size~ for the primitives,
    ~Bool~ and ~Dynamic~; a function type's is routed to ~Dynamic~'s, like
    its ~size~. It takes no target argument: the compiler knows what it is
-   building for. In the built program it always equals ~size()~.
+   building for. In the built program it equals the type's layout-query
+   ~size()~, when that method exists.
 
    The only code that needs it runs at compile time and decides something
    from the built program's layout: a macro body, a generator condition
