@@ -6628,6 +6628,7 @@ static Bool priv___src_self_codegen_mlir_codegen_til__mlir_source_member(Str * p
 static Expr * priv___src_self_codegen_mlir_codegen_til__mlir_callable_expr(priv___src_self_codegen_mlir_codegen_til__MlirCallable * callable, LoadedProgram * lp);
 static UPtr priv___src_self_codegen_mlir_codegen_til__mlir_callable_id(Expr * function);
 static Str priv___src_self_codegen_mlir_codegen_til__mlir_generic_source(Declaration * dd, LoadedProgram * lp);
+static Bool priv___src_self_codegen_mlir_codegen_til__mlir_scalar_core_body(Str * name, FunctionDef * fd, LoadedProgram * lp);
 static Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable priv___src_self_codegen_mlir_codegen_til__mlir_callable_inventory(LoadedProgram * lp, Set__Str * names);
 static void priv___src_self_codegen_mlir_codegen_til__mlir_collect_calls(Expr * e, Map__UPtr_priv___src_self_codegen_mlir_codegen_til__MlirCallable * functions, Set__UPtr * selected, Vec__UPtr * pending, LoadedProgram * lp);
 static Str priv___src_self_codegen_mlir_codegen_til__mlir_count_type(LoadedProgram * lp);
@@ -14635,6 +14636,12 @@ static struct {
     Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_113;
     Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_13;
     Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_137;
+    Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_153;
+    Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_160;
+    Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_165;
+    Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_172;
+    Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_185;
+    Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_212;
     Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_27;
     Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_32;
     Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_37;
@@ -18574,28 +18581,28 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mark_binding_referenced_7), "./src/self/typer.til:6602:13", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mark_fcall_direct_11), "./src/self/context.til:3824:11", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mark_fcall_direct_4), "./src/self/context.til:3823:28", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_104), "./src/self/codegen/mlir_codegen.til:2409:25", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_111), "./src/self/codegen/mlir_codegen.til:2412:29", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_18), "./src/self/codegen/mlir_codegen.til:2376:51", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_217), "./src/self/codegen/mlir_codegen.til:2441:71", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_4), "./src/self/codegen/mlir_codegen.til:2364:26", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_65), "./src/self/codegen/mlir_codegen.til:2391:56", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_70), "./src/self/codegen/mlir_codegen.til:2391:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_75), "./src/self/codegen/mlir_codegen.til:2393:45", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_90), "./src/self/codegen/mlir_codegen.til:2401:43", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_99), "./src/self/codegen/mlir_codegen.til:2406:33", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_104), "./src/self/codegen/mlir_codegen.til:2582:29", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_109), "./src/self/codegen/mlir_codegen.til:2583:29", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_133), "./src/self/codegen/mlir_codegen.til:2589:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_145), "./src/self/codegen/mlir_codegen.til:2593:49", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_182), "./src/self/codegen/mlir_codegen.til:2597:64", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_195), "./src/self/codegen/mlir_codegen.til:2600:70", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_225), "./src/self/codegen/mlir_codegen.til:2608:58", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_232), "./src/self/codegen/mlir_codegen.til:2611:44", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_299), "./src/self/codegen/mlir_codegen.til:2627:39", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_53), "./src/self/codegen/mlir_codegen.til:2566:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_91), "./src/self/codegen/mlir_codegen.til:2576:25", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_97), "./src/self/codegen/mlir_codegen.til:2579:63", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_104), "./src/self/codegen/mlir_codegen.til:2446:25", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_111), "./src/self/codegen/mlir_codegen.til:2449:29", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_18), "./src/self/codegen/mlir_codegen.til:2413:51", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_217), "./src/self/codegen/mlir_codegen.til:2478:71", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_4), "./src/self/codegen/mlir_codegen.til:2401:26", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_65), "./src/self/codegen/mlir_codegen.til:2428:56", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_70), "./src/self/codegen/mlir_codegen.til:2428:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_75), "./src/self/codegen/mlir_codegen.til:2430:45", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_90), "./src/self/codegen/mlir_codegen.til:2438:43", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_99), "./src/self/codegen/mlir_codegen.til:2443:33", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_104), "./src/self/codegen/mlir_codegen.til:2619:29", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_109), "./src/self/codegen/mlir_codegen.til:2620:29", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_133), "./src/self/codegen/mlir_codegen.til:2626:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_145), "./src/self/codegen/mlir_codegen.til:2630:49", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_182), "./src/self/codegen/mlir_codegen.til:2634:64", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_195), "./src/self/codegen/mlir_codegen.til:2637:70", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_225), "./src/self/codegen/mlir_codegen.til:2645:58", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_232), "./src/self/codegen/mlir_codegen.til:2648:44", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_299), "./src/self/codegen/mlir_codegen.til:2664:39", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_53), "./src/self/codegen/mlir_codegen.til:2603:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_91), "./src/self/codegen/mlir_codegen.til:2613:25", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_llvm_call_attributes_97), "./src/self/codegen/mlir_codegen.til:2616:63", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_source_declarations_13), "./src/self/codegen/mlir_codegen.til:901:21", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_source_declarations_38), "./src/self/codegen/mlir_codegen.til:898:36", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_source_declarations_6), "./src/self/codegen/mlir_codegen.til:896:43", 42ULL},
@@ -20583,48 +20590,48 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_holyc_codegen_holyc_type_to_str_definition_93), "./src/self/codegen/holyc_codegen.til:2030:24", 44ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_holyc_codegen_holyc_value_ctype_27), "./src/self/codegen/holyc_codegen.til:172:32", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_holyc_codegen_holyc_value_ctype_7), "./src/self/codegen/holyc_codegen.til:169:62", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_110), "./src/self/codegen/mlir_codegen.til:1984:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_115), "./src/self/codegen/mlir_codegen.til:1985:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_120), "./src/self/codegen/mlir_codegen.til:1986:49", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_125), "./src/self/codegen/mlir_codegen.til:1987:58", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_130), "./src/self/codegen/mlir_codegen.til:1988:63", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_135), "./src/self/codegen/mlir_codegen.til:1989:61", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_19), "./src/self/codegen/mlir_codegen.til:1969:51", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_223), "./src/self/codegen/mlir_codegen.til:2011:51", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_230), "./src/self/codegen/mlir_codegen.til:2014:66", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_235), "./src/self/codegen/mlir_codegen.til:2014:17", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_24), "./src/self/codegen/mlir_codegen.til:1970:49", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_240), "./src/self/codegen/mlir_codegen.til:2015:60", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_245), "./src/self/codegen/mlir_codegen.til:2017:49", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_256), "./src/self/codegen/mlir_codegen.til:2022:43", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_261), "./src/self/codegen/mlir_codegen.til:2023:52", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_282), "./src/self/codegen/mlir_codegen.til:2013:34", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_307), "./src/self/codegen/mlir_codegen.til:2030:17", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_324), "./src/self/codegen/mlir_codegen.til:2032:100", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_336), "./src/self/codegen/mlir_codegen.til:2033:49", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_376), "./src/self/codegen/mlir_codegen.til:2048:49", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_381), "./src/self/codegen/mlir_codegen.til:2049:58", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_410), "./src/self/codegen/mlir_codegen.til:2057:91", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_448), "./src/self/codegen/mlir_codegen.til:2063:51", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_493), "./src/self/codegen/mlir_codegen.til:2072:49", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_511), "./src/self/codegen/mlir_codegen.til:2076:47", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_529), "./src/self/codegen/mlir_codegen.til:2080:53", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_534), "./src/self/codegen/mlir_codegen.til:2081:57", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_539), "./src/self/codegen/mlir_codegen.til:2085:37", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_544), "./src/self/codegen/mlir_codegen.til:2088:36", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_549), "./src/self/codegen/mlir_codegen.til:2090:89", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_636), "./src/self/codegen/mlir_codegen.til:2126:48", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_641), "./src/self/codegen/mlir_codegen.til:2127:63", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_646), "./src/self/codegen/mlir_codegen.til:2128:61", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_652), "./src/self/codegen/mlir_codegen.til:2132:44", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_660), "./src/self/codegen/mlir_codegen.til:2134:75", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_67), "./src/self/codegen/mlir_codegen.til:1976:51", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_672), "./src/self/codegen/mlir_codegen.til:2136:53", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_678), "./src/self/codegen/mlir_codegen.til:2146:40", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_684), "./src/self/codegen/mlir_codegen.til:2155:70", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_756), "./src/self/codegen/mlir_codegen.til:2166:48", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_763), "./src/self/codegen/mlir_codegen.til:2181:49", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_768), "./src/self/codegen/mlir_codegen.til:2184:36", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_110), "./src/self/codegen/mlir_codegen.til:2021:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_115), "./src/self/codegen/mlir_codegen.til:2022:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_120), "./src/self/codegen/mlir_codegen.til:2023:49", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_125), "./src/self/codegen/mlir_codegen.til:2024:58", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_130), "./src/self/codegen/mlir_codegen.til:2025:63", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_135), "./src/self/codegen/mlir_codegen.til:2026:61", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_19), "./src/self/codegen/mlir_codegen.til:2006:51", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_223), "./src/self/codegen/mlir_codegen.til:2048:51", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_230), "./src/self/codegen/mlir_codegen.til:2051:66", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_235), "./src/self/codegen/mlir_codegen.til:2051:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_24), "./src/self/codegen/mlir_codegen.til:2007:49", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_240), "./src/self/codegen/mlir_codegen.til:2052:60", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_245), "./src/self/codegen/mlir_codegen.til:2054:49", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_256), "./src/self/codegen/mlir_codegen.til:2059:43", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_261), "./src/self/codegen/mlir_codegen.til:2060:52", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_282), "./src/self/codegen/mlir_codegen.til:2050:34", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_307), "./src/self/codegen/mlir_codegen.til:2067:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_324), "./src/self/codegen/mlir_codegen.til:2069:100", 44ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_336), "./src/self/codegen/mlir_codegen.til:2070:49", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_376), "./src/self/codegen/mlir_codegen.til:2085:49", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_381), "./src/self/codegen/mlir_codegen.til:2086:58", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_410), "./src/self/codegen/mlir_codegen.til:2094:91", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_448), "./src/self/codegen/mlir_codegen.til:2100:51", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_493), "./src/self/codegen/mlir_codegen.til:2109:49", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_511), "./src/self/codegen/mlir_codegen.til:2113:47", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_529), "./src/self/codegen/mlir_codegen.til:2117:53", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_534), "./src/self/codegen/mlir_codegen.til:2118:57", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_539), "./src/self/codegen/mlir_codegen.til:2122:37", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_544), "./src/self/codegen/mlir_codegen.til:2125:36", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_549), "./src/self/codegen/mlir_codegen.til:2127:89", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_636), "./src/self/codegen/mlir_codegen.til:2163:48", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_641), "./src/self/codegen/mlir_codegen.til:2164:63", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_646), "./src/self/codegen/mlir_codegen.til:2165:61", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_652), "./src/self/codegen/mlir_codegen.til:2169:44", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_660), "./src/self/codegen/mlir_codegen.til:2171:75", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_67), "./src/self/codegen/mlir_codegen.til:2013:51", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_672), "./src/self/codegen/mlir_codegen.til:2173:53", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_678), "./src/self/codegen/mlir_codegen.til:2183:40", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_684), "./src/self/codegen/mlir_codegen.til:2192:70", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_756), "./src/self/codegen/mlir_codegen.til:2203:48", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_763), "./src/self/codegen/mlir_codegen.til:2218:49", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_body_768), "./src/self/codegen/mlir_codegen.til:2221:36", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_boolean_15), "./src/self/codegen/mlir_codegen.til:692:17", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_boolean_20), "./src/self/codegen/mlir_codegen.til:696:43", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_boolean_25), "./src/self/codegen/mlir_codegen.til:700:57", 42ULL},
@@ -20634,145 +20641,151 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_expr_22), "./src/self/codegen/mlir_codegen.til:924:49", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_expr_4), "./src/self/codegen/mlir_codegen.til:921:9", 41ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_expr_9), "./src/self/codegen/mlir_codegen.til:923:30", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_113), "./src/self/codegen/mlir_codegen.til:972:44", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_13), "./src/self/codegen/mlir_codegen.til:945:17", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_137), "./src/self/codegen/mlir_codegen.til:947:36", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_27), "./src/self/codegen/mlir_codegen.til:948:29", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_32), "./src/self/codegen/mlir_codegen.til:951:33", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_37), "./src/self/codegen/mlir_codegen.til:952:64", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_6), "./src/self/codegen/mlir_codegen.til:943:42", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_67), "./src/self/codegen/mlir_codegen.til:952:40", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_78), "./src/self/codegen/mlir_codegen.til:963:21", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_85), "./src/self/codegen/mlir_codegen.til:966:25", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_cast_243), "./src/self/codegen/mlir_codegen.til:1178:45", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_cast_26), "./src/self/codegen/mlir_codegen.til:1182:34", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_cast_4), "./src/self/codegen/mlir_codegen.til:1177:40", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_cast_9), "./src/self/codegen/mlir_codegen.til:1178:64", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_cast_failure_14), "./src/self/codegen/mlir_codegen.til:1147:83", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_cast_failure_4), "./src/self/codegen/mlir_codegen.til:1145:81", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_cast_failure_9), "./src/self/codegen/mlir_codegen.til:1146:81", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_lane_14), "./src/self/codegen/mlir_codegen.til:1091:34", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_lane_19), "./src/self/codegen/mlir_codegen.til:1093:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_lane_36), "./src/self/codegen/mlir_codegen.til:1101:37", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_lane_4), "./src/self/codegen/mlir_codegen.til:1089:37", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_lane_9), "./src/self/codegen/mlir_codegen.til:1090:37", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_memory_18), "./src/self/codegen/mlir_codegen.til:1012:79", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_memory_182), "./src/self/codegen/mlir_codegen.til:1055:29", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_memory_187), "./src/self/codegen/mlir_codegen.til:1057:60", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_memory_30), "./src/self/codegen/mlir_codegen.til:1013:34", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_memory_43), "./src/self/codegen/mlir_codegen.til:1019:9", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_memory_48), "./src/self/codegen/mlir_codegen.til:1020:9", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_memory_8), "./src/self/codegen/mlir_codegen.til:1012:79", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_113), "./src/self/codegen/mlir_codegen.til:988:44", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_13), "./src/self/codegen/mlir_codegen.til:961:17", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_137), "./src/self/codegen/mlir_codegen.til:963:36", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_153), "./src/self/codegen/mlir_codegen.til:997:38", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_160), "./src/self/codegen/mlir_codegen.til:999:17", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_165), "./src/self/codegen/mlir_codegen.til:1003:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_172), "./src/self/codegen/mlir_codegen.til:1006:21", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_185), "./src/self/codegen/mlir_codegen.til:1011:47", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_212), "./src/self/codegen/mlir_codegen.til:1001:32", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_27), "./src/self/codegen/mlir_codegen.til:964:29", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_32), "./src/self/codegen/mlir_codegen.til:967:33", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_37), "./src/self/codegen/mlir_codegen.til:968:64", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_6), "./src/self/codegen/mlir_codegen.til:959:42", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_67), "./src/self/codegen/mlir_codegen.til:968:40", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_78), "./src/self/codegen/mlir_codegen.til:979:21", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_85), "./src/self/codegen/mlir_codegen.til:982:25", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_cast_243), "./src/self/codegen/mlir_codegen.til:1215:45", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_cast_26), "./src/self/codegen/mlir_codegen.til:1219:34", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_cast_4), "./src/self/codegen/mlir_codegen.til:1214:40", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_cast_9), "./src/self/codegen/mlir_codegen.til:1215:64", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_cast_failure_14), "./src/self/codegen/mlir_codegen.til:1184:83", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_cast_failure_4), "./src/self/codegen/mlir_codegen.til:1182:81", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_cast_failure_9), "./src/self/codegen/mlir_codegen.til:1183:81", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_lane_14), "./src/self/codegen/mlir_codegen.til:1128:34", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_lane_19), "./src/self/codegen/mlir_codegen.til:1130:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_lane_36), "./src/self/codegen/mlir_codegen.til:1138:37", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_lane_4), "./src/self/codegen/mlir_codegen.til:1126:37", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_lane_9), "./src/self/codegen/mlir_codegen.til:1127:37", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_memory_18), "./src/self/codegen/mlir_codegen.til:1049:79", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_memory_182), "./src/self/codegen/mlir_codegen.til:1092:29", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_memory_187), "./src/self/codegen/mlir_codegen.til:1094:60", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_memory_30), "./src/self/codegen/mlir_codegen.til:1050:34", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_memory_43), "./src/self/codegen/mlir_codegen.til:1056:9", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_memory_48), "./src/self/codegen/mlir_codegen.til:1057:9", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_checked_memory_8), "./src/self/codegen/mlir_codegen.til:1049:79", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_construct_6), "./src/self/codegen/mlir_codegen.til:721:37", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_construct_pod_113), "./src/self/codegen/mlir_codegen.til:1398:26", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_construct_pod_13), "./src/self/codegen/mlir_codegen.til:1403:42", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_construct_pod_41), "./src/self/codegen/mlir_codegen.til:1407:60", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_construct_pod_46), "./src/self/codegen/mlir_codegen.til:1408:36", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_construct_pod_51), "./src/self/codegen/mlir_codegen.til:1409:49", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_construct_pod_8), "./src/self/codegen/mlir_codegen.til:1402:21", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_101), "./src/self/codegen/mlir_codegen.til:1486:44", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_108), "./src/self/codegen/mlir_codegen.til:1489:62", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1108), "./src/self/codegen/mlir_codegen.til:1728:46", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1113), "./src/self/codegen/mlir_codegen.til:1729:46", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1118), "./src/self/codegen/mlir_codegen.til:1730:46", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_113), "./src/self/codegen/mlir_codegen.til:1489:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_118), "./src/self/codegen/mlir_codegen.til:1491:53", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1194), "./src/self/codegen/mlir_codegen.til:1734:48", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1199), "./src/self/codegen/mlir_codegen.til:1735:52", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1204), "./src/self/codegen/mlir_codegen.til:1736:48", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1209), "./src/self/codegen/mlir_codegen.til:1737:52", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1281), "./src/self/codegen/mlir_codegen.til:1745:52", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1286), "./src/self/codegen/mlir_codegen.til:1746:57", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1291), "./src/self/codegen/mlir_codegen.til:1747:52", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1296), "./src/self/codegen/mlir_codegen.til:1748:57", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1361), "./src/self/codegen/mlir_codegen.til:1755:46", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1396), "./src/self/codegen/mlir_codegen.til:1771:56", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1401), "./src/self/codegen/mlir_codegen.til:1772:61", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1406), "./src/self/codegen/mlir_codegen.til:1773:56", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1411), "./src/self/codegen/mlir_codegen.til:1774:61", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_153), "./src/self/codegen/mlir_codegen.til:1488:30", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1544), "./src/self/codegen/mlir_codegen.til:1793:53", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1549), "./src/self/codegen/mlir_codegen.til:1794:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1554), "./src/self/codegen/mlir_codegen.til:1795:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1637), "./src/self/codegen/mlir_codegen.til:1803:54", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1680), "./src/self/codegen/mlir_codegen.til:1807:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1685), "./src/self/codegen/mlir_codegen.til:1808:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1730), "./src/self/codegen/mlir_codegen.til:1815:54", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1784), "./src/self/codegen/mlir_codegen.til:1821:54", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_18), "./src/self/codegen/mlir_codegen.til:1440:21", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1822), "./src/self/codegen/mlir_codegen.til:1828:46", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1827), "./src/self/codegen/mlir_codegen.til:1829:46", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1856), "./src/self/codegen/mlir_codegen.til:1833:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1947), "./src/self/codegen/mlir_codegen.til:1848:54", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1985), "./src/self/codegen/mlir_codegen.til:1853:54", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2043), "./src/self/codegen/mlir_codegen.til:1868:28", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2049), "./src/self/codegen/mlir_codegen.til:1872:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2054), "./src/self/codegen/mlir_codegen.til:1873:57", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2077), "./src/self/codegen/mlir_codegen.til:1876:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2082), "./src/self/codegen/mlir_codegen.til:1877:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2165), "./src/self/codegen/mlir_codegen.til:1892:36", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2185), "./src/self/codegen/mlir_codegen.til:1899:54", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2222), "./src/self/codegen/mlir_codegen.til:1906:54", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2261), "./src/self/codegen/mlir_codegen.til:1914:55", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2288), "./src/self/codegen/mlir_codegen.til:1897:20", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_231), "./src/self/codegen/mlir_codegen.til:1527:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2313), "./src/self/codegen/mlir_codegen.til:1932:47", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_246), "./src/self/codegen/mlir_codegen.til:1532:17", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_265), "./src/self/codegen/mlir_codegen.til:1541:71", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_270), "./src/self/codegen/mlir_codegen.til:1542:34", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_288), "./src/self/codegen/mlir_codegen.til:1545:58", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_321), "./src/self/codegen/mlir_codegen.til:1551:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_326), "./src/self/codegen/mlir_codegen.til:1552:54", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_341), "./src/self/codegen/mlir_codegen.til:1554:35", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_384), "./src/self/codegen/mlir_codegen.til:1568:76", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_642), "./src/self/codegen/mlir_codegen.til:1531:36", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_670), "./src/self/codegen/mlir_codegen.til:1638:17", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_688), "./src/self/codegen/mlir_codegen.til:1647:74", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_74), "./src/self/codegen/mlir_codegen.til:1469:26", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_805), "./src/self/codegen/mlir_codegen.til:1667:103", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_847), "./src/self/codegen/mlir_codegen.til:1678:55", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_912), "./src/self/codegen/mlir_codegen.til:1692:38", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_919), "./src/self/codegen/mlir_codegen.til:1696:29", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_930), "./src/self/codegen/mlir_codegen.til:1704:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_989), "./src/self/codegen/mlir_codegen.til:1715:44", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_994), "./src/self/codegen/mlir_codegen.til:1716:44", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_194), "./src/self/codegen/mlir_codegen.til:2269:27", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_241), "./src/self/codegen/mlir_codegen.til:2281:65", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_40), "./src/self/codegen/mlir_codegen.til:2239:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_425), "./src/self/codegen/mlir_codegen.til:2313:17", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_491), "./src/self/codegen/mlir_codegen.til:2328:79", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_505), "./src/self/codegen/mlir_codegen.til:2329:29", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_665), "./src/self/codegen/mlir_codegen.til:2358:89", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_672), "./src/self/codegen/mlir_codegen.til:2218:28", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_construct_pod_113), "./src/self/codegen/mlir_codegen.til:1435:26", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_construct_pod_13), "./src/self/codegen/mlir_codegen.til:1440:42", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_construct_pod_41), "./src/self/codegen/mlir_codegen.til:1444:60", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_construct_pod_46), "./src/self/codegen/mlir_codegen.til:1445:36", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_construct_pod_51), "./src/self/codegen/mlir_codegen.til:1446:49", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_construct_pod_8), "./src/self/codegen/mlir_codegen.til:1439:21", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_101), "./src/self/codegen/mlir_codegen.til:1523:44", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_108), "./src/self/codegen/mlir_codegen.til:1526:62", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1108), "./src/self/codegen/mlir_codegen.til:1765:46", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1113), "./src/self/codegen/mlir_codegen.til:1766:46", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1118), "./src/self/codegen/mlir_codegen.til:1767:46", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_113), "./src/self/codegen/mlir_codegen.til:1526:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_118), "./src/self/codegen/mlir_codegen.til:1528:53", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1194), "./src/self/codegen/mlir_codegen.til:1771:48", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1199), "./src/self/codegen/mlir_codegen.til:1772:52", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1204), "./src/self/codegen/mlir_codegen.til:1773:48", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1209), "./src/self/codegen/mlir_codegen.til:1774:52", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1281), "./src/self/codegen/mlir_codegen.til:1782:52", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1286), "./src/self/codegen/mlir_codegen.til:1783:57", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1291), "./src/self/codegen/mlir_codegen.til:1784:52", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1296), "./src/self/codegen/mlir_codegen.til:1785:57", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1361), "./src/self/codegen/mlir_codegen.til:1792:46", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1396), "./src/self/codegen/mlir_codegen.til:1808:56", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1401), "./src/self/codegen/mlir_codegen.til:1809:61", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1406), "./src/self/codegen/mlir_codegen.til:1810:56", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1411), "./src/self/codegen/mlir_codegen.til:1811:61", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_153), "./src/self/codegen/mlir_codegen.til:1525:30", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1544), "./src/self/codegen/mlir_codegen.til:1830:53", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1549), "./src/self/codegen/mlir_codegen.til:1831:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1554), "./src/self/codegen/mlir_codegen.til:1832:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1637), "./src/self/codegen/mlir_codegen.til:1840:54", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1680), "./src/self/codegen/mlir_codegen.til:1844:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1685), "./src/self/codegen/mlir_codegen.til:1845:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1730), "./src/self/codegen/mlir_codegen.til:1852:54", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1784), "./src/self/codegen/mlir_codegen.til:1858:54", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_18), "./src/self/codegen/mlir_codegen.til:1477:21", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1822), "./src/self/codegen/mlir_codegen.til:1865:46", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1827), "./src/self/codegen/mlir_codegen.til:1866:46", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1856), "./src/self/codegen/mlir_codegen.til:1870:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1947), "./src/self/codegen/mlir_codegen.til:1885:54", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_1985), "./src/self/codegen/mlir_codegen.til:1890:54", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2043), "./src/self/codegen/mlir_codegen.til:1905:28", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2049), "./src/self/codegen/mlir_codegen.til:1909:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2054), "./src/self/codegen/mlir_codegen.til:1910:57", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2077), "./src/self/codegen/mlir_codegen.til:1913:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2082), "./src/self/codegen/mlir_codegen.til:1914:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2165), "./src/self/codegen/mlir_codegen.til:1929:36", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2185), "./src/self/codegen/mlir_codegen.til:1936:54", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2222), "./src/self/codegen/mlir_codegen.til:1943:54", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2261), "./src/self/codegen/mlir_codegen.til:1951:55", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2288), "./src/self/codegen/mlir_codegen.til:1934:20", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_231), "./src/self/codegen/mlir_codegen.til:1564:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_2313), "./src/self/codegen/mlir_codegen.til:1969:47", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_246), "./src/self/codegen/mlir_codegen.til:1569:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_265), "./src/self/codegen/mlir_codegen.til:1578:71", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_270), "./src/self/codegen/mlir_codegen.til:1579:34", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_288), "./src/self/codegen/mlir_codegen.til:1582:58", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_321), "./src/self/codegen/mlir_codegen.til:1588:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_326), "./src/self/codegen/mlir_codegen.til:1589:54", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_341), "./src/self/codegen/mlir_codegen.til:1591:35", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_384), "./src/self/codegen/mlir_codegen.til:1605:76", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_642), "./src/self/codegen/mlir_codegen.til:1568:36", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_670), "./src/self/codegen/mlir_codegen.til:1675:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_688), "./src/self/codegen/mlir_codegen.til:1684:74", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_74), "./src/self/codegen/mlir_codegen.til:1506:26", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_805), "./src/self/codegen/mlir_codegen.til:1704:103", 44ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_847), "./src/self/codegen/mlir_codegen.til:1715:55", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_912), "./src/self/codegen/mlir_codegen.til:1729:38", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_919), "./src/self/codegen/mlir_codegen.til:1733:29", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_930), "./src/self/codegen/mlir_codegen.til:1741:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_989), "./src/self/codegen/mlir_codegen.til:1752:44", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_expr_994), "./src/self/codegen/mlir_codegen.til:1753:44", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_194), "./src/self/codegen/mlir_codegen.til:2306:27", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_241), "./src/self/codegen/mlir_codegen.til:2318:65", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_40), "./src/self/codegen/mlir_codegen.til:2276:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_425), "./src/self/codegen/mlir_codegen.til:2350:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_491), "./src/self/codegen/mlir_codegen.til:2365:79", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_505), "./src/self/codegen/mlir_codegen.til:2366:29", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_665), "./src/self/codegen/mlir_codegen.til:2395:89", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_function_672), "./src/self/codegen/mlir_codegen.til:2255:28", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_generic_source_37), "./src/self/codegen/mlir_codegen.til:937:5", 41ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_generic_source_5), "./src/self/codegen/mlir_codegen.til:932:28", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_integer_16), "./src/self/codegen/mlir_codegen.til:647:77", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_legacy_numeric_conversion_4), "./src/self/codegen/mlir_codegen.til:1238:36", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_legacy_numeric_conversion_63), "./src/self/codegen/mlir_codegen.til:1237:28", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_legacy_numeric_conversion_9), "./src/self/codegen/mlir_codegen.til:1242:32", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_llvm_close_25), "./src/self/codegen/mlir_codegen.til:2479:5", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_llvm_parameter_abi_15), "./src/self/codegen/mlir_codegen.til:2537:27", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_llvm_parameters_63), "./src/self/codegen/mlir_codegen.til:2515:31", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_llvm_signature_52), "./src/self/codegen/mlir_codegen.til:2495:5", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_130), "./src/self/codegen/mlir_codegen.til:1320:34", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_138), "./src/self/codegen/mlir_codegen.til:1323:37", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_191), "./src/self/codegen/mlir_codegen.til:1335:41", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_215), "./src/self/codegen/mlir_codegen.til:1339:36", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_238), "./src/self/codegen/mlir_codegen.til:1345:61", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_243), "./src/self/codegen/mlir_codegen.til:1346:34", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_248), "./src/self/codegen/mlir_codegen.til:1347:46", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_259), "./src/self/codegen/mlir_codegen.til:1344:28", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_27), "./src/self/codegen/mlir_codegen.til:1312:40", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_295), "./src/self/codegen/mlir_codegen.til:1354:26", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_300), "./src/self/codegen/mlir_codegen.til:1356:17", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_311), "./src/self/codegen/mlir_codegen.til:1357:46", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_329), "./src/self/codegen/mlir_codegen.til:1361:36", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_359), "./src/self/codegen/mlir_codegen.til:1369:67", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_364), "./src/self/codegen/mlir_codegen.til:1369:114", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_376), "./src/self/codegen/mlir_codegen.til:1370:38", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_385), "./src/self/codegen/mlir_codegen.til:1371:32", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_397), "./src/self/codegen/mlir_codegen.til:1377:50", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_67), "./src/self/codegen/mlir_codegen.til:1312:40", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_legacy_numeric_conversion_4), "./src/self/codegen/mlir_codegen.til:1275:36", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_legacy_numeric_conversion_63), "./src/self/codegen/mlir_codegen.til:1274:28", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_legacy_numeric_conversion_9), "./src/self/codegen/mlir_codegen.til:1279:32", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_llvm_close_25), "./src/self/codegen/mlir_codegen.til:2516:5", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_llvm_parameter_abi_15), "./src/self/codegen/mlir_codegen.til:2574:27", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_llvm_parameters_63), "./src/self/codegen/mlir_codegen.til:2552:31", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_llvm_signature_52), "./src/self/codegen/mlir_codegen.til:2532:5", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_130), "./src/self/codegen/mlir_codegen.til:1357:34", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_138), "./src/self/codegen/mlir_codegen.til:1360:37", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_191), "./src/self/codegen/mlir_codegen.til:1372:41", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_215), "./src/self/codegen/mlir_codegen.til:1376:36", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_238), "./src/self/codegen/mlir_codegen.til:1382:61", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_243), "./src/self/codegen/mlir_codegen.til:1383:34", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_248), "./src/self/codegen/mlir_codegen.til:1384:46", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_259), "./src/self/codegen/mlir_codegen.til:1381:28", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_27), "./src/self/codegen/mlir_codegen.til:1349:40", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_295), "./src/self/codegen/mlir_codegen.til:1391:26", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_300), "./src/self/codegen/mlir_codegen.til:1393:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_311), "./src/self/codegen/mlir_codegen.til:1394:46", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_329), "./src/self/codegen/mlir_codegen.til:1398:36", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_359), "./src/self/codegen/mlir_codegen.til:1406:67", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_364), "./src/self/codegen/mlir_codegen.til:1406:114", 44ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_376), "./src/self/codegen/mlir_codegen.til:1407:38", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_385), "./src/self/codegen/mlir_codegen.til:1408:32", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_397), "./src/self/codegen/mlir_codegen.til:1414:50", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_memory_call_67), "./src/self/codegen/mlir_codegen.til:1349:40", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_pod_abi_13), "./src/self/codegen/mlir_codegen.til:230:42", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_pod_abi_18), "./src/self/codegen/mlir_codegen.til:230:58", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_pod_abi_4), "./src/self/codegen/mlir_codegen.til:229:39", 42ULL},
@@ -20784,8 +20797,8 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_pod_classify_6), "./src/self/codegen/mlir_codegen.til:188:13", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_pod_classify_68), "./src/self/codegen/mlir_codegen.til:213:26", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_pod_classify_84), "./src/self/codegen/mlir_codegen.til:185:26", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_pod_field_address_13), "./src/self/codegen/mlir_codegen.til:1261:26", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_pod_field_address_6), "./src/self/codegen/mlir_codegen.til:1262:9", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_pod_field_address_13), "./src/self/codegen/mlir_codegen.til:1298:26", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_pod_field_address_6), "./src/self/codegen/mlir_codegen.til:1299:9", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_record_arg_11), "./src/self/codegen/mlir_codegen.til:327:26", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_record_arg_16), "./src/self/codegen/mlir_codegen.til:330:56", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_mlir_codegen_mlir_record_arg_21), "./src/self/codegen/mlir_codegen.til:330:97", 42ULL},
@@ -26642,6 +26655,12 @@ static void til_loc_lits_init(void) {
 #define hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_113 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_113)
 #define hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_13 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_13)
 #define hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_137 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_137)
+#define hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_153 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_153)
+#define hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_160 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_160)
+#define hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_165 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_165)
+#define hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_172 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_172)
+#define hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_185 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_185)
+#define hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_212 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_212)
 #define hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_27 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_27)
 #define hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_32 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_32)
 #define hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_37 (_til_loc_lits_cage->hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_37)
@@ -315056,6 +315075,179 @@ static Str priv___src_self_codegen_mlir_codegen_til__mlir_generic_source(Declara
     __builtin_unreachable();
 }
 
+static Bool priv___src_self_codegen_mlir_codegen_til__mlir_scalar_core_body(Str * name, FunctionDef * fd, LoadedProgram * lp) {
+    Bool _m_Bool_0 = 0;
+    {
+        {
+            Bool hoisted__Bool_4 = 1;
+            Bool hoisted__Bool_5 = ((Bool)(fd->auto_generated == hoisted__Bool_4));
+            if (hoisted__Bool_5) {
+                Bool hoisted__Bool_1 = 1;
+                _m_Bool_0 = hoisted__Bool_1;
+            } else {
+                Bool hoisted__Bool_2 = ((Bool)((((FuncType *)(&fd->sig.func_type))->tag) == FuncType_TAG_Func));
+                Bool hoisted__Bool_3 = ((Bool)(!(hoisted__Bool_2)));
+                _m_Bool_0 = hoisted__Bool_3;
+            }
+        }
+        Bool hoisted__Bool_10 = 1;
+        Bool hoisted__Bool_11 = ((Bool)(_m_Bool_0 == hoisted__Bool_10));
+        if (hoisted__Bool_11) {
+            Bool hoisted__Bool_6 = 1;
+            _m_Bool_0 = hoisted__Bool_6;
+        } else {
+            U32 hoisted__U32_7 = (fd->captures.count);
+            U32 hoisted__U32_8 = 0;
+            Bool hoisted__Bool_9 = ((Bool)(hoisted__U32_7 > hoisted__U32_8));
+            _m_Bool_0 = hoisted__Bool_9;
+        }
+    }
+    if (_m_Bool_0) {
+        Bool hoisted__Bool_12 = 0;
+        return hoisted__Bool_12;
+    }
+    Bool _m_Bool_13 = 0;
+    {
+        {
+            {
+                Bool _sw_Bool_14 = Str_starts_with(name, &_til_str_lits.h00000b88af07);
+                Bool hoisted__Bool_19 = 1;
+                Bool hoisted__Bool_20 = ((Bool)(_sw_Bool_14 == hoisted__Bool_19));
+                if (hoisted__Bool_20) {
+                    Bool hoisted__Bool_15 = 1;
+                    _m_Bool_13 = hoisted__Bool_15;
+                } else {
+                    Bool hoisted__Bool_17 = Str_eq(name, &_til_str_lits.he70af034142b);
+                    _m_Bool_13 = hoisted__Bool_17;
+                }
+            }
+            Bool hoisted__Bool_24 = 1;
+            Bool hoisted__Bool_25 = ((Bool)(_m_Bool_13 == hoisted__Bool_24));
+            if (hoisted__Bool_25) {
+                Bool hoisted__Bool_21 = 1;
+                _m_Bool_13 = hoisted__Bool_21;
+            } else {
+                Bool hoisted__Bool_23 = Str_eq(name, &_til_str_lits.h00017c9dede0);
+                _m_Bool_13 = hoisted__Bool_23;
+            }
+        }
+        Bool hoisted__Bool_29 = 1;
+        Bool hoisted__Bool_30 = ((Bool)(_m_Bool_13 == hoisted__Bool_29));
+        if (hoisted__Bool_30) {
+            Bool hoisted__Bool_26 = 1;
+            _m_Bool_13 = hoisted__Bool_26;
+        } else {
+            Bool hoisted__Bool_28 = Str_eq(name, &_til_str_lits.hc9fdda52e80c);
+            _m_Bool_13 = hoisted__Bool_28;
+        }
+    }
+    if (_m_Bool_13) {
+        Bool hoisted__Bool_31 = 0;
+        return hoisted__Bool_31;
+    }
+    Bool _m_Bool_32 = 0;
+    {
+        {
+            U32 hoisted__U32_37 = (fd->sig.throw_types.count);
+            U32 hoisted__U32_38 = 0;
+            Bool _sw_Bool_33 = ((Bool)(hoisted__U32_37 > hoisted__U32_38));
+            Bool hoisted__Bool_39 = 1;
+            Bool hoisted__Bool_40 = ((Bool)(_sw_Bool_33 == hoisted__Bool_39));
+            if (hoisted__Bool_40) {
+                Bool hoisted__Bool_34 = 1;
+                _m_Bool_32 = hoisted__Bool_34;
+            } else {
+                I32 hoisted__I32_35 = 0;
+                Bool hoisted__Bool_36 = ((Bool)(fd->sig.variadic_index >= hoisted__I32_35));
+                _m_Bool_32 = hoisted__Bool_36;
+            }
+        }
+        Bool hoisted__Bool_44 = 1;
+        Bool hoisted__Bool_45 = ((Bool)(_m_Bool_32 == hoisted__Bool_44));
+        if (hoisted__Bool_45) {
+            Bool hoisted__Bool_41 = 1;
+            _m_Bool_32 = hoisted__Bool_41;
+        } else {
+            I32 hoisted__I32_42 = 0;
+            Bool hoisted__Bool_43 = ((Bool)(fd->sig.kwargs_index >= hoisted__I32_42));
+            _m_Bool_32 = hoisted__Bool_43;
+        }
+    }
+    if (_m_Bool_32) {
+        Bool hoisted__Bool_46 = 0;
+        return hoisted__Bool_46;
+    }
+    Bool _m_Bool_47 = 0;
+    {
+        U32 hoisted__U32_51 = (fd->sig.return_type.count);
+        U32 hoisted__U32_52 = 0;
+        Bool _sw_Bool_48 = ((Bool)(hoisted__U32_51 == hoisted__U32_52));
+        Bool hoisted__Bool_53 = 1;
+        Bool hoisted__Bool_54 = ((Bool)(_sw_Bool_48 == hoisted__Bool_53));
+        if (hoisted__Bool_54) {
+            Bool hoisted__Bool_49 = 1;
+            _m_Bool_47 = hoisted__Bool_49;
+        } else {
+            Bool hoisted__Bool_50 = ((Bool)((((OwnType *)(&fd->sig.return_own_type))->tag) == OwnType_TAG_Ref));
+            _m_Bool_47 = hoisted__Bool_50;
+        }
+    }
+    if (_m_Bool_47) {
+        Bool hoisted__Bool_55 = 0;
+        return hoisted__Bool_55;
+    }
+    Type hoisted__Type_73 = type_from_name_init_name(&fd->sig.return_type, &lp->ctx.scope, &lp->ctx.symbols);
+    Bool hoisted__Bool_74 = is_primitive(&hoisted__Type_73);
+    Type_delete(&hoisted__Type_73, 0);
+    Bool hoisted__Bool_75 = ((Bool)(!(hoisted__Bool_74)));
+    if (hoisted__Bool_75) {
+        Bool hoisted__Bool_56 = 0;
+        return hoisted__Bool_56;
+    }
+    {
+        Vec__Declaration *_fc_Vec__Declaration_57 = &fd->sig.params;
+        USize _fi_USize_57 = 0;
+        while (1) {
+            U32 hoisted__U32_67 = (_fc_Vec__Declaration_57->count);
+            Bool _wcond_Bool_58 = ((Bool)(_fi_USize_57 < hoisted__U32_67));
+            if (!(_wcond_Bool_58)) {
+                break;
+            }
+            Declaration *p = ((Declaration *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Vec__Declaration_57->data))) + (((U64)(((U64)(_fi_USize_57)) * ((U64)(144))))))));
+            U32 hoisted__U32_68 = 1;
+            U32 hoisted__U32_69 = ((U32)(_fi_USize_57 + hoisted__U32_68));
+            _fi_USize_57 = hoisted__U32_69;
+            Bool _m_Bool_59 = 0;
+            {
+                Bool hoisted__Bool_63 = 1;
+                Bool hoisted__Bool_64 = ((Bool)(p->is_mut == hoisted__Bool_63));
+                if (hoisted__Bool_64) {
+                    Bool hoisted__Bool_60 = 1;
+                    _m_Bool_59 = hoisted__Bool_60;
+                } else {
+                    Bool hoisted__Bool_61 = ((Bool)((((OwnType *)(&p->own_type))->tag) == OwnType_TAG_Shallow));
+                    Bool hoisted__Bool_62 = ((Bool)(!(hoisted__Bool_61)));
+                    _m_Bool_59 = hoisted__Bool_62;
+                }
+            }
+            if (_m_Bool_59) {
+                Bool hoisted__Bool_65 = 0;
+                return hoisted__Bool_65;
+            }
+            Type hoisted__Type_70 = declaration_resolved_type(p, &lp->ctx.scope, &lp->ctx.symbols);
+            Bool hoisted__Bool_71 = is_primitive(&hoisted__Type_70);
+            Type_delete(&hoisted__Type_70, 0);
+            Bool hoisted__Bool_72 = ((Bool)(!(hoisted__Bool_71)));
+            if (hoisted__Bool_72) {
+                Bool hoisted__Bool_66 = 0;
+                return hoisted__Bool_66;
+            }
+        }
+    }
+    Bool hoisted__Bool_76 = 1;
+    return hoisted__Bool_76;
+}
+
 static Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable priv___src_self_codegen_mlir_codegen_til__mlir_callable_inventory(LoadedProgram * lp, Set__Str * names) {
     I64 _err_kind = 0;
     Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable functions = Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable_clone(_til_precomputed_sequence_800_get());
@@ -315400,6 +315592,180 @@ static Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable priv___src_se
                                     Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable_push(&functions, &hoisted__priv___src_self_codegen_mlir_codegen_til__MlirCallable_130);
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    {
+        Vec__ProgramUnit *_fc_Vec__ProgramUnit_147 = TIL_OWN_GET(Vec__ProgramUnit, (lp->core_units));
+        USize _fi_USize_147 = 0;
+        while (1) {
+            U32 hoisted__U32_219 = (_fc_Vec__ProgramUnit_147->count);
+            Bool _wcond_Bool_148 = ((Bool)(_fi_USize_147 < hoisted__U32_219));
+            if (!(_wcond_Bool_148)) {
+                break;
+            }
+            ProgramUnit *unit = ((ProgramUnit *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Vec__ProgramUnit_147->data))) + (((U64)(((U64)(_fi_USize_147)) * ((U64)(12))))))));
+            U32 hoisted__U32_220 = 1;
+            U32 hoisted__U32_221 = ((U32)(_fi_USize_147 + hoisted__U32_220));
+            _fi_USize_147 = hoisted__U32_221;
+            ImportUnit *_bang_ret_4 = Map__Str_ImportUnit_get(&lp->ctx.imported, &unit->path, &_err_kind);
+            I64 hoisted__I64_222 = 4;
+            Bool hoisted__Bool_223 = ((Bool)(_err_kind == hoisted__I64_222));
+            if (hoisted__Bool_223) {
+                I64 hoisted__I64_149 = 0;
+                _err_kind = hoisted__I64_149;
+                U32 hoisted__U32_150 = 1;
+                Array__Str _va_Array_9 = Array__Str_new(hoisted__U32_150);
+                I64 _va_Array_9_ek = 0;
+                U32 hoisted__U32_151 = 0;
+                Array__Str_set(&_va_Array_9, hoisted__U32_151, &_til_str_lits.hd0e435b6dffc, &_va_Array_9_ek);
+                panic(&_va_Array_9, &hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_153);
+            }
+            Expr *root = TIL_OWN_GET(Expr, (_bang_ret_4->ast));
+            {
+                U32 _re_U32_154 = (root->children.count);
+                U32 _rc_U32_154 = 0;
+                while (1) {
+                    Bool _wcond_Bool_155 = ((Bool)(_rc_U32_154 < _re_U32_154));
+                    if (!(_wcond_Bool_155)) {
+                        break;
+                    }
+                    U32 i = (_rc_U32_154);
+                    (++_rc_U32_154);
+                    Expr *stmt = (((Bool)((U32)(i) < root->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(TIL_OWN_GET(U8, (root->children.data))) + (((U64)(((U64)((U32)(i))) * ((U64)(176)))))))) : (_err_kind = 1, (Expr *)NULL));
+                    I64 hoisted__I64_208 = 1;
+                    Bool hoisted__Bool_209 = ((Bool)(_err_kind == hoisted__I64_208));
+                    if (hoisted__Bool_209) {
+                        I64 hoisted__I64_156 = 0;
+                        _err_kind = hoisted__I64_156;
+                        U32 hoisted__U32_157 = 1;
+                        Array__Str _va_Array_10 = Array__Str_new(hoisted__U32_157);
+                        I64 _va_Array_10_ek = 0;
+                        U32 hoisted__U32_158 = 0;
+                        Array__Str_set(&_va_Array_10, hoisted__U32_158, &_til_str_lits.h4d3ab87300de, &_va_Array_10_ek);
+                        panic(&_va_Array_10, &hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_160);
+                    }
+                    Bool hoisted__Bool_210 = is_struct_or_enum(stmt);
+                    Bool hoisted__Bool_211 = ((Bool)(!(hoisted__Bool_210)));
+                    if (hoisted__Bool_211) {
+                        continue;
+                    }
+                    Declaration *dd = decl_of(stmt, &hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_212);
+                    Type hoisted__Type_213 = type_from_name_init_name(&dd->name, &lp->ctx.scope, &lp->ctx.symbols);
+                    Bool hoisted__Bool_214 = is_primitive(&hoisted__Type_213);
+                    Type_delete(&hoisted__Type_213, 0);
+                    Bool hoisted__Bool_215 = ((Bool)(!(hoisted__Bool_214)));
+                    if (hoisted__Bool_215) {
+                        continue;
+                    }
+                    U32 hoisted__U32_216 = 0;
+                    Expr *definition = (((Bool)((U32)(hoisted__U32_216) < stmt->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(TIL_OWN_GET(U8, (stmt->children.data))) + (((U64)(((U64)((U32)(hoisted__U32_216))) * ((U64)(176)))))))) : (_err_kind = 1, (Expr *)NULL));
+                    I64 hoisted__I64_217 = 1;
+                    Bool hoisted__Bool_218 = ((Bool)(_err_kind == hoisted__I64_217));
+                    if (hoisted__Bool_218) {
+                        I64 hoisted__I64_161 = 0;
+                        _err_kind = hoisted__I64_161;
+                        U32 hoisted__U32_162 = 1;
+                        Array__Str _va_Array_11 = Array__Str_new(hoisted__U32_162);
+                        I64 _va_Array_11_ek = 0;
+                        U32 hoisted__U32_163 = 0;
+                        Array__Str_set(&_va_Array_11, hoisted__U32_163, &_til_str_lits.h4d3ab87300de, &_va_Array_11_ek);
+                        panic(&_va_Array_11, &hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_165);
+                    }
+                    Vec__Declaration *members = def_ns_decls(definition);
+                    {
+                        U32 _re_U32_166 = (members->count);
+                        U32 _rc_U32_166 = 0;
+                        while (1) {
+                            Bool _wcond_Bool_167 = ((Bool)(_rc_U32_166 < _re_U32_166));
+                            if (!(_wcond_Bool_167)) {
+                                break;
+                            }
+                            U32 j = (_rc_U32_166);
+                            (++_rc_U32_166);
+                            Declaration *member = (((Bool)((U32)(j) < members->count)) ? (Declaration *)((Declaration *)((void *)((U8 *)(TIL_OWN_GET(U8, (members->data))) + (((U64)(((U64)((U32)(j))) * ((U64)(144)))))))) : (_err_kind = 1, (Declaration *)NULL));
+                            I64 hoisted__I64_182 = 1;
+                            Bool hoisted__Bool_183 = ((Bool)(_err_kind == hoisted__I64_182));
+                            if (hoisted__Bool_183) {
+                                I64 hoisted__I64_168 = 0;
+                                _err_kind = hoisted__I64_168;
+                                U32 hoisted__U32_169 = 1;
+                                Array__Str _va_Array_12 = Array__Str_new(hoisted__U32_169);
+                                I64 _va_Array_12_ek = 0;
+                                U32 hoisted__U32_170 = 0;
+                                Array__Str_set(&_va_Array_12, hoisted__U32_170, &_til_str_lits.h4d3ab87300de, &_va_Array_12_ek);
+                                panic(&_va_Array_12, &hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_172);
+                            }
+                            Bool hoisted__Bool_184 = Option__Expr_is_none(member->default_value);
+                            if (hoisted__Bool_184) {
+                                continue;
+                            }
+                            Expr *value = Declaration_default_expr(member);
+                            Bool _m_Bool_173 = 0;
+                            {
+                                Bool hoisted__Bool_179 = ((Bool)((((NodeType *)(&value->node_type))->tag) == NodeType_TAG_FuncDef));
+                                Bool _sw_Bool_174 = ((Bool)(!(hoisted__Bool_179)));
+                                Bool hoisted__Bool_180 = 1;
+                                Bool hoisted__Bool_181 = ((Bool)(_sw_Bool_174 == hoisted__Bool_180));
+                                if (hoisted__Bool_181) {
+                                    Bool hoisted__Bool_175 = 1;
+                                    _m_Bool_173 = hoisted__Bool_175;
+                                } else {
+                                    U32 hoisted__U32_176 = (value->children.count);
+                                    U32 hoisted__U32_177 = 0;
+                                    Bool hoisted__Bool_178 = ((Bool)(hoisted__U32_176 == hoisted__U32_177));
+                                    _m_Bool_173 = hoisted__Bool_178;
+                                }
+                            }
+                            if (_m_Bool_173) {
+                                continue;
+                            }
+                            Str *name = def_ns_name_at(definition, &j);
+                            FunctionDef *hoisted__FunctionDef_186 = funcdef_of(value, &hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_185);
+                            Bool hoisted__Bool_187 = priv___src_self_codegen_mlir_codegen_til__mlir_scalar_core_body(name, hoisted__FunctionDef_186, lp);
+                            Bool hoisted__Bool_188 = ((Bool)(!(hoisted__Bool_187)));
+                            if (hoisted__Bool_188) {
+                                continue;
+                            }
+                            U32 hoisted__U32_189 = 3;
+                            Array__Str _va_Array_13 = Array__Str_new(hoisted__U32_189);
+                            I64 _va_Array_13_ek = 0;
+                            U32 hoisted__U32_190 = 0;
+                            Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_191 = Str_clone(&dd->name);
+                            Array__Str_set(&_va_Array_13, hoisted__U32_190, &hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_191, &_va_Array_13_ek);
+                            U32 hoisted__U32_192 = 1;
+                            Array__Str_set(&_va_Array_13, hoisted__U32_192, &_til_str_lits.h00000002b5d3, &_va_Array_13_ek);
+                            U32 hoisted__U32_194 = 2;
+                            Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_195 = Str_clone(name);
+                            Array__Str_set(&_va_Array_13, hoisted__U32_194, &hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_195, &_va_Array_13_ek);
+                            U32 hoisted__U32_196 = 4;
+                            Array__Str _va_Array_14 = Array__Str_new(hoisted__U32_196);
+                            I64 _va_Array_14_ek = 0;
+                            U32 hoisted__U32_197 = 0;
+                            Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_198 = (Str){.c_str = TIL_OWN_LIT("til.mlir.core.", 14ULL), .count = 14ULL, .cap = TIL_CAP_LIT};
+                            Array__Str_set(&_va_Array_14, hoisted__U32_197, &hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_198, &_va_Array_14_ek);
+                            U32 hoisted__U32_199 = 1;
+                            Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_200 = Str_clone(&dd->name);
+                            Array__Str_set(&_va_Array_14, hoisted__U32_199, &hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_200, &_va_Array_14_ek);
+                            U32 hoisted__U32_201 = 2;
+                            Array__Str_set(&_va_Array_14, hoisted__U32_201, &_til_str_lits.h00000002b5d3, &_va_Array_14_ek);
+                            U32 hoisted__U32_203 = 3;
+                            Str hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_204 = Str_clone(name);
+                            Array__Str_set(&_va_Array_14, hoisted__U32_203, &hoisted__Str_self_codegen_mlir_codegen_mlir_callable_inventory_204, &_va_Array_14_ek);
+                            I64 hoisted__I64_205 = U32_to_i64(j);
+                            Bool hoisted__Bool_206 = 0;
+                            priv___src_self_codegen_mlir_codegen_til__MlirCallable hoisted__priv___src_self_codegen_mlir_codegen_til__MlirCallable_207 = {0};
+                            hoisted__priv___src_self_codegen_mlir_codegen_til__MlirCallable_207.path = Str_clone(&unit->path);
+                            hoisted__priv___src_self_codegen_mlir_codegen_til__MlirCallable_207.source_path = Str_clone(&unit->path);
+                            hoisted__priv___src_self_codegen_mlir_codegen_til__MlirCallable_207.declaration = i;
+                            hoisted__priv___src_self_codegen_mlir_codegen_til__MlirCallable_207.member = hoisted__I64_205;
+                            hoisted__priv___src_self_codegen_mlir_codegen_til__MlirCallable_207.name = format(&_va_Array_13);
+                            hoisted__priv___src_self_codegen_mlir_codegen_til__MlirCallable_207.symbol = format(&_va_Array_14);
+                            hoisted__priv___src_self_codegen_mlir_codegen_til__MlirCallable_207.exported = hoisted__Bool_206;
+                            Vec__priv___src_self_codegen_mlir_codegen_til__MlirCallable_push(&functions, &hoisted__priv___src_self_codegen_mlir_codegen_til__MlirCallable_207);
                         }
                     }
                 }
@@ -459613,8 +459979,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-99697f432", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("99697f432012c0e4dab47ea640bc4011777faca6", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-88dee06ef", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("88dee06ef770753e286382a601737f9f9bd3647e", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

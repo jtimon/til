@@ -937,6 +937,22 @@ priv mlir_generic_source := func(dd: Declaration, lp: LoadedProgram) returns Str
     panic("MLIR concrete generic has no declaring unit: ",dd.name)
 }
 
+// First direct-core slice: ordinary scalar namespace helpers. Compatibility
+// conversions and size queries already have dedicated lowering; core_func and
+// ext_func declarations remain at their intrinsic/native boundaries.
+priv mlir_scalar_core_body := func(name:Str,fd:FunctionDef,lp:LoadedProgram) returns Bool {
+    if fd.auto_generated || fd.sig.func_type.is(FuncType.Func).not() || fd.captures.len()>0 {return false}
+    if name.starts_with("to_").or(name=="from_i64").or(name=="size").or(name=="size_for_target") {return false}
+    if fd.sig.throw_types.len()>0 || fd.sig.variadic_index>=0 || fd.sig.kwargs_index>=0 {return false}
+    if fd.sig.return_type.len()==0 || fd.sig.return_own_type.is(OwnType.Ref) {return false}
+    if is_primitive(type_from_name_init_name(fd.sig.return_type,lp.ctx.scope,lp.ctx.symbols)).not() {return false}
+    for p:Declaration in fd.sig.params {
+        if p.is_mut || p.own_type.is(OwnType.Shallow).not() {return false}
+        if is_primitive(declaration_resolved_type(p,lp.ctx.scope,lp.ctx.symbols)).not() {return false}
+    }
+    return true
+}
+
 priv mlir_callable_inventory := func(lp: LoadedProgram, names: Set(Str)) returns Vec(MlirCallable) {
     mut functions := Vec(MlirCallable).new()
     for unit : ProgramUnit in lp.units {
@@ -974,6 +990,27 @@ priv mlir_callable_inventory := func(lp: LoadedProgram, names: Set(Str)) returns
                     functions.push(own MlirCallable(path=unit.path.clone(),source_path=unit.path.clone(),declaration=i,member=j.to_i64(),
                         name=format(dd.name,".",name),symbol=format(dd.name,"_",name),exported=dd.is_priv.or(member.is_priv).not()))
                 }
+            }
+        }
+    }
+    for unit:ProgramUnit in lp.core_units {
+        ref root:Expr=lp.ctx.imported[unit.path].ast
+        for i in 0..root.children.len() {
+            ref stmt:Expr=root.children[i]
+            if is_struct_or_enum(stmt).not() {continue}
+            ref dd:Declaration=decl_of(stmt)
+            if is_primitive(type_from_name_init_name(dd.name,lp.ctx.scope,lp.ctx.symbols)).not() {continue}
+            ref definition:Expr=stmt.children[0]
+            ref members:Vec(Declaration)=def_ns_decls(definition)
+            for j in 0..members.len() {
+                ref member:Declaration=members[j]
+                if member.default_value.is_none() {continue}
+                ref value:Expr=member.default_expr()
+                if value.node_type.is(NodeType.FuncDef).not() || value.children.len()==0 {continue}
+                ref name:Str=def_ns_name_at(definition,j)
+                if mlir_scalar_core_body(name,funcdef_of(value),lp).not() {continue}
+                functions.push(own MlirCallable(path=unit.path.clone(),source_path=unit.path.clone(),declaration=i,member=j.to_i64(),
+                    name=format(dd.name,".",name),symbol=format("til.mlir.core.",dd.name,".",name),exported=false))
             }
         }
     }

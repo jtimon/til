@@ -12,6 +12,61 @@ priv checked := proc(command: Cmd, work: Str) {
     expect(status == 0, command.render(), "\n", command.out(), command.err())
 }
 
+priv check_core_bodies := proc(compiler:Str,work:Str) {
+    types:=array(Str,"I8","I16","I32","I64","U8","U16","U32","U64")
+    ctypes:=array(Str,"int8_t","int16_t","int32_t","int64_t","uint8_t","uint16_t","uint32_t","uint64_t")
+    widths:=array(Str,"8","16","32","64")
+    mut source:="mode lib\ncompare_bool:=func(a:Bool,b:Bool) returns I64{return a.cmp(b)}\n"
+    mut declarations:="#include <assert.h>\n#include <stdint.h>\n#include <stdbool.h>\n#include <string.h>\nextern int64_t compare_bool(bool,bool);\n"
+    mut checks:="int main(void){assert(compare_bool(false,true)==-1 && compare_bool(true,false)==1 && compare_bool(true,true)==0 && compare_bool(false,false)==0);\n"
+    mut bindings:="mode cli\nlink(\"gen/lib/libcore_bodies.so\")\ncompare_bool:=ext_func(shallow a:Bool,shallow b:Bool) returns shallow I64{}\n"
+    mut assertions:="main:=proc(){mut flag:=false;flag=flag.not();assert_eq(I64,compare_bool(flag,false),1);assert_eq(I64,compare_bool(false,flag),-1);assert_eq(I64,compare_bool(flag,flag),0);\n"
+    for i in 0..types.len() {
+        ref t:Str=types[i];ref ct:Str=ctypes[i]
+        source=format(source,"unity_",t,":=func(a:",t,") returns ",t,"{return a.unity()}\n")
+        declarations=format(declarations,"extern ",ct," unity_",t,"(",ct,");\n")
+        bindings=format(bindings,"unity_",t,":=ext_func(shallow a:",t,") returns shallow ",t,"{}\n")
+        assertions=format(assertions,"{mut v:",t,"=",t,".MAX;v=v-1;assert_eq(",t,",unity_",t,"(v),1);}\n")
+        checks=format(checks,"assert(unity_",t,"((",ct,")0)==1 && unity_",t,"((",ct,")-1)==1);\n")
+        if i>=4 {continue}
+        for operation in array(Str,"neg","abs") {
+            source=format(source,operation,"_",t,":=func(a:",t,") returns ",t,"{return a.",operation,"()}\nforward_",operation,"_",t,":=func(a:",t,") returns I64{return ",operation,"_",t,"(a)}\n")
+            declarations=format(declarations,"extern ",ct," ",operation,"_",t,"(",ct,");extern int64_t forward_",operation,"_",t,"(",ct,");\n")
+            bindings=format(bindings,operation,"_",t,":=ext_func(shallow a:",t,") returns shallow ",t,"{}\nforward_",operation,"_",t,":=ext_func(shallow a:",t,") returns shallow I64{}\n")
+        }
+        // Build expected values in unsigned arithmetic, including signed MIN.
+        unsigned:=ct.replace("int","uint")
+        ref bits:Str=widths[i]
+        checks=format(checks,"{uint64_t seed=UINT64_C(0x4e91ca735b2806df);for(unsigned k=0;k<1024;k++){seed=seed*UINT64_C(6364136223846793005)+1;",unsigned," raw=(",unsigned,")seed;if(k==0)raw=0;if(k==1)raw=1;if(k==2)raw=(",unsigned,")-1;if(k==3)raw=UINT",bits,"_MAX>>1;if(k==4)raw=(",unsigned,")(UINT",bits,"_MAX>>1)+1;",ct," value,negative,absolute;memcpy(&value,&raw,sizeof value);",unsigned," negbits=(",unsigned,")(UINT64_C(0)-(uint64_t)raw);memcpy(&negative,&negbits,sizeof negative);absolute=value<0?negative:value;assert(neg_",t,"(value)==negative && abs_",t,"(value)==absolute);assert(forward_neg_",t,"(value)==(int64_t)negative && forward_abs_",t,"(value)==(int64_t)absolute);}}\n")
+        mut widened:="v.cast(I64)"
+        if t=="I64" {widened="v"}
+        assertions=format(assertions,"{mut v:",t,"=",t,".MIN;v=v+1;assert_eq(",t,",abs_",t,"(v),",t,".MAX);v=v-1;assert_eq(",t,",neg_",t,"(v),",t,".MIN);assert_eq(",t,",abs_",t,"(v),",t,".MIN);assert_eq(I64,forward_abs_",t,"(v),",widened,");}\n")
+    }
+    File.writefile(format(work,"/core_bodies.til"),source)
+    File.writefile(format(work,"/core_body_caller.c"),format(declarations,checks,"return 0;}\n"))
+    assertions=format(assertions,"println(\"core bodies PASS\")}\n")
+    File.writefile(format(work,"/core_body_reference.til"),format("mode cli\nimport(\"core_bodies\")\n",assertions))
+    File.writefile(format(work,"/core_body_consumer.til"),format(bindings,assertions))
+    for execution in array(Str,"interpret","run") {
+        reference:=Cmd.new(compiler,execution,"--usize=64","core_body_reference.til")
+        checked(reference,work)
+    }
+    for level in array(Str,"0","2","3") {
+        build:=Cmd.new(compiler,"build","--backend=mlir",format("--opt=",level),"core_bodies.til")
+        checked(build,work)
+        // The MLIR object alone must link: none of these bodies needs C core.
+        cc:=Cmd.new("clang-18","-O2","-Wall","-Wextra","-Werror","-fsanitize=address,undefined","core_body_caller.c","gen/lib/core_bodies.o","-o","core_body_caller")
+        checked(cc,work)
+        native:=Cmd.new("./core_body_caller")
+        checked(native,work)
+        symbols:=Cmd.new("nm","-g","--defined-only","gen/lib/core_bodies.o")
+        checked(symbols,work)
+        expect(symbols.out().contains("til.mlir.core.").not(),symbols.out())
+        consumer:=Cmd.new(compiler,"run","--usize=64","--asan",format("--opt=",level),"core_body_consumer.til")
+        checked(consumer,work)
+    }
+}
+
 priv check_control_flow := proc(compiler: Str, work: Str) {
     File.writefile(format(work, "/flow.til"), format(
         "mode pure\nF4 := Simd(F32,4)\nCount := USize\n",
@@ -1333,6 +1388,7 @@ main := proc(compiler_arg: Str) {
     compiler := realpath_str(compiler_arg)
     work := "tmp/mlir_integration"
     mkdir_p(work)
+    check_core_bodies(compiler,work)
     File.writefile(format(work, "/arithmetic.til"), format(
         "mode pure\nF4 := Simd(F32,4)\nscalar_add := func(a: F32, b: F32) returns F32 { return a + b }\nadd4 := func(a: F4, b: F4) returns F4 { return a + b }\npriv helper := func(a: F4, b: F4) returns F4 { return add4(a,b) }\ntwice := func(a: F4, b: F4) returns F4 { first := helper(a, b); return add4(first, b) }\nfour := func(a: F4, b: F4, c: F4, d: F4) returns F4 { ab := add4(a,b); cd := add4(c,d); return add4(ab,cd) }\nconstant := func() returns F32 { return 0.1 }\n",
         "make4 := func(a: F32,b: F32,c: F32,d: F32) returns F4 { return F4.new(a,b,c,d) }\n",

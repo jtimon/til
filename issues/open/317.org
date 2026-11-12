@@ -159,6 +159,33 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Direct scalar core-body experiment (base 88dee06ef)
+
+The prepared callable inventory now includes ordinary scalar core namespace
+funcs with immutable shallow primitive parameters and a primitive value result,
+without captures/throws/varargs. Existing conversion/size lowering remains in
+place, as do core_func intrinsics and ext_func native boundaries. Reachability
+selects private MLIR definitions and transitive dependencies, rather than
+recognizing neg/abs by name or adding another implementation of their bodies.
+
+I8/I16/I32/I64 neg/abs, all integer unity helpers and Bool.cmp pass the experiment.
+test/mlir.til check_core_bodies links the generated MLIR object ALONE with a
+native ASAN/UBSAN caller: this slice has no C-core/ext.c link dependency. The
+caller checks boundary/random bit patterns, signed MIN wrapping, narrow returns,
+widened forwarding and Bool ordering at O0/O2/O3. Interpreter/C references and
+ASAN til consumers check the same public entrypoints. test/mlir_options.til
+checks private abs/neg definitions, transitive calls, omission of unused helpers
+and preservation of intrinsic/conversion lowering without LLVM tools.
+
+The overall backend still emits/links its approved C-core bridge. Its C copies
+of these helpers remain available to C-origin core calls; no bridge partition
+has been removed yet. Str, formatting, collections and owning aggregate core
+bodies remain outside this signature-bounded first slice.
+
+Verification: make clean && make test passes 578/578. The ASAN compiler and
+ASAN integration driver pass the full optional MLIR integration, including
+object-only ASAN/UBSAN native callers and ASAN til consumers at O0/O2/O3.
+
 *** Non-owning pointer/reference fields (base a06e63e54)
 
 Structs now support native ref fields, including the established ref Dynamic
