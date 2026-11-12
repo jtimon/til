@@ -995,8 +995,7 @@ rt_float_to_str:
     add rdi, 3
     jmp .allocate
 .nan:
-    ; NaN text has no sign, matching the shared formatting contract (#472).
-    lea rdi, [rbp-192]
+    ; Keep the decoded IEEE sign prefix, matching the shared contract (#472).
     mov word [rdi], 'na'
     mov byte [rdi+2], 'n'
     add rdi, 3

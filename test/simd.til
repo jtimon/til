@@ -207,7 +207,107 @@ simd_baseline_checks := proc(seed:I64) {
 }
 test_simd_baseline_float_slice := test() { simd_baseline_checks(2) }
 
-test_simd_pod_fields := test() {
+simd_baseline_integer := proc(T:Type,V:Type,values:Array(T),shape:V) {
+    noop_proc()
+    width:=shape.len()
+    for first in 0..values.len() {
+        for second in 0..values.len() {
+            mut a:=shape
+            mut b:=shape
+            for lane in 0..width {
+                a.set(lane,own values[(first+lane)%values.len()].clone())!
+                b.set(lane,own values[(second+lane*3)%values.len()].clone())!
+            }
+            sum:=a+b
+            difference:=a-b
+            product:=a*b
+            quotient:=a/b
+            both:=a.band(b)
+            either:=a.bor(b)
+            exclusive:=a.bxor(b)
+            complement:=a.bnot()
+            equal:=a.eq(b)
+            unequal:=a.neq(b)
+            less:=a.lt(b)
+            less_equal:=a.lte(b)
+            greater:=a.gt(b)
+            greater_equal:=a.gte(b)
+            selected:=less.select(a,b)
+            mut expected_sum:T=0
+            mut minimum:=a[0]
+            mut maximum:=a[0]
+            for lane in 0..width {
+                left:=a[lane]
+                right:=b[lane]
+                assert_eq(T,sum[lane],left+right)
+                assert_eq(T,difference[lane],left-right)
+                assert_eq(T,product[lane],left*right)
+                assert_eq(T,quotient[lane],left/right)
+                assert_eq(T,both[lane],left.band(right))
+                assert_eq(T,either[lane],left.bor(right))
+                assert_eq(T,exclusive[lane],left.bxor(right))
+                assert_eq(T,complement[lane],left.bnot())
+                assert_eq(Bool,equal[lane],left==right)
+                assert_eq(Bool,unequal[lane],left!=right)
+                assert_eq(Bool,less[lane],left<right)
+                assert_eq(Bool,less_equal[lane],left<=right)
+                assert_eq(Bool,greater[lane],left>right)
+                assert_eq(Bool,greater_equal[lane],left>=right)
+                if left<right { assert_eq(T,selected[lane],left) }
+                else { assert_eq(T,selected[lane],right) }
+                expected_sum=expected_sum+left
+                if left<minimum { minimum=left }
+                if left>maximum { maximum=left }
+            }
+            assert_eq(T,a.reduce_add(),expected_sum)
+            assert_eq(T,a.reduce_min(),minimum)
+            assert_eq(T,a.reduce_max(),maximum)
+        }
+    }
+}
+
+simd_integer_replace := proc(T:Type,V:Type,mut source:V) returns V {
+    noop_proc()
+    source=V.splat(T.MAX)
+    three:T=3
+    return V.splat(three)
+}
+simd_integer_snapshots := proc(T:Type,V:Type,shape:V) {
+    noop_proc()
+    assert_eq(USize,shape.len(),4)
+    two:T=2
+    five:T=5
+    mut source:=V.splat(two)
+    sum:=source+simd_integer_replace(T,V,source)
+    assert(sum.eq(V.splat(five)).all())
+    assert(source.eq(V.splat(T.MAX)).all())
+    source=V.splat(two)
+    compared:=source.lt(simd_integer_replace(T,V,source))
+    assert(compared.all())
+    source=V.splat(two)
+    mask:=source.eq(source)
+    selected:=mask.select(source,simd_integer_replace(T,V,source))
+    assert(selected.eq(V.splat(two)).all())
+}
+
+simd_baseline_integer_checks := proc() {
+    noop_proc()
+    simd_baseline_integer(I32,I4,array(I32,I32.MIN,I32.MIN+1,-65537,-1,0,1,2,65535,65536,65537,I32.MAX-1,I32.MAX),I4.zero())
+    simd_baseline_integer(U32,FieldUnsigned,array(U32,0,1,2,65535,65536,65537,0x7fffffff,0x80000000,0x80000001,0x8000ffff,U32.MAX-1,U32.MAX),FieldUnsigned.zero())
+    simd_integer_snapshots(I32,I4,I4.zero())
+    simd_integer_snapshots(U32,FieldUnsigned,FieldUnsigned.zero())
+    simd_memory_roundtrip(I32,I4,I32.MIN,7,I4.zero())
+    simd_memory_roundtrip(U32,FieldUnsigned,U32.MAX,7,FieldUnsigned.zero())
+    simd_baseline_bounds(I32,I4,-9,7,I4.zero())
+    simd_baseline_bounds(U32,FieldUnsigned,U32.MAX,7,FieldUnsigned.zero())
+    simd_select_bits(I32,I4,FieldMask,U32,array(U32,0,0xffffffff,0x80000000,0x7fffffff),I4.zero(),FieldMask.zero())
+    simd_select_bits(U32,FieldUnsigned,FieldMask,U32,array(U32,0,0xffffffff,0x80000000,0x7fffffff),FieldUnsigned.zero(),FieldMask.zero())
+    simd_baseline_pod_fields()
+}
+test_simd_baseline_integer_slice := test() { simd_baseline_integer_checks() }
+
+simd_baseline_pod_fields := proc() {
+    noop_proc()
     mut outer:=SimdFieldOuter(prefix=true,box=SimdFieldBox(tag=-7,
         f=F4.new(1,2,3,4),s=I4.new(-1,2,-3,4),u=FieldUnsigned.splat(U32.MAX),
         mask=FieldMask.new(true,false,true,false)))
@@ -230,6 +330,7 @@ test_simd_pod_fields := test() {
     zero:=SimdFieldOuter()
     assert(zero.box.f.eq(F4.zero()).all() && zero.box.mask.any().not())
 }
+test_simd_pod_fields := test() { simd_baseline_pod_fields() }
 
 test_simd_dispatch_identity := test() {
     value := Simd__ordinary_add(value = 7)

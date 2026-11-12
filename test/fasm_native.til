@@ -99,11 +99,11 @@ check_float_fma := proc(compiler: Str, work: Str) {
 }
 
 check_simd := proc(compiler: Str, work: Str) {
-    // Import ordinary helpers from the full shared SIMD suite. Unrequested
-    // integer/wider tests stay outside this baseline backend slice.
+    // Import ordinary helpers from the full shared SIMD suite. Other lane
+    // sizes and wider tests stay outside this baseline backend slice.
     path:=format(work,"/simd.til")
     File.writefile(path,format("mode cli\nimport(\"",realpath_str("test/simd.til").strip_suffix(".til").clone(),
-        "\")\nmain:=proc() { simd_baseline_checks(2); println(\"SIMD baseline passed\") }\n"))
+        "\")\nmain:=proc() { simd_baseline_checks(2); simd_baseline_integer_checks(); println(\"SIMD baseline passed\") }\n"))
     check_shared(compiler,work,path)
 }
 

@@ -706,14 +706,43 @@ CI cells, whose functional checks need not wait for reproducible bytes.
 
   Allocation probes verify 0/0 for SIMD arithmetic/masks/extrema/FMA and 2/2
   for two Array memory round trips (data buffers only). The native differential
-  run also exposed the FASM formatter lagging behind #472's signless NaN text;
-  it now formats every NaN as "nan", pinned by the existing shared float tests.
+  run also exposed the FASM formatter lagging behind the then-signless #472 NaN
+  text contract. Subsequent master work preserves the IEEE sign instead; the
+  integer follow-up below realigns FASM with that current shared contract.
 
   Verification: ~make clean && make test~ passed 564/564, including self-translate
   and USize32-to-64 translation. Both FASM drivers passed against the fresh
   compiler. The ASAN-built compiler assembled/executed the baseline at both
   widths without sanitizer diagnostics; focused C ASAN/UBSAN checks passed at
   USize32/O0 and USize64/O2. Native emitted assembly is not ASAN-instrumented.
+
+**** Baseline I32x4/U32x4 SIMD
+
+  On base ~1dc0a17e5~, I32x4/U32x4 use the existing scalar-aligned aggregate
+  convention, snapshots and Bool masks. SSE2 packed add/subtract/bitwise ops
+  and even/odd pmuludq plus shuffles implement 32-bit wrapping arithmetic.
+  XOR sign-bit bias gives unsigned pcmpgtd ordering; all six comparisons
+  pack canonical Bool bytes. Integer extrema use signed/unsigned comparisons
+  in the shared reduction tree. Division retains the generated scalar body,
+  including zero-divisor and MIN/-1 behavior; no optional CPU flag is needed.
+
+  Shared signed/unsigned 12-value matrices compare 1,152 lane pairs with scalar
+  results for arithmetic, division, bitwise operations, all comparisons, select
+  and reductions. Existing helpers check snapshots, exact-bit selection,
+  checked/overlapping memory and the mixed-SIMD nested POD-field corpus. The
+  native driver imports these ordinary helpers at both widths. Options checks
+  pin SSE2 opcodes and retain rejection for other lane sizes and wider vectors.
+
+  Allocation probes pin 0/0 for integer computation and 2/2 for two Array data
+  buffers. The differential run caught FASM still discarding NaN signs after
+  master's #472 contract changed; it now preserves the decoded sign prefix,
+  matching the existing nonfinite-text regression.
+
+  Verification: ~make clean && make test~ passed 568/568, including self-translate
+  and USize32-to-64 translation. Both native FASM drivers passed at both widths.
+  The ASAN-built compiler assembled/executed the integer matrix at both target
+  widths, and focused C ASAN/UBSAN runs passed at USize32/O0 and USize64/O2
+  without diagnostics. Native emitted assembly is not ASAN-instrumented.
 
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or

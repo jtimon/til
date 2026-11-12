@@ -79,7 +79,7 @@ main := proc(compiler_arg: Str) {
             "mode test\nfirst:=test() { assert(true) }\n",
             "OnlyTests:=struct {\nnamespace:\nmember:=test() { assert(true) }\n}\n"))
         File.writefile(format(work,"/floating.til"),File.readfile("test/float_literals.til"))
-        File.writefile(format(work,"/simd.til"),format("mode cli\nimport(\"",realpath_str("test/simd.til").strip_suffix(".til").clone(),"\")\nmain:=proc() { simd_baseline_checks(2) }\n"))
+        File.writefile(format(work,"/simd.til"),format("mode cli\nimport(\"",realpath_str("test/simd.til").strip_suffix(".til").clone(),"\")\nmain:=proc() { simd_baseline_checks(2); simd_baseline_integer_checks() }\n"))
         for width in array(Str, "32", "64") {
             aggregates := Cmd.new(compiler, "translate", "--backend=fasm", format("--usize=", width), "aggregates.til")
             aggregates.cwd(work).capture()
@@ -118,16 +118,17 @@ main := proc(compiler_arg: Str) {
             simd_status:=simd.run()
             expect(simd_status==0,simd.out(),simd.err())
             simd_source:=File.readfile(format(work,"/gen/fasm/simd.fasm"))
-            for instruction in array(Str,"addps xmm0","subps xmm0","mulps xmm0","divps xmm0","addpd xmm0","subpd xmm0","mulpd xmm0","divpd xmm0","cmpps xmm0","cmppd xmm0","pandn xmm2","movups") {
+            for instruction in array(Str,"addps xmm0","subps xmm0","mulps xmm0","divps xmm0","addpd xmm0","subpd xmm0","mulpd xmm0","divpd xmm0","cmpps xmm0","cmppd xmm0","pandn xmm2","movups","paddd xmm0","psubd xmm0","pmuludq xmm0","punpckldq xmm0","pcmpgtd xmm0","pcmpeqd xmm0","pslld xmm2, 31") {
                 expect(simd_source.contains(instruction),instruction,simd_source)
             }
+            expect(simd_source.contains("pmulld").not(),"SSE4.1 multiplication in baseline SIMD",simd_source)
         }
-        File.writefile(format(work, "/bad_field.til"), "mode cli\nVector:=Simd(I32,4)\nBad:=struct { value:Vector=Vector.zero()\nnamespace:\ncmp:=func(_a:Bad,_b:Bad) returns I64 { return 0 }\n}\nmain:=proc() { mut b:=Bad(); b.value=Vector.splat(1); assert(b.value[0]==1) }\n")
+        File.writefile(format(work, "/bad_field.til"), "mode cli\nVector:=Simd(I16,8)\nBad:=struct { value:Vector=Vector.zero()\nnamespace:\ncmp:=func(_a:Bad,_b:Bad) returns I64 { return 0 }\n}\nmain:=proc() { mut b:=Bad(); b.value=Vector.splat(1); assert(b.value[0]==1) }\n")
         bad_field := Cmd.new(compiler, "translate", "--backend=fasm", "bad_field.til")
         bad_field.cwd(work).capture()
         expect(bad_field.run() != 0, "unsupported SIMD field accepted")
         expect(bad_field.out().contains("FASM backend:") && bad_field.out().contains("bad_field.til:"), bad_field.out(), bad_field.err())
-        File.writefile(format(work, "/bad_global.til"), "mode cli\nVector:=Simd(I32,4)\nmut value:=Vector.zero()\nmain:=proc() { value=Vector.splat(1); assert(value[0]==1) }\n")
+        File.writefile(format(work, "/bad_global.til"), "mode cli\nVector:=Simd(I16,8)\nmut value:=Vector.zero()\nmain:=proc() { value=Vector.splat(1); assert(value[0]==1) }\n")
         bad_global := Cmd.new(compiler, "translate", "--backend=fasm", "bad_global.til")
         bad_global.cwd(work).capture()
         expect(bad_global.run() != 0, "unsupported SIMD global accepted")

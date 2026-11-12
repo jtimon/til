@@ -211,6 +211,19 @@ check_interface_allocations := proc(compiler: Str, work: Str) {
 }
 
 check_float_allocations := proc(compiler: Str, work: Str) {
+    check_allocations(compiler,work,"simd_integer_values",format(
+        "mode cli\nS:=Simd(I32,4)\nU:=Simd(U32,4)\nM:=Simd(Bool,4)\nruntime:=proc(n:I64) returns I64 { noop_proc(); return n }\n",
+        "main:=proc() { n:=runtime(-1).to_i32(); a:=S.new(I32.MIN,n,65537,12345); b:=S.new(-1,0,65537,-7);\n",
+        "assert((a*b).eq(S.new(I32.MIN,0,131073,-86415)).all()); assert((a/b).eq(S.new(I32.MIN,0,1,-1763)).all());\n",
+        "assert(a.reduce_min()==I32.MIN && a.reduce_max()==65537); assert(a.bxor(a).eq(S.zero()).all());\n",
+        "u:=U.new(U32.MAX,0x80000000,65537,0); v:=U.new(1,0x7fffffff,65537,U32.MAX); mask:=u.gt(v);\n",
+        "assert(mask.eq(M.new(true,true,false,false)).all()); assert(mask.select(u,v).eq(U.new(U32.MAX,0x80000000,65537,U32.MAX)).all());\n",
+        "assert(u.reduce_min()==0 && u.reduce_max()==U32.MAX) }\n"),0,0)
+    check_allocations(compiler,work,"simd_integer_memory",format(
+        "mode cli\nS:=Simd(I32,4)\nU:=Simd(U32,4)\nmain:=proc() { mut a:=Array(I32).new(6); mut b:=Array(U32).new(6); zero:I32=0;\n",
+        "for i in 0..6 { a.set(i,own (zero-i.to_i32()))!; b.set(i,own i.to_u32())! };\n",
+        "x:=S.load(a,1)!; x.store(a,2)!; assert(a[2]==-1 && a[5]==-4);\n",
+        "y:=U.load(b,1)!; y.store(b,2)!; assert(b[2]==1 && b[5]==4) }\n"),2,2)
     check_allocations(compiler,work,"simd_values",format(
         "mode cli\nF:=Simd(F32,4)\nD:=Simd(F64,2)\nruntime:=proc(n:I64) returns I64 { noop_proc(); return n }\n",
         "main:=proc() { n:=runtime(2); a:=F.splat(n.to_f32()); b:=F.new(1,2,3,4); sum:=a+b;\n",

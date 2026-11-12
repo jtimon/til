@@ -176,7 +176,7 @@ priv fasm_bind := func(name: Str, shallow t: Type, own slot: Str, address: Bool,
 priv fasm_simd_supported := func(sd: StructDef, lp: LoadedProgram) returns Bool {
     if sd.simd_width == 0 { return false }
     lane:=declaration_resolved_type(sd.fields[0],lp.ctx.scope,lp.ctx.symbols)
-    if lane==Type.Primitive(Primitive.F32) { return sd.simd_width==4 }
+    if lane.eq(Type.Primitive(Primitive.F32)).or(lane.eq(Type.Primitive(Primitive.I32))).or(lane.eq(Type.Primitive(Primitive.U32))) { return sd.simd_width==4 }
     if lane==Type.Primitive(Primitive.F64) { return sd.simd_width==2 }
     return lane.eq(Type.Primitive(Primitive.Bool)).and(sd.simd_width.eq(2).or(sd.simd_width.eq(4)))
 }
@@ -1733,13 +1733,78 @@ priv fasm_simd_extrema := func(input: Str, sd: StructDef, shallow lane: Type, op
     fasm_load_scalar(lane,state)
 }
 
+priv fasm_simd_integer_extrema := func(input: Str, sd: StructDef, shallow lane: Type, op: Str, mut state: FasmState) {
+    mut condition:="g"
+    if op=="reduce_max" { condition="l" }
+    if fasm_unsigned(lane) {
+        condition="a"
+        if op=="reduce_max" { condition="b" }
+    }
+    mut half:=sd.simd_width/2
+    while half>0 {
+        for i in 0..half {
+            fasm_emit(state,format("lea r10, ",input,"\n    lea rax, [r10+",(i*4).to_str(),"]"))
+            fasm_load_scalar(lane,state)
+            fasm_emit(state,"mov r8, rax")
+            fasm_emit(state,format("lea rax, [r10+",((i+half)*4).to_str(),"]"))
+            fasm_load_scalar(lane,state)
+            fasm_emit(state,format("mov rcx, rax\n    mov rax, r8\n    cmp rax, rcx\n    cmov",condition,
+                " rax, rcx\n    lea rcx, [r10+",(i*4).to_str(),"]"))
+            fasm_store_scalar(lane,state)
+        }
+        half=half/2
+    }
+    fasm_emit(state,format("lea rax, ",input))
+    fasm_load_scalar(lane,state)
+}
+
+priv fasm_simd_integer_binary := func(arguments: Vec(Str), result: Str, shallow lane: Type, op: Str, mut state: FasmState) {
+    fasm_emit(state,format("movups xmm0, ",arguments[0],"\n    movups xmm1, ",arguments[1]))
+    switch op {
+    case "add": fasm_emit(state,"paddd xmm0, xmm1")
+    case "sub": fasm_emit(state,"psubd xmm0, xmm1")
+    case "band": fasm_emit(state,"pand xmm0, xmm1")
+    case "bor": fasm_emit(state,"por xmm0, xmm1")
+    case "bxor": fasm_emit(state,"pxor xmm0, xmm1")
+    case "mul":
+        // SSE2 multiplies unsigned even dwords into qwords. The low dword
+        // is the same signed/unsigned wrapped product. Repeat for odd lanes,
+        // discard the high halves and interleave all four products.
+        fasm_emit(state,"movdqa xmm2, xmm0\n    pmuludq xmm0, xmm1\n    psrldq xmm2, 4\n    psrldq xmm1, 4\n    pmuludq xmm2, xmm1\n    pshufd xmm0, xmm0, 136\n    pshufd xmm2, xmm2, 136\n    punpckldq xmm0, xmm2")
+    case:
+        if fasm_unsigned(lane).and(op.eq("eq").or(op.eq("neq")).not()) {
+            // XOR the sign bit to order U32 lanes with signed pcmpgtd.
+            fasm_emit(state,"pcmpeqd xmm2, xmm2\n    pslld xmm2, 31\n    pxor xmm0, xmm2\n    pxor xmm1, xmm2")
+        }
+        switch op {
+        case "eq","neq": fasm_emit(state,"pcmpeqd xmm0, xmm1")
+        case "lt","gte": fasm_emit(state,"pcmpgtd xmm1, xmm0\n    movdqa xmm0, xmm1")
+        case "gt","lte": fasm_emit(state,"pcmpgtd xmm0, xmm1")
+        case: UNREACHABLE("unsupported FASM integer SIMD operation: ",op)
+        }
+        if op.eq("neq").or(op.eq("lte")).or(op.eq("gte")) { fasm_emit(state,"pcmpeqd xmm2, xmm2\n    pxor xmm0, xmm2") }
+        fasm_emit(state,format("movmskps eax, xmm0\n    lea rdx, ",result))
+        for i:USize in 0..4 {
+            fasm_emit(state,format("mov ecx, eax\n    shr ecx, ",i.to_str(),"\n    and ecx, 1\n    mov [rdx+",i.to_str(),"], cl"))
+        }
+        return
+    }
+    fasm_emit(state,format("movups ",result,", xmm0"))
+}
+
 priv fasm_simd_core := proc(e: Expr, shallow owner: Type, op: Str, mut state: FasmState, mut lp: LoadedProgram) returns Bool {
     switch op {
-    case "len","add","sub","mul","div","eq","neq","lt","lte","gt","gte","fma","select","reduce_min","reduce_max":
+    case "len","add","sub","mul","div","band","bor","bxor","eq","neq","lt","lte","gt","gte","fma","select","reduce_min","reduce_max":
     case: return false
     }
     ref sd:StructDef=structdef_of(lp.ctx.scope.get_struct(type_name_ref(owner,lp.ctx.symbols),lp.ctx.symbols).unwrap())
     lane:=declaration_resolved_type(sd.fields[0],lp.ctx.scope,lp.ctx.symbols)
+    integer:=lane.eq(Type.Primitive(Primitive.I32)).or(lane.eq(Type.Primitive(Primitive.U32)))
+    // Bool mask logic has ordinary generated bodies, rather than core ops.
+    if integer.not().and(op.eq("band").or(op.eq("bor")).or(op.eq("bxor"))) { return false }
+    // The generated integer div body already preserves zero-divisor and
+    // MIN/-1 behavior. There is no baseline packed integer divide instruction.
+    if integer.and(op.eq("div")) { return false }
     if op=="len" {
         fasm_expr(e.children[1],state,lp)
         fasm_emit(state,format("mov rax, ",sd.simd_width.to_str()))
@@ -1748,7 +1813,8 @@ priv fasm_simd_core := proc(e: Expr, shallow owner: Type, op: Str, mut state: Fa
     mut arguments:=Vec(Str).new()
     for i in 1..e.children.len() { arguments.push(own fasm_simd_snapshot(e.children[i],e.children[i].til_type(),state,lp)) }
     if op=="reduce_min" || op=="reduce_max" {
-        fasm_simd_extrema(arguments[0],sd,lane,op,state,lp)
+        if integer { fasm_simd_integer_extrema(arguments[0],sd,lane,op,state) }
+        else { fasm_simd_extrema(arguments[0],sd,lane,op,state,lp) }
         if fasm_float(e.til_type()).and(lane.neq(e.til_type())) { fasm_float_cast(e,lane,e.til_type(),false,state,lp) }
         return true
     }
@@ -1788,6 +1854,8 @@ priv fasm_simd_core := proc(e: Expr, shallow owner: Type, op: Str, mut state: Fa
             if op=="neq" { condition="ne" }
             fasm_emit(state,format("set",condition," al\n    lea rdx, ",result,"\n    mov [rdx+",i.to_str(),"], al"))
         }
+    } else if integer {
+        fasm_simd_integer_binary(arguments,result,lane,op,state)
     } else {
         mut suffix:="pd"
         mut mask:="movmskpd"

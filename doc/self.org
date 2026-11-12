@@ -1119,13 +1119,21 @@
   NaN payload/sign are unspecified. Ordinary multiply/add remains separately
   rounded; all three FMA arguments are evaluated once, in source order.
 
-  Baseline SIMD supports Simd(F32,4), Simd(F64,2) and their Simd(Bool,4/2)
-  masks. Values keep the shared consecutive scalar-lane representation and
-  scalar alignment in locals, fields, templates, captures and aggregate calls.
-  SSE2 packed add/subtract/multiply/divide and ordered comparisons operate on
+  Baseline SIMD supports Simd(F32,4), Simd(F64,2), Simd(I32,4), Simd(U32,4)
+  and their Simd(Bool,4/2) masks. Values keep the shared scalar-lane representation
+  and scalar alignment in locals, fields, templates, captures and aggregate calls.
+  Floating-point SSE2 packed arithmetic and IEEE comparisons operate on
   unaligned snapshots; later intrinsic arguments cannot change earlier values.
   Comparisons pack their result into canonical Bool bytes, and select expands
   those bytes into bit masks without changing selected NaN payloads or zeros.
+
+  I32/U32 packed add/subtract/multiply wrap at 32 bits. SSE2 multiplication
+  combines two pmuludq results and interleaves their low dwords, without SSE4.1.
+  Bitwise and/or/xor/complement use the same raw lane bits. Unsigned ordering
+  biases each sign bit before signed pcmpgtd; all six comparisons return
+  canonical Bool bytes. Integer sum/extrema reductions preserve wrapping and
+  signed/unsigned ordering. Division uses its generated scalar-lane body,
+  retaining zero for a zero divisor and MIN for signed MIN/-1.
 
   Construction, splat/zero, checked lane get/set, mask logic/all/any and checked
   Array load/store use the ordinary generated bodies. Memory operations retain
@@ -1144,8 +1152,9 @@
   Native to_str uses six significant digits, and to_repr uses nine/seventeen
   for F32/F64. The runtime expands the finite IEEE value into exact decimal
   digits in fixed stack workspace, rounds once to nearest-even and applies C's
-  %g fixed/scientific and trailing-zero rules. Signed zeros and infinities keep
-  their signs; every NaN formats as "nan", matching the shared contract (#472).
+  %g fixed/scientific and trailing-zero rules. Signed zeros, infinities and NaNs
+  retain their IEEE sign bits, matching the shared contract (#472). Computed
+  NaN signs remain CPU-dependent; parsed NaN signs are preserved.
   Only the returned character buffer is heap-allocated;
   the descriptor uses caller-provided storage. This correctness-first conversion
   loop has no elapsed-time performance claim.
@@ -1404,7 +1413,7 @@
     Removal follows ext.c's unlink contract: a missing path is harmless, but
     directories and other failures are errors.
 
-  Integer SIMD, other vector widths, vector casts and general
+  Other integer lane sizes, other vector widths, vector casts and general
   runtime-selected method/reflection lookup,
   unsupported external runtime services remain outside this
   subset. Array methods are no longer restricted to compiler-generated
@@ -1485,8 +1494,16 @@
   selection, fixed-order reductions, FMA ties, intrinsic snapshots, checked
   unaligned/overlapping memory, invalid indices/ranges and aggregate/callable
   boundaries. The assembler-free options test pins packed SSE2 emission and
-  rejects integer/wider families. Allocation probes pin zero native allocations
+  rejects other integer/wider families. Allocation probes pin zero native allocations
   for SIMD computation and two buffer allocations/frees for two Array round trips.
+
+  ~simd_baseline_integer_checks~ adds I32x4/U32x4 scalar-reference edge matrices:
+  1,152 lane pairs cover all arithmetic/bitwise operations, comparisons, selection
+  and reductions, including high-bit unsigned values, overflow and division
+  boundaries. Shared helpers also pin intrinsic snapshots, exact-bit selection,
+  checked/overlapping memory and the existing nested mixed-SIMD POD-field corpus.
+  Integer allocation probes likewise pin 0/0 computation and 2/2 Array buffers;
+  assembler-free checks require SSE2 multiply/shuffle/comparison instructions.
 
   The owned alias captures in the shared float test also regress a C emitter
   defect: a borrowed local scalar alias must be copied into a private capture

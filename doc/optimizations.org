@@ -5,6 +5,31 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** FASM baseline I32/U32 SIMD allocation checks (2026-11-12, #453)
+
+Base: ~1dc0a17e5~. I32x4/U32x4 retain scalar-aligned aggregate storage and frame
+snapshots. SSE2 implements wrapping add/subtract, bitwise operations and all six
+comparisons. Multiplication combines even/odd pmuludq products, discards their
+high halves and interleaves the four low dwords; signed multiplication has the
+same modulo-2^32 result. U32 ordering XORs the sign bits before pcmpgtd.
+Division keeps the existing generated scalar-lane contract, including zero
+divisors and signed MIN/-1. Reductions retain the shared tree and ordering.
+
+The ordinary helpers in ~test/simd.til~ compare 1,152 lane pairs from signed and
+unsigned 12-value edge matrices against scalar operations. They also exercise
+intrinsic snapshots, bit-preserving select, checked/overlapping memory and
+the existing mixed-SIMD POD fields. The native driver imports the same helpers
+at both USize widths; assembler-free checks require SSE2 operations and reject
+an accidental pmulld requirement.
+
+| Probe               | Native malloc | Native free | Storage                |
+|---------------------+---------------+-------------+------------------------|
+| simd_integer_values |             0 |           0 | Frame temporaries      |
+| simd_integer_memory |             2 |           2 | Two Array data buffers |
+
+The existing temporary allocator instrumentation pins these counts after the
+same sources pass C and interpretation. No elapsed-time speedup is claimed.
+
 ** FASM baseline floating-point SIMD allocation checks (2026-11-12, #453)
 
 Base: ~552c9f2ea~. Simd(F32,4), Simd(F64,2) and their two-/four-lane Bool masks
