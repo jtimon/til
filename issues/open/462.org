@@ -33,15 +33,25 @@ the NDK.
 
 *** Staged plan
 
-  1. Command-line programs on a device or emulator: an NDK cross target
-     (aarch64-linux-android first; armv7 and x86_64 after) builds a til
-     program as an executable, pushed and run with ~adb shell~. This proves
-     ~src/self/codegen/ext.c~ and core against bionic and gives a conformance check
-     comparing stdout with the interpreter, like the other cross targets.
-  2. A ~NativeActivity~ app: a til program built as a shared library plus a
-     manifest, packaged into a signed APK. The vendored raylib supports this
-     route on Android; check how much of its Android build the vendoring
-     keeps.
+  0. Local SDK setup and verification, below. The human installs the tools;
+     the local session verifies them in its dedicated worktree before
+     implementing Android support. Start with the installed API 37 x86_64
+     image; add an API 28 AVD to verify the minimum separately.
+  1. Runtime bring-up: build a small command-line program with the NDK as
+     the reference toolchain, push it with ~adb~, and compare stdout and
+     exit status with the interpreter. Bring up ~android-x64~ first so it
+     actually runs on this computer's accelerated emulator; cross-build
+     ~android-arm64~ alongside it. Then extract the approved sysroot subset
+     and reproduce the result with host clang + LLD without the NDK.
+     Exercise both ~--usize=32~ (the default compressed-pointer cage) and
+     ~--usize=64~. Follow with the existing cross-target layout and
+     conformance corpus, including process execution and shared libraries.
+  2. First visible milestone: the existing ~examples/checkers.til~ as a
+     ~NativeActivity~ APK, playable in this computer's emulator. Build
+     raylib for Android, link the generated program as a shared library,
+     package/sign/install, and check the actual app sandbox, rendering,
+     touch input and lifecycle. Detailed demo acceptance is below. This
+     milestone does not wait for Java/Kotlin integration or a phone.
   3. A til ~mode lib~ library inside a Java or Kotlin app: the library and
      its generated JNI bridge (~gen/til/<name>_jni.c~) built with the NDK
      for each ABI and packaged as ~jniLibs/<abi>/lib<name>.so~ and
@@ -51,6 +61,161 @@ the NDK.
      cross-compile the bridge with the NDK's clang.
   4. Calling Java-only SDK services from til through JNI, sharing the bridge
      work with #463.
+
+*** Local setup and verification (2026-11-12)
+
+Worktree: ~~/sync/data_common/code/jt/til_worktrees/issue-462-android~.
+All task edits, builds, logs and tests belong there. Integration into
+master requires the human's explicit instruction.
+
+Host checks performed: Linux x86_64, AMD-V, Java/Javac 21, clang/LLD 18,
+an X11 desktop, and readable/writable ~/dev/kvm~ for the current user.
+Android Studio is installed at ~/usr/local/android-studio~. The human
+moved the SDK from root's home to ~/home/jt/Android/Sdk~ and fixed its
+ownership; the directory is now owned by ~jt:jt~.
+
+Verified installation and scratch-build results:
+
+  - Platform-tools 37.0.1, emulator 37.2.13, build-tools 36.0.0, platform
+    API 37.0 revision 2, and NDK r30 (~30.0.16248370~). NDK clang reports
+    version 21. ~aapt2~ and ~apksigner~ execute successfully.
+  - ~emulator -accel-check~ reports KVM installed and usable. An API 37
+    system-image directory is installed, but ~emulator -list-avds~ lists
+    no devices for ~jt~ and ~/home/jt/.android/avd~ does not exist. The Medium Phone
+    shown in Studio must be made available under the normal user before
+    execution; do not assume root's AVD settings moved with the SDK.
+  - The new ~sdkmanager~ is a wrapper for Android CLI and tried to download
+    it even for ~--list_installed~. That command timed out; no matching
+    downloader remained running. Package versions above were read from
+    the installed ~source.properties~ files, without depending on that
+    extra download. Native compilation works without it.
+  - ~bin/til translate --target=linux-x64 --usize=32~ generated Checkers C
+    in ~tmp/checkers_android.c~. NDK ~x86_64-linux-android28-clang~ compiled
+    it and the unchanged C runtime, then linked them with the vendored
+    Android raylib sources and NDK native-app glue into
+    ~tmp/libcheckers.so~, using ~-Wl,-z,defs~ to reject unresolved symbols.
+    This is a manual bring-up experiment using the existing 64-bit Linux
+    C layout, not implemented ~--target=android-x64~ support.
+  - ~llvm-nm --dynamic --defined-only~ confirms exported
+    ~ANativeActivity_onCreate~. ~llvm-readelf~ confirms Android system
+    library dependencies, SONAME ~libcheckers.so~, and ~0x4000~ LOAD
+    alignment. Hidden symbols and section GC retain the reachable game
+    and runtime without desktop tinyfiledialogs or libffi. Link options
+    included ~-landroid -llog -lEGL -lGLESv2 -lOpenSLES -lm -ldl~.
+  - The same NDK compiled ~examples/hello_script.til~ plus the unchanged
+    runtime into the PIE executable ~tmp/android_hello~. Interpreter
+    reference output is saved as ~tmp/android_hello.expected~. Neither
+    the CLI executable nor Checkers has run on Android yet.
+  - Translation/compile/link logs are under ~tmp/~, including
+    ~tmp/checkers_android_link.log~. The link succeeded with warnings in
+    vendored ~par_shapes~ / ~stb_vorbis~. ELF alignment alone does not
+    establish APK alignment or successful execution on 16 KB pages.
+
+Human installation instructions:
+
+  1. Download the Linux Android Studio archive from
+     https://developer.android.com/studio and follow
+     https://developer.android.com/studio/install . Run it as the normal
+     user. Let its setup wizard install the SDK, normally at
+     ~$HOME/Android/Sdk~; note the actual SDK location.
+  2. In SDK Manager, SDK Tools, select Android SDK Command-line Tools
+     (latest), Android SDK Platform-Tools, Android Emulator, Android SDK
+     Build-Tools, and NDK (Side by side). Use stable releases and record
+     the exact installed versions. CMake is not required for this plan.
+     Accept the SDK licenses interactively.
+  3. In Device Manager, create a phone AVD using the installed API 37
+     x86_64 system image (the Medium Phone profile is fine), and boot it
+     to the home screen. Keep it open for verification. No Play Store
+     account is needed. Add Android 9 / API 28 and its Google APIs x86_64
+     image in SDK Manager later for minimum-version coverage.
+  4. The session can invoke tools by their absolute SDK paths, so editing
+     shell startup files or adding project environment variables is not
+     needed. Android Studio is a convenient SDK/AVD manager, not a required
+     build dependency; SDK command-line tools also support this workflow.
+
+The local session verifies, using the actual SDK path (~SDK~ below
+is just a shell variable for these commands, not a new til setting):
+
+#+begin_src sh
+SDK="$HOME/Android/Sdk"
+"$SDK/platform-tools/adb" version
+"$SDK/emulator/emulator" -version
+"$SDK/emulator/emulator" -accel-check
+"$SDK/emulator/emulator" -list-avds
+"$SDK/platform-tools/adb" devices -l
+#+end_src
+
+Read installed package ~source.properties~ files for exact revisions;
+only use the installed package-listing CLI after checking whether it
+requires an additional download (see the observed wrapper behavior above).
+
+For the selected device, use ~adb -s <serial>~ on every operation. Check
+~shell getprop sys.boot_completed~ is ~1~, ~shell getprop ro.build.version.sdk~
+matches the chosen image (~37~ initially, ~28~ for the minimum check),
+~shell getprop ro.product.cpu.abilist~ includes ~x86_64~, and
+~shell getconf PAGE_SIZE~ reports its actual page size. Prove shell access
+and file transfer under ~/data/local/tmp~. Compile and run a tiny NDK C
+executable, then install/launch a minimal native APK to verify the graphics
+and app path separately from til. Record NDK ~source.properties~, compiler
+version, build-tools version and system-image revision here when verified.
+Keep command logs and scratch outputs under the worktree's existing ~tmp/~.
+
+The human opens the emulator through Device Manager (or a foreground
+terminal); the agent does not start background emulator jobs. With that
+emulator running, the local session can install, launch and drive the app
+through ~adb~. A requested demo means showing the real app in the visible
+emulator on this desktop, with screenshots as supporting evidence.
+
+After the first working setup, add the minimum API 28 AVD and an available
+16 KB page-size image, plus the newest stable API if different from the
+initial image. Verify its page size inside the guest;
+a newer API alone does not prove 16 KB coverage. Record exact package IDs
+from SDK Manager rather than guessing future API/image/NDK versions.
+Do not require all images to be downloaded before starting bring-up.
+
+*** Checkers milestone: implementation and demo acceptance
+
+The vendored ~vendor/raylib/src/platforms/rcore_android.c~ is present:
+~android_main~ already calls the application's ~main~ and requests activity
+finish when it returns. Build it with ~PLATFORM_ANDROID~, OpenGL ES and
+the NDK's ~android_native_app_glue~; retain/export the native activity
+entry point in the final shared library. Audit the current GUI mode's
+desktop-only links (including tinyfiledialogs) before building it.
+
+Checkers uses a fixed 720x800 logical canvas and mouse-style selection.
+Verify raylib's touch-to-mouse mapping and the display/input coordinate
+transform together: a desktop-sized rendering in a phone framebuffer is
+not enough. Preserve the game logic and make any necessary adaptation at
+the GUI/platform boundary, with explicit agreement if public GUI behavior
+would change.
+
+  - [ ] Signed x86_64 APK installs and launches on the initial API 37 AVD;
+    the whole board and header controls are visible and tappable.
+  - [ ] A piece can be selected and moved by emulator clicks/taps; 1P
+    produces an AI reply, 2P works, and Restart resets the game.
+  - [ ] Background/resume and surface recreation do not crash or leave a
+    blank window. Define whether activity recreation restarts the game;
+    saved-game persistence is not implied by the initial demo.
+  - [ ] Back/exit and relaunch work; logcat has no native crash, linker
+    error or fatal seccomp violation during the tested sequence.
+  - [ ] The local session can rebuild/reinstall/relaunch from this
+    worktree and show the playable app on request, identifying the tested
+    commit, ABI, API level and layout. Capture logs/screenshots in ~tmp/~.
+  - [ ] Repeat smoke/lifecycle checks on API 28 and the newest stable API;
+    audit ELF segment and APK zip alignment and run on the 16 KB image before
+    claiming 16 KB compatibility. Cross-build the arm64 APK too; actual
+    arm64 execution remains a separate device test, not an x86_64 claim.
+
+Recommended packaging proposal, still requiring approval: use the SDK's
+~aapt2~, ~zipalign~ and ~apksigner~ directly for this resource-light native
+app, avoiding a Gradle project/dependency. A worktree-local build would
+write the manifest, staging contents, debug signing key and signed APK
+under existing ~tmp/~ for SDK tools and ~adb~ to consume. Existing C/ELF
+outputs cannot supply Android package metadata or a signature. These are
+rebuildable demo outputs (a regenerated key requires reinstalling the
+app); this trades Android-specific packaging steps for avoiding Gradle.
+Agree the concrete filenames and build entry point before implementation;
+this plan does not approve a new command, flag or permanent output tree.
 
 *** Toolchain direction (agreed 2026-11-11)
 
@@ -107,15 +272,19 @@ What ~src/self/codegen/ext.c~ and the targets need (Android defines
   - ~target_system_libs~ links ~-ldl -lrt -lm -lpthread~ on Linux; bionic
     has no ~librt~ or ~libpthread~ (both are in ~libc~), so Android links
     ~-ldl -lm~ (plus ~-llog~ if the runtime logs through logcat).
-  - ~current_rss_bytes~ walks ~/proc~ and calls ~kcmp~. Fine under ~adb
-    shell~; an APP process runs under Android's seccomp filter, where a
-    blocked syscall kills the process -- check ~kcmp~ there before stage 2.
+  - ~current_rss_bytes~ walks ~/proc~ and calls ~kcmp~. Verify permissions
+    under ~adb shell~ rather than assuming Linux behavior. An APP process
+    also runs under Android's seccomp filter, where a blocked syscall can
+    kill the process. Audit the real call paths and test app execution
+    separately; shell success is not proof of sandbox compatibility.
   - ~RTLD_DEFAULT~: bionic defines it (0 on 64-bit, ~0xffffffff~ on
     32-bit), so ext.c's fallback definition never applies; matters only for
     armeabi-v7a.
   - Link with ~-Wl,-z,max-page-size=16384~: Android 15 devices can use 16 KB
     pages, and Google Play requires 16 KB-aligned native libraries for apps
-    targeting it.
+    subject to its 16 KB requirement. This flag alone is not proof:
+    inspect every packaged native dependency and APK zip alignment, and
+    audit the cage/allocator and runtime page-size assumptions.
   - Vendored libraries: compiled til programs do not reference libffi (see
     the CI comments on the cross jobs), so stage 1 needs only ext.c and core.
     raylib supports Android (~PLATFORM_ANDROID~) for stage 2; nng, secp256k1
@@ -140,25 +309,27 @@ device by the local session.
 
 Hand-off checklist for the local session:
 
-  1. Install the Android SDK command-line tools, the NDK and the emulator,
-     and create virtual devices (AVDs): API 28 (the floor), the newest
-     API, and a 16 KB page-size image. x86_64 images run fast on an x86_64
+  1. Complete the local setup/verification above, initially on API 37;
+     add newest-API and 16 KB checks as described there.
+     x86_64 images run fast on an x86_64
      host (KVM on Linux); arm64 images run natively only on an ARM host
-     (an Apple Silicon Mac), so on a PC ~android-arm64~ executables need a
-     phone with USB debugging or a cloud device farm. A session drives
-     them itself (~emulator -avd <name> [-no-window]~, ~adb install~,
-     ~adb shell~, ~adb shell screencap~ to show the human results); a
-     physical phone is for later, pre-release checks.
+     (an Apple Silicon Mac). Do not rely on slow arm64 software emulation
+     on this PC; use a phone with USB debugging or a suitable ARM host for
+     arm64 execution. A session drives the running emulator with ~adb~;
+     a physical phone is for later, pre-release checks.
   2. Extract the sysroot subset above from the NDK for API 28, arm64-v8a
      and x86_64; measure it; write vendor/android/README.org (provenance:
      NDK version, file list, licenses, upgrade steps), modelled on
-     vendor/macos/README.org. Needs approval of the decisions below first.
+     vendor/macos/README.org. This path and both initial targets were
+     already approved; record actual extraction size and provenance.
   3. Add the targets, the ~__ANDROID__~ guards and the link flags; build
      examples/hello_script.til, ~adb push~ it to ~/data/local/tmp~, run it
      with ~adb shell~ and compare stdout with ~bin/til interpret~.
   4. Run the layout corpus and the conformance programs the other cross
      targets run, the same way.
-  5. Propose the CI job.
+  5. Deliver the checkers milestone, then propose the CI job using the
+     verified local commands and pinned SDK/NDK/image versions. Keep
+     Android tests opt-in locally; any new test entry point needs approval.
 
 *** Decisions needing approval before implementation
 
@@ -192,10 +363,11 @@ Hand-off checklist for the local session:
 
 *** Acceptance
 
-  - [ ] A til CLI program cross-compiled with the NDK runs on an arm64
-    device or emulator with output matching the interpreter.
-  - [ ] A ~NativeActivity~ til program packages into an installable APK
-    and runs (window, input, exit).
+  - [ ] Local SDK/NDK/KVM and emulator checks above are recorded as passed.
+  - [ ] A til CLI program built with both the reference NDK and vendored
+    sysroot runs on the x86_64 emulator with matching output/exit status,
+    at both USize layouts. arm64 builds and then runs on an ARM device.
+  - [ ] Checkers meets the playable ~NativeActivity~ milestone above.
   - [ ] A Java or Kotlin app on a device or emulator calls a til ~mode lib~
     library through its generated JNI binding, built with the NDK.
   - [ ] A default build and ~make test~ need neither the NDK nor the
