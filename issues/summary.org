@@ -72,6 +72,7 @@
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation
 *** [[./open/215.org][#215]] Investigate mode safe_script (port from rstil)
 *** [[./open/412.org][#412]] End-to-end til GPU kernel prototype and portability check
+*** [[./open/482.org][#482]] Explore concurrency: Go channels, NNG, ZeroMQ, Jai and semaphores
 * Examples
 ** Low
 *** [[./open/24.org][#24]] Music theory examples: ongoing improvements
