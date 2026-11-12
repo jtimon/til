@@ -1,6 +1,34 @@
 # priority: low
 # category: features
-** FIXED #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
+** WIP #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
+
+*** Reopened (2026-11-12): stored references
+
+Reopened by the human: the close (511bcde02) rested on "references are
+native by decision", but the human's word on that (2026-11-09) was to
+document the reasons, "even though this isn't really fully satisfying" --
+not to drop the reference side. Remaining item: stored ~ref~ fields as
+4-byte cage offsets under --usize=32, like ~own~ fields. The post-mortem
+and Status below describe the state at the close and are kept as written.
+
+Experiment (2026-11-12, pass 1 only, not committed): ~field_is_own_ptr~'s
+exclusions applied to ref fields too (~field_is_ref_ptr~ /
+~field_is_cage_ptr~ for the target, ~host_field_is_cptr~ with a
+~HostRefPtrProbe~ for the running binary), routed through the typer's
+sizes, the struct typedef, ctor/field-assign stores (TIL_OWN_SET), the
+initer's FieldLayout, ffi field types, ctypes and JNI places. ~File~,
+~Dir~ and ~Cmd~ held their C handles as ~ref U8~; those became ~ref
+Dynamic~. Result: 539/564. Of the 25 failures, 21 are a compiled program
+storing a ref to a STACK local (0x7ff...) or a GLOBAL (0x55...), which
+~til_cptr_encode~ refuses loudly (structs, ref, reference_rebinding,
+ownership_shapes, closures, own_fields, hashmaps, parsing, bug467,
+aggregate_control, script_str_runtime, the installed TilVm hosts through
+~HeapBinding.ctx~, interp_session, ...); the rest are pins
+(library_namespace's binding text) and pass 1's expected
+self_translate_native mismatch. Interpreted runs all pass: the
+interpreter's slots are in the cage. So the open question is not the
+emitter, it is where a ref to a stack local or a global goes: those are
+ordinary til, not misuse.
 
 *** Post-mortem (final close, 2026-11-12)
 
