@@ -1,0 +1,65 @@
+# priority: medium
+# category: cleanups
+** OPEN #488 Restore pristine upstream raylib and upstream the Android lifecycle fixes
+
+*** Decision
+
+Vendored libraries are upstream source downloaded and used as distributed.
+Do not maintain a til-specific raylib fork, local source edits, or patches
+applied to copied sources during the build. A raylib upgrade should not
+require rediscovering and reapplying downstream fixes.
+
+The Android lifecycle changes from [[./462.org][#462]] were merged as-is for
+now. This issue tracks removing that exception through an upstream fix;
+it is not an instruction to immediately revert the working demo.
+
+*** Current downstream fixes
+
+~vendor/raylib/src/platforms/rcore_android.c~ has two local fixes:
+
+  - ~PollInputEvents~ now breaks after an Android destroy request. Before
+    that change it set ~shouldClose~ and entered another infinite paused
+    ~ALooper_pollOnce~ wait. The UI thread waited for native teardown and
+    relaunch timed out instead of reopening the activity.
+  - EGL configuration now requests window and pbuffer surfaces. On
+    ~APP_CMD_DESTROY~, a 1x1 pbuffer keeps the preserved context current
+    when the native window surface has already been destroyed. Without
+    it, ~CloseWindow~ unloaded GL resources with no current context.
+
+The exact downstream implementation is not a requirement on upstream;
+equivalent upstream lifecycle handling is sufficient.
+
+*** Plan
+
+  - Identify the upstream revision represented by our raylib snapshot
+    and compare the Android backend with current upstream. Check whether
+    equivalent fixes have already landed.
+  - If needed, report the bugs upstream with a minimal native raylib
+    reproducer and propose the lifecycle fixes. Record the upstream issue,
+    PR and eventual fixing revision here.
+  - Vendor an upstream revision containing the fixes, keeping its source
+    unmodified. Account for any other existing raylib source differences
+    when selecting the clean snapshot; do not carry them as hidden patches.
+  - Rebuild the Android Checkers APK and repeat the regression sequence
+    below against that unmodified snapshot. Update #462's provenance and
+    results when the replacement is verified.
+
+*** Regression checks and acceptance
+
+The original reproduction used Android Emulator 37.2.13, API 37, x86_64,
+and ~examples/checkers.til~ through ~NativeActivity~. The detailed logs
+and reproduction are in #462.
+
+  - [ ] ~vendor/raylib~ matches the selected upstream source revision;
+    neither the checked-in source nor the build applies downstream fixes.
+  - [ ] Record upstream provenance and the revisions fixing both bugs.
+  - [ ] Launch, play, Restart and 1P/2P controls work.
+  - [ ] Home, wait for ~APP_CMD_TERM_WINDOW~, and resume through
+    ~APP_CMD_INIT_WINDOW~ preserve rendering and the game position.
+  - [ ] Repeated Back/relaunch completes without the paused-poll hang;
+    logs show native destruction completing and no contextless GL cleanup.
+
+The earlier host-emulator SIGSEGV remains a separate observation: the
+downstream fixes passed lifecycle checks, but their relationship to that
+host crash has not been established. Do not claim the host crash resolved
+solely because the guest lifecycle regression passes.

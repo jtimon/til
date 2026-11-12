@@ -17,6 +17,7 @@
 *** [[./open/455.org][#455]] Replace --usize with source-level configuration while preserving cross-width use cases
 *** [[./open/464.org][#464]] Restore ASAN as the default of make test (temporarily off since #313)
 *** [[./open/478.org][#478]] Replace Str CAP_VIEW views with a typed borrowed slice
+*** [[./open/488.org][#488]] Restore pristine upstream raylib and upstream the Android lifecycle fixes
 ** Low
 *** [[./open/449.org][#449]] Map and set literal nodes have no type slot; the instance name lives on the Decl
 * Optimizations
