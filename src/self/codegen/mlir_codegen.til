@@ -511,7 +511,7 @@ priv mlir_reference_rhs := func(rhs:Expr,state:MlirState,lp:LoadedProgram) retur
         ref name:Str=id.ident_name(lp.ctx.symbols.names)
         return state.values.has(name).and(state.values[name].is_local_ref)
     case .FieldAccess:
-        return mlir_pod(mlir_type(rhs.children[0].til_type(),lp))
+        return mlir_pod(mlir_type(rhs.children[0].til_type(),lp)).or(type_name_ref(rhs.children[0].til_type(),lp.ctx.symbols)=="Str")
     case .FCall:
         target:=resolve_direct_fcall(rhs,lp.ctx.scope,lp.ctx.symbols)
         return target.is_some().and(funcdef_of(target.unwrap()).sig.return_own_type.is(OwnType.Ref))
@@ -937,18 +937,22 @@ priv mlir_generic_source := func(dd: Declaration, lp: LoadedProgram) returns Str
     panic("MLIR concrete generic has no declaring unit: ",dd.name)
 }
 
-// First direct-core slice: ordinary scalar namespace helpers. Compatibility
+// Direct-core slice: scalar results over primitives and borrowed Str. Compatibility
 // conversions and size queries already have dedicated lowering; core_func and
 // ext_func declarations remain at their intrinsic/native boundaries.
 priv mlir_scalar_core_body := func(name:Str,fd:FunctionDef,lp:LoadedProgram) returns Bool {
     if fd.auto_generated || fd.sig.func_type.is(FuncType.Func).not() || fd.captures.len()>0 {return false}
     if name.starts_with("to_").or(name=="from_i64").or(name=="size").or(name=="size_for_target") {return false}
     if fd.sig.throw_types.len()>0 || fd.sig.variadic_index>=0 || fd.sig.kwargs_index>=0 {return false}
-    if fd.sig.return_type.len()==0 || fd.sig.return_own_type.is(OwnType.Ref) {return false}
+    if fd.sig.return_type.len()==0 {return false}
     if is_primitive(type_from_name_init_name(fd.sig.return_type,lp.ctx.scope,lp.ctx.symbols)).not() {return false}
     for p:Declaration in fd.sig.params {
-        if p.is_mut || p.own_type.is(OwnType.Shallow).not() {return false}
-        if is_primitive(declaration_resolved_type(p,lp.ctx.scope,lp.ctx.symbols)).not() {return false}
+        if p.is_mut {return false}
+        t:=declaration_resolved_type(p,lp.ctx.scope,lp.ctx.symbols)
+        if is_primitive(t) {
+            if p.own_type.is(OwnType.Shallow).or(p.own_type.is(OwnType.Ref)).not() {return false}
+        // Borrow the descriptor; an owning Str body needs lifecycle lowering.
+        } else if type_name_ref(t,lp.ctx.symbols).eq("Str").and(p.own_type.is(OwnType.Ref)).not() {return false}
     }
     return true
 }
@@ -999,7 +1003,7 @@ priv mlir_callable_inventory := func(lp: LoadedProgram, names: Set(Str)) returns
             ref stmt:Expr=root.children[i]
             if is_struct_or_enum(stmt).not() {continue}
             ref dd:Declaration=decl_of(stmt)
-            if is_primitive(type_from_name_init_name(dd.name,lp.ctx.scope,lp.ctx.symbols)).not() {continue}
+            if is_primitive(type_from_name_init_name(dd.name,lp.ctx.scope,lp.ctx.symbols)).or(dd.name=="Str").not() {continue}
             ref definition:Expr=stmt.children[0]
             ref members:Vec(Declaration)=def_ns_decls(definition)
             for j in 0..members.len() {
@@ -1008,6 +1012,10 @@ priv mlir_callable_inventory := func(lp: LoadedProgram, names: Set(Str)) returns
                 ref value:Expr=member.default_expr()
                 if value.node_type.is(NodeType.FuncDef).not() || value.children.len()==0 {continue}
                 ref name:Str=def_ns_name_at(definition,j)
+                // Keep this increment to verified borrowed Str bodies. A scalar
+                // result alone is not enough: is_valid_utf8 calls read_utf8,
+                // whose POD return is outside the C-core bridge's current ABI.
+                if dd.name=="Str" && name.eq("len").or(name=="unsafe_get").or(name=="cmp").or(name=="eq").not() {continue}
                 if mlir_scalar_core_body(name,funcdef_of(value),lp).not() {continue}
                 functions.push(own MlirCallable(path=unit.path.clone(),source_path=unit.path.clone(),declaration=i,member=j.to_i64(),
                     name=format(dd.name,".",name),symbol=format("til.mlir.core.",dd.name,".",name),exported=false))
@@ -1294,8 +1302,8 @@ priv mlir_legacy_numeric_conversion := proc(e: Expr, mut state: MlirState, mut l
 
 priv mlir_pod_field_address := proc(parent: Expr, field: Str, mut state: MlirState, mut lp: LoadedProgram) returns Str {
     t := mlir_type(parent.til_type(), lp)
-    if mlir_pod(t).not() { return mlir_error(parent, "field access requires a supported scalar/nested POD struct", lp) }
-    ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(mlir_pod_name(t), lp.ctx.symbols).unwrap())
+    if mlir_pod(t).or(type_name_ref(parent.til_type(),lp.ctx.symbols)=="Str").not() { return mlir_error(parent, "field access requires a supported POD struct or Str descriptor", lp) }
+    ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(type_name_ref(parent.til_type(),lp.ctx.symbols), lp.ctx.symbols).unwrap())
     ref index : USize = sd.fields_index[field]
     address := mlir_expr(parent, state, lp, true)
     return mlir_value(state, format("llvm.getelementptr ", address, "[0, ", index.to_str(), "] : (!llvm.ptr) -> !llvm.ptr, ", t))
@@ -1521,12 +1529,14 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
         case:
         }
         parent_type := mlir_type(e.children[0].til_type(), lp)
-        if mlir_pod(parent_type).not() { return mlir_error(e, "field access requires a supported scalar/nested POD struct", lp) }
-        ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(mlir_pod_name(parent_type), lp.ctx.symbols).unwrap())
+        if mlir_pod(parent_type).or(type_name_ref(e.children[0].til_type(),lp.ctx.symbols)=="Str").not() { return mlir_error(e, "field access requires a supported POD struct or Str descriptor", lp) }
+        ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(type_name_ref(e.children[0].til_type(),lp.ctx.symbols), lp.ctx.symbols).unwrap())
         ref declaration:Declaration=sd.fields[sd.fields_index[field.field_access_name(lp.ctx.symbols.names)]]
         field_type := declaration_resolved_type(declaration, lp.ctx.scope, lp.ctx.symbols)
         address := mlir_pod_field_address(e.children[0], field.field_access_name(lp.ctx.symbols.names), state, lp)
-        if declaration.own_type.is(OwnType.Ref) {
+        if declaration.own_type.is(OwnType.Ref).or(declaration.own_type.is(OwnType.Own)) {
+            // Str.c_str owns its bytes, but borrowing it loads the buffer's
+            // address, not the address of the descriptor's pointer slot.
             pointer:=mlir_load(address,"!llvm.ptr",state,"1")
             return mlir_pointer_result(pointer,e,borrow,state,lp,mlir_type(field_type,lp),mlir_signed(field_type))
         }

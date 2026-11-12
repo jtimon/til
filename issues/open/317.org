@@ -159,6 +159,35 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Borrowed Str core bodies (base 5de47305e)
+
+Str.len, unsafe_get, cmp and eq now use their existing prepared bodies as private
+MLIR helpers, including the eq -> unsafe_get dependency and direct libc memcmp.
+The inventory admits primitive references and borrowed Str descriptors. The Str
+selection is limited to those four verified methods: not every scalar-result
+body has supported dependencies (is_valid_utf8 calls aggregate-returning read_utf8).
+Other core bodies still use the existing C-core bridge.
+
+Field reads understand the native Str descriptor. Borrowing c_str loads the byte
+buffer pointer rather than lending its pointer slot; value reads load a signed
+byte. Inline count/cap reads retain target USize width, and byte-reference returns,
+forwarding and local-reference rebinding preserve the original buffer address.
+Queries retain source ownership and do not clone or destroy borrowed storage.
+
+test/mlir.til check_str_bodies links the query MLIR object alone with libc and a
+native ASAN/UBSAN caller. It checks all 65,536 byte pairs, sampled binary strings,
+embedded NULs, same-buffer and separate-buffer equality, prefix/interior/end
+mismatches, non-terminated guard-page views, signed byte reads, reference identity,
+null diagnostics, full-width descriptor fields and operand order at O0/O2/O3.
+Interpreter/C references and ASAN til consumers verify binary views and byte
+returns. Bounds panic output through the unchanged Str.get bridge is compared
+across interpreter/C/MLIR. test/mlir_options.til checks private definitions,
+transitive calls, direct memcmp and preservation of the remaining bridge.
+
+Verification: make clean && make test passes 561/561 on this base. The ASAN
+compiler and ASAN driver pass the full optional MLIR integration, including
+object-only Str callers under ASAN/UBSAN and ASAN til consumers at O0/O2/O3.
+
 *** Direct scalar core-body experiment (base 88dee06ef)
 
 The prepared callable inventory now includes ordinary scalar core namespace

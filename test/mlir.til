@@ -67,6 +67,65 @@ priv check_core_bodies := proc(compiler:Str,work:Str) {
     }
 }
 
+priv check_str_bodies := proc(compiler:Str,work:Str) {
+    source:=format("mode lib\n",
+        "str_len:=func(s:Str) returns USize{return s.len()}\nstr_cmp:=func(a:Str,b:Str) returns I64{return a.cmp(b)}\nstr_eq:=func(a:Str,b:Str) returns Bool{return a.eq(b)}\n",
+        "str_byte:=func(s:Str,shallow i:USize) returns ref I8{return s.unsafe_get(i)}\nstr_forward:=func(s:Str,shallow i:USize) returns ref I8{return str_byte(s,i)}\nstr_value:=func(s:Str,i:USize) returns I64{ref v:I8=s.unsafe_get(i);return v.cast(I64)}\n",
+        "str_data:=func(s:Str) returns ref I8{return s.c_str}\nstr_cap:=func(s:Str) returns USize{return s.cap}\nstr_null:=func(s:Str) returns Bool{return s.c_str.is_null()}\n",
+        "str_reselect:=func(a:Str,b:Str,shallow choose:Bool) returns ref I8{ref mut p:I8=a.c_str;if choose{p=b.c_str};return p}\n",
+        "priv str_mark:=func(mut order:I64,s:Str,shallow tag:I64) returns ref Str{order=order*10+tag;return s}\nstr_order:=func(mut order:I64,a:Str,b:Str) returns Bool{return str_mark(order,a,1).eq(str_mark(order,b,2))}\n")
+    File.writefile(format(work,"/str_queries.til"),source)
+    File.writefile(format(work,"/str_query_caller.c"),format(
+        "#include <assert.h>\n#include <stdint.h>\n#include <stdbool.h>\n#include <string.h>\n#include <sys/mman.h>\n#include <unistd.h>\n",
+        "typedef struct{int8_t*data;uint64_t count,cap;}Text;extern uint64_t str_len(const Text*),str_cap(const Text*);extern int64_t str_cmp(const Text*,const Text*),str_value(const Text*,uint64_t);extern bool str_eq(const Text*,const Text*),str_null(const Text*),str_order(int64_t*,const Text*,const Text*);extern const int8_t*str_byte(const Text*,uint64_t),*str_forward(const Text*,uint64_t),*str_data(const Text*),*str_reselect(const Text*,const Text*,bool);\n",
+        "static int reference(const Text*a,const Text*b){uint64_t n=a->count<b->count?a->count:b->count;int c=n?memcmp(a->data,b->data,n):0;if(c)return c<0?-1:1;return (a->count>b->count)-(a->count<b->count);}\n",
+        "static void pair(const Text*a,const Text*b){int expected=reference(a,b);assert(str_cmp(a,b)==expected);assert(str_eq(a,b)==(expected==0));int64_t order=0;assert(str_order(&order,a,b)==(expected==0) && order==12);}\n",
+        "int main(int argc,char**argv){(void)argv;if(argc>1){Text empty={0,0,0};return (int)str_value(&empty,0);}\n",
+        "int8_t data[64][32];Text values[64];uint64_t seed=UINT64_C(0xc57329016fab48de);for(unsigned i=0;i<64;i++){for(unsigned j=0;j<32;j++){seed=seed*UINT64_C(6364136223846793005)+1;data[i][j]=(int8_t)(seed>>32);}values[i]=(Text){data[i],i%32,UINT64_MAX-1};if(i>=32)memcpy(data[i],data[i-32],32);assert(str_len(values+i)==i%32 && str_cap(values+i)==UINT64_MAX-1 && str_data(values+i)==data[i]);for(unsigned j=0;j<i%32;j++){assert(str_byte(values+i,j)==data[i]+j && str_forward(values+i,j)==data[i]+j && str_value(values+i,j)==data[i][j]);}for(unsigned j=0;j<=i;j++){pair(values+i,values+j);pair(values+j,values+i);}}\n",
+        "for(unsigned a=0;a<256;a++){for(unsigned b=0;b<256;b++){int8_t x=(int8_t)a,y=(int8_t)b;Text left={&x,1,0},right={&y,1,UINT64_MAX};pair(&left,&right);}}\n",
+        "int8_t aa[]={97,0,-128,122},bb[]={97,0,-128,122};Text a={aa,4,4},b={bb,4,4};pair(&a,&b);bb[2]=-1;pair(&a,&b);bb[2]=-128;bb[1]=1;pair(&a,&b);bb[1]=0;bb[3]=121;pair(&a,&b);b.count=3;pair(&a,&b);b=a;pair(&a,&b);assert(str_reselect(&a,&values[1],false)==aa && str_reselect(&a,&values[1],true)==values[1].data);const int8_t*borrow=str_forward(&a,2);aa[2]=-7;assert(*borrow==-7 && str_value(&a,2)==-7);assert(a.data==aa && a.count==4 && a.cap==4);\n",
+        "Text wide={0,UINT64_C(0x100000003),UINT64_C(0x9000000000000007)},empty={0,0,0};assert(str_len(&wide)==wide.count && str_cap(&wide)==wide.cap && str_null(&wide));assert(str_len(&empty)==0 && str_data(&empty)==0 && str_byte(&empty,0)==0 && str_null(&empty));assert(str_eq(&empty,&empty));\n",
+        "long page=sysconf(_SC_PAGESIZE);assert(page>0);int8_t*region=mmap(0,(size_t)page*2,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);assert(region!=MAP_FAILED);assert(mprotect(region+page,(size_t)page,PROT_NONE)==0);for(unsigned n=0;n<32;n++){int8_t copy[32];for(unsigned i=0;i<n;i++)copy[i]=region[page-n+i]=(int8_t)(i*79);Text view={region+page-n,n,UINT64_MAX-1},other={copy,n,UINT64_MAX};pair(&view,&other);for(unsigned i=0;i<n;i++)assert(str_value(&view,i)==copy[i]);}assert(munmap(region,(size_t)page*2)==0);return 0;}\n"))
+    checks:=format("main:=proc(){mut byte:U8=127;byte++;high:=Str.from_byte(byte);s:=format(\"a\\0\",high,\"z\");same:=s.clone();assert_eq(USize,str_len(s),4);assert(str_eq(s,same));assert_eq(I64,str_cmp(s,same),0);assert(str_eq(s,\"a\").not());assert_eq(I64,str_cmp(s,\"a\"),1);assert_eq(I64,str_value(s,2),-128);assert(ptr_eq(str_byte(s,2),ptr_add(s.c_str,2)));assert(ptr_eq(str_forward(s,2),str_byte(s,2)));assert(ptr_eq(str_data(s),s.c_str));\n",
+        "view:=s.substr(1,2);expected:=format(\"\\0\",high);assert(str_eq(view,expected));assert_eq(I64,str_cmp(view,expected),0);assert(ptr_eq(str_forward(view,1),ptr_add(s.c_str,2)));assert_eq(USize,str_len(view),2);mut order:I64=0;assert(str_order(order,s,same));assert_eq(I64,order,12);println(\"Str bodies PASS\")}\n")
+    File.writefile(format(work,"/str_query_reference.til"),format("mode cli\nimport(\"str_queries\")\n",checks))
+    File.writefile(format(work,"/str_query_consumer.til"),format("mode cli\nlink(\"gen/lib/libstr_queries.so\")\n",
+        "str_len:=ext_func(s:Str) returns shallow USize{}\nstr_cmp:=ext_func(a:Str,b:Str) returns shallow I64{}\nstr_eq:=ext_func(a:Str,b:Str) returns shallow Bool{}\n",
+        "str_byte:=ext_func(s:Str,shallow i:USize) returns ref I8{}\nstr_forward:=ext_func(s:Str,shallow i:USize) returns ref I8{}\nstr_value:=ext_func(s:Str,shallow i:USize) returns shallow I64{}\nstr_data:=ext_func(s:Str) returns ref I8{}\nstr_order:=ext_func(mut order:I64,a:Str,b:Str) returns shallow Bool{}\n",checks))
+    File.writefile(format(work,"/str_query_bad.til"),"mode cli\nmain:=proc(){mut i:USize=0;i++;s:=\"x\";ref byte:I8=s.get(i);println(byte.clone().to_str())}\n")
+    mut panic_text:=""
+    for execution in array(Str,"interpret","run") {
+        reference:=Cmd.new(compiler,execution,"--usize=64","str_query_reference.til")
+        checked(reference,work)
+        failure:=Cmd.new(compiler,execution,"--usize=64","str_query_bad.til")
+        failure.cwd(work).capture()
+        expect(failure.run()==1 && failure.err().len()==0,failure.out(),failure.err())
+        expect(failure.out().contains(": panic: Str.get: index out of bounds\n"),failure.out())
+        if execution=="interpret" {panic_text=failure.out()}else{assert_eq(Str,failure.out(),panic_text)}
+    }
+    for level in array(Str,"0","2","3") {
+        build:=Cmd.new(compiler,"build","--backend=mlir",format("--opt=",level),"str_queries.til")
+        checked(build,work)
+        // Borrowed Str query bodies depend only on libc, not the C-core bridge.
+        cc:=Cmd.new("clang-18","-O2","-Wall","-Wextra","-Werror","-fsanitize=address,undefined","str_query_caller.c","gen/lib/str_queries.o","-o","str_query_caller")
+        checked(cc,work)
+        native:=Cmd.new("./str_query_caller")
+        checked(native,work)
+        null_read:=Cmd.new("./str_query_caller","null")
+        null_read.cwd(work).capture()
+        expect(null_read.run()==1 && null_read.out().len()==0 && null_read.err()=="panic: null deref\n",null_read.out(),null_read.err())
+        symbols:=Cmd.new("nm","-g","--defined-only","gen/lib/str_queries.o")
+        checked(symbols,work)
+        expect(symbols.out().contains("til.mlir.core.").not(),symbols.out())
+        consumer:=Cmd.new(compiler,"run","--usize=64","--asan",format("--opt=",level),"str_query_consumer.til")
+        checked(consumer,work)
+        failure:=Cmd.new(compiler,"run","--backend=mlir",format("--opt=",level),"str_query_bad.til")
+        failure.cwd(work).capture()
+        expect(failure.run()==1 && failure.err().len()==0,failure.out(),failure.err())
+        assert_eq(Str,failure.out(),panic_text)
+    }
+}
+
 priv check_control_flow := proc(compiler: Str, work: Str) {
     File.writefile(format(work, "/flow.til"), format(
         "mode pure\nF4 := Simd(F32,4)\nCount := USize\n",
@@ -1388,6 +1447,7 @@ main := proc(compiler_arg: Str) {
     compiler := realpath_str(compiler_arg)
     work := "tmp/mlir_integration"
     mkdir_p(work)
+    check_str_bodies(compiler,work)
     check_core_bodies(compiler,work)
     File.writefile(format(work, "/arithmetic.til"), format(
         "mode pure\nF4 := Simd(F32,4)\nscalar_add := func(a: F32, b: F32) returns F32 { return a + b }\nadd4 := func(a: F4, b: F4) returns F4 { return a + b }\npriv helper := func(a: F4, b: F4) returns F4 { return add4(a,b) }\ntwice := func(a: F4, b: F4) returns F4 { first := helper(a, b); return add4(first, b) }\nfour := func(a: F4, b: F4, c: F4, d: F4) returns F4 { ab := add4(a,b); cd := add4(c,d); return add4(ab,cd) }\nconstant := func() returns F32 { return 0.1 }\n",
