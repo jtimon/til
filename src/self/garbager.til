@@ -4534,9 +4534,12 @@ priv gc_reject_field_moves := proc(mut ctx: Context, e: Expr, scope: TypeScope, 
 }
 
 priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScope, scope_exit: I32,
-    stack_own_params: Set(Str), insert: Bool, is_func_root: Bool = false, takes_param_fields: Bool = false) returns Bool {
+    stack_own_params: Set(Str), insert: Bool, is_func_root: Bool = false, takes_param_fields: Bool = false,
+    program_root: Bool = false) returns Bool {
     if scope_exit == 0 { return false }
-    is_program_scope := scope.parent.is_none()
+    // program_root: program-level statements whose bindings sit in a staging
+    // scope under the program scope (garbager_destroy_globals).
+    is_program_scope := program_root.or(scope.parent.is_none())
 
     mut locals_vec := Vec(LocalInfo).new()
     // One fact computation for every pass that reads this body BEFORE it
@@ -5054,7 +5057,7 @@ priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: Typ
 // inner-first inline-call order without retaining typer scopes on Context.
 priv garbager_walk_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope,
     derive_decls: Bool, fdef_o: Option(ref FunctionDef), own_captures: Vec(Declaration), insert: Bool,
-    is_destructor: Bool = false) returns Bool {
+    is_destructor: Bool = false, program_root: Bool = false) returns Bool {
     for i in 0..body.children.len() {
         ref mut stmt : Expr = body.children[i]
         if is_compile_directive(stmt, ctx.symbols) { continue }
@@ -5086,13 +5089,34 @@ priv garbager_walk_body := proc(mut ctx: Context, mut body: Expr, mut scope: Typ
         }
     case .None:
     }
-    return insert_free_calls(ctx, body, scope, 1, stack_own_params, insert, fdef_o.is_some(), takes_param_fields)
+    return insert_free_calls(ctx, body, scope, 1, stack_own_params, insert, fdef_o.is_some(), takes_param_fields,
+        program_root)
 }
 
 // REPL deltas already own a populated program scope, like imported unit roots.
 garbager_destroy_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope) returns Bool {
     return garbager_walk_body(ctx, body, scope, false,
         Option(ref FunctionDef).None, Vec(Declaration).new(), true)
+}
+
+// A function a generator condition calls is typed on its own, before the
+// program sweep, and the interpreter runs it at once (typer.til
+// comptime_prepare_function): its cleanup is inserted here, one function at
+// a time. owner is the type whose namespace declares it, "" for a file-level
+// function.
+garbager_destroy_function := proc(mut ctx: Context, mut fdef: Expr, owner: Str, is_destructor: Bool) {
+    mut scope := TypeScope(parent = safe_ref(ctx.scope), current_type_name = owner.clone())
+    garbager_walk_expr(ctx, fdef, scope, true, is_destructor)
+}
+
+// A file-level or namespace value a generator condition reads is typed on its
+// own as well (typer.til comptime_prepare_value), with its bindings in a
+// staging scope under the program scope. Its statements still run at program
+// level: the value lives until the evaluation ends, and only the hoisted
+// temporaries are this pass's to free.
+garbager_destroy_globals := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope) {
+    _ := garbager_walk_body(ctx, body, scope, false,
+        Option(ref FunctionDef).None, Vec(Declaration).new(), true, false, true)
 }
 
 // Every imported unit is processed once, post-order, after typing. Program

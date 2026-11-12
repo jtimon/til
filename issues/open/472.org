@@ -1230,3 +1230,39 @@ fixed length again (the F3 regeneration in a shallow clone had written 7
 characters); the regeneration also picks up what master's commits since
 then changed.
 
+
+*** Progress: F3 follow-up, generator conditions that own memory (base master cca47b4)
+
+F3 made ~test/dynamic_widths.til~ evaluate a condition it used to reject
+(a hand-written ~size~ that builds an array), and the ASAN suite on master
+went red on it: ~til cage: 32 byte(s) leaked~ in the compiler. Local
+~make test~ runs without ASAN (#464), so only CI saw it. F3 exposed the
+leak; it did not create it: any function with an owning local, called from
+a generator condition, leaked, sizes or not.
+
+Cause: what a condition calls or reads is typed ahead of the program, one
+definition at a time (~typer.til~ ~comptime_prepare_function~,
+~comptime_prepare_value~), and went to the interpreter without the
+garbager, so nothing freed its locals and temporaries. Now each prepared
+function, the condition itself and each prepared file-level or namespace
+value gets its frees there (~garbager_destroy_function~,
+~garbager_destroy_globals~), and the destructors those frees call are
+prepared like any other callee.
+
+A second fault sat next to it: a prepared file-level value was typed
+without the call lowering (~owns_scope~ 0), so ~x := format("ab", "cd")~
+read by a condition reached the interpreter as a raw variadic call and
+evaluated to garbage, silently. It is lowered now.
+
+~test/first_class.til~ ~test_generator_conditions_owning_memory~ covers
+both; the compiler before this change fails it without ASAN too.
+~make clean && make test~: 579/579. ~make test_asan~: 571/582, the 11
+being ~install_tilvm_native_build~, ~install_tilvm_build~ and the nine
+tests blocked behind them, which fail in this container because its clang
+has no ~sanitizer/asan_interface.h~; ~dynamic_widths~ and ~first_class~
+pass under ASAN.
+
+Not fixed, seen while reducing: a namespace constant initialized by a
+variadic call (~Names := struct { namespace: joined := format("x", "yz") }~,
+no generator involved) crashes the compiler on master with ~allocation
+cage: free of a pointer the cage did not allocate~.

@@ -9650,6 +9650,13 @@ priv comptime_prepare_function := proc(name: Str, owner: Str, mut fdef: Expr, mu
     }
     validate_numeric_literal_ranges(fdef, ctx)
     comptime_prepare_expr(fdef.children[0], local, prep, ctx)
+    // The interpreter runs this body long before the program-wide garbager
+    // pass. The frees inserted here call destructors, which need preparing
+    // like every other callee.
+    if ctx.errors == 0 {
+        garbager_destroy_function(ctx, fdef, owner, owner.len() > 0 && name == "delete")
+        comptime_prepare_expr(fdef.children[0], local, prep, ctx)
+    }
     prep.active.remove(key)
     prep.ready.add(own key)
 }
@@ -9694,8 +9701,17 @@ priv comptime_prepare_value := proc(name: Str, path: Str, stmt: Expr, mut prep: 
     context_enter_file(ctx, path)
     mut local := TypeScope(parent = safe_ref(ctx.scope))
     comptime_prepare_expr(prepared.children[0].children[0], local, prep, ctx)
-    if ctx.errors == 0 { infer_body(local, prepared, 0, 0, 0, 0, 0, ctx) }
+    // owns_scope: the initializer needs the call lowering every other body
+    // gets (variadic packs, keyword maps, collection literals, hoists); the
+    // interpreter evaluates only the lowered forms.
+    if ctx.errors == 0 { infer_body(local, prepared, 0, 1, 0, 0, 0, ctx) }
     comptime_prepare_expr(prepared, local, prep, ctx)
+    // Same reason as in comptime_prepare_function: a statement the garbager
+    // has not settled cannot call a function it has.
+    if ctx.errors == 0 {
+        garbager_destroy_globals(ctx, prepared, local)
+        comptime_prepare_expr(prepared, local, prep, ctx)
+    }
     b_o := local.get_binding_name(name, ctx.symbols)
     if b_o.is_some() {
         ref b : TypeBinding = b_o.unwrap()
@@ -9899,6 +9915,10 @@ eval_generator_condition := proc(mut condition: Expr, mut scope: TypeScope, mut 
     if ctx.errors == 0 { infer_func_def_expr(local, function, "", ctx) }
     if ctx.errors == 0 { validate_numeric_literal_ranges(function, ctx) }
     if ctx.errors == 0 { comptime_prepare_expr(function.children[0], local, prep, ctx) }
+    if ctx.errors == 0 {
+        garbager_destroy_function(ctx, function, "", false)
+        comptime_prepare_expr(function.children[0], local, prep, ctx)
+    }
     mut result : I32 = -1
     if ctx.errors == 0 {
         mut runtime := scope_new_owned(Option(ref Scope).None)

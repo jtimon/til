@@ -1268,6 +1268,64 @@ test_size_condition_generators := test() {
     assert(size_lazy_and441().not())
 }
 
+// --- Generator conditions that run code owning memory ---
+// What a condition calls or reads is typed ahead of the program, one
+// definition at a time. Each one needs the call lowering and the automatic
+// frees every other body gets: a local such a function owned leaked in the
+// compiler (the ASAN suite reports it), and a file-level value initialized
+// by a variadic call was read as garbage.
+OwnedRecord472 := struct { address: UPtr; byte: U8 }
+owned_joined472 := format("ab", "cd")
+OwnedNames472 := struct { namespace:
+    joined := "xyz"
+    count := func() returns USize {
+        parts := array(Str, "p", "q", "r")
+        return parts.len() + OwnedNames472.joined.len()
+    }
+}
+owned_locals472 := func() returns USize {
+    records := array(OwnedRecord472, OwnedRecord472(address = 11, byte = 3), OwnedRecord472(address = 22, byte = 5))
+    mut words := Vec(Str).new()
+    words.push(own format("a", "b"))
+    words.push(own format("ta", "il"))
+    text := format(words[0], "-", words[1])
+    ref second : OwnedRecord472 = records.unsafe_get(1)
+    return text.len() + second.byte.to_usize()
+}
+owned_pick_locals472 := macro(skip: Bool) returns FuncDef {
+    if skip || owned_locals472() == 12 { return func() returns Bool { return true } }
+    else { return func() returns Bool { return false } }
+}
+owned_pick_temp472 := macro(skip: Bool) returns FuncDef {
+    if skip || format("a", "bc").len() == 3 { return func() returns Bool { return true } }
+    else { return func() returns Bool { return false } }
+}
+owned_pick_value472 := macro(skip: Bool) returns FuncDef {
+    if skip || owned_joined472.len() == 4 { return func() returns Bool { return true } }
+    else { return func() returns Bool { return false } }
+}
+owned_pick_member472 := macro(skip: Bool) returns FuncDef {
+    if skip || OwnedNames472.count() == 6 { return func() returns Bool { return true } }
+    else { return func() returns Bool { return false } }
+}
+owned_pick_member_value472 := macro(skip: Bool) returns FuncDef {
+    if skip || OwnedNames472.joined.len() == 3 { return func() returns Bool { return true } }
+    else { return func() returns Bool { return false } }
+}
+owned_locals_yes472 := owned_pick_locals472(false)
+owned_temp_yes472 := owned_pick_temp472(false)
+owned_value_yes472 := owned_pick_value472(false)
+owned_member_yes472 := owned_pick_member472(false)
+owned_member_value_yes472 := owned_pick_member_value472(false)
+
+test_generator_conditions_owning_memory := test() {
+    assert(owned_locals_yes472())
+    assert(owned_temp_yes472())
+    assert(owned_value_yes472())
+    assert(owned_member_yes472())
+    assert(owned_member_value_yes472())
+}
+
 // --- Conditional macro bodies (issue #58) ---
 GenericSizePoint := struct { x: I32; y: I32 }
 GenericSizeTag := enum { First, Second }
