@@ -24,6 +24,14 @@ can name its own build of a library (~link("vendor/nng/build-linux-arm64/libnng.
 see [[file:tutorial/2_modes.org][the modes tutorial]] for the mode-level
 ~targets~ and ~build_hint~ that go with it.
 
+An interpreted ~link_c~ bridge links those same loadable twins (~.so~, or
+~.dll~ on a Windows host), rather than embedding another copy of each archive.
+This keeps native handles and globals consistent between bridge helpers and
+direct FFI calls. For example, a socket opened directly must remain valid when
+a helper sets one of its options. Compiled programs continue to link the
+archives requested by their source. ~test/link_objects.til~ checks both routes
+against NNG's socket state (#482).
+
 ~link_macos("OpenGL Cocoa")~ names macOS frameworks, which ~link()~ cannot
 spell. They are linked for the mac targets only: as ~-framework~ on a mac
 host, and off a mac -- where there is no Apple SDK -- as the ~.tbd~ stubs

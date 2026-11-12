@@ -19,9 +19,11 @@ The initial comparison, synchronous NNG probe and task-lifetime contract are
 complete. The AIO follow-ups now include executed polling and completion-driven
 state machines, failure/cancellation checks, and matched sequential/synchronous
 controls. Wakeups remove the polling delay, but the measured AIO bridge still
-costs more than synchronous NNG for tiny records. Production FFI instance
-consistency, general ownership-safe APIs and the runtime audit for parallel Til
-execution remain unfinished. The issue remains WIP; the README TODO remains.
+costs more than synchronous NNG for tiny records. The interpreter's archive/
+bridge instance split is now fixed and regression-tested. A delayed TCP echo
+workload shows AIO matching eight blocking workers with fewer client threads,
+at higher CPU cost. General ownership-safe APIs and the runtime audit for
+parallel Til execution remain unfinished. The issue remains WIP.
 
 Explore what the README's aspirational "Better concurrency than Go" could mean
 for Til. "At some point, subjectively" is a goal, not a claim about current
@@ -805,12 +807,12 @@ The issue stays WIP.
 
 **** Current AIO experiment sources and reproduction
 
-The source blocks below are the latest completion-driven version, superseding
-the original NULL-callback-only fixture. The earlier polling results above are
-historical, not measurements of this updated fixture. The current fixture
-retains a NULL-callback polling control named ~poll~, and adds ~sync~, ~wake1~
-and ~wake16~. The subsequent completion-driven results section records
-measurements of THIS version.
+The source blocks below are the latest version, including the delayed TCP echo
+workload. The earlier polling and immediate-inproc results are historical,
+not measurements of this updated fixture. The fixture retains ~poll~, ~sync~,
+~wake1~ and ~wake16~, and adds ~io-serial~, ~io-pool~, ~io-aio~ and ~io-cancel~.
+It now links the archive normally, exercising the production interpreter fix.
+The final TCP results section records measurements of this version.
 
 Save the two source blocks below as the named files under ~tmp/~. They are
 manually reproduced scratch sources, retained here as the single durable copy;
@@ -904,8 +906,9 @@ typedef struct {
 struct Wake482 {
     nng_mtx *mutex;
     nng_cv *cv;
-    Slot482 slots[3];
-    unsigned ready;
+    Slot482 slots[32];
+    int count;
+    uint64_t ready;
     bool notify;
     uint64_t callbacks, takes, waits;
 };
@@ -916,7 +919,7 @@ static void complete482(void *arg)
 {
     Slot482 *slot = arg;
     Wake482 *g = slot->group;
-    unsigned bit = 1u << slot->index;
+    uint64_t bit = UINT64_C(1) << slot->index;
     nng_mtx_lock(g->mutex);
     assert((g->ready & bit) == 0);
     g->ready |= bit;
@@ -925,16 +928,18 @@ static void complete482(void *arg)
     nng_mtx_unlock(g->mutex);
 }
 
-void *wake482_new(bool notify)
+void *wake482_new(bool notify, int count)
 {
+    assert(count > 0 && count <= 32);
     /* nng_alloc bypasses ext.h's Til allocator macros. */
     Wake482 *g = nng_alloc(sizeof(*g));
     if (g == NULL) abort();
     *g = (Wake482){0};
     g->notify = notify;
+    g->count = count;
     check482(nng_mtx_alloc(&g->mutex));
     check482(nng_cv_alloc(&g->cv, g->mutex));
-    for (unsigned i = 0; i < 3; i++) {
+    for (int i = 0; i < count; i++) {
         g->slots[i].group = g;
         g->slots[i].index = i;
         check482(nng_aio_alloc(&g->slots[i].aio,
@@ -946,7 +951,7 @@ void *wake482_new(bool notify)
 nng_aio *wake482_aio(void *group, int index)
 {
     Wake482 *g = group;
-    assert(index >= 0 && index < 3);
+    assert(index >= 0 && index < g->count);
     return g->slots[index].aio;
 }
 
@@ -955,7 +960,7 @@ bool wake482_take(void *group, int index)
     Wake482 *g = group;
     nng_aio *aio = wake482_aio(g, index);
     if (!g->notify) return !nng_aio_busy(aio);
-    unsigned bit = 1u << (unsigned)index;
+    uint64_t bit = UINT64_C(1) << (unsigned)index;
     nng_mtx_lock(g->mutex);
     bool ready = (g->ready & bit) != 0;
     if (ready) {
@@ -1001,13 +1006,13 @@ uint64_t wake482_count(void *group, int which)
 void wake482_free(void *group)
 {
     Wake482 *g = group;
-    for (unsigned i = 0; i < 3; i++) nng_aio_stop(g->slots[i].aio);
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < g->count; i++) nng_aio_stop(g->slots[i].aio);
+    for (int i = 0; i < g->count; i++) {
         (void)wake482_take(g, i); /* Drain notifications collected on abort. */
         assert(nng_aio_get_msg(g->slots[i].aio) == NULL);
     }
     assert(g->ready == 0 && g->callbacks == g->takes);
-    for (unsigned i = 0; i < 3; i++) nng_aio_free(g->slots[i].aio);
+    for (int i = 0; i < g->count; i++) nng_aio_free(g->slots[i].aio);
     nng_cv_free(g->cv);
     nng_mtx_free(g->mutex);
     nng_free(g, sizeof(*g));
@@ -1025,6 +1030,263 @@ static uint64_t time482(clockid_t clock)
 
 uint64_t wall482_ns(void) { return time482(CLOCK_MONOTONIC); }
 uint64_t cpu482_ns(void) { return time482(CLOCK_PROCESS_CPUTIME_ID); }
+
+/* TCP delayed-echo workload. Socket handle definitions come from the forced
+ * Til forward header. All threads/data here are native and NNG-owned. */
+typedef struct nng_thread nng_thread;
+extern int nng_thread_create(nng_thread **, void (*)(void *), void *);
+extern void nng_thread_destroy(nng_thread *);
+extern void nng_cv_wait(nng_cv *);
+extern void nng_msleep(int);
+extern int nng_pair0_open(nng_socket *);
+extern int nng_socket_set_ms(nng_socket, const char *, int);
+extern int nng_listen(nng_socket, const char *, nng_listener *, int);
+extern int nng_listener_get_string(nng_listener, const char *, char **);
+extern void nng_strfree(char *);
+extern int nng_dial(nng_socket, const char *, nng_dialer *, int);
+extern int nng_close(nng_socket);
+extern int nng_sendmsg(nng_socket, nng_msg *, int);
+extern int nng_recvmsg(nng_socket, nng_msg **, int);
+extern int nng_msg_alloc(nng_msg **, size_t);
+extern void nng_msg_free(nng_msg *);
+extern size_t nng_msg_len(const nng_msg *);
+extern int nng_msg_append_u64(nng_msg *, uint64_t);
+extern int nng_msg_trim_u64(nng_msg *, uint64_t *);
+
+typedef struct IO482 IO482;
+typedef struct {
+    IO482 *group;
+    int index;
+    nng_socket client, server;
+    nng_thread *server_thread;
+    uint64_t completed;
+    bool active;
+} IOLane482;
+typedef struct { IO482 *group; int index; } IOClient482;
+
+struct IO482 {
+    nng_mtx *mutex;
+    nng_cv *cv;
+    IOLane482 lanes[8];
+    IOClient482 workers[8];
+    nng_thread *client_threads[8];
+    int jobs, delay, clients, done;
+    bool started, stop, stopped;
+    uint64_t issued, completed, rejected, abandoned, discarded, high_water;
+    uint64_t checksum, in_flight;
+};
+
+nng_socket io482_client(void *group, int index)
+{
+    IO482 *g = group;
+    assert(index >= 0 && index < 8);
+    return g->lanes[index].client;
+}
+
+nng_msg *io482_message(void *group, int index)
+{
+    IO482 *g = group;
+    assert(index >= 0 && index < 8);
+    nng_mtx_lock(g->mutex);
+    /* A blocking worker can observe stop between successive requests. */
+    if (g->stop) { nng_mtx_unlock(g->mutex); return NULL; }
+    IOLane482 *lane = &g->lanes[index];
+    assert(!lane->active && lane->completed < (uint64_t)g->jobs);
+    uint64_t id = (uint64_t)index * (uint64_t)g->jobs + lane->completed;
+    lane->active = true;
+    g->issued++;
+    g->in_flight++;
+    if (g->in_flight > g->high_water) g->high_water = g->in_flight;
+    nng_mtx_unlock(g->mutex);
+    nng_msg *msg;
+    check482(nng_msg_alloc(&msg, 0));
+    check482(nng_msg_append_u64(msg, id));
+    return msg;
+}
+
+void io482_accept(void *group, int index, nng_msg *msg, bool process)
+{
+    IO482 *g = group;
+    assert(index >= 0 && index < 8);
+    assert(nng_msg_len(msg) == 8);
+    uint64_t id;
+    check482(nng_msg_trim_u64(msg, &id));
+    assert(nng_msg_len(msg) == 0);
+    nng_msg_free(msg);
+    nng_mtx_lock(g->mutex);
+    IOLane482 *lane = &g->lanes[index];
+    assert(lane->active && g->in_flight > 0);
+    assert(id == (uint64_t)index * (uint64_t)g->jobs + lane->completed);
+    lane->active = false;
+    g->in_flight--;
+    if (process) {
+        lane->completed++;
+        g->completed++;
+        g->checksum += id * id;
+    } else { g->discarded++; }
+    nng_mtx_unlock(g->mutex);
+}
+
+void io482_failed(void *group, int index, bool sent)
+{
+    IO482 *g = group;
+    assert(index >= 0 && index < 8);
+    nng_mtx_lock(g->mutex);
+    assert(g->lanes[index].active && g->in_flight > 0);
+    g->lanes[index].active = false;
+    g->in_flight--;
+    if (sent) g->abandoned++; else g->rejected++;
+    nng_mtx_unlock(g->mutex);
+}
+
+static void serve482(void *arg)
+{
+    IOLane482 *lane = arg;
+    for (;;) {
+        nng_msg *msg;
+        int rc = nng_recvmsg(lane->server, &msg, 0);
+        if (rc == 7) return; /* Socket closed by the group owner. */
+        check482(rc);
+        nng_msleep(lane->group->delay);
+        rc = nng_sendmsg(lane->server, msg, 0);
+        if (rc != 0) {
+            nng_msg_free(msg);
+            assert(rc == 7);
+            return;
+        }
+    }
+}
+
+static void blocking482(void *arg)
+{
+    IOClient482 *worker = arg;
+    IO482 *g = worker->group;
+    nng_mtx_lock(g->mutex);
+    while (!g->started && !g->stop) nng_cv_wait(g->cv);
+    nng_mtx_unlock(g->mutex);
+    for (int job = 0; job < g->jobs; job++) {
+        for (int index = worker->index; index < 8; index += g->clients) {
+            nng_msg *msg = io482_message(g, index);
+            if (msg == NULL) goto done;
+            int rc = nng_sendmsg(g->lanes[index].client, msg, 0);
+            if (rc != 0) {
+                nng_msg_free(msg);
+                io482_failed(g, index, false);
+                assert(rc == 7);
+                goto done;
+            }
+            rc = nng_recvmsg(g->lanes[index].client, &msg, 0);
+            if (rc != 0) {
+                io482_failed(g, index, true);
+                assert(rc == 7);
+                goto done;
+            }
+            io482_accept(g, index, msg, true);
+        }
+    }
+done:
+    nng_mtx_lock(g->mutex);
+    g->done++;
+    nng_cv_wake(g->cv);
+    nng_mtx_unlock(g->mutex);
+}
+
+void *io482_new(int kind, int jobs, int delay)
+{
+    assert(kind >= 0 && kind <= 2 && jobs > 0 && delay >= 0);
+    IO482 *g = nng_alloc(sizeof(*g));
+    if (g == NULL) abort();
+    *g = (IO482){0};
+    g->jobs = jobs;
+    g->delay = delay;
+    g->clients = kind == 0 ? 0 : (kind == 1 ? 1 : 8);
+    check482(nng_mtx_alloc(&g->mutex));
+    check482(nng_cv_alloc(&g->cv, g->mutex));
+    for (int i = 0; i < 8; i++) {
+        IOLane482 *lane = &g->lanes[i];
+        lane->group = g;
+        lane->index = i;
+        check482(nng_pair0_open(&lane->server));
+        check482(nng_pair0_open(&lane->client));
+        check482(nng_socket_set_ms(lane->client, "send-timeout", 5000));
+        check482(nng_socket_set_ms(lane->client, "recv-timeout", 5000));
+        nng_listener listener;
+        nng_dialer dialer;
+        char *url;
+        check482(nng_listen(lane->server, "tcp://127.0.0.1:0", &listener, 0));
+        check482(nng_listener_get_string(listener, "url", &url));
+        check482(nng_dial(lane->client, url, &dialer, 0));
+        nng_strfree(url);
+        check482(nng_thread_create(&lane->server_thread, serve482, lane));
+    }
+    for (int i = 0; i < g->clients; i++) {
+        g->workers[i] = (IOClient482){g, i};
+        check482(nng_thread_create(&g->client_threads[i], blocking482, &g->workers[i]));
+    }
+    return g;
+}
+
+void io482_start(void *group)
+{
+    IO482 *g = group;
+    nng_mtx_lock(g->mutex);
+    assert(!g->started && !g->stop);
+    g->started = true;
+    nng_cv_wake(g->cv);
+    nng_mtx_unlock(g->mutex);
+}
+
+int io482_wait(void *group, uint64_t deadline)
+{
+    IO482 *g = group;
+    assert(g->clients > 0);
+    nng_mtx_lock(g->mutex);
+    while (g->done < g->clients) {
+        int rc = nng_cv_until(g->cv, deadline);
+        if (rc == 5) break;
+        check482(rc);
+    }
+    int result = g->done == g->clients ? 0 : 5;
+    nng_mtx_unlock(g->mutex);
+    return result;
+}
+
+void io482_stop(void *group)
+{
+    IO482 *g = group;
+    nng_mtx_lock(g->mutex);
+    assert(!g->stop);
+    g->stop = true;
+    nng_cv_wake(g->cv);
+    nng_mtx_unlock(g->mutex);
+    for (int i = 0; i < 8; i++) check482(nng_close(g->lanes[i].client));
+    for (int i = 0; i < 8; i++) check482(nng_close(g->lanes[i].server));
+    for (int i = 0; i < g->clients; i++) nng_thread_destroy(g->client_threads[i]);
+    for (int i = 0; i < 8; i++) nng_thread_destroy(g->lanes[i].server_thread);
+    g->stopped = true;
+}
+
+uint64_t io482_count(void *group, int which)
+{
+    IO482 *g = group;
+    assert(which >= 0 && which < 8);
+    nng_mtx_lock(g->mutex);
+    uint64_t values[] = {g->issued, g->completed, g->rejected, g->abandoned,
+        g->discarded, g->high_water, g->checksum, g->in_flight};
+    uint64_t value = values[which];
+    nng_mtx_unlock(g->mutex);
+    return value;
+}
+
+void io482_free(void *group)
+{
+    IO482 *g = group;
+    assert(g->stopped && g->in_flight == 0);
+    assert(g->issued == g->completed + g->rejected + g->abandoned + g->discarded);
+    nng_cv_free(g->cv);
+    nng_mtx_free(g->mutex);
+    nng_free(g, sizeof(*g));
+}
 #+end_src
 
 ***** tmp/concurrency482_aio.til
@@ -1035,10 +1297,12 @@ mode cli
 link_c("concurrency482_aio.c")
 import("std/sys")
 import("../vendor/bindings/nng")
-// One NNG image for both the interpreter's link_c bridge and direct calls.
-link("vendor/nng/build-linux-x64/libnng.so")
+// The production #482 fix maps this archive to its twin for interpreted link_c.
+link("vendor/nng/build-linux-x64/libnng.a")
+link("pthread")
+link("atomic")
 aio482_alloc := ext_proc() returns ref nng_aio {}
-wake482_new := ext_proc(shallow notify: Bool) returns ref Dynamic {}
+wake482_new := ext_proc(shallow notify: Bool, shallow count: I32 = 3) returns ref Dynamic {}
 wake482_aio := ext_proc(mut group: Dynamic, shallow index: I32) returns ref nng_aio {}
 wake482_take := ext_proc(mut group: Dynamic, shallow index: I32) returns shallow Bool {}
 wake482_wait := ext_proc(mut group: Dynamic, shallow deadline: U64) returns shallow I32 {}
@@ -1046,6 +1310,16 @@ wake482_count := ext_proc(mut group: Dynamic, shallow which: I32) returns shallo
 wake482_free := ext_proc(mut group: Dynamic) {}
 wall482_ns := ext_proc() returns shallow U64 {}
 cpu482_ns := ext_proc() returns shallow U64 {}
+io482_new := ext_proc(shallow kind: I32, shallow jobs: I32, shallow delay: I32) returns ref Dynamic {}
+io482_client := ext_proc(mut service: Dynamic, shallow index: I32) returns shallow nng_socket {}
+io482_message := ext_proc(mut service: Dynamic, shallow index: I32) returns ref nng_msg {}
+io482_accept := ext_proc(mut service: Dynamic, shallow index: I32, mut msg: nng_msg, shallow process: Bool) {}
+io482_failed := ext_proc(mut service: Dynamic, shallow index: I32, shallow sent: Bool) {}
+io482_start := ext_proc(mut service: Dynamic) {}
+io482_wait := ext_proc(mut service: Dynamic, shallow deadline: U64) returns shallow I32 {}
+io482_stop := ext_proc(mut service: Dynamic) {}
+io482_count := ext_proc(mut service: Dynamic, shallow which: I32) returns shallow U64 {}
+io482_free := ext_proc(mut service: Dynamic) {}
 
 check := proc(rc: I32, what: Str) {
     if rc != 0 { panic(what, ": ", Str.from_c_str(nng_strerror(rc))) }
@@ -1504,6 +1778,175 @@ notification_checks := proc(rounds: U64) {
     println("notification before/during wait, timeout, coalescing/reuse and teardown checks passed; rounds=", rounds)
 }
 
+IOLane := struct {
+    socket : nng_socket
+    ref tx : nng_aio
+    ref rx : nng_aio
+    active := false
+    tx_pending := false
+    rx_pending := false
+    completed : U64 = 0
+}
+
+report_io := proc(mut service: Dynamic, kind: I32, cancel: Bool, count: U64,
+    elapsed: U64, cpu: U64, shutdown: U64) {
+    issued := io482_count(service, 0)
+    completed := io482_count(service, 1)
+    rejected := io482_count(service, 2)
+    abandoned := io482_count(service, 3)
+    discarded := io482_count(service, 4)
+    high_water := io482_count(service, 5)
+    checksum := io482_count(service, 6)
+    assert(io482_count(service, 7) == 0)
+    assert(issued == completed + rejected + abandoned + discarded)
+    assert(high_water <= 8)
+    if cancel { assert((issued > 0).and(completed < count)) }
+    else {
+        assert(completed == count)
+        assert(checksum == (count - 1) * count * (count * 2 - 1) / 6)
+    }
+    println("tcp_io kind=", kind, " cancel=", cancel, " count=", count,
+        " issued=", issued, " completed=", completed, " rejected=", rejected,
+        " abandoned=", abandoned, " discarded=", discarded,
+        " high_water=", high_water, " checksum=", checksum,
+        " elapsed_ns=", elapsed, " cpu_ns=", cpu, " shutdown_ns=", shutdown)
+    io482_free(service)
+}
+
+run_io := proc(count: U64, kind: I32, cancel: Bool) {
+    assert((count.mod(8) == 0).and(count <= 8000))
+    jobs := count / 8
+    ref mut service : Dynamic = io482_new(kind, jobs.to_i32(), 5)
+    println("active TCP service/client threads:")
+    runtime_info()
+    if kind != 0 {
+        mut duration : U64 = 120000
+        if cancel { duration = 20 }
+        deadline := nng_clock() + duration
+        start := wall482_ns()
+        cpu_start := cpu482_ns()
+        io482_start(service)
+        rc := io482_wait(service, deadline)
+        if cancel { assert(rc == timed_out) }
+        else { check(rc, "blocking workers") }
+        elapsed := wall482_ns() - start
+        cpu := cpu482_ns() - cpu_start
+        stop_start := wall482_ns()
+        io482_stop(service)
+        shutdown := wall482_ns() - stop_start
+        report_io(service, kind, cancel, count, elapsed, cpu, shutdown)
+        return
+    }
+
+    ref mut group : Dynamic = wake482_new(true, 16)
+    mut lanes := Vec(IOLane).with_capacity(8)
+    width : USize = 8
+    for index in 0..width {
+        slot := index.to_i32() * 2
+        ref mut tx : nng_aio = wake482_aio(group, slot)
+        ref mut rx : nng_aio = wake482_aio(group, slot + 1)
+        nng_aio_set_timeout(tx, 5000)
+        nng_aio_set_timeout(rx, 5000)
+        lanes.push(own IOLane(socket=io482_client(service, index.to_i32()), tx=tx, rx=rx))
+    }
+    mut duration : U64 = 120000
+    if cancel { duration = 20 }
+    deadline := nng_clock() + duration
+    start := wall482_ns()
+    cpu_start := cpu482_ns()
+    io482_start(service)
+    mut turn : USize = 0
+    while (io482_count(service, 1) < count).and(nng_clock() < deadline) {
+        mut progress := false
+        for offset in 0..width {
+            index := (turn + offset).mod(width)
+            ref mut lane : IOLane = lanes.get(index)!
+            slot := index.to_i32() * 2
+            if lane.active {
+                if lane.tx_pending.and(wake482_take(group, slot)) {
+                    check(nng_aio_result(lane.tx), "TCP send completion")
+                    lane.tx_pending = false
+                    progress = true
+                }
+                if lane.rx_pending.and(wake482_take(group, slot + 1)) {
+                    check(nng_aio_result(lane.rx), "TCP receive completion")
+                    lane.rx_pending = false
+                    progress = true
+                }
+                if lane.tx_pending.or(lane.rx_pending).not() {
+                    assert(to_ptr(nng_aio_get_msg(lane.tx)).is_null())
+                    ref mut reply : nng_msg = nng_aio_get_msg(lane.rx)
+                    clear_message(lane.rx)
+                    io482_accept(service, index.to_i32(), reply, true)
+                    lane.completed = lane.completed + 1
+                    lane.active = false
+                }
+            } else if lane.completed < jobs {
+                ref mut msg : nng_msg = io482_message(service, index.to_i32())
+                assert(to_ptr(msg).is_null().not())
+                nng_aio_set_msg(lane.tx, msg)
+                nng_recv_aio(lane.socket, lane.rx)
+                nng_send_aio(lane.socket, lane.tx)
+                lane.active = true
+                lane.tx_pending = true
+                lane.rx_pending = true
+                progress = true
+            }
+        }
+        turn = (turn + 1).mod(width)
+        if progress.not() {
+            rc := wake482_wait(group, deadline)
+            if rc != timed_out { check(rc, "TCP notification wait") }
+        }
+    }
+    elapsed := wall482_ns() - start
+    cpu := cpu482_ns() - cpu_start
+    if cancel { assert(io482_count(service, 1) < count) }
+    else { assert(io482_count(service, 1) == count) }
+    stop_start := wall482_ns()
+    for index in 0..width {
+        ref mut lane : IOLane = lanes.get(index)!
+        if lane.active {
+            nng_aio_cancel(lane.tx)
+            nng_aio_cancel(lane.rx)
+        }
+    }
+    for index in 0..width {
+        ref mut lane : IOLane = lanes.get(index)!
+        nng_aio_stop(lane.tx)
+        nng_aio_stop(lane.rx)
+    }
+    for index in 0..width {
+        ref mut lane : IOLane = lanes.get(index)!
+        if lane.active {
+            tx_rc := nng_aio_result(lane.tx)
+            rx_rc := nng_aio_result(lane.rx)
+            if tx_rc != 0 {
+                assert((tx_rc == canceled).and(rx_rc == canceled))
+                ref mut msg : nng_msg = nng_aio_get_msg(lane.tx)
+                clear_message(lane.tx)
+                nng_msg_free(msg)
+                assert(to_ptr(nng_aio_get_msg(lane.rx)).is_null())
+                io482_failed(service, index.to_i32(), false)
+            } else if rx_rc != 0 {
+                assert(rx_rc == canceled)
+                assert(to_ptr(nng_aio_get_msg(lane.tx)).is_null())
+                assert(to_ptr(nng_aio_get_msg(lane.rx)).is_null())
+                io482_failed(service, index.to_i32(), true)
+            } else {
+                ref mut reply : nng_msg = nng_aio_get_msg(lane.rx)
+                clear_message(lane.rx)
+                io482_accept(service, index.to_i32(), reply, false)
+            }
+        }
+    }
+    io482_stop(service)
+    if cancel.not() { assert(wake482_count(group, 0) == count * 2) }
+    wake482_free(group)
+    shutdown := wall482_ns() - stop_start
+    report_io(service, kind, cancel, count, elapsed, cpu, shutdown)
+}
+
 main := proc(args: ..Str) {
     assert(args.len() == 2)
     ref action := args.get(0)!
@@ -1515,6 +1958,14 @@ main := proc(args: ..Str) {
     else if action == "poll" { run_aio(count, 16, 0, false) }
     else if action == "wake1" { run_aio(count, 1, 0, true) }
     else if action == "wake16" { run_aio(count, 16, 0, true) }
+    else if action == "io-serial" { run_io(count, 1, false) }
+    else if action == "io-pool" { run_io(count, 2, false) }
+    else if action == "io-aio" { run_io(count, 0, false) }
+    else if action == "io-cancel" {
+        run_io(count, 1, true)
+        run_io(count, 2, true)
+        run_io(count, 0, true)
+    }
     else {
         assert(action == "check")
         notification_checks(count)
@@ -1526,6 +1977,12 @@ main := proc(args: ..Str) {
         run_aio(count, 16, 2, true)
         run_aio(count, 16, 3, true)
         run_aio(count, 16, 4, true)
+        run_io(160, 1, false)
+        run_io(160, 2, false)
+        run_io(160, 0, false)
+        run_io(160, 1, true)
+        run_io(160, 2, true)
+        run_io(160, 0, true)
         println("all lifecycle checks passed")
     }
     runtime_info()
@@ -1693,3 +2150,216 @@ were 0.086 ms synchronous, 0.135 ms polling, 0.100 ms wake1 and 0.099 ms wake16.
   and generalized task scheduling remain unmeasured. This experiment supplies
   no evidence for adding channel syntax, a new messaging dependency or an M:N
   scheduler. #482 remains WIP.
+
+*** Production FFI fix and outstanding TCP I/O (base 5de47305e)
+
+**** Production change and regression
+
+The library-instance failure was reproduced using master's ~bin/til_boot~:
+the compiled case passed, while interpretation failed with:
+
+#+begin_example
+NNG helper/direct instance regression (interpret, exit 1): helper timeout: Object closed
+#+end_example
+
+~src/self/interpreter.til~ now uses one private archive-to-twin path helper
+for both loading archives and linking an interpreted ~link_c~ bridge. Archive
+members are no longer copied into that bridge; it depends on the same existing
+~.so~ (Windows: ~.dll~) twin used by direct calls. Compiled programs retain
+their archive links. Symbol override order, public bindings and artifact layout
+were not changed. ~doc/ffi.org~ documents the ownership/instance requirement.
+
+The regression extends the existing ~test/link_objects.til~ driver and reuses
+its existing first-fixture paths. Til opens a pair socket, a C helper sets its
+timeout, then a direct Til call reads back 1234. The helper references the
+setter's archive member but not the separate pair constructor, exposing the
+original partial-archive split rather than accidentally linking both into one
+private copy. Both compiled and interpreted cases must print their success
+marker, so a compiler diagnostic followed by exit zero cannot pass the test.
+
+Verification: ~make clean && make test~ in the local memory-limited systemd
+scope passed *561/561* tests, including ~link_objects~. This was native Linux
+verification, not a claimed macOS/Windows execution result. The new private
+helper requires no bootstrap preparation/use migration.
+
+**** Workload and ownership
+
+The latest scratch source uses ordinary ~link(...libnng.a)~ again, exercising
+the production fix during interpretation. It runs real TCP request/reply I/O
+over eight independent pair connections to ~127.0.0.1~. Listeners bind port zero
+and return their actual URLs; all sockets and threads are closed/joined before
+the command returns. No external daemon or shell-backgrounded process is used.
+
+There are eight native C echo-service threads in EVERY variant. Each receives
+an eight-byte ID, waits a controlled 5 ms, then echoes the message over TCP.
+The delay models service latency; the network transfers are real, but this is
+a synthetic local service, not a measurement of a remote production service.
+
+- ~io-serial~: one native blocking client worker visits all eight connections,
+  with one request outstanding in total.
+- ~io-pool~: eight native blocking client workers, each with at most one
+  outstanding request on its own connection.
+- ~io-aio~: one Til thread drives eight outstanding requests through sixteen
+  AIO slots (send and receive per connection), using the existing notification
+  protocol. No blocking client worker threads are created.
+
+All variants use the same C message allocation, encoding, response validation,
+checksum and accounting routines. Synchronous workers call them directly;
+the AIO driver invokes them from Til, so the comparison includes that dispatch
+and coordination overhead rather than isolating NNG's internal cost.
+The synchronous workers and service threads touch only native/NNG-owned data.
+This does not run Til's allocator or interpreter on multiple threads.
+
+The service group is the sole socket closer and owns all native thread state.
+The AIO group borrows those sockets; its operations are stopped and payloads
+settled before the service group is freed. Native blocking calls are interrupted
+by closing their sockets, then all workers are joined outside the group mutex.
+The service's current 5 ms sleep cannot be forcibly interrupted; cleanup may
+wait for its remaining duration. AIO callbacks retain stable native slots and
+never allocate Til objects. The bridge's capacity is fixed before use (now up
+to 32 slots, with 16 used here); it never resizes callback-addressed storage.
+
+Each lane has at most one logical request in flight. Credits are reserved
+before allocating a message and released only on validated completion or an
+accounted terminal failure/discard. On teardown:
+
+  ~issued = completed + rejected + abandoned + discarded~, with ~in_flight = 0~.
+
+Rejected means the send did not transfer ownership. Abandoned means a send
+was accepted but no reply was collected. Discarded means a reply completed but
+the parent aborted before processing it. Abandonment does NOT establish that
+the server did not process the request: cancellation is not remote rollback.
+
+**** Executed checks and measurements
+
+~check 1000~ passed native compiled, ASAN-compiled and interpreted execution
+with the archive link, including the earlier notification tests, all three TCP
+strategies, and cancellation of all three strategies. The TCP correctness cases
+use 160 requests (20 per lane), require checksum 1352560 on normal completion,
+and assert the credit/conservation rules on cancellation. ASAN emitted no
+diagnostics; NNG remains uninstrumented and no thread-sanitizer result is claimed.
+
+Measurements used the compiler built from base ~5de47305e~ plus the FFI fix,
+on the same Linux-x64/GCC 13.3.0/Ryzen 9950X3D machine, default C/USize32,
+application/helper -O0/-g and Release NNG. Each normal sample is a fresh process
+handling 480 requests (60 per connection). Six samples ran sequentially;
+sample zero was discarded, and normal variant order reversed on odd samples.
+All 18 normal runs completed with checksum 36748880. High-water marks were
+exactly 1 for serial and 8 for both concurrent strategies: requests really
+were outstanding, rather than only queued in a sequential application loop.
+
+Thread/socket setup precedes timing. Process CPU includes the local echo
+service, NNG workers and client logic; it is not client-only CPU. Shutdown is
+timed separately and includes stopping operations, closing endpoints and joining
+service/client threads, but not final global ~nng_fini~. Peak RSS is the final
+process high-water reading. No affinity or exclusive-machine settings were used.
+
+| Variant | Wall samples 1..5 (ms) | Median wall ms | Median CPU ms | Median peak RSS bytes | Active native threads |
+|---------+------------------------+----------------+---------------+-----------------------+-----------------------|
+| One blocking worker | 2473.004, 2473.640, 2472.059, 2467.850, 2470.247 | 2472.059 | 50.061 | 18305024 | 40 |
+| Eight blocking workers | 306.399, 307.379, 306.344, 306.654, 306.846 | 306.654 | 29.460 | 21245952 | 47 |
+| One Til thread with AIO | 307.938, 306.817, 307.207, 305.905, 307.187 | 307.187 | 36.762 | 18051072 | 39 |
+
+CPU samples in the same order, in ms:
+
+- Serial: 52.464, 53.080, 50.061, 47.719, 48.705.
+- Pool: 29.460, 39.470, 27.857, 27.452, 32.910.
+- AIO: 45.067, 33.387, 38.025, 27.152, 36.762.
+
+Warm-up wall times were 2468.596, 307.530 and 305.857 ms respectively.
+Active thread counts include the parent, 30 NNG runtime threads and eight
+service threads. The pool adds eight blocking clients; the serial case adds
+one; AIO adds none. All returned to 31 threads before global NNG finalization.
+The observed pool/AIO RSS difference is about 3.05 MiB, not a general per-thread
+stack-size estimate or memory guarantee.
+
+Cancellation runs use a 20 ms NNG-clock deadline, observed after roughly
+19-20 ms in the nanosecond wall clock because the deadline clock is quantized.
+After discarding the warm-up, cancel-to-cleanup medians/ranges were:
+
+| Variant | Median ms | Range ms |
+|---------+-----------+----------|
+| Serial | 1.225 | 0.985-1.441 |
+| Pool | 1.478 | 0.759-1.858 |
+| AIO | 1.080 | 1.016-1.206 |
+
+These cancellation samples ran serial/pool/AIO in that order within each fresh
+~io-cancel~ process. Native samples accounted for 4 issued/3 completed/1
+abandoned in serial and 32/24/8 in both concurrent strategies. Interpreted
+execution also exercised replies completing before cleanup (counted as
+discarded); exact cancellation counts are schedule-dependent. No pending
+credits, attached messages or live service/client threads were left at return.
+
+Conclusion: AIO exposes the expected I/O overlap, matching the bounded pool's
+elapsed time with eight fewer blocking client threads and lower observed RSS.
+It consumed more CPU than that pool in this run. Both concurrent strategies
+beat the one-outstanding-request control by about eightfold; that benefit is
+concurrency, not unique to AIO or Til. The earlier tiny-record result still
+supports retaining a simple synchronous path. No Go comparison was run.
+
+Reproduce the new checks and measurements using the latest source blocks above:
+
+#+begin_src sh
+bin/til run -o tmp/concurrency482_aio -c tmp/concurrency482_probe.c tmp/concurrency482_aio.til check 1000 > tmp/io482_check.log 2>&1
+bin/til run --asan -o tmp/concurrency482_aio_asan -c tmp/concurrency482_probe_asan.c tmp/concurrency482_aio.til check 1000 > tmp/io482_asan.log 2>&1
+bin/til interpret tmp/concurrency482_aio.til check 1000 > tmp/io482_interpret.log 2>&1
+for sample in 0 1 2 3 4 5; do
+    if (( sample % 2 == 0 )); then actions="io-serial io-pool io-aio"; else actions="io-aio io-pool io-serial"; fi
+    for action in $actions; do
+        tmp/concurrency482_aio "$action" 480 > "tmp/io482_measure_${sample}_${action}.log" 2>&1 || exit 1
+    done
+    tmp/concurrency482_aio io-cancel 480 > "tmp/io482_cancel_${sample}.log" 2>&1 || exit 1
+done
+#+end_src
+
+**** Smallest owning library layer: recommended contract, not an added API
+
+The evidence supports an optional native-operation group, with synchronous
+operations retained. The following ownership decisions precede public names
+and signatures; implementing the new public surface still needs approval.
+
+- A unique owning socket and a unique owning operation group are separate
+  resources. The group borrows a fixed set of sockets for its lifetime and
+  owns native operation slots, callback state and pending payload copies.
+  Separating these owners avoids closing a socket merely because its sends
+  were accepted: the application can keep it through its acknowledgment
+  protocol. Constructor/borrow checks must prove that sockets outlive the group.
+  Group/socket destructors must not call global ~nng_fini~: other groups may
+  still use that process-wide library. The experiments call it only at the end.
+- Suppress fieldwise cloning of both resource owners using the existing
+  ~TilVm~ private-~clone~ pattern (~src/std/tilvm.til~). Copying a raw NNG ID
+  or native pointer cannot create another resource owner. Moving the Til
+  wrapper must leave callback-addressed native storage stable.
+- Start with byte-oriented copying submission: borrow the caller's bytes only
+  while copying into NNG-owned storage. The caller retains its original value;
+  there is no asynchronous borrow of Til buffers and no conditional ~own~
+  transfer on error. Zero-copy native-message ownership would be a separate
+  API decision, not an undocumented optimization.
+- Keep individual AIO handles internal. Submit operations with correlation
+  values, then collect owned completion values on the Til thread. A receive
+  completion owns its bytes independently of the group; native storage is
+  copied out and freed exactly once. A send completion means admission, not
+  server processing or durability. No Til callable runs on a foreign callback
+  thread in this initial layer.
+- Provide explicit completion/drain and cancel-then-complete boundaries so
+  errors can be returned to the parent. Preserve original failure, cancellation
+  and success-wins outcomes. Destructor cleanup cancels, joins and frees any
+  uncollected native operations; it cannot detach. This cleanup is viable only
+  because native callbacks can finish without other Til tasks making progress.
+- Socket borrows and any owner of callback CODE must remain alive until
+  callbacks have terminated. A private ~link_c~ image can be unloaded during
+  interpreter cleanup; fixing shared-library state does not by itself make an
+  escaped operation safe. Reject escape across a shorter-lived VM/code owner
+  or keep that owner through completion; verify these cases before publishing.
+- Define capacity in operation slots and retained payload bytes. Those bounds
+  do not bound application work after send admission: end-to-end processing
+  credits still require the application's reply/ack protocol. Use a latched
+  completion predicate and finite deadlines, not periodic sleep as the wait
+  mechanism. Retain loud invariant checks for duplicate collection/reuse.
+
+Before public implementation, test the proposed ownership representation with
+ASAP last-use destruction, early returns/throws, attempted resource copies,
+escaping socket/code borrows and dropped completions. The native experiments
+do not establish those compiler-level properties. Exact constructors,
+completion/error types and public method signatures remain to be agreed.
+#482 stays WIP.
