@@ -1285,7 +1285,7 @@ main := proc(args: ..Str) returns I64 {
             format(til_bin," test/templeos/numeric_cast_errors.til ",bits, driver_asan_arg))
         // Run the common test-mode sources directly. Their normal Both rows
         // already provide interpreter/C coverage; no CLI reference wrappers.
-        for fixture : Str in array(Str, "hashmaps", "hashsets", "test_in_namespace") {
+        for fixture : Str in array(Str, "maps", "hashmaps", "hashsets", "test_in_namespace") {
             name := format("holyc_", fixture, "_", bits)
             source := format("test/", fixture, ".til")
             add_counts(tests, format(name, "_translate"), "build",

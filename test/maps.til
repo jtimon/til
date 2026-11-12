@@ -209,3 +209,110 @@ test_map_with_capacity_zero_is_lazy := test() {
     ref v : I64 = m["a"]
     assert_eq(I64, v, 1)
 }
+
+test_map_dynamic_pointer_slots := test() {
+    mut payload : I64 = 41
+    mut other : I64 = 73
+    mut values := Map(Str, Dynamic).with_capacity(0)
+    // Dynamic containers consume a pointer-sized cell, not the pointee.
+    mut cell : UPtr = malloc(UPtr.size())
+    write_ptr(cell, to_ptr(payload))
+    values.set("middle", own cell)
+    mut first : UPtr = malloc(UPtr.size())
+    write_ptr(first, to_ptr(other))
+    values.set("first", own first)
+    ref mut slot : Dynamic = values.get("middle")!
+    assert(ptr_eq(deref(slot), to_ptr(payload)))
+    write_i64(deref(slot), 99)
+    assert_eq(I64, payload, 99)
+    mut snapshot := values.clone()
+    ref saved : Dynamic = snapshot.get("middle")!
+    assert(ptr_eq(deref(saved), to_ptr(payload)))
+    assert(ptr_eq(slot, saved).not())
+    mut replacement : UPtr = malloc(UPtr.size())
+    write_ptr(replacement, to_ptr(other))
+    values.set("middle", own replacement)
+    assert_eq(USize, values.len(), 2)
+    ref replaced : Dynamic = values.get("middle")!
+    assert(ptr_eq(deref(replaced), to_ptr(other)))
+    assert(ptr_eq(deref(saved), to_ptr(payload)))
+    assert(values.remove("first"))
+    assert(values.remove("absent").not())
+    values.clear()
+    snapshot.clear()
+    // Removing the slots never destroys the independently owned pointees.
+    assert_eq(I64, payload, 99)
+    assert_eq(I64, other, 73)
+    mut empty : UPtr = malloc(UPtr.size())
+    memset(empty, 0, UPtr.size())
+    values.set("reused", own empty)
+    ref null_slot : Dynamic = values.get("reused")!
+    assert(deref(null_slot).is_null())
+    assert(values.remove("reused"))
+    mut caught := false
+    ref _ : Dynamic = values.get("reused")?
+    catch (err: KeyNotFound) { caught = true }
+    assert(caught)
+}
+
+test_map_dynamic_growth_and_pointer_width := test() {
+    mut values := Map(I64, Dynamic).with_capacity(2)
+    zero : Dynamic = 0
+    // USize32 must still preserve the entire native pointer word.
+    for i in 0..16 {
+        mut cell : UPtr = malloc(UPtr.size())
+        write_ptr(cell, ptr_add(zero, UPtr.MAX.sub(i.to_usize().to_uptr())))
+        values.set(15 - i, own cell)
+    }
+    mut snapshot := values.clone()
+    for i in 0..16 {
+        ref slot : Dynamic = values.get(i)!
+        assert(ptr_eq(deref(slot), ptr_add(zero, UPtr.MAX.sub(15.sub(i).to_usize().to_uptr()))))
+    }
+    for i in 0..8 { assert(values.remove(i)) }
+    values.clear()
+    for i in 0..16 {
+        ref slot : Dynamic = snapshot.get(i)!
+        assert(ptr_eq(deref(slot), ptr_add(zero, UPtr.MAX.sub(15.sub(i).to_usize().to_uptr()))))
+    }
+    snapshot.clear()
+}
+
+MapNames := Set(Str)
+MapPointers := Map(Str, Dynamic)
+OrderedMapPayload := enum { Empty, Names: MapNames, Pointers: MapPointers }
+
+test_map_ordered_container_payloads := test() {
+    mut names := Set(Str).new()
+    names.add(own format("alpha"))
+    names.add(own format("beta"))
+    mut payload : I64 = 123
+    mut pointers := Map(Str, Dynamic).new()
+    mut cell : UPtr = malloc(UPtr.size())
+    write_ptr(cell, to_ptr(payload))
+    pointers.set("payload", own cell)
+    mut values := Map(I64, OrderedMapPayload).new()
+    values.set(1, own OrderedMapPayload.Names(names.clone()))
+    values.set(2, own OrderedMapPayload.Pointers(pointers.clone()))
+    mut snapshot := values.clone()
+    names.clear()
+    pointers.clear()
+    values.clear()
+    ref saved_names : OrderedMapPayload = snapshot.get(1)!
+    switch saved_names {
+    case .Names(saved):
+        assert_eq(USize, saved.len(), 2)
+        assert(saved.has("alpha"))
+        assert(saved.has("beta"))
+    case: panic("ordered Set payload tag")
+    }
+    ref saved_pointers : OrderedMapPayload = snapshot.get(2)!
+    switch saved_pointers {
+    case .Pointers(saved):
+        ref slot : Dynamic = saved.get("payload")!
+        assert(ptr_eq(deref(slot), to_ptr(payload)))
+    case: panic("ordered Map payload tag")
+    }
+    snapshot.clear()
+    assert_eq(I64, payload, 123)
+}

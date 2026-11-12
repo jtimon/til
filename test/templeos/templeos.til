@@ -521,9 +521,9 @@ owned_collection_checks := proc(identity: Str, bits: Str) {
         runtime.replace("=MAlloc(", "=TilTestMAlloc(")
             .replace("=CAlloc(", "=TilTestCAlloc(").replace(" Free(", " TilTestFree("))
     File.writefile(format(WORK, "/Ext.HC"), ledger)
-    sources := array(Str, "test/templeos/holyc_owned_primitives.til", "test/hashmaps.til",
+    sources := array(Str, "test/templeos/holyc_owned_primitives.til", "test/maps.til", "test/hashmaps.til",
         "test/hashsets.til", "test/test_in_namespace.til")
-    names := array(Str, "owned_primitives", "hashmaps", "hashsets", "namespace_tests")
+    names := array(Str, "owned_primitives", "maps", "hashmaps", "hashsets", "namespace_tests")
     for i, source in sources {
         expected := test_reference_output(source, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),

@@ -867,9 +867,11 @@
 
   Keep ~bin/til translate --target=templeos -c tmp/til.HC src/til.til~ as a
   development pressure test, not a claim of a working TempleOS compiler.
-  The latest full attempt on ~389200c8c~, at both USize widths, reports
-  ~unsupported Map value type 'Dynamic'~ after correcting scalar-alias payload
-  classification. General Dynamic-to-typed casts, the remaining
+  The latest full attempt on ~5de47305e~ plus the Dynamic Map changes, at both
+  USize widths, reaches ~FFITypePtrBox_Clone~ and reports ~unsupported namespace
+  field 'ffi_type.size'~ (U32/U64 respectively). Dynamic Map values and nested
+  ordered-container lifecycle now pass shared native regressions. General
+  Dynamic-to-typed casts, the remaining
   compiler data/operation shapes, and actual foreign/native boundaries still
   need coverage. Translation, native compilation and a usable compiler are
   separate acceptance milestones. Broader CLI checks should include imported
@@ -1638,6 +1640,39 @@
   namespace suites directly with zero outstanding allocations; the new test
   entrypoint cases cover imported/namespace ordering, library/CLI/script test
   commands, empty suites and stopping after a failure.
+
+**** Dynamic Map values and nested ordered containers
+
+  HolyC now accepts ~Map(K, Dynamic)~ values and uses the same pointer-word
+  storage as ~Vec(Dynamic)~. A set consumes the incoming heap cell, loads its
+  native-width word and releases the cell; the stored pointee is not freed.
+  Borrowed lookups return the slot address. Cloning copies those pointer words
+  into independent slots, while replacement/removal/clear leave the separately
+  owned pointees alive. The ordinary typed Map set path also consumes a moved
+  heap-backed scalar through the existing take-word helper.
+
+  The common ~test/maps.til~ suite now includes pointer identity and mutation,
+  null slots, replacement, growth/sorted insertion, missing-key catches, clone
+  independence, clear/reuse and all native pointer bits under USize32/64.
+  It runs directly through interpreter, C and HolyC; the native runner includes
+  it in the allocation ledger alongside the other common collection suites.
+  The mutation regression also exposed an unresolved ~write_i64~ extern; HolyC
+  now emits its checked typed store directly.
+
+  Advancing the compiler translation exposed ~Set(Str).clone~ being rejected
+  inside a payload. Payload validation now recognizes Map/Set's existing native
+  lifecycle helpers just as it recognizes Vec/Array helpers. The shared
+  ~test_map_ordered_container_payloads~ case clones enum payloads containing
+  Set(Str) and Map(Str, Dynamic), drains the originals, verifies the snapshots
+  and checks that the pointed-to value survives teardown.
+
+  Verification on master ~5de47305e~: clean hosted suite 563/563, clang-clean.
+  The common Map suite passes all 17 named cases interpreted and compiled;
+  four additional C/ASAN runs pass at O0/O2 and USize32/64. All ten focused
+  native allocation-ledger cases pass, including the common Map suite at both
+  widths. Compiler translation at both widths passes the former Map and Set
+  lifecycle frontiers and reaches the ~ffi_type.size~ field-access diagnostic
+  described above.
 
 **** Manual GUI testing in one VM
 

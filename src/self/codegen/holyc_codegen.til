@@ -2999,7 +2999,7 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                         mut value := ""
                         if value_type == "Str" { value = holyc_str_ref(e.children[3], ctx, locals, error) }
                         else if holyc_aggregate_type(value_type, state) { value = holyc_struct_ref(e.children[3], ctx, locals, error) }
-                        else { value = holyc_expr(e.children[3], ctx, state, locals, error) }
+                        else { value = holyc_collection_word_arg(e, 3, value_type, ctx, state, locals, error) }
                         return format(owner, "_Set(", self_ref, ", ", key, ", ", value, ")")
                     }
                     mut helper := "_Has"
@@ -3947,6 +3947,12 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 value := holyc_pointer_expr(e.children[2], ctx, state, locals, error)
                 return format("TilWritePtr(", slot, ", ", value, ")")
             }
+            if name == "write_i64" {
+                if e.children.len() != 3 { error = format("invalid call '", name, "'"); return "" }
+                slot := holyc_pointer_expr(e.children[1], ctx, state, locals, error)
+                value := holyc_expr(e.children[2], ctx, state, locals, error)
+                return format("(*(TilCheckPtr(", slot, ")(I64 *)) = ", value, ")")
+            }
             if name == "to_ptr" {
                 if e.children.len() != 2 { error = "invalid call 'to_ptr'"; return "" }
                 return holyc_pointer_expr(e.children[1], ctx, state, locals, error)
@@ -4583,7 +4589,9 @@ priv holyc_struct_field_ctype := func(owner: Str, field_name: Str,
 priv holyc_payload_lifecycle := func(name: Str, ctx: Context,
     state: HolyCEmitState, mut error: Str) {
     if holyc_aggregate_type(name, state).not() { return }
-    if state.collection_elements.has(name) { return }
+    // These containers already have native clone/delete helpers, even though
+    // their shared source methods are not auto-generated struct lifecycle.
+    if state.collection_elements.has(name).or(state.map_keys.has(name)).or(state.set_elements.has(name)) { return }
     ref def : Expr = ctx.scope.get_struct(name, ctx.symbols).unwrap()
     for method : Str in "clone delete".split(" ") {
         if def_ns_has(def, method).and(holyc_struct_method_is_generated(name, method, ctx).not()) {
@@ -4999,7 +5007,7 @@ priv holyc_ordered_definition := func(name: Str, state: HolyCEmitState,
     if is_map {
         ref value : Str = state.map_values[name]
         val_ctype := holyc_value_ctype(value, state)
-        if holyc_scalar_type_name(val_ctype).or(value.eq("Str"))
+        if holyc_scalar_type_name(val_ctype).or(value.eq("Dynamic")).or(value.eq("Str"))
             .or(holyc_aggregate_type(value, state)).not() {
             error = format("unsupported Map value type '", value, "'")
             return ""
