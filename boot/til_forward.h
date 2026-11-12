@@ -416,10 +416,10 @@ typedef struct ProgramUnit ProgramUnit;
 typedef struct TargetLink TargetLink;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct DocMeta DocMeta;
-typedef struct priv___src_self_loader_til__ImportCheckEntry priv___src_self_loader_til__ImportCheckEntry;
+typedef struct ImportCheckEntry ImportCheckEntry;
+typedef struct Vec__ImportCheckEntry Vec__ImportCheckEntry;
 typedef struct Vec__TargetLink Vec__TargetLink;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
-typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry Vec__priv___src_self_loader_til__ImportCheckEntry;
 typedef struct priv___src_self_codegen_c_codegen_til__JniErrSlot priv___src_self_codegen_c_codegen_til__JniErrSlot;
 typedef struct priv___src_self_codegen_c_codegen_til__JniTypes priv___src_self_codegen_c_codegen_til__JniTypes;
 typedef struct priv___src_self_codegen_c_codegen_til__JniInit priv___src_self_codegen_c_codegen_til__JniInit;
@@ -1500,14 +1500,21 @@ typedef struct DocMeta {
 } DocMeta;
 
 
-typedef struct priv___src_self_loader_til__ImportCheckEntry {
+typedef struct ImportCheckEntry {
     Str path;
     U32 line;
     U32 col;
     Str label;
     Str dep;
     Str decl_name;
-} priv___src_self_loader_til__ImportCheckEntry;
+} ImportCheckEntry;
+
+
+typedef struct Vec__ImportCheckEntry {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__ImportCheckEntry;
 
 
 typedef struct Vec__TargetLink {
@@ -1522,13 +1529,6 @@ typedef struct Vec__ProgramUnit {
     USize count;
     USize cap;
 } Vec__ProgramUnit;
-
-
-typedef struct Vec__priv___src_self_loader_til__ImportCheckEntry {
-    TIL_OWN_PTR(U8) data;
-    USize count;
-    USize cap;
-} Vec__priv___src_self_loader_til__ImportCheckEntry;
 
 
 typedef struct priv___src_self_codegen_c_codegen_til__JniErrSlot {
@@ -2651,6 +2651,9 @@ typedef struct Context {
     Set__Str imports_init_seed_done;
     Set__Str imports_init_active;
     Set__Str imports_init_done;
+    Set__Str load_resolved;
+    Vec__Str late_units;
+    Vec__Str late_unit_importers;
     Set__Str imports_typer_methods_done;
     Set__Str imports_typer_fields_done;
     Set__Str imports_typer_decls_done;
@@ -2742,6 +2745,7 @@ typedef struct LoadedProgram {
     TIL_OWN_PTR(Vec__ProgramUnit) core_units;
     TIL_OWN_PTR(Vec__ProgramUnit) units;
     Vec__Str mode_files;
+    Vec__ImportCheckEntry import_check_entries;
     Target target;
     TargetCpu cpu;
     USize opt_level;

@@ -1,0 +1,153 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+realpath_str := ext_proc(path: Str) returns Str {}
+
+// Issue #486: a top-level `if` / `switch` that selects definitions or loader
+// directives, or whose condition reads TARGET_OS / TARGET_ARCH or calls a
+// macro, is resolved at compile time: the taken branch's statements become
+// top-level statements, the others are dropped without being type-checked,
+// and the condition must be a compile-time constant.
+
+WORK := "tmp/static_conditionals"
+
+write := proc(name: Str, source: Str) {
+    File.writefile(format(WORK, "/", name), source)
+}
+
+til := proc(compiler: Str, args: ..Str) returns Cmd {
+    cmd := Cmd.new(compiler)
+    for arg : Str in args { cmd.arg(arg) }
+    cmd.cwd(WORK)
+    cmd.capture()
+    return cmd
+}
+
+expect_output := proc(compiler: Str, command: Str, source: Str, expected: Str) {
+    cmd := til(compiler, command, source)
+    status := cmd.run()
+    out := format(cmd.out(), cmd.err())
+    if status != 0 { panic(command, " ", source, " failed: ", out) }
+    if out.contains(expected).not() { panic(command, " ", source, " printed no '", expected, "': ", out) }
+}
+
+expect_error := proc(compiler: Str, source: Str, expected: Str) {
+    cmd := til(compiler, "interpret", source)
+    status := cmd.run()
+    out := format(cmd.out(), cmd.err())
+    if status == 0 { panic(source, " was accepted: ", out) }
+    if out.contains(expected).not() { panic(source, " did not report '", expected, "': ", out) }
+}
+
+check_link := proc(compiler: Str, target: Str, expected: Bool) {
+    build := til(compiler, "build", format("--target=", target), "--cc=echo",
+        "-o", format("bin/links-", target), "./links.til")
+    if build.run() != 0 { panic("build --target=", target, " failed: ", build.out(), build.err()) }
+    if build.out().contains("-ltil486probe") != expected {
+        panic("--target=", target, ": the unix-only link() was mis-selected: ", build.out())
+    }
+}
+
+main := proc(args: ..Str) {
+    compiler := realpath_str(args[0])
+    File.remove_tree(WORK)
+    mkdir_p(format(WORK, "/gen"))
+    write("helper_linux.til", "mode lib\nhelper_name := func() returns Str { return \"linux helper\" }\n")
+    write("helper_other.til", "mode lib\nhelper_name := func() returns Str { return \"other helper\" }\n")
+    // A macro-computed condition selecting a link() and an ext binding, an
+    // `else if` chain, and a switch whose branches import different files.
+    write("probe.til", format(
+        "mode script\n",
+        "on_unix := macro() returns Bool { return TARGET_OS == TargetOs.Linux || TARGET_OS == TargetOs.Macos }\n",
+        "if on_unix() {\n",
+        "    link(\"m\")\n",
+        "    getpid := ext_proc() returns shallow I32 {}\n",
+        "    current_pid := proc() returns I32 { return getpid() }\n",
+        "} else {\n",
+        "    _getpid := ext_proc() returns shallow I32 {}\n",
+        "    current_pid := proc() returns I32 { return _getpid() }\n",
+        "}\n",
+        "if TARGET_OS == TargetOs.Windows {\n",
+        "    FAMILY := \"windows family\"\n",
+        "} else if on_unix() {\n",
+        "    FAMILY := \"unix family\"\n",
+        "} else {\n",
+        "    FAMILY := \"other family\"\n",
+        "}\n",
+        "switch TARGET_OS {\n",
+        "case .Linux:\n",
+        "    import(\"helper_linux\")\n",
+        "    LABEL := \"linux label\"\n",
+        "case .Windows:\n",
+        "    import(\"helper_other\")\n",
+        "    LABEL := \"windows label\"\n",
+        "case:\n",
+        "    import(\"helper_other\")\n",
+        "    LABEL := \"other label\"\n",
+        "}\n",
+        "println(LABEL, \" / \", FAMILY, \" / \", helper_name(), \" / pid \", (current_pid() > 0).to_str())\n"))
+    // The dead branch names things that exist nowhere; it is never checked.
+    write("dead.til", format(
+        "mode script\n",
+        "if TARGET_OS == TargetOs.Wasm {\n",
+        "    wasm_value := func() returns I64 { return wasm_only_symbol(no_such_value.field) }\n",
+        "    VALUE := wasm_value()\n",
+        "} else {\n",
+        "    VALUE : I64 = 7\n",
+        "}\n",
+        "println(\"dead branch skipped \", VALUE.to_str())\n"))
+    write("links.til", format(
+        "mode script\n",
+        "on_unix := macro() returns Bool { return TARGET_OS == TargetOs.Linux || TARGET_OS == TargetOs.Macos }\n",
+        "if on_unix() { link(\"til486probe\") }\n",
+        "println(\"links\")\n"))
+    write("mutable.til", "mode script\nmut limit := 3\nif limit > 2 { link(\"m\") }\nprintln(\"x\")\n")
+    write("proc_call.til", "mode script\nos_name := ext_proc() returns Str {}\nif os_name() == \"linux\" { link(\"m\") }\nprintln(\"x\")\n")
+    write("self_dependent.til", format(
+        "mode script\n",
+        "if USE_FAST {\n",
+        "    USE_FAST := true\n",
+        "    fast := func() returns I64 { return 1 }\n",
+        "}\n",
+        "println(\"x\")\n"))
+
+    // The host is the default target, interpreted and compiled alike.
+    mut host_line := "other label / unix family / other helper / pid true"
+    if host_os() == "linux" { host_line = "linux label / unix family / linux helper / pid true" }
+    if host_os() == "windows" { host_line = "windows label / windows family / other helper / pid true" }
+    expect_output(compiler, "interpret", "./probe.til", host_line)
+    expect_output(compiler, "run", "./probe.til", host_line)
+    expect_output(compiler, "interpret", "./dead.til", "dead branch skipped 7")
+    expect_output(compiler, "run", "./dead.til", "dead branch skipped 7")
+
+    // Cross-compiling selects the target's branches, not the host's.
+    mut cross := "windows-x64"
+    mut cross_label := "windows label"
+    mut cross_binding := "_getpid"
+    if host_os() == "windows" {
+        cross = "linux-x64"
+        cross_label = "linux label"
+        cross_binding = "getpid"
+    }
+    translate := til(compiler, "translate", format("--target=", cross), "-c", "gen/cross.c", "./probe.til")
+    if translate.run() != 0 { panic("translate --target=", cross, " failed: ", translate.out(), translate.err()) }
+    c_source := File.readfile(format(WORK, "/gen/cross.c"))
+    if c_source.contains(format("\"", cross_label, "\"")).not().or(c_source.contains(cross_binding).not()) {
+        panic("--target=", cross, " did not select its own branches")
+    }
+    if c_source.contains("\"other helper\"").eq(cross.eq("linux-x64")) {
+        panic("--target=", cross, " imported the other branch's helper")
+    }
+
+    // The selected link() reaches the link line of the targets it is for.
+    check_link(compiler, "linux-x64", true)
+    check_link(compiler, "windows-x64", false)
+
+    must_be_constant := "is resolved at compile time, so its condition must be a compile-time constant"
+    expect_error(compiler, "./mutable.til", format(must_be_constant, ": 'limit' is mutable"))
+    expect_error(compiler, "./proc_call.til", format(must_be_constant, ": 'os_name' is a proc"))
+    expect_error(compiler, "./self_dependent.til", "it reads 'USE_FAST', which only its own branch defines")
+    println("static conditionals passed")
+}

@@ -24,6 +24,31 @@ can name its own build of a library (~link("vendor/nng/build-linux-arm64/libnng.
 see [[file:tutorial/2_modes.org][the modes tutorial]] for the mode-level
 ~targets~ and ~build_hint~ that go with it.
 
+A top-level ~if~ or ~switch~ selects directives and declarations per build
+target (issue #486). ~TARGET_OS~ and ~TARGET_ARCH~ (src/core/core.til, enums
+~TargetOs~ / ~TargetArch~) are constants of the build target: the ~--target~,
+or the machine running the compiler when there is none and when
+interpreting. ~host_os()~ / ~host_arch()~ still answer for the machine the
+binary runs on. A top-level conditional is resolved at compile time when a
+branch holds a definition (func, proc, macro, ext binding, struct, enum) or a
+directive (~import~, ~link~, ~link_c~, ~link_macos~), or when its condition
+reads ~TARGET_OS~ / ~TARGET_ARCH~ or calls a value macro. Its condition must
+then be a compile-time constant -- a mutable value or a proc call is an error
+naming it, and so is reading what only its own branch defines or imports --
+and the taken branch's statements become top-level statements; the other
+branches are dropped without being type-checked, so they may name what exists
+only on another target. Any other top-level ~if~ / ~switch~ is an ordinary
+statement, as before.
+
+#+begin_src til
+if TARGET_OS == TargetOs.Windows {
+    link("ws2_32")
+    _getpid := ext_proc() returns shallow I32 {}
+} else {
+    getpid := ext_proc() returns shallow I32 {}
+}
+#+end_src
+
 ~link_macos("OpenGL Cocoa")~ names macOS frameworks, which ~link()~ cannot
 spell. They are linked for the mac targets only: as ~-framework~ on a mac
 host, and off a mac -- where there is no Apple SDK -- as the ~.tbd~ stubs

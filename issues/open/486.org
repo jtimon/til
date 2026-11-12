@@ -157,7 +157,22 @@ references that are ordinary declarations living under that branch.
   scope so a macro can read them (~constfolder_register_enum_constants~).
   Test: test/target_constants.til (default target interpreted and
   compiled, three cross targets through a macro's folded literal).
-- [ ] Step 2: top-level constant ~if~ / ~switch~.
+- [X] Step 2: top-level constant ~if~ / ~switch~. Which ones: a branch
+  holding a definition or a loader directive, or a condition reading
+  ~TARGET_OS~ / ~TARGET_ARCH~ or calling a value macro (any other top-level
+  ~if~ stays a statement: scripts check things at run time that way).
+  Resolved in ~init_file~, once the unit's imports are initialized, by the
+  same evaluator a type-generating macro's condition uses
+  (~eval_generator_condition~; a ~switch~ case is a one-arm ~match~). The
+  taken branch is spliced in and seeded, a selected ~import~ is loaded
+  then, and ~extract_link_info~ runs after init. So init moved ahead of the
+  #442 reuse check (~init_program_errors~, then
+  ~type_inited_program_errors~). Fixed on the way: the comptime evaluator
+  prepared ~Enum.Variant~ as the variant's tag constant, so
+  ~TARGET_ARCH.to_str()~ in a generator condition silently read an I64.
+  Known gap: the MLIR backend reads its source declarations before init, so
+  a user module imported only under a conditional does not root an MLIR
+  library's exports. Test: test/static_conditionals.til.
 - [ ] Step 3: migrate the system ~link()~s and ~link(name, "<targets>")~;
   remove the target-list form and the builder's rewrite; interpreter
   ~link()~ load failures become errors.

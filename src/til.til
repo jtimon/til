@@ -190,6 +190,16 @@ repl_source_line_count := func(s: Str) returns U32 {
     return lines
 }
 
+// #486: a top-level `if` / `switch` may be resolved at compile time, which
+// only a full load does -- the same way a file's is -- so it counts as a
+// loader directive.
+repl_ast_has_top_level_conditional := func(program: Expr) returns Bool {
+    for stmt : Expr in program.children {
+        if stmt.node_type.is(NodeType.If).or(stmt.node_type.is(NodeType.Switch)) { return true }
+    }
+    return false
+}
+
 repl_ast_has_loader_directive := func(e: Expr, symbols: SymbolPool) returns Bool {
     switch e.node_type {
     case .FCall:
@@ -516,6 +526,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
         mut turn_aborted := false
         current_has_help := repl_ast_has_help_call(peek_ast, peek_symbols)
         current_has_loader_directive := repl_ast_has_loader_directive(peek_ast, peek_symbols)
+            .or(repl_ast_has_top_level_conditional(peek_ast))
         current_has_lazy_def := repl_ast_has_lazy_def(peek_ast)
         current_has_known_variadic_call := repl_ast_has_known_variadic_call(peek_ast, peek_symbols)
         init_docs_this_turn := current_has_help.and(docs_active.not().or(user_docs_dirty))
@@ -1264,7 +1275,6 @@ main := proc(args: ..Str) {
     lp.ctx.target_cptr32 = lp.cptr32
     // #154 prototype: unused-import type errors, opt-in per invocation.
     lp.ctx.check_unused_imports = cli.check_unused_imports
-    user_argv := collect_user_argv(lp, args, cli.path_idx + 1)
 
     // `ast` prints the raw parsed AST -- skip init/typecheck/constfolder/scavenge
     // so output matches the parser's direct output and stays cheap on large
@@ -1274,6 +1284,31 @@ main := proc(args: ..Str) {
         return
     }
 
+    // Tell the typer whether this command emits backend source. `interpret`, `ast`, and
+    // `doc` stay in interpreter mode; every backend command compiles.
+    lp.ctx.compile_mode = cli.command.eq("interpret")
+        .or(cli.command.eq("ast"))
+        .or(cli.command.eq("doc")).not()
+
+    // The MLIR and FASM backends tell the program's own declarations from
+    // the ones init generates (generic instances and the like), so they read
+    // them before init.
+    mut backend_functions := Set(Str).new()
+    if cli.backend == "mlir" { backend_functions = mlir_source_declarations(lp) }
+    if cli.backend == "fasm" { backend_functions = fasm_source_declarations(lp) }
+
+    // #486: initialize now that the target and layout are final. That
+    // resolves the top-level compile-time conditionals, which decide the
+    // program's last imports and its link directives -- what the reuse
+    // check below reads.
+    init_errors := init_program_errors(lp)
+    if init_errors > 0 {
+        println(init_errors.to_str(), " type error(s) found")
+        exit(1)
+    }
+    // After init, so a command line's -l flags follow the program's own.
+    user_argv := collect_user_argv(lp, args, cli.path_idx + 1)
+
     // `doc` only needs a typed AST; constfolder + scavenge are codegen prep.
     if cli.command == "doc" {
         init_and_type_program(lp, false)
@@ -1282,11 +1317,6 @@ main := proc(args: ..Str) {
         return
     }
 
-    // Tell the typer whether this command emits backend source. `interpret`, `ast`, and
-    // `doc` stay in interpreter mode; every backend command compiles.
-    lp.ctx.compile_mode = cli.command.eq("interpret")
-        .or(cli.command.eq("ast"))
-        .or(cli.command.eq("doc")).not()
 
     // #442: placed between load_program and prepare_program -- loading
     // resolved every import, so the dependency set is known, and the
@@ -1300,14 +1330,11 @@ main := proc(args: ..Str) {
         return
     }
 
-    mut backend_functions := Set(Str).new()
     if cli.backend == "mlir" {
-        backend_functions = mlir_source_declarations(lp)
         lp.mlir_runtime = true
         // Core calls cross a translation-unit boundary even for executables.
         lp.ctx.param_value_abi_ok = false
     }
-    if cli.backend == "fasm" { backend_functions = fasm_source_declarations(lp) }
     prepare_program(lp, cli.command == "test")
 
     if cli.backend.eq("fasm").or(cli.backend.eq("mlir")) && (lp.link_c_paths.len() > 0 || lp.link_flags_for_target().len() > 0) {

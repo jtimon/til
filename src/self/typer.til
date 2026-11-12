@@ -9744,6 +9744,15 @@ priv comptime_prepare_member := proc(mut e: Expr, scope: TypeScope, mut prep: Co
     comptime_prepare_type(name, prep, ctx)
     mut def_o := ctx.scope.get_struct(name, ctx.symbols)
     if def_o.is_none() { return }
+    // #486: `Enum.Variant` is a value of the enum, which the typer builds
+    // from the prepared definition; its tag constant in the namespace is
+    // not what the expression means.
+    ref owner_def : Expr = def_o.unwrap()
+    if owner_def.node_type.is(NodeType.EnumDef) {
+        for variant : VariantDef in enumdef_of(owner_def).variants {
+            if variant.name == method { return }
+        }
+    }
     mut member_o := def_ns_get(def_o.unwrap(), method)
     if member_o.is_none().or(member_o.unwrap().default_value.is_none()) { return }
     ref mut body : Expr = member_o.unwrap().default_expr()

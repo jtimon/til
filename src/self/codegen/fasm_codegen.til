@@ -1865,10 +1865,25 @@ priv fasm_root := func(lp: LoadedProgram) returns ref Expr {
 
 fasm_source_declarations := func(lp: LoadedProgram) returns Set(Str) {
     mut names := Set(Str).new()
-    for stmt : Expr in fasm_root(lp).children {
-        if stmt.node_type.is(NodeType.Decl) { names.add(own decl_of(stmt).name.clone()) }
-    }
+    fasm_add_source_declarations(fasm_root(lp), names)
     return names
+}
+
+// Read before init: a top-level `if` / `switch` resolved at compile time
+// (#486) still holds its branches, and whichever is selected is source too.
+priv fasm_add_source_declarations := func(body: Expr, mut names: Set(Str)) {
+    for stmt : Expr in body.children {
+        if stmt.node_type.is(NodeType.If) {
+            for bi in 1..stmt.children.len() { fasm_add_source_declarations(stmt.children[bi], names) }
+        } else if stmt.node_type.is(NodeType.Switch) {
+            for ci in 1..stmt.children.len() {
+                ref case_node : Expr = stmt.children[ci]
+                fasm_add_source_declarations(case_node.children[case_node.children.len() - 1], names)
+            }
+        } else if stmt.node_type.is(NodeType.Decl) {
+            names.add(own decl_of(stmt).name.clone())
+        }
+    }
 }
 
 priv fasm_register := func(index: USize) returns Str {

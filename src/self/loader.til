@@ -341,6 +341,9 @@ LoadedProgram := struct {
     own core_units := Vec(ProgramUnit).new()
     own units := Vec(ProgramUnit).new()
     mode_files := Vec(Str).new()
+    // #154 prototype: the explicit imports init_program_errors snapshots
+    // before the namespace-import desugar, checked once typing is over.
+    import_check_entries := Vec(ImportCheckEntry).new()
 
     target := Target.LinuxX64
     cpu := TargetCpu()
@@ -473,6 +476,7 @@ namespace:
         own self.core_units.delete(true)
         own self.units.delete(true)
         own self.mode_files.delete(false)
+        own self.import_check_entries.delete(false)
         Target.delete(own self.target, false)
         TargetCpu.delete(own self.cpu, false)
         Mode.delete(own self.cur_mode, false)
@@ -1494,9 +1498,8 @@ load_program := proc(path: Str, bin_dir: Str, cwd: Str, extra_modes: Vec(Str), i
     lp.skip_core = skip_core
     lp.mode_str = mode_str
 
-    extract_link_info(lp)
-    lp.ctx.param_value_abi_ok = cur_mode.is_library.or(cur_mode.decls_only).not()
-        .and(lp.link_c_paths.len().eq(0))
+    // A compile-time conditional's selected import loads into the same set.
+    lp.ctx.load_resolved = resolved
     return lp
 }
 
@@ -4661,7 +4664,7 @@ priv expand_lazy_calls_in_program := func(mut lp: LoadedProgram) {
 // One entry per explicit import stmt in a user unit, snapshotted BEFORE
 // desugar_namespace_imports rewrites `name := import(...)` decls into
 // bare dependency calls and rewrites qualified uses.
-priv ImportCheckEntry := struct {
+ImportCheckEntry := struct {
     path := ""       // importing unit's display path
     line : U32 = 0
     col : U32 = 0
@@ -4719,8 +4722,452 @@ register_target_int_aliases := func(mut lp: LoadedProgram) {
     context_register_target_int_alias_types(lp.ctx, target_int_alias_name(lp, "USize", target_usize_name(lp.target)), target_int_alias_name(lp, "UPtr", target_uptr_name(lp.target)))
 }
 
-type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 {
-    lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
+// --- #486: top-level compile-time conditionals ---
+//
+// A top-level `if` / `switch` is resolved at compile time when a branch
+// holds something only a file's top level can hold -- a definition (func,
+// proc, macro, ext binding, struct, enum) or a loader directive (import,
+// link, link_c, link_macos) -- or when its condition reads TARGET_OS /
+// TARGET_ARCH or calls a value macro. Its condition must then be a
+// compile-time constant; the taken branch's statements replace it as
+// top-level statements and the others are dropped unchecked. Every other
+// top-level `if` / `switch` is an ordinary statement, as before (a script's
+// runtime checks).
+
+priv is_loader_directive := func(e: Expr, symbols: SymbolPool) returns Bool {
+    if e.node_type.is(NodeType.FCall).not().or(e.children.len() == 0) { return false }
+    switch e.children[0].node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name(symbols.names)
+        return or(name.eq("import"), name.eq("link"), name.eq("link_c"), name.eq("link_macos"))
+    case:
+    }
+    return false
+}
+
+// The Body a branch of a top-level conditional runs: an `if`'s child 1 or
+// 2, a `switch` case's last child.
+priv conditional_branch := func(stmt: Expr, idx: USize) returns ref Expr {
+    if stmt.node_type.is(NodeType.If) { return stmt.children[idx] }
+    ref case_node : Expr = stmt.children[idx]
+    return case_node.children[case_node.children.len() - 1]
+}
+
+priv branch_holds_top_level := func(body: Expr, symbols: SymbolPool) returns Bool {
+    for stmt : Expr in body.children {
+        if is_loader_directive(stmt, symbols) { return true }
+        if stmt.node_type.is(NodeType.Decl).and(stmt.children.len() > 0) {
+            ref rhs : Expr = stmt.children[0]
+            if rhs.node_type.is(NodeType.FuncDef).or(rhs.node_type.is(NodeType.StructDef))
+                .or(rhs.node_type.is(NodeType.EnumDef)) { return true }
+            if is_loader_directive(rhs, symbols) { return true }
+        }
+        if conditional_holds_top_level(stmt, symbols) { return true }
+    }
+    return false
+}
+
+priv conditional_holds_top_level := func(stmt: Expr, symbols: SymbolPool) returns Bool {
+    if stmt.node_type.is(NodeType.If).or(stmt.node_type.is(NodeType.Switch)).not() { return false }
+    for i in 1..stmt.children.len() {
+        if branch_holds_top_level(conditional_branch(stmt, i), symbols) { return true }
+    }
+    return false
+}
+
+priv is_value_macro := func(fdef: Expr) returns Bool {
+    ref fd : FunctionDef = funcdef_of(fdef)
+    if fd.sig.func_type.is(FuncType.Macro).not() { return false }
+    return or(fd.sig.return_type.eq("StructDef"), fd.sig.return_type.eq("EnumDef"),
+        fd.sig.return_type.eq("FuncDef"), fd.sig.return_type.eq("FunctionDef")).not()
+}
+
+priv condition_reads_compile_time := func(e: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    switch e.node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name(symbols.names)
+        if name.eq("TARGET_OS").or(name.eq("TARGET_ARCH")) { return true }
+    case .FCall:
+        switch e.children[0].node_type {
+        case .Ident(callee):
+            fdef_o := scope.lookup_func_name(callee.ident_name(symbols.names), symbols)
+            if fdef_o.is_some().and(is_value_macro(fdef_o.unwrap())) { return true }
+        case:
+        }
+    case:
+    }
+    for child : Expr in e.children {
+        if condition_reads_compile_time(child, scope, symbols) { return true }
+    }
+    return false
+}
+
+priv is_compile_time_conditional := func(stmt: Expr, scope: TypeScope, symbols: SymbolPool) returns Bool {
+    if stmt.node_type.is(NodeType.If).or(stmt.node_type.is(NodeType.Switch)).not() { return false }
+    if conditional_holds_top_level(stmt, symbols) { return true }
+    return condition_reads_compile_time(stmt.children[0], scope, symbols)
+}
+
+// The names a conditional's branches declare at their top level, through
+// nested conditionals: what the branch would define.
+priv collect_branch_names := func(path: Str, stmt: Expr, mut names: Set(Str), mut imports: Bool, symbols: SymbolPool) {
+    for i in 1..stmt.children.len() {
+        ref body : Expr = conditional_branch(stmt, i)
+        for inner : Expr in body.children {
+            if is_loader_directive(inner, symbols) {
+                if import_path_for_stmt(inner, path, symbols).len() > 0 { imports = true }
+            }
+            switch inner.node_type {
+            case .Decl(dd):
+                names.add(own dd.name.clone())
+                if dd.orig_name.len() > 0 { names.add(own dd.orig_name.clone()) }
+                if import_path_for_stmt(inner, path, symbols).len() > 0 { imports = true }
+            case .If, .Switch: collect_branch_names(path, inner, names, imports, symbols)
+            case:
+            }
+        }
+    }
+}
+
+// A top-level declaration of `name` in any loaded unit, the way the
+// compile-time evaluator finds a constant's initializer.
+priv loaded_top_level_decl := func(name: Str, ctx: Context) returns Option(ref Declaration) {
+    for unit : ImportUnit in ctx.imported.values {
+        for stmt : Expr in unit.ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            ref decl : Declaration = decl_of(stmt)
+            if decl.name == name { return safe_ref(decl) }
+        }
+    }
+    return Option(ref Declaration).None
+}
+
+priv is_proc_kind := func(ft: FuncType) returns Bool {
+    return or(ft.is(FuncType.Proc), ft.is(FuncType.ExtProc), ft.is(FuncType.LazyProc), ft.is(FuncType.CoreProc))
+}
+
+// What makes a compile-time condition unusable, said the way the error
+// says it, or "" when nothing visible does (evaluating it then decides).
+// at_line / at_col are set to the node the message is about.
+priv condition_problem := func(e: Expr, branch_names: Set(Str), branch_imports: Bool,
+    mut at_line: U32, mut at_col: U32, ctx: Context) returns Str {
+    switch e.node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name(ctx.symbols.names)
+        // A leading-dot pattern's elided enum name.
+        if name.len() == 0 { return "" }
+        binding_o := ctx.scope.get_binding_name(name, ctx.symbols)
+        if binding_o.is_some() {
+            if binding_o.unwrap().is_mut { at_line = e.line; at_col = e.col; return format("'", name, "' is mutable") }
+            return ""
+        }
+        decl_o := loaded_top_level_decl(name, ctx)
+        if decl_o.is_some() {
+            if decl_o.unwrap().is_mut { at_line = e.line; at_col = e.col; return format("'", name, "' is mutable") }
+            return ""
+        }
+        mut builtin := Type.Unknown
+        if builtin_type_from_name(name, builtin, ctx.symbols) { return "" }
+        if branch_names.has(name) {
+            at_line = e.line; at_col = e.col
+            return format("it reads '", name, "', which only its own branch defines; a compile-time condition cannot depend on what it selects")
+        }
+        if branch_imports {
+            at_line = e.line; at_col = e.col
+            return format("it reads '", name, "', which is not defined; a compile-time condition cannot depend on what its own branch imports")
+        }
+        return ""
+    case .FCall:
+        switch e.children[0].node_type {
+        case .Ident(callee):
+            ref name : Str = callee.ident_name(ctx.symbols.names)
+            fdef_o := ctx.scope.lookup_func_name(name, ctx.symbols)
+            if fdef_o.is_some().and(is_proc_kind(funcdef_of(fdef_o.unwrap()).sig.func_type)) {
+                at_line = e.line; at_col = e.col
+                return format("'", name, "' is a proc")
+            }
+        case .FieldAccess(member):
+            ref callee_fa : Expr = e.children[0]
+            switch callee_fa.children[0].node_type {
+            case .Ident(owner):
+                ref owner_name : Str = owner.ident_name(ctx.symbols.names)
+                sdef_o := ctx.scope.get_struct(owner_name, ctx.symbols)
+                if sdef_o.is_some() {
+                    ref method : Str = member.field_access_name(ctx.symbols.names)
+                    member_o := def_ns_get(sdef_o.unwrap(), method)
+                    if member_o.is_some().and(member_o.unwrap().default_value.is_some()) {
+                        ref body : Expr = member_o.unwrap().default_expr()
+                        if body.node_type.is(NodeType.FuncDef) {
+                            if is_proc_kind(funcdef_of(body).sig.func_type) {
+                                at_line = e.line; at_col = e.col
+                                return format("'", owner_name, ".", method, "' is a proc")
+                            }
+                        }
+                    }
+                }
+            case:
+            }
+        case:
+        }
+    case:
+    }
+    for child : Expr in e.children {
+        problem := condition_problem(child, branch_names, branch_imports, at_line, at_col, ctx)
+        if problem.len() > 0 { return problem }
+    }
+    return ""
+}
+
+// A `match` that is true when `case_node` selects `subject`: a static
+// `switch` is resolved by evaluating one per case, in order.
+priv case_condition := func(subject: Expr, case_node: Expr) returns Expr {
+    mut m := Expr.new(own NodeType.Match(MatchData()), case_node.line, case_node.col)
+    m.add_child(own subject.clone())
+    mut pattern_count : USize = 0
+    switch case_node.node_type {
+    case .Case(cd): pattern_count = cd.pattern_count
+    case:
+    }
+    mut hit := Expr.new(own NodeType.Case(CaseData(pattern_count = pattern_count)), case_node.line, case_node.col)
+    for i in 0..case_node.children.len() - 1 { hit.add_child(own case_node.children[i].clone()) }
+    hit.add_child(own match_arm_value(true, case_node))
+    m.add_child(own hit)
+    mut miss := Expr.new(own NodeType.Case(CaseData(pattern_count = 0)), case_node.line, case_node.col)
+    miss.add_child(own match_arm_value(false, case_node))
+    m.add_child(own miss)
+    return m
+}
+
+// A `match` arm's value, wrapped in a Body as the parser wraps it.
+priv match_arm_value := func(value: Bool, at: Expr) returns Expr {
+    mut body := Expr.new(own NodeType.Body, at.line, at.col)
+    body.add_child(own Expr.new(own NodeType.Literal(Literal.Bool(value)), at.line, at.col))
+    return body
+}
+
+// Evaluate a compile-time condition: 1 or 0, or -1 with the error reported.
+priv eval_static_condition := proc(path: Str, cond: Expr, kind: Str, mut ctx: Context) returns I32 {
+    errors_before := ctx.errors
+    mut evaluated := cond.clone()
+    answer := eval_generator_condition(evaluated, ctx.scope, ctx)
+    if answer.lt(0).and(ctx.errors == errors_before) {
+        type_error_at(path, cond.line, cond.col, format("this top-level ", kind,
+            " is resolved at compile time, but its condition could not be evaluated at compile time"), ctx)
+    }
+    if ctx.errors > errors_before { return -1 }
+    return answer
+}
+
+// The child of `stmt` whose branch is taken (an `if`'s 1 or 2, a switch's
+// case index), 0 when none is, or -1 after an error.
+priv pick_static_branch := proc(path: Str, stmt: Expr, mut ctx: Context) returns I64 {
+    mut kind := "if"
+    if stmt.node_type.is(NodeType.Switch) { kind = "switch" }
+    // The condition, or the switch's subject, has to be a constant; say
+    // what is not before evaluating anything.
+    mut branch_names := Set(Str).new()
+    mut branch_imports := false
+    collect_branch_names(path, stmt, branch_names, branch_imports, ctx.symbols)
+    ref cond : Expr = stmt.children[0]
+    mut at_line := cond.line
+    mut at_col := cond.col
+    problem := condition_problem(cond, branch_names, branch_imports, at_line, at_col, ctx)
+    if problem.len() > 0 {
+        type_error_at(path, at_line, at_col, format("this top-level ", kind,
+            " is resolved at compile time, so its condition must be a compile-time constant: ", problem), ctx)
+        return -1
+    }
+    if stmt.node_type.is(NodeType.If) {
+        answer := eval_static_condition(path, cond, kind, ctx)
+        if answer < 0 { return -1 }
+        if answer == 1 { return 1 }
+        if stmt.children.len() > 2 { return 2 }
+        return 0
+    }
+    mut default_case : I64 = 0
+    for i in 1..stmt.children.len() {
+        ref case_node : Expr = stmt.children[i]
+        if case_node.children.len() == 1 {
+            // `case:` -- taken only when no other case matches.
+            if default_case == 0 { default_case = i.to_i64() }
+            continue
+        }
+        answer := eval_static_condition(path, case_condition(cond, case_node), kind, ctx)
+        if answer < 0 { return -1 }
+        if answer == 1 { return i.to_i64() }
+    }
+    return default_case
+}
+
+// Replace the conditional at program.children[at] with the statements of
+// its taken branch (`taken` as pick_static_branch returned it; 0 drops it).
+// Returns how many statements took its place.
+priv splice_static_branch := func(mut program: Expr, at: USize, taken: I64) returns USize {
+    mut old := program.children.take()
+    mut kept := Vec(Expr).new()
+    mut count : USize = 0
+    for idx in 0..old.len() {
+        if idx != at {
+            kept.push_take(old, idx)
+            continue
+        }
+        if taken == 0 { continue }
+        ref mut stmt : Expr = old[idx]
+        branch_idx : USize = taken.to_usize()
+        if stmt.node_type.is(NodeType.Switch) {
+            ref case_node : Expr = stmt.children[branch_idx]
+            ref mut case_body : Expr = stmt.children[branch_idx].children[case_node.children.len() - 1]
+            for bi in 0..case_body.children.len() { kept.push_take(case_body.children, bi); count++ }
+        } else {
+            ref mut if_body : Expr = stmt.children[branch_idx]
+            for bi in 0..if_body.children.len() { kept.push_take(if_body.children, bi); count++ }
+        }
+    }
+    program.children.move_from(own kept)
+    return count
+}
+
+priv is_core_or_std_unit := proc(path: Str, ctx: Context) returns Bool {
+    source_prefix := compiler_src_prefix(ctx)
+    real := realpath_str(path)
+    return real.starts_with(format(source_prefix, "core/")).or(real.starts_with(format(source_prefix, "std/")))
+}
+
+// Load what a selected `import(...)` names, as load_program would have
+// loaded it, and prepare its units the way they would have been prepared
+// before init: storage-size reads marked, namespace imports desugared,
+// declarations seeded. init_file then initializes them through the import
+// statement; the loader places them in the unit lists after init.
+priv load_selected_import := proc(path: Str, stmt_idx: USize, mut ctx: Context) returns I32 {
+    mut import_path := ""
+    mut import_dir := ""
+    mut lib_dir := ""
+    mut line : U32 = 0
+    mut col : U32 = 0
+    {
+        ref iu : ImportUnit = ctx.imported[path]
+        ref stmt : Expr = iu.ast.children[stmt_idx]
+        import_path = import_path_for_stmt(stmt, path, ctx.symbols).clone()
+        import_dir = iu.import_dir.clone()
+        lib_dir = iu.import_lib_dir.clone()
+        line = stmt.line
+        col = stmt.col
+    }
+    if import_path.len() == 0 { return 0 }
+    abs := resolve_import_abs(import_path, import_dir, lib_dir, ctx.import_support_dir)
+    if abs == "" {
+        type_error_at(path, line, col, format("could not find import '", import_path, "' (from ", import_dir, "/)"), ctx)
+        return 1
+    }
+    mut loaded := Vec(ProgramUnit).new()
+    err := load_import_unit(abs, ctx.load_resolved, loaded, lib_dir, ctx, ctx.import_cwd)
+    if err > 0 { return err }
+    for nu : ProgramUnit in loaded {
+        ctx.late_units.push(own nu.path.clone())
+        ctx.late_unit_importers.push(own path.clone())
+        if is_core_or_std_unit(nu.path, ctx) { mark_storage_size_reads_in(ctx.imported[nu.path].ast, ctx.symbols) }
+        desugar_namespace_imports(nu.path, ctx.imported[nu.path], ctx)
+    }
+    for nu : ProgramUnit in loaded { init_seed_tree(nu.path, ctx) }
+    return 0
+}
+
+// #486: resolve the unit's top-level compile-time conditionals, in source
+// order. init_file runs this once the unit's imports are initialized, so a
+// condition evaluates against them and against the unit's own seeded
+// declarations, the way a type-generating macro's condition does. A taken
+// branch can hold further conditionals (an `else if` chain), so the walk
+// resumes at the first statement spliced in. Returns the errors.
+resolve_unit_conditionals := proc(path: Str, mut ctx: Context) returns I32 {
+    errors_before := ctx.errors
+    mut i : USize = 0
+    while true {
+        context_enter_file(ctx, path)
+        mut taken : I64 = -2
+        {
+            ref iu : ImportUnit = ctx.imported[path]
+            if i >= iu.ast.children.len() { break }
+            ref stmt : Expr = iu.ast.children[i]
+            if is_compile_time_conditional(stmt, ctx.scope, ctx.symbols) {
+                taken = pick_static_branch(path, stmt, ctx)
+            }
+        }
+        if taken == -2 { i++; continue }
+        if taken < 0 { return ctx.errors - errors_before }
+        mut count : USize = 0
+        mut selects_alias_import := false
+        {
+            ref mut iu : ImportUnit = ctx.imported[path]
+            count = splice_static_branch(iu.ast, i, taken)
+            for k in i..i + count {
+                ref spliced : Expr = iu.ast.children[k]
+                if spliced.node_type.is(NodeType.Decl).and(import_path_for_stmt(spliced, path, ctx.symbols).len() > 0) {
+                    selects_alias_import = true
+                }
+            }
+        }
+        for k in i..i + count {
+            if load_selected_import(path, k, ctx) > 0 { return ctx.errors - errors_before + 1 }
+        }
+        {
+            ref mut iu : ImportUnit = ctx.imported[path]
+            // `name := import(...)`: the desugar that ran before init saw it
+            // inside the conditional. It keeps the statement (as a bare
+            // import) in place, so the spliced range does not move.
+            if selects_alias_import { desugar_namespace_imports(path, iu, ctx) }
+            _seeded : I32 = init_seed_spliced(path, iu.ast, i, count, ctx.scope, ctx)
+            // The splice rebuilt the unit's statement list; re-point what
+            // seeding registered.
+            init_refresh_seeded_scope_defs(iu.ast, ctx.scope, ctx.symbols)
+            init_refresh_interp_type_defs_from(iu.ast, 0, ctx)
+        }
+        if ctx.errors > errors_before { return ctx.errors - errors_before }
+    }
+    return ctx.errors - errors_before
+}
+
+// Place the units selected imports loaded during init: each right before the
+// unit that imported it, so every unit list stays in dependency order. A
+// mode file's go at the end of core_units, which precedes it too.
+priv place_late_units := func(mut lp: LoadedProgram) {
+    for li in 0..lp.ctx.late_units.len() {
+        ref unit_path : Str = lp.ctx.late_units[li]
+        ref importer : Str = lp.ctx.late_unit_importers[li]
+        mut in_units := false
+        for u : ProgramUnit in lp.units {
+            if u.path == importer { in_units = true }
+        }
+        mut in_core := false
+        for u : ProgramUnit in lp.core_units {
+            if u.path == importer { in_core = true }
+        }
+        mut rebuilt := Vec(ProgramUnit).new()
+        if in_units {
+            for u : ProgramUnit in lp.units {
+                if u.path == importer { rebuilt.push(own ProgramUnit(path = unit_path.clone())) }
+                rebuilt.push(own u.clone())
+            }
+            lp.units = rebuilt
+        } else {
+            for u : ProgramUnit in lp.core_units {
+                if in_core.and(u.path == importer) { rebuilt.push(own ProgramUnit(path = unit_path.clone())) }
+                rebuilt.push(own u.clone())
+            }
+            if in_core.not() { rebuilt.push(own ProgramUnit(path = unit_path.clone())) }
+            lp.core_units = rebuilt
+        }
+    }
+    lp.ctx.late_units.clear()
+    lp.ctx.late_unit_importers.clear()
+}
+
+// Initialize a loaded program: everything before typing. Top-level
+// compile-time conditionals are resolved here, unit by unit (init_file), so
+// this is also where the program's last imports and its link directives are
+// settled -- which the #442 reuse check reads, so src/til.til runs this
+// itself, ahead of that check, and then types with type_inited_program_errors.
+// Everything else types with type_program_errors.
+init_program_errors := proc(mut lp: LoadedProgram) returns I32 {
     // #472 (F2): on the freshly parsed trees, before anything is
     // instantiated, so that every instance of a core/std generic inherits
     // the mark from its template whichever unit it ends up in.
@@ -4741,10 +5188,10 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // before the namespace-import desugar below removes the alias binding.
     // Core units are exempt -- aggregators like core.til import
     // to re-export by design.
-    mut import_check_entries := Vec(ImportCheckEntry).new()
+    lp.import_check_entries.clear()
     if lp.ctx.check_unused_imports {
         for icu : ProgramUnit in lp.units {
-            collect_import_check_entries(icu.path, lp.ctx.imported[icu.path], import_check_entries, lp.ctx)
+            collect_import_check_entries(icu.path, lp.ctx.imported[icu.path], lp.import_check_entries, lp.ctx)
         }
     }
 
@@ -4777,8 +5224,26 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     for mode_file : Str in lp.mode_files {
         init_file(mode_file, lp.ctx)
     }
+    place_late_units(lp)
     // A rejected builtin type application has no definition to type or emit.
     if lp.ctx.errors > 0 { return lp.ctx.errors }
+
+    // Directives are collected from what the conditionals selected.
+    extract_link_info(lp)
+    lp.ctx.param_value_abi_ok = lp.cur_mode.is_library.or(lp.cur_mode.decls_only).not()
+        .and(lp.link_c_paths.len().eq(0))
+    return 0
+}
+
+type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 {
+    init_errors := init_program_errors(lp)
+    if init_errors > 0 { return init_errors }
+    return type_inited_program_errors(lp, run_tests)
+}
+
+// Types a program init_program_errors has initialized.
+type_inited_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 {
+    lp.run_tests = run_tests.or(lp.cur_mode.run_tests)
 
     // Unit initialization can grow an imported AST after an earlier unit has
     // registered raw pointers into it. The removed global declaration pass
@@ -4837,7 +5302,7 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     if lp.skip_core.not() {
         type_errors = type_errors.add(type_file(lp.core_units[lp.core_units.len() - 1].path, lp.ctx))
     }
-    type_errors = type_errors + type_file(user_root.path, lp.ctx)
+    type_errors = type_errors + type_file(lp.units[lp.units.len() - 1].path, lp.ctx)
     // Issue #187 step 1: priv top-level decls that nothing in the
     // file references are dead code -- no importer can reach them.
     type_errors = type_errors + check_unused_priv_top_level(lp.ctx.scope, lp.ctx)
@@ -4892,7 +5357,7 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // #154 prototype: flag user-unit imports that contributed no used
     // symbol (opt-in via --check-unused-imports).
     if lp.ctx.check_unused_imports {
-        type_errors = type_errors + check_unused_imports_collected(import_check_entries, lp.ctx)
+        type_errors = type_errors + check_unused_imports_collected(lp.import_check_entries, lp.ctx)
     }
 
     if type_errors > 0 {
@@ -4935,8 +5400,10 @@ init_and_type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) ret
     return finish_init_and_type_program(lp)
 }
 
+// For a program init_program_errors has initialized (src/til.til's commands).
 init_and_type_program := proc(mut lp: LoadedProgram, run_tests: Bool) {
-    type_errors := init_and_type_program_errors(lp, run_tests)
+    mut type_errors := type_inited_program_errors(lp, run_tests)
+    if type_errors == 0 { type_errors = finish_init_and_type_program(lp) }
     if type_errors > 0 {
         println(type_errors.to_str(), " type error(s) found")
         exit(1)

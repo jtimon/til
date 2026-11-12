@@ -54,6 +54,9 @@ namespace:
         mut lp := load_program(path, root, realpath_str("."), Vec(Str).new(), "", true,
             prelude_source, prelude_name, prelude_base)
         if lp.load_errors > 0 { throw tilvm_error("load", lp.ctx) }
+        // Init settles the link directives (#486: a top-level compile-time
+        // conditional can select them), so the link_c check follows it.
+        if init_program_errors(lp) > 0 { throw tilvm_error("type", lp.ctx) }
         if lp.link_c_paths.len() > 0 {
             if prelude_source.len() == 0 {
                 type_error_at(path, 1, 1, "TilVm cannot compile link_c; link a prebuilt native library instead", lp.ctx)
@@ -69,7 +72,9 @@ namespace:
             }
         }
         if lp.ctx.errors > 0 { throw tilvm_error("load", lp.ctx) }
-        if init_and_type_program_errors(lp, false) > 0 { throw tilvm_error("type", lp.ctx) }
+        mut type_errors := type_inited_program_errors(lp, false)
+        if type_errors == 0 { type_errors = finish_init_and_type_program(lp) }
+        if type_errors > 0 { throw tilvm_error("type", lp.ctx) }
 
         // Bindings borrow the program's Context and AST. Move it to its stable
         // address BEFORE creating any runtime binding, including on abort paths.

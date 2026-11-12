@@ -5646,27 +5646,12 @@ priv init_private_names := proc(path: Str, mut program: Expr, mut symbols: Symbo
     }
 }
 
-// rstil-style unit initializer: index declarations for one file, but do not
-// run global layout/method generation that must see the whole program.
-priv init_seed_declarations_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope, mut ctx: Context) returns I32 {
-    if ctx.imports_init_seed_done.has(path) { return 0 }
-    ctx.imports_init_seed_done.add(own path.clone())
-
-    context_enter_file(ctx, path)
+// The registrations init_seed_declarations_unit makes, for the top-level
+// statements program.children[from..to].
+priv init_seed_statements := proc(mut program: Expr, from: USize, to: USize, mut scope: TypeScope, mut ctx: Context) returns I32 {
     mut errors : I32 = 0
-    register_body_type_token(ctx, scope)
-
-    // #321: normalize `Dynamic = 0` param defaults to the null node before
-    // any pass clones them (see the helper above).
-    init_normalize_dynamic_zero_defaults(program)
-
-    init_private_names(path, program, ctx.symbols)
-
-    // Issue #271: make file-level declarations visible before
-    // recursive imports run. This generalizes same-file forward
-    // declarations to import cycles without pretending the file is fully
-    // initialized yet. Private names already have file-keyed identities.
-    for mut stmt : Expr in program.children {
+    for si in from..to {
+        ref mut stmt : Expr = program.children[si]
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         if stmt.children.len() == 0 { continue }
         ref rhs : Expr = stmt.children[0]
@@ -5696,6 +5681,41 @@ priv init_seed_declarations_unit := proc(path: Str, mut program: Expr, mut scope
             register_top_level_value_for_stmt(ctx, stmt, scope)
         }
     }
+    return errors
+}
+
+// #486: the statements a top-level compile-time conditional selected were
+// spliced into program.children[from..from + count] after the unit was
+// seeded. Give their private names the file's identities and register them
+// as seeding would have; the caller re-points what the splice moved.
+init_seed_spliced := proc(path: Str, mut program: Expr, from: USize, count: USize, mut scope: TypeScope, mut ctx: Context) returns I32 {
+    context_enter_file(ctx, path)
+    init_normalize_dynamic_zero_defaults(program)
+    init_private_names(path, program, ctx.symbols)
+    return init_seed_statements(program, from, from + count, scope, ctx)
+}
+
+// rstil-style unit initializer: index declarations for one file, but do not
+// run global layout/method generation that must see the whole program.
+priv init_seed_declarations_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope, mut ctx: Context) returns I32 {
+    if ctx.imports_init_seed_done.has(path) { return 0 }
+    ctx.imports_init_seed_done.add(own path.clone())
+
+    context_enter_file(ctx, path)
+    mut errors : I32 = 0
+    register_body_type_token(ctx, scope)
+
+    // #321: normalize `Dynamic = 0` param defaults to the null node before
+    // any pass clones them (see the helper above).
+    init_normalize_dynamic_zero_defaults(program)
+
+    init_private_names(path, program, ctx.symbols)
+
+    // Issue #271: make file-level declarations visible before
+    // recursive imports run. This generalizes same-file forward
+    // declarations to import cycles without pretending the file is fully
+    // initialized yet. Private names already have file-keyed identities.
+    errors = errors + init_seed_statements(program, 0, program.children.len(), scope, ctx)
     return errors
 }
 
@@ -6431,7 +6451,7 @@ normalize_enum_payload_aliases_for_stmt := func(mut stmt: Expr, scope: TypeScope
 // vec, so vec's pass runs FIRST and never saw mem's generics -- which
 // is why no container has ever been able to call move() or swap().
 // imports_init_seed_done makes this idempotent and cycle-safe.
-priv init_seed_tree := proc(path: Str, mut ctx: Context) {
+init_seed_tree := proc(path: Str, mut ctx: Context) {
     if ctx.imports_init_seed_done.has(path) { return }
     if ctx.imported.has(path).not() { return }
     ref mut iu : ImportUnit = ctx.imported[path]
@@ -6453,24 +6473,44 @@ init_file := proc(path: Str, mut ctx: Context) returns I32 {
     }
     ctx.imports_init_active.add(own path.clone())
 
-    ref mut iu : ImportUnit = ctx.imported[path]
-
-    ctx.mode = iu.mode.clone()
+    ctx.mode = ctx.imported[path].mode.clone()
     init_seed_tree(path, ctx)
 
     // Mode auto-imports have no source call; explicit edges are resolved
     // directly from their AST statements in source order (#165 step 5).
-    for dependency : Str in iu.implicit_imports() { init_file(dependency, ctx) }
-    for stmt : Expr in iu.ast.children {
-        dep := resolve_import_for_stmt(stmt, path, iu,
-            ctx.import_cwd, ctx.imported, ctx.symbols, ctx.import_support_dir)
-        if dep.len() > 0 { init_file(dep, ctx) }
-    }
+    // #486: initializing a dependency can load units (a compile-time
+    // conditional's selected import), which grows ctx.imported, so no
+    // reference into it is held across these calls.
+    init_unit_imports(path, ctx)
 
+    // #486: with its imports initialized, settle the unit's top-level
+    // compile-time conditionals (src/self/loader.til), then initialize
+    // what the selected branches import.
+    if resolve_unit_conditionals(path, ctx) > 0 {
+        ctx.imports_init_done.add(own path.clone())
+        return 0
+    }
+    init_unit_imports(path, ctx)
+
+    ref mut iu : ImportUnit = ctx.imported[path]
     ctx.mode = iu.mode.clone()
     init_declarations_unit(path, iu.ast, ctx.scope, ctx)
     ctx.imports_init_done.add(own path.clone())
     return 0
+}
+
+priv init_unit_imports := proc(path: Str, mut ctx: Context) {
+    mut deps := Vec(Str).new()
+    {
+        ref iu : ImportUnit = ctx.imported[path]
+        for dependency : Str in iu.implicit_imports() { deps.push(own dependency.clone()) }
+        for stmt : Expr in iu.ast.children {
+            dep := resolve_import_for_stmt(stmt, path, iu,
+                ctx.import_cwd, ctx.imported, ctx.symbols, ctx.import_support_dir)
+            if dep.len() > 0 { deps.push(own dep.clone()) }
+        }
+    }
+    for dep : Str in deps { init_file(dep, ctx) }
 }
 
 init_repl_delta := proc(path: Str, mut program: Expr, mut ctx: Context) returns I32 {

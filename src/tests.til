@@ -1160,6 +1160,13 @@ main := proc(args: ..Str) returns I64 {
         format(til_bin, " run", asan_flag,
             " -o bin/c/target_constants -c gen/c/target_constants.c test/target_constants.til ", til_bin))
 
+    // Issue #486: top-level if / switch resolved at compile time -- selected
+    // link()s, ext bindings and imports, dead branches left unchecked, a
+    // macro-computed condition, cross targets, and the condition errors.
+    add_count(tests, "static_conditionals", "build", "static conditionals passed", 1,
+        format(til_bin, " run", asan_flag,
+            " -o bin/c/static_conditionals -c gen/c/static_conditionals.c test/static_conditionals.til ", til_bin))
+
     // Independent driver and scratch directory: the scheduler can overlap
     // pointer-width checks with CPU-option checks within its normal -j limit.
     add_count(tests, "dynamic_widths", "build", "dynamic width options passed", 1,

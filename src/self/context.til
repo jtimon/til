@@ -1679,6 +1679,14 @@ Context := struct {
     imports_init_seed_done := Set(Str).new()
     imports_init_active := Set(Str).new()
     imports_init_done := Set(Str).new()
+    // #486: the real paths load_program loaded, each file once; a
+    // compile-time conditional's selected import loads into the same set.
+    load_resolved := Set(Str).new()
+    // #486: the units a selected import loaded during init, in load order,
+    // with the unit each must precede in the program's unit lists. The loader
+    // places them once init is over.
+    late_units := Vec(Str).new()
+    late_unit_importers := Vec(Str).new()
     // Multi-sweep typer (issue #174 / #338). The typer recursion is split
     // into pre-field method preparation, field inference, declaration work
     // (field-dependent methodgen/layout), and body type-checking. The field

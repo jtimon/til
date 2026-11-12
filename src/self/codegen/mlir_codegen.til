@@ -857,19 +857,36 @@ priv mlir_pack_return := func(value: Str, mut state: MlirState) returns Str {
 mlir_source_declarations := func(lp: LoadedProgram) returns Set(Str) {
     mut names := Set(Str).new()
     for unit : ProgramUnit in lp.units {
-        for stmt : Expr in lp.ctx.imported[unit.path].ast.children {
-            if stmt.node_type.is(NodeType.Decl).not() { continue }
-            ref dd : Declaration = decl_of(stmt)
-            names.add(own format(unit.path,"\n",dd.name))
-            if is_struct_or_enum(stmt) {
-                ref definition : Expr = stmt.children[0]
-                for i in 0..def_ns_decls(definition).len() {
-                    names.add(own format(unit.path,"\n",dd.name,".",def_ns_name_at(definition,i)))
-                }
+        mlir_add_source_declarations(unit.path, lp.ctx.imported[unit.path].ast, names)
+    }
+    return names
+}
+
+// Read before init: a top-level `if` / `switch` resolved at compile time
+// (#486) still holds its branches, and whichever is selected is source too.
+priv mlir_add_source_declarations := func(path: Str, body: Expr, mut names: Set(Str)) {
+    for stmt : Expr in body.children {
+        if stmt.node_type.is(NodeType.If) {
+            for bi in 1..stmt.children.len() { mlir_add_source_declarations(path, stmt.children[bi], names) }
+            continue
+        }
+        if stmt.node_type.is(NodeType.Switch) {
+            for ci in 1..stmt.children.len() {
+                ref case_node : Expr = stmt.children[ci]
+                mlir_add_source_declarations(path, case_node.children[case_node.children.len() - 1], names)
+            }
+            continue
+        }
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        ref dd : Declaration = decl_of(stmt)
+        names.add(own format(path,"\n",dd.name))
+        if is_struct_or_enum(stmt) {
+            ref definition : Expr = stmt.children[0]
+            for i in 0..def_ns_decls(definition).len() {
+                names.add(own format(path,"\n",dd.name,".",def_ns_name_at(definition,i)))
             }
         }
     }
-    return names
 }
 
 priv mlir_source_name := func(path: Str, dd: Declaration, names: Set(Str)) returns Bool {
