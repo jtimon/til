@@ -4,8 +4,8 @@ mode script
 // value goes into the generated source as text, and so does the text of a
 // folded to_str(), so both have to be the same on every host the compiler
 // runs on. The suite row "float_fold" pins the spellings; hosts that run
-// the suite compare against it, and the windows host job prints what
-// til.exe writes for the same file.
+// the suite compare against it, and the windows host job holds til.exe to
+// the same ones.
 
 fold_tenth := func() returns F64 { return 1.0 / 10.0 }
 fold_third32 := func() returns F32 { one : F32 = 1.0; three : F32 = 3.0; return one / three }

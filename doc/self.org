@@ -107,6 +107,26 @@
   open), not an oversight. The Windows host job checks that ~til.exe~
   bakes the same ~./src/...~ spelling as the other hosts.
 
+  The same holds for what til contributes to a BINARY (#472, L3a), on
+  the toolchains where it has been measured: the host's C compiler on
+  Linux, and clang with lld for the mac targets. Three things made two
+  checkouts differ and are gone: the C compiler recorded the checkout's
+  absolute path in debug info (every build carries ~-g~), now mapped to
+  ~.~ with ~-ffile-prefix-map~, so a debugger finds
+  ~./src/self/codegen/ext.c~ from the checkout root, as it finds til's own
+  ~./src/...~ locations; the executable's reuse stamp hashed the
+  runtime's absolute path; and a mac executable recorded the names and
+  times of clang's temporary object files, so it is linked from objects
+  named after the generated C (~x.o~, ~x_ext.o~ beside ~x.c~), with
+  ~-oso_prefix~ and ~ZERO_AR_DATE~, and ~dsymutil~ is run for the
+  ~.dSYM~. Static archives are written with ~ar rcsD~. Suite row
+  ~reproducible_build~ (~test/reproducible_build.til~) builds a program
+  and a library from two checkout roots and at two times and compares the
+  bytes; the mac cross job runs it for both mac targets. Not covered: a
+  native mac build through Apple's toolchain, Windows targets, the other
+  cross targets, and anything a different C compiler or linker version
+  would change.
+
   What checks the compiler-layout half: under ~make check_usize64~ the
   compiler under test is built ~--usize=64~ and ~bin/til~ is compact. The
   ~self_translate~ row has the former reproduce ~boot/~, and the

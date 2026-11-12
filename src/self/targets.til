@@ -236,6 +236,18 @@ target_link_extra_args := proc(target: Target) returns Str {
     return " -fuse-ld=lld -Lvendor/macos"
 }
 
+// #472 (L3a): does an executable for this target have to be linked from
+// object files with fixed names? Mach-O keeps debug info in the objects and
+// the linker writes each object's path and modification time into the
+// executable. Compiling and linking in one command makes those objects
+// temporary files with random names, so no two builds matched. True for the
+// SDK-less cross toolchain (clang with lld), which is the one hosts are
+// compared on; a native mac build through Apple's toolchain keeps its single
+// command and is not reproducible in this respect.
+target_links_named_objects := proc(target: Target) returns Bool {
+    return macos_is_cross(target)
+}
+
 toolchain_extra_args := proc(target: Target) returns Str {
     if target.is(Target.TempleosX86) {
         panic("HolyC doesn't support these flags")

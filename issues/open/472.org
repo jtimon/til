@@ -1497,3 +1497,114 @@ fix:
   runtime and ~script_str_runtime.expected~ change together, and the
   guest job is the only thing that can check it), or canonicalize the
   NaN a fold produces.
+
+*** Progress: level 3, step L3a (base master fb7da22)
+
+"The same host builds the same program twice, at different times and from
+two checkout paths, with identical hashes." Measured, fixed where it did
+not hold, and made a row.
+
+**** Measured before the change (Linux x64, cc is gcc 13; clang 18 with lld for mac)
+
+| Build | Same root, later | Second root |
+|-------+------------------+-------------|
+| Executable, host target | identical | DIFFERENT |
+| Executable, macos-arm64 and macos-x64 (cross) | DIFFERENT | DIFFERENT |
+
+The generated C was identical in every case.
+
+**** What differed, and the change
+
+- Debug info. Every build compiles with ~-g~, and the C compiler recorded
+  its working directory and the absolute path of the runtime
+  (~<root>/src/self/codegen/ext.c~, the include directory, the
+  ~../../../boot~ it resolves). ~builder.til::c_build_flags~ now adds
+  ~-ffile-prefix-map=<working directory>=.~ (and the same for ~$PWD~ when
+  that names the directory through a symbolic link, which is what gcc and
+  clang record then). What is recorded is ~./src/self/codegen/ext.c~,
+  the spelling til bakes for its own locations; a debugger finds the file
+  from the checkout root. A runtime outside the working directory (an
+  installed compiler's) keeps its real path.
+- The executable's reuse stamp (~til_build_stamp~ in the binary, #442)
+  hashed the runtime's absolute path and the output path as spelled. It
+  now names the runtime as seen from the executable's directory and the
+  executable by its file name, like the translation stamp (F7).
+- Mach-O. Debug info stays in the object files and the linker writes each
+  object's path and modification time into the executable. One command
+  that compiles and links makes those objects temporary files with random
+  names (~/tmp/mac-558a87.o~), so no two builds matched, on one machine.
+  For the cross toolchain (~targets.til::target_links_named_objects~),
+  ~builder.til::compile_c_named_objects~ compiles the generated C and the
+  runtime to ~x.o~ and ~x_ext.o~ beside ~x.c~, links those with
+  ~-Wl,-oso_prefix,.~ and ~ZERO_AR_DATE=1~, and runs the compiler's own
+  ~dsymutil~, because clang only does that itself when one command
+  compiles and links; the ~.dSYM~ is still left beside the executable.
+- Archives: ~ar rcsD~ at the one ~builder.til~ site that is left (the
+  plan counted two), ~ZERO_AR_DATE=1 ar rcs~ on a mac host. GNU ar here
+  already defaulted to that.
+
+**** After
+
+Identical in all three comparisons (this checkout, a second root, the
+second root again a second later), for the host target and for both mac
+targets: the executable, the generated C, and a library's object, static
+archive and shared library. Also checked: all 320 tests and examples
+cross-built for macos-arm64 as the CI job's corpus step does, no warning
+and no tool failure; the programs that do not build there fail exactly
+as they did before the change.
+
+**** The row
+
+~test/reproducible_build.til~ builds a program and a library here and in
+a second root (a copy of the compiler, ~src/~ and the forward header),
+then again in the second root 1.1 s later, and compares every file. It
+fails with the previous compiler, for the host and for mac. It is suite
+row ~reproducible_build~ on Linux hosts (about 10 s), and a step of the
+mac cross CI job for ~macos-arm64~ and ~macos-x64~.
+
+**** Not covered
+
+- A native mac build (Apple's clang and linker) keeps its single command
+  and its random object names. ~-oso_prefix~ and ~ZERO_AR_DATE~ are
+  documented for Apple's linker too, but nothing here can run it; #473
+  step C4 moves the Macs to the same clang and lld, where this path
+  applies.
+- Windows targets (PE timestamps), the gcc cross targets and wasm were not
+  built twice anywhere: no toolchain for them in this container. The
+  prefix map is passed for all of them.
+- The ~set ZERO_AR_DATE=1&&~ spelling for a Windows HOST linking a mac
+  target was written, not run.
+- The ~.dSYM~ bundle and JNI outputs were not compared.
+- Everything a different C compiler, linker or library version changes:
+  that is L3b.
+
+Seen on the way: a function named like one of ~std/sys~'s ~ext_proc~
+declarations (~copy_tree~) in a file that imports ~std/sys~ is accepted
+and then fails in the C compiler with "conflicting types".
+
+*** Results from CI run 3051 (master fb7da22): F4 and F6 on Windows
+
+The first run in which the Windows host job reached the steps F4 and F6
+added. (The run itself ended red in a later step of that job, on another
+change: ~test/link_objects.til~ now links
+~vendor/nng/build-windows-x64/libnng.a~, which the job does not have.)
+
+- F4, "Check the source paths til.exe bakes": passed. ~til.exe~ on the
+  Windows runner baked ~./src/core/str.til~ twice, ~./src/std/file.til~
+  three times and ~test/copy_file.til~ thirteen times for
+  ~test/copy_file.til~, the same spellings and counts as on Linux, with
+  no drive, absolute path or backslash. F4 is done.
+- F6, floats: every folded value and every folded ~to_str()~ text
+  ~til.exe~ wrote for ~test/float_fold.til~ equals the spelling pinned on
+  Linux (~0.10000000000000001~, ~0.333333343~,
+  ~1.0000000000000001e+305~, ~9.9999999999999694e-311~, ~-0.0~,
+  ~9007199254740992~, ~"1e+40"~, ~"1e-310"~, ~"0.333333"~, ~"-0"~,
+  ~"-inf"~). So til does not have to format finite floats itself, and
+  the formatter F6 held back is not needed. The step is now a check
+  ("Check how til.exe spells folded floats"): each pinned spelling must
+  occur exactly once.
+- #473 C1 and C2: all eight completeness checks passed on real uploads
+  and downloads, on the Linux producers and on the Windows runner.
+
+Open from F6: only the NaN sign decision recorded in the correction
+above.

@@ -999,17 +999,40 @@ jobs:
           if grep -F '\\' tmp_copy_file.c | grep -E '\.til:[0-9]'; then
             echo "a backslash source path is baked into the generated C"; exit 1
           fi
-      # Issue #472 (F6): what til.exe writes for the floats it folds. The
-      # hosts that run the suite compare these against the spellings its
-      # "float_fold" row pins; til.exe runs no suite, and its finite values
-      # go through msvcrt's printf, which nothing has compared yet. Shown,
-      # not judged, until a run has been read: a difference here is what
-      # decides whether til formats finite floats itself.
-      - name: Show how til.exe spells folded floats
+      # Issue #472 (F6): what til.exe writes for the floats it folds, held
+      # to the spellings the suite's "float_fold" row pins on the hosts that
+      # run the suite. til.exe runs no suite, and its finite values go
+      # through this C library's printf. Run 3051 showed every one of them
+      # equal to Linux's, so they are required here; the lines are printed
+      # first so a difference shows what was written.
+      - name: Check how til.exe spells folded floats
         shell: bash
         run: |
           ./winhost/til.exe translate -c tmp_float_fold.c test/float_fold.til
           grep -E 'hoisted__F(32|64)_g[0-9]+ = |TIL_OWN_LIT\("[-+.#0-9A-Za-z]+", ' tmp_float_fold.c
+          status=0
+          while IFS= read -r needle; do
+            count=$(grep -c -F -- "$needle" tmp_float_fold.c || true)
+            if [ "$count" != 1 ]; then
+              echo "expected once, found $count times: $needle"; status=1
+            fi
+          done <<'NEEDLES'
+          = 0.10000000000000001;
+          = 0.333333343;
+          = 1.0000000000000001e+305;
+          = 9.9999999999999694e-311;
+          = -0.0;
+          = 9007199254740992;
+          = __builtin_inf();
+          = (-__builtin_inf());
+          = __builtin_nan("");
+          TIL_OWN_LIT("1e+40", 5ULL)
+          TIL_OWN_LIT("1e-310", 6ULL)
+          TIL_OWN_LIT("0.333333", 8ULL)
+          TIL_OWN_LIT("-0", 2ULL)
+          TIL_OWN_LIT("-inf", 4ULL)
+          NEEDLES
+          exit $status
       # Both files share one directory, which becomes the artifact's root.
       - name: Download the windows-host libsecp256k1
         uses: actions/download-artifact@v4
@@ -1666,6 +1689,15 @@ jobs:
       # symbol on purpose; the gui/nng examples want mac frameworks and
       # native libs that are not vendored here). Keying on the marker needs
       # no skip list, so a new test cannot silently fall out of coverage.
+      # Issue #472 (L3a): the suite's reproducible_build row covers the host
+      # target; this is the same driver for the two mac targets, whose
+      # executables are linked from named objects so that the Mach-O debug
+      # map is the same in every build. A program and a library, from two
+      # checkout roots and at two times, compared byte for byte.
+      - name: Build for macos-arm64 and macos-x64 reproducibly
+        run: |
+          ./bin/til run test/reproducible_build.til bin/til macos-arm64
+          ./bin/til run test/reproducible_build.til bin/til macos-x64
       - name: Cross-compile the corpus for macos-arm64 (clang -Werror)
         run: |
           status=0

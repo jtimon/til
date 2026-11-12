@@ -1,0 +1,114 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+// #472, level 3 (L3a): what til itself contributes to a binary does not
+// depend on where the checkout is or on when the build runs. This driver
+// builds one program and one library three times -- in this checkout, and
+// twice, a second apart, in a second root holding a copy of the compiler,
+// of src/ and of the runtime's forward header -- and compares every file
+// byte for byte.
+//
+// What used to differ: the C compiler recorded the checkout's absolute path
+// in debug info, the executable's reuse stamp hashed it, and on Mach-O the
+// linker recorded the names and times of clang's temporary object files.
+//
+// Arguments: the compiler under test, and optionally a target. With no
+// target the host's own is built.
+
+realpath_str := ext_proc(path: Str) returns Str {}
+
+WORK := "tmp/reproducible_build"
+SECOND := "tmp/reproducible_build/root"
+
+copy_checked := proc(source: Str, destination: Str) {
+    if copy_file(source, destination) != 0 { panic("cannot copy ", source, " to ", destination) }
+}
+
+copy_tree_checked := proc(source: Str, destination: Str) {
+    if copy_tree(source, destination) != 0 { panic("cannot copy ", source, " to ", destination) }
+}
+
+// Run the compiler at its path relative to `root`, from `root`.
+compile := proc(root: Str, compiler: Str, target_flag: Str, what: Str, arguments: ..Str) {
+    command := Cmd.new(format("./", compiler))
+    for argument : Str in arguments { command.arg(argument) }
+    if target_flag.len() > 0 { command.arg(target_flag) }
+    command.arg(what)
+    command.cwd(root)
+    command.capture()
+    if command.run() != 0 {
+        panic(command.render(), " in ", root, ": ", command.out(), command.err())
+    }
+}
+
+same_file := proc(what: Str, first: Str, second: Str) {
+    if File.is_file(first).not() { panic("not built: ", first) }
+    if File.is_file(second).not() { panic("not built: ", second) }
+    if File.readfile(first) != File.readfile(second) {
+        panic(what, ": ", first, " and ", second, " differ")
+    }
+}
+
+main := proc(args: ..Str) {
+    if args.len() < 1 || args.len() > 2 { panic("usage: reproducible_build <compiler under test> [target]") }
+    compiler := args[0].clone()
+    if File.is_absolute(compiler) { panic("the compiler has to be named relative to the checkout: ", compiler) }
+    mut target_flag := ""
+    if args.len() == 2 { target_flag = format("--target=", args[1]) }
+
+    File.remove_tree(WORK)
+    slash := compiler.rfind("/")
+    if slash < 0 { panic("the compiler has to be under a directory of the checkout: ", compiler) }
+    mkdir_p(format(SECOND, "/", compiler.substr(0, slash.to_usize())))
+    copy_checked(compiler, format(SECOND, "/", compiler))
+    // REM A copy does not carry the executable bit.
+    if Cmd.new("chmod", "+x", format(SECOND, "/", compiler)).run() != 0 { panic("chmod failed") }
+    copy_tree_checked("src", format(SECOND, "/src"))
+    mkdir_p(format(SECOND, "/boot"))
+    copy_checked("boot/til_forward.h", format(SECOND, "/boot/til_forward.h"))
+    // REM The SDK-less mac toolchain reads its headers and libSystem stub
+    // from the checkout.
+    if target_flag.contains("macos") { copy_tree_checked("vendor/macos", format(SECOND, "/vendor/macos")) }
+
+    program := "mode script\nwords := vec(Str, \"same\", \"bytes\")\nprintln(words[0], \" \", words[1])\n"
+    library := "mode lib\nreproducible_sum := func(a: I64, b: I64) returns I64 { return a + b }\n"
+    for root : Str in array(Str, ".", SECOND) {
+        mkdir_p(format(root, "/", WORK, "/case"))
+        File.writefile(format(root, "/", WORK, "/case/program.til"), program)
+        File.writefile(format(root, "/", WORK, "/case/reproducible_lib.til"), library)
+    }
+    program_source := format(WORK, "/case/program.til")
+    library_source := format(WORK, "/case/reproducible_lib.til")
+    binary := format(WORK, "/case/program.bin")
+    generated := format(WORK, "/case/program.c")
+    mut shared_extension := ".so"
+    if target_flag.contains("macos") { shared_extension = ".dylib" }
+    library_outputs := array(Str, "gen/lib/libreproducible_lib.a", "gen/lib/reproducible_lib.o",
+        format("gen/lib/libreproducible_lib", shared_extension))
+
+    // Here, then twice in the second root with a pause between: file
+    // times are whole seconds on some file systems.
+    compile(".", compiler, target_flag, program_source, "build", "-o", binary, "-c", generated)
+    compile(".", compiler, target_flag, library_source, "build")
+    compile(SECOND, compiler, target_flag, program_source, "build", "-o", binary, "-c", generated)
+    compile(SECOND, compiler, target_flag, library_source, "build")
+    mkdir_p(format(WORK, "/first"))
+    copy_checked(format(SECOND, "/", binary), format(WORK, "/first/program.bin"))
+    for output : Str in library_outputs {
+        copy_checked(format(SECOND, "/", output), format(WORK, "/first/", output.replace("/", "_")))
+    }
+    sleep_ms(1100)
+    compile(SECOND, compiler, target_flag, program_source, "build", "--force-rebuild", "-o", binary, "-c", generated)
+    compile(SECOND, compiler, target_flag, library_source, "build", "--force-rebuild")
+
+    same_file("two checkout roots", binary, format(SECOND, "/", binary))
+    same_file("two checkout roots", generated, format(SECOND, "/", generated))
+    same_file("two build times", format(WORK, "/first/program.bin"), format(SECOND, "/", binary))
+    for output : Str in library_outputs {
+        same_file("two checkout roots", output, format(SECOND, "/", output))
+        same_file("two build times", format(WORK, "/first/", output.replace("/", "_")), format(SECOND, "/", output))
+    }
+    println("reproducible build passed")
+}

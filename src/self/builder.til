@@ -248,7 +248,12 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     a_path := format("gen/lib/lib", lib_name, ".a")
     a_tmp_path := format(a_path, ".tmp.", process_id().to_str())
     File.remove(a_tmp_path)
-    cmd = format("ar rcs ", a_tmp_path,
+    // #472 (L3a): D writes no modification times, owners or modes into
+    // the archive, whatever this ar's default is. Apple's ar takes no D and
+    // reads ZERO_AR_DATE instead.
+    mut archive := format("ar rcsD ", a_tmp_path)
+    if host_os() == "macos" { archive = format("ZERO_AR_DATE=1 ar rcs ", a_tmp_path) }
+    cmd = format(archive,
         " ", obj_path, " ", ext_obj,
         user_objs)
     result = system_cmd(cmd)
@@ -478,6 +483,12 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     mut stamp_flag := ""
     if build_stamp.len() > 0 { stamp_flag = format(" -DTIL_BUILD_STAMP=", build_stamp) }
 
+    if target_links_named_objects(target) {
+        return compile_c_named_objects(compiler, extra, format(werr, asan_flags, prof_flags, usize_flags, stamp_flag),
+            format(asan_flags, prof_link_flags, target_link_extra_args(target), dyn_flag),
+            ext_dir, bin_path, c_path, ext_c_path, format(user_part, lf, " ", sys_libs))
+    }
+
     cmd := compiler.format(extra, werr, asan_flags, prof_flags, usize_flags, stamp_flag, prof_link_flags, target_link_extra_args(target), wasm_js_flags, " -g", dyn_flag, " -I", ext_dir,
         " -o ", bin_path, " ", c_path,
         " ", ext_c_path, user_part, lf,
@@ -486,6 +497,54 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     result := system_cmd(cmd)
     if result != 0 {
         println("error: C compilation failed")
+        return 1
+    }
+    return 0
+}
+
+// #472 (L3a): the build for a target whose linker records its object files
+// (targets.til target_links_named_objects). The generated C and the runtime
+// compile to objects named after the generated C, beside it, so the names
+// the linker records are the same every time; -oso_prefix makes them
+// relative to the working directory and ZERO_AR_DATE makes the linker write
+// no modification times. clang runs dsymutil itself only when it compiles
+// and links in one command, so it is run here: the .dSYM beside the
+// executable is what that command used to leave.
+priv compile_c_named_objects := proc(compiler: Str, extra: Str, compile_flags: Str, link_flags: Str,
+    ext_dir: Str, bin_path: Str, c_path: Str, ext_c_path: Str, link_inputs: Str) returns I32 {
+    mut object_base := c_path.clone()
+    dot := c_path.rfind(".")
+    if dot > c_path.rfind("/") { object_base = c_path.substr(0, dot.to_usize()).clone() }
+    main_object := format(object_base, ".o")
+    ext_object := format(object_base, "_ext.o")
+    for pair : Str in array(Str, format(c_path, " -o ", main_object), format(ext_c_path, " -o ", ext_object)) {
+        if system_cmd(compiler.format(extra, compile_flags, " -g -I", ext_dir, " -c ", pair)) != 0 {
+            println("error: C compilation failed")
+            return 1
+        }
+    }
+    // REM No -Werror: the compile-only flags in `extra` are unused here.
+    link := compiler.format(extra, link_flags, " -g -Wl,-oso_prefix,. -o ", bin_path,
+        " ", main_object, " ", ext_object, link_inputs)
+    mut with_zero_dates := format("ZERO_AR_DATE=1 ", link)
+    if host_os() == "windows" { with_zero_dates = format("set ZERO_AR_DATE=1&& ", link) }
+    if system_cmd(with_zero_dates) != 0 {
+        println("error: C compilation failed")
+        return 1
+    }
+    // REM A stand-in compiler that only prints its commands (--cc=echo, which
+    // tests use to read them) reports success and links nothing: there is
+    // no executable to bundle debug info for.
+    if File.is_file(bin_path).not() { return 0 }
+    // REM The dsymutil this compiler would run, not whichever is in PATH.
+    mut dsymutil := ""
+    if run_cmd(dsymutil, compiler, "-print-prog-name=dsymutil") != 0 {
+        println("error: ", compiler, " cannot name its dsymutil")
+        return 1
+    }
+    dsymutil = dsymutil.replace("\n", "")
+    if system_cmd(format(dsymutil, " ", bin_path)) != 0 {
+        println("error: ", dsymutil, " failed for ", bin_path)
         return 1
     }
     return 0
@@ -905,8 +964,29 @@ priv print_translate_success := proc(paths: BuildPaths) {
 // FP contraction off: selecting an optimizing ISA must not silently
 // introduce FMA. Standard excess precision also makes x87 casts/assignments
 // round to the declared format instead of retaining extended intermediates.
-priv c_build_flags := func(lp: LoadedProgram) returns Str {
-    return format(lp.cpu.c_flags, " -O", lp.opt_level.to_str(), " -ffp-contract=off -fexcess-precision=standard")
+// #472 (L3a): the C compiler records the directory it runs in and the path
+// of every file it reads -- in debug info, which every build carries (-g),
+// and in __FILE__. The runtime's ext.c is named by the compiler root's
+// absolute path, so the same program built in two checkouts gave two
+// different binaries. Mapping the working directory to "." makes what is
+// recorded the same ./src/... spelling til bakes for its own locations.
+// A file outside the working directory (an installed compiler's runtime)
+// keeps its real path, as in til's own strings.
+priv c_path_map_flags := proc() returns Str {
+    physical := realpath_str(".")
+    mut flags := format(" -ffile-prefix-map=", physical, "=.")
+    // REM gcc and clang record $PWD instead when it names this directory
+    // through a symbolic link.
+    logical := get_env("PWD")
+    if logical.len() > 0 && logical != physical && realpath_str(logical) == physical {
+        flags = format(flags, " -ffile-prefix-map=", logical, "=.")
+    }
+    return flags
+}
+
+priv c_build_flags := proc(lp: LoadedProgram) returns Str {
+    return format(lp.cpu.c_flags, " -O", lp.opt_level.to_str(), " -ffp-contract=off -fexcess-precision=standard",
+        c_path_map_flags())
 }
 
 priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
@@ -1654,10 +1734,15 @@ set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, c
     for unit_path : Str in lp.unit_paths() { translation.push(own path_from_dir(realpath_str(unit_path), out_dir)) }
     for mode_file : Str in lp.mode_files { translation.push(own path_from_dir(realpath_str(mode_file), out_dir)) }
     lp.translation_stamp = stamp_of(translation)
+    // The executable's stamp is a string inside the executable: the same
+    // rule, from the directory the executable is written to.
+    bin_abs := path_absolute(paths.bin_path)
+    bin_slash := bin_abs.rfind("/").to_usize()
+    bin_dir := bin_abs.substr(0, bin_slash).clone()
     mut executable := Vec(Str).new()
     executable.push(own "executable")
     executable.push(own lp.translation_stamp.clone())
-    executable.push(own paths.bin_path.clone())
+    executable.push(own bin_abs.substr(bin_slash + 1, bin_abs.len() - bin_slash - 1).clone())
     executable.push(own cc_override.clone())
     executable.push(own asan.to_str())
     executable.push(own prof.to_str())
@@ -1667,7 +1752,7 @@ set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, c
     executable.push(own macos_framework_flags(lp))
     executable.push(own lp.include_flags_for_target())
     executable.push(own lp.link_c_paths.clone())
-    executable.push(own lp.ext_c_path.clone())
+    executable.push(own path_from_dir(realpath_str(lp.ext_c_path), bin_dir))
     executable.push(own loads_gui_module(lp).to_str())
     lp.executable_stamp = stamp_of(executable)
 }

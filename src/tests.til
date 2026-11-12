@@ -923,6 +923,14 @@ main := proc(args: ..Str) returns I64 {
     if host_os() == "linux" {
         add_single(tests, "rss_address_spaces", "build", 0, "",
             format(til_bin, " run test/rss.til"))
+        // #472 (L3a): a program and a library built from two checkout roots
+        // and at two times are the same bytes. Linux hosts only: a native
+        // mac build goes through Apple's toolchain in one command, whose
+        // linker records randomly named temporary objects (targets.til
+        // target_links_named_objects); the mac cross job runs this driver
+        // for the mac targets instead.
+        add_count(tests, "reproducible_build", "build", "reproducible build passed", 1,
+            format(TIL, " run -o bin/c/reproducible_build -c gen/c/reproducible_build.c test/reproducible_build.til ", til_bin))
     }
 
     // Full Unicode rule conformance plus focused navigation contracts. Start

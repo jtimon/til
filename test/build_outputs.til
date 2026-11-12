@@ -253,19 +253,23 @@ main := proc(args: ..Str) {
 
     // link_macos()'s frameworks link off a mac through the .tbd stubs, by
     // a glob that names no file: a changed or added stub must relink. The
-    // stand-in C compiler records each link and writes an executable that
-    // carries the build stamp, as a real link would. It pauses first, as a
-    // real link takes time: written in the C's own clock tick, the
-    // executable would count as stale (an input as new as its output) and
-    // relink once.
+    // stand-in C compiler follows what a mac cross build asks of clang
+    // (#472, builder.til compile_c_named_objects): each -c writes an object
+    // carrying the build stamp, the link joins the objects into the
+    // executable and is recorded, and -print-prog-name=dsymutil names a
+    // dsymutil, here `true`. The link pauses first, as a real link takes
+    // time: written in the C's own clock tick, the executable would count
+    // as stale (an input as new as its output) and relink once.
     if host_os() != "macos" && host_os() != "windows" {
         mkdir_p(format(WORK, "/vendor/macos/frameworks"))
         File.writefile(format(WORK, "/vendor/macos/frameworks/TilStub.tbd"), "stub 1\n")
         File.writefile(format(WORK, "/stubs.til"), "mode script\nlink_macos(\"TilStub\")\nprintln(\"stubs\")\n")
         File.writefile(format(WORK, "/fakecc.sh"), format(
-            "#!/bin/sh\nout=\"\"; stamp=\"\"\n",
-            "while [ $# -gt 0 ]; do case \"$1\" in -o) out=\"$2\"; shift;; -DTIL_BUILD_STAMP=*) stamp=\"${1#-DTIL_BUILD_STAMP=}\";; esac; shift; done\n",
-            "sleep 0.05\necho link >> links.log\nprintf 'til-build-stamp:%s;' \"$stamp\" > \"$out\"\n"))
+            "#!/bin/sh\nout=\"\"; stamp=\"\"; compile=0; objects=\"\"\n",
+            "for a in \"$@\"; do if [ \"$a\" = -print-prog-name=dsymutil ]; then echo true; exit 0; fi; done\n",
+            "while [ $# -gt 0 ]; do case \"$1\" in -o) out=\"$2\"; shift;; -c) compile=1;; -DTIL_BUILD_STAMP=*) stamp=\"${1#-DTIL_BUILD_STAMP=}\";; *.o) objects=\"$objects $1\";; esac; shift; done\n",
+            "if [ $compile = 1 ]; then printf 'til-build-stamp:%s;' \"$stamp\" > \"$out\"; exit 0; fi\n",
+            "sleep 0.05\necho link >> links.log\ncat $objects > \"$out\"\n"))
         check_command(Cmd.new("chmod", "+x", "fakecc.sh"), "")
         for expected_links : Str in array(Str, "1", "1", "2", "3") {
             if expected_links == "2" {
