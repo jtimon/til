@@ -147,8 +147,6 @@ check_closure_allocations := proc(compiler: Str, work: Str) {
         "mode cli\nAction := func() returns I64\nHolder := struct { action:Action }\n",
         "main := proc() { mut value:I64=1; original:=Holder(action=func() returns I64 [mut value] { value++; return value }); copy:=original.clone();\n",
         "assert(original.action()==2); assert(copy.action()==3); assert(original.action()==4); assert(value==4) }\n"),2,2)
-    // The interpreter clones captured records structurally without invoking
-    // their custom clone; pin that lifecycle hook against native C here.
     check_allocations(compiler,work,"closure_resource",format(
         "mode cli\nCounts := struct { drops:I64=0; clones:I64=0; flags:I64=0 }\nAction := func() returns I64\nHolder := struct { action:Action }\n",
         "Tracked := struct { ref counts:Counts; number:I64=0\nnamespace:\n",
@@ -157,7 +155,7 @@ check_closure_allocations := proc(compiler: Str, work: Str) {
         "make := func(counts:Counts,start:I64) returns Action { value:=Tracked(counts=counts,number=start);\n",
         "return func() returns I64 [own value] { return value.number } }\n",
         "main := proc() { counts:=Counts(); mut seed:I64=9; seed++; original:=Holder(action=make(counts,seed)); copy:=original.clone();\n",
-        "assert(counts.clones==1);\nassert(original.action()==10);\nassert(copy.action()==10);\nassert(counts.drops==2); assert(counts.flags==2) }\n"),2,2,interpret_source=false)
+        "assert(counts.clones==1);\nassert(original.action()==10);\nassert(copy.action()==10);\nassert(counts.drops==2); assert(counts.flags==2) }\n"),2,2)
     check_allocations(compiler,work,"closure_nested",format(
         "mode cli\nAction := func() returns I64\nHolder := struct { action:Action }\n",
         "counter := func(start:I64) returns Action { state:=start; return func() returns I64 [own mut state] { state++; return state } }\n",

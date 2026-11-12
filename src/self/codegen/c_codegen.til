@@ -6388,11 +6388,13 @@ priv emit_closure_env_clone := proc(f: File, closure_name: Str, env_type: Str,
                 f.write("    *til_clone->").write(c_ident(cap.name)).write(" = *til_env->").write(c_ident(cap.name)).write(";\n")
             } else {
                 clone_name := format(clone_type, "_clone")
+                mut argument := format("til_env->", c_ident(cap.name))
+                if callee_param_passes_c_value(clone_name, 0, lp.ctx) { argument = format("*", argument) }
                 if callee_returns_c_value(clone_name, lp.ctx) {
                     f.write("    til_clone->").write(c_ident(cap.name)).write(" = malloc(TIL_BOX(").write(clone_type).write("));\n")
-                    f.write("    *til_clone->").write(c_ident(cap.name)).write(" = ").write(clone_name).write("(til_env->").write(c_ident(cap.name)).write(");\n")
+                    f.write("    *til_clone->").write(c_ident(cap.name)).write(" = ").write(clone_name).write("(").write(argument).write(");\n")
                 } else {
-                    f.write("    til_clone->").write(c_ident(cap.name)).write(" = ").write(clone_name).write("(til_env->").write(c_ident(cap.name)).write(");\n")
+                    f.write("    til_clone->").write(c_ident(cap.name)).write(" = ").write(clone_name).write("(").write(argument).write(");\n")
                 }
             }
         }

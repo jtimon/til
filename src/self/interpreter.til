@@ -2097,6 +2097,9 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
                 if ffi_place_is_foreign(base, ctx) { ffi_borrow_place(decl_type_name_ref(fdecl, ctx.symbols), ptr_add(base, fl.offset), ctx) }
                 return ptr_add(base, fl.offset)
             }
+            if decl_is_funcsig(fdecl, ctx) {
+                return eval_callable_slot_clone(field_resolved_type, ptr_add(base, fl.offset), e, ctx)
+            }
             return read_field(base, fdecl, fl.offset, fl.size, ctx)
         }
 
@@ -2374,7 +2377,7 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
         }
         ref place : Dynamic = to_ptr(hb.ptr)
         if heap_type_is_callable(hb_type(hb)) {
-            cloned : Dynamic = heap_clone_by_type(hb_type(hb), place, hb.ctx)
+            cloned : Dynamic = eval_callable_slot_clone(hb_type(hb), place, e, ctx)
             return raw_result_finish(hb_type(hb), cloned, destination, false, ctx)
         }
         info.is_ref = true
@@ -5731,14 +5734,21 @@ scope_set_heap_owned := func(mut s: Scope, name: Str, ptr: Dynamic, til_type_w: 
     if ptr.is_null() {
         if is_borrowed.not().and(is_struct_type(til_type).or(is_enum_type(til_type))) { panic("null aggregate heap binding: ", name) }
     }
-    is_static_callable := heap_slot_is_static_callable(til_type, ptr)
+    mut is_static_callable := false
+    mut payload_released := false
+    if heap_type_is_callable(til_type) {
+        // Container initialization/replacement can borrow a zeroed callable
+        // slot for deletion. Track that empty payload just as lookup does.
+        payload_released = deref(ptr).is_null()
+        if payload_released.not() { is_static_callable = heap_slot_is_static_callable(til_type, ptr) }
+    }
     if s.heap_bindings.has(name) {
         ref mut old : HeapBinding = s.heap_bindings[name]
         ffi_release_binding(old)
         old.foreign_root = 0
     }
     scope_drop_existing_heap_slot(s, name)
-    mut meta := HeapBinding(ptr = to_ptr(ptr), til_type_p = til_type_w, own_type = own_type, ctx = ctx, is_local = is_local, is_borrowed = is_borrowed, is_erased_dynamic = is_erased_dynamic, is_static_callable = is_static_callable, moved_out = false)
+    mut meta := HeapBinding(ptr = to_ptr(ptr), til_type_p = til_type_w, own_type = own_type, ctx = ctx, is_local = is_local, is_borrowed = is_borrowed, is_erased_dynamic = is_erased_dynamic, is_static_callable = is_static_callable, moved_out = false, payload_released = payload_released)
     if is_borrowed && ffi_place_is_foreign(ptr, ctx) {
         address := word_bits(ptr).cast(UPtr)
         ref place : ForeignPlace = ctx.eval.foreign_places[address]
@@ -5872,6 +5882,8 @@ priv scope_root_ref := func(s: Scope) returns ref Scope {
     }
 }
 
+// Raw interpreter value transport copies storage. The language-level callable
+// clone entry below evaluates capture clone methods instead of using this path.
 priv closure_env_clone := func(env: Scope) returns Scope {
     mut cloned := scope_new_owned(env.parent)
     for name, hb in env.heap_bindings {
@@ -5987,6 +5999,72 @@ priv callable_box_free := func(mut ptr: Dynamic) {
     EvalHeap.heap_free(own owned_ptr)
 }
 
+priv eval_closure_capture_clone := proc(cap: Declaration, source: Scope, mut target: Scope, site: Expr, mut ctx: Context) {
+    ref hb: HeapBinding = source.heap_bindings[cap.name]
+    if hb.moved_out { panic("closure clone from moved binding: ", cap.name) }
+    ref data: Dynamic = to_ptr(hb.ptr)
+    if hb.is_borrowed {
+        scope_set_heap_owned(target, cap.name, data, hb.til_type_p, hb.own_type, hb.ctx, false, true, hb.is_erased_dynamic)
+        if source.heap_aliases.has(cap.name) { target.heap_aliases.set(cap.name, own source.heap_aliases[cap.name].clone()) }
+        return
+    }
+    mut copied: Dynamic = 0
+    if heap_type_is_callable(hb_type(hb)) {
+        copied = EvalHeap.heap_alloc(Dynamic.size())
+        write_ptr(copied, eval_callable_clone(deref(data), site, ctx))
+    } else if raw_type_is_prim(hb_type(hb), hb.ctx).or(hb_type(hb).is(Type.Dynamic)) {
+        copied = heap_clone_by_type(hb_type(hb), data, hb.ctx)
+    } else {
+        mut argument := Expr.new(own ident_node(ctx.symbols.intern(cap.name)), site.line, site.col)
+        argument.set_til_type(hb_type(hb))
+        mut call := make_clone_call(resolved_type_name(hb_type(hb), ctx.symbols), hb_type(hb), argument, site, ctx.symbols)
+        mut clone_scope := scope_new(safe_ref(source))
+        copied = eval_expr_raw(clone_scope, call, ctx)
+        scope_free(own clone_scope)
+        // An effectful clone can abort constant folding or an embedded call.
+        // The enclosing clone unwinds its partially constructed environment.
+        if ctx.eval.eval_aborted { return }
+    }
+    scope_set_raw_owned(target, cap.name, copied, hb.til_type_p, hb.own_type, hb.ctx)
+}
+
+// Clone the language value directly: structurally cloning first would copy
+// owned payloads before their custom clone and lose the hook's returned value.
+priv eval_callable_slot_clone := proc(shallow value_type: Type, slot: Dynamic, site: Expr, mut ctx: Context) returns Dynamic {
+    if ffi_place_is_foreign(slot, ctx) {
+        return native_callable_slot_import(resolved_type_name(value_type, ctx.symbols), slot, ctx)
+    }
+    mut result: Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+    write_ptr(result, eval_callable_clone(deref(slot), site, ctx))
+    return result
+}
+
+priv eval_callable_clone := proc(value: Dynamic, site: Expr, mut ctx: Context) returns Dynamic {
+    if callable_box_is(value).not() { return callable_storage_clone(value) } // Static/native callable storage.
+    ref box: InterpCallableBox = to_ptr(value)
+    ref source: Scope = callable_env(box)
+    mut target := scope_new_owned(source.parent)
+    switch box.func_def.node_type {
+    case .FuncDef(fd):
+        for cap: Declaration in fd.captures {
+            eval_closure_capture_clone(cap, source, target, site, ctx)
+            if ctx.eval.eval_aborted { scope_free(own target); return bits_word(0) }
+        }
+    case .BodyValue(bd):
+        for cap: Declaration in bd.captures {
+            eval_closure_capture_clone(cap, source, target, site, ctx)
+            if ctx.eval.eval_aborted { scope_free(own target); return bits_word(0) }
+        }
+    case: UNREACHABLE("callable box without a function or Body")
+    }
+    mut result: Dynamic = EvalHeap.heap_alloc(InterpCallableBox.size())
+    ref mut cloned: InterpCallableBox = to_ptr(result)
+    cloned.magic = CALLABLE_BOX_MAGIC
+    cloned.func_def = box.func_def
+    cloned.env = Option(Scope).Some(own target)
+    return result
+}
+
 // The callable's language-level delete owns capture teardown. Raw scope
 // cleanup only knows storage layouts; it cannot run a user destructor.
 priv eval_callable_capture_delete := proc(mut value: Dynamic, site: Expr, mut ctx: Context) {
@@ -6000,11 +6078,16 @@ priv eval_callable_capture_delete := proc(mut value: Dynamic, site: Expr, mut ct
         if heap_type_is_callable(hb_type(hb)) {
             eval_callable_capture_delete(deref(data), site, ctx)
         } else if raw_type_is_prim(hb_type(hb), ctx).not() {
-            // The capture's slot belongs to the environment, like stack
-            // storage. Run its payload destructor here, then let
-            // scope_drop_owned_bindings free the slot exactly once.
-            eval_replacement_delete(env, hb_type(hb), data, false, site, ctx)
-            hb.payload_released = true
+            // An owned capture has its own value cell, like the native heap
+            // capture. Transfer that cell to delete(..., true); the environment
+            // must not reclaim it again after the language destructor frees it.
+            mut drop_scope := scope_new(safe_ref(env))
+            scope_set_raw_owned(drop_scope, name, data, hb.til_type_p, OwnType.Own, hb.ctx)
+            mut call := make_delete_call(name, hb_type(hb), true, true, site, ctx.symbols).unwrap()
+            hb.ptr = bits_word(0)
+            hb.moved_out = true
+            eval_fcall(drop_scope, call, fcall_of(call), ctx)
+            scope_free(own drop_scope)
         }
     }
 }
@@ -10639,7 +10722,7 @@ priv h_til_closure_slot_clone := proc(mut s: Scope, mut e: Expr, mut r: Dynamic,
     mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     slot : Dynamic = raw_arg_pointer(raw, info, ctx)
     mut holder : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
-    write_ptr(holder, callable_storage_clone(deref(slot)))
+    write_ptr(holder, eval_callable_clone(deref(slot), e, ctx))
     write_ptr(r, holder)
     raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     return true

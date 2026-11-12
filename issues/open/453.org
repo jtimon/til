@@ -459,9 +459,10 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   runtime methodology are recorded in ~doc/optimizations.org~. The string probe
   also pins destination preservation across USize32 runtime size macros.
 
-  The custom clone/delete probe compares native C/FASM: before these changes,
-  the interpreter copied captured records without calling their custom clone
-  hook. The remaining allocation probes compare all three execution paths.
+  The custom clone/delete probe originally compared native C/FASM because
+  interpretation copied captured records without their custom clone hook.
+  The later captured-record lifecycle fix below enables all three execution
+  paths for that probe too.
   Verification: ~make clean && make test~ passed 558/558, both FASM drivers
   passed at USize32/USize64, and ~aggregate_control~ plus all six new probes
   passed focused C ~--asan --usize=64~ checks without sanitizer diagnostics.
@@ -655,6 +656,35 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   The 17 shared float cases and the scalar float script passed focused C
   ASAN/UBSAN runs at USize64 without sanitizer diagnostics. Native assembly
   is not ASAN-instrumented.
+
+**** Captured-record clone/delete parity
+
+  On base ~5de47305e~, the custom resource probe reproduced zero interpreter
+  clone calls instead of one. Its owned captures also received call_free=false
+  instead of the native true flag. Callable value/field reads and explicit slot
+  clones now evaluate owned capture clone methods in declaration order, keeping
+  their returned values. Borrowed captures still share their original storage;
+  raw interpreter transport copies remain separate from language clone calls.
+
+  Owned captured records transfer their value cells to delete(..., true) and
+  mark their environment bindings moved out, preventing a second outer free.
+  The nested record/enum regression also exposed a C closure cloner that always
+  passed a pointer to the capture's clone method; it now follows that method's
+  existing parameter ABI. Zeroed callable container slots record their empty
+  payload at binding creation, matching lookup and allowing normal initialization
+  and replacement deletion.
+
+  Five regressions in ~test/closures.til~ cover hook-returned values, independent
+  owned state, borrowed captures, Body clone order, nested callables and nested
+  record/enum captures copied through an Array. All 28 closure cases now run
+  directly in the native driver at both widths. The resource probe's interpreter
+  exclusion is removed; its native allocation count remains 2/2.
+
+  Verification: ~make clean && make test~ passed 561/561, including the bootstrap
+  fixed point. Both FASM drivers passed. An ASAN-built compiler interpreted all
+  28 closure cases at both target widths, and C ASAN/UBSAN runs passed 28/28 at
+  each USize width, without sanitizer diagnostics. Native assembly itself is
+  not ASAN-instrumented.
 
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or

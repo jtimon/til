@@ -1422,6 +1422,13 @@
   returned closures, six-argument captures, scalar/aggregate/ref results, mutable
   callable cells, borrowed/private/moved captures, Body values with owned nested
   captures, static templates, independent clones and custom destructor counts.
+  All 28 ~test/closures.til~ cases run directly through interpretation, C and
+  FASM at both widths. Language-level callable copies evaluate each owned
+  capture's clone method in capture declaration order and preserve its returned
+  value; borrowed captures keep their references. Owned captured value cells
+  pass call_free=true to their destructor and transfer ownership out of the
+  environment before deletion. The custom-resource allocation probe now also
+  checks interpretation, retaining its two native allocations/frees.
   It pins factory-before-argument evaluation and immediate-result destruction.
   A captured six-argument function returning a resource-owning record checks
   result storage and the hidden environment simultaneously. The runtime driver

@@ -227,7 +227,7 @@ main := proc(compiler_arg: Str) {
     expect(build_status == 0, build.out(), build.err())
     run := Cmd.new(format(work, "/bin/custom output"))
     expect(run.run() == 0, "empty main failed")
-    for source in array(Str, "test/templeos/holyc_continue.til", "examples/fizzbuzz.til", "examples/templeos_scalars.til", "test/scalar_control.til", "examples/templeos_calls.til", "test/aggregate_control.til", "test/reference_rebinding.til", "test/interfaces.til", "test/test_in_namespace.til", "test/float_literals.til", "test/strings.til") {
+    for source in array(Str, "test/templeos/holyc_continue.til", "examples/fizzbuzz.til", "examples/templeos_scalars.til", "test/scalar_control.til", "examples/templeos_calls.til", "test/aggregate_control.til", "test/reference_rebinding.til", "test/interfaces.til", "test/test_in_namespace.til", "test/float_literals.til", "test/strings.til", "test/closures.til") {
         check_shared(compiler, work, source)
     }
     check_shared(compiler, work, "test/script_bang_panic_msg.til", 1)

@@ -5,6 +5,19 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** Captured-record clone lifecycle parity (2026-11-12, #453)
+
+Base: ~5de47305e~. The existing ~closure_resource~ allocation probe now compares
+interpretation/C/FASM at both USize widths. Previously the interpreter reported
+zero custom clone calls and passed call_free=false for both owned capture cells;
+the shared contract requires one clone and two deletes with call_free=true.
+Language-level callable copies now evaluate capture clone methods, preserving
+their returned values, and delete transfers owned cells out of the environment.
+The native allocation result remains 2 malloc/2 free calls. All 28 shared closure
+cases agree across the three execution paths, including borrowed captures,
+Body declaration order, nested callables and record/enum payloads. This is a
+correctness result, without an allocation or elapsed-time speedup claim.
+
 ** FASM baseline scalar FMA experiments (2026-11-12, #453)
 
 Base: ~88dee06ef~. A wider floating-point intermediate is insufficient:
@@ -252,9 +265,10 @@ The following counts hold at BOTH widths; frees equal allocations in every row.
 These exercise mutable/narrow private captures and independent copies, shared
 borrowed state, custom clone/delete counts and call_free branches, nested owned
 callables, an existing heap-owned capture, and independently mutable captured
-strings. Five compare interpretation/C/FASM; the custom-clone probe compares
-C/FASM because the current interpreter structurally copies captured records
-without calling their custom clone hook (observed before this change).
+strings. At the time, five compared interpretation/C/FASM; the custom-clone
+probe compared C/FASM because the interpreter structurally copied captured
+records without their custom clone hook. The later lifecycle-parity fix above
+enabled interpretation for that probe too, with the same native counts.
 
 The owned-string probe caught a new emitter bug at USize32: load_size/store_size
 use RAX as scratch, so the inline-copy path must preserve its destination across
