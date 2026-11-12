@@ -992,6 +992,15 @@
   signed/unsigned bounds, including U64, and retain the source-located invalid
   numeric cast panic. The to_i64 method keeps its existing unchecked contract.
 
+  Explicit F32/F64 fma accumulates the exact signed product and addend before
+  one nearest-even rounding, without FMA instructions, x87 intermediates or
+  libc. Its fixed 1280-byte frame holds two integer magnitudes: 66 words cover
+  F64's entire product/addend range at unit 2^-2148; F32 uses nine words at
+  unit 2^-298. Cancellation, subnormal ties, intermediate overflow, signed
+  zeros, infinities and NaN classification follow the shared scalar contract.
+  NaN payload/sign are unspecified. Ordinary multiply/add remains separately
+  rounded; all three FMA arguments are evaluated once, in source order.
+
   Float bit patterns travel through the existing private integer argument
   registers/frame slots and RAX results, including direct/indirect calls,
   borrowed results, closures, interface dispatch and native method thunks.
@@ -1260,7 +1269,7 @@
     Removal follows ext.c's unlink contract: a missing path is harmless, but
     directories and other failures are errors.
 
-  SIMD, explicit fused multiply-add, general
+  SIMD, general
   runtime-selected method/reflection lookup,
   unsupported external runtime services remain outside this
   subset. Array methods are no longer restricted to compiler-generated
@@ -1326,6 +1335,14 @@
   one normalized buffer for separator stripping, and floating-point file input.
   Typed scalar pointer storage passed into Dynamic keeps its address instead of
   loading its first byte; the existing Str.c_str pointer test pins that lowering.
+
+  FMA checks reuse ~test/templeos/holyc_float_primitives.til~ unchanged, including
+  argument order and receiver snapshots, and compare 2,048 additional sampled
+  F32/F64 FMA results per execution with C and interpretation at both widths.
+  ~float_literals~ pins the two wider-intermediate counterexamples, scalar
+  callable forwarding and floating-point binary/octal integer tokens. The
+  latter use the shared semantic token normalizer before bit encoding.
+  The runtime allocation driver pins zero malloc/free calls for scalar FMA.
 
   The owned alias captures in the shared float test also regress a C emitter
   defect: a borrowed local scalar alias must be copied into a private capture

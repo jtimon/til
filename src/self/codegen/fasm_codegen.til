@@ -767,10 +767,10 @@ priv fasm_static_number := func(value: U64, bytes: USize) returns Str {
 priv fasm_numeric_bits := func(value: LiteralNumData, shallow t: Type) returns U64 {
     mut bits:U64=0
     if t==Type.Primitive(Primitive.F32) {
-        number:=value.to_f32()
+        number:=numeric_literal_parse_text(value.text).to_f32()
         memcpy(to_ptr(bits),to_ptr(number),4)
     } else if t==Type.Primitive(Primitive.F64) {
-        number:=value.text.to_f64()
+        number:=numeric_literal_parse_text(value.text).to_f64()
         memcpy(to_ptr(bits),to_ptr(number),8)
     } else { return value.to_u64() }
     return bits
@@ -2013,6 +2013,13 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
                     mut runtime:="rt_f64_"
                     if owner==Type.Primitive(Primitive.F32) { runtime="rt_f32_" }
                     fasm_runtime_call(e,format(runtime,op),state,lp)
+                    return
+                }
+                if fasm_float(owner) && op=="fma" {
+                    mut runtime:="rt_f64_fma"
+                    if owner==Type.Primitive(Primitive.F32) { runtime="rt_f32_fma" }
+                    fasm_runtime_call(e,runtime,state,lp)
+                    if fasm_float(e.til_type()).and(owner.neq(e.til_type())) { fasm_float_cast(e,owner,e.til_type(),false,state,lp) }
                     return
                 }
                 if op == "to_str" && owner.is(Type.Dynamic).not() && owner != Type.Primitive(Primitive.Bool) {

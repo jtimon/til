@@ -626,6 +626,36 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   ~a06e63e54~ passes the ordinary ~make clean && make test~ suite, 577/577,
   including self_translate_native; both FASM integration drivers also pass.
 
+**** Native scalar F32/F64 fused multiply-add
+
+  On base ~88dee06ef~, explicit fma uses exact integer magnitudes and one
+  nearest-even rounding on baseline x86-64, without optional FMA instructions.
+  The 1280-byte frame covers the full finite product/addend range: 66 words
+  per F64 magnitude at unit 2^-2148, nine active F32 words at unit 2^-298.
+  No heap workspace is needed. Cancellation, subnormal ties, intermediate
+  overflow, signed zero and IEEE special-value classification are supported;
+  NaN payload/sign remain unspecified. Ordinary multiply/add stays separate.
+
+  Experiments rejected an x87-width F64 intermediate and an F64-width F32
+  intermediate with exact-bit counterexamples. A temporary C/libm harness
+  calling the native runtime passed 2,261,666 edge/random/cancellation checks.
+  The permanent driver reuses the existing scalar float script and compares
+  2,048 additional sampled FMA results per execution at both USize widths.
+  ~float_literals~ adds the two counterexamples, special values and forwarding
+  through an ordinary callable wrapper. Allocation instrumentation pins 0/0.
+
+  Reusing that script exposed an existing FASM literal bug: binary/octal
+  integer tokens narrowed to floats bypassed the shared semantic normalizer
+  and became zero. ~fasm_numeric_bits~ now uses ~numeric_literal_parse_text~,
+  like interpretation/constant folding; ~test_float_prefixed_integer_tokens~
+  is the dedicated regression.
+
+  Verification: ~make clean && make test~ passed 578/578, including the
+  bootstrap fixed-point check. Both FASM drivers passed at both USize widths.
+  The 17 shared float cases and the scalar float script passed focused C
+  ASAN/UBSAN runs at USize64 without sanitizer diagnostics. Native assembly
+  is not ASAN-instrumented.
+
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
   repeated work. In-process code allocation, relocation, lifetime management

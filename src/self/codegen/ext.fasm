@@ -1022,6 +1022,315 @@ rt_float_to_str:
     leave
     ret
 
+; Exact scalar FMA, without an FMA instruction or an intermediate FP rounding.
+; A finite F64 product is an integer multiple of 2^-2148, with its highest
+; possible bit at 2047. Two 66-word magnitudes cover that entire range (and
+; the addition carry). F32 uses nine words at unit 2^-298. The fixed 1280-byte
+; frame holds both magnitudes and scalar state; no heap workspace is needed.
+rt_f32_fma:
+    mov ecx, 24
+    jmp rt_float_fma
+rt_f64_fma:
+    mov ecx, 53
+rt_float_fma:
+    frame 1280
+    mov [rbp-8], rcx
+    mov [rbp-72], rdi
+    mov [rbp-80], rsi
+    mov [rbp-88], rdx
+    mov qword [rbp-16], 52
+    mov qword [rbp-24], 2047
+    mov qword [rbp-32], 1023
+    mov qword [rbp-40], -1022
+    mov qword [rbp-48], -1074
+    mov qword [rbp-56], -2148
+    mov qword [rbp-64], 63
+    mov qword [rbp-208], 66
+    cmp ecx, 24
+    jne .layout
+    mov qword [rbp-16], 23
+    mov qword [rbp-24], 255
+    mov qword [rbp-32], 127
+    mov qword [rbp-40], -126
+    mov qword [rbp-48], -149
+    mov qword [rbp-56], -298
+    mov qword [rbp-64], 31
+    mov qword [rbp-208], 9
+.layout:
+    mov rcx, [rbp-64]
+    mov r8, 1
+    shl r8, cl
+    mov rax, rdi
+    xor rax, rsi
+    and rax, r8
+    mov [rbp-96], rax
+    and rdx, r8
+    mov [rbp-104], rdx
+    mov rax, rdi
+    call rt_float_fma_decode
+    mov [rbp-112], rax
+    mov [rbp-120], rdx
+    mov [rbp-176], r9
+    mov rax, [rbp-80]
+    call rt_float_fma_decode
+    mov [rbp-128], rax
+    mov [rbp-136], rdx
+    mov [rbp-184], r9
+    mov rax, [rbp-88]
+    call rt_float_fma_decode
+    mov [rbp-144], rax
+    mov [rbp-152], rdx
+    mov [rbp-192], r9
+    cmp qword [rbp-176], 2
+    je .nan
+    cmp qword [rbp-184], 2
+    je .nan
+    cmp r9, 2
+    je .nan
+    mov rax, [rbp-96]
+    mov [rbp-160], rax
+    cmp qword [rbp-176], 1
+    jne .second_infinite
+    cmp qword [rbp-184], 1
+    je .product_infinite
+    cmp qword [rbp-128], 0
+    je .nan
+    jmp .product_infinite
+.second_infinite:
+    cmp qword [rbp-184], 1
+    jne .finite_product
+    cmp qword [rbp-112], 0
+    je .nan
+.product_infinite:
+    cmp qword [rbp-192], 1
+    jne .infinity
+    cmp rax, [rbp-104]
+    jne .nan
+    jmp .infinity
+.finite_product:
+    cmp qword [rbp-192], 1
+    jne .accumulate
+    mov rax, [rbp-104]
+    mov [rbp-160], rax
+    jmp .infinity
+.accumulate:
+    cld
+    lea rdi, [rbp-1280]
+    xor eax, eax
+    mov ecx, 132
+    rep stosq
+    mov rax, [rbp-112]
+    mul qword [rbp-128]
+    mov rcx, [rbp-120]
+    add rcx, [rbp-136]
+    sub rcx, [rbp-56]
+    lea rdi, [rbp-1280]
+    call rt_float_fma_place
+    mov rax, [rbp-144]
+    xor edx, edx
+    mov rcx, [rbp-152]
+    sub rcx, [rbp-56]
+    lea rdi, [rbp-752]
+    call rt_float_fma_place
+    lea rdi, [rbp-1280]
+    lea rsi, [rbp-752]
+    mov rax, [rbp-96]
+    cmp rax, [rbp-104]
+    jne .compare
+    xor r8d, r8d
+    mov rcx, [rbp-208]
+    clc
+.add_word:
+    mov rax, [rdi+r8]
+    adc rax, [rsi+r8]
+    mov [rdi+r8], rax
+    lea r8, [r8+8]
+    loop .add_word
+    jmp .magnitude
+.compare:
+    mov r8, [rbp-208]
+    dec r8
+.compare_word:
+    mov rax, [rdi+r8*8]
+    cmp rax, [rsi+r8*8]
+    ja .subtract
+    jb .reverse
+    dec r8
+    jns .compare_word
+    ; Opposite, exactly equal magnitudes cancel to +0 in nearest-even mode.
+    xor eax, eax
+    leave
+    ret
+.reverse:
+    xchg rdi, rsi
+    mov rax, [rbp-104]
+    mov [rbp-160], rax
+.subtract:
+    xor r8d, r8d
+    mov rcx, [rbp-208]
+    clc
+.subtract_word:
+    mov rax, [rdi+r8]
+    sbb rax, [rsi+r8]
+    mov [rdi+r8], rax
+    lea r8, [r8+8]
+    loop .subtract_word
+.magnitude:
+    mov r8, [rbp-208]
+    dec r8
+.top_word:
+    mov rax, [rdi+r8*8]
+    test rax, rax
+    jnz .top_bit
+    dec r8
+    jns .top_word
+    xor eax, eax
+    jmp .sign
+.top_bit:
+    bsr rax, rax
+    shl r8, 6
+    add rax, r8
+    add rax, [rbp-56]
+    mov [rbp-192], rax
+    cmp rax, [rbp-32]
+    jg .infinity
+    sub rax, [rbp-16]
+    cmp rax, [rbp-48]
+    cmovl rax, [rbp-48]
+    sub rax, [rbp-56]
+    mov [rbp-176], rax
+    mov r8, rax
+    shr r8, 6
+    mov ecx, eax
+    and ecx, 63
+    mov rax, [rdi+r8*8]
+    mov rdx, [rdi+r8*8+8]
+    shrd rax, rdx, cl
+    mov [rbp-200], rax
+    ; Guard and sticky bits come from the exact sum, including cancellation.
+    mov r8, [rbp-176]
+    dec r8
+    mov rcx, r8
+    shr r8, 6
+    and ecx, 63
+    mov rdx, [rdi+r8*8]
+    bt rdx, rcx
+    jnc .pack
+    mov rax, 1
+    shl rax, cl
+    dec rax
+    test rax, rdx
+    jnz .round_up
+    test r8, r8
+    jz .tie
+.sticky_word:
+    dec r8
+    cmp qword [rdi+r8*8], 0
+    jne .round_up
+    test r8, r8
+    jnz .sticky_word
+.tie:
+    test qword [rbp-200], 1
+    jz .pack
+.round_up:
+    inc qword [rbp-200]
+.pack:
+    mov rax, [rbp-200]
+    mov rdx, [rbp-192]
+    cmp rdx, [rbp-40]
+    jl .sign
+    mov rcx, [rbp-8]
+    mov r8, 1
+    shl r8, cl
+    cmp rax, r8
+    jb .normal_pack
+    shr rax, 1
+    inc rdx
+    cmp rdx, [rbp-32]
+    jg .infinity
+.normal_pack:
+    mov rcx, [rbp-16]
+    mov r8, 1
+    shl r8, cl
+    dec r8
+    and rax, r8
+    add rdx, [rbp-32]
+    shl rdx, cl
+    or rax, rdx
+.sign:
+    or rax, [rbp-160]
+    leave
+    ret
+.infinity:
+    mov rax, [rbp-24]
+    mov rcx, [rbp-16]
+    shl rax, cl
+    jmp .sign
+.nan:
+    mov rax, [rbp-24]
+    mov rcx, [rbp-16]
+    shl rax, cl
+    dec ecx
+    mov rdx, 1
+    shl rdx, cl
+    or rax, rdx
+    leave
+    ret
+
+; Decode one IEEE operand into unsigned significand, exponent and class
+; (0 finite, 1 infinity, 2 NaN). Shares its caller's format constants in RBP.
+rt_float_fma_decode:
+    mov rcx, [rbp-16]
+    mov r8, rax
+    shr r8, cl
+    and r8, [rbp-24]
+    mov r10, 1
+    shl r10, cl
+    lea rdx, [r10-1]
+    and rax, rdx
+    xor r9d, r9d
+    mov rdx, [rbp-48]
+    cmp r8, [rbp-24]
+    je .special
+    test r8, r8
+    jz .done
+    or rax, r10
+    mov rdx, r8
+    sub rdx, [rbp-32]
+    sub rdx, [rbp-16]
+.done:
+    ret
+.special:
+    mov r9d, 1
+    test rax, rax
+    jz .done
+    inc r9
+    ret
+
+; Store an at-most-128-bit integer into a zeroed magnitude at bit offset RCX.
+; Even the largest F64 product occupies at most words 63, 64 and 65.
+rt_float_fma_place:
+    mov r8, rcx
+    shr r8, 6
+    and ecx, 63
+    lea rdi, [rdi+r8*8]
+    test ecx, ecx
+    jz .aligned
+    mov r8, rdx
+    shld r8, rax, cl
+    shl rax, cl
+    neg ecx
+    add ecx, 64
+    shr rdx, cl
+    mov [rdi+16], rdx
+    mov [rdi+8], r8
+    mov [rdi], rax
+    ret
+.aligned:
+    mov [rdi], rax
+    mov [rdi+8], rdx
+    ret
+
 ; Counted, C-locale strtof/strtod prefix parsing. Decimal input is converted
 ; as N / 5^k * 2^e (or N * 5^k * 2^e), with one nearest-even rounding.
 ; Keep 800 significant decimal digits: every binary64 rounding midpoint has

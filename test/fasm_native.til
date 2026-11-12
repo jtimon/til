@@ -81,6 +81,23 @@ check_float_parsing := proc(compiler: Str, work: Str) {
     check_shared(compiler,work,format(work,"/float_hex_tie.til"))
 }
 
+check_float_fma := proc(compiler: Str, work: Str) {
+    // Reuse the shared scalar corpus, including argument order, receiver
+    // snapshots, distant sticky bits and intermediate-overflow cancellation.
+    check_shared(compiler,work,"test/templeos/holyc_float_primitives.til")
+    path:=format(work,"/float_fma.til")
+    File.writefile(path,format(
+        "mode cli\nraw64:=proc(bits:U64) returns F64 { noop_proc(); mut out:F64=0; memcpy(to_ptr(out),to_ptr(bits),8); return out }\n",
+        "raw32:=proc(bits:U32) returns F32 { noop_proc(); mut out:F32=0; memcpy(to_ptr(out),to_ptr(bits),4); return out }\n",
+        "bits64:=func(value:F64) returns U64 { if value!=value { return 0x7ff8000000000000 }; mut bits:U64=0; memcpy(to_ptr(bits),to_ptr(value),8); return bits }\n",
+        "bits32:=func(value:F32) returns U32 { if value!=value { return 0x7fc00000 }; mut bits:U32=0; memcpy(to_ptr(bits),to_ptr(value),4); return bits }\n",
+        "main:=proc() { mut seed:U64=1; for _ in 0..512 { seed=seed*6364136223846793005+1442695040888963407; first:=seed;\n",
+        "seed=seed*6364136223846793005+1442695040888963407; second:=seed; seed=seed*6364136223846793005+1442695040888963407;\n",
+        "a:=raw64(first); b:=raw64(second); c:=raw64(seed); println(bits64(a.fma(b,c)).to_str(),\"|\",bits64(a.fma(b,0.0-a*b)).to_str());\n",
+        "x:=raw32(first.to_u32()); y:=raw32(second.to_u32()); z:=raw32(seed.to_u32()); zero:F32=0.0; println(bits32(x.fma(y,z)).to_str(),\"|\",bits32(x.fma(y,zero-x*y)).to_str()) } }\n"))
+    check_shared(compiler,work,path)
+}
+
 check_test_command := proc(compiler: Str, work: Str) {
     File.writefile(format(work,"/test_library.til"),format(
         "mode lib\nmut total:I64=0\ninitialize:=func() returns I64 { total++; return total }\ninitial:=initialize()\n",
@@ -218,6 +235,7 @@ main := proc(compiler_arg: Str) {
     check_test_command(compiler,work)
     check_floating_point(compiler,work)
     check_float_parsing(compiler,work)
+    check_float_fma(compiler,work)
     check_rebuild(compiler, work)
     println("fasm_native PASS")
 }

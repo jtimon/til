@@ -213,6 +213,11 @@ check_interface_allocations := proc(compiler: Str, work: Str) {
 }
 
 check_float_allocations := proc(compiler: Str, work: Str) {
+    check_allocations(compiler,work,"float_fma",format(
+        "mode cli\nruntime:=proc(value:F64) returns F64 { noop_proc(); return value }\n",
+        "small:=proc(value:F32) returns F32 { noop_proc(); return value }\n",
+        "main:=proc() { a:=runtime(134217729.0); assert(a.fma(a,-18014398777917440.0)==1.0);\n",
+        "b:=small(4097.0); assert(b.fma(b,-16785408.0)==1.0) }\n"),0,0)
     check_allocations(compiler,work,"float_values",format(
         "mode cli\nmut narrow:F32=1.25\nmut wide:F64=2.5\n",
         "bump:=func() { narrow=narrow+0.5; wide=wide+0.25 }\n",

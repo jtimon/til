@@ -5,6 +5,36 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** FASM baseline scalar FMA experiments (2026-11-12, #453)
+
+Base: ~88dee06ef~. A wider floating-point intermediate is insufficient:
+
+| Candidate                  | Inputs (a*b+c)                     | Candidate bits   | Fused bits       |
+|----------------------------+------------------------------------+------------------+------------------|
+| F64, 64-bit x87 significand | (1+2^-52)*(1-2^-52)-1               | 0000000000000000 | b970000000000000 |
+| F32, F64 intermediate      | (1+2^-12)*(1+2^-12)+2^-100           | 3f801000         | 3f801001         |
+
+The chosen integer path stores exact product/addend magnitudes in a fixed
+1280-byte stack frame and rounds the signed sum once. It requires no optional
+CPU instructions or heap workspace. F64 needs 66 words per magnitude to cover
+the complete exponent range; F32's arithmetic loops use nine words.
+
+A temporary C harness assembled the existing ~ext.fasm~ runtime as an ELF64
+object and called its private integer-register entries. Against libc fma/fmaf,
+2,261,666 checks passed: the two witnesses above, 18^3 edge triples per width,
+one million LCG triples per width and an additional rounded-product cancellation
+case every eighth triple. The LCG starts at 1 and uses multiplier
+6364136223846793005 and increment 1442695040888963407. Non-NaNs compare exact
+bits, including signed zeros; NaNs compare classification. The edge set includes
+subnormal endpoints, minimum normals, neighbors of one, maximum finite values,
+infinities, quiet/signaling NaNs and both signs of zero.
+
+The permanent native driver reuses the shared scalar float script and checks
+2,048 additional sampled FMA results per execution against C/interpreter at both
+USize widths. The existing temporary allocator instrumentation pins 0 malloc
+and 0 free calls for ~float_fma~ at both widths. This is a correctness and
+allocation result, without an elapsed-time speedup claim.
+
 ** Avoid overwritten reference-loan name clones (2026-11-11)
 
 Base: ~a06e63e54~. ~collect_reference_loans~ now clones a declaration's name
