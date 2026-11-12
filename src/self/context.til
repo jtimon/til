@@ -2392,6 +2392,20 @@ priv HostOwnPtrProbe := struct {
 }
 host_own_ptr_compressed := func() returns Bool { return HostOwnPtrProbe.size() < UPtr.size() }
 
+// #313: a niche enum's one stored pointer (the payload box's address, or
+// the borrowed pointee's) in the RUNNING binary -- the width the
+// interpreter must read and write that slot at. An owned box payload is
+// asked of the binary itself, like HostOwnPtrProbe: Option(HostOwnPtrProbe)
+// is an owned niche, so its size is that slot's width as this binary was
+// built. A ref payload addresses anything and is a native pointer.
+priv HostNicheProbe := Option(HostOwnPtrProbe)
+host_niche_slot_size := func(def: Expr) returns USize {
+    ref edd : EnumDef = enumdef_of(def)
+    ref some : VariantDef = edd.variants[enum_niche_some_index(def).to_usize()]
+    if some.payload_ref { return Dynamic.size() }
+    return HostNicheProbe.size()
+}
+
 // The interpreter's flat enum format: tag at offset 0 (its real 1/2/4/8-byte
 // width), payload at this fixed offset. Single source of truth for the
 // interpreter/constfolder payload accesses AND compute_enum_layout's enum

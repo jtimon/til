@@ -311,7 +311,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
         is_niche_enum := enum_is_niche(edef)
         if is_niche_enum {
             // LOAD the slot; aliasing its address would never read null.
-            ref stored : Dynamic = deref(raw)
+            ref stored : Dynamic = own_slot_load(raw, host_niche_slot_size(edef))
             if stored.is_null().not() { niche_payload = stored }
         }
         tag := enum_variant_index_for_tag(edef, enum_data_tag_key(raw, edef))

@@ -110,7 +110,7 @@ struct WideToken {
 };
 
 struct NestedToken {
-    WideToken *data;
+    TIL_OWN_PTR(WideToken) data;
 };
 
 typedef struct Array__I64 {
@@ -161,7 +161,7 @@ _Static_assert(sizeof(CfVec3f) == 12, "til computed sizeof(CfVec3f) as 12");
 _Static_assert(sizeof(Color) == 1, "til computed sizeof(Color) as 1");
 _Static_assert(sizeof(Token) == 24, "til computed sizeof(Token) as 24");
 _Static_assert(sizeof(WideToken) == 16, "til computed sizeof(WideToken) as 16");
-_Static_assert(sizeof(NestedToken) == 8, "til computed sizeof(NestedToken) as 8");
+_Static_assert(sizeof(NestedToken) == 4, "til computed sizeof(NestedToken) as 4");
 _Static_assert(sizeof(CfNestedValues) == 12, "til computed sizeof(CfNestedValues) as 12");
 _Static_assert(sizeof(Array__I64) == 8, "til computed sizeof(Array__I64) as 8");
 _Static_assert(sizeof(Map__Str_I64) == 24, "til computed sizeof(Map__Str_I64) as 24");
@@ -1789,13 +1789,13 @@ static WideToken WideToken_clone(WideToken * self) {
 
 static NestedToken NestedToken_Inner(WideToken * val) {
     NestedToken r;
-    r.data = val;
+    TIL_OWN_SET(r.data, val);
     return r;
 }
 static void NestedToken_delete(NestedToken * self, Bool call_free) {
-    switch ((int)((DEREF(self)).data != NULL)) {
+    switch ((int)(TIL_OWN_GET(WideToken, ((DEREF(self)).data)) != NULL)) {
     case 1: {
-        WideToken *hoisted__WideToken_0 = ((void *)((NestedToken *)(self))->data);
+        WideToken *hoisted__WideToken_0 = ((void *)TIL_OWN_GET(WideToken, (((NestedToken *)(self))->data)));
         WideToken_delete(hoisted__WideToken_0, 1);
         break;
     }
@@ -1831,9 +1831,9 @@ static void test_explicit_tag_enum_return_fold(void) {
 
 static void test_nested_enum_payload_return_fold(void) {
     NestedToken nested = NestedToken_Inner(({ WideToken *_oa = malloc(TIL_BOX(WideToken)); *_oa = WideToken_Num(&(I64){9}); _oa; }));
-    switch ((int)((nested).data != NULL)) {
+    switch ((int)(TIL_OWN_GET(WideToken, ((nested).data)) != NULL)) {
     case 1: {
-        WideToken *inner_token = ((void *)((NestedToken *)(&nested))->data);
+        WideToken *inner_token = ((void *)TIL_OWN_GET(WideToken, (((NestedToken *)(&nested))->data)));
         switch ((DEREF(inner_token)).tag) {
         case WideToken_TAG_Num: {
             I64 *value = ((void *)((U8 *)(inner_token) + offsetof(WideToken, data)));
@@ -2188,7 +2188,7 @@ static void test_static_global_initializers(void) {
         UNREACHABLE(&_va_Array_1, &hoisted__Str_test_static_global_initializers_7);
     }
     }
-    Bool hoisted__Bool_18 = ((Bool)((((NestedToken *)(&STATIC_NICHE))->data != NULL) == 1));
+    Bool hoisted__Bool_18 = ((Bool)((TIL_OWN_GET(WideToken, (((NestedToken *)(&STATIC_NICHE))->data)) != NULL) == 1));
     assert(hoisted__Bool_18, &hoisted__Str_test_static_global_initializers_19);
 }
 

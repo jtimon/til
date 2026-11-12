@@ -306,6 +306,7 @@ typedef struct ComptimePreparation ComptimePreparation;
 typedef struct EvalState EvalState;
 typedef struct Context Context;
 typedef struct priv___src_self_context_til__HostOwnPtrProbe priv___src_self_context_til__HostOwnPtrProbe;
+typedef struct Option__priv___src_self_context_til__HostOwnPtrProbe Option__priv___src_self_context_til__HostOwnPtrProbe;
 typedef struct Vec__BorrowRoot Vec__BorrowRoot;
 typedef struct SymMap__TypeBinding SymMap__TypeBinding;
 typedef struct SymMap__Dynamic SymMap__Dynamic;
@@ -643,7 +644,7 @@ struct GcStorage {
 };
 
 struct Option__Expr {
-    Expr *data;
+    TIL_OWN_PTR(Expr) data;
 };
 
 typedef struct Declaration {
@@ -1014,7 +1015,7 @@ typedef struct BorrowRoot {
 
 
 struct ScopeFind {
-    TypeBinding *data;
+    TIL_OWN_PTR(TypeBinding) data;
 };
 
 typedef struct TyperFuncState {
@@ -1058,6 +1059,10 @@ typedef struct priv___src_self_context_til__HostOwnPtrProbe {
     TIL_OWN_PTR(U8) p;
 } priv___src_self_context_til__HostOwnPtrProbe;
 
+
+struct Option__priv___src_self_context_til__HostOwnPtrProbe {
+    TIL_OWN_PTR(priv___src_self_context_til__HostOwnPtrProbe) data;
+};
 
 typedef struct Vec__BorrowRoot {
     TIL_OWN_PTR(U8) data;
@@ -1127,11 +1132,11 @@ typedef struct Vec__InterpOutputEvent {
 
 
 struct Option__ComptimePreparation {
-    ComptimePreparation *data;
+    TIL_OWN_PTR(ComptimePreparation) data;
 };
 
 struct Option__Scope {
-    Scope *data;
+    TIL_OWN_PTR(Scope) data;
 };
 
 typedef struct Set__U32 {
@@ -1311,7 +1316,7 @@ typedef struct TargetCpu {
 
 
 struct priv___src_self_typer_til__CtorArg {
-    Expr *data;
+    TIL_OWN_PTR(Expr) data;
 };
 
 typedef struct priv___src_self_typer_til__ReturnEscapeRoots {
@@ -1763,7 +1768,7 @@ typedef struct Map__Str_UPtr {
 
 
 struct Option__priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature {
-    priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature *data;
+    TIL_OWN_PTR(priv___src_self_codegen_mlir_codegen_til__MlirLlvmSignature) data;
 };
 
 typedef struct Vec__priv___src_self_codegen_mlir_codegen_til__MlirBinding {
@@ -1999,7 +2004,7 @@ typedef struct FFITypePtrBox {
 
 
 struct Option__priv___src_self_interpreter_til__InterpSharedI64 {
-    priv___src_self_interpreter_til__InterpSharedI64 *data;
+    TIL_OWN_PTR(priv___src_self_interpreter_til__InterpSharedI64) data;
 };
 
 struct Option__ref_InterpSession {
@@ -2022,7 +2027,7 @@ struct Option__ref_Dynamic {
 };
 
 struct Option__FuncSig {
-    FuncSig *data;
+    TIL_OWN_PTR(FuncSig) data;
 };
 
 struct Option__ref_HeapBinding {

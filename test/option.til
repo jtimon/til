@@ -252,8 +252,14 @@ test_option_niche_layout := test() {
     // which is just as non-null. (#321 overturned the original ruling here,
     // which assumed an owned payload had no spare bit pattern; it does,
     // because til never stores an aggregate inline outside an enum.)
+    // #313: the ref payload is a native pointer; the owned box is stored
+    // like an own field -- a 4-byte cage offset under the compact layout.
     assert_eq(USize, Option(ref OptSrc).size(), UPtr.size())
-    assert_eq(USize, Option(OptSrc).size(), UPtr.size())
+    assert_eq(USize, Option(OptSrc).size(), OptOwnSlot.size())
+}
+
+OptOwnSlot := struct {
+    own src : OptSrc = OptSrc()
 }
 
 // #321: a function returning Option(ref T) hands a BORROW back, exactly

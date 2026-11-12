@@ -13,6 +13,17 @@ mode script
 // code.
 
 // #313: stored references are native pointers in the native layout.
+// #313: an owned niche -- Option of a struct -- is one native pointer to
+// its payload's box in the native layout.
+NicheLeaf := struct {
+    value : I64 = 0
+}
+NicheBox := Option(NicheLeaf)
+NicheHolder := struct {
+    count : U32 = 0
+    leaf := NicheBox.None
+}
+
 RefPair := struct {
     ref first : I64
     ref second : I64
@@ -64,6 +75,8 @@ check("Vec(Str).size()", Vec(Str).size(), 24)
 check("Vec(I64).size()", Vec(I64).size(), 24)
 check("dyn_size_of Str", dyn_size_of("Str"), 24)
 check("RefPair.size()", RefPair.size(), 16)
+check("NicheBox.size()", NicheBox.size(), 8)
+check("NicheHolder.size()", NicheHolder.size(), 16)
 check("Holder.size()", Holder.size(), 16)
 check("generator Holder.size()", holder_size(), 16)
 check("folded call holder_twice()", holder_twice(), 32)

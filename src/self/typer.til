@@ -11266,6 +11266,20 @@ priv vec_instance_elem_type_name := func(container_name: Str) returns Str {
 // which describes live HOST interpreter buffers. These word-fit queries do
 // not cache another layout. Pointer fields stop recursion; inline recursive
 // types are rejected during initialization.
+// #313: a niche enum IS its one stored pointer: the payload box's address,
+// or the borrowed pointee's, null for the empty variant. Its width in the
+// TARGET's layout. An owned box is always a til allocation, so the compact
+// layout (--usize=32, target_cptr32) stores it as a 4-byte cage offset like
+// an own field; a ref payload addresses anything and stays native. The C
+// backend stores the slot compressed exactly when this is narrower than a
+// pointer (c_codegen.til niche_cptr_pointee).
+target_niche_slot_size := func(def: Expr, ctx: Context) returns USize {
+    if enum_is_niche(def).not() { panic(__LOC__, "target_niche_slot_size: not a niche enum") }
+    ref some : VariantDef = enumdef_of(def).variants[enum_niche_some_index(def).to_usize()]
+    if ctx.target_cptr32.and(some.payload_ref.not()) { return 4 }
+    return unsigned_prim_width_for_name(ctx.target_uptr_pname)
+}
+
 target_value_size_align := func(type_name: Str, scope: TypeScope, ctx: Context, mut sz: USize, mut al: USize) {
     ref name : Str = resolve_type_alias(scope, type_name, ctx.symbols)
     word := unsigned_prim_width_for_name(ctx.target_uptr_pname)
@@ -11302,7 +11316,7 @@ target_value_size_align := func(type_name: Str, scope: TypeScope, ctx: Context, 
         sz = align_up(sz, al)
         if sz == 0 { sz = 1 }
     case .EnumDef(ed):
-        if enum_is_niche(def) { sz = word; al = word; return }
+        if enum_is_niche(def) { sz = target_niche_slot_size(def, ctx); al = sz; return }
         sz = enum_tag_size(def)
         al = sz
         if sz == 8 { al = ctx.target_scalar64_align }

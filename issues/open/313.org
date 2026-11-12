@@ -51,6 +51,15 @@ Progress (no representation change yet):
 - [ ] Borrowed enum payloads and ref containers: size pins and the native
   boundary rules.
 
+Owned niche payloads (done, not references): a niche enum whose payload is
+a heap box -- ~Option(T)~ of a struct or enum -- is one pointer to a til
+allocation, so it is compressed like an own field: ~Option(Expr)~ is 4
+bytes under --usize=32. Measured on the self-translate (Linux x64, -O0,
+two runs each): peak RSS 463 -> 451 MB (-2.6%), time 28.8 -> 29.6 s
+(+2.5%, the cage decode on every access). ~Option(ref T)~ stays native.
+Pinned by ~NicheBox~ / ~NicheHolder~ in test/usize32_sizes.til and
+test/usize64_sizes.til.
+
 **** Separate callback validation cost
 
 The initial #370 shared-cell restriction checked that an incoming borrowed address was
@@ -290,9 +299,24 @@ and ~Dynamic~ stay native.
     struct by value: nothing in the corpus does (zero struct copies in
     `bin/til --usize=64 test/usize64.til`, strings.til, dyn_vecs.til), but
     check_usize64 keeps that interpretation legal, so they stay.
-  - Only ~own~ fields are compressed. ~ref~ fields, Dynamic values and UPtr
-    variables are still 64-bit in the cage build, so the issue's goal --
-    32-bit pointers -- is only partly met. Needs a plan before code.
+  - Own fields and owned niche payloads are compressed. ~ref~ fields,
+    Dynamic values and UPtr variables stay 64-bit in the cage build by
+    decision (doc/self.org, "Why only own fields are compressed"; the plan
+    above keeps the steps should it be revisited).
+  - (Fixed with the owned-niche compression.) The generated Python binding
+    declared every own field (Str.c_str included) and owned niche slot as an
+    8-byte ctypes POINTER under the compact layout, so any struct holding
+    one had the wrong size and field offsets; they are ctypes.c_uint32 now.
+    It also assigned a struct's _fields_ before those of a type it holds by
+    value, which fails at import ("_fields_ is final"); types are emitted in
+    dependency order now. Regression: BindingOwned in
+    test/library_namespace_a.til, sized by Python against the library.
+  - A compiled program built for one layout and linked against a library
+    built for the other still compiles, links and then misreads the
+    library's values (the interpreter refuses such a library at load). The
+    library header's USize pin yields to the consumer's -D, so nothing
+    notices. Open; a proposed check is an #error in the generated header
+    when the consumer's width differs from the library's.
   - (Fixed 2026-11-09.) A `link("name")` whose shared object did not load
     (the -l form; some names, like m, resolve from the process itself, so
     the load failure alone is not an error) is remembered with the loader's

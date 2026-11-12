@@ -465,6 +465,33 @@ priv emit_cptr_close := proc(f: File, pointee: Str) {
     if pointee.len() > 0 { f.write("))") }
 }
 
+// #313: a niche enum's one stored pointer, as cptr_field_pointee is for an
+// own field: the payload's C type when the target stores the slot as a
+// 4-byte cage offset (typer.til target_niche_slot_size narrower than a
+// pointer), "" for a native pointer -- every niche today. Every `.data`
+// of a niche goes through it: reads via emit_cptr_get_open, writes via
+// TIL_OWN_SET / TIL_OWN_ENC, the field via TIL_OWN_PTR.
+priv niche_cptr_pointee := func(def: Expr, ctx: Context) returns Str {
+    if target_niche_slot_size(def, ctx) >= unsigned_prim_width_for_name(ctx.target_uptr_pname) { return "" }
+    // An owned box payload is a struct or enum (niche_payload_is_owned_box),
+    // whose C type is its name, as field_pointee_ctype spells an own field's.
+    return enum_variant_type(def, enum_niche_some_index(def))
+}
+
+// A niche value's `.data` set to `value` in an initializer: TIL_OWN_ENC
+// when the slot is compressed, the pointer itself otherwise. NULL is {0}
+// compressed, a constant initializer either way.
+priv emit_niche_init_open := proc(f: File, pointee: Str) {
+    if pointee.len() > 0 { f.write("TIL_OWN_ENC(") }
+}
+priv emit_niche_init_close := proc(f: File, pointee: Str) {
+    if pointee.len() > 0 { f.write(")") }
+}
+priv niche_null_init := func(pointee: Str) returns Str {
+    if pointee.len() > 0 { return "{0}" }
+    return "NULL"
+}
+
 // Check if a FieldAccess/FieldAssign accesses an own/ref (pointer) field.
 priv builder_fa_is_ptr := func(e: Expr, ctx: Context) returns Bool {
     sname := fa_struct_name(e, ctx.symbols)
@@ -2862,11 +2889,13 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     }
     f.write("switch (")
     mut sw_is_niche := false
+    mut sw_pointee := ""
     if is_enum {
         sw_def_o := find_struct_def(enum_name, ctx)
         if sw_def_o.is_some() {
             ref sw_def : Expr = sw_def_o.unwrap()
             if sw_def.node_type.is(NodeType.EnumDef) { sw_is_niche = enum_is_niche(sw_def) }
+            if sw_is_niche { sw_pointee = niche_cptr_pointee(sw_def, ctx) }
         }
     }
     if is_enum {
@@ -2881,11 +2910,17 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         // linux stayed green and only the mac jobs went red). The explicit
         // (int) cast makes the condition an ordinary integer for both
         // compilers, keeping the 0/1 case labels below valid.
-        if sw_is_niche { f.write("(int)((") }
-        else { f.write("(") }
+        if sw_is_niche {
+            f.write("(int)(")
+            emit_cptr_get_open(f, sw_pointee)
+            f.write("(")
+        } else { f.write("(") }
         emit_deref(f, scrut, depth, ctx)
-        if sw_is_niche { f.write(").data != NULL)") }
-        else { f.write(").tag") }
+        if sw_is_niche {
+            f.write(").data")
+            emit_cptr_close(f, sw_pointee)
+            f.write(" != NULL)")
+        } else { f.write(").tag") }
     } else if type_is_primitive(scrut.til_type(), Primitive.Bool) {
         // `switch flag { case true: ... }`: the same -Wswitch-bool clang
         // trips on the niche test above, for a scrutinee that IS a Bool.
@@ -4093,7 +4128,7 @@ priv emit_c_static_initializer := proc(f: File, e: Expr, mut ctx: Context) {
         if ename_o.is_none() { panic(__LOC__, "static enum access has no type") }
         def_o := static_enum_def(e, ctx)
         if def_o.is_some().and(enum_is_niche(def_o.unwrap())) {
-            f.write("{.data = NULL}")
+            f.write("{.data = ").write(niche_null_init(niche_cptr_pointee(def_o.unwrap(), ctx))).write("}")
         } else {
             f.write("{.tag = ").write(ename_o.unwrap()).write("_TAG_").write(member.field_access_name(ctx.symbols.names)).write("}")
         }
@@ -4132,10 +4167,15 @@ priv emit_c_static_initializer := proc(f: File, e: Expr, mut ctx: Context) {
                 // #313: in a run-time template the payload needs storage
                 // that outlives the builder function.
                 payload_c := c_type_name(e.children[1].til_type(), type_name_ref(e.children[1].til_type(), ctx.symbols), ctx)
-                f.write("{.data = ({ ").write(payload_c).write(" *_np = malloc(sizeof(").write(payload_c)
+                np_pointee := niche_cptr_pointee(def, ctx)
+                f.write("{.data = ")
+                emit_niche_init_open(f, np_pointee)
+                f.write("({ ").write(payload_c).write(" *_np = malloc(sizeof(").write(payload_c)
                     .write(")); *_np = (").write(payload_c).write(")")
                 emit_c_static_initializer(f, e.children[1], ctx)
-                f.write("; _np; })}")
+                f.write("; _np; })")
+                emit_niche_init_close(f, np_pointee)
+                f.write("}")
             } else if enum_is_niche(def) {
                 payload_c := c_type_name(e.children[1].til_type(), type_name_ref(e.children[1].til_type(), ctx.symbols), ctx)
                 f.write("{.data = &(").write(payload_c).write(")")
@@ -5332,10 +5372,12 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
             // the payload type the desugar had put on it -- which is how a
             // nested pattern reached C as `(( *)(t))->tag`.
             mut gp_is_niche := false
+            mut gp_pointee := ""
             gp_def_o := find_struct_def(ename, ctx)
             if gp_def_o.is_some() {
                 ref gp_def : Expr = gp_def_o.unwrap()
                 if gp_def.node_type.is(NodeType.EnumDef) { gp_is_niche = enum_is_niche(gp_def) }
+                if gp_is_niche { gp_pointee = niche_cptr_pointee(gp_def, ctx) }
             }
             if gp_is_niche {
                 // Cast the loaded pointer back to void *: a get_payload
@@ -5343,9 +5385,13 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                 // (I64 *), which the old offset form satisfied because it
                 // was already void *. Handing back a concrete T * instead
                 // trips -Werror=incompatible-pointer-types.
-                f.write("((void *)((").write(ename).write(" *)(")
+                f.write("((void *)")
+                emit_cptr_get_open(f, gp_pointee)
+                f.write("((").write(ename).write(" *)(")
                 emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
-                f.write("))->data)")
+                f.write("))->data")
+                emit_cptr_close(f, gp_pointee)
+                f.write(")")
             } else {
                 f.write("((void *)((U8 *)(")
                 emit_as_ptr(f, e.children[1], depth, get_own_arg(e, 1), ctx)
@@ -5408,7 +5454,8 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                 if nv_niche {
                     // #320 niche: the payload-less variant IS the null
                     // pointer.
-                    f.write("(").write(obj_sname).write("){.data = NULL}")
+                    f.write("(").write(obj_sname).write("){.data = ")
+                        .write(niche_null_init(niche_cptr_pointee(nv_def_o.unwrap(), ctx))).write("}")
                 } else {
                     f.write("(")
                     f.write(obj_sname)
@@ -5992,7 +6039,7 @@ priv emit_as_ptr := proc(f: File, e: Expr, shallow depth: I32, shallow is_own: B
                     if nv2_def.node_type.is(NodeType.EnumDef) { nv2_niche = enum_is_niche(nv2_def) }
                 }
                 if nv2_niche {
-                    f.write("){.data = NULL}; _oa; })")
+                    f.write("){.data = ").write(niche_null_init(niche_cptr_pointee(nv2_def_o.unwrap(), ctx))).write("}; _oa; })")
                 } else {
                     f.write("){.tag = ")
                     f.write(obj_sname)
@@ -6963,8 +7010,11 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, mut l
             if vt.len() > 0 { f.write(type_name_to_c(vt, lp.ctx)).write(" val") }
             f.write(") {\n")
             f.write("    ").write(name).write(" r;\n")
-            if vt.len() > 0 { f.write("    r.data = val;\n") }
-            else { f.write("    r.data = NULL;\n") }
+            ctor_pointee := niche_cptr_pointee(enum_def, lp.ctx)
+            mut ctor_value := "NULL"
+            if vt.len() > 0 { ctor_value = "val" }
+            if ctor_pointee.len() > 0 { f.write("    TIL_OWN_SET(r.data, ").write(ctor_value).write(");\n") }
+            else { f.write("    r.data = ").write(ctor_value).write(";\n") }
             f.write("    return r;\n").write("}\n")
         }
     } else {
@@ -7057,9 +7107,14 @@ priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_nic
             else { f.write("0") }
             return
         }
-        f.write("(((").write(enum_c).write(" *)(")
+        is_n_pointee := niche_cptr_pointee(find_struct_def(enum_c, ctx).unwrap(), ctx)
+        f.write("(")
+        emit_cptr_get_open(f, is_n_pointee)
+        f.write("((").write(enum_c).write(" *)(")
         emit_as_ptr(f, operand, depth, get_own_arg(e, idx), ctx)
-        f.write("))->data != NULL)")
+        f.write("))->data")
+        emit_cptr_close(f, is_n_pointee)
+        f.write(" != NULL)")
         return
     }
     // A bare variant name IS its tag. Emitting the general form here built
@@ -7151,8 +7206,13 @@ priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, mut ctx:
         // #321: a funcptr payload's C VALUE type is already a pointer
         // (TilClosure *), so adding another star would declare the slot as
         // `TilClosure **` while the ctor is handed a `TilClosure *`.
-        f.write("    ").write(niche_ct)
-        if niche_ct.ends_with("*") { f.write("data;\n") } else { f.write(" *data;\n") }
+        slot_pointee := niche_cptr_pointee(enum_def, ctx)
+        if slot_pointee.len() > 0 {
+            f.write("    TIL_OWN_PTR(").write(slot_pointee).write(") data;\n")
+        } else {
+            f.write("    ").write(niche_ct)
+            if niche_ct.ends_with("*") { f.write("data;\n") } else { f.write(" *data;\n") }
+        }
         f.write("};\n\n")
         return
     }
@@ -8839,6 +8899,16 @@ priv type_name_to_ctypes_pointer := func(name: Str, ctx: Context) returns Str {
     return format("ctypes.POINTER(", base, ")")
 }
 
+// #313: a struct field's ctypes type. An own pointer field under the
+// compact layout is a 4-byte cage offset (TIL_OWN_PTR), which ctypes can
+// only spell as its integer: Python cannot dereference it, but the struct
+// around it keeps C's size and field offsets (it was an 8-byte POINTER,
+// shifting every later field).
+priv struct_field_to_ctypes := func(sd: StructDef, d: Declaration, ctx: Context) returns Str {
+    if ctx.target_cptr32.and(field_is_own_ptr(sd, d)) { return "ctypes.c_uint32" }
+    return declaration_to_ctypes_field(d, ctx)
+}
+
 priv declaration_to_ctypes_field := func(d: Declaration, ctx: Context) returns Str {
     if d.own_type.is(OwnType.Shallow) { return type_name_to_ctypes_value(decl_type_name_ref(d, ctx.symbols), ctx) }
     return type_name_to_ctypes_pointer(decl_type_name_ref(d, ctx.symbols), ctx)
@@ -10078,7 +10148,13 @@ priv emit_jni_handle_class := proc(jf: File, cf: File, name: Str, def: Expr, typ
                 ref nvd : VariantDef = edd.variants[vi]
                 if vi.to_i32() == some_i { some_tag = nvd.tag_value.to_str() } else { none_tag = nvd.tag_value.to_str() }
             }
-            cf.write("    return ").write(tag_place).write("->data == NULL ? (jlong)").write(none_tag)
+            // The bridge spells library types by their qualified C names.
+            tag_pointee := lib_c_resolved_name(niche_cptr_pointee(def, ctx), ctx)
+            cf.write("    return ")
+            emit_cptr_get_open(cf, tag_pointee)
+            cf.write(tag_place).write("->data")
+            emit_cptr_close(cf, tag_pointee)
+            cf.write(" == NULL ? (jlong)").write(none_tag)
                 .write(" : (jlong)").write(some_tag).write(";\n}\n\n")
         } else {
             cf.write("    return (j").write(tag_java).write(")").write(tag_place).write("->tag;\n}\n\n")
@@ -10094,7 +10170,11 @@ priv emit_jni_handle_class := proc(jf: File, cf: File, name: Str, def: Expr, typ
                 continue
             }
             mut m := JniMember(owner = name.clone(), name = pvd.name.clone(), type_name = vtn.clone())
-            if niche { m.place = "(*P->data)" }
+            if niche {
+                jni_pointee := lib_c_resolved_name(niche_cptr_pointee(def, ctx), ctx)
+                if jni_pointee.len() > 0 { m.place = format("(*TIL_OWN_GET(", jni_pointee, ", P->data))") }
+                else { m.place = "(*P->data)" }
+            }
             else if enum_variant_payload_ref(def, vi.to_i32()) { m.place = format("(*P->data.", pvd.name, ")") }
             else { m.place = format("P->data.", pvd.name) }
             m.guard = format("if (tag() != TAG_", pvd.name, ") { throw new IllegalStateException(\"", name,
@@ -11494,6 +11574,96 @@ priv emit_jni_callback_prelude := proc(cf: File, class_path: Str) {
     cf.write("\n")
 }
 
+// One user struct or enum's ctypes definition, after the user types it
+// holds by value (see the loop in build_python_binding). `visiting` turns
+// an inline cycle -- impossible in a valid program, whose value types are
+// finite -- into a loud failure instead of a recursion.
+priv emit_python_type_fields := proc(f: File, name: Str, index: Map(Str, USize), units: Vec(USize), stmts: Vec(USize),
+        mut emitted: Set(Str), mut visiting: Set(Str), lp: LoadedProgram) {
+    if emitted.has(name) { return }
+    if visiting.has(name) { panic(__LOC__, "python binding: inline cycle through ", name) }
+    visiting.add(own name.clone())
+    ref at : USize = index[name]
+    ref iu : ImportUnit = lp.ctx.imported[lp.units[units[at]].path]
+    ref stmt : Expr = iu.ast.children[stmts[at]]
+    ref dd : Declaration = decl_of(stmt)
+    ref rhs : Expr = stmt.children[0]
+    // Inline dependencies first.
+    switch rhs.node_type {
+    case .StructDef(dep_sdd):
+        for dep_fd : Declaration in dep_sdd.fields {
+            if dep_fd.own_type.is(OwnType.Shallow).not() { continue }
+            ref dep_name : Str = decl_type_name_ref(dep_fd, lp.ctx.symbols)
+            if index.has(dep_name) { emit_python_type_fields(f, dep_name, index, units, stmts, emitted, visiting, lp) }
+        }
+    case .EnumDef(dep_edd):
+        if enum_is_niche(rhs).not() {
+            for dep_vd : VariantDef in dep_edd.variants {
+                if dep_vd.payload_ref.or(dep_vd.payload_type.len().eq(0)) { continue }
+                if index.has(dep_vd.payload_type) { emit_python_type_fields(f, dep_vd.payload_type, index, units, stmts, emitted, visiting, lp) }
+            }
+        }
+    case:
+    }
+    switch rhs.node_type {
+    case .StructDef(bpb_sdd):
+        f.write("\n").write(dd.name).write("._fields_ = [\n")
+        mut bpbr : USize = 0
+        for fdd : Declaration in bpb_sdd.fields {
+            ct := struct_field_to_ctypes(bpb_sdd, fdd, lp.ctx)
+            f.write("    ('").write(bpb_sdd.field_name_at(bpbr)).write("', ")
+            f.write(ct).write("),\n")
+            bpbr = bpbr + 1
+        }
+        f.write("]\n")
+
+    case .EnumDef(ct_edd):
+        hp := enum_has_payloads(rhs)
+
+        // Emit tag constants
+        for ct_vd : VariantDef in ct_edd.variants {
+            f.write(dd.name).write("_TAG_").write(ct_vd.name)
+            f.write(" = ").write(ct_vd.tag_value.to_str()).write("\n")
+        }
+
+        if hp.and(enum_is_niche(rhs).not()) {
+            f.write("\nclass ").write(dd.name).write("_data(ctypes.Union):\n")
+            f.write("    _fields_ = [\n")
+            for ct_uvd : VariantDef in ct_edd.variants {
+                if ct_uvd.payload_type.len() > 0 {
+                    f.write("        ('").write(ct_uvd.name).write("', ")
+                    if ct_uvd.payload_ref {
+                        f.write(type_name_to_ctypes_pointer(ct_uvd.payload_type, lp.ctx))
+                    } else {
+                        f.write(type_name_to_ctypes_value(ct_uvd.payload_type, lp.ctx))
+                    }
+                    f.write("),\n")
+                }
+            }
+            f.write("        ('_til_payload_align', ctypes.c_void_p),\n")
+            f.write("    ]\n")
+        }
+
+        // Emit enum struct _fields_
+        f.write("\n").write(dd.name).write("._fields_ = [\n")
+        if enum_is_niche(rhs) {
+            payload_type := enum_variant_type(rhs, enum_niche_some_index(rhs))
+            // An owned niche slot is a cage offset under the compact layout.
+            if niche_cptr_pointee(rhs, lp.ctx).len() > 0 { f.write("    ('data', ctypes.c_uint32),\n") }
+            else { f.write("    ('data', ").write(type_name_to_ctypes_pointer(payload_type, lp.ctx)).write("),\n") }
+        } else {
+            f.write("    ('tag', ").write(type_name_to_ctypes_value(enum_tag_type(rhs), lp.ctx)).write("),\n")
+        }
+        if hp.and(enum_is_niche(rhs).not()) {
+            f.write("    ('data', ").write(dd.name).write("_data),\n")
+        }
+        f.write("]\n")
+    case:
+    }
+    visiting.remove(name)
+    emitted.add(own name.clone())
+}
+
 priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str) returns I32 {
     f := File.new(py_path, true)
     shared_ext := shared_lib_extension(lp.target)
@@ -11538,7 +11708,9 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
 
     f.write("\nclass Str(ctypes.Structure):\n")
     f.write("    _fields_ = [\n")
-    f.write("        ('c_str', ctypes.POINTER(ctypes.c_byte)),\n")
+    // Str.c_str is an own field: a cage offset under the compact layout.
+    if lp.ctx.target_cptr32 { f.write("        ('c_str', ctypes.c_uint32),\n") }
+    else { f.write("        ('c_str', ctypes.POINTER(ctypes.c_byte)),\n") }
     f.write("        ('count', ").write(type_name_to_ctypes_value("USize", lp.ctx)).write("),\n")
     f.write("        ('cap', ").write(type_name_to_ctypes_value("USize", lp.ctx)).write("),\n")
     f.write("    ]\n\n")
@@ -11556,7 +11728,7 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
             f.write("    _fields_ = [\n")
             for fi in 0..core_vec.fields.len() {
                 f.write("        ('").write(core_vec.field_name_at(fi)).write("', ")
-                    .write(declaration_to_ctypes_field(core_vec.fields[fi], lp.ctx)).write("),\n")
+                    .write(struct_field_to_ctypes(core_vec, core_vec.fields[fi], lp.ctx)).write("),\n")
             }
             f.write("    ]\n")
         }
@@ -11578,73 +11750,33 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
     }
     f.write("\n")
 
-    // Emit struct field definitions and enum definitions
-    for u : ProgramUnit in lp.units {
-        ref iu : ImportUnit = lp.ctx.imported[u.path]
-        for stmt : Expr in iu.ast.children {
+    // Emit struct field definitions and enum definitions, each type after
+    // the types it holds INLINE: ctypes fixes a class's layout the first
+    // time another _fields_ uses it by value, so assigning its own _fields_
+    // afterwards fails ("_fields_ is final") -- a struct holding an
+    // Option(Leaf) field imported that way. Pointer and cage-offset members
+    // need no order (POINTER takes an incomplete class).
+    mut py_type_names := Vec(Str).new()
+    mut py_type_unit := Vec(USize).new()
+    mut py_type_stmt := Vec(USize).new()
+    mut py_type_index := Map(Str, USize).new()
+    for ui in 0..lp.units.len() {
+        ref iu : ImportUnit = lp.ctx.imported[lp.units[ui].path]
+        for si in 0..iu.ast.children.len() {
+            ref stmt : Expr = iu.ast.children[si]
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len() == 0 { continue }
-            switch stmt.node_type {
-            case .Decl(dd):
-            ref rhs : Expr = stmt.children[0]
-
-            switch rhs.node_type {
-            case .StructDef(bpb_sdd):
-                f.write("\n").write(dd.name).write("._fields_ = [\n")
-                mut bpbr : USize = 0
-                for fdd : Declaration in bpb_sdd.fields {
-                    ct := declaration_to_ctypes_field(fdd, lp.ctx)
-                    f.write("    ('").write(bpb_sdd.field_name_at(bpbr)).write("', ")
-                    f.write(ct).write("),\n")
-                    bpbr = bpbr + 1
-                }
-                f.write("]\n")
-
-            case .EnumDef(ct_edd):
-                hp := enum_has_payloads(rhs)
-
-                // Emit tag constants
-                for ct_vd : VariantDef in ct_edd.variants {
-                    f.write(dd.name).write("_TAG_").write(ct_vd.name)
-                    f.write(" = ").write(ct_vd.tag_value.to_str()).write("\n")
-                }
-
-                if hp.and(enum_is_niche(rhs).not()) {
-                    f.write("\nclass ").write(dd.name).write("_data(ctypes.Union):\n")
-                    f.write("    _fields_ = [\n")
-                    for ct_uvd : VariantDef in ct_edd.variants {
-                        if ct_uvd.payload_type.len() > 0 {
-                            f.write("        ('").write(ct_uvd.name).write("', ")
-                            if ct_uvd.payload_ref {
-                                f.write(type_name_to_ctypes_pointer(ct_uvd.payload_type, lp.ctx))
-                            } else {
-                                f.write(type_name_to_ctypes_value(ct_uvd.payload_type, lp.ctx))
-                            }
-                            f.write("),\n")
-                        }
-                    }
-                    f.write("        ('_til_payload_align', ctypes.c_void_p),\n")
-                    f.write("    ]\n")
-                }
-
-                // Emit enum struct _fields_
-                f.write("\n").write(dd.name).write("._fields_ = [\n")
-                if enum_is_niche(rhs) {
-                    payload_type := enum_variant_type(rhs, enum_niche_some_index(rhs))
-                    f.write("    ('data', ").write(type_name_to_ctypes_pointer(payload_type, lp.ctx)).write("),\n")
-                } else {
-                    f.write("    ('tag', ").write(type_name_to_ctypes_value(enum_tag_type(rhs), lp.ctx)).write("),\n")
-                }
-                if hp.and(enum_is_niche(rhs).not()) {
-                    f.write("    ('data', ").write(dd.name).write("_data),\n")
-                }
-                f.write("]\n")
-            case:
-            }
-            case:
-                UNREACHABLE("expected Decl, got ", stmt.node_type.head_str(lp.ctx.symbols.names))
-            }
+            if stmt.children[0].node_type.is(NodeType.StructDef).or(stmt.children[0].node_type.is(NodeType.EnumDef)).not() { continue }
+            py_type_index.set(decl_of(stmt).name, own py_type_names.len().clone())
+            py_type_names.push(own decl_of(stmt).name.clone())
+            py_type_unit.push(own ui.clone())
+            py_type_stmt.push(own si.clone())
         }
+    }
+    mut py_emitted := Set(Str).new()
+    mut py_visiting := Set(Str).new()
+    for pi in 0..py_type_names.len() {
+        emit_python_type_fields(f, py_type_names[pi], py_type_index, py_type_unit, py_type_stmt, py_emitted, py_visiting, lp)
     }
     f.write("\n")
 

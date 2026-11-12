@@ -44,6 +44,16 @@ BindingNiche := enum {
     Borrowed: ref I64,
 }
 
+// #313: a struct holding an own Str and an owned niche (Option of a
+// struct). Under the compact layout both are 4-byte cage offsets; the
+// Python binding must lay it out like C (library_namespace.til checks
+// ctypes.sizeof against the exported size).
+BindingOwned := struct {
+    count : USize = 3
+    own tail : Str = ""
+    leaf := Option(BindingPoint).None
+}
+
 BindingError := struct {}
 
 priv library_namespace_a_private_value := func() returns I64 { return 21 }

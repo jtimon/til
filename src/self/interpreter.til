@@ -686,7 +686,7 @@ enum_data_tag_key := func(data: Dynamic, enum_def: Expr) returns I64 {
         // LOAD the stored pointer (deref), do not alias the slot address:
         // `ref p : Dynamic = data` would bind the address itself, which is
         // never null, so every value would read as the payload variant.
-        ref stored : Dynamic = deref(data)
+        ref stored : Dynamic = own_slot_load(data, host_niche_slot_size(enum_def))
         mut want_idx := some_idx
         if stored.is_null() {
             want_idx = 0
@@ -732,13 +732,15 @@ priv enum_payload_is_ref := func(enum_name: Str, data: Dynamic, ctx: Context) re
     return enum_variant_payload_ref(edef, idx)
 }
 
-// #321: is this enum laid out as a niche, by NAME? The raw-layer walkers
-// carry the enum's name rather than its def, and a niche's payload does not
-// sit at ENUM_PAYLOAD_OFFSET -- the enum stores a POINTER to it at offset 0.
-priv enum_name_is_niche := func(enum_name: Str, ctx: Context) returns Bool {
+// #321: this enum's def when it is laid out as a niche, by NAME. The
+// raw-layer walkers carry the enum's name rather than its def, and a
+// niche's payload does not sit at ENUM_PAYLOAD_OFFSET -- the enum stores a
+// POINTER to it at offset 0, read and written at host_niche_slot_size.
+priv enum_name_niche_def := func(enum_name: Str, ctx: Context) returns Option(ref Expr) {
     edef_o := lookup_interp_type_def(enum_name, ctx)
-    if edef_o.is_none() { return false }
-    return enum_is_niche(edef_o.unwrap())
+    if edef_o.is_none() { return Option(ref Expr).None }
+    if enum_is_niche(edef_o.unwrap()).not() { return Option(ref Expr).None }
+    return edef_o
 }
 
 priv enum_payload_deep_free := func(enum_name: Str, mut data: Dynamic, ctx: Context) {
@@ -765,8 +767,10 @@ priv enum_payload_deep_free := func(enum_name: Str, mut data: Dynamic, ctx: Cont
     // stored pointer, not bytes inside the enum. Free the box too -- a
     // tagged payload's storage IS the enum's, so there is nothing extra to
     // reclaim there. (A BORROWED slot payload already returned above.)
-    if enum_name_is_niche(enum_name, ctx) {
-        ref niche_slot : Dynamic = deref(data)
+    niche_def_o := enum_name_niche_def(enum_name, ctx)
+    if niche_def_o.is_some() {
+        niche_w := host_niche_slot_size(niche_def_o.unwrap())
+        ref niche_slot : Dynamic = own_slot_load(data, niche_w)
         // Rebind by value: heap_free takes the box as `own`, and a ref
         // binding cannot be handed to an own parameter.
         mut niche_box : Dynamic = niche_slot
@@ -779,7 +783,7 @@ priv enum_payload_deep_free := func(enum_name: Str, mut data: Dynamic, ctx: Cont
             panic("enum payload is not a struct or enum: ", payload_type)
         }
         EvalHeap.heap_free(own niche_box)
-        write_ptr(data, bits_word(0))
+        own_slot_store(data, bits_word(0), niche_w)
         return
     }
     ref mut payload_data : Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET)
@@ -816,11 +820,13 @@ priv enum_payload_deep_clone := func(enum_name: Str, mut data: Dynamic, ctx: Con
     // #321: the copy of a niche enum needs its OWN box -- the clone stores a
     // fresh pointer rather than copying bytes into shared storage. Sharing
     // the original's box would double-free it.
-    if enum_name_is_niche(enum_name, ctx) {
-        ref niche_src : Dynamic = deref(data)
+    clone_niche_o := enum_name_niche_def(enum_name, ctx)
+    if clone_niche_o.is_some() {
+        clone_w := host_niche_slot_size(clone_niche_o.unwrap())
+        ref niche_src : Dynamic = own_slot_load(data, clone_w)
         if niche_src.is_null() { return }
         cloned_box : Dynamic = heap_clone_by_type(resolved, niche_src, ctx)
-        write_ptr(data, cloned_box)
+        own_slot_store(data, cloned_box, clone_w)
         return
     }
     ref mut payload_data : Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET)
@@ -859,7 +865,7 @@ priv write_enum_flat := func(mut data: Dynamic, enum_name: Str, etag: I64, mut p
     switch tedef_o {
     case .Some(tedef):
         if enum_is_niche(tedef) {
-            write_ptr(data, bits_word(0))
+            own_slot_store(data, bits_word(0), host_niche_slot_size(tedef))
             return
         }
         tag_w = enum_tag_size(tedef)
@@ -1891,7 +1897,9 @@ priv ffi_borrow_place_walk := proc(type_name: Str, data: Dynamic, root: UPtr, mu
         if variant.payload_type.len() == 0 { return }
         ref slot : Dynamic = ffi_enum_payload_slot(type_name, data, false, ctx)
         if variant.payload_funcsig { ffi_remember_place(variant.payload_type, slot, root, ctx); return }
-        if variant.payload_ref.or(enum_is_niche(def)) {
+        if enum_is_niche(def) {
+            ffi_borrow_place_walk(variant.payload_type, own_slot_load(slot, host_niche_slot_size(def)), root, visited, ctx)
+        } else if variant.payload_ref {
             ffi_borrow_place_walk(variant.payload_type, deref(slot), root, visited, ctx)
         } else { ffi_borrow_place_walk(variant.payload_type, slot, root, visited, ctx) }
     case .StructDef(sd):
@@ -1999,7 +2007,7 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
                     // tag into the 8-byte slot would leave the rest garbage
                     // and read back as Some.
                     if enum_is_niche(namespace_def) {
-                        write_ptr(result, bits_word(0))
+                        own_slot_store(result, bits_word(0), host_niche_slot_size(namespace_def))
                         return result
                     }
                     tag := enum_variant_tag(namespace_def, fa.field_access_name(ctx.symbols.names))
@@ -5507,8 +5515,12 @@ priv heap_move_ptr_into_slot := func(shallow til_type: Type, mut dst: Dynamic, m
     case .Enum, .EnumSym:
         ref ename : Str = type_name_ref(til_type, ctx.symbols)
         if drop_old { heap_drop_enum(ename, dst, ctx) }
-        mut total : USize = ctx_total_size(ename, ctx)
-        if total < 8 { total = 8 }
+        // Exactly the enum's own bytes: the slot may be an Array element or
+        // a struct field, where anything past them is the next value's. (A
+        // minimum of one word used to be copied, which overwrote the
+        // neighbour of a tag-only enum -- 1 to 4 bytes -- or of a
+        // compressed niche, 4, written through a ref.)
+        total : USize = ctx_total_size(ename, ctx)
         if ffi_place_is_foreign(dst, ctx) {
             ffi_copy_struct_into(ename, src, true, dst, false, ctx, true)
             ffi_release_conversion_storage(ename, src, true, ctx)
@@ -7547,12 +7559,13 @@ priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Con
         ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
         mut out : Dynamic = calloc(1, allocation_size)
         if enum_is_niche(def) {
-            ref box : Dynamic = deref(source)
+            niche_w := host_niche_slot_size(def)
+            ref box : Dynamic = own_slot_load(source, niche_w)
             if box.is_null() { return out }
             ref variant : VariantDef = enumdef_of(def).variants[enum_niche_some_index(def).to_usize()]
-            if variant.payload_ref { write_ptr(out, box); return out }
+            if variant.payload_ref { own_slot_store(out, box, niche_w); return out }
             copied : Dynamic = interp_callback_error_copy(variant.payload_type, box, ctx, to_guest)
-            write_ptr(out, copied)
+            own_slot_store(out, copied, niche_w)
             return out
         }
         tag := enum_data_tag_key(source, def)
@@ -9089,7 +9102,7 @@ priv dispatch_enum_size := func(name: Str, ctx: Context) returns USize {
                 // whenever the pointee happens to be <= 8 bytes, exposed by
                 // a self-referential Option(ref T) field (a 16-byte enum
                 // sized as 8 + sizeof(T)).
-                if enum_is_niche(enum_def) { return UPtr.size() }
+                if enum_is_niche(enum_def) { return host_niche_slot_size(enum_def) }
                 mut payload_w : USize = UPtr.size()
                 if enum_variant_payload_ref(enum_def, i.to_i32()).not() {
                     payload_w = container_elem_size(payload_type, ctx)
@@ -10432,7 +10445,7 @@ priv ffi_enum_layout := proc(type_name: Str, key: Str, def: Expr, mut ctx: Conte
     }
     count := cells + 1
     mut elements : Dynamic = calloc(count + 1, Dynamic.size())
-    if niche { write_ptr(elements, ffi_type_ref("ffi_type_pointer")) }
+    if niche { write_ptr(elements, ffi_niche_slot_type(def)) }
     else { write_ptr(elements, known_ffi_type(enum_tag_type(def), ctx, host_layout).unwrap()) }
     for i in 0..cells { write_ptr(ptr_add(elements, (i + 1) * Dynamic.size()), cell) }
     mut descriptor : ffi_type = calloc(1, ffi_type.size())
@@ -10449,6 +10462,15 @@ priv ffi_enum_layout := proc(type_name: Str, key: Str, def: Expr, mut ctx: Conte
         if variant.payload_ref.not() { build_struct_ffi_type(variant.payload_type, ctx, host_layout) }
     }
     return ctx.ffi.type_cache[key]
+}
+
+// #313: a niche enum's one element: its stored pointer, at the width the
+// slot has (host_niche_slot_size) -- a 4-byte cage offset when compressed.
+// Libraries share the interpreter's layout (ffi_check_lib_layout), so both
+// layout domains use it, as field_ffi_type does for own fields.
+priv ffi_niche_slot_type := func(def: Expr) returns ref ffi_type {
+    if host_niche_slot_size(def) < Dynamic.size() { return ffi_type_ref("ffi_type_uint32") }
+    return ffi_type_ref("ffi_type_pointer")
 }
 
 priv ffi_enum_payload_type := proc(variant: VariantDef, mut ctx: Context, host_layout: Bool) returns ref ffi_type {
@@ -10855,7 +10877,7 @@ priv h_get_payload := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: C
     if fa_payload.is_null().not() {
         rewalk_foreign_enum(gp_tname, fa_payload, ctx)
         // #321: for a niche the slot HOLDS the payload's address, so load it.
-        if gp_is_niche { write_ptr(r, deref(fa_payload)) return true }
+        if gp_is_niche { write_ptr(r, own_slot_load(fa_payload, host_niche_slot_size(gp_def_o.unwrap()))) return true }
         write_ptr(r, tagged_payload_place(gp_tname, fa_payload, gp_off, ctx))
         return true
     }
@@ -10864,7 +10886,7 @@ priv h_get_payload := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: C
     mut raw : Dynamic = eval_expr_raw_info(s, arg, ctx, info)
     place : Dynamic = raw_arg_pointer(raw, info, ctx)
     rewalk_foreign_enum(gp_tname, place, ctx)
-    if gp_is_niche { write_ptr(r, deref(place)) return true }
+    if gp_is_niche { write_ptr(r, own_slot_load(place, host_niche_slot_size(gp_def_o.unwrap()))) return true }
     write_ptr(r, tagged_payload_place(gp_tname, place, gp_off, ctx))
     raw_result_drop(arg.til_type(), raw, info.is_ref, ctx)
     return true
@@ -11172,9 +11194,11 @@ priv enum_method_dispatch := proc(method: Str, mut scope: Scope, enum_def: Expr,
                 write_enum_flat(result, enum_name, ctor_tag, bits_word(0), 0, false, false, ctx)
                 // #320 niche: the borrow IS the whole value (offset 0);
                 // a tagged enum keeps it at the flat payload offset.
-                mut borrow_off : USize = ENUM_PAYLOAD_OFFSET
-                if enum_is_niche(enum_def) { borrow_off = 0 }
-                write_ptr(ptr_add(result, borrow_off), raw_arg_pointer(borrow_raw, borrow_info, ctx))
+                if enum_is_niche(enum_def) {
+                    own_slot_store(result, raw_arg_pointer(borrow_raw, borrow_info, ctx), host_niche_slot_size(enum_def))
+                    return true
+                }
+                write_ptr(ptr_add(result, ENUM_PAYLOAD_OFFSET), raw_arg_pointer(borrow_raw, borrow_info, ctx))
                 return true
             }
             if has_payload {
@@ -11227,7 +11251,7 @@ priv enum_method_dispatch := proc(method: Str, mut scope: Scope, enum_def: Expr,
                 // NOT free it: the enum has adopted it.
                 if enum_is_niche(enum_def) {
                     write_enum_flat(result, enum_name, ctor_tag, bits_word(0), 0, false, false, ctx)
-                    write_ptr(result, pdata)
+                    own_slot_store(result, pdata, host_niche_slot_size(enum_def))
                     return true
                 }
                 write_enum_flat(result, enum_name, ctor_tag, pdata, psz, vtype == "Str", true, ctx)
@@ -11415,15 +11439,16 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
     case .EnumDef(ed):
         if enum_is_niche(def) {
             ref variant : VariantDef = ed.variants[enum_niche_some_index(def).to_usize()]
-            if variant.payload_ref { memcpy(dst, src, Dynamic.size()); return }
-            ref source_box : Dynamic = deref(src)
+            niche_w := host_niche_slot_size(def)
+            if variant.payload_ref { memcpy(dst, src, niche_w); return }
+            ref source_box : Dynamic = own_slot_load(src, niche_w)
             if source_box.is_null() {
                 if reuse_owned { ffi_release_conversion_storage(type_name, dst, dst_host, ctx) }
-                write_ptr(dst, bits_word(0))
+                own_slot_store(dst, bits_word(0), niche_w)
                 return
             }
             mut destination_box : Dynamic = 0
-            if reuse_owned { destination_box = deref(dst) }
+            if reuse_owned { destination_box = own_slot_load(dst, niche_w) }
             reused := destination_box.is_null().not()
             if reused.not() {
                 ref layout : FFITypePtrBox = ffi_cached_layout(variant.payload_type, ctx, dst_host)
@@ -11431,7 +11456,7 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
             }
             ffi_copy_struct_into(variant.payload_type, source_box, src_host,
                 destination_box, dst_host, ctx, transfer_owned, reused)
-            write_ptr(dst, destination_box)
+            own_slot_store(dst, destination_box, niche_w)
             return
         }
         mut reuse_payload := false
@@ -11599,11 +11624,12 @@ priv ffi_release_conversion_storage := func(type_name: Str, mut data: Dynamic, h
         }
         if is_aggregate(type_from_name_init_name(variant.payload_type, ctx.scope, ctx.symbols)).not() { return }
         if enum_is_niche(def) {
-            ref stored_box : Dynamic = deref(data)
+            niche_w := host_niche_slot_size(def)
+            ref stored_box : Dynamic = own_slot_load(data, niche_w)
             mut box : Dynamic = stored_box
             ffi_release_conversion_storage(variant.payload_type, box, host_layout, ctx)
             free(own box)
-            write_ptr(data, bits_word(0))
+            own_slot_store(data, bits_word(0), niche_w)
         } else {
             ffi_release_conversion_storage(variant.payload_type,
                 ffi_enum_payload_slot(type_name, data, host_layout, ctx), host_layout, ctx)
@@ -11685,7 +11711,7 @@ priv ffi_contains_reference := func(type_name: Str, data: Dynamic, borrowed: Dyn
         if variant.payload_type.len().eq(0).or(variant.payload_ref).or(variant.payload_funcsig) { return false }
         if is_aggregate(type_from_name_init_name(variant.payload_type, ctx.scope, ctx.symbols)).not() { return false }
         ref slot : Dynamic = ffi_enum_payload_slot(type_name, data, host_layout, ctx)
-        if enum_is_niche(def) { return ffi_contains_reference(variant.payload_type, deref(slot), borrowed, host_layout, ctx) }
+        if enum_is_niche(def) { return ffi_contains_reference(variant.payload_type, own_slot_load(slot, host_niche_slot_size(def)), borrowed, host_layout, ctx) }
         return ffi_contains_reference(variant.payload_type, slot, borrowed, host_layout, ctx)
     case .StructDef(sd):
         for i in 0..sd.fields.len() {
@@ -11732,7 +11758,8 @@ priv ffi_rebase_reference := func(type_name: Str, converted: Dynamic, original: 
         ref variant : VariantDef = enumdef_of(def).variants[index.to_usize()]
         if enum_is_niche(def) {
             if variant.payload_ref { return bits_word(word_bits(original) + delta) }
-            return ffi_rebase_reference(variant.payload_type, deref(converted), deref(original),
+            return ffi_rebase_reference(variant.payload_type, own_slot_load(converted, host_niche_slot_size(def)),
+                own_slot_load(original, host_niche_slot_size(def)),
                 borrowed, converted_host, original_host, ctx)
         }
         if delta < enum_tag_size(def).to_u64() { return bits_word(word_bits(original) + delta) }
@@ -11790,11 +11817,12 @@ priv ffi_clear_struct_ownership := proc(type_name: Str, mut data: Dynamic, mut c
         ref variant : VariantDef = ed.variants[index.to_usize()]
         if variant.payload_type.len().eq(0).or(variant.payload_ref) { return }
         if enum_is_niche(box.ptr) {
-            ref stored_payload : Dynamic = deref(data)
+            niche_w := host_niche_slot_size(box.ptr)
+            ref stored_payload : Dynamic = own_slot_load(data, niche_w)
             mut payload : Dynamic = stored_payload
             ffi_clear_struct_ownership(variant.payload_type, payload, ctx)
             free(own payload)
-            write_ptr(data, bits_word(0))
+            own_slot_store(data, bits_word(0), niche_w)
             return
         }
         ref layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, true)

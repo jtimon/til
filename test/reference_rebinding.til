@@ -34,6 +34,7 @@ namespace:
         if call_free { free(own self) }
     }
 }
+PlainColor := enum { Red, Green, Blue }
 NicheChoice := enum { Some: Tracked, None }
 TaggedChoice := enum { Empty, Value: Tracked, Count: I64 }
 
@@ -75,6 +76,19 @@ namespace_variant_through_reference := func() {
     single = TaggedChoice.Count(1)
     assert(local_drops.count == 1)
     assert(single.is(TaggedChoice.Count))
+
+    // An enum narrower than a word written through a ref into an Array
+    // writes its own bytes only: the interpreter used to copy at least one
+    // word, overwriting the next elements of a 1-byte tag-only enum.
+    mut colors := Array(PlainColor).new(4)
+    colors[0] = PlainColor.Red
+    colors[1] = PlainColor.Green
+    colors[2] = PlainColor.Blue
+    ref mut color : PlainColor = colors[0]
+    color = PlainColor.Blue
+    assert(colors[0].is(PlainColor.Blue))
+    assert(colors[1].is(PlainColor.Green))
+    assert(colors[2].is(PlainColor.Blue))
 }
 
 late_borrow := proc(seed: I64) {

@@ -208,7 +208,9 @@
 
   The compact layout (~--usize=32~, the default on 64-bit C targets; issue
   #313) stores every ~own~ pointer field as a 32-bit byte offset into one
-  4GB allocation region, the cage. ~--usize=64~ is the native layout; a
+  4GB allocation region, the cage, and so the one pointer of an owned
+  niche enum (~Option(T)~ of a struct or enum, whose payload is a heap box:
+  ~Option(Expr)~ is 4 bytes). ~--usize=64~ is the native layout; a
   32-bit target, mode theme, HolyC output and the FASM backend are native
   at any width, and MLIR has the native layout only. ~ref~, ~Dynamic~ and
   callable fields stay native pointers (why, below). Str and Vec are 12
@@ -222,6 +224,12 @@
   the cage and nothing else. An ~own~ field's pointee is always something
   ~malloc~ returned -- by construction, since the field owns it and til
   allocates through the cage -- so every own pointer has such an offset.
+  An owned niche payload is the same: the enum owns a box til allocated.
+  Its slot's width comes from one place per layout domain --
+  ~typer.til::target_niche_slot_size~ for emitted code and the target
+  model (~niche_cptr_pointee~ in the C backend), the running binary's
+  ~context.til::host_niche_slot_size~ for the interpreter and the FFI --
+  and is read and written with ~own_slot_load~ / ~own_slot_store~.
   A ~ref~ borrows a binding wherever its storage is: a local (the stack),
   a global (the data segment), a C library's object (a FILE, a process
   handle, an nng buffer), code (a closure's function), as well as heap

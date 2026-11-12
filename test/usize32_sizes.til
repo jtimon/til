@@ -15,6 +15,18 @@ mode script
 // native pointer under the compact layout -- only own fields are cage
 // offsets -- so two refs take 16 bytes, as natively. Completing reference
 // compression makes RefPair 8 here; update this pin when it lands.
+// #313: an owned niche -- Option of a struct -- is one stored pointer to
+// its payload's box: a 4-byte cage offset under the compact layout, like an
+// own field. Only owned payloads: an Option(ref T) stays a native pointer.
+NicheLeaf := struct {
+    value : I64 = 0
+}
+NicheBox := Option(NicheLeaf)
+NicheHolder := struct {
+    count : U32 = 0
+    leaf := NicheBox.None
+}
+
 RefPair := struct {
     ref first : I64
     ref second : I64
@@ -67,6 +79,8 @@ check("Vec(I64).size()", Vec(I64).size(), 12)
 check("Map(Str, I64).size()", Map(Str, I64).size(), 24)
 check("dyn_size_of Str", dyn_size_of("Str"), 12)
 check("RefPair.size() (stored refs, still native)", RefPair.size(), 16)
+check("NicheBox.size()", NicheBox.size(), 4)
+check("NicheHolder.size()", NicheHolder.size(), 8)
 check("Holder.size()", Holder.size(), 8)
 check("generator Holder.size()", holder_size(), 8)
 check("folded call holder_twice()", holder_twice(), 16)
