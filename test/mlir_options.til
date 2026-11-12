@@ -228,13 +228,35 @@ main := proc(compiler_arg: Str) {
         }
         expect(str_ir.contains("llvm.call @memcmp") && str_ir.contains("llvm.getelementptr") && str_ir.contains("-> !llvm.ptr"),str_ir)
         expect(str_ir.contains("til.mlir.core.Str.clone").or(str_ir.contains("til.mlir.core.Str.find")).not(),str_ir)
-        File.writefile(format(work,"/str_bridge.til"),"mode lib\nchecked:=func(s:Str,shallow i:USize) returns ref I8{return s.get(i)}\n")
+        File.writefile(format(work,"/str_bridge.til"),"mode lib\nnumber:=func(n:I64) returns Str{return n.to_str()}\n")
         str_bridge:=Cmd.new(compiler,"translate","--backend=mlir","str_bridge.til")
         str_bridge.cwd(work).capture()
         bridge_status:=str_bridge.run()
         expect(bridge_status==0,str_bridge.out(),str_bridge.err())
         bridge_ir:=File.readfile(format(work,"/gen/mlir/str_bridge.mlir"))
-        expect(bridge_ir.contains("__Str_get\"") && bridge_ir.contains("til.mlir.core.Str.get\"").not(),bridge_ir)
+        expect(bridge_ir.contains("__I64_to_str\"") && bridge_ir.contains("til.mlir.core.I64.to_str\"").not(),bridge_ir)
+        File.writefile(format(work,"/str_more.til"),format("mode lib\n",
+            "checked:=func(s:Str,shallow i:USize) returns ref I8{return s.get(i)}\nempty:=func(s:Str) returns Bool{return s.is_empty()}\nstarts:=func(a:Str,b:Str) returns Bool{return a.starts_with(b)}\nends:=func(a:Str,b:Str) returns Bool{return a.ends_with(b)}\nfirst:=func(a:Str,b:Str) returns I64{return a.find(b)}\nlast:=func(a:Str,b:Str) returns I64{return a.rfind(b)}\nhas:=func(a:Str,b:Str) returns Bool{return a.contains(b)}\n",
+            "decode:=func(s:Str,i:USize,final:Bool) returns Utf8Read{return s.read_utf8(i,final)}\nvalid:=func(s:Str) returns Bool{return s.is_valid_utf8()}\nview:=func(s:Str) returns Str{return s.borrowed_view()}\nslice:=func(s:Str,i:USize,n:USize) returns Str{return s.substr(i,n)}\ntrim_left:=func(s:Str) returns Str{return s.trim_start()}\ntrim_both:=func(s:Str) returns Str{return s.trim()}\n",
+            "reserve:=func(n:USize) returns Str{return Str.with_capacity(n)}\ncopy:=func(s:Str) returns Str{return s.clone()}\nappend:=func(mut s:Str,t:Str){s.push_str(t)}\ndestroy:=func(own s:Str){Str.delete(own s)}\n"))
+        str_more:=Cmd.new(compiler,"translate","--backend=mlir","str_more.til")
+        str_more.cwd(work).capture()
+        more_status:=str_more.run()
+        expect(more_status==0,str_more.out(),str_more.err())
+        more_ir:=File.readfile(format(work,"/gen/mlir/str_more.mlir"))
+        for method in array(Str,"get","is_empty","starts_with","ends_with","find","rfind","contains","read_utf8","is_valid_utf8","borrowed_view","substr","trim_start","trim","with_capacity","push_str","clone","delete") {
+            expect(more_ir.contains(format("llvm.func internal @\"til.mlir.core.Str.",method,"\"")),more_ir)
+            expect(more_ir.contains(format("__Str_",method,"\"")).not(),more_ir)
+        }
+        expect(more_ir.contains("llvm.sret = !llvm.struct<\"til.mlir.pod.Utf8Read\"") && more_ir.contains("llvm.call @malloc") && more_ir.contains("llvm.call @free"),more_ir)
+        File.writefile(format(work,"/str_replace.til"),"mode lib\nreplace:=func(mut s:Str,t:Str){s=t.clone()}\n")
+        str_replace:=Cmd.new(compiler,"translate","--backend=mlir","str_replace.til")
+        str_replace.cwd(work).capture()
+        replace_status:=str_replace.run()
+        expect(replace_status==0,str_replace.out(),str_replace.err())
+        replace_ir:=File.readfile(format(work,"/gen/mlir/str_replace.mlir"))
+        expect(replace_ir.contains("llvm.call @\"til.mlir.core.Str.delete\"") && replace_ir.contains("llvm.func internal @\"til.mlir.core.Str.delete\""),replace_ir)
+        expect(replace_ir.contains("swap_bytes").not(),replace_ir)
         File.writefile(format(work, "/bad.til"), "mode pure\nbad := func(a: I32) returns U64 { return I32.distance(to_ptr(a),to_ptr(a)) }\n")
         bad := Cmd.new(compiler, "translate", "--backend=mlir", "bad.til")
         bad.cwd(work).capture()

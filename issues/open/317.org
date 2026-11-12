@@ -159,6 +159,47 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Str search, aggregate results and lifecycle bodies (base 1dc0a17e5)
+
+Direct core selection now includes Str.get/is_empty, starts_with/ends_with,
+find/rfind/contains, read_utf8/is_valid_utf8, borrowed_view/substr,
+trim_start/trim and with_capacity/push_str/clone/delete. These use their ordinary
+prepared bodies and the existing function call graph. Utf8Read's target-native
+24-byte result uses the same POD sret ABI as user structs, including forwarding
+and field access; the validator's decoder calls no longer need C-core bodies.
+
+Str constructors store their owned byte pointer and inline native count/cap;
+field assignment permits inline Str fields for push_str. Core scalar sentinel
+initializers are emitted at target width from the existing prepared AST, with
+no host-width substitution, new global storage or persistent constant cache.
+General owning user records and raw replacement of Str's owning c_str field
+are not included in this increment.
+
+The native ownership test exposed missing swap_replace semantics: a marked
+mut-parameter assignment was emitted as raw swap_bytes, abandoning the old
+buffer in the transfer temp (6130 bytes in 482 leaked allocations in the probe).
+MLIR now roots and calls ordinary Str.delete for that mark, copies the prepared
+RHS descriptor with CAP_LIT -> CAP_VIEW demotion, and frees a heap transfer
+wrapper when applicable. Existing prepared drop calls also select Str.delete.
+
+test/mlir.til check_str_more checks binary search, empty needles, boundary
+matches, checked-get identity/evaluation order, non-terminated guard-page views,
+trimming and repeated owning replacements/discarded clones. An independent
+native UTF-8 oracle checks every two-byte input, scalar boundaries, truncated
+prefixes, final/non-final states, sret forwarding and validity. Native C callers
+run under ASAN/UBSAN, alongside interpreter/C references and ASAN til consumers,
+at O0/O2/O3. Bounds, decoder-assert, literal/view-mutation and capacity failures
+compare exact diagnostics across interpreter/C/MLIR. test/mlir_options.til
+checks direct definitions/calls, aggregate ABI, libc allocation and destructor
+reachability for an isolated marked replacement, without LLVM tools.
+
+The overall backend retains its approved C-core bridge for other core bodies
+and C-origin calls; this increment does not remove that partition.
+
+Verification: make clean && make test passes 568/568. The ASAN compiler and
+ASAN integration driver pass the full optional MLIR suite, including the native
+ASAN/UBSAN ownership/UTF-8/search callers and ASAN til consumers at O0/O2/O3.
+
 *** Borrowed Str core bodies (base 5de47305e)
 
 Str.len, unsafe_get, cmp and eq now use their existing prepared bodies as private

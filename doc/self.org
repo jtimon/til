@@ -890,10 +890,16 @@
   The next direct-core slice emits the existing borrowed Str.len, unsafe_get,
   cmp and eq bodies as private MLIR functions. Its parameters borrow descriptors
   or carry primitive values/references; primitive results may be borrowed too.
-  This Str slice is explicitly limited to those four verified bodies: a scalar
-  result alone is insufficient when a body calls an aggregate-returning core
-  helper (for example is_valid_utf8 -> read_utf8). Other Str methods retain the
-  bridge until their bodies and dependencies are supported.
+  Direct Str selection also includes get/is_empty, starts_with/ends_with,
+  find/rfind/contains, read_utf8/is_valid_utf8, borrowed_view/substr,
+  trim_start/trim and with_capacity/push_str/clone/delete. These are still the
+  existing core bodies, selected by reachability rather than reimplemented as
+  backend-specific string algorithms. Other Str methods retain the bridge.
+
+  read_utf8 returns the ordinary Utf8Read POD through the same target layout and
+  SysV aggregate ABI as user structs; native USize64 makes it a 24-byte sret
+  result. Calls, forwarding and reading the result's fields share that ABI.
+  is_valid_utf8's loop therefore calls the emitted decoder directly.
 
   Str field reads use the existing native descriptor layout. Reading c_str
   loads the owned buffer pointer from its slot; borrowing it returns that byte
@@ -908,10 +914,34 @@
   ordering, non-terminated/guard-page views, pointer identity, null-read
   diagnostics, full-width descriptor fields and operand evaluation order at
   O0/O2/O3. Interpreter/C references and ASAN til consumers check binary views
-  and returned bytes too. Bounds panic text through the remaining Str.get bridge
-  is compared across interpreter, C and MLIR. The options test checks direct
+  and returned bytes too. Bounds panic text through Str.get is compared across
+  interpreter, C and MLIR. The options test checks direct
   private definitions/transitive calls and retained bridge boundaries without
   requiring LLVM tools.
+
+  Str constructors store c_str as its native owned pointer and count/cap inline;
+  native calls return the descriptor by sret. This supports non-owning view
+  construction and owning capacity/clone bodies without adding general owning
+  user-struct support. push_str writes the inline count after its ordinary
+  capacity/view checks. Direct replacement of an owning c_str field remains
+  unsupported. Core immutable scalar literals and literal numeric conversions
+  (including CAP_VIEW/CAP_LIT) are emitted from their prepared initializers at
+  target width, not read from the host interpreter or stored in a new cache.
+
+  The frontend marks mut-parameter replacement with swap_replace. MLIR executes
+  its delete-copy-free contract: retain the already-evaluated RHS descriptor,
+  call the emitted Str.delete on the old contents without freeing the caller's
+  outer, transfer the new descriptor (demoting CAP_LIT to CAP_VIEW), and release
+  a heap transfer wrapper when present. A raw byte swap would abandon the old
+  buffer. Reachability roots this synthetic destructor dependency too.
+
+  check_str_more adds binary search/empty-needle/boundary cases, checked-get
+  pointer identity and operand order, view aliasing/trimming and independent
+  UTF-8 result checks (all two-byte inputs, truncated prefixes, scalar boundaries
+  and guarded non-terminated buffers). Native ASAN/UBSAN and til ASAN callers
+  exercise sret forwarding, capacity/append/clone, discarded results and repeated
+  replacement at O0/O2/O3. Failure fixtures compare bounds, decoder assertions,
+  literal/view mutation and capacity diagnostics across interpreter/C/MLIR.
 
   MLIR now emits Str literals, locals, borrowed/mutable/own parameters and
   value returns, plus the Array(Str) packing used by variadic core calls.

@@ -126,6 +126,72 @@ priv check_str_bodies := proc(compiler:Str,work:Str) {
     }
 }
 
+priv check_str_more := proc(compiler:Str,work:Str) {
+    File.writefile(format(work,"/str_more_native.til"),format("mode lib\n",
+        "s_checked:=func(s:Str,shallow i:USize) returns ref I8{return s.get(i)}\ns_empty:=func(s:Str) returns Bool{return s.is_empty()}\ns_first:=func(s:Str,n:Str) returns I64{return s.find(n)}\ns_last:=func(s:Str,n:Str) returns I64{return s.rfind(n)}\ns_has:=func(s:Str,n:Str) returns Bool{return s.contains(n)}\ns_starts:=func(s:Str,n:Str) returns Bool{return s.starts_with(n)}\ns_ends:=func(s:Str,n:Str) returns Bool{return s.ends_with(n)}\n",
+        "s_decode:=func(s:Str,i:USize,final:Bool) returns Utf8Read{return s.read_utf8(i,final)}\ns_decode_forward:=func(s:Str,i:USize,final:Bool) returns Utf8Read{return s_decode(s,i,final)}\ns_code:=func(s:Str,i:USize) returns I64{r:=s.read_utf8(i);return r.value}\ns_valid:=func(s:Str) returns Bool{return s.is_valid_utf8()}\n",
+        "s_view:=func(s:Str) returns Str{return s.borrowed_view()}\ns_slice:=func(s:Str,i:USize,n:USize) returns Str{return s.substr(i,n)}\ns_trim_start:=func(s:Str) returns Str{return s.trim_start()}\ns_trim:=func(s:Str) returns Str{return s.trim()}\ns_reserve:=func(n:USize) returns Str{return Str.with_capacity(n)}\ns_copy:=func(s:Str) returns Str{return s.clone()}\ns_append:=func(mut s:Str,t:Str){s.push_str(t)}\ns_replace:=func(mut s:Str,t:Str){s=t.clone()}\ns_discard:=func(s:Str){s.clone()}\n",
+        "priv mark_string:=func(mut trace:I64,s:Str) returns ref Str{trace=trace*10+1;return s}\npriv mark_index:=func(mut trace:I64,i:USize) returns USize{trace=trace*10+2;return i}\ns_order:=func(mut trace:I64,s:Str,shallow i:USize) returns ref I8{return mark_string(trace,s).get(mark_index(trace,i))}\n"))
+    File.writefile(format(work,"/str_more_caller.c"),format(
+        "#include <assert.h>\n#include <stdint.h>\n#include <stddef.h>\n#include <stdbool.h>\n#include <stdlib.h>\n#include <string.h>\n#include <sys/mman.h>\n#include <unistd.h>\n",
+        "typedef struct{unsigned char*data;uint64_t count,cap;}Text;typedef struct{int64_t value;uint64_t end;bool valid,incomplete;}Read;_Static_assert(sizeof(Read)==24 && offsetof(Read,valid)==16,\"Utf8Read ABI\");extern const int8_t*s_checked(const Text*,uint64_t),*s_order(int64_t*,const Text*,uint64_t);extern int64_t s_first(const Text*,const Text*),s_last(const Text*,const Text*),s_code(const Text*,uint64_t);extern bool s_empty(const Text*),s_has(const Text*,const Text*),s_starts(const Text*,const Text*),s_ends(const Text*,const Text*),s_valid(const Text*);extern Read s_decode(const Text*,uint64_t,bool),s_decode_forward(const Text*,uint64_t,bool);extern Text s_view(const Text*),s_slice(const Text*,uint64_t,uint64_t),s_trim_start(const Text*),s_trim(const Text*),s_reserve(uint64_t),s_copy(const Text*);extern void s_append(Text*,const Text*),s_replace(Text*,const Text*),s_discard(const Text*);\n",
+        "static int64_t search(const Text*s,const Text*n,bool last){if(!n->count || n->count>s->count)return -1;int64_t found=-1;for(uint64_t i=0;i<=s->count-n->count;i++)if(!memcmp(s->data+i,n->data,n->count)){found=(int64_t)i;if(!last)break;}return found;}\n",
+        "static void queries(const Text*s,const Text*n){assert(s_empty(s)==(s->count==0));assert(s_first(s,n)==search(s,n,false) && s_last(s,n)==search(s,n,true));assert(s_has(s,n)==(!n->count || search(s,n,false)>=0));bool starts=n->count<=s->count && (!n->count || !memcmp(s->data,n->data,n->count));bool ends=n->count<=s->count && (!n->count || !memcmp(s->data+s->count-n->count,n->data,n->count));assert(s_starts(s,n)==starts && s_ends(s,n)==ends);}\n",
+        "static Read invalid(uint64_t end){return (Read){65533,end,false,false};}static Read decode(const Text*s,uint64_t i,bool final){if(i==s->count)return (Read){-1,i,false,!final};unsigned b=s->data[i],n=0;uint64_t value=0;if(b<128)return (Read){b,i+1,true,false};if(b>=194 && b<=223){n=2;value=b-192;}else if(b>=224 && b<=239){n=3;value=b-224;}else if(b>=240 && b<=244){n=4;value=b-240;}else return invalid(i+1);for(unsigned j=1;j<n;j++){if(j>=s->count-i)return final?invalid(s->count):(Read){-1,i,false,true};unsigned c=s->data[i+j];if(c<128 || c>191)return invalid(i+j);if(j==1 && ((b==224 && c<160)||(b==237 && c>159)||(b==240 && c<144)||(b==244 && c>143)))return invalid(i+1);value=value*64+c-128;}return (Read){(int64_t)value,i+n,true,false};}\n",
+        "static void utf8(const Text*s){bool valid=true;for(uint64_t i=0;i<=s->count;i++){for(unsigned f=0;f<2;f++){Read a=decode(s,i,f),b=s_decode(s,i,f),c=s_decode_forward(s,i,f);assert(a.value==b.value && a.end==b.end && a.valid==b.valid && a.incomplete==b.incomplete);assert(a.value==c.value && a.end==c.end && a.valid==c.valid && a.incomplete==c.incomplete);}assert(s_code(s,i)==decode(s,i,true).value);}for(uint64_t i=0;i<s->count;){Read r=decode(s,i,true);if(!r.valid){valid=false;break;}i=r.end;}assert(s_valid(s)==valid);}\n",
+        "static bool space(unsigned c){return c==32 || c==9 || c==10 || c==13;}static void views(const Text*s){Text whole=s_view(s);assert(whole.data==s->data && whole.count==s->count && whole.cap==UINT64_MAX-1);for(uint64_t i=0;i<=s->count+2;i++){for(uint64_t n=0;n<=s->count+2;n++){uint64_t st=i<s->count?i:s->count,ln=n<s->count-st?n:s->count-st;Text r=s_slice(s,i,n);assert(r.data==s->data+st && r.count==ln && r.cap==UINT64_MAX-1);}}uint64_t start=0,end=s->count;while(start<end && space(s->data[start]))start++;Text a=s_trim_start(s);assert(a.data==s->data+start && a.count==s->count-start && a.cap==UINT64_MAX-1);while(end>start && space(s->data[end-1]))end--;Text b=s_trim(s);assert(b.data==s->data+start && b.count==end-start && b.cap==UINT64_MAX-1);}\n",
+        "static void release(Text s){if(s.cap<UINT64_MAX-1)free(s.data);}static void ownership(const Text*s){Text r=s_reserve(64);assert(r.count==0 && r.cap==64 && r.data[0]==0);s_append(&r,s);assert(r.count==s->count && r.data[r.count]==0 && !memcmp(r.data,s->data,s->count));Text before=r,empty={0,0,UINT64_MAX};s_append(&r,&empty);assert(r.data==before.data && r.count==before.count && r.cap==before.cap);for(unsigned k=0;k<16;k++){s_replace(&r,s);assert(r.count==s->count && !memcmp(r.data,s->data,s->count));s_discard(s);}release(r);r=s_copy(s);assert(r.count==s->count && !memcmp(r.data,s->data,s->count));if(s->count)assert(r.data!=s->data && r.cap==s->count && r.data[r.count]==0);else assert(r.cap==UINT64_MAX-1);release(r);r=s_reserve(0);assert(r.count==0 && r.cap==UINT64_MAX-1);release(r);}\n",
+        "int main(void){unsigned char bytes[32][16];Text values[32];uint64_t seed=UINT64_C(0xe7b1903d5a62c48f);for(unsigned i=0;i<32;i++){for(unsigned j=0;j<16;j++){seed=seed*UINT64_C(6364136223846793005)+1;bytes[i][j]=(unsigned char)(seed>>32);}values[i]=(Text){bytes[i],i%16,UINT64_MAX-1};utf8(values+i);views(values+i);ownership(values+i);for(unsigned j=0;j<i%16;j++){assert(s_checked(values+i,j)==(int8_t*)bytes[i]+j);int64_t trace=0;assert(s_order(&trace,values+i,j)==(int8_t*)bytes[i]+j && trace==12);}for(unsigned j=0;j<=i;j++){queries(values+i,values+j);queries(values+j,values+i);}}\n",
+        "unsigned char pair[2];Text p={pair,2,UINT64_MAX-1};for(unsigned a=0;a<256;a++)for(unsigned b=0;b<256;b++){pair[0]=(unsigned char)a;pair[1]=(unsigned char)b;utf8(&p);}unsigned char repeated[]={97,98,97,98,97,98,97},needle[]={97,98,97};Text repeat={repeated,7,UINT64_MAX-1},n={needle,3,UINT64_MAX-1};queries(&repeat,&n);assert(s_first(&repeat,&n)==0 && s_last(&repeat,&n)==4);\n",
+        "uint32_t points[]={0,1,127,128,2047,2048,55295,57344,65535,65536,1114111};for(unsigned k=0;k<sizeof points/sizeof points[0];k++){uint32_t c=points[k];unsigned char b[4];unsigned n=1;if(c<128)b[0]=(unsigned char)c;else if(c<2048){n=2;b[0]=(unsigned char)(192+(c>>6));}else if(c<65536){n=3;b[0]=(unsigned char)(224+(c>>12));}else{n=4;b[0]=(unsigned char)(240+(c>>18));}for(unsigned j=1;j<n;j++)b[j]=(unsigned char)(128+((c>>(6*(n-1-j)))&63));for(unsigned len=0;len<=n;len++){Text s={b,len,UINT64_MAX-1};utf8(&s);}Text s={b,n,UINT64_MAX-1};assert(s_decode(&s,0,true).value==c && s_valid(&s));}\n",
+        "unsigned char blank[]={32,9,0,128,13,10,32};Text padded={blank,7,UINT64_MAX-1};views(&padded);long page=sysconf(_SC_PAGESIZE);assert(page>0);unsigned char*mem=mmap(0,(size_t)page*2,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);assert(mem!=MAP_FAILED && !mprotect(mem+page,(size_t)page,PROT_NONE));for(unsigned len=0;len<8;len++){for(unsigned j=0;j<len;j++)mem[page-len+j]=(unsigned char)(224+j);Text s={mem+page-len,len,UINT64_MAX-1};utf8(&s);views(&s);for(unsigned i=0;i<len;i++)assert(s_checked(&s,i)==(int8_t*)s.data+i);for(unsigned j=0;j<32;j++)queries(&s,values+j);}assert(!munmap(mem,(size_t)page*2));return 0;}\n"))
+    checks:=format("main:=proc(){mut n:USize=15;n++;mut s:=s_reserve(n);s_append(s,\"ababa\\0x\");assert_eq(I64,s_first(s,\"aba\"),0);assert_eq(I64,s_last(s,\"aba\"),2);assert(s_has(s,\"\"));assert_eq(I64,s_first(s,\"\"),-1);assert_eq(I64,s_last(s,\"toolongneedle\"),-1);assert(s_starts(s,\"aba\"));assert(s_ends(s,\"\\0x\"));assert(s_empty(s).not());ref byte:I8=s_checked(s,5);assert_eq(I8,byte,0);view:=s_slice(s,1,3);assert_eq(Str,view,\"bab\");assert(ptr_eq(view.c_str,ptr_add(s.c_str,1)));whole:=s_view(s);assert(ptr_eq(whole.c_str,s.c_str));copy:=s_copy(view);assert_eq(Str,copy,\"bab\");assert(ptr_eq(copy.c_str,view.c_str).not());s_discard(view);\n",
+        "text:=format(\" \\t\",s,\"\\r\\n\");assert_eq(Str,s_trim(text),s);assert_eq(Str,s_trim_start(text),format(s,\"\\r\\n\"));decoded:=s_decode(s,0,true);assert(decoded.valid);assert_eq(I64,decoded.value,97);assert_eq(USize,decoded.end,1);assert(s_valid(s));incomplete:=s_decode_forward(s,s.len(),false);assert(incomplete.incomplete && incomplete.valid.not());assert_eq(I64,incomplete.value,-1);s_replace(s,copy);assert_eq(Str,s,\"bab\");println(\"Str core expansion PASS\")}\n")
+    File.writefile(format(work,"/str_more_reference.til"),format("mode cli\nimport(\"str_more_native\")\n",checks))
+    File.writefile(format(work,"/str_more_consumer.til"),format("mode cli\nlink(\"gen/lib/libstr_more_native.so\")\n",
+        "s_checked:=ext_func(s:Str,shallow i:USize) returns ref I8{}\ns_empty:=ext_func(s:Str) returns shallow Bool{}\ns_first:=ext_func(s:Str,n:Str) returns shallow I64{}\ns_last:=ext_func(s:Str,n:Str) returns shallow I64{}\ns_has:=ext_func(s:Str,n:Str) returns shallow Bool{}\ns_starts:=ext_func(s:Str,n:Str) returns shallow Bool{}\ns_ends:=ext_func(s:Str,n:Str) returns shallow Bool{}\n",
+        "s_decode:=ext_func(s:Str,shallow i:USize,shallow final:Bool) returns shallow Utf8Read{}\ns_decode_forward:=ext_func(s:Str,shallow i:USize,shallow final:Bool) returns shallow Utf8Read{}\ns_valid:=ext_func(s:Str) returns shallow Bool{}\ns_view:=ext_func(s:Str) returns shallow Str{}\ns_slice:=ext_func(s:Str,shallow i:USize,shallow n:USize) returns shallow Str{}\ns_trim_start:=ext_func(s:Str) returns shallow Str{}\ns_trim:=ext_func(s:Str) returns shallow Str{}\ns_reserve:=ext_func(shallow n:USize) returns shallow Str{}\ns_copy:=ext_func(s:Str) returns shallow Str{}\ns_append:=ext_func(mut s:Str,t:Str){}\ns_replace:=ext_func(mut s:Str,t:Str){}\ns_discard:=ext_func(s:Str){}\n",checks))
+    failures:=array(Str,
+        "mut i:USize=0;i--;s:=\"abc\";ref b:I8=s.get(i);println(b.clone().to_str())",
+        "mut i:USize=3;i++;s:=\"abc\";r:=s.read_utf8(i);println(r.value.to_str())",
+        "mut s:Str=\"abc\";s.push_str(\"!\")",
+        "mut n:USize=2;n++;mut s:=Str.with_capacity(n);s.push_str(\"abcd\")",
+        "base:=\"abc\";mut s:=base.borrowed_view();s.push_str(\"!\")")
+    mut messages:=Vec(Str).new()
+    for i in 0..failures.len() {
+        name:=format("str_more_failure_",i.to_str(),".til")
+        File.writefile(format(work,"/",name),format("mode cli\nmain:=proc(){",failures[i],"}\n"))
+        reference:=Cmd.new(compiler,"run","--usize=64",name)
+        reference.cwd(work).capture()
+        expect(reference.run()==1 && reference.err().len()==0,reference.out(),reference.err())
+        interpreted:=Cmd.new(compiler,"interpret","--usize=64",name)
+        interpreted.cwd(work).capture()
+        expect(interpreted.run()==1 && interpreted.err().len()==0,interpreted.out(),interpreted.err())
+        assert_eq(Str,interpreted.out(),reference.out())
+        messages.push(own reference.out())
+    }
+    for execution in array(Str,"interpret","run") {
+        reference:=Cmd.new(compiler,execution,"--usize=64","str_more_reference.til")
+        checked(reference,work)
+    }
+    for level in array(Str,"0","2","3") {
+        build:=Cmd.new(compiler,"build","--backend=mlir",format("--opt=",level),"str_more_native.til")
+        checked(build,work)
+        native_build:=Cmd.new("clang-18","-O2","-Wall","-Wextra","-Werror","-fsanitize=address,undefined","str_more_caller.c","gen/lib/libstr_more_native.a","-lm","-o","str_more_caller")
+        checked(native_build,work)
+        native:=Cmd.new("./str_more_caller")
+        checked(native,work)
+        consumer:=Cmd.new(compiler,"run","--asan","--usize=64",format("--opt=",level),"str_more_consumer.til")
+        checked(consumer,work)
+        for i in 0..failures.len() {
+            failure:=Cmd.new(compiler,"run","--backend=mlir",format("--opt=",level),format("str_more_failure_",i.to_str(),".til"))
+            failure.cwd(work).capture()
+            expect(failure.run()==1 && failure.err().len()==0,failure.out(),failure.err())
+            assert_eq(Str,failure.out(),messages[i])
+        }
+    }
+}
+
 priv check_control_flow := proc(compiler: Str, work: Str) {
     File.writefile(format(work, "/flow.til"), format(
         "mode pure\nF4 := Simd(F32,4)\nCount := USize\n",
@@ -1447,6 +1513,7 @@ main := proc(compiler_arg: Str) {
     compiler := realpath_str(compiler_arg)
     work := "tmp/mlir_integration"
     mkdir_p(work)
+    check_str_more(compiler,work)
     check_str_bodies(compiler,work)
     check_core_bodies(compiler,work)
     File.writefile(format(work, "/arithmetic.til"), format(

@@ -937,7 +937,7 @@ priv mlir_generic_source := func(dd: Declaration, lp: LoadedProgram) returns Str
     panic("MLIR concrete generic has no declaring unit: ",dd.name)
 }
 
-// Direct-core slice: scalar results over primitives and borrowed Str. Compatibility
+// Direct-core scalar slice. Compatibility
 // conversions and size queries already have dedicated lowering; core_func and
 // ext_func declarations remain at their intrinsic/native boundaries.
 priv mlir_scalar_core_body := func(name:Str,fd:FunctionDef,lp:LoadedProgram) returns Bool {
@@ -1012,11 +1012,17 @@ priv mlir_callable_inventory := func(lp: LoadedProgram, names: Set(Str)) returns
                 ref value:Expr=member.default_expr()
                 if value.node_type.is(NodeType.FuncDef).not() || value.children.len()==0 {continue}
                 ref name:Str=def_ns_name_at(definition,j)
-                // Keep this increment to verified borrowed Str bodies. A scalar
-                // result alone is not enough: is_valid_utf8 calls read_utf8,
-                // whose POD return is outside the C-core bridge's current ABI.
-                if dd.name=="Str" && name.eq("len").or(name=="unsafe_get").or(name=="cmp").or(name=="eq").not() {continue}
-                if mlir_scalar_core_body(name,funcdef_of(value),lp).not() {continue}
+                if dd.name=="Str" {
+                    // These ordinary bodies use the same aggregate ABI and
+                    // prepared ownership/cleanup as user functions.
+                    switch name {
+                    case "len", "unsafe_get", "cmp", "eq", "get", "is_empty",
+                        "starts_with", "ends_with", "find", "rfind", "contains",
+                        "read_utf8", "is_valid_utf8", "borrowed_view", "substr",
+                        "trim_start", "trim", "with_capacity", "push_str", "clone", "delete":
+                    case: continue
+                    }
+                } else if mlir_scalar_core_body(name,funcdef_of(value),lp).not() {continue}
                 functions.push(own MlirCallable(path=unit.path.clone(),source_path=unit.path.clone(),declaration=i,member=j.to_i64(),
                     name=format(dd.name,".",name),symbol=format("til.mlir.core.",dd.name,".",name),exported=false))
             }
@@ -1028,6 +1034,13 @@ priv mlir_callable_inventory := func(lp: LoadedProgram, names: Set(Str)) returns
 priv mlir_collect_calls := func(e: Expr, functions: Map(UPtr,MlirCallable), mut selected: Set(UPtr), mut pending: Vec(UPtr), lp: LoadedProgram) {
     if e.node_type.is(NodeType.FuncDef) { return }
     if e.node_type.is(NodeType.FCall) {
+        // The frontend's mut-parameter replacement carries cleanup in this
+        // mark, not in a separate delete AST call. Root its real core body.
+        if fcall_of(e).swap_replace && type_name_ref(e.children[1].til_type(),lp.ctx.symbols)=="Str" {
+            ref owner:Expr=lp.ctx.scope.get_struct("Str",lp.ctx.symbols).unwrap()
+            id:=mlir_callable_id(def_ns_get(owner,"delete").unwrap().default_expr())
+            if selected.has(id).not() {selected.add(own id.clone());pending.push(own id.clone())}
+        }
         target := resolve_direct_fcall(e,lp.ctx.scope,lp.ctx.symbols)
         if target.is_some() {
             id := mlir_callable_id(target.unwrap())
@@ -1440,11 +1453,11 @@ priv mlir_writable_record := func(pointer:Str,mut state:MlirState,lp:LoadedProgr
 }
 
 priv mlir_construct_pod := proc(e: Expr, t: Str, borrow: Bool, mut state: MlirState, mut lp: LoadedProgram) returns Str {
-    ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(mlir_pod_name(t), lp.ctx.symbols).unwrap())
+    ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(type_name_ref(e.til_type(),lp.ctx.symbols), lp.ctx.symbols).unwrap())
     if e.children.len() != sd.fields.len()+1 { return mlir_error(e, "POD constructor fields were not lowered positionally", lp) }
     mut value := mlir_value(state, format("llvm.mlir.undef : ", t))
     for i in 0..sd.fields.len() {
-        if sd.fields[i].own_type.is(OwnType.Ref) {
+        if sd.fields[i].own_type.is(OwnType.Ref).or(sd.fields[i].own_type.is(OwnType.Own)) {
             pointer:=mlir_expr(e.children[i+1],state,lp,true)
             value=mlir_value(state,format("llvm.insertvalue ",pointer,", ",value,"[",i.to_str(),"] : ",t))
             continue
@@ -1509,6 +1522,28 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             // Convert the actual binding value, not an imagined wider load.
             return mlir_convert(value, binding.type_name, mlir_type(e.til_type(), lp), binding.is_signed, e, state, lp)
         }
+        // Core's immutable scalar sentinels remain declarations in the
+        // prepared AST. Emit their literal/numeric-conversion initializer at
+        // the target width; do not read host interpreter storage or add globals.
+        for unit:ProgramUnit in lp.core_units {
+            for stmt:Expr in lp.ctx.imported[unit.path].ast.children {
+                if stmt.node_type.is(NodeType.Decl).not() {continue}
+                ref dd:Declaration=decl_of(stmt)
+                if dd.name!=name || dd.is_mut || stmt.children.len()!=1 {continue}
+                if mlir_scalar(mlir_type(declaration_resolved_type(dd,lp.ctx.scope,lp.ctx.symbols),lp)).not() {continue}
+                ref value:Expr=stmt.children[0]
+                mut constant:=value.node_type.is(NodeType.Literal)
+                if value.node_type.is(NodeType.FCall) && value.children.len()==2 {
+                    ref callee:Expr=value.children[0]
+                    if callee.node_type.is(NodeType.FieldAccess) {
+                        constant=fieldaccess_of(callee).field_access_name(lp.ctx.symbols.names).starts_with("to_").and(value.children[1].node_type.is(NodeType.Literal))
+                    }
+                }
+                if constant.not() {return mlir_error(e,format("unsupported non-literal core constant '",name,"'"),lp)}
+                raw:=mlir_expr(value,state,lp)
+                return mlir_coerce(raw,value,mlir_type(e.til_type(),lp),state,lp)
+            }
+        }
         return mlir_error(e, format("unsupported global or value '", name, "'"), lp)
     case .FieldAccess(field):
         switch e.children[0].node_type {
@@ -1572,6 +1607,26 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
         return mlir_value(state,format("arith.constant ",mlir_hex_literal(bits,nibbles)," : ",t))
     case .FCall:
         ref callee : Expr = e.children[0]
+        if fcall_of(e).swap_replace && type_name_ref(e.children[1].til_type(),lp.ctx.symbols)=="Str" {
+            // Mirror C's marked delete-copy-free operation, not swap_bytes:
+            // the RHS is already evaluated into its prepared transfer temp.
+            t:=mlir_type(e.children[1].til_type(),lp)
+            destination:=mlir_expr(e.children[1],state,lp,true)
+            source:=mlir_expr(e.children[2],state,lp,true)
+            value:=mlir_owned_record(mlir_load(source,t,state,"1"),t,state)
+            no_free:=mlir_value(state,"arith.constant 0 : i8")
+            state.text=format(state.text,"    llvm.call @\"til.mlir.core.Str.delete\"(",destination,", ",no_free,") : (!llvm.ptr, i8) -> ()\n")
+            mlir_store(destination,value,t,state,"1")
+            switch e.children[2].node_type {
+            case .Ident(id):
+                if state.values[id.ident_name(lp.ctx.symbols.names)].owns_wrapper {
+                    state.externals.set("free",own "  llvm.func @free(!llvm.ptr)\n")
+                    state.text=format(state.text,"    llvm.call @free(",source,") : (!llvm.ptr) -> ()\n")
+                }
+            case:
+            }
+            return ""
+        }
         if type_is_callable_storage(callee.til_type()) { return mlir_error(e,"indirect calls are not supported",lp) }
         target := resolve_direct_fcall(e,lp.ctx.scope,lp.ctx.symbols)
         if target.is_some() && state.functions.has(mlir_callable_id(target.unwrap())) {
@@ -1968,7 +2023,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             }
             constructor_type := type_from_name_init_name(name, lp.ctx.scope, lp.ctx.symbols)
             constructor_mlir_type := mlir_type(constructor_type, lp)
-            if mlir_pod(constructor_mlir_type) { return mlir_construct_pod(e, constructor_mlir_type, borrow, state, lp) }
+            if mlir_pod(constructor_mlir_type).or(name=="Str") { return mlir_construct_pod(e, constructor_mlir_type, borrow, state, lp) }
             if mlir_vector(constructor_mlir_type) && e.children.len() == 5 {
                 // The constant folder materializes SIMD values as positional
                 // struct constructors, rather than calls to .new/.splat.
@@ -2056,9 +2111,10 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
             } else { state.values.set(local.name, own MlirBinding(value = value, type_name = t.clone(), is_signed = mlir_signed(local_type))) }
         case .FieldAssign(assignment):
             parent_type := mlir_type(stmt.children[0].til_type(), lp)
-            if mlir_pod(parent_type).not() { mlir_error(stmt, "field assignment requires a supported POD struct", lp); break }
-            ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(mlir_pod_name(parent_type), lp.ctx.symbols).unwrap())
+            if mlir_pod(parent_type).or(type_name_ref(stmt.children[0].til_type(),lp.ctx.symbols)=="Str").not() { mlir_error(stmt, "field assignment requires a supported POD struct or Str descriptor", lp); break }
+            ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(type_name_ref(stmt.children[0].til_type(),lp.ctx.symbols), lp.ctx.symbols).unwrap())
             ref declaration:Declaration=sd.fields[sd.fields_index[assignment.name]]
+            if declaration.own_type.is(OwnType.Own) {mlir_error(stmt,"owning Str field replacement is unsupported",lp);break}
             address := mlir_pod_field_address(stmt.children[0], assignment.name, state, lp)
             if declaration.own_type.is(OwnType.Ref) {
                 pointer:=mlir_expr(stmt.children[1],state,lp,true)
