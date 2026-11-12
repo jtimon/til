@@ -896,6 +896,20 @@ main := proc(args: ..Str) returns I64 {
                 " '&&' cmp tmp/self_det.c boot/til.c",
                 " '&&' cmp tmp/self_det_forward.h boot/til_forward.h"))
     }
+    // #472 (level 2): the same holds for user programs and for every target.
+    // Under an explicit --usize the compiler under test and bin/til have
+    // different layouts; both translate a small corpus for all twelve
+    // targets at both widths and every emitted file has to match
+    // (test/translate_layouts.til). Registered here, early, for the reason
+    // self_translate is: about ten CPU minutes, most of them in the ASAN
+    // build of the compiler under test. Without an explicit --usize the two
+    // binaries share a layout and the row would only repeat self_translate's
+    // point at that price, so it is not registered.
+    if til_bin != TIL && usize_flag.len() > 0 {
+        add_count(tests, "translate_layouts", "build", "translate layouts passed", 1,
+            format(TIL, " run -o bin/c/translate_layouts -c gen/c/translate_layouts.c test/translate_layouts.til ",
+                til_bin, " ", TIL))
+    }
     // The native compiler's self-translate is the canonical self_ms/self_mem
     // benchmark. It also checks the default compiler's bootstrap fixed point.
     // Historical ASAN measurements remain archived in their original CSV
@@ -1139,8 +1153,7 @@ main := proc(args: ..Str) returns I64 {
         CountCheck(needle = "TIL_OWN_LIT(\"1e-310\", 6ULL)", expected_count = 1),
         CountCheck(needle = "TIL_OWN_LIT(\"0.333333\", 8ULL)", expected_count = 1),
         CountCheck(needle = "TIL_OWN_LIT(\"-0\", 2ULL)", expected_count = 1),
-        CountCheck(needle = "TIL_OWN_LIT(\"-inf\", 4ULL)", expected_count = 1),
-        CountCheck(needle = "TIL_OWN_LIT(\"nan\", 3ULL)", expected_count = 1))
+        CountCheck(needle = "TIL_OWN_LIT(\"-inf\", 4ULL)", expected_count = 1))
 
     add_count(tests, "test_dependencies", "build", "test prerequisites passed", 1,
         format(til_bin, " run", asan_flag,

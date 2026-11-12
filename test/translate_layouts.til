@@ -1,0 +1,278 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+// #472, level 2: the source a program translates to does not depend on the
+// layout of the compiler doing the translating. This driver takes two
+// compiler binaries -- the one under test, which `make check_usize64` builds
+// --usize=64, and bin/til, built compact -- and has both translate a small
+// corpus for every target at both widths. Every emitted file has to match,
+// byte for byte, except for its last line when that is the reuse stamp
+// (#442): the stamp names the compiler binary that wrote the file, and these
+// are two binaries.
+//
+// A program some target cannot take yet (HolyC, on TempleOS) has to be
+// refused by both compilers alike.
+//
+// Outputs that take no -c are compared as whole gen/ trees: the FASM and MLIR
+// backends write under gen/<backend>/, and a library's binding files (C
+// header, til, Python, JNI, Java) go to fixed paths under gen/til/. Each
+// compiler translates a copy of the source from a directory of its own.
+
+realpath_str := ext_proc(path: Str) returns Str {}
+
+WORK := "tmp/translate_layouts"
+// REM How many programs translate at once; each is two compiler processes.
+BATCH : USize = 3
+
+Job := struct {
+    target := ""
+    width := ""
+    source := ""
+    name := ""
+}
+
+describe := func(job: Job) returns Str {
+    return format(job.source, " for ", job.target, " --usize=", job.width)
+}
+
+output_dir := func(job: Job, side: Str) returns Str {
+    return format(WORK, "/", job.target, "-", job.width, "/", side)
+}
+
+log_path := func(job: Job, side: Str) returns Str {
+    return format(output_dir(job, side), "/", job.name, ".log")
+}
+
+translation := proc(compiler: Str, job: Job, side: Str) returns Cmd {
+    dir := output_dir(job, side)
+    mkdir_p(dir)
+    command := Cmd.new(compiler, "translate", format("--target=", job.target),
+        format("--usize=", job.width), "-c", format(dir, "/", job.name, ".c"), job.source)
+    command.stdout_to(log_path(job, side))
+    command.stderr_to_stdout()
+    return command
+}
+
+// The text without its trailing reuse stamp line.
+without_stamp := func(text: Str) returns Str {
+    at := text.rfind("/* til-translation-stamp: ")
+    if at < 0 { return text.clone() }
+    start := at.to_usize()
+    rest := text.substr(start, text.len() - start)
+    // REM Only a stamp that is the whole last line is one.
+    if rest.find("\n") != rest.len().to_i64() - 1 { return text.clone() }
+    return text.substr(0, start).clone()
+}
+
+// Compare one emitted file of a job. False when neither compiler wrote it.
+compare_file := proc(job: Job, file: Str) returns Bool {
+    reference_path := format(output_dir(job, "reference"), "/", file)
+    tested_path := format(output_dir(job, "tested"), "/", file)
+    reference_there := File.is_file(reference_path)
+    if reference_there != File.is_file(tested_path) {
+        panic(describe(job), ": only one compiler wrote ", file)
+    }
+    if reference_there.not() { return false }
+    reference := without_stamp(File.readfile(reference_path))
+    tested := without_stamp(File.readfile(tested_path))
+    if reference == tested { return true }
+    reference_lines := reference.split("\n")
+    tested_lines := tested.split("\n")
+    mut line : USize = 0
+    while line < reference_lines.len() && line < tested_lines.len() && reference_lines[line] == tested_lines[line] {
+        line++
+    }
+    mut reference_line := "(end of file)"
+    mut tested_line := "(end of file)"
+    if line < reference_lines.len() { reference_line = reference_lines[line].clone() }
+    if line < tested_lines.len() { tested_line = tested_lines[line].clone() }
+    panic(describe(job), ": ", file, " differs at line ", (line + 1).to_str(),
+        "\n  bin/til:        ", reference_line,
+        "\n  compiler tested: ", tested_line)
+    return false
+}
+
+// Compare every file under `sub` of the two sides' gen/ trees, and return how
+// many there were. label names the case in a failure.
+compare_tree := proc(label: Str, case_dir: Str, sub: Str) returns USize {
+    reference_dir := format(case_dir, "/reference/", sub)
+    tested_dir := format(case_dir, "/tested/", sub)
+    mut count : USize = 0
+    names := Dir.list(reference_dir)
+    if names.len() != Dir.list(tested_dir).len() {
+        panic(label, ": the two compilers wrote different files under ", sub)
+    }
+    for name : Str in names {
+        entry := format(sub, "/", name)
+        reference_path := format(case_dir, "/reference/", entry)
+        tested_path := format(case_dir, "/tested/", entry)
+        if File.is_dir(reference_path) {
+            count = count + compare_tree(label, case_dir, entry)
+            continue
+        }
+        if File.is_file(tested_path).not() { panic(label, ": only bin/til wrote ", entry) }
+        reference := without_stamp(File.readfile(reference_path))
+        tested := without_stamp(File.readfile(tested_path))
+        if reference != tested { panic(label, ": ", entry, " differs between the two compilers") }
+        count++
+    }
+    return count
+}
+
+// One translation that takes no -c, by both compilers, each from its own
+// directory holding a copy of `source`. Returns how many files matched.
+compare_in_place := proc(label: Str, tested: Str, reference: Str, source: Str, options: ..Str) returns USize {
+    case_dir := format(WORK, "/", label)
+    slash := source.rfind("/").to_usize()
+    file_name := source.substr(slash + 1, source.len() - slash - 1)
+    reference_run := Cmd.new(reference, "translate")
+    tested_run := Cmd.new(tested, "translate")
+    for option : Str in options {
+        reference_run.arg(option)
+        tested_run.arg(option)
+    }
+    reference_run.arg(file_name)
+    tested_run.arg(file_name)
+    mkdir_p(format(case_dir, "/reference"))
+    mkdir_p(format(case_dir, "/tested"))
+    if copy_file(source, format(case_dir, "/reference/", file_name)) != 0 { panic("cannot copy ", source) }
+    if copy_file(source, format(case_dir, "/tested/", file_name)) != 0 { panic("cannot copy ", source) }
+    reference_run.cwd(format(case_dir, "/reference"))
+    tested_run.cwd(format(case_dir, "/tested"))
+    reference_run.stdout_to(format(case_dir, "/reference.log"))
+    tested_run.stdout_to(format(case_dir, "/tested.log"))
+    reference_run.stderr_to_stdout()
+    tested_run.stderr_to_stdout()
+    mut _ := reference_run.start()
+    _ = tested_run.start()
+    reference_status := reference_run.wait()
+    tested_status := tested_run.wait()
+    if reference_status != 0 || tested_status != 0 {
+        panic(label, ": bin/til exited with ", reference_status.to_str(),
+            ", the compiler tested with ", tested_status.to_str(),
+            "\n", File.readfile(format(case_dir, "/reference.log")),
+            "\n", File.readfile(format(case_dir, "/tested.log")))
+    }
+    count := compare_tree(label, case_dir, "gen")
+    if count == 0 { panic(label, ": nothing was written under gen/") }
+    return count
+}
+
+main := proc(args: ..Str) {
+    if args.len() != 2 { panic("usage: translate_layouts <compiler under test> <reference compiler>") }
+    tested := args[0].clone()
+    reference := args[1].clone()
+    targets := array(Str, "linux-x64", "linux-arm64", "linux-riscv64", "linux-x86", "linux-arm32",
+        "linux-riscv32", "windows-x64", "windows-x86", "macos-x64", "macos-arm64", "wasm32", "templeos-x86")
+    widths := array(Str, "32", "64")
+    // REM test/layout_corpus.til is the one written for this: awkward layouts,
+    // sizes read while folding, sizes baked by macros. The rest add floats,
+    // niche enums and containers. Every program is translated 48 times, half
+    // of them by a compiler built with ASAN, so large tests stay out.
+    corpus := array(Str, "examples/hello_script.til", "test/layout_corpus.til", "test/float_fold.til",
+        "test/option.til", "test/hashmaps.til")
+    File.remove_tree(WORK)
+    mut jobs := Vec(Job).new()
+    for target : Str in targets {
+        for width : Str in widths {
+            for source : Str in corpus {
+                slash := source.rfind("/").to_usize()
+                file_name := source.substr(slash + 1, source.len() - slash - 1)
+                jobs.push(own Job(target = target.clone(), width = width.clone(), source = source.clone(),
+                    name = file_name.strip_suffix(".til").clone()))
+            }
+        }
+    }
+    mut files : USize = 0
+    mut translated : USize = 0
+    mut templeos_translated : USize = 0
+    mut next : USize = 0
+    while next < jobs.len() {
+        mut end := next + BATCH
+        if end > jobs.len() { end = jobs.len() }
+        mut reference_runs := Vec(Cmd).new()
+        mut tested_runs := Vec(Cmd).new()
+        for i in next..end {
+            ref job : Job = jobs[i]
+            reference_run := translation(reference, job, "reference")
+            tested_run := translation(tested, job, "tested")
+            mut _ := reference_run.start()
+            _ = tested_run.start()
+            reference_runs.push(own reference_run)
+            tested_runs.push(own tested_run)
+        }
+        for i in next..end {
+            ref job : Job = jobs[i]
+            reference_status := reference_runs[i - next].wait()
+            tested_status := tested_runs[i - next].wait()
+            if reference_status != tested_status {
+                panic(describe(job), ": bin/til exited with ", reference_status.to_str(),
+                    ", the compiler tested with ", tested_status.to_str(),
+                    "\n", File.readfile(log_path(job, "reference")),
+                    "\n", File.readfile(log_path(job, "tested")))
+            }
+            if reference_status != 0 {
+                // REM HolyC does not take every program; C targets take all of these.
+                if job.target != "templeos-x86" {
+                    panic(describe(job), " did not translate:\n", File.readfile(log_path(job, "reference")))
+                }
+                continue
+            }
+            translated++
+            if job.target == "templeos-x86" { templeos_translated++ }
+            if compare_file(job, format(job.name, ".c")).not() {
+                panic(describe(job), ": translated, but wrote no ", job.name, ".c")
+            }
+            files++
+            if compare_file(job, format(job.name, "_forward.h")) { files++ }
+        }
+        next = end
+    }
+    // REM Four of the corpus are plain enough for HolyC at each width; fewer
+    // means the TempleOS half of this check stopped comparing anything.
+    if templeos_translated < 8 {
+        panic("only ", templeos_translated.to_str(), " translations for templeos-x86 were compared")
+    }
+
+    // The compilers run from other directories below, so by absolute path.
+    tested_path := realpath_str(tested)
+    reference_path := realpath_str(reference)
+    mut in_place : USize = 0
+    for width : Str in widths {
+        usize := format("--usize=", width)
+        for source : Str in array(Str, "examples/hello_script.til", "test/float_fold.til", "test/loops.til", "test/match.til") {
+            label := format("fasm-", width, "-", source.replace("/", "_"))
+            in_place = in_place + compare_in_place(label, tested_path, reference_path, source, "--backend=fasm", usize)
+        }
+        for target : Str in array(Str, "linux-x64", "linux-x86") {
+            label := format("bindings-", target, "-", width)
+            // REM The library names two C files with link_c, and translating
+            // it opens them.
+            for side : Str in array(Str, "reference", "tested") {
+                side_dir := format(WORK, "/", label, "/", side)
+                mkdir_p(side_dir)
+                for companion : Str in array(Str, "library_namespace_a_link.c", "library_namespace_a_extra_link.c") {
+                    if copy_file(format("test/", companion), format(side_dir, "/", companion)) != 0 {
+                        panic("cannot copy test/", companion)
+                    }
+                }
+            }
+            in_place = in_place + compare_in_place(label, tested_path, reference_path,
+                "test/library_namespace_a.til", format("--target=", target), usize)
+        }
+    }
+    // REM The MLIR backend takes --usize=64 and pure modules only.
+    mkdir_p(format(WORK, "/mlir-sources"))
+    File.writefile(format(WORK, "/mlir-sources/lanes.til"),
+        "mode pure\nF4 := Simd(F32,4)\nadd := func(a: F4, b: F4) returns F4 { return a + b }\n")
+    File.writefile(format(WORK, "/mlir-sources/count.til"),
+        "mode pure\ncount := func(n: USize) returns USize { mut i: USize = 0; mut total: USize = 0; while i < n { i++; if i == 2 { continue }; total = total + i }; return total }\n")
+    for name : Str in array(Str, "lanes", "count") {
+        in_place = in_place + compare_in_place(format("mlir-", name), tested_path, reference_path,
+            format(WORK, "/mlir-sources/", name, ".til"), "--backend=mlir", "--usize=64")
+    }
+    println("translate layouts passed: ", files.to_str(), " files from ", translated.to_str(),
+        " translations, ", in_place.to_str(), " files from the other backends and the bindings")
+}

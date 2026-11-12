@@ -37,4 +37,5 @@ println("text ", fold_subnormal().to_str())
 println("text ", fold_third32().to_str())
 println("text ", fold_minus_zero().to_str())
 println("text ", fold_minus_inf().to_str())
-println("text ", fold_nan().to_str())
+// REM No folded NaN text here: the sign bit of a computed NaN is the host
+// CPU's default (set on x86, clear on ARM), and the text shows it.

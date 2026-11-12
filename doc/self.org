@@ -107,6 +107,15 @@
   open), not an oversight. The Windows host job checks that ~til.exe~
   bakes the same ~./src/...~ spelling as the other hosts.
 
+  What checks the compiler-layout half: under ~make check_usize64~ the
+  compiler under test is built ~--usize=64~ and ~bin/til~ is compact. The
+  ~self_translate~ row has the former reproduce ~boot/~, and the
+  ~translate_layouts~ row (~test/translate_layouts.til~) has both
+  translate a small corpus for all twelve targets at both widths and
+  compares every emitted file. The one line left out of that comparison
+  is a trailing reuse stamp, which names the compiler binary that wrote
+  the file.
+
 ** Shared program builder
 
   After CLI validation and the common ~prepare_program~ pass, C, HolyC, MLIR

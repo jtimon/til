@@ -1,5 +1,5 @@
 #+TITLE: src/core/numbers.til
-#+SUBTITLE: til 0.0.1-ce9eede99
+#+SUBTITLE: til 0.0.1-8447e1e7a
 #+OPTIONS: toc:t
 
 * U8
@@ -1537,7 +1537,8 @@ namespace:
 :END:
 
 Short text, six significant digits. A nonfinite value is ~inf~,
-~-inf~ or ~nan~ on every platform; a NaN never shows a sign.
+~-inf~, ~nan~ or ~-nan~ (a NaN with its sign bit set), whatever the
+platform's C library would print.
 
 #+begin_src til
 ext_func F32.to_str(shallow val: F32) returns Str
@@ -1692,7 +1693,8 @@ namespace:
 :END:
 
 Short text, six significant digits. A nonfinite value is ~inf~,
-~-inf~ or ~nan~ on every platform; a NaN never shows a sign.
+~-inf~, ~nan~ or ~-nan~ (a NaN with its sign bit set), whatever the
+platform's C library would print.
 
 #+begin_src til
 ext_func F64.to_str(shallow val: F64) returns Str

@@ -1394,3 +1394,106 @@ contract (input: that checkout's commit; no git, no build) is written in
 makes what it reads an input of the build. The other macros in ~src/~
 and ~examples/~ generate types or functions from their arguments.
 No language change.
+
+*** Progress: level 2, local half (base master 8447e1e)
+
+"Translate the corpus for every target and width with both compiler
+layouts and compare every emitted file." Done, measured first and then
+made a row.
+
+**** Measured by hand
+
+A compiler built ~--usize=64~ against ~bin/til~ (compact), every file
+compared except the trailing reuse stamp line:
+
+| What | Compared | Different |
+|------+----------+-----------|
+| 30 programs, all twelve targets, both widths (~translate -c~): C and forward header, HolyC for TempleOS | 1326 files from 676 translations | 0 |
+| The 44 translations of that set that fail (HolyC not taking a program; ~test/vecs.til~ on 32-bit targets) | both compilers fail, same message | 0 |
+| FASM backend, 6 programs, both widths | 10 files (2 programs refused alike) | 0 |
+| MLIR backend, the 37 sources ~test/mlir_options.til~ writes | 99 files from 27 translations (10 refused alike) | 0 |
+| Library build with ~--jni~, both widths: C header, til, Python, JNI C, Java, C and forward header | 14 files | 0 |
+
+Nothing to fix: F1 to F3 had already removed what made generated source
+depend on the compiler's layout.
+
+**** The row
+
+~test/translate_layouts.til~ takes the compiler under test and ~bin/til~
+and compares, per file and byte for byte:
+- 5 programs (~hello_script~, ~layout_corpus~, ~float_fold~, ~option~,
+  ~hashmaps~) for the twelve targets at both widths: 228 files from 118
+  translations. A C target must take every program; TempleOS must take
+  at least four per width and refuse the rest from both compilers alike.
+- The outputs that take no ~-c~, each compiler in a directory of its own:
+  FASM (4 programs, both widths), the MLIR backend (2 sources), and a
+  library's binding files (C header, til, Python, JNI C, Java) for
+  linux-x64 and linux-x86 at both widths: 42 files.
+
+A difference stops the row with the target, width, file and first
+differing line from both compilers. Checked against two stand-in
+compilers: one that changes a line of one file for one target, one that
+refuses one program; each is reported at that file.
+
+It is suite row ~translate_layouts~, registered only when the suite runs a
+separate compiler with an explicit ~--usize~, which is
+~make check_usize64~ (and its CI job): there the compiler under test is
+native and ASAN-built. Cost: 4m45s alone on this machine (about ten CPU
+minutes); inside ~make check_usize64~ it overlaps the other rows.
+~make test~ does not run it: its two compilers would have one layout.
+
+The one line not compared is the reuse stamp, by design: it names the
+compiler binary that wrote the file, and the row compares two binaries.
+
+**** Verified
+
+~make clean && make test~: 562/562 (the total moved with master's HolyC
+rows, not with this change). ~make check_usize64~: 555/566 with the
+first version of the row (C and HolyC only) passing in 318 s; the eleven
+failures are ~install_tilvm_native_build~, ~install_tilvm_build~ and the
+nine tests blocked behind them, which need clang's ASAN headers that this
+container lacks. The final driver, with the other backends and the
+bindings, was run by itself against the same ASAN native compiler.
+
+**** What level 2 still needs
+
+The other half is across HOSTS, through #473 (step C6): every producer
+translates the same corpus and uploads hashes. Open before that can be
+exact: a Windows-hosted compiler is ~til.exe~, so its stamp line differs
+from the other hosts' (recorded under F7).
+
+*** Correction to step F6: a NaN shows its sign again (base master 8447e1e)
+
+The F6 commit made the C runtime print every NaN as ~nan~. That broke
+master: the TempleOS guest job (run 3045) compares the interpreter's
+output with ~test/templeos/script_str_runtime.expected~, which pins
+~-nan~ for a NaN parsed with a sign, and the HolyC runtime (~ext.HC~)
+prints the sign too. ~make test~ does not run that comparison, and the
+search for tests pinning the old text had only covered the top-level
+~test/~ directory, so the claim "no test pinned it" was wrong.
+
+Now: ~ext.c~ still spells nonfinite values itself (no C library text),
+and a NaN shows its sign bit: ~nan~ or ~-nan~, which is what glibc
+printed before F6 and what ~ext.HC~ prints. On Linux nothing differs from
+before F6. ~test/float_literals.til~ ~test_nonfinite_text~ pins parsed
+NaNs of both signs; the folded NaN text is out of ~test/float_fold.til~
+and its row.
+
+Checked here: the interpreter's output equals all five goldens the guest
+job compares (~fizzbuzz~, ~script_raw_alloc~, ~script_dynamic_free~,
+~script_str_runtime~, ~script_struct_runtime~) at both widths. The guest
+itself cannot run in this container.
+
+What F6 found is therefore still open, as a decision and not as a bug
+fix:
+- The sign bit of a COMPUTED NaN is the CPU's default (set on x86, clear
+  on ARM). Text folded from one (~(0.0 / 0.0).to_str()~) is ~-nan~ from a
+  compiler on x86 and ~nan~ from one on ARM, for the same target.
+- A folded NaN VALUE is emitted as ~__builtin_nan("")~ whatever its sign
+  (~c_codegen.til~), so on one x86 machine the folded text says ~-nan~
+  and the same value printed by the built program says ~nan~.
+- Making this host-independent means choosing one rule for all three
+  runtimes and the goldens: never show a NaN's sign (C runtime, HolyC
+  runtime and ~script_str_runtime.expected~ change together, and the
+  guest job is the only thing that can check it), or canonicalize the
+  NaN a fold produces.

@@ -1376,14 +1376,15 @@ I64 F32_cmp(F32 a, F32 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 I64 F32_to_i64(F32 a) { return (I64)a; }
 F32 F32_from_i64_ext(const I64 *a) { return (F32)*a; }
 
-// #472: nonfinite values are spelled here, not by the host's printf. Its
-// text for them differs between C libraries ("inf" or "1.#INF"), and whether
-// a NaN prints a sign follows the sign bit of the host CPU's default NaN (set
-// on x86, clear on ARM). Text folded at compile time ends up in the generated
-// source, so neither may show: a NaN is "nan" on every host. NULL for a finite
-// value.
+// #472: nonfinite values are spelled here, not by the host's printf, whose
+// text for them differs between C libraries ("inf" or "1.#INF"; a NaN with
+// its sign bit set is "-nan" in glibc and "nan" in others). Text folded at
+// compile time ends up in the generated source. The sign bit is shown as it
+// is, for a NaN too: that is what glibc prints and what the HolyC runtime
+// (ext.HC) prints, and test/templeos/script_str_runtime.expected holds both
+// to it. NULL for a finite value.
 static const char *float_nonfinite_text(double v) {
-    if (isnan(v)) return "nan";
+    if (isnan(v)) return signbit(v) ? "-nan" : "nan";
     if (isinf(v)) return v < 0 ? "-inf" : "inf";
     return NULL;
 }

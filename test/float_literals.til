@@ -206,26 +206,24 @@ parse_runtime_f64:=proc(text:Str) returns F64 { noop_proc(); return text.to_f64(
 float_bits32:=func(value:F32) returns U32 { mut bits:U32=0; memcpy(to_ptr(bits),to_ptr(value),4); return bits }
 float_bits64:=func(value:F64) returns U64 { mut bits:U64=0; memcpy(to_ptr(bits),to_ptr(value),8); return bits }
 
-// #472 (F6): a NaN's text carries no sign, folded or computed while the
-// program runs. Which sign bit a computed NaN has is the CPU's choice (set
-// on x86, clear on ARM), and folded text is part of the generated source.
-folded_nan_text472 := func() returns Str { zero := 0.0; return (zero / zero).to_str() }
-test_nan_text_has_no_sign := test() {
-    assert_eq(Str, folded_nan_text472(), "nan")
-    zero := runtime_f64(0.0)
-    computed := zero / zero
-    assert_eq(Str, computed.to_str(), "nan")
-    assert_eq(Str, computed.to_repr(), "nan")
-    assert_eq(Str, (0.0 - computed).to_str(), "nan")
-    assert_eq(Str, parse_runtime_f64("-nan(0x123)").to_str(), "nan")
+// #472 (F6): nonfinite text is spelled by til's runtime, not by the C
+// library. A NaN shows its sign bit, like glibc and the HolyC runtime
+// (test/templeos/script_str_runtime.expected); which sign a COMPUTED NaN has
+// is the CPU's choice (set on x86, clear on ARM), so only parsed ones are
+// pinned to one spelling here.
+test_nonfinite_text := test() {
+    assert_eq(Str, parse_runtime_f64("-nan(0x123)").to_str(), "-nan")
+    assert_eq(Str, parse_runtime_f64("-nan(0x123)").to_repr(), "-nan")
+    assert_eq(Str, parse_runtime_f64("nan").to_str(), "nan")
     assert_eq(Str, parse_runtime_f64("nan").to_repr(), "nan")
-    zero32 := runtime_f32(0.0)
-    computed32 := zero32 / zero32
-    assert_eq(Str, computed32.to_str(), "nan")
-    assert_eq(Str, computed32.to_repr(), "nan")
-    assert_eq(Str, parse_runtime_f32("-nan(0123)").to_str(), "nan")
+    assert_eq(Str, parse_runtime_f32("-nan(0123)").to_str(), "-nan")
+    assert_eq(Str, parse_runtime_f32("nan").to_repr(), "nan")
+    zero := runtime_f64(0.0)
+    computed := (zero / zero).to_str()
+    assert(computed == "nan" || computed == "-nan")
     assert_eq(Str, (runtime_f64(1.0) / zero).to_str(), "inf")
     assert_eq(Str, (runtime_f64(-1.0) / zero).to_str(), "-inf")
+    assert_eq(Str, (runtime_f64(-1.0) / zero).to_repr(), "-inf")
 }
 
 test_float_text_prefixes_and_specials:=test() {
