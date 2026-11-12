@@ -1,6 +1,47 @@
 # priority: low
 # category: features
-** OPEN #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
+** FIXED #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
+
+*** Post-mortem (final close, 2026-11-12)
+
+What was asked: 32-bit pointers on a 64-bit host, the way #309 narrowed
+USize. What was delivered, and where it stops:
+
+- Owned pointers are 32-bit. Under ~--usize=32~ (the default on 64-bit C
+  targets; one layout flag) every ~own~ field and every owned niche payload
+  (~Option(T)~ of a struct or enum) is a 32-bit byte offset into a 4GB
+  allocation cage in ext.c. Str and Vec are 12 bytes, ~Option(Expr)~ is 4.
+  ~--usize=64~ is the fully native layout.
+- References are native BY DECISION, not by omission: a ~ref~ may address
+  the stack, a global, C memory or code, none of which has a cage offset.
+  Measured over the tree: 19 stored ~ref~ fields, no ~ref~ containers or
+  payloads. Reasons and the steps for a revisit: doc/self.org, "Why only
+  own fields are compressed", and "Plan for the reference side" below.
+  ~Dynamic~ (FFI) and ~UPtr~ (byte counts) are native too. This is the part
+  of the title that is not met, deliberately.
+- The cage is one per process (every copy of ext.c attaches to the
+  executable's), panics on exhaustion and on freeing foreign pointers,
+  keeps ASAN's shadow, and reports leaks itself on Linux ASAN builds
+  (reachability scan), since LeakSanitizer cannot see it.
+- Layouts cannot be mixed silently any more: a library exports its layout;
+  the interpreter refuses a til library of another layout or with no
+  layout record; a COMPILED consumer refers to each til library it binds
+  by a symbol named for its own layout
+  (~til_<lib>___til_abi_layout_<U32|U64>~), so a mismatch is an undefined
+  reference at link time, which the builder explains; and the generated
+  public header ~#error~s when a C consumer's ~-DTIL_USIZE..~ differs.
+  That last pair is the commit that closes the issue (regressions in
+  test/ffi_lib_layout.til: compiled consumer refused / linked, C consumer
+  refused by the header).
+
+Regression tests across the arc: test/usize32_sizes.til and
+test/usize64_sizes.til (layout sizes, niche included),
+test/leak_report.til, test/ffi_pointer_field_width.til,
+test/ffi_cage_shadow.til, test/ffi_lib_layout.til, test/nng_pair.til,
+test/link_libraries.til, test/own_fields.til, and ~make check_usize64~
+(the whole suite at the native layout). Follow-on issues: #464 (ASAN back
+in ~make test~), #486 (compile-time target conditionals for ~link()~).
+The sections below are the working record, oldest decisions last.
 
 *** Status (2026-11-12)
 
@@ -15,10 +56,9 @@ copies "must become layout-aware", and its acceptance list are SUPERSEDED
 by that decision: those copies are correct as they are, and no reference
 work is pending.
 
-Still open before this issue can close: the last entry of "Open
-follow-ups" (a COMPILED program linked against a til library built for
-the other layout misreads its values; only the interpreter refuses such a
-library today).
+Nothing is open: the last entry of "Open follow-ups" (a compiled program
+linked against a til library of the other layout) is fixed, see the
+post-mortem above.
 
 *** Reopened: reference compression remains incomplete
 
@@ -329,27 +369,16 @@ and ~Dynamic~ stay native.
     value, which fails at import ("_fields_ is final"); types are emitted in
     dependency order now. Regression: BindingOwned in
     test/library_namespace_a.til, sized by Python against the library.
-  - A compiled program built for one layout and linked against a library
-    built for the other still compiles, links and then misreads the
-    library's values (the interpreter refuses such a library at load). The
-    library header's USize pin yields to the consumer's -D, so nothing
-    notices. Open; a proposed check is an #error in the generated header
-    when the consumer's width differs from the library's.
-  - (Fixed 2026-11-09.) A `link("name")` whose shared object did not load
-    (the -l form; some names, like m, resolve from the process itself, so
-    the load failure alone is not an error) is remembered with the loader's
-    error (FfiState.failed_links), and the "ext function is not registered"
-    panic names those libraries. Regression: the named_missing probe in
-    test/link_libraries.til. The link() position is known only on the
-    embedded per-directive path; the flag-string path has lost it.
-  - (Fixed 2026-11-11.) A til library built before the layout export
-    carries no ~til_<lib>___til_abi_layout~ and used to load unchecked, as
-    C libraries do, segfaulting if its layout differed. It is refused now
-    ("a til library with no layout record ... rebuild it"). What tells it
-    from a C library is the program: a til library's binding declares names
-    under the library's own C prefix (~til_<lib>__...~), which
-    ffi_program_binds_til_lib looks for. Regression: the layoutold /
-    layoutplain pair in test/ffi_lib_layout.til (refused / still loads).
+  - (Fixed 2026-11-12, the closing commit.) A compiled program built for
+    one layout and linked against a library built for the other compiled,
+    linked and then misread the library's values. A library now also
+    exports an empty function named for its layout, and a program refers
+    to the one named for its own, for every til library it binds
+    (emit_linked_lib_layout_checks): a mismatch is an undefined reference
+    at link time, and the builder adds a note saying what it means. For C
+    consumers the generated public header ~#error~s when the including
+    compile defines the other layout's ~TIL_USIZE..~. Regressions in
+    test/ffi_lib_layout.til.
 
 #309 made USize (container width: sizes, counts, indices, caps) default to U32,
 which shrank Str/Vec/DynVec headers and cut mem_total ~6% and self-host time

@@ -939,7 +939,19 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
             lp.runtime_stem(), lp.runtime_shared_basename(),
             lp.core_stem(), lp.core_shared_basename(), build_flags)
     }
-    return compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, link_flags, include_flags, target, cc_override, loads_gui_module(lp), asan, prof, usize64, lp.cptr32, build_flags, lp.executable_stamp)
+    compiled := compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, link_flags, include_flags, target, cc_override, loads_gui_module(lp), asan, prof, usize64, lp.cptr32, build_flags, lp.executable_stamp)
+    if compiled != 0 {
+        // #313: a program refers to each til library it binds by a symbol
+        // named for the program's own layout, so a library built for the
+        // other one fails the link above with an undefined reference to
+        // that name. Say what the linker's message means.
+        for lib : Str in linked_til_libs(lp) {
+            println(format("note: if the linker reported an undefined '", c_lib_abi_layout_link_symbol(lib, abi_layout_id(lp.ctx.target_usize_pname)),
+                "', lib", lib, " was built for another layout: rebuild it, or this program, so both use --usize=",
+                lp.ctx.target_usize_pname.strip_prefix("U")))
+        }
+    }
+    return compiled
 }
 
 // A target-restricted link() archive (issue #422) is one target's own

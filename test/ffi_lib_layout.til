@@ -42,6 +42,47 @@ expect_refused := proc(args: Array(Str), flip: Str) {
         panic("library built ", flip, " was not refused for its layout (status ", status.to_str(), "): ",
             consumer.out(), consumer.err())
     }
+    // A COMPILED consumer of that library must not link: it refers to the
+    // library by a symbol named for its own layout, which the library does
+    // not export. It used to link and misread the library's values.
+    compiled := Cmd.new(compiler, "build")
+    for i in 1..args.len() { compiled.arg(args[i]) }
+    compiled.args("-o", format(WORK, "/consumer_bin"), format(WORK, "/consumer.til"))
+    compiled.env("LIBRARY_PATH", "gen/lib")
+    compiled.capture()
+    if compiled.run() == 0 { panic("a compiled consumer linked a library built ", flip) }
+    if compiled.out().contains("was built for another layout").not() {
+        panic("compiled consumer failed without the layout note: ", compiled.out(), compiled.err())
+    }
+    // A C consumer compiled for the other layout is refused by the header.
+    File.writefile(format(WORK, "/c_consumer.c"), "#include \"ffi_lib_layout_probe.h\"\nint main(void) { return 0; }\n")
+    mut wrong_define := "-DTIL_USIZE32"
+    if flip == "--usize=32" { wrong_define = "-DTIL_USIZE64" }
+    c_consumer := Cmd.new("cc", "-fsyntax-only", "-fsigned-char", wrong_define, "-Igen/til", "-Isrc/self/codegen", format(WORK, "/c_consumer.c"))
+    c_consumer.capture()
+    if c_consumer.run() == 0 { panic("a C consumer compiled against a library built ", flip, " with ", wrong_define) }
+    if c_consumer.err().contains("was built for layout").not() { panic("C consumer not refused by the header: ", c_consumer.err()) }
+}
+
+// The matching case: built at the suite's own layout, the compiled consumer
+// links, runs and reads the library's struct.
+expect_linked := proc(args: Array(Str)) {
+    ref compiler : Str = args[0]
+    build := Cmd.new(compiler, "build")
+    for i in 1..args.len() { build.arg(args[i]) }
+    build.arg(format(WORK, "/ffi_lib_layout_probe.til"))
+    build.run_checked()
+    compiled := Cmd.new(compiler, "build")
+    for i in 1..args.len() { compiled.arg(args[i]) }
+    compiled.args("-o", format(WORK, "/consumer_bin"), format(WORK, "/consumer.til"))
+    compiled.env("LIBRARY_PATH", "gen/lib")
+    compiled.run_checked()
+    run := Cmd.new(format(WORK, "/consumer_bin"))
+    run.env("LD_LIBRARY_PATH", "gen/lib")
+    run.env("DYLD_LIBRARY_PATH", "gen/lib")
+    run.capture()
+    if run.run() != 0 { panic("matching compiled consumer failed: ", run.out(), run.err()) }
+    if run.out().contains("layout probe loaded").not() { panic("matching compiled consumer: ", run.out()) }
 }
 
 main := proc(args: ..Str) {
@@ -59,6 +100,7 @@ main := proc(args: ..Str) {
     mut flip := "--usize=64"
     if has_flag(args, "--usize=64") { flip = "--usize=32" }
     expect_refused(args, flip)
+    expect_linked(args)
 
     // A til library with NO layout record (one built before the export) is
     // refused as well, where it used to load unchecked. Stood in for by a C

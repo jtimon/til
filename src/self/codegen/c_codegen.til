@@ -7510,6 +7510,65 @@ c_lib_abi_layout_symbol := func(lib_name: Str) returns Str {
     return c_lib_symbol(lib_name, C_LIB_ABI_LAYOUT)
 }
 
+// The same fact for the LINKER (#313): a library also exports an empty
+// function whose NAME carries its layout, and a compiled program that binds
+// the library refers to the one named for its own layout. Built for
+// different layouts, the reference is undefined and the link fails, naming
+// both in the symbol (til_<lib>___til_abi_layout_U64) -- where it used to
+// link and then misread every value the library handed over. A function,
+// not data: it imports from a DLL without help.
+c_lib_abi_layout_link_symbol := func(lib_name: Str, layout: Str) returns Str {
+    return format(c_lib_abi_layout_symbol(lib_name), "_", layout)
+}
+
+// Does the program bind a TIL library of this name? A til library's
+// generated binding declares names under the library's own C prefix
+// (til_<lib>__...), which no C library's binding does.
+program_binds_til_lib := func(lib: Str, ctx: Context) returns Bool {
+    prefix := c_lib_prefix(lib)
+    for unit : ImportUnit in ctx.imported.values {
+        for stmt : Expr in unit.ast.children {
+            if stmt.node_type.is(NodeType.Decl).not() { continue }
+            if decl_of(stmt).name.starts_with(prefix) { return true }
+        }
+    }
+    return false
+}
+
+// The til libraries a program links: every `-l<name>` and every library
+// path (lib<name>.<ext>) among its link flags whose binding it imports.
+linked_til_libs := func(lp: LoadedProgram) returns Vec(Str) {
+    mut libs := Vec(Str).new()
+    for token : Str in lp.link_flags_for_target().split(" ") {
+        mut name := ""
+        if token.starts_with("-l") {
+            name = token.substr(2, token.len() - 2).clone()
+        } else {
+            slash := token.rfind("/")
+            mut base := token.clone()
+            if slash >= 0 { base = token.substr(slash.to_usize() + 1, token.len() - slash.to_usize() - 1).clone() }
+            dot := base.find(".")
+            if base.starts_with("lib").and(dot > 3) { name = base.substr(3, dot.to_usize() - 3).clone() }
+        }
+        if name.len() == 0 { continue }
+        mut known := false
+        for seen : Str in libs { if seen == name { known = true } }
+        if known.or(program_binds_til_lib(name, lp.ctx).not()) { continue }
+        libs.push(own name)
+    }
+    return libs
+}
+
+priv emit_linked_lib_layout_checks := proc(f: File, lp: LoadedProgram) {
+    layout := abi_layout_id(lp.ctx.target_usize_pname)
+    for lib : Str in linked_til_libs(lp) {
+        symbol := c_lib_abi_layout_link_symbol(lib, layout)
+        f.write("extern void ").write(symbol).write("(void);\n")
+        f.write("__attribute__((used)) static void (*const til_abi_layout_check_")
+            .write(c_lib_prefix(lib)).write(")(void) = ").write(symbol).write(";\n")
+    }
+}
+
 priv c_lib_shared_primitive := func(name: Str) returns Bool {
     return name.eq("I8").or(name.eq("U8")).or(name.eq("I16")).or(name.eq("U16"))
         .or(name.eq("I32")).or(name.eq("U32")).or(name.eq("I64")).or(name.eq("U64"))
@@ -8311,6 +8370,16 @@ priv build_header_lp := proc(h_path: Str, mut lp: LoadedProgram) returns I32 {
     build_register_funcsig_names_lp(lp)
     f := File.new(h_path, true)
     f.write("#pragma once\n")
+    // #313: this header describes values laid out for ONE layout. Its pin
+    // below yields to the including compile's -D (as the forward header's
+    // must), so a consumer built for the other layout would silently read
+    // every struct wrong: refuse it here instead.
+    mut other := "TIL_USIZE64"
+    if lp.ctx.target_usize_pname == "U64" { other = "TIL_USIZE32" }
+    f.write("#ifdef ").write(other).write("\n#error \"this til library was built for layout ")
+        .write(abi_layout_id(lp.ctx.target_usize_pname)).write(" (--usize=")
+        .write(lp.ctx.target_usize_pname.strip_prefix("U")).write("), and this compile defines ").write(other)
+        .write(": build both for the same layout\"\n#endif\n")
     emit_usize_width_pin(f, lp.ctx)
     emit_lib_c_name_map(f, lp.ctx)
     f.write("#include \"ext.h\"\n\n")
@@ -14835,6 +14904,9 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
                 if lp.ctx.builder_lib_c_prefix.len() > 0 {
                     f.write("const char ").write(lp.ctx.builder_lib_c_prefix).write(C_LIB_ABI_LAYOUT)
                         .write("[] = \"").write(abi_layout_id(lp.ctx.target_usize_pname)).write("\";\n")
+                    // The linker's copy of the same fact (c_lib_abi_layout_link_symbol).
+                    f.write("void ").write(lp.ctx.builder_lib_c_prefix).write(C_LIB_ABI_LAYOUT).write("_")
+                        .write(abi_layout_id(lp.ctx.target_usize_pname)).write("(void) {}\n")
                 }
             }
         }
@@ -14846,6 +14918,7 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
             }
         }
     }
+    emit_linked_lib_layout_checks(f, lp)
     if partitioned_output { f.write("#endif\n") }
     builder_reset_func_scratch(lp.ctx)
     return 0
