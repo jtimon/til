@@ -98,6 +98,15 @@ check_float_fma := proc(compiler: Str, work: Str) {
     check_shared(compiler,work,path)
 }
 
+check_simd := proc(compiler: Str, work: Str) {
+    // Import ordinary helpers from the full shared SIMD suite. Unrequested
+    // integer/wider tests stay outside this baseline backend slice.
+    path:=format(work,"/simd.til")
+    File.writefile(path,format("mode cli\nimport(\"",realpath_str("test/simd.til").strip_suffix(".til").clone(),
+        "\")\nmain:=proc() { simd_baseline_checks(2); println(\"SIMD baseline passed\") }\n"))
+    check_shared(compiler,work,path)
+}
+
 check_test_command := proc(compiler: Str, work: Str) {
     File.writefile(format(work,"/test_library.til"),format(
         "mode lib\nmut total:I64=0\ninitialize:=func() returns I64 { total++; return total }\ninitial:=initialize()\n",
@@ -236,6 +245,7 @@ main := proc(compiler_arg: Str) {
     check_floating_point(compiler,work)
     check_float_parsing(compiler,work)
     check_float_fma(compiler,work)
+    check_simd(compiler,work)
     check_rebuild(compiler, work)
     println("fasm_native PASS")
 }

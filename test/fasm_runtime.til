@@ -211,6 +211,19 @@ check_interface_allocations := proc(compiler: Str, work: Str) {
 }
 
 check_float_allocations := proc(compiler: Str, work: Str) {
+    check_allocations(compiler,work,"simd_values",format(
+        "mode cli\nF:=Simd(F32,4)\nD:=Simd(F64,2)\nruntime:=proc(n:I64) returns I64 { noop_proc(); return n }\n",
+        "main:=proc() { n:=runtime(2); a:=F.splat(n.to_f32()); b:=F.new(1,2,3,4); sum:=a+b;\n",
+        "assert(sum.eq(F.new(3,4,5,6)).all()); mask:=sum.gt(F.splat(4)); selected:=mask.select(sum,b);\n",
+        "assert(selected.eq(F.new(1,2,5,6)).all()); assert(sum.reduce_min()==3 && sum.reduce_max()==6);\n",
+        "x:=D.splat(n.to_f64()); assert((x/D.splat(2.0)).eq(D.splat(1.0)).all());\n",
+        "f:=F.splat(runtime(4097).to_f32()); assert(f.fma(f,F.splat(-16785408.0)).eq(F.splat(1.0)).all());\n",
+        "d:=D.splat(runtime(134217729).to_f64()); assert(d.fma(d,D.splat(-18014398777917440.0)).eq(D.splat(1.0)).all()) }\n"),0,0)
+    check_allocations(compiler,work,"simd_memory",format(
+        "mode cli\nF:=Simd(F32,4)\nD:=Simd(F64,2)\nmain:=proc() { mut a:=Array(F32).new(6); mut b:=Array(F64).new(4);\n",
+        "for i in 0..6 { a.set(i,own i.to_f32())! }; for i in 0..4 { b.set(i,own i.to_f64())! };\n",
+        "x:=F.load(a,1)!; x.store(a,2)!; assert(a[2]==1 && a[5]==4);\n",
+        "y:=D.load(b,1)!; y.store(b,2)!; assert(b[2]==1 && b[3]==2) }\n"),2,2)
     check_allocations(compiler,work,"float_fma",format(
         "mode cli\nruntime:=proc(value:F64) returns F64 { noop_proc(); return value }\n",
         "small:=proc(value:F32) returns F32 { noop_proc(); return value }\n",

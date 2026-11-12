@@ -5,6 +5,30 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** FASM baseline floating-point SIMD allocation checks (2026-11-12, #453)
+
+Base: ~552c9f2ea~. Simd(F32,4), Simd(F64,2) and their two-/four-lane Bool masks
+use existing scalar-aligned aggregate storage. Packed SSE2 arithmetic/comparisons
+and bitwise selection use frame snapshots, preserving intrinsic operand values
+across later argument mutations. FMA reuses the exact scalar runtime per lane.
+Checked memory and ordinary constructors/accessors retain their generated bodies.
+
+The existing test-local allocator instrumentation verifies these counts at both
+USize widths, after the same sources pass interpretation and C execution:
+
+| Probe       | Native malloc | Native free | Storage                         |
+|-------------+---------------+-------------+---------------------------------|
+| simd_values |             0 |           0 | Arithmetic, masks, extrema, FMA  |
+| simd_memory |             2 |           2 | Two Array data buffers          |
+
+~test/simd.til~ supplies shared baseline helpers for arithmetic, scalar-reference
+comparison masks, IEEE edge cases, exact-bit selection, fixed-tree reductions,
+checked/overlapping memory, source snapshots, records, indirect calls and owned
+captures. The optional native driver imports those helpers at both widths.
+Assembler-free checks pin packed opcodes rather than treating scalarized output
+as native SIMD. These are correctness/allocation results, without a measured
+elapsed-time or peak-memory speedup claim.
+
 ** Captured-record clone lifecycle parity (2026-11-12, #453)
 
 Base: ~5de47305e~. The existing ~closure_resource~ allocation probe now compares

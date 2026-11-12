@@ -686,6 +686,35 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   each USize width, without sanitizer diagnostics. Native assembly itself is
   not ASAN-instrumented.
 
+**** Baseline floating-point SIMD and masks
+
+  On base ~552c9f2ea~, the supported native families are Simd(F32,4),
+  Simd(F64,2) and matching two-/four-lane Bool masks. The existing aggregate
+  convention and scalar-aligned lane layout cover values, fields, templates,
+  captures and calls. SSE2 handles packed arithmetic/comparisons, canonical
+  byte masks and bit-preserving selection. Intrinsic operands are snapshotted
+  before later argument evaluation. Vector FMA calls the exact scalar runtime
+  per lane; fixed-tree extrema retain NaN and signed-zero behavior.
+
+  Constructors, checked lanes, mask logic and checked Array load/store keep
+  their generated bodies. The shared baseline helpers in ~test/simd.til~ run
+  through ordinary tests and are imported by the optional native driver at
+  both widths. They cover scalar-reference results, mixed NaNs, raw-bit select,
+  FMA cancellation, intrinsic snapshots, bounds/no partial writes, unaligned
+  overlapping memory, records, indirect calls and owned captures. The options
+  test pins packed opcodes and rejects integer/wider shapes.
+
+  Allocation probes verify 0/0 for SIMD arithmetic/masks/extrema/FMA and 2/2
+  for two Array memory round trips (data buffers only). The native differential
+  run also exposed the FASM formatter lagging behind #472's signless NaN text;
+  it now formats every NaN as "nan", pinned by the existing shared float tests.
+
+  Verification: ~make clean && make test~ passed 564/564, including self-translate
+  and USize32-to-64 translation. Both FASM drivers passed against the fresh
+  compiler. The ASAN-built compiler assembled/executed the baseline at both
+  widths without sanitizer diagnostics; focused C ASAN/UBSAN checks passed at
+  USize32/O0 and USize64/O2. Native emitted assembly is not ASAN-instrumented.
+
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
   repeated work. In-process code allocation, relocation, lifetime management

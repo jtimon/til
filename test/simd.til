@@ -1,6 +1,7 @@
 mode test
 
 F4 := Simd(F32, 4)
+D2 := Simd(F64, 2)
 F2 := Simd(F32, 2)
 I4 := Simd(I32, 4)
 SIMD_TEST_WIDTH : I64 = 2 * 2
@@ -24,6 +25,187 @@ SimdFieldBox := struct {
     mask:FieldMask=FieldMask.zero()
 }
 SimdFieldOuter := struct { prefix:Bool=false;box:SimdFieldBox=SimdFieldBox() }
+
+// Shared baseline slice: the optional native driver imports these ordinary
+// helpers, so its FASM checks use the same assertions as this full suite.
+simd_baseline_float := proc(T:Type,V:Type,M:Type,shape:V,mask_shape:M) {
+    noop_proc()
+    width:=shape.len()
+    mut a:=shape
+    for i in 0..width { a.set(i,own T.from_i64(i.to_i64()+1))! }
+    two:=T.from_i64(2)
+    b:=V.splat(two)
+    sum:=a+b
+    difference:=a-b
+    product:=a*b
+    quotient:=a/b
+    equal:=a.eq(b)
+    unequal:=a.neq(b)
+    less:=a.lt(b)
+    less_equal:=a.lte(b)
+    greater:=a.gt(b)
+    greater_equal:=a.gte(b)
+    for i in 0..width {
+        expected:=T.from_i64(i.to_i64()+1)
+        assert_eq(T,sum[i],expected+two)
+        assert_eq(T,difference[i],expected-two)
+        assert_eq(T,product[i],expected*two)
+        assert_eq(T,quotient[i],expected/two)
+        assert_eq(Bool,equal[i],expected==two)
+        assert_eq(Bool,unequal[i],expected!=two)
+        assert_eq(Bool,less[i],expected<two)
+        assert_eq(Bool,less_equal[i],expected<=two)
+        assert_eq(Bool,greater[i],expected>two)
+        assert_eq(Bool,greater_equal[i],expected>=two)
+    }
+    assert_eq(T,a.reduce_add(),T.from_i64((width*(width+1)/2).to_i64()))
+    assert_eq(T,a.reduce_min(),T.from_i64(1))
+    assert_eq(T,a.reduce_max(),T.from_i64(width.to_i64()))
+    assert(a.eq(a).all() && a.neq(a).any().not())
+    assert(a.lt(a+b).all() && a.lte(a+b).all())
+    assert((a+b).gt(a).all() && (a+b).gte(a).all())
+    mut mask:=mask_shape
+    for i in 0..width { mask.set(i,own i.mod(2).eq(0))! }
+    chosen:=mask.select(a,b)
+    chosen_mask:=mask.select(mask.bnot(),mask)
+    assert(chosen_mask.any().not())
+    assert((mask|mask.bnot()).all())
+    assert((mask&mask.bnot()).any().not())
+    assert((mask^mask).any().not())
+    for i in 0..width {
+        if mask[i] { assert_eq(T,chosen[i],a[i]) }
+        else { assert_eq(T,chosen[i],two) }
+    }
+    zero:=T.from_i64(0)
+    negative_zero:=zero*T.from_i64(-1)
+    mut zeros:=V.splat(zero)
+    zeros.set(width-1,own negative_zero.clone())!
+    assert_eq(Str,zeros.reduce_min().to_repr(),"-0")
+    assert_eq(Str,zeros.reduce_max().to_repr(),"0")
+    nan:=zero/zero
+    for i in 0..width {
+        mut mixed:=a
+        mixed.set(i,own nan.clone())!
+        minimum:=mixed.reduce_min()
+        maximum:=mixed.reduce_max()
+        assert(minimum!=minimum && maximum!=maximum)
+        mixed_equal:=mixed.eq(b)
+        mixed_unequal:=mixed.neq(b)
+        mixed_less:=mixed.lt(b)
+        mixed_less_equal:=mixed.lte(b)
+        mixed_greater:=mixed.gt(b)
+        mixed_greater_equal:=mixed.gte(b)
+        for j in 0..width {
+            scalar:=mixed[j]
+            assert_eq(Bool,mixed_equal[j],scalar==two)
+            assert_eq(Bool,mixed_unequal[j],scalar!=two)
+            assert_eq(Bool,mixed_less[j],scalar<two)
+            assert_eq(Bool,mixed_less_equal[j],scalar<=two)
+            assert_eq(Bool,mixed_greater[j],scalar>two)
+            assert_eq(Bool,mixed_greater_equal[j],scalar>=two)
+        }
+    }
+    invalid:=V.splat(nan)
+    assert(invalid.eq(a).any().not() && invalid.neq(a).all())
+    assert(invalid.lt(a).any().not() && invalid.lte(a).any().not())
+    assert(invalid.gt(a).any().not() && invalid.gte(a).any().not())
+    assert(a.lt(invalid).any().not() && a.lte(invalid).any().not())
+    assert(a.gt(invalid).any().not() && a.gte(invalid).any().not())
+    mut bad_lane:=false
+    _outside_read:=a.get(width)?
+    catch (err:OutOfBounds) { bad_lane=true }
+    assert(bad_lane)
+    bad_lane=false
+    _outside_write:=a.set(USize.MAX,own two.clone())?
+    catch (err:OutOfBounds) { bad_lane=true }
+    assert(bad_lane)
+    assert_eq(T,a[0],T.from_i64(1))
+}
+
+simd_baseline_bounds := proc(T:Type,V:Type,value:T,sentinel:T,shape:V) {
+    noop_proc()
+    width:=shape.len()
+    for count in array(USize,0,1,width-1,width,width+1) {
+        mut values:=Array(T).new(count)
+        for start in array(USize,0,1,count,USize.MAX) {
+            for i in 0..count { values.set(i,own sentinel.clone())! }
+            mut valid:=start<=count
+            if valid { valid=count-start>=width }
+            mut load_failed:=false
+            _loaded:=V.load(values,start)?
+            catch (err:OutOfBounds) { load_failed=true }
+            assert_eq(Bool,load_failed,valid.not())
+            mut store_failed:=false
+            _stored:=V.splat(value).store(values,start)?
+            catch (err:OutOfBounds) { store_failed=true }
+            assert_eq(Bool,store_failed,valid.not())
+            for i in 0..count {
+                if valid && i>=start && i-start<width { assert_eq(T,values[i],value) }
+                else { assert_eq(T,values[i],sentinel) }
+            }
+        }
+    }
+}
+
+BaselineSimdBox := struct { tag:I8=0; small:F4=F4.zero(); wide:D2=D2.zero() }
+BaselineSimdMaker := func(shallow small:F4,shallow wide:D2) returns BaselineSimdBox
+BaselineSimdHolder := struct { make:BaselineSimdMaker }
+simd_baseline_make := func(shallow small:F4,shallow wide:D2) returns BaselineSimdBox {
+    return BaselineSimdBox(tag=-7,small=small+F4.splat(1.0),wide=wide*D2.splat(2.0))
+}
+simd_baseline_add := func(shallow a:F4,shallow b:F4) returns F4 { return a+b }
+simd_baseline_abi := proc(seed:I64) {
+    noop_proc()
+    small:=F4.splat(seed.to_f32())
+    wide:=D2.new(seed.to_f64(),-1.0)
+    make:BaselineSimdMaker=simd_baseline_make
+    mut box:=make(small,wide)
+    copy:=box.clone()
+    assert(box.tag == -7 && box.small.eq(F4.splat(seed.to_f32()+1.0)).all())
+    box.small.set(1,own 9.0)!
+    assert_eq(F32,copy.small[1],seed.to_f32()+1.0)
+    assert_eq(F64,box.wide[0],seed.to_f64()*2.0)
+    assert_eq(F64,box.wide[1],-2.0)
+    assert((box.small+F4.splat(1.0)).gte(copy.small).all())
+    sum:=simd_baseline_add(small,F4.splat(3.0))
+    assert(sum.eq(F4.splat(seed.to_f32()+3.0)).all())
+    bias:=copy.small
+    original:=BaselineSimdHolder(make=func(shallow a:F4,shallow b:D2) returns BaselineSimdBox [own bias] {
+        return simd_baseline_make(a+bias,b)
+    })
+    cloned:=original.clone()
+    result:=cloned.make(copy.small,wide)
+    assert(result.small.eq(F4.splat((seed.to_f32()+1.0)*2.0+1.0)).all())
+}
+
+simd_baseline_checks := proc(seed:I64) {
+    noop_proc()
+    simd_baseline_float(F32,F4,Simd(Bool,4),F4.zero(),Simd(Bool,4).zero())
+    simd_baseline_float(F64,D2,Simd(Bool,2),D2.zero(),Simd(Bool,2).zero())
+    simd_fma_rounding(F32,F4,1.1920928955078125e-7,F4.zero())
+    simd_fma_rounding(F64,D2,2.220446049250313e-16,D2.zero())
+    simd_memory_roundtrip(F32,F4,-1.25,3.0,F4.zero())
+    simd_memory_roundtrip(F64,D2,-1.25,3.0,D2.zero())
+    simd_memory_roundtrip(Bool,Simd(Bool,4),true,false,Simd(Bool,4).zero())
+    simd_memory_roundtrip(Bool,Simd(Bool,2),true,false,Simd(Bool,2).zero())
+    simd_baseline_bounds(F32,F4,9.0,-7.0,F4.zero())
+    simd_baseline_bounds(F64,D2,9.0,-7.0,D2.zero())
+    simd_select_bits(F32,F4,Simd(Bool,4),U32,array(U32,0x80000000,0x7f800001,0x7fc12345,0xff800000,1,0),F4.zero(),Simd(Bool,4).zero())
+    simd_select_bits(F64,D2,Simd(Bool,2),U64,array(U64,0x8000000000000000,0x7ff0000000000001,0x7ff8123456789abc,0xfff0000000000000,1,0),D2.zero(),Simd(Bool,2).zero())
+    simd_baseline_abi(seed)
+    mut source:=F4.splat(seed.to_f32())
+    snapshot:=source.fma(fma_replace_source(source),F4.splat(4.0))
+    assert(snapshot.eq(F4.splat(seed.to_f32()*3.0+4.0)).all())
+    source=F4.splat(seed.to_f32())
+    sum:=source+fma_replace_source(source)
+    assert(sum.eq(F4.splat(seed.to_f32()+3.0)).all())
+    source=F4.splat(seed.to_f32())
+    mask:=source.eq(source)
+    selected:=mask.select(source,fma_replace_source(source))
+    assert(selected.eq(F4.splat(seed.to_f32())).all())
+    assert_eq(F32,F4.new(1e20,1.0,-1e20,1.0).reduce_add(),2.0)
+}
+test_simd_baseline_float_slice := test() { simd_baseline_checks(2) }
 
 test_simd_pod_fields := test() {
     mut outer:=SimdFieldOuter(prefix=true,box=SimdFieldBox(tag=-7,

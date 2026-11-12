@@ -1069,17 +1069,34 @@
   NaN payload/sign are unspecified. Ordinary multiply/add remains separately
   rounded; all three FMA arguments are evaluated once, in source order.
 
+  Baseline SIMD supports Simd(F32,4), Simd(F64,2) and their Simd(Bool,4/2)
+  masks. Values keep the shared consecutive scalar-lane representation and
+  scalar alignment in locals, fields, templates, captures and aggregate calls.
+  SSE2 packed add/subtract/multiply/divide and ordered comparisons operate on
+  unaligned snapshots; later intrinsic arguments cannot change earlier values.
+  Comparisons pack their result into canonical Bool bytes, and select expands
+  those bytes into bit masks without changing selected NaN payloads or zeros.
+
+  Construction, splat/zero, checked lane get/set, mask logic/all/any and checked
+  Array load/store use the ordinary generated bodies. Memory operations retain
+  their whole-range checks, scalar alignment and OutOfBounds behavior. Reductions
+  keep the shared fixed tree, including NaN propagation and signed-zero extrema.
+  Explicit vector FMA uses the exact baseline scalar runtime once per lane.
+  SIMD expressions and their snapshots use caller/frame storage, without heap
+  workspace or a new vector calling convention.
+
   Float bit patterns travel through the existing private integer argument
   registers/frame slots and RAX results, including direct/indirect calls,
   borrowed results, closures, interface dispatch and native method thunks.
-  XMM0/XMM1 are operation scratch, not a public C/SSE calling convention;
+  XMM registers are operation scratch, not a public C/SSE calling convention;
   the existing six-argument private budget and aggregate result input remain.
 
   Native to_str uses six significant digits, and to_repr uses nine/seventeen
   for F32/F64. The runtime expands the finite IEEE value into exact decimal
   digits in fixed stack workspace, rounds once to nearest-even and applies C's
-  %g fixed/scientific and trailing-zero rules. Signed zeros, infinities and NaNs
-  preserve their signs. Only the returned character buffer is heap-allocated;
+  %g fixed/scientific and trailing-zero rules. Signed zeros and infinities keep
+  their signs; every NaN formats as "nan", matching the shared contract (#472).
+  Only the returned character buffer is heap-allocated;
   the descriptor uses caller-provided storage. This correctness-first conversion
   loop has no elapsed-time performance claim.
 
@@ -1337,7 +1354,7 @@
     Removal follows ext.c's unlink contract: a missing path is harmless, but
     directories and other failures are errors.
 
-  SIMD, general
+  Integer SIMD, other vector widths, vector casts and general
   runtime-selected method/reflection lookup,
   unsupported external runtime services remain outside this
   subset. Array methods are no longer restricted to compiler-generated
@@ -1411,6 +1428,15 @@
   callable forwarding and floating-point binary/octal integer tokens. The
   latter use the shared semantic token normalizer before bit encoding.
   The runtime allocation driver pins zero malloc/free calls for scalar FMA.
+
+  ~simd_baseline_checks~ in ~test/simd.til~ supplies the ordinary shared helpers
+  imported by the optional FASM driver. At both widths it checks arithmetic and
+  comparison lanes against scalar results, mixed NaNs, masks/bit-preserving
+  selection, fixed-order reductions, FMA ties, intrinsic snapshots, checked
+  unaligned/overlapping memory, invalid indices/ranges and aggregate/callable
+  boundaries. The assembler-free options test pins packed SSE2 emission and
+  rejects integer/wider families. Allocation probes pin zero native allocations
+  for SIMD computation and two buffer allocations/frees for two Array round trips.
 
   The owned alias captures in the shared float test also regress a C emitter
   defect: a borrowed local scalar alias must be copied into a private capture

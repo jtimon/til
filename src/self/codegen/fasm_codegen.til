@@ -173,13 +173,29 @@ priv fasm_bind := func(name: Str, shallow t: Type, own slot: Str, address: Bool,
     if reference { state.references.add(own name.clone()) }
 }
 
+priv fasm_simd_supported := func(sd: StructDef, lp: LoadedProgram) returns Bool {
+    if sd.simd_width == 0 { return false }
+    lane:=declaration_resolved_type(sd.fields[0],lp.ctx.scope,lp.ctx.symbols)
+    if lane==Type.Primitive(Primitive.F32) { return sd.simd_width==4 }
+    if lane==Type.Primitive(Primitive.F64) { return sd.simd_width==2 }
+    return lane.eq(Type.Primitive(Primitive.Bool)).and(sd.simd_width.eq(2).or(sd.simd_width.eq(4)))
+}
+
+priv fasm_simd := func(shallow t: Type, lp: LoadedProgram) returns Bool {
+    if is_struct_type(t).not() { return false }
+    definition:=lp.ctx.scope.get_struct(type_name_ref(t,lp.ctx.symbols),lp.ctx.symbols)
+    if definition.is_none() { return false }
+    if definition.unwrap().node_type.is(NodeType.StructDef).not() { return false }
+    return fasm_simd_supported(structdef_of(definition.unwrap()),lp)
+}
+
 priv fasm_aggregate := func(shallow t: Type, lp: LoadedProgram) returns Bool {
     if is_struct_type(t).or(is_enum_type(t)).not() { return false }
     definition := lp.ctx.scope.get_struct(type_name_ref(t, lp.ctx.symbols), lp.ctx.symbols)
     if definition.is_none() { return false }
     if definition.unwrap().node_type.is(NodeType.EnumDef) { return true }
     ref sd : StructDef = structdef_of(definition.unwrap())
-    return sd.simd_width.eq(0)
+    return sd.simd_width.eq(0).or(fasm_simd_supported(sd,lp))
 }
 
 priv fasm_interface_owner := func(name: Str, program: FasmProgram, lp: LoadedProgram) returns Str {
@@ -1664,6 +1680,141 @@ priv fasm_conversion := func(op: Str, lp: LoadedProgram) returns Type {
     }
 }
 
+// Copy each value before evaluating the next operand: saving an address would
+// let a later argument's mutation change the earlier SIMD value. Storage keeps
+// scalar alignment, so packed moves are deliberately unaligned.
+priv fasm_simd_snapshot := proc(e: Expr, shallow t: Type, mut state: FasmState, mut lp: LoadedProgram) returns Str {
+    fasm_pointer(e,state,lp)
+    result:=fasm_value_slot(t,state,lp).strip_prefix("qword ").clone()
+    bytes:=fasm_type_size(t,lp)
+    if bytes==16 { fasm_emit(state,format("movups xmm0, [rax]\n    movups ",result,", xmm0")) }
+    else if bytes==4 { fasm_emit(state,format("mov eax, [rax]\n    mov dword ",result,", eax")) }
+    else if bytes==2 { fasm_emit(state,format("movzx eax, word [rax]\n    mov word ",result,", ax")) }
+    else { UNREACHABLE("unsupported FASM SIMD snapshot size") }
+    return result
+}
+
+priv fasm_simd_extrema := func(input: Str, sd: StructDef, shallow lane: Type, op: Str, mut state: FasmState, lp: LoadedProgram) {
+    bytes:=fasm_type_size(lane,lp)
+    suffix:=fasm_float_suffix(lane)
+    mut half:=sd.simd_width/2
+    while half>0 {
+        for i in 0..half {
+            label:=state.labels.to_str()
+            state.labels++
+            fasm_emit(state,format("lea rax, ",input,"\n    mov r10, rax\n    add rax, ",(i*bytes).to_str()))
+            fasm_load_scalar(lane,state)
+            fasm_emit(state,"mov r8, rax")
+            fasm_emit(state,format("lea rax, [r10+",((i+half)*bytes).to_str(),"]"))
+            fasm_load_scalar(lane,state)
+            fasm_emit(state,"mov rcx, rax\n    mov rax, r8")
+            if bytes==4 { fasm_emit(state,"movd xmm0, eax\n    movd xmm1, ecx") }
+            else { fasm_emit(state,"movq xmm0, rax\n    movq xmm1, rcx") }
+            // Propagate a NaN; if both are NaN the right lane wins, as in
+            // the shared reduction tree. Equal zeros choose -0/+0 for min/max.
+            fasm_emit(state,format("ucomi",suffix," xmm1, xmm1\n    jp .simd_reduce_rhs",label,
+                "\n    ucomi",suffix," xmm0, xmm0\n    jp .simd_reduce_done",label))
+            mut reg:="rdx"
+            if bytes==4 { reg="edx" }
+            fasm_emit(state,format("mov rdx, rax\n    or rdx, rcx\n    shl ",reg,", 1\n    jnz .simd_reduce_ordered",label))
+            mut zero_op:="or"
+            if op=="reduce_max" { zero_op="and" }
+            fasm_emit(state,format(zero_op," rax, rcx\n    jmp .simd_reduce_done",label,
+                "\n.simd_reduce_ordered",label,":\n    ucomi",suffix," xmm0, xmm1"))
+            mut condition:="a"
+            if op=="reduce_max" { condition="b" }
+            fasm_emit(state,format("cmov",condition," rax, rcx\n    jmp .simd_reduce_done",label,
+                "\n.simd_reduce_rhs",label,":\n    mov rax, rcx\n.simd_reduce_done",label,":\n    lea rcx, [r10+",(i*bytes).to_str(),"]"))
+            fasm_store_scalar(lane,state)
+        }
+        half=half/2
+    }
+    fasm_emit(state,format("lea rax, ",input))
+    fasm_load_scalar(lane,state)
+}
+
+priv fasm_simd_core := proc(e: Expr, shallow owner: Type, op: Str, mut state: FasmState, mut lp: LoadedProgram) returns Bool {
+    switch op {
+    case "len","add","sub","mul","div","eq","neq","lt","lte","gt","gte","fma","select","reduce_min","reduce_max":
+    case: return false
+    }
+    ref sd:StructDef=structdef_of(lp.ctx.scope.get_struct(type_name_ref(owner,lp.ctx.symbols),lp.ctx.symbols).unwrap())
+    lane:=declaration_resolved_type(sd.fields[0],lp.ctx.scope,lp.ctx.symbols)
+    if op=="len" {
+        fasm_expr(e.children[1],state,lp)
+        fasm_emit(state,format("mov rax, ",sd.simd_width.to_str()))
+        return true
+    }
+    mut arguments:=Vec(Str).new()
+    for i in 1..e.children.len() { arguments.push(own fasm_simd_snapshot(e.children[i],e.children[i].til_type(),state,lp)) }
+    if op=="reduce_min" || op=="reduce_max" {
+        fasm_simd_extrema(arguments[0],sd,lane,op,state,lp)
+        if fasm_float(e.til_type()).and(lane.neq(e.til_type())) { fasm_float_cast(e,lane,e.til_type(),false,state,lp) }
+        return true
+    }
+    result:=fasm_value_slot(e.til_type(),state,lp).strip_prefix("qword ").clone()
+    bytes:=fasm_type_size(lane,lp)
+    if op=="fma" {
+        mut runtime:="rt_f64_fma"
+        if bytes==4 { runtime="rt_f32_fma" }
+        for i in 0..sd.simd_width {
+            for j:USize in 0..3 {
+                fasm_emit(state,format("lea rax, ",arguments[j],"\n    add rax, ",(i*bytes).to_str()))
+                fasm_load_scalar(lane,state)
+                fasm_emit(state,format("mov ",fasm_register(j),", rax"))
+            }
+            fasm_emit(state,format("call ",runtime,"\n    lea rcx, ",result,"\n    add rcx, ",(i*bytes).to_str()))
+            fasm_store_scalar(lane,state)
+        }
+    } else if op=="select" {
+        if lane==Type.Primitive(Primitive.Bool) {
+            for i in 0..sd.simd_width {
+                fasm_emit(state,format("lea rdx, ",arguments[0],"\n    lea rax, ",arguments[1],"\n    lea rcx, ",arguments[2],
+                    "\n    cmp byte [rdx+",i.to_str(),"], 0\n    cmove rax, rcx\n    movzx eax, byte [rax+",i.to_str(),"]\n    lea rdx, ",result,"\n    mov [rdx+",i.to_str(),"], al"))
+            }
+        } else {
+            expanded:=fasm_value_slot(owner,state,lp).strip_prefix("qword ").clone()
+            for i in 0..sd.simd_width {
+                fasm_emit(state,format("lea rdx, ",arguments[0],"\n    movzx eax, byte [rdx+",i.to_str(),"]\n    neg rax\n    lea rcx, ",expanded,"\n    add rcx, ",(i*bytes).to_str()))
+                fasm_store_scalar(lane,state)
+            }
+            fasm_emit(state,format("movups xmm0, ",arguments[1],"\n    movups xmm1, ",arguments[2],"\n    movups xmm2, ",expanded,
+                "\n    pand xmm0, xmm2\n    pandn xmm2, xmm1\n    por xmm0, xmm2\n    movups ",result,", xmm0"))
+        }
+    } else if lane==Type.Primitive(Primitive.Bool) {
+        for i in 0..sd.simd_width {
+            fasm_emit(state,format("lea rdx, ",arguments[0],"\n    mov al, [rdx+",i.to_str(),"]\n    lea rdx, ",arguments[1],"\n    cmp al, [rdx+",i.to_str(),"]"))
+            mut condition:="e"
+            if op=="neq" { condition="ne" }
+            fasm_emit(state,format("set",condition," al\n    lea rdx, ",result,"\n    mov [rdx+",i.to_str(),"], al"))
+        }
+    } else {
+        mut suffix:="pd"
+        mut mask:="movmskpd"
+        if bytes==4 { suffix="ps"; mask="movmskps" }
+        fasm_emit(state,format("movups xmm0, ",arguments[0],"\n    movups xmm1, ",arguments[1]))
+        switch op {
+        case "add","sub","mul","div":
+            fasm_emit(state,format(op,suffix," xmm0, xmm1\n    movups ",result,", xmm0"))
+        case:
+            mut predicate:USize=0
+            switch op {
+            case "neq": predicate=4
+            case "lt","gt": predicate=1
+            case "lte","gte": predicate=2
+            case:
+            }
+            if op=="gt" || op=="gte" { fasm_emit(state,"movaps xmm2, xmm0\n    movaps xmm0, xmm1\n    movaps xmm1, xmm2") }
+            fasm_emit(state,format("cmp",suffix," xmm0, xmm1, ",predicate.to_str(),"\n    ",mask," eax, xmm0\n    lea rdx, ",result))
+            for i in 0..sd.simd_width {
+                fasm_emit(state,format("mov ecx, eax\n    shr ecx, ",i.to_str(),"\n    and ecx, 1\n    mov [rdx+",i.to_str(),"], cl"))
+            }
+        }
+    }
+    fasm_emit(state,format("lea rax, ",result))
+    return true
+}
+
 priv fasm_float_binary := proc(e: Expr, shallow owner: Type, op: Str, mut state: FasmState, mut lp: LoadedProgram) returns Bool {
     switch op {
     case "add","sub","mul","div","eq","neq","lt","gt","lte","gte","cmp":
@@ -2005,6 +2156,7 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
                     if op == "clone" { fasm_runtime_call(e, "rt_dynamic_clone", state, lp); return }
                     if op == "delete" { fasm_runtime_call(e, "rt_dynamic_delete", state, lp); return }
                 }
+                if fasm_simd(owner,lp).and(fasm_simd_core(e,owner,op,state,lp)) { return }
                 if fasm_scalar(owner).not() {
                     fasm_user_call(e, fasm_callee_name(e, lp), state, lp, as_pointer)
                     return
