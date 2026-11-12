@@ -1208,3 +1208,25 @@ decided as no change: only the contract sentence and the Windows check),
 F5 (~VERSION~ length), F6 (audits), F7 (translation stamp), the
 observation track, and levels 2 and 3.
 
+*** Progress: step F5 (base master 99697f4)
+
+~src/til.til::get_version~ takes the first 9 characters of
+~git rev-parse HEAD~ (~VERSION_REVISION_LENGTH~) instead of asking git for
+~--short~, whose length git picks from the number of objects in the clone.
+Measured before: one commit was ~0.0.1-f1beab456~ in a full clone and
+~0.0.1-eaa47ee~ in this shallow one, and that string is emitted into the
+compiler's C, so ~boot/til.c~ differed between the two checkouts. Now this
+shallow clone prints ~0.0.1-99697f432~ for ~99697f432012...~. A full
+clone's ~til -v~ is unchanged, since 9 is what it showed already. If git
+cannot name the revision the build stops, as it already did for
+~COMPILER_REVISION~; ~get_version~ used to produce ~0.0.1-~ and continue.
+
+~test/version.til~ (suite row ~version~) runs the compiler's ~-v~ and
+compares it with ~git rev-parse HEAD~ cut to 9.
+
+~make clean && make test~: 579/579. Single pass: no emit logic changed.
+~doc/gen~ and ~doc/uml~ are regenerated so their version line has the
+fixed length again (the F3 regeneration in a shallow clone had written 7
+characters); the regeneration also picks up what master's commits since
+then changed.
+

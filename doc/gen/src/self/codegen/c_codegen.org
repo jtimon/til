@@ -1,5 +1,5 @@
 #+TITLE: src/self/codegen/c_codegen.til
-#+SUBTITLE: til 0.0.1-e8e3f66
+#+SUBTITLE: til 0.0.1-99697f432
 #+OPTIONS: toc:t
 
 * CSTR_VIEW_PANIC
@@ -10,16 +10,6 @@
 
 #+begin_src til
 CSTR_VIEW_PANIC is a Str
-#+end_src
-
-* _priv___src_self_codegen_c_codegen_til__C_RESERVED_NAMES_ek
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.codegen.c_codegen._priv___src_self_codegen_c_codegen_til__C_RESERVED_NAMES_ek
-:group: Compiler backend
-:END:
-
-#+begin_src til
-_priv___src_self_codegen_c_codegen_til__C_RESERVED_NAMES_ek is a I64
 #+end_src
 
 * C_LIB_ABI_LAYOUT

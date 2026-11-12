@@ -1,12 +1,19 @@
 mode cli
 
 BASE_VERSION := "0.0.1-"
+// #472 (F5): how many characters of the commit VERSION shows. A fixed
+// number, not `git rev-parse --short`: git picks that abbreviation's length
+// from how many objects the clone holds, so one commit read 9 characters in
+// a full clone and 7 in a shallow CI checkout, and the two builds differed
+// in this one string. 9 is what full clones of this repository showed.
+VERSION_REVISION_LENGTH : USize = 9
 
 get_version := macro() returns shallow Str {
     mut hash : Str = ""
-    run_cmd(hash, "git", "rev-parse", "--short", "HEAD")
+    run_cmd(hash, "git", "rev-parse", "HEAD")
     hash = hash.replace("\n", "")
-    return format(BASE_VERSION, hash)
+    if hash.len() < VERSION_REVISION_LENGTH { panic("cannot derive the compiler version from git") }
+    return format(BASE_VERSION, hash.substr(0, VERSION_REVISION_LENGTH))
 }
 
 get_compiler_revision := macro() returns shallow Str {

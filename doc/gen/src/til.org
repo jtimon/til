@@ -1,5 +1,5 @@
 #+TITLE: src/til.til
-#+SUBTITLE: til 0.0.1-e8e3f66
+#+SUBTITLE: til 0.0.1-99697f432
 #+OPTIONS: toc:t
 
 * BASE_VERSION
@@ -10,6 +10,16 @@
 
 #+begin_src til
 BASE_VERSION is a Str
+#+end_src
+
+* VERSION_REVISION_LENGTH
+:PROPERTIES:
+:CUSTOM_ID: til.src.til.VERSION_REVISION_LENGTH
+:group: CLI
+:END:
+
+#+begin_src til
+VERSION_REVISION_LENGTH is a USize
 #+end_src
 
 * get_version

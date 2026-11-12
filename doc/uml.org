@@ -411,12 +411,14 @@
 ** FfiState: StructDef
 *** dispatch_map := Map(Str, Dynamic).new()
 *** dispatch_inited := false
-*** entries := Map(Str, FFIEntry).new()
+*** entries := Map(Str, FFIEntryBox).new()
 *** entries_inited := false
 *** loaded := false
 *** struct_defs := Map(Str, ExprPtrBox).new()
 *** type_cache := Map(Str, FFITypePtrBox).new()
 *** type_cache_inited := false
+*** callable_thunks := Map(Str, NativeCallableThunk).new()
+*** callable_signatures := Map(Str, FuncSig).new()
 *** failed_links := Map(Str, Str).new()
 ** InternedTypes: StructDef
 *** simples := Vec(Dynamic).new()
@@ -464,6 +466,7 @@
 *** eval_aborted := false
 *** repl_session := false
 *** embedded := false
+*** callback_global := Option(ref Scope).None
 *** exit_status := Option(I64).None
 *** failure_site := SourceDiagnostic()
 *** guest_output := ""
@@ -472,8 +475,7 @@
 *** output := Vec(InterpOutputEvent).new()
 *** ns_fields := Option(Scope).None
 *** foreign_places := Map(UPtr, ForeignPlace).new()
-*** own foreign_cleanup_dirty : U8 = calloc(1, 1)
-*** cached_str_name := ""
+*** ... (2 more)
 ** Context: StructDef
 *** mode := Mode()
 *** path := ""
@@ -793,6 +795,33 @@
 ** InterpAlias: StructDef
 *** ref name : Str
 *** ref target : Str
+** NativeCallablePrefix: StructDef
+*** ref call: Dynamic
+*** ref env: Dynamic
+*** ref drop: Dynamic
+*** ref copy: Dynamic
+** NativeCallableThunk: StructDef
+*** own cif: U8
+*** own argument_types: U8
+*** ref executable: Dynamic
+*** ref allocation: Dynamic
+** NativeGuestCallable: StructDef
+*** ref context: Context
+*** signature := FuncSig()
+*** own callable: U8
+*** borrowed_callable := false
+*** active: USize = 0
+*** retired := false
+** NativeImportedCallable: StructDef
+*** magic: U64 = 0
+*** ref func_def: Expr
+*** ref context: Context
+*** name := ""
+*** signature := FuncSig()
+*** ref native: Dynamic
+*** borrowed := false
+*** active: USize = 0
+*** retired := false
 ** ExtStr: StructDef
 *** own data : U8 = 0
 *** count : USize = 0
@@ -812,6 +841,8 @@
 *** own cif : ffi_cif
 *** own arg_types : U8 = 0
 *** throw_kind_index : I64 = -1
+** FFIEntryBox: StructDef
+*** own value: U8
 ** ExprPtrBox: StructDef
 *** ref ptr : Expr
 ** FFITypePtrBox: StructDef

@@ -870,7 +870,7 @@ main := proc(args: ..Str) returns I64 {
     // the work in ~130s. tmp/ is outside `make clean` (only tmp/boot goes),
     // so the leftover is the normal state on a machine that builds twice.
     //
-    // It does not merely no-op: VERSION embeds `git rev-parse --short HEAD`,
+    // It does not merely no-op: VERSION embeds the start of `git rev-parse HEAD`,
     // evaluated at COMPTIME, which is not a file and so cannot be in any
     // mtime dependency set. Commit anything -- even a change to this file,
     // which src/til.til does not import -- and boot/til.c is regenerated with
@@ -1114,6 +1114,11 @@ main := proc(args: ..Str) returns I64 {
     add_count(tests, "build_outputs", "build", "build outputs passed", 1,
         format(til_bin, " run", asan_flag,
             " -o bin/c/build_outputs -c gen/c/build_outputs.c test/build_outputs.til ", til_bin))
+
+    // #472 (F5): `til -v` shows a fixed-length prefix of the commit, not
+    // git's clone-dependent abbreviation.
+    add_count(tests, "version", "cli", "version OK", 1,
+        format(til_bin, " run -o bin/c/version -c gen/c/version.c test/version.til ", til_bin))
 
     add_count(tests, "test_dependencies", "build", "test prerequisites passed", 1,
         format(til_bin, " run", asan_flag,

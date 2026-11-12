@@ -1,0 +1,30 @@
+mode cli
+
+import("../src/std/sys")
+
+// #472 (F5): `til -v` prints BASE_VERSION and the first 9 characters of the
+// commit the compiler was built from -- a fixed length, where
+// `git rev-parse --short` picked one from the size of the clone, so a full
+// clone and a shallow checkout of one commit printed different versions
+// (and emitted a different VERSION string into the compiler's C).
+//
+// A driver, not a test() file: it runs the compiler it is handed. The
+// compiler under test is built from the checkout's HEAD, which is what git
+// is asked about here.
+
+main := proc(args: ..Str) {
+    compiler := args[0].clone()
+    version := Cmd.new(compiler, "-v")
+    version.capture()
+    if version.run() != 0 { panic("the compiler failed to print its version") }
+    revision := Cmd.new("git", "rev-parse", "HEAD")
+    revision.capture()
+    if revision.run() != 0 { panic("git rev-parse HEAD failed") }
+    full := revision.out().replace("\n", "")
+    if full.len() < 9 { panic("git printed no revision") }
+    expected := format("0.0.1-", full.substr(0, 9), "\n")
+    if version.out() != expected {
+        panic("til -v printed '", version.out(), "', expected '", expected, "'")
+    }
+    println("version OK")
+}

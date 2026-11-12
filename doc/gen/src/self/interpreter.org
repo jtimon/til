@@ -1,5 +1,5 @@
 #+TITLE: src/self/interpreter.til
-#+SUBTITLE: til 0.0.1-e8e3f66
+#+SUBTITLE: til 0.0.1-99697f432
 #+OPTIONS: toc:t
 
 * CALLABLE_BOX_MAGIC
@@ -625,6 +625,26 @@ func read_field(inst_data: Dynamic, dd: Declaration, field_offset: USize, field_
 proc interp_session_lookup_function(mut session: InterpSession, mut lp: LoadedProgram, name: Str, expected: FuncSig) returns Option__ref_HeapBinding
 #+end_src
 
+* NativeCallableThunk
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.NativeCallableThunk
+:group: Compiler tools
+:END:
+
+#+begin_src til
+struct NativeCallableThunk {
+    own mut cif : U8
+    own mut argument_types : U8
+    ref mut executable : Dynamic
+    ref mut allocation : Dynamic
+namespace:
+    func size() returns USize
+    func size_for_target() returns USize
+    func clone(self: NativeCallableThunk) returns NativeCallableThunk
+    func delete(own self: NativeCallableThunk, call_free: Bool = true)
+}
+#+end_src
+
 * interp_session_call_function
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.interp_session_call_function
@@ -802,6 +822,24 @@ namespace:
     func size() returns USize
     func size_for_target() returns USize
     func delete(own self: FFIEntry, call_free: Bool = true)
+}
+#+end_src
+
+* FFIEntryBox
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.FFIEntryBox
+:group: Compiler tools
+:END:
+
+#+begin_src til
+struct FFIEntryBox {
+    own mut value : U8
+namespace:
+    func new(own value: FFIEntry) returns FFIEntryBox
+    func clone(self: FFIEntryBox) returns FFIEntryBox
+    func delete(own self: FFIEntryBox, call_free: Bool = true)
+    func size() returns USize
+    func size_for_target() returns USize
 }
 #+end_src
 
@@ -3102,6 +3140,66 @@ func safe_ref__Dynamic(value: Dynamic) returns Option__ref_Dynamic
 func safe_ref__Expr(value: Expr) returns Option__ref_Expr
 #+end_src
 
+* adopt__priv___src_self_interpreter_til__NativeImportedCallable
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.adopt__priv___src_self_interpreter_til__NativeImportedCallable
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func adopt__priv___src_self_interpreter_til__NativeImportedCallable(mut dest: Dynamic, own src: priv___src_self_interpreter_til__NativeImportedCallable)
+#+end_src
+
+* adopt__priv___src_self_interpreter_til__NativeGuestCallable
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.adopt__priv___src_self_interpreter_til__NativeGuestCallable
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func adopt__priv___src_self_interpreter_til__NativeGuestCallable(mut dest: Dynamic, own src: priv___src_self_interpreter_til__NativeGuestCallable)
+#+end_src
+
+* adopt__priv___src_self_interpreter_til__NativeCallablePrefix
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.adopt__priv___src_self_interpreter_til__NativeCallablePrefix
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func adopt__priv___src_self_interpreter_til__NativeCallablePrefix(mut dest: Dynamic, own src: priv___src_self_interpreter_til__NativeCallablePrefix)
+#+end_src
+
+* swap__Option__I64
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.swap__Option__I64
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func swap__Option__I64(mut a: Option__I64, mut b: Option__I64)
+#+end_src
+
+* swap__Vec__SourceDiagnostic
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.swap__Vec__SourceDiagnostic
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func swap__Vec__SourceDiagnostic(mut a: Vec__SourceDiagnostic, mut b: Vec__SourceDiagnostic)
+#+end_src
+
+* swap__TilVmError
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.swap__TilVmError
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func swap__TilVmError(mut a: TilVmError, mut b: TilVmError)
+#+end_src
+
 * adopt__KwargsMap
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.interpreter.adopt__KwargsMap
@@ -3130,6 +3228,16 @@ func adopt__LoadedProgram(mut dest: Dynamic, own src: LoadedProgram)
 
 #+begin_src til
 func swap__Vec__InterpOutputEvent(mut a: Vec__InterpOutputEvent, mut b: Vec__InterpOutputEvent)
+#+end_src
+
+* adopt__FFIEntry
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.interpreter.adopt__FFIEntry
+:group: Compiler tools
+:END:
+
+#+begin_src til
+func adopt__FFIEntry(mut dest: Dynamic, own src: FFIEntry)
 #+end_src
 
 * adopt__priv___src_self_interpreter_til__InterfaceCallBox

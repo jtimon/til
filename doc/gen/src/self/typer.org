@@ -1,5 +1,5 @@
 #+TITLE: src/self/typer.til
-#+SUBTITLE: til 0.0.1-e8e3f66
+#+SUBTITLE: til 0.0.1-99697f432
 #+OPTIONS: toc:t
 
 * fa_is_ns
@@ -1408,68 +1408,6 @@ Deep-copy the Vec and all its elements via elem_clone.
 
 #+begin_src til
 func Vec__priv___src_self_typer_til__CtorArg.clone(self: Vec__priv___src_self_typer_til__CtorArg) returns Vec__priv___src_self_typer_til__CtorArg
-#+end_src
-
-* Option__ref_Scope
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Option__ref_Scope
-:group: Compiler frontend
-:END:
-
-#+begin_src til
-enum Option__ref_Scope {
-    None
-    Some: Scope
-namespace:
-    func is_some(self: Option__ref_Scope) returns Bool
-    func is_none(self: Option__ref_Scope) returns Bool
-    func unwrap_or(self: Option__ref_Scope, default_v: Scope) returns ref Scope
-    func unwrap(self: Option__ref_Scope) returns ref Scope
-    func take(own self: Option__ref_Scope) returns ref Scope
-    ext_func None() returns Option__ref_Scope
-    ext_func Some(val: Scope) returns Option__ref_Scope
-    core_func is(self: Option__ref_Scope, other: Option__ref_Scope) returns Bool
-    func delete(own self: Option__ref_Scope, call_free: Bool = true)
-    func clone(self: Option__ref_Scope) returns Option__ref_Scope
-    func size() returns USize
-    func size_for_target() returns USize
-}
-#+end_src
-
-* Option__ref_Scope.unwrap
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Option__ref_Scope.unwrap
-:group: Compiler frontend
-:END:
-
-The contained value; PANICS on None, ala Rust's unwrap. For the
-~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
-has already handled absence and unwrapping cannot fail. Prefer
-a ~switch~ when both arms do real work, and ~unwrap_or~ when a
-default is meaningful -- reach for this only when None is
-unreachable by construction, so it fails loudly if that ever
-stops being true.
-
-#+begin_src til
-func Option__ref_Scope.unwrap(self: Option__ref_Scope) returns ref Scope
-#+end_src
-
-* Option__ref_Scope.take
-:PROPERTIES:
-:CUSTOM_ID: til.src.self.typer.Option__ref_Scope.take
-:group: Compiler frontend
-:END:
-
-The contained value, MOVED out; PANICS on None, like unwrap.
-unwrap only BORROWS self, so for an owned payload it must hand
-back a deep clone; this consumes the Option instead, so the
-payload's bytes move and only the enum shell is freed (#321).
-Use it wherever the caller takes ownership of what the Option
-held -- an ~Option(Expr)~ returned by an AST helper, say, where
-a clone would copy a whole subtree and break node identity.
-
-#+begin_src til
-func Option__ref_Scope.take(own self: Option__ref_Scope) returns ref Scope
 #+end_src
 
 * Map__Str_RootBits
