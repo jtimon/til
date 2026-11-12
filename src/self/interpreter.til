@@ -3295,7 +3295,18 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     ffi_borrow_place(decl_type_name_ref(fdecl, ctx.symbols), ptr_add(base, wf_fl.offset), ctx)
                 }
                 mut drop_field := fad.save_old_delete
-                if drop_field.and(fdecl.own_type.is(OwnType.Ref).not()).and(is_aggregate(fdecl.til_type)) {
+                if decl_is_funcsig(fdecl, ctx) {
+                    // Preserve borrowed sources before releasing the old
+                    // environment, including self-assignment through a field.
+                    if val_is_ref {
+                        val_raw = eval_callable_slot_clone(fdecl.til_type, val_raw, stmt, ctx)
+                        val_is_ref = false
+                    }
+                    if drop_field {
+                        ref mut slot: Dynamic = ptr_add(base, wf_fl.offset)
+                        eval_callable_capture_delete(deref(slot), stmt, ctx)
+                    }
+                } else if drop_field.and(fdecl.own_type.is(OwnType.Ref).not()).and(is_aggregate(fdecl.til_type)) {
                     // Preserve a borrowed replacement before destroying the
                     // old value: it may alias this very field.
                     if val_is_ref {
@@ -10661,13 +10672,13 @@ priv h_til_closure_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ct
         if heap_type_is_callable(hb_type(hb)).not() { panic("til_closure_delete: non-callable ", id.ident_name(ctx.symbols.names)) }
         if hb.moved_out.not() {
             ref mut heap_data : Dynamic = to_ptr(hb.ptr)
+            // Borrowing the storage does not borrow the owned payload passed
+            // to this delete. Vec.unsafe_set lends its element slot here;
+            // release that callable while retaining the container's storage.
+            eval_callable_capture_delete(deref(heap_data), e, ctx)
+            heap_drop_by_type(hb_type(hb), heap_data, hb.ctx)
+            write_ptr(heap_data, bits_word(0))
             if hb.is_borrowed.not() {
-                eval_callable_capture_delete(deref(heap_data), e, ctx)
-                heap_drop_by_type(hb_type(hb), heap_data, hb.ctx)
-                // A callable binding is stable storage, just like an
-                // aggregate local. Borrowed returns can still point here
-                // when the descriptor is replaced after this delete.
-                write_ptr(heap_data, bits_word(0))
                 hb.payload_released = true
             } else {
                 hb.ptr = bits_word(0)

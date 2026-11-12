@@ -1,0 +1,10 @@
+mode cli
+import("std/tilvm")
+
+// No application callable forces a TilClosure declaration into this program.
+// The reachable interpreter cleanup paths still need that runtime type.
+main := proc() {
+    mut vm := TilVm.new(".")
+    own vm.delete()
+    println("PASS: empty TilVm teardown")
+}

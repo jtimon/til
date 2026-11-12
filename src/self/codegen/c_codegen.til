@@ -3340,6 +3340,15 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             // pointer field transfers/boxes an outer wrapper.
             emit_as_ptr(f, rhs_fa, depth, fa_own_type(e,ctx.scope,ctx.symbols).is(OwnType.Own), ctx)
         }
+        else if type_is_callable_storage(rhs_fa.til_type()).and(fad.is_move.not())
+            .and(rhs_fa.node_type.is(NodeType.FieldAccess)
+                .or(rhs_fa.node_type.is(NodeType.Ident).and(fad.transfers_own.not()))) {
+            // A borrowed callable field is a value copy, including a copy of
+            // itself. Clone its environment before the saved old value drops.
+            f.write("({ TilClosure *callable_source = ")
+            emit_deref(f, rhs_fa, depth, ctx)
+            f.write("; TilClosure **callable_copy = til_closure_slot_clone(&callable_source); TilClosure *callable_value = *callable_copy; free(callable_copy); callable_value; })")
+        }
         else { emit_deref(f, rhs_fa, depth, ctx) }
         emit_cptr_close(f, set_pointee)
         f.write(";\n")
@@ -6342,18 +6351,7 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
         f.write(ret).write(" "); fc := func_to_c(name); f.write(fc).write("(")
         emit_param_list(f, func_def, true, false, lp.ctx)
         f.write(") {\n")
-        // Suppress -Wunused-parameter for `_x`-prefixed deliberately-unused
-        // params only. #326: the typer's check_unused_params ran on the
-        // PRE-constfolder body, so a transform can erase the final read of a
-        // non-underscore param; casting it here would hide the stale
-        // signature. Leave that case to -Werror=unused-parameter.
-        mut body_refs := Set(Str).new()
-        collect_ident_refs(body, body_refs, lp.ctx.symbols)
-        for p : Declaration in fd.sig.params {
-            if body_refs.has(p.name).not().and(p.name.starts_with("_")) {
-                f.write("    (void)").write(c_ident(p.name)).write(";\n")
-            }
-        }
+        emit_deliberately_unused_params(f, fd.sig.params, body, lp.ctx)
         lp.ctx.builder_func.in_func_def = true
         lp.ctx.builder_func.current_fdef = safe_ref(func_def)
         builder_reset_func_scratch(lp.ctx)
@@ -6366,6 +6364,19 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
     }
     case:
         UNREACHABLE("expected FuncDef, got ", func_def.node_type.head_str(lp.ctx.symbols.names))
+    }
+}
+
+// The same parameter contract applies to ordinary and lifted closure bodies.
+// Only explicitly unused names get casts: a transform that erases a normal
+// parameter's last read must still expose its stale signature to the C compiler.
+priv emit_deliberately_unused_params := proc(f: File, params: Vec(Declaration), body: Expr, ctx: Context) {
+    mut refs := Set(Str).new()
+    collect_ident_refs(body, refs, ctx.symbols)
+    for parameter : Declaration in params {
+        if refs.has(parameter.name).not().and(parameter.name.starts_with("_")) {
+            f.write("    (void)").write(c_ident(parameter.name)).write(";\n")
+        }
     }
 }
 
@@ -6455,6 +6466,7 @@ priv emit_capturing_closure_func := proc(f: File, closure_expr: Expr, mut emitte
             emit_param_list(f, closure_expr, true, false, lp.ctx)
         }
         f.write(") {\n")
+        emit_deliberately_unused_params(f, fd.sig.params, closure_expr.children[0], lp.ctx)
         if env_read {
             f.write("    ").write(env_type).write(" *til_env = (").write(env_type).write(" *)til_env_raw;\n")
         } else {
@@ -14524,6 +14536,19 @@ priv builder_collect_used_ctypes_expr := proc(e: Expr, mut used: Set(Str), mut c
         builder_used_ctype_add(uct_tn, used)
     }
     switch e.node_type {
+    case .FCall:
+        // These raw-storage intrinsics emit TilClosure accesses even when
+        // their argument is Dynamic and no source-level callable survives.
+        if e.children.len() > 0 {
+            switch e.children[0].node_type {
+            case .Ident(callee):
+                ref name: Str = callee.ident_name(ctx.symbols.names)
+                if name.eq("til_closure_delete").or(name.eq("til_closure_slot_delete")) {
+                    ctx.builder_closure_rt_used = true
+                }
+            case:
+            }
+        }
     case .Decl(uct_dd):
         // The BINDING's type, not every node's: a function body Expr is
         // itself typed Body, which would make every program claim it needs

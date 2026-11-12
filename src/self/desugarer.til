@@ -5115,7 +5115,8 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
         if needs_delete.not().and(stmt.node_type.is(NodeType.FieldAssign)) {
             if field_assign_needs_delete(stmt, scope, ctx.symbols) {
                 ref fa_rhs : Expr = stmt.children[1]
-                if type_to_name(fa_rhs.til_type(), ctx.symbols).len() > 0 {
+                if type_to_name(fa_rhs.til_type(), ctx.symbols).len() > 0
+                    || type_is_callable_storage(fa_rhs.til_type()) {
                     needs_delete = true
                 }
             }

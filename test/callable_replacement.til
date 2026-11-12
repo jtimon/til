@@ -1,0 +1,76 @@
+mode test
+
+DropCounts := struct { drops: I64 = 0 }
+OwnedCapture := struct {
+    ref counts: DropCounts
+    value: I64 = 0
+namespace:
+    delete := func(own self: OwnedCapture, call_free: Bool = true) {
+        self.counts.drops++
+        if call_free { free(own self) }
+    }
+}
+Action := func() returns I64
+ActionHolder := struct { action: Action }
+make_action := func(counts: DropCounts, value: I64) returns Action {
+    capture := OwnedCapture(counts = counts, value = value)
+    return func() returns I64 [own capture] { return capture.value }
+}
+
+test_callable_element_replacement_releases_environment := test() {
+    counts := DropCounts()
+    mut actions := vec(Action, make_action(counts, 7))
+    before := counts.drops
+    actions[0] = func() returns I64 { return 9 }
+    assert(counts.drops == before + 1)
+    assert(actions[0]() == 9)
+}
+
+test_callable_ref_replacement_releases_environment := test() {
+    counts := DropCounts()
+    mut actions := vec(Action, make_action(counts, 7))
+    ref mut slot: Action = actions[0]
+    before := counts.drops
+    slot = func() returns I64 { return 9 }
+    assert(counts.drops == before + 1)
+    assert(actions[0]() == 9)
+}
+
+test_callable_field_replacement_releases_environment := test() {
+    counts := DropCounts()
+    mut holder := ActionHolder(action = make_action(counts, 7))
+    before := counts.drops
+    holder.action = func() returns I64 { return 9 }
+    assert(counts.drops == before + 1)
+    assert(holder.action() == 9)
+}
+
+test_callable_field_self_assignment_preserves_capture := test() {
+    counts := DropCounts()
+    mut holder := ActionHolder(action = make_action(counts, 7))
+    before := counts.drops
+    holder.action = holder.action
+    assert(counts.drops == before + 1)
+    assert(holder.action() == 7)
+}
+
+test_nested_callable_ref_replacement_releases_environment := test() {
+    counts := DropCounts()
+    mut actions := vec(Action, make_action(counts, 7))
+    ref mut slot: Action = actions[0]
+    before := counts.drops
+    if before == 0 { slot = func() returns I64 { return 9 } }
+    assert(counts.drops == before + 1)
+    assert(actions[0]() == 9)
+}
+
+test_callable_field_owned_result_transfers_environment := test() {
+    counts := DropCounts()
+    mut holder := ActionHolder(action = make_action(counts, 7))
+    before := counts.drops
+    holder.action = make_action(counts, 11)
+    assert(counts.drops == before + 1)
+    assert(holder.action() == 11)
+    own holder.delete()
+    assert(counts.drops == before + 2)
+}

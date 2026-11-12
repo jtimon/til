@@ -1,0 +1,8 @@
+mode script
+
+mut seed: I64 = 5
+seed++
+action := func(_unused: I64) returns I64 [shallow seed] { return seed }
+mixed := func(value: I64, _unused: Str) returns I64 [shallow seed] { return seed + value }
+assert(action(90) == 6 && mixed(4, "ignored") == 10)
+println("PASS: deliberately unused capturing-closure parameters")

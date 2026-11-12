@@ -3632,10 +3632,11 @@ priv insert_assign_delete := func(mut stmt: Expr, locals: Vec(LocalInfo), mut ne
                         new_ch.push(own del)
                     }
                 }
-            } else if type_is_callable_storage(local.type).and(local.is_heap) {
-                // #480: an owned callable local's old closure goes when a
-                // new one replaces it, as flag_outer_assign_rebinds does
-                // for an enclosing body's; a consumed one returned above.
+            } else if type_is_callable_storage(local.type) {
+                // Replacing a callable consumes its old environment even
+                // through a reference to an owning slot. The reference does
+                // not own the slot itself, so local.is_heap is false there.
+                // A consumed old value returned above.
                 ad.save_old_delete = true
             }
             break
