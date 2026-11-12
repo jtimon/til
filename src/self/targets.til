@@ -110,8 +110,8 @@ priv target_is_32bit := func(target: Target) returns Bool {
 }
 
 // True for any Windows target (x64 or x86). The builder uses it to gate
-// the mingw-specific link handling (--export-all-symbols, the linux->win
-// link-flag rewrite) on all Windows targets at once.
+// the mingw-specific link handling (--export-all-symbols) on all Windows
+// targets at once.
 is_windows_target := func(target: Target) returns Bool {
     return target.is(Target.WindowsX64).or(target.is(Target.WindowsX86))
 }
@@ -317,8 +317,8 @@ target_system_libs := func(target: Target) returns Str {
     return ""
 }
 
-// Does a space-separated list of --target names -- a Mode's ~targets~,
-// or link()'s optional second argument (issue #422) -- name `target`?
+// Does a space-separated list of --target names -- a Mode's ~targets~
+// (issue #422) -- name `target`?
 // Every name is parsed, so a misspelled one fails loudly
 // (target_from_str) instead of silently matching nothing, and aliases
 // (win64, linux-aarch64, ...) match their target.

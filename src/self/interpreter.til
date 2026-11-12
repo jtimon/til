@@ -8,18 +8,33 @@ import("../std/file")
 import("../../vendor/bindings/libffi")
 // The interpreter's ext_func dispatch calls libffi, so whatever embeds it
 // -- til itself, a TilVm host -- links each target's own libffi build
-// (issue #422): vendor/libffi/build-<target>, the host's built by the
+// (issues #422, #486): vendor/libffi/build-<target>, the host's built by the
 // Makefile and the rest by bin/make (make.til's LibffiCross).
-link("vendor/libffi/build-linux-x64/.libs/libffi.a", "linux-x64")
-link("vendor/libffi/build-linux-arm64/.libs/libffi.a", "linux-arm64")
-link("vendor/libffi/build-linux-riscv64/.libs/libffi.a", "linux-riscv64")
-link("vendor/libffi/build-linux-x86/.libs/libffi.a", "linux-x86")
-link("vendor/libffi/build-linux-arm32/.libs/libffi.a", "linux-arm32")
-link("vendor/libffi/build-linux-riscv32/.libs/libffi.a", "linux-riscv32")
-link("vendor/libffi/build-windows-x64/.libs/libffi.a", "windows-x64")
-link("vendor/libffi/build-windows-x86/.libs/libffi.a", "windows-x86")
-link("vendor/libffi/build-macos-x64/.libs/libffi.a", "macos-x64")
-link("vendor/libffi/build-macos-arm64/.libs/libffi.a", "macos-arm64")
+switch TARGET_OS {
+case .Linux:
+    switch TARGET_ARCH {
+    case .X64: link("vendor/libffi/build-linux-x64/.libs/libffi.a")
+    case .Arm64: link("vendor/libffi/build-linux-arm64/.libs/libffi.a")
+    case .Riscv64: link("vendor/libffi/build-linux-riscv64/.libs/libffi.a")
+    case .X86: link("vendor/libffi/build-linux-x86/.libs/libffi.a")
+    case .Arm32: link("vendor/libffi/build-linux-arm32/.libs/libffi.a")
+    case .Riscv32: link("vendor/libffi/build-linux-riscv32/.libs/libffi.a")
+    case:
+    }
+case .Windows:
+    switch TARGET_ARCH {
+    case .X64: link("vendor/libffi/build-windows-x64/.libs/libffi.a")
+    case .X86: link("vendor/libffi/build-windows-x86/.libs/libffi.a")
+    case:
+    }
+case .Macos:
+    switch TARGET_ARCH {
+    case .X64: link("vendor/libffi/build-macos-x64/.libs/libffi.a")
+    case .Arm64: link("vendor/libffi/build-macos-arm64/.libs/libffi.a")
+    case:
+    }
+case:
+}
 
 priv interp_error_path := func(ctx: Context) returns Str {
     return ctx.path.clone()
@@ -7507,7 +7522,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
         // Embedding only loads prebuilt libraries. It never builds a link_c
         // bridge or takes ownership of the process-global user-FFI handle.
         if lp.ctx.imported[lp.path].prelude_import.len() == 0 {
-            if ffi_init_link_libs(lp.link_flags_for_target(), lp.ctx) != 0 { return 1 }
+            if ffi_init_link_libs(lp.link_flags, lp.ctx) != 0 { return 1 }
         } else {
             root_dir := lp.ctx.import_support_dir.clone()
             for unit : ProgramUnit in lp.units {
@@ -7519,15 +7534,6 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
                     // interpreter loads none (the gui archives' twins are
                     // linked against them already).
                     if ident_of(directive.children[0]).ident_name(lp.ctx.symbols.names) == "link_macos" { continue }
-                    // link(path, "<targets>") applies only to the listed
-                    // targets (issue #422); an embedded load runs on the host.
-                    if directive.children.len() == 3 {
-                        switch directive.children[2].node_type {
-                        case .Literal(Literal.Str(targets)):
-                            if target_list_has(targets, lp.target).not() { continue }
-                        case: UNREACHABLE("non-literal link target list")
-                        }
-                    }
                     switch directive.children[1].node_type {
                     case .Literal(Literal.Str(path)):
                         mut flag := format("-l", path)
@@ -7539,7 +7545,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
             }
         }
     } else {
-        ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags_for_target(), lp.ctx)
+        ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags, lp.ctx)
         if ffi_rc.eq(0).not() { return ffi_rc }
     }
     runtime_src_prefix := compiler_src_prefix(lp.ctx)
@@ -8230,7 +8236,7 @@ ffi_last_error := ext_proc() returns Str {}
 // bakes in `false` and the ASAN flag never reaches the FFI compile (#299).
 til_built_with_asan := ext_proc() returns shallow Bool {}
 
-// `link("vendor/raylib/build-linux-x64/libraylib.a", "linux-x64")` puts a
+// `link("vendor/raylib/build-linux-x64/libraylib.a")` puts a
 // PATH in link_flags. A COMPILED program links that archive and stays
 // self-contained, but an INTERPRETED one calls through libffi, which needs
 // the function's ADDRESS at runtime -- and a static archive can never give one. It cannot be dlopen'd,

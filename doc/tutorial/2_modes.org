@@ -208,19 +208,27 @@ for, separated by spaces; empty (the default) allows every target. Any other
 misspelled name in the list is an error where the mode is defined. The
 messaging modes above leave out ~wasm32~, which has no sockets.
 
-A support module names each target's own build of a C library with
-~link()~'s optional second argument, the targets that link applies to:
+A support module names each target's own build of a C library with a
+top-level ~if~ / ~switch~ on ~TARGET_OS~ / ~TARGET_ARCH~, which is resolved at
+compile time (see [[file:../ffi.org][FFI]]):
 
 #+begin_src til
-link("vendor/nng/build-linux-arm64/libnng.a", "linux-arm64")
-link("vendor/nng/build-windows-x64/libnng.a", "windows-x64")
-link("ws2_32", "windows-x64 windows-x86")
+switch TARGET_OS {
+case .Linux:
+    switch TARGET_ARCH {
+    case .Arm64: link("vendor/nng/build-linux-arm64/libnng.a")
+    case:
+    }
+case .Windows:
+    link("vendor/nng/build-windows-x64/libnng.a")
+    link("ws2_32")
+case:
+}
 #+end_src
 
-A ~link()~ without the second argument applies to every target, as before.
-When a target-restricted archive does not exist, the build stops before the
-C compile and names it; ~build_hint~ adds the command that builds it, with
-~{path}~ replaced by the archive's path as ~link()~ wrote it.
+When a linked archive does not exist, the build stops before the C compile
+and names it; ~build_hint~ adds the command that builds it, with ~{path}~
+replaced by the archive's path as ~link()~ wrote it.
 
 Mode-definition files can import other ~mode mode~ files with ordinary
 ~import("other_modes")~ calls. Each file is loaded once, including shared

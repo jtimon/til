@@ -18,10 +18,10 @@ working directory. Explicit paths are passed to the OS loader without a
 shared-library suffix filter, so versioned filenames work too. A static
 ~.a~ path uses a loadable twin rather than loading the archive itself.
 Missing or invalid explicit libraries stop preparation with a diagnostic
-naming the library, before any guest statements execute. An optional second
-argument restricts a link to the ~--target~ names it lists, so each target
-can name its own build of a library (~link("vendor/nng/build-linux-arm64/libnng.a", "linux-arm64")~);
-see [[file:tutorial/2_modes.org][the modes tutorial]] for the mode-level
+naming the library, before any guest statements execute. Each target names
+its own build of a library, and the system libraries it calls into, under a
+top-level conditional on the target (below); see
+[[file:tutorial/2_modes.org][the modes tutorial]] for the mode-level
 ~targets~ and ~build_hint~ that go with it.
 
 A top-level ~if~ or ~switch~ selects directives and declarations per build

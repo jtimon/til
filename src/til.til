@@ -29,31 +29,47 @@ import("self/builder")
 import("self/interpreter")
 import("self/binder")
 import("self/repl_editor")
-link("m")
-link("pthread")
-link("rt")
-// nng, linked into til itself as before, per target (issue #422): the
-// same archives the server modes link (examples/lib/custom_modes/nng_base.til).
-link("vendor/nng/build-linux-x64/libnng.a", "linux-x64")
-link("vendor/nng/build-linux-arm64/libnng.a", "linux-arm64")
-link("vendor/nng/build-linux-riscv64/libnng.a", "linux-riscv64")
-link("vendor/nng/build-linux-x86/libnng.a", "linux-x86")
-link("vendor/nng/build-linux-arm32/libnng.a", "linux-arm32")
-link("vendor/nng/build-linux-riscv32/libnng.a", "linux-riscv32")
-link("vendor/nng/build-windows-x64/libnng.a", "windows-x64")
-link("vendor/nng/build-windows-x86/libnng.a", "windows-x86")
-link("vendor/nng/build-macos-x64/libnng.a", "macos-x64")
-link("vendor/nng/build-macos-arm64/libnng.a", "macos-arm64")
-// nng on windows calls winsock. Built against msvcrt, NOT the UCRT: a
-// -lucrtbase here would pull ucrtbase.dll in beside mingw's msvcrt.dll
-// startup, and that dual-CRT binary fails to load on real Windows (issue
-// #25); ext.c supplies the one missing C11 function, timespec_get.
-link("ws2_32", "windows-x64 windows-x86")
-link("mswsock", "windows-x64 windows-x86")
-link("advapi32", "windows-x64 windows-x86")
-link("atomic")
-
-link("dl")
+// What til links on each target (issue #486): nng, linked into til itself
+// as before -- the same archives the server modes link
+// (examples/lib/custom_modes/nng_base.til) -- and the system libraries it
+// and nng call into. nng on windows calls winsock. Built against msvcrt, NOT
+// the UCRT: a -lucrtbase here would pull ucrtbase.dll in beside mingw's
+// msvcrt.dll startup, and that dual-CRT binary fails to load on real Windows
+// (issue #25); ext.c supplies the one missing C11 function, timespec_get.
+// macOS needs nothing beyond libSystem, which every link gets.
+switch TARGET_OS {
+case .Linux:
+    switch TARGET_ARCH {
+    case .X64: link("vendor/nng/build-linux-x64/libnng.a")
+    case .Arm64: link("vendor/nng/build-linux-arm64/libnng.a")
+    case .Riscv64: link("vendor/nng/build-linux-riscv64/libnng.a")
+    case .X86: link("vendor/nng/build-linux-x86/libnng.a")
+    case .Arm32: link("vendor/nng/build-linux-arm32/libnng.a")
+    case .Riscv32: link("vendor/nng/build-linux-riscv32/libnng.a")
+    case:
+    }
+    link("m")
+    link("pthread")
+    link("rt")
+    link("atomic")
+    link("dl")
+case .Windows:
+    switch TARGET_ARCH {
+    case .X64: link("vendor/nng/build-windows-x64/libnng.a")
+    case .X86: link("vendor/nng/build-windows-x86/libnng.a")
+    case:
+    }
+    link("ws2_32")
+    link("mswsock")
+    link("advapi32")
+case .Macos:
+    switch TARGET_ARCH {
+    case .X64: link("vendor/nng/build-macos-x64/libnng.a")
+    case .Arm64: link("vendor/nng/build-macos-arm64/libnng.a")
+    case:
+    }
+case:
+}
 
 // --- External C bridges ---
 
@@ -1337,7 +1353,7 @@ main := proc(args: ..Str) {
     }
     prepare_program(lp, cli.command == "test")
 
-    if cli.backend.eq("fasm").or(cli.backend.eq("mlir")) && (lp.link_c_paths.len() > 0 || lp.link_flags_for_target().len() > 0) {
+    if cli.backend.eq("fasm").or(cli.backend.eq("mlir")) && (lp.link_c_paths.len() > 0 || lp.link_flags.len() > 0) {
         if cli.backend == "fasm" {
             println("error: FASM backend does not yet support link_c or link flags")
         } else {

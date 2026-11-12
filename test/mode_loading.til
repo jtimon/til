@@ -94,7 +94,8 @@ check_gui_link := proc(compiler: Str, root: Str, source: Str, has_gui: Bool) {
     }
 }
 
-// Issue #422: a mode's ~targets~ list and link()'s optional target list.
+// Issue #422: a mode's ~targets~ list; issue #486: the link()s a top-level
+// conditional on the target selects.
 // --cc=echo prints the C commands instead of running them, so the checks
 // see which link() flags applied without a cross toolchain.
 build_targets := proc(compiler: Str, root: Str, target: Str) returns Cmd {

@@ -413,12 +413,12 @@ typedef struct SymMap__U8 SymMap__U8;
 typedef struct Map__Str_priv___src_self_scavenger_til__DeclRef Map__Str_priv___src_self_scavenger_til__DeclRef;
 typedef struct Vec__priv___src_self_scavenger_til__DeclRef Vec__priv___src_self_scavenger_til__DeclRef;
 typedef struct ProgramUnit ProgramUnit;
-typedef struct TargetLink TargetLink;
+typedef struct LinkedArchive LinkedArchive;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct DocMeta DocMeta;
 typedef struct ImportCheckEntry ImportCheckEntry;
 typedef struct Vec__ImportCheckEntry Vec__ImportCheckEntry;
-typedef struct Vec__TargetLink Vec__TargetLink;
+typedef struct Vec__LinkedArchive Vec__LinkedArchive;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
 typedef struct priv___src_self_codegen_c_codegen_til__JniErrSlot priv___src_self_codegen_c_codegen_til__JniErrSlot;
 typedef struct priv___src_self_codegen_c_codegen_til__JniTypes priv___src_self_codegen_c_codegen_til__JniTypes;
@@ -1483,12 +1483,10 @@ typedef struct ProgramUnit {
 } ProgramUnit;
 
 
-typedef struct TargetLink {
+typedef struct LinkedArchive {
     Str flag;
-    Str include;
-    Str targets;
     Str written;
-} TargetLink;
+} LinkedArchive;
 
 
 typedef struct DocMeta {
@@ -1517,11 +1515,11 @@ typedef struct Vec__ImportCheckEntry {
 } Vec__ImportCheckEntry;
 
 
-typedef struct Vec__TargetLink {
+typedef struct Vec__LinkedArchive {
     TIL_OWN_PTR(U8) data;
     USize count;
     USize cap;
-} Vec__TargetLink;
+} Vec__LinkedArchive;
 
 
 typedef struct Vec__ProgramUnit {
@@ -2757,7 +2755,7 @@ typedef struct LoadedProgram {
     Str ext_c_path;
     Str link_flags;
     Str include_flags;
-    Vec__TargetLink target_links;
+    Vec__LinkedArchive linked_archives;
     Str macos_frameworks;
     Str link_c_paths;
     Str compiler_revision;

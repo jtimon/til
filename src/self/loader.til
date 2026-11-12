@@ -315,14 +315,10 @@ priv unit_is_native_api := func(path: Str, unit: ImportUnit, ctx: Context) retur
 
 // --- LoadedProgram ---
 
-// A link() restricted to some targets by its optional second argument
-// (issue #422): the flag and include directory it contributes, kept
-// apart from LoadedProgram's unconditional ones until the build target
-// is known -- load_program runs before til.til sets lp.target.
-TargetLink := struct {
+// A link() that names an archive by path: the builder reports a missing one
+// before linking, with the mode's build_hint for the path as written.
+LinkedArchive := struct {
     flag := ""
-    include := ""
-    targets := ""
     // The link() argument as written, for the missing-archive report's
     // build_hint (bin/make goals are root-relative, not resolved paths).
     written := ""
@@ -356,9 +352,9 @@ LoadedProgram := struct {
     ext_c_path := ""
     link_flags := ""
     include_flags := ""
-    // link()s with a target list; link_flags_for_target and
-    // include_flags_for_target add the ones that apply to `target`.
-    target_links := Vec(TargetLink).new()
+    // The archives among the link()s (issue #486: a top-level
+    // compile-time conditional selects each target's).
+    linked_archives := Vec(LinkedArchive).new()
     // link_macos()'s framework names, space-separated: linked only for the
     // macOS targets (-framework on a mac host, the generated stubs off one).
     macos_frameworks := ""
@@ -456,22 +452,6 @@ namespace:
         for u : ProgramUnit in self.units { paths.push(own u.path.clone()) }
         return paths
     }
-    // Every link flag of the program for its target: the unconditional
-    // link()s plus the target-restricted ones naming self.target.
-    link_flags_for_target := func(self: LoadedProgram) returns Str {
-        mut out := self.link_flags.clone()
-        for tl : TargetLink in self.target_links {
-            if target_list_has(tl.targets, self.target) { out = format(out, tl.flag) }
-        }
-        return out
-    }
-    include_flags_for_target := func(self: LoadedProgram) returns Str {
-        mut out := self.include_flags.clone()
-        for tl : TargetLink in self.target_links {
-            if target_list_has(tl.targets, self.target) { out = format(out, tl.include) }
-        }
-        return out
-    }
     delete := func(own self: LoadedProgram, call_free: Bool = true) {
         own self.core_units.delete(true)
         own self.units.delete(true)
@@ -486,7 +466,7 @@ namespace:
         Str.delete(own self.ext_c_path, false)
         Str.delete(own self.link_flags, false)
         Str.delete(own self.include_flags, false)
-        own self.target_links.delete(false)
+        own self.linked_archives.delete(false)
         Str.delete(own self.macos_frameworks, false)
         Str.delete(own self.link_c_paths, false)
         Str.delete(own self.compiler_revision, false)
@@ -1016,8 +996,9 @@ priv validate_cli_main := proc(lp: LoadedProgram) {
 }
 
 // Scan program AST for link()/link_macos()/link_c() directives; fill
-// link_flags, include_flags, target_links, macos_frameworks and
-// link_c_paths on the given LoadedProgram.
+// link_flags, include_flags, linked_archives, macos_frameworks and
+// link_c_paths on the given LoadedProgram. Runs after init, on what the
+// top-level compile-time conditionals selected (#486).
 priv extract_link_info := proc(mut lp: LoadedProgram) {
     root_dir := lp.ctx.import_support_dir.clone()
     // Remove link()/link_c() directives in-place from every user file so the
@@ -1058,13 +1039,13 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
                                 }
                             }
                             if nargs == 2 {
-                                // link(path, "<targets>") (issue #422): only for the
-                                // listed targets, decided once lp.target is known.
-                                targets := link_targets_arg(stmt.children[2], u.path)
-                                lp.target_links.push(own TargetLink(flag = flag, include = include, targets = targets, written = arg.clone()))
-                            } else {
-                                lp.link_flags = lp.link_flags.format(flag)
-                                lp.include_flags = lp.include_flags.format(include)
+                                loc := format(u.path, ":", stmt.line.to_str(), ":", stmt.col.to_str())
+                                panic(": link() takes one argument: select a target's links with a top-level `if` / `switch` on TARGET_OS / TARGET_ARCH (issue #486)", loc = loc)
+                            }
+                            lp.link_flags = lp.link_flags.format(flag)
+                            lp.include_flags = lp.include_flags.format(include)
+                            if (arg.find("/") >= 0).and(arg.ends_with(".a")) {
+                                lp.linked_archives.push(own LinkedArchive(flag = flag, written = arg.clone()))
                             }
                         } else if nargs.eq(1).and(fname.ident_name(lp.ctx.symbols.names) == "link_macos") {
                             // link_macos("<Framework> ...") (issue #422): the
@@ -1092,23 +1073,6 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
         }
         iu.ast.children.move_from(own new_children)
     }
-}
-
-// link()'s optional second argument (issue #422): a string literal listing
-// the --target names the link applies to. Validated here, where the
-// source is known: an empty list or an unknown name is an error.
-priv link_targets_arg := func(arg: Expr, path: Str) returns Str {
-    switch arg.node_type {
-    case .Literal(Literal.Str(list)):
-        if list.trim().len() == 0 {
-            panic(": link()'s target list is empty; omit it to link for every target", loc = path)
-        }
-        _validated := target_list_has(list, Target.LinuxX64)
-        return list.clone()
-    case:
-    }
-    panic(": link()'s second argument must be a string literal listing --target names", loc = path)
-    return ""
 }
 
 // Definition-relative paths are authoritative. The remaining locations

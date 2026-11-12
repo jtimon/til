@@ -48,6 +48,10 @@ check_link := proc(compiler: Str, target: Str, expected: Bool) {
     if build.out().contains("-ltil486probe") != expected {
         panic("--target=", target, ": the unix-only link() was mis-selected: ", build.out())
     }
+    // An unconditional link() is every target's: nothing rewrites it away.
+    if build.out().contains("-ltil486every").not() {
+        panic("--target=", target, ": the unconditional link() is missing: ", build.out())
+    }
 }
 
 main := proc(args: ..Str) {
@@ -102,7 +106,9 @@ main := proc(args: ..Str) {
         "mode script\n",
         "on_unix := macro() returns Bool { return TARGET_OS == TargetOs.Linux || TARGET_OS == TargetOs.Macos }\n",
         "if on_unix() { link(\"til486probe\") }\n",
+        "link(\"til486every\")\n",
         "println(\"links\")\n"))
+    write("target_list.til", "mode script\nlink(\"m\", \"linux-x64\")\nprintln(\"x\")\n")
     write("mutable.til", "mode script\nmut limit := 3\nif limit > 2 { link(\"m\") }\nprintln(\"x\")\n")
     write("proc_call.til", "mode script\nos_name := ext_proc() returns Str {}\nif os_name() == \"linux\" { link(\"m\") }\nprintln(\"x\")\n")
     write("self_dependent.til", format(
@@ -148,6 +154,7 @@ main := proc(args: ..Str) {
     must_be_constant := "is resolved at compile time, so its condition must be a compile-time constant"
     expect_error(compiler, "./mutable.til", format(must_be_constant, ": 'limit' is mutable"))
     expect_error(compiler, "./proc_call.til", format(must_be_constant, ": 'os_name' is a proc"))
+    expect_error(compiler, "./target_list.til", "link() takes one argument")
     expect_error(compiler, "./self_dependent.til", "it reads 'USE_FAST', which only its own branch defines")
     println("static conditionals passed")
 }

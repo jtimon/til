@@ -5,17 +5,23 @@ mode script
 // see `bin/til bindings` and the Makefile `bindings` target). Each
 // importer adds the matching link() lines next to the import.
 import("../vendor/bindings/raylib")
-// The linux targets' own raylib builds (issue #422); src/modes/gui.til
-// lists every target's.
-link("vendor/raylib/build-linux-x64/libraylib.a", "linux-x64")
-link("vendor/raylib/build-linux-arm64/libraylib.a", "linux-arm64")
-link("vendor/raylib/build-linux-riscv64/libraylib.a", "linux-riscv64")
-link("vendor/raylib/build-linux-x86/libraylib.a", "linux-x86")
-link("vendor/raylib/build-linux-arm32/libraylib.a", "linux-arm32")
-link("vendor/raylib/build-linux-riscv32/libraylib.a", "linux-riscv32")
-link("m")
-link("pthread")
-link("rt")
+// The linux targets' own raylib builds and the system libraries raylib
+// calls into there (issues #422, #486); src/modes/gui.til lists every
+// target's.
+if TARGET_OS == TargetOs.Linux {
+    switch TARGET_ARCH {
+    case .X64: link("vendor/raylib/build-linux-x64/libraylib.a")
+    case .Arm64: link("vendor/raylib/build-linux-arm64/libraylib.a")
+    case .Riscv64: link("vendor/raylib/build-linux-riscv64/libraylib.a")
+    case .X86: link("vendor/raylib/build-linux-x86/libraylib.a")
+    case .Arm32: link("vendor/raylib/build-linux-arm32/libraylib.a")
+    case .Riscv32: link("vendor/raylib/build-linux-riscv32/libraylib.a")
+    case:
+    }
+    link("m")
+    link("pthread")
+    link("rt")
+}
 
 InitWindow(800, 450, "hello from til!".c_str)
 SetTargetFPS(60)

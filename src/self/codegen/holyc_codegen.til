@@ -5920,11 +5920,11 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
     if lp.link_c_paths.len() > 0 {
         f.write("// Unresolved host C sources: ").write(lp.link_c_paths.replace("\n", "\\n")).write("\n")
     }
-    if lp.link_flags_for_target().len() > 0 {
-        f.write("// Unresolved host C link flags: ").write(lp.link_flags_for_target().replace("\n", "\\n")).write("\n")
+    if lp.link_flags.len() > 0 {
+        f.write("// Unresolved host C link flags: ").write(lp.link_flags.replace("\n", "\\n")).write("\n")
     }
-    if lp.include_flags_for_target().len() > 0 {
-        f.write("// Host C include flags: ").write(lp.include_flags_for_target().replace("\n", "\\n")).write("\n")
+    if lp.include_flags.len() > 0 {
+        f.write("// Host C include flags: ").write(lp.include_flags.replace("\n", "\\n")).write("\n")
     }
     if state.reflection_uses.has("type_storage_kind").or(state.reflection_uses.has("type_name_storage_kind")) {
         f.write("TIL_USIZE ELEM_POD=0, ELEM_BOXED=1, ELEM_FN=2;\n\n")

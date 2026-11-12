@@ -1,8 +1,13 @@
 mode lib
-// Issue #422: each link() applies only to the targets it lists. The
+// Issues #422, #486: each target links only what its branch selects. The
 // linux-arm64 archive never exists, so that build reports it, with the
 // mode's build_hint; the linux-x64 -l flag is distinctive, so a build's
 // command line shows which links applied.
-link("test/imports/no_such_dir_422/libtarget_only.a", "linux-arm64")
-link("tilmode422", "linux-x64")
+if TARGET_OS == TargetOs.Linux {
+    switch TARGET_ARCH {
+    case .Arm64: link("test/imports/no_such_dir_422/libtarget_only.a")
+    case .X64: link("tilmode422")
+    case:
+    }
+}
 mode_targets_answer := func() returns I64 { return 422 }
