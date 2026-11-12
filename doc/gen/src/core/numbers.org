@@ -1,5 +1,5 @@
 #+TITLE: src/core/numbers.til
-#+SUBTITLE: til 0.0.1-99697f432
+#+SUBTITLE: til 0.0.1-ce9eede99
 #+OPTIONS: toc:t
 
 * U8
@@ -1530,6 +1530,19 @@ namespace:
 }
 #+end_src
 
+* F32.to_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F32.to_str
+:group: Core
+:END:
+
+Short text, six significant digits. A nonfinite value is ~inf~,
+~-inf~ or ~nan~ on every platform; a NaN never shows a sign.
+
+#+begin_src til
+ext_func F32.to_str(shallow val: F32) returns Str
+#+end_src
+
 * F32.to_repr
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.numbers.F32.to_repr
@@ -1537,6 +1550,7 @@ namespace:
 :END:
 
 Round-trippable repr (9 sig digits): str.to_f32(x.to_repr()) == x.
+Nonfinite values as in ~to_str~.
 
 #+begin_src til
 ext_func F32.to_repr(shallow val: F32) returns Str
@@ -1671,6 +1685,19 @@ namespace:
 }
 #+end_src
 
+* F64.to_str
+:PROPERTIES:
+:CUSTOM_ID: til.src.core.numbers.F64.to_str
+:group: Core
+:END:
+
+Short text, six significant digits. A nonfinite value is ~inf~,
+~-inf~ or ~nan~ on every platform; a NaN never shows a sign.
+
+#+begin_src til
+ext_func F64.to_str(shallow val: F64) returns Str
+#+end_src
+
 * F64.to_repr
 :PROPERTIES:
 :CUSTOM_ID: til.src.core.numbers.F64.to_repr
@@ -1678,6 +1705,7 @@ namespace:
 :END:
 
 Round-trippable repr (17 sig digits): str.to_f64(x.to_repr()) == x.
+Nonfinite values as in ~to_str~.
 
 #+begin_src til
 ext_func F64.to_repr(shallow val: F64) returns Str

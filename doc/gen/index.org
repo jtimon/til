@@ -1,5 +1,5 @@
 #+TITLE: til documentation index
-#+SUBTITLE: til 0.0.1-99697f432
+#+SUBTITLE: til 0.0.1-ce9eede99
 #+OPTIONS: toc:t
 
 * Core
@@ -1914,6 +1914,11 @@ namespace:
 }
 #+end_src
 
+** [[file:src/core/numbers.org::#til.src.core.numbers.F32.to_str][F32.to_str]]
+#+begin_src til
+ext_func F32.to_str(shallow val: F32) returns Str
+#+end_src
+
 ** [[file:src/core/numbers.org::#til.src.core.numbers.F32.to_repr][F32.to_repr]]
 #+begin_src til
 ext_func F32.to_repr(shallow val: F32) returns Str
@@ -1984,6 +1989,11 @@ namespace:
     MAX : F64
     func hash(self: F64, hasher: HashFn) returns U64
 }
+#+end_src
+
+** [[file:src/core/numbers.org::#til.src.core.numbers.F64.to_str][F64.to_str]]
+#+begin_src til
+ext_func F64.to_str(shallow val: F64) returns Str
 #+end_src
 
 ** [[file:src/core/numbers.org::#til.src.core.numbers.F64.to_repr][F64.to_repr]]
@@ -8830,6 +8840,11 @@ func field_is_own_ptr(sd: StructDef, dd: Declaration) returns Bool
 func host_own_ptr_compressed() returns Bool
 #+end_src
 
+** [[file:src/self/context.org::#til.src.self.context.host_niche_slot_size][host_niche_slot_size]]
+#+begin_src til
+func host_niche_slot_size(def: Expr) returns USize
+#+end_src
+
 ** [[file:src/self/context.org::#til.src.self.context.ENUM_PAYLOAD_OFFSET][ENUM_PAYLOAD_OFFSET]]
 #+begin_src til
 ENUM_PAYLOAD_OFFSET is a USize
@@ -9223,6 +9238,37 @@ func qname_in_set(s: Set__Str, a: Str, sep: Str, b: Str) returns Bool
 ** [[file:src/self/context.org::#til.src.self.context.Vec__Sym][Vec__Sym]]
 #+begin_src til
 Vec__Sym is a None
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Option__priv___src_self_context_til__HostOwnPtrProbe][Option__priv___src_self_context_til__HostOwnPtrProbe]]
+#+begin_src til
+enum Option__priv___src_self_context_til__HostOwnPtrProbe {
+    None
+    Some: priv___src_self_context_til__HostOwnPtrProbe
+namespace:
+    func is_some(self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns Bool
+    func is_none(self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns Bool
+    func unwrap_or(self: Option__priv___src_self_context_til__HostOwnPtrProbe, default_v: priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
+    func unwrap(self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
+    func take(own self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
+    ext_func None() returns Option__priv___src_self_context_til__HostOwnPtrProbe
+    ext_func Some(own val: priv___src_self_context_til__HostOwnPtrProbe) returns Option__priv___src_self_context_til__HostOwnPtrProbe
+    core_func is(self: Option__priv___src_self_context_til__HostOwnPtrProbe, other: Option__priv___src_self_context_til__HostOwnPtrProbe) returns Bool
+    func delete(own self: Option__priv___src_self_context_til__HostOwnPtrProbe, call_free: Bool = true)
+    func clone(self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns Option__priv___src_self_context_til__HostOwnPtrProbe
+    func size() returns USize
+    func size_for_target() returns USize
+}
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Option__priv___src_self_context_til__HostOwnPtrProbe.unwrap][Option__priv___src_self_context_til__HostOwnPtrProbe.unwrap]]
+#+begin_src til
+func Option__priv___src_self_context_til__HostOwnPtrProbe.unwrap(self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
+#+end_src
+
+** [[file:src/self/context.org::#til.src.self.context.Option__priv___src_self_context_til__HostOwnPtrProbe.take][Option__priv___src_self_context_til__HostOwnPtrProbe.take]]
+#+begin_src til
+func Option__priv___src_self_context_til__HostOwnPtrProbe.take(own self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
 #+end_src
 
 ** [[file:src/self/context.org::#til.src.self.context.Vec__BorrowRoot][Vec__BorrowRoot]]
@@ -14030,6 +14076,11 @@ func variadic_array_type_name(scope: TypeScope, elem_type: Str, symbols: SymbolP
 func variadic_carrier_type_name(scope: TypeScope, elem_type: Str, symbols: SymbolPool) returns Str
 #+end_src
 
+** [[file:src/self/typer.org::#til.src.self.typer.target_niche_slot_size][target_niche_slot_size]]
+#+begin_src til
+func target_niche_slot_size(def: Expr, ctx: Context) returns USize
+#+end_src
+
 ** [[file:src/self/typer.org::#til.src.self.typer.target_value_size_align][target_value_size_align]]
 #+begin_src til
 func target_value_size_align(type_name: Str, scope: TypeScope, ctx: Context, mut sz: USize, mut al: USize)
@@ -15910,6 +15961,16 @@ proc detect_current_target() returns Target
 ** [[file:src/self/garbager.org::#til.src.self.garbager.garbager_destroy_body][garbager_destroy_body]]
 #+begin_src til
 proc garbager_destroy_body(mut ctx: Context, mut body: Expr, mut scope: TypeScope) returns Bool
+#+end_src
+
+** [[file:src/self/garbager.org::#til.src.self.garbager.garbager_destroy_function][garbager_destroy_function]]
+#+begin_src til
+proc garbager_destroy_function(mut ctx: Context, mut fdef: Expr, owner: Str, is_destructor: Bool)
+#+end_src
+
+** [[file:src/self/garbager.org::#til.src.self.garbager.garbager_destroy_globals][garbager_destroy_globals]]
+#+begin_src til
+proc garbager_destroy_globals(mut ctx: Context, mut body: Expr, mut scope: TypeScope)
 #+end_src
 
 ** [[file:src/self/garbager.org::#til.src.self.garbager.garbager_validate][garbager_validate]]

@@ -1,0 +1,40 @@
+mode script
+
+// #472 (F6): what the compiler writes for a float it computed itself. The
+// value goes into the generated source as text, and so does the text of a
+// folded to_str(), so both have to be the same on every host the compiler
+// runs on. The suite row "float_fold" pins the spellings; hosts that run
+// the suite compare against it, and the windows host job prints what
+// til.exe writes for the same file.
+
+fold_tenth := func() returns F64 { return 1.0 / 10.0 }
+fold_third32 := func() returns F32 { one : F32 = 1.0; three : F32 = 3.0; return one / three }
+fold_large := func() returns F64 { return 1.0e300 * 1.0e5 }
+fold_subnormal := func() returns F64 { return 1.0e-300 / 1.0e10 }
+fold_minus_zero := func() returns F64 { return 0.0 * -1.0 }
+fold_half_even := func() returns F64 { return 9007199254740993.0 + 0.0 }
+fold_inf := func() returns F64 { return 1.0e300 * 1.0e300 }
+fold_minus_inf := func() returns F64 { return 0.0 - fold_inf() }
+fold_nan := func() returns F64 { return fold_inf() - fold_inf() }
+
+// A proc call keeps the argument a value: the folded number is emitted.
+show := proc(label: Str, value: F64) { println(label, " ", value.to_repr()) }
+show32 := proc(label: Str, value: F32) { println(label, " ", value.to_repr()) }
+
+show("tenth", fold_tenth())
+show32("third32", fold_third32())
+show("large", fold_large())
+show("subnormal", fold_subnormal())
+show("minus_zero", fold_minus_zero())
+show("half_even", fold_half_even())
+show("infinity", fold_inf())
+show("minus_infinity", fold_minus_inf())
+show("not_a_number", fold_nan())
+
+// A folded to_str() is emitted as its text.
+println("text ", (1.0e20 * 1.0e20).to_str())
+println("text ", fold_subnormal().to_str())
+println("text ", fold_third32().to_str())
+println("text ", fold_minus_zero().to_str())
+println("text ", fold_minus_inf().to_str())
+println("text ", fold_nan().to_str())

@@ -1120,6 +1120,28 @@ main := proc(args: ..Str) returns I64 {
     add_count(tests, "version", "cli", "version OK", 1,
         format(til_bin, " run -o bin/c/version -c gen/c/version.c test/version.til ", til_bin))
 
+    // #472 (F6): the text the compiler writes for floats it folded, values
+    // and to_str() results alike, is the same on every host that runs this
+    // row. Finite values still go through the host's printf; a C library
+    // that spells them differently fails here and names the value.
+    add_counts(tests, "float_fold", "build",
+        format(til_bin, " translate -c gen/c/float_fold.c test/float_fold.til '&&' cat gen/c/float_fold.c"),
+        CountCheck(needle = "= 0.10000000000000001;", expected_count = 1),
+        CountCheck(needle = "= 0.333333343;", expected_count = 1),
+        CountCheck(needle = "= 1.0000000000000001e+305;", expected_count = 1),
+        CountCheck(needle = "= 9.9999999999999694e-311;", expected_count = 1),
+        CountCheck(needle = "= -0.0;", expected_count = 1),
+        CountCheck(needle = "= 9007199254740992;", expected_count = 1),
+        CountCheck(needle = "= __builtin_inf();", expected_count = 1),
+        CountCheck(needle = "= (-__builtin_inf());", expected_count = 1),
+        CountCheck(needle = "= __builtin_nan(\"\");", expected_count = 1),
+        CountCheck(needle = "TIL_OWN_LIT(\"1e+40\", 5ULL)", expected_count = 1),
+        CountCheck(needle = "TIL_OWN_LIT(\"1e-310\", 6ULL)", expected_count = 1),
+        CountCheck(needle = "TIL_OWN_LIT(\"0.333333\", 8ULL)", expected_count = 1),
+        CountCheck(needle = "TIL_OWN_LIT(\"-0\", 2ULL)", expected_count = 1),
+        CountCheck(needle = "TIL_OWN_LIT(\"-inf\", 4ULL)", expected_count = 1),
+        CountCheck(needle = "TIL_OWN_LIT(\"nan\", 3ULL)", expected_count = 1))
+
     add_count(tests, "test_dependencies", "build", "test prerequisites passed", 1,
         format(til_bin, " run", asan_flag,
             " -o bin/c/test_dependencies -c gen/c/test_dependencies.c test/test_dependencies.til"))

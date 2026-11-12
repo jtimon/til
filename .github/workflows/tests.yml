@@ -742,10 +742,25 @@ jobs:
           file bin/nng_pair.exe | grep -q "PE32+"
           ./bin/til build --target=windows-x86 --extra-modes=examples/custom_modes.til -o bin/nng_pair-x86.exe test/nng_pair.til
           file bin/nng_pair-x86.exe | grep -q -E "Intel (80386|i386)"
+      # Issue #473 (C1): every file of the upload below, by name. The upload
+      # action accepts a list with a member missing, and the runner would
+      # then test a partial set. Keep this list and the upload's the same.
+      - name: Check the .exe artifact is complete
+        run: |
+          status=0
+          for f in hello_script crypto ffi_prep nng_pair; do
+            for e in "$f.exe" "$f-x86.exe"; do
+              if [ ! -f "bin/$e" ] || [ ! -s "bin/$e" ]; then
+                echo "missing or empty: bin/$e"; status=1
+              fi
+            done
+          done
+          exit $status
       - name: Upload .exe artifacts
         uses: actions/upload-artifact@v4
         with:
           name: hello_script-windows
+          if-no-files-found: error
           path: |
             bin/hello_script.exe
             bin/hello_script-x86.exe
@@ -771,6 +786,20 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: hello_script-windows
+      # Issue #473 (C1): the eight files windows-x64-build uploads, before
+      # any of them runs.
+      - name: Check the downloaded .exe artifact is complete
+        shell: bash
+        run: |
+          status=0
+          for f in hello_script crypto ffi_prep nng_pair; do
+            for e in "$f.exe" "$f-x86.exe"; do
+              if [ ! -f "$e" ] || [ ! -s "$e" ]; then
+                echo "missing or empty: $e"; status=1
+              fi
+            done
+          done
+          exit $status
       - name: Run .exe (x64 + x86 via WOW64)
         shell: bash
         run: |
@@ -850,10 +879,30 @@ jobs:
         run: |
           ./bin/til build --target=windows-x64 -o bin/repl_wincon.exe test/repl_wincon.til
           file bin/repl_wincon.exe | grep -q "PE32+"
+      # Issue #473 (C2): every file of the three uploads below, by name, as
+      # in windows-x64-build. Keep this list and the uploads' the same.
+      - name: Check the windows-host artifacts are complete
+        run: |
+          status=0
+          for f in \
+            bin/til.exe bin/sender.exe bin/receiver.exe \
+            bin/echo_argv.exe bin/win_quoting.exe bin/repl_wincon.exe \
+            vendor/secp256k1/build-windows-x64/lib/libsecp256k1.dll \
+            vendor/secp256k1/build-windows-x64/lib/libsecp256k1.a \
+            vendor/raylib/build-windows-x64/libraylib.dll \
+            vendor/raylib/build-windows-x64/libraylib.a \
+            vendor/tinyfiledialogs/build-windows-x64/libtinyfd.dll \
+            vendor/tinyfiledialogs/build-windows-x64/libtinyfd.a; do
+            if [ ! -f "$f" ] || [ ! -s "$f" ]; then
+              echo "missing or empty: $f"; status=1
+            fi
+          done
+          exit $status
       - name: Upload windows-host artifacts
         uses: actions/upload-artifact@v4
         with:
           name: til-windows-host
+          if-no-files-found: error
           path: |
             bin/til.exe
             bin/sender.exe
@@ -871,6 +920,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: secp256k1-windows-host
+          if-no-files-found: error
           path: |
             vendor/secp256k1/build-windows-x64/lib/libsecp256k1.dll
             vendor/secp256k1/build-windows-x64/lib/libsecp256k1.a
@@ -881,6 +931,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: gui-windows-host
+          if-no-files-found: error
           path: |
             vendor/raylib/build-windows-x64/libraylib.dll
             vendor/raylib/build-windows-x64/libraylib.a
@@ -904,6 +955,18 @@ jobs:
         with:
           name: til-windows-host
           path: winhost
+      # Issue #473 (C2): the six files windows-x64-host-build uploads under
+      # this name, before any of them runs.
+      - name: Check the downloaded windows-host artifacts are complete
+        shell: bash
+        run: |
+          status=0
+          for f in til sender receiver echo_argv win_quoting repl_wincon; do
+            if [ ! -f "winhost/$f.exe" ] || [ ! -s "winhost/$f.exe" ]; then
+              echo "missing or empty: winhost/$f.exe"; status=1
+            fi
+          done
+          exit $status
       - name: Interpret and translate on windows
         shell: bash
         run: |
@@ -917,12 +980,53 @@ jobs:
         shell: bash
         run: |
           ./winhost/til.exe interpret test/copy_file.til
+      # Issue #472 (F4): generated source is compared between hosts, so a
+      # windows-hosted compiler has to bake file names the way the others
+      # do: ./src/... for the compiler's own tree, the path as written for
+      # the program, forward slashes, never a drive or an absolute path.
+      # The grep -o lines show what was baked before anything is judged.
+      - name: Check the source paths til.exe bakes
+        shell: bash
+        run: |
+          ./winhost/til.exe translate -c tmp_copy_file.c test/copy_file.til
+          grep -o '"[^"]*\.til:[0-9]*:[0-9]*' tmp_copy_file.c | sed 's/:[0-9]*:[0-9]*$//' | sort | uniq -c
+          grep -q '"\./src/core/[a-z_]*\.til:' tmp_copy_file.c
+          grep -q '"\./src/std/[a-z_]*\.til:' tmp_copy_file.c
+          grep -q '"test/copy_file\.til:' tmp_copy_file.c
+          if grep -E '"([A-Za-z]:|/)[^"]*\.til:[0-9]' tmp_copy_file.c; then
+            echo "an absolute source path is baked into the generated C"; exit 1
+          fi
+          if grep -F '\\' tmp_copy_file.c | grep -E '\.til:[0-9]'; then
+            echo "a backslash source path is baked into the generated C"; exit 1
+          fi
+      # Issue #472 (F6): what til.exe writes for the floats it folds. The
+      # hosts that run the suite compare these against the spellings its
+      # "float_fold" row pins; til.exe runs no suite, and its finite values
+      # go through msvcrt's printf, which nothing has compared yet. Shown,
+      # not judged, until a run has been read: a difference here is what
+      # decides whether til formats finite floats itself.
+      - name: Show how til.exe spells folded floats
+        shell: bash
+        run: |
+          ./winhost/til.exe translate -c tmp_float_fold.c test/float_fold.til
+          grep -E 'hoisted__F(32|64)_g[0-9]+ = |TIL_OWN_LIT\("[-+.#0-9A-Za-z]+", ' tmp_float_fold.c
       # Both files share one directory, which becomes the artifact's root.
       - name: Download the windows-host libsecp256k1
         uses: actions/download-artifact@v4
         with:
           name: secp256k1-windows-host
           path: vendor/secp256k1/build-windows-x64/lib
+      - name: Check the downloaded libsecp256k1 is complete
+        shell: bash
+        run: |
+          status=0
+          for f in libsecp256k1.dll libsecp256k1.a; do
+            p="vendor/secp256k1/build-windows-x64/lib/$f"
+            if [ ! -f "$p" ] || [ ! -s "$p" ]; then
+              echo "missing or empty: $p"; status=1
+            fi
+          done
+          exit $status
       # Issue #235: interpret std/crypto ON windows. The interpreter loads
       # the twin beside the archive the program's link() resolves to for
       # the host (ffi_load_archive_twin: libsecp256k1.a -> libsecp256k1.dll
@@ -937,6 +1041,20 @@ jobs:
         with:
           name: gui-windows-host
           path: vendor
+      - name: Check the downloaded gui libraries are complete
+        shell: bash
+        run: |
+          status=0
+          for f in \
+            vendor/raylib/build-windows-x64/libraylib.dll \
+            vendor/raylib/build-windows-x64/libraylib.a \
+            vendor/tinyfiledialogs/build-windows-x64/libtinyfd.dll \
+            vendor/tinyfiledialogs/build-windows-x64/libtinyfd.a; do
+            if [ ! -f "$f" ] || [ ! -s "$f" ]; then
+              echo "missing or empty: $f"; status=1
+            fi
+          done
+          exit $status
       # Issue #420: interpret mode gui ON windows. test/gui_interp.til is
       # windowless (pure-CPU raylib calls through libffi: scalar and
       # by-value struct arguments, Bool returns, string arguments), so it

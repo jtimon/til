@@ -802,8 +802,11 @@ F32 := struct {
 namespace:
     to_i64 := ext_func(shallow val: F32) returns shallow I64 {}
     to_f64 := ext_func(shallow val: F32) returns shallow F64 {}
+    /// Short text, six significant digits. A nonfinite value is ~inf~,
+    /// ~-inf~ or ~nan~ on every platform; a NaN never shows a sign.
     to_str := ext_func(shallow val: F32) returns Str {}
     /// Round-trippable repr (9 sig digits): str.to_f32(x.to_repr()) == x.
+    /// Nonfinite values as in ~to_str~.
     to_repr := ext_func(shallow val: F32) returns Str {}
     /// Convert from I64 to F32.
     from_i64 := func(val: I64) returns F32 {
@@ -856,8 +859,11 @@ F64 := struct {
 namespace:
     to_i64 := ext_func(shallow val: F64) returns shallow I64 {}
     to_f32 := ext_func(shallow val: F64) returns shallow F32 {}
+    /// Short text, six significant digits. A nonfinite value is ~inf~,
+    /// ~-inf~ or ~nan~ on every platform; a NaN never shows a sign.
     to_str := ext_func(shallow val: F64) returns Str {}
     /// Round-trippable repr (17 sig digits): str.to_f64(x.to_repr()) == x.
+    /// Nonfinite values as in ~to_str~.
     to_repr := ext_func(shallow val: F64) returns Str {}
     /// Convert from I64 to F64.
     from_i64 := func(val: I64) returns F64 {

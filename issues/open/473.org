@@ -513,3 +513,111 @@ Acceptance mapping: matrix and corpus -> the tables here, C4, C10;
 visible absence and producer failure -> C1, C2, C3; frontend, source and
 binary groups -> C5, C6, C7; collector validation -> C8; TempleOS -> C9;
 gaps and costs -> C0, C10.
+
+*** Progress: steps C0, C1, C2 (base master ce9eede)
+
+**** C0. Baseline, from the Actions API
+
+Two green full runs on master, the last ones before this step: run 3032
+(~bf9806d~) and run 3033 (~4e88da7~). Minutes per job, from each job's
+~started_at~ to ~completed_at~ (queue time not included):
+
+| Job | 3032 | 3033 |
+|-----+------+------|
+| TempleOS guest (QEMU TCG, USize 32/64) | 93.7 | 97.6 |
+| linux-x64 (--usize=64) | 53.9 | 55.1 |
+| macos-arm64 (native) | 51.3 | 49.4 |
+| macos-x64 (native) | 45.6 | 52.1 |
+| linux-x64 | 32.5 | 26.5 |
+| linux-arm64 (native) | 23.5 | 24.0 |
+| macos (cross-compile on linux) | 20.6 | 13.4 |
+| windows-x64 host (cross-build til.exe + nng on linux) | 10.0 | 6.0 |
+| linux-arm64 | 7.5 | 6.7 |
+| linux-riscv64 | 7.2 | 6.2 |
+| linux-riscv32 | 6.3 | 5.2 |
+| windows-x64/x86 (cross-compile on linux) | 6.2 | 8.4 |
+| linux-x86 | 5.2 | 4.9 |
+| wasm32 (emscripten, run under node) | 4.2 | 3.1 |
+| linux-arm32 | 4.1 | 7.2 |
+| macos gui (cross-compile on linux) | 3.2 | 3.9 |
+| windows-x64 host (run til.exe + nng on windows) | 0.7 | 1.1 |
+| JNI jar, four run jobs and the merge | 1.7 | 2.0 |
+| windows-x64/x86 (run .exe on windows) | 0.1 | 0.1 |
+| macos host cross (run .exe on windows) | 0.1 | 0.1 |
+| macos host cross (run ELF on linux) | 0.1 | 0.1 |
+| Sum of all 26 jobs | 377.6 | 372.9 |
+| First job start to last job end | 130.9 | 136.7 |
+
+The TempleOS guest is one step ("Run native guest acceptance") and sets
+the wall time of the whole run.
+
+Artifacts of run 3033: 13, 32.3 MB in all (compressed sizes as the API
+reports them).
+
+| Artifact | Bytes |
+|----------+-------|
+| til-windows-host | 8620499 |
+| til-macos-cross | 8374585 |
+| hello_script-windows | 4639889 |
+| hello_script-macos | 2672623 |
+| secp256k1-windows-host | 2445974 |
+| gui-windows-host | 1908841 |
+| hello_script-from-mac | 1571538 |
+| hello_gui-macos | 790799 |
+| jni-jar-merged | 541839 |
+| jni-jar-linux-x64 | 189544 |
+| jni-jar-linux-arm64 | 185387 |
+| jni-jar-macos-arm64 | 169974 |
+| jni-jar-macos-x64 | 161757 |
+
+Not recorded here: the clang and lld version of each runner and where
+each target's headers and libraries come from (asked for "with C0" by
+step C4). The API gives neither; they have to be read from job logs or
+printed by a step, which C4 does first.
+
+**** C1. ~hello_script-windows~
+
+- ~windows-x64-build~: a step "Check the .exe artifact is complete" before
+  the upload names the eight files and fails after reporting every one
+  that is missing, empty or not a regular file; the upload has
+  ~if-no-files-found: error~.
+- ~windows-x64-run~: "Check the downloaded .exe artifact is complete"
+  checks the same eight basenames right after the download, before the
+  first program runs.
+
+**** C2. The three ~windows-x64-host-build~ artifacts
+
+- Producer: one step, "Check the windows-host artifacts are complete",
+  names all twelve files of ~til-windows-host~ (6),
+  ~secp256k1-windows-host~ (2) and ~gui-windows-host~ (4); each upload has
+  ~if-no-files-found: error~.
+- Consumer ~windows-x64-host-run~: one check after each of the three
+  downloads, at the destination that download uses (~winhost/~,
+  ~vendor/secp256k1/build-windows-x64/lib/~, ~vendor/~), before the step
+  that first uses it.
+
+**** How it was checked
+
+Every check step was taken out of the workflow file as the YAML parser
+reads it and run under ~bash -e~ against fixture directories under
+~tmp/~, with the expected set taken from the matching upload's own path
+list, so a list that drifted from its upload would fail the first row:
+
+| Injected condition | Result, all six checks |
+|--------------------+------------------------|
+| All files present | passes, prints nothing |
+| One file absent | fails, names it |
+| One file empty | fails, names it |
+| One file replaced by a directory | fails, names it |
+| No file present | fails, names every one |
+| One file renamed | fails, names the expected name only |
+
+Not checked: anything GitHub does (the upload action's behaviour with
+~if-no-files-found: error~, the download layout on the Windows runner,
+bash on that runner). The handoff's last two rows (a program that fails
+after a complete download; a producer that fails before the upload) are
+existing behaviour this step did not touch. No branch run was made; the
+first run with these steps is the end-to-end evidence.
+
+No new job, artifact or file. Runner time added: a handful of file tests
+per job.

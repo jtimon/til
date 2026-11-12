@@ -54,6 +54,16 @@ Output already printed remains visible even if evaluation later aborts or
 cannot reconstruct a constant result. Other macro effects likewise execute
 normally; constant evaluation does not roll them back.
 
+A macro that reads something outside the source (a command's output, a
+file, the environment, the clock) makes that thing an input of the build:
+two builds give the same program only if it reads the same there. The
+compiler checks none of this; whoever writes such a macro states what it
+reads. The repository's own sources have two, both in ~src/til.til~:
+~get_version~ and ~get_compiler_revision~ run ~git rev-parse HEAD~ in the
+directory the compiler is built in. Their input is that checkout's commit
+(uncommitted changes do not show), and with no git or no repository the
+build stops instead of producing a compiler without a revision (#472).
+
 This does not make proc calls foldable. The constfolder walks proc and test
 definitions to optimize eligible expressions inside them, without executing
 the enclosing proc or test at compile time.

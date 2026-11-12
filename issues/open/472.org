@@ -1266,3 +1266,131 @@ Not fixed, seen while reducing: a namespace constant initialized by a
 variadic call (~Names := struct { namespace: joined := format("x", "yz") }~,
 no generator involved) crashes the compiler on master with ~allocation
 cage: free of a pointer the cage did not allocate~.
+
+*** Progress: step F7 (base master 08721a4)
+
+The translation stamp (~builder.til::set_reuse_stamps~, #442) hashed the
+compiler's, the source's and every unit's ABSOLUTE path, and it is the
+last line of the generated C, so two checkouts of one commit produced
+different C for every script-mode program. It now names each of those
+files as seen from the directory the C is written to (~path_from_dir~),
+and the output by its file name. What the stamp is for is unchanged: one
+output file still tells apart every compiler, source and unit set that
+could have written it, because two different files never have the same
+position relative to the same output.
+
+Measured: one program translated from the repository root and from a copy
+of ~bin/til~ plus ~src/~ under another root is byte-identical, C and
+forward header; the previous compiler's two outputs differed in the stamp
+line only. ~test/build_outputs.til~ translates one program in two
+directories and compares the bytes.
+
+Nothing a person reads changes: the stamp is a number in a trailing
+comment. Compiler errors, panics and ~__LOC__~ spell paths as before
+(decision 2, left as is).
+
+Left over, for where they are needed:
+- A Windows-hosted compiler is ~til.exe~, so its stamp differs from the
+  one a Linux or macOS host writes for the same program. #473 step C6 has
+  to either leave that line out of what it compares or the stamp has to
+  drop the extension; not decided here.
+- The EXECUTABLE stamp (~til_build_stamp~ inside the binary) still hashes
+  the output path, the include and link flags and ~ext.c~'s path as
+  spelled. That belongs to level 3 (binaries).
+
+*** Progress: step F4 (base master ce9eede)
+
+Decision 2 stays "leave it", so F4 is the contract and the Windows check.
+
+- The contract is written down in ~doc/self.org~, "Where the same source
+  gives the same output": the in-repository compiler, run from the checkout
+  root, the program named by the same relative path. It also says why an
+  installed compiler's output differs (it bakes its install path) and that
+  this is deliberate.
+- The Windows check is a step of ~windows-x64-host-run~, "Check the source
+  paths til.exe bakes": ~til.exe~ translates ~test/copy_file.til~ on the
+  Windows runner, the step prints every file name baked into the generated
+  C, requires ~./src/core/~, ~./src/std/~ and ~test/copy_file.til~ and
+  fails on a drive, an absolute path or a backslash. On Linux the same
+  program bakes 2 core, 3 std and 13 own locations, all in that spelling.
+  The step itself was run locally against the Linux compiler and against
+  generated C with each bad spelling injected. What ~til.exe~ really bakes
+  is unknown until the first CI run with this step; if it differs, that
+  run fails there and prints what it baked.
+
+Seen while answering a question about F7, not part of this issue: the
+compiler's own panics name ~./src/self/...~ relative to the checkout it
+was built in, and ~make install~ copies that binary, so an installed
+compiler's panic does not name the installed source.
+
+*** Progress: step F6 (base master ce9eede)
+
+**** Floats
+
+Measured on Linux x64 with ~test/float_fold.til~ (new): a folded float
+reaches the generated source two ways, as a value (~%.9g~ / ~%.17g~ text
+from ~ext.c~, which ~c_codegen.til~ emits as the literal) and as the text
+of a folded ~to_str()~ (~%g~). Both came from the HOST's printf.
+
+- Found and fixed: nonfinite text. A folded ~nan.to_str()~ was baked as
+  ~"-nan"~ while the same expression computed by the built program printed
+  ~nan~, on one machine; glibc prints the NaN's sign bit, and which sign a
+  computed NaN has is the CPU's default (set on x86, clear on ARM), so the
+  baked text also depended on the host's architecture. Other C libraries
+  spell these values differently again. ~ext.c~ now spells ~inf~, ~-inf~
+  and ~nan~ itself in all four functions (~F32~/~F64~ ~to_str~ and
+  ~to_repr~); a NaN never shows a sign. This changes what a program on
+  x86 Linux prints for a negative NaN, from ~-nan~ to ~nan~.
+- Finite values still go through the host's printf. glibc and Apple's
+  libc both print exact decimal expansions, so they are expected to
+  agree, and the suite row ~float_fold~ pins the spellings (rounding
+  boundary 2^53+1, a subnormal, 1e305, -0.0, an F32) on every host that
+  runs the suite. NOT known: msvcrt under the Windows ~til.exe~. The step
+  "Show how til.exe spells folded floats" in ~windows-x64-host-run~
+  prints what it writes for the same file, without judging it. If that
+  output differs from the pinned spellings, the fix is the one this step
+  names: format finite floats from the bit pattern inside til (exact
+  decimal expansion, about a hundred lines of C, checkable against glibc
+  for any number of random bit patterns). Not written until a run shows
+  it is needed.
+- Parsing (~strtod~ / ~strtof~ of literal text when the compiler folds)
+  was not compared between hosts; the same Windows output shows it
+  indirectly, since every pinned value is computed from parsed literals.
+- Tests: ~test/float_literals.til~ ~test_nan_text_has_no_sign~ (folded,
+  computed at run time, parsed with a sign, both widths); suite row
+  ~float_fold~.
+
+**** Order
+
+Every address-keyed container in the compiler, and whether anything
+iterates it:
+
+| Container | Where | Iterated |
+|-----------+-------+----------|
+| ~function_paths : Map(UPtr, Str)~ | ~context.til~ | no, lookup only |
+| ~global_borrow_escapes : Map(UPtr, RootBits)~ | ~context.til~ | no |
+| ~consumed~ sets, ~Set(UPtr)~ | ~garbager.til~ | no, membership |
+| ~inv_func_sites : Map(UPtr, BuilderFuncSites)~ | ~c_codegen.til~ | no |
+| ~functions : Map(UPtr, MlirCallable)~, ~selected : Set(UPtr)~ | ~mlir_codegen.til~ | no; the work list is a ~Vec~ in traversal order |
+| ~foreign_places : Map(UPtr, ForeignPlace)~ | ~interpreter.til~ | yes, five loops |
+
+The ~foreign_places~ loops are the interpreter's FFI bookkeeping (reset
+borrow counts, drop entries no longer foreign, carry entries into a new
+REPL context, rebuild FFI struct types by name). Each acts on one entry
+independently of the others and none writes to the output, so their order
+cannot show. The compiler's only hash containers are the C backend's
+string-literal tables, ~HashMap(Str, ...)~: keyed by content, and
+~std/hashmap.til~ keeps keys in insertion order, which is traversal
+order. Nothing to fix. Consistent with the measurements already recorded:
+two compiler layouts and two checkout roots give identical source.
+
+**** Effects
+
+Value macros in the repository's non-test sources that read something
+outside the source: ~get_version~ and ~get_compiler_revision~ in
+~src/til.til~, both ~git rev-parse HEAD~ in the build directory. Their
+contract (input: that checkout's commit; no git, no build) is written in
+~doc/concepts/functions.org~, with the general rule that such a macro
+makes what it reads an input of the build. The other macros in ~src/~
+and ~examples/~ generate types or functions from their arguments.
+No language change.

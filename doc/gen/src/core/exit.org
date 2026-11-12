@@ -1,5 +1,5 @@
 #+TITLE: src/core/exit.til
-#+SUBTITLE: til 0.0.1-99697f432
+#+SUBTITLE: til 0.0.1-ce9eede99
 #+OPTIONS: toc:t
 
 * exit

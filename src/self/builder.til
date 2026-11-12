@@ -1543,6 +1543,49 @@ priv reuse_paths := proc(lp: LoadedProgram, command: Str, custom_bin: Str, custo
     return derive_build_paths(lp, bin_override, custom_c, target)
 }
 
+// An absolute spelling of `path` with its "." and ".." components resolved
+// by name alone. realpath_str cannot answer for a generated file that does
+// not exist yet.
+priv path_absolute := proc(path: Str) returns Str {
+    mut full := path.replace("\\", "/")
+    if File.is_absolute(full).not() { full = format(realpath_str("."), "/", full) }
+    mut kept := Vec(Str).new()
+    for part : Str in full.split("/") {
+        // REM The first component is the root: "" on unix, a drive on windows.
+        if kept.len() == 0 { kept.push(own part.clone()); continue }
+        if part.len() == 0 || part == "." { continue }
+        if part == ".." {
+            if kept.len() > 1 { _ := kept.pop() }
+            continue
+        }
+        kept.push(own part.clone())
+    }
+    mut out := ""
+    for i, part in kept {
+        if i > 0 { out = format(out, "/") }
+        out = format(out, part)
+    }
+    return out
+}
+
+// `path` as seen from the directory `base`, both absolute: the leading
+// components they share go, and each component left in `base` is a "..".
+// Two windows drives share none, so there the path stays absolute.
+priv path_from_dir := func(path: Str, base: Str) returns Str {
+    parts := path.split("/")
+    base_parts := base.split("/")
+    mut shared : USize = 0
+    while shared < parts.len() && shared < base_parts.len() && parts[shared] == base_parts[shared] { shared++ }
+    if shared == 0 { return path.clone() }
+    mut out := ""
+    for _ in shared..base_parts.len() { out = format(out, "../") }
+    for i in shared..parts.len() {
+        if i > shared { out = format(out, "/") }
+        out = format(out, parts[i])
+    }
+    return out
+}
+
 priv stamp_of := func(parts: Vec(Str)) returns Str {
     mut text := ""
     for part : Str in parts { text = format(text, part, "\n") }
@@ -1578,19 +1621,26 @@ set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, c
     // translation would print nothing.
     if get_env("TIL_GC_AUDIT").len() > 0 { return }
     paths := reuse_paths(lp, command, custom_bin, custom_c, target)
+    // #472: the stamp is a line of the generated C, so it names every file
+    // as seen from the directory that C is written to. The same tree gives
+    // the same line wherever it is checked out, and one output still tells
+    // apart every compiler and source that could have written it.
+    c_abs := path_absolute(paths.c_path)
+    c_slash := c_abs.rfind("/").to_usize()
+    out_dir := c_abs.substr(0, c_slash).clone()
     mut translation := Vec(Str).new()
     translation.push(own "translation")
     translation.push(own lp.compiler_revision.clone())
-    translation.push(own realpath_str(compiler))
-    translation.push(own realpath_str(lp.path))
-    translation.push(own paths.c_path.clone())
+    translation.push(own path_from_dir(realpath_str(compiler), out_dir))
+    translation.push(own path_from_dir(realpath_str(lp.path), out_dir))
+    translation.push(own c_abs.substr(c_slash + 1, c_abs.len() - c_slash - 1).clone())
     translation.push(own target_to_str(target))
     translation.push(own lp.usize_override_bits.to_str())
     translation.push(own lp.cptr32.to_str())
     translation.push(own lp.cpu.name.clone())
     translation.push(own lp.ctx.check_unused_imports.to_str())
-    for unit_path : Str in lp.unit_paths() { translation.push(own realpath_str(unit_path)) }
-    for mode_file : Str in lp.mode_files { translation.push(own realpath_str(mode_file)) }
+    for unit_path : Str in lp.unit_paths() { translation.push(own path_from_dir(realpath_str(unit_path), out_dir)) }
+    for mode_file : Str in lp.mode_files { translation.push(own path_from_dir(realpath_str(mode_file), out_dir)) }
     lp.translation_stamp = stamp_of(translation)
     mut executable := Vec(Str).new()
     executable.push(own "executable")

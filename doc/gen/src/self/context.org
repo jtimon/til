@@ -1,5 +1,5 @@
 #+TITLE: src/self/context.til
-#+SUBTITLE: til 0.0.1-99697f432
+#+SUBTITLE: til 0.0.1-ce9eede99
 #+OPTIONS: toc:t
 
 * realpath_str
@@ -1263,6 +1263,16 @@ func field_is_own_ptr(sd: StructDef, dd: Declaration) returns Bool
 func host_own_ptr_compressed() returns Bool
 #+end_src
 
+* host_niche_slot_size
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.host_niche_slot_size
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func host_niche_slot_size(def: Expr) returns USize
+#+end_src
+
 * ENUM_PAYLOAD_OFFSET
 :PROPERTIES:
 :CUSTOM_ID: til.src.self.context.ENUM_PAYLOAD_OFFSET
@@ -2051,6 +2061,68 @@ func qname_in_set(s: Set__Str, a: Str, sep: Str, b: Str) returns Bool
 
 #+begin_src til
 Vec__Sym is a None
+#+end_src
+
+* Option__priv___src_self_context_til__HostOwnPtrProbe
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Option__priv___src_self_context_til__HostOwnPtrProbe
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+enum Option__priv___src_self_context_til__HostOwnPtrProbe {
+    None
+    Some: priv___src_self_context_til__HostOwnPtrProbe
+namespace:
+    func is_some(self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns Bool
+    func is_none(self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns Bool
+    func unwrap_or(self: Option__priv___src_self_context_til__HostOwnPtrProbe, default_v: priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
+    func unwrap(self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
+    func take(own self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
+    ext_func None() returns Option__priv___src_self_context_til__HostOwnPtrProbe
+    ext_func Some(own val: priv___src_self_context_til__HostOwnPtrProbe) returns Option__priv___src_self_context_til__HostOwnPtrProbe
+    core_func is(self: Option__priv___src_self_context_til__HostOwnPtrProbe, other: Option__priv___src_self_context_til__HostOwnPtrProbe) returns Bool
+    func delete(own self: Option__priv___src_self_context_til__HostOwnPtrProbe, call_free: Bool = true)
+    func clone(self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns Option__priv___src_self_context_til__HostOwnPtrProbe
+    func size() returns USize
+    func size_for_target() returns USize
+}
+#+end_src
+
+* Option__priv___src_self_context_til__HostOwnPtrProbe.unwrap
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Option__priv___src_self_context_til__HostOwnPtrProbe.unwrap
+:group: Compiler frontend
+:END:
+
+The contained value; PANICS on None, ala Rust's unwrap. For the
+~if o.is_none() { ... }~ + ~o.unwrap()~ idiom, where the caller
+has already handled absence and unwrapping cannot fail. Prefer
+a ~switch~ when both arms do real work, and ~unwrap_or~ when a
+default is meaningful -- reach for this only when None is
+unreachable by construction, so it fails loudly if that ever
+stops being true.
+
+#+begin_src til
+func Option__priv___src_self_context_til__HostOwnPtrProbe.unwrap(self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
+#+end_src
+
+* Option__priv___src_self_context_til__HostOwnPtrProbe.take
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.context.Option__priv___src_self_context_til__HostOwnPtrProbe.take
+:group: Compiler frontend
+:END:
+
+The contained value, MOVED out; PANICS on None, like unwrap.
+unwrap only BORROWS self, so for an owned payload it must hand
+back a deep clone; this consumes the Option instead, so the
+payload's bytes move and only the enum shell is freed (#321).
+Use it wherever the caller takes ownership of what the Option
+held -- an ~Option(Expr)~ returned by an AST helper, say, where
+a clone would copy a whole subtree and break node identity.
+
+#+begin_src til
+func Option__priv___src_self_context_til__HostOwnPtrProbe.take(own self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
 #+end_src
 
 * Vec__BorrowRoot

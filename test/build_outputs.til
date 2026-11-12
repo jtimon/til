@@ -122,6 +122,23 @@ main := proc(args: ..Str) {
         panic("translate trusted an existing output")
     }
 
+    // #472: the reuse stamp is a line of the generated C. It names its
+    // files as seen from the output's directory, so the same program in two
+    // places translates to the same bytes.
+    for place : Str in array(Str, "place_a", "place_b") {
+        mkdir_p(format(WORK, "/", place))
+        File.writefile(format(WORK, "/", place, "/main.til"), "mode script\nprintln(\"placed472\")\n")
+        placed := Cmd.new(compiler, "translate", "main.til")
+        placed.cwd(format(WORK, "/", place))
+        placed.capture()
+        if placed.run() != 0 { panic(placed.render(), ": ", placed.out(), placed.err()) }
+    }
+    placed_c := File.readfile(format(WORK, "/place_a/gen/til/main.c"))
+    if placed_c.contains("til-translation-stamp").not() { panic("translation carries no reuse stamp") }
+    if placed_c != File.readfile(format(WORK, "/place_b/gen/til/main.c")) {
+        panic("generated C depends on the directory it was translated in")
+    }
+
     check_command(Cmd.new(compiler, "run", "--usize=32", "width.til"), "4\n")
     check_command(Cmd.new(compiler, "run", "--usize=64", "width.til"), "8\n")
     check_command(Cmd.new(compiler, "run", "--force-rebuild", "--usize=32", "width.til"), "4\n")

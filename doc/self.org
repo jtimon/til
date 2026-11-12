@@ -54,8 +54,11 @@
   outputs (#442). The emitted C and its forward header are current when
   newer than every loaded unit, mode file and the compiler binary, and the
   C ends with this invocation's translation stamp (compiler, source,
-  output path, target, layout, CPU profile, loaded units); a current
-  translation skips preparation and emission. The executable is current
+  output name, target, layout, CPU profile, loaded units); a current
+  translation skips preparation and emission. The stamp is a line of the
+  generated C, so it names those files as seen from the directory the C
+  is written to, never by absolute path: the same tree translates to the
+  same bytes wherever it is checked out (#472). The executable is current
   when newer than that C, the C runtime, link_c sources and the headers
   they include, linked archives, the macOS framework stubs a cross link
   uses and the compiler, and it carries this
@@ -83,6 +86,26 @@
 
   Bootstrap steps explicitly select ~bin/til~ and ~gen/til/til.c~ so the
   established boot regeneration paths work with old and new compilers.
+
+** Where the same source gives the same output (#472)
+
+  The generated source of a program does not depend on where its checkout
+  lives, on the host, or on the compiler's own layout (~--usize~ of the
+  compiler binary), PROVIDED the compiler is the in-repository one, run
+  from the checkout root, and the program is named by the same relative
+  path. Comparisons between hosts (CI, #473) are made that way.
+
+  The reason for the condition is what gets baked into a built program:
+  ~__LOC__~ and ~__FILE__~ strings, cast locations in panics and the C
+  names of private declarations all spell a file by the path it was
+  loaded from. Under the checkout root that is ~./src/core/...~ for the
+  compiler's own tree and the path as written for the program. An
+  INSTALLED compiler loads its tree from its install prefix, so it bakes
+  that absolute path: its output differs from the in-repository
+  compiler's and from that of a compiler installed under another prefix.
+  That is deliberate (a runtime panic then names a file an editor can
+  open), not an oversight. The Windows host job checks that ~til.exe~
+  bakes the same ~./src/...~ spelling as the other hosts.
 
 ** Shared program builder
 

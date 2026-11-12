@@ -1,5 +1,5 @@
 #+TITLE: src/self/garbager.til
-#+SUBTITLE: til 0.0.1-99697f432
+#+SUBTITLE: til 0.0.1-ce9eede99
 #+OPTIONS: toc:t
 
 * garbager_destroy_body
@@ -10,6 +10,26 @@
 
 #+begin_src til
 proc garbager_destroy_body(mut ctx: Context, mut body: Expr, mut scope: TypeScope) returns Bool
+#+end_src
+
+* garbager_destroy_function
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.garbager_destroy_function
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc garbager_destroy_function(mut ctx: Context, mut fdef: Expr, owner: Str, is_destructor: Bool)
+#+end_src
+
+* garbager_destroy_globals
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.garbager.garbager_destroy_globals
+:group: Compiler backend
+:END:
+
+#+begin_src til
+proc garbager_destroy_globals(mut ctx: Context, mut body: Expr, mut scope: TypeScope)
 #+end_src
 
 * garbager_validate

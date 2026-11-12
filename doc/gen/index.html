@@ -19,7 +19,7 @@ h1,h2{line-height:1.2}pre{overflow:auto;background:#111;color:#eee;border-radius
 <script src="search.js" defer></script>
 </head>
 <body>
-<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-99697f432</div><nav aria-label="Documentation"><h2>Core</h2><ul>
+<div class="doc-layout"><aside class="doc-sidebar"><h1><a href="index.html">til docs</a></h1><div class="doc-version">Version 0.0.1-ce9eede99</div><nav aria-label="Documentation"><h2>Core</h2><ul>
 <li><a href="src/core/vec.html">src/core/vec.til</a></li>
 <li><a href="src/core/str.html">src/core/str.til</a></li>
 <li><a href="src/core/dyn.html">src/core/dyn.til</a></li>
@@ -1743,6 +1743,10 @@ namespace:
 }
 </code></pre>
 </li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.F32.to_str">F32.to_str</a>
+<pre><code class="language-til">ext_func (shallow val: F32) returns Str
+</code></pre>
+</li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.F32.to_repr">F32.to_repr</a>
 <pre><code class="language-til">ext_func (shallow val: F32) returns Str
 </code></pre>
@@ -1804,6 +1808,10 @@ namespace:
     MAX : F64
     func hash(self: F64, hasher: HashFn) returns U64
 }
+</code></pre>
+</li>
+<li><a href="src/core/numbers.html#til.src.core.numbers.F64.to_str">F64.to_str</a>
+<pre><code class="language-til">ext_func (shallow val: F64) returns Str
 </code></pre>
 </li>
 <li><a href="src/core/numbers.html#til.src.core.numbers.F64.to_repr">F64.to_repr</a>
@@ -7773,6 +7781,10 @@ namespace:
 <pre><code class="language-til">func () returns Bool
 </code></pre>
 </li>
+<li><a href="src/self/context.html#til.src.self.context.host_niche_slot_size">host_niche_slot_size</a>
+<pre><code class="language-til">func (def: Expr) returns USize
+</code></pre>
+</li>
 <li><a href="src/self/context.html#til.src.self.context.ENUM_PAYLOAD_OFFSET">ENUM_PAYLOAD_OFFSET</a>
 <pre><code class="language-til"> is a USize
 </code></pre>
@@ -8087,6 +8099,34 @@ namespace:
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__Sym">Vec__Sym</a>
 <pre><code class="language-til"> is a None
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Option__priv___src_self_context_til__HostOwnPtrProbe">Option__priv___src_self_context_til__HostOwnPtrProbe</a>
+<pre><code class="language-til">enum {
+    None
+    Some: priv___src_self_context_til__HostOwnPtrProbe
+namespace:
+    func is_some(self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns Bool
+    func is_none(self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns Bool
+    func unwrap_or(self: Option__priv___src_self_context_til__HostOwnPtrProbe, default_v: priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
+    func unwrap(self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
+    func take(own self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
+    ext_func None() returns Option__priv___src_self_context_til__HostOwnPtrProbe
+    ext_func Some(own val: priv___src_self_context_til__HostOwnPtrProbe) returns Option__priv___src_self_context_til__HostOwnPtrProbe
+    core_func is(self: Option__priv___src_self_context_til__HostOwnPtrProbe, other: Option__priv___src_self_context_til__HostOwnPtrProbe) returns Bool
+    func delete(own self: Option__priv___src_self_context_til__HostOwnPtrProbe, call_free: Bool = true)
+    func clone(self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns Option__priv___src_self_context_til__HostOwnPtrProbe
+    func size() returns USize
+    func size_for_target() returns USize
+}
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Option__priv___src_self_context_til__HostOwnPtrProbe.unwrap">Option__priv___src_self_context_til__HostOwnPtrProbe.unwrap</a>
+<pre><code class="language-til">func (self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
+</code></pre>
+</li>
+<li><a href="src/self/context.html#til.src.self.context.Option__priv___src_self_context_til__HostOwnPtrProbe.take">Option__priv___src_self_context_til__HostOwnPtrProbe.take</a>
+<pre><code class="language-til">func (own self: Option__priv___src_self_context_til__HostOwnPtrProbe) returns priv___src_self_context_til__HostOwnPtrProbe
 </code></pre>
 </li>
 <li><a href="src/self/context.html#til.src.self.context.Vec__BorrowRoot">Vec__BorrowRoot</a>
@@ -12156,6 +12196,10 @@ namespace:
 <pre><code class="language-til">func (scope: TypeScope, elem_type: Str, symbols: SymbolPool) returns Str
 </code></pre>
 </li>
+<li><a href="src/self/typer.html#til.src.self.typer.target_niche_slot_size">target_niche_slot_size</a>
+<pre><code class="language-til">func (def: Expr, ctx: Context) returns USize
+</code></pre>
+</li>
 <li><a href="src/self/typer.html#til.src.self.typer.target_value_size_align">target_value_size_align</a>
 <pre><code class="language-til">func (type_name: Str, scope: TypeScope, ctx: Context, mut sz: USize, mut al: USize)
 </code></pre>
@@ -13748,6 +13792,14 @@ namespace:
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.garbager_destroy_body">garbager_destroy_body</a>
 <pre><code class="language-til">proc (mut ctx: Context, mut body: Expr, mut scope: TypeScope) returns Bool
+</code></pre>
+</li>
+<li><a href="src/self/garbager.html#til.src.self.garbager.garbager_destroy_function">garbager_destroy_function</a>
+<pre><code class="language-til">proc (mut ctx: Context, mut fdef: Expr, owner: Str, is_destructor: Bool)
+</code></pre>
+</li>
+<li><a href="src/self/garbager.html#til.src.self.garbager.garbager_destroy_globals">garbager_destroy_globals</a>
+<pre><code class="language-til">proc (mut ctx: Context, mut body: Expr, mut scope: TypeScope)
 </code></pre>
 </li>
 <li><a href="src/self/garbager.html#til.src.self.garbager.garbager_validate">garbager_validate</a>

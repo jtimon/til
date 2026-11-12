@@ -1376,10 +1376,24 @@ I64 F32_cmp(F32 a, F32 b) { return (a > b) ? 1 : (a < b) ? -1 : 0; }
 I64 F32_to_i64(F32 a) { return (I64)a; }
 F32 F32_from_i64_ext(const I64 *a) { return (F32)*a; }
 
+// #472: nonfinite values are spelled here, not by the host's printf. Its
+// text for them differs between C libraries ("inf" or "1.#INF"), and whether
+// a NaN prints a sign follows the sign bit of the host CPU's default NaN (set
+// on x86, clear on ARM). Text folded at compile time ends up in the generated
+// source, so neither may show: a NaN is "nan" on every host. NULL for a finite
+// value.
+static const char *float_nonfinite_text(double v) {
+    if (isnan(v)) return "nan";
+    if (isinf(v)) return v < 0 ? "-inf" : "inf";
+    return NULL;
+}
+
 // F32 to_str
 Str *F32_to_str(F32 v) {
     char buf[32];
-    snprintf(buf, 32, "%g", (double)v);
+    const char *nonfinite = float_nonfinite_text((double)v);
+    if (nonfinite) snprintf(buf, 32, "%s", nonfinite);
+    else snprintf(buf, 32, "%g", (double)v);
     USize len = (USize)strlen(buf);
     Str *s = malloc(sizeof(Str));
     TIL_OWN_SET(s->c_str, malloc(len + 1));
@@ -1394,7 +1408,9 @@ Str *F32_to_str(F32 v) {
 // folded F32 results as source literals (F32_to_str's %g loses precision).
 Str *F32_to_repr(F32 v) {
     char buf[32];
-    snprintf(buf, 32, "%.9g", (double)v);
+    const char *nonfinite = float_nonfinite_text((double)v);
+    if (nonfinite) snprintf(buf, 32, "%s", nonfinite);
+    else snprintf(buf, 32, "%.9g", (double)v);
     USize len = (USize)strlen(buf);
     Str *s = malloc(sizeof(Str));
     TIL_OWN_SET(s->c_str, malloc(len + 1));
@@ -1519,7 +1535,9 @@ F64 F64_from_i64_ext(const I64 *a) { return (F64)*a; }
 
 Str *F64_to_str(F64 v) {
     char buf[40];
-    snprintf(buf, 40, "%g", v);
+    const char *nonfinite = float_nonfinite_text(v);
+    if (nonfinite) snprintf(buf, 40, "%s", nonfinite);
+    else snprintf(buf, 40, "%g", v);
     USize len = (USize)strlen(buf);
     Str *s = malloc(sizeof(Str));
     TIL_OWN_SET(s->c_str, malloc(len + 1));
@@ -1534,7 +1552,9 @@ Str *F64_to_str(F64 v) {
 // folded F64 results as source literals through this (mirrors F32_to_repr).
 Str *F64_to_repr(F64 v) {
     char buf[40];
-    snprintf(buf, 40, "%.17g", v);
+    const char *nonfinite = float_nonfinite_text(v);
+    if (nonfinite) snprintf(buf, 40, "%s", nonfinite);
+    else snprintf(buf, 40, "%.17g", v);
     USize len = (USize)strlen(buf);
     Str *s = malloc(sizeof(Str));
     TIL_OWN_SET(s->c_str, malloc(len + 1));

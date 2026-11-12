@@ -1,5 +1,5 @@
 #+TITLE: src/self/typer.til
-#+SUBTITLE: til 0.0.1-99697f432
+#+SUBTITLE: til 0.0.1-ce9eede99
 #+OPTIONS: toc:t
 
 * fa_is_ns
@@ -690,6 +690,16 @@ func variadic_array_type_name(scope: TypeScope, elem_type: Str, symbols: SymbolP
 
 #+begin_src til
 func variadic_carrier_type_name(scope: TypeScope, elem_type: Str, symbols: SymbolPool) returns Str
+#+end_src
+
+* target_niche_slot_size
+:PROPERTIES:
+:CUSTOM_ID: til.src.self.typer.target_niche_slot_size
+:group: Compiler frontend
+:END:
+
+#+begin_src til
+func target_niche_slot_size(def: Expr, ctx: Context) returns USize
 #+end_src
 
 * target_value_size_align
