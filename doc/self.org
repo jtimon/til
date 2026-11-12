@@ -241,9 +241,11 @@
   globals there at init, a separate native type for foreign pointers).
   Measured over the whole tree, there are 19 stored ~ref~ fields and no
   ~ref~ containers or ~ref~ enum payloads; at least six of the 19 address
-  stack or C memory. Locals, parameters and return values are never
-  compressed in either design (~Option(ref T)~ included), so the whole
-  payoff is 4 bytes in those 19 fields. That is why refs are native by
+  stack or C memory. A reference held in a local, a parameter or a
+  return value (~Option(ref T)~ included) would stay native in either
+  design -- unlike an owned ~Option(T)~, which is a 4-byte value wherever
+  it lives -- so the whole payoff is 4 bytes in those 19 fields. That is
+  why refs are native by
   decision, not by omission: the density lives in owned links and buffers,
   which are compressed, and a structure whose ~ref~ link ever turns out to
   matter is better served by making that link ~own~ or an index. ~Dynamic~

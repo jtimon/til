@@ -1837,7 +1837,7 @@ priv ffi_release_binding := func(hb: HeapBinding) {
 priv ffi_expire_unbound_places := func(mut ctx: Context) {
     if ffi_cleanup_is_dirty(ctx).not() { return }
     ffi_clear_cleanup_dirty(ctx)
-    for _, place in ctx.eval.foreign_places {
+    for place : ForeignPlace in ctx.eval.foreign_places.values {
         if ffi_place_borrows(place) == 0 && ffi_place_in_flight(place) { ffi_place_set_in_flight(place, false) }
     }
     // A released borrow is no longer an address->ABI fact. Reclaim both its
@@ -5793,7 +5793,7 @@ scope_new_boxed := func(parent: Option(ref Scope)) returns ref Scope {
 }
 
 scope_drop_owned_bindings := func(mut s: Scope) {
-    for _, mut hb in s.heap_bindings {
+    for mut hb : HeapBinding in s.heap_bindings.values {
         if hb.is_local.not().or(hb.is_borrowed).or(hb.moved_out).or(hb.ptr.is_null()) { continue }
         // #275: a #302 raw allocation (`b : I8 = malloc(n)`) binds the
         // BLOCK ITSELF as its datum, not an interpreter-owned slot, and the
@@ -5840,7 +5840,7 @@ scope_free := func(own s: Scope) {
     // Recovered constfold/REPL/host aborts skip the remaining AST cleanup, so their
     // exiting scopes also drop payloads they still own. Borrowed/moved/raw and
     // already-released values keep their existing ownership rules below.
-    for _, hb in s.heap_bindings {
+    for hb : HeapBinding in s.heap_bindings.values {
         ffi_release_binding(hb)
         if hb.is_local.not().or(hb.is_borrowed).or(hb.moved_out).or(hb.ptr.is_null()) { continue }
         // Same #275 rule as scope_drop_owned_bindings: a raw allocation's
@@ -8120,7 +8120,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
     }
     // A full REPL reload starts a new Context while the session bindings keep
     // their old Contexts alive. Carry their foreign provenance into this turn.
-    for _, hb in session_global(session).heap_bindings {
+    for hb : HeapBinding in session_global(session).heap_bindings.values {
         if hb.foreign_root == 0 { continue }
         if ptr_eq(hb.ctx, lp.ctx).not() {
             for address, place in hb.ctx.eval.foreign_places {
@@ -8900,7 +8900,7 @@ priv ffi_init_link_libs := proc(link_flags: Str, mut ctx: Context, origin: Str =
 // library's own C prefix (til_<lib>__...), which no C library's does.
 priv ffi_program_binds_til_lib := func(lib: Str, ctx: Context) returns Bool {
     prefix := c_lib_abi_layout_symbol(lib).strip_suffix(C_LIB_ABI_LAYOUT)
-    for _, unit in ctx.imported {
+    for unit : ImportUnit in ctx.imported.values {
         for stmt : Expr in unit.ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if decl_of(stmt).name.starts_with(prefix) { return true }
@@ -13138,7 +13138,7 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
     return 0
 }
 ffi_cleanup := proc(mut ctx: Context) {
-    for _, thunk in ctx.ffi.callable_thunks {
+    for thunk : NativeCallableThunk in ctx.ffi.callable_thunks.values {
         mut allocation: Dynamic = thunk.allocation
         ffi_closure_free(allocation)
     }

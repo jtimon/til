@@ -401037,15 +401037,15 @@ static void priv___src_self_interpreter_til__ffi_expire_unbound_places(Context *
     }
     priv___src_self_interpreter_til__ffi_clear_cleanup_dirty(ctx);
     {
-        Map__UPtr_ForeignPlace *_fc_Map__UPtr_ForeignPlace_0 = &ctx->eval.foreign_places;
+        Vec__ForeignPlace *_fc_Vec__ForeignPlace_0 = &ctx->eval.foreign_places.values;
         USize _fi_USize_0 = 0;
         while (1) {
-            U32 hoisted__U32_11 = (_fc_Map__UPtr_ForeignPlace_0->keys.count);
+            U32 hoisted__U32_11 = (_fc_Vec__ForeignPlace_0->count);
             Bool _wcond_Bool_1 = ((Bool)(_fi_USize_0 < hoisted__U32_11));
             if (!(_wcond_Bool_1)) {
                 break;
             }
-            ForeignPlace *place = ((ForeignPlace *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Map__UPtr_ForeignPlace_0->values.data))) + (((U64)(((U64)(_fi_USize_0)) * ((U64)(28))))))));
+            ForeignPlace *place = ((ForeignPlace *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Vec__ForeignPlace_0->data))) + (((U64)(((U64)(_fi_USize_0)) * ((U64)(28))))))));
             U32 hoisted__U32_12 = 1;
             U32 hoisted__U32_13 = ((U32)(_fi_USize_0 + hoisted__U32_12));
             _fi_USize_0 = hoisted__U32_13;
@@ -412681,15 +412681,15 @@ static Scope scope_new_owned(Option__ref_Scope * parent) {
 
 static void scope_drop_owned_bindings(Scope * s) {
     {
-        Map__Str_HeapBinding *_fc_Map__Str_HeapBinding_0 = &s->heap_bindings;
+        Vec__HeapBinding *_fc_Vec__HeapBinding_0 = &s->heap_bindings.values;
         USize _fi_USize_0 = 0;
         while (1) {
-            U32 hoisted__U32_26 = (_fc_Map__Str_HeapBinding_0->keys.count);
+            U32 hoisted__U32_26 = (_fc_Vec__HeapBinding_0->count);
             Bool _wcond_Bool_1 = ((Bool)(_fi_USize_0 < hoisted__U32_26));
             if (!(_wcond_Bool_1)) {
                 break;
             }
-            HeapBinding *hb = ((HeapBinding *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Map__Str_HeapBinding_0->values.data))) + (((U64)(((U64)(_fi_USize_0)) * ((U64)(64))))))));
+            HeapBinding *hb = ((HeapBinding *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Vec__HeapBinding_0->data))) + (((U64)(((U64)(_fi_USize_0)) * ((U64)(64))))))));
             U32 hoisted__U32_27 = 1;
             U32 hoisted__U32_28 = ((U32)(_fi_USize_0 + hoisted__U32_27));
             _fi_USize_0 = hoisted__U32_28;
@@ -412882,15 +412882,15 @@ static void priv___src_self_interpreter_til__scope_set_borrowed(Scope * s, Str *
 
 static void scope_free(Scope * s) {
     {
-        Map__Str_HeapBinding *_fc_Map__Str_HeapBinding_0 = &s->heap_bindings;
+        Vec__HeapBinding *_fc_Vec__HeapBinding_0 = &s->heap_bindings.values;
         USize _fi_USize_0 = 0;
         while (1) {
-            U32 hoisted__U32_38 = (_fc_Map__Str_HeapBinding_0->keys.count);
+            U32 hoisted__U32_38 = (_fc_Vec__HeapBinding_0->count);
             Bool _wcond_Bool_1 = ((Bool)(_fi_USize_0 < hoisted__U32_38));
             if (!(_wcond_Bool_1)) {
                 break;
             }
-            HeapBinding *hb = ((HeapBinding *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Map__Str_HeapBinding_0->values.data))) + (((U64)(((U64)(_fi_USize_0)) * ((U64)(64))))))));
+            HeapBinding *hb = ((HeapBinding *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Vec__HeapBinding_0->data))) + (((U64)(((U64)(_fi_USize_0)) * ((U64)(64))))))));
             U32 hoisted__U32_39 = 1;
             U32 hoisted__U32_40 = ((U32)(_fi_USize_0 + hoisted__U32_39));
             _fi_USize_0 = hoisted__U32_40;
@@ -417987,15 +417987,15 @@ static I32 interp_session_prepare_context(InterpSession * session, LoadedProgram
         }
     }
     {
-        Map__Str_HeapBinding *_fc_Map__Str_HeapBinding_149 = &((Scope *)priv___src_self_interpreter_til__session_global(session))->heap_bindings;
+        Vec__HeapBinding *_fc_Vec__HeapBinding_149 = &((Scope *)priv___src_self_interpreter_til__session_global(session))->heap_bindings.values;
         USize _fi_USize_149 = 0;
         while (1) {
-            U32 hoisted__U32_181 = (_fc_Map__Str_HeapBinding_149->keys.count);
+            U32 hoisted__U32_181 = (_fc_Vec__HeapBinding_149->count);
             Bool _wcond_Bool_150 = ((Bool)(_fi_USize_149 < hoisted__U32_181));
             if (!(_wcond_Bool_150)) {
                 break;
             }
-            HeapBinding *hb = ((HeapBinding *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Map__Str_HeapBinding_149->values.data))) + (((U64)(((U64)(_fi_USize_149)) * ((U64)(64))))))));
+            HeapBinding *hb = ((HeapBinding *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Vec__HeapBinding_149->data))) + (((U64)(((U64)(_fi_USize_149)) * ((U64)(64))))))));
             U32 hoisted__U32_182 = 1;
             U32 hoisted__U32_183 = ((U32)(_fi_USize_149 + hoisted__U32_182));
             _fi_USize_149 = hoisted__U32_183;
@@ -419647,15 +419647,15 @@ static Bool priv___src_self_interpreter_til__ffi_program_binds_til_lib(Str * lib
     Str hoisted__Str_self_interpreter_ffi_program_binds_til_lib_15 = c_lib_abi_layout_symbol(lib);
     Str prefix = Str_strip_suffix(&hoisted__Str_self_interpreter_ffi_program_binds_til_lib_15, &C_LIB_ABI_LAYOUT);
     {
-        Map__Str_ImportUnit *_fc_Map__Str_ImportUnit_0 = &ctx->imported;
+        Vec__ImportUnit *_fc_Vec__ImportUnit_0 = &ctx->imported.values;
         USize _fi_USize_0 = 0;
         while (1) {
-            U32 hoisted__U32_12 = (_fc_Map__Str_ImportUnit_0->keys.count);
+            U32 hoisted__U32_12 = (_fc_Vec__ImportUnit_0->count);
             Bool _wcond_Bool_1 = ((Bool)(_fi_USize_0 < hoisted__U32_12));
             if (!(_wcond_Bool_1)) {
                 break;
             }
-            ImportUnit *unit = ((ImportUnit *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Map__Str_ImportUnit_0->values.data))) + (((U64)(((U64)(_fi_USize_0)) * ((U64)(136))))))));
+            ImportUnit *unit = ((ImportUnit *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Vec__ImportUnit_0->data))) + (((U64)(((U64)(_fi_USize_0)) * ((U64)(136))))))));
             U32 hoisted__U32_13 = 1;
             U32 hoisted__U32_14 = ((U32)(_fi_USize_0 + hoisted__U32_13));
             _fi_USize_0 = hoisted__U32_14;
@@ -434558,15 +434558,15 @@ static I32 priv___src_self_interpreter_til__ffi_init(Expr * program, Str * fwd_p
 
 static void ffi_cleanup(Context * ctx) {
     {
-        Map__Str_NativeCallableThunk *_fc_Map__Str_NativeCallableThunk_0 = &ctx->ffi.callable_thunks;
+        Vec__NativeCallableThunk *_fc_Vec__NativeCallableThunk_0 = &ctx->ffi.callable_thunks.values;
         USize _fi_USize_0 = 0;
         while (1) {
-            U32 hoisted__U32_2 = (_fc_Map__Str_NativeCallableThunk_0->keys.count);
+            U32 hoisted__U32_2 = (_fc_Vec__NativeCallableThunk_0->count);
             Bool _wcond_Bool_1 = ((Bool)(_fi_USize_0 < hoisted__U32_2));
             if (!(_wcond_Bool_1)) {
                 break;
             }
-            NativeCallableThunk *thunk = ((NativeCallableThunk *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Map__Str_NativeCallableThunk_0->values.data))) + (((U64)(((U64)(_fi_USize_0)) * ((U64)(24))))))));
+            NativeCallableThunk *thunk = ((NativeCallableThunk *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Vec__NativeCallableThunk_0->data))) + (((U64)(((U64)(_fi_USize_0)) * ((U64)(24))))))));
             U32 hoisted__U32_3 = 1;
             U32 hoisted__U32_4 = ((U32)(_fi_USize_0 + hoisted__U32_3));
             _fi_USize_0 = hoisted__U32_4;
@@ -460917,8 +460917,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-08721a4f6", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("08721a4f628f7dfee580d871862ba14b297fde29", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-ed62a4902", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("ed62a4902bee152700e37d9ac5f40dd20c96ca9c", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

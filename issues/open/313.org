@@ -2,6 +2,24 @@
 # category: features
 ** OPEN #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
 
+*** Status (2026-11-12)
+
+What is compressed under --usize=32: ~own~ pointer fields and owned niche
+payloads (~Option(T)~ of a struct or enum). What is native by DECISION:
+~ref~ fields, ~Option(ref T)~, ~Dynamic~, callables, ~UPtr~ -- see "Plan
+for the reference side" below and doc/self.org, "Why only own fields are
+compressed". The "Reopened" section that follows is kept as the record of
+why the question was asked; its demand that stored references follow the
+selected layout, its remark that the callback bridge's native-width ref
+copies "must become layout-aware", and its acceptance list are SUPERSEDED
+by that decision: those copies are correct as they are, and no reference
+work is pending.
+
+Still open before this issue can close: the last entry of "Open
+follow-ups" (a COMPILED program linked against a til library built for
+the other layout misreads its values; only the interpreter refuses such a
+library today).
+
 *** Reopened: reference compression remains incomplete
 
 Reopened after reviewing c721fbbf2 (shared I64 references in fixed callback
