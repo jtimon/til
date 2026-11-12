@@ -34,6 +34,10 @@ test_hashset_empty := test() {
     assert_eq(USize, s.len(), 0)
     assert(s.has(1).not())
     assert(s.remove(1).not())
+    reserved := HashSet(I64).with_capacity(0)
+    assert_eq(USize, reserved.len(), 0)
+    assert_eq(USize, reserved.keys.cap, 0)
+    assert_eq(USize, reserved.buckets.count, 0)
 }
 
 test_hashset_remove := test() {
@@ -114,6 +118,91 @@ test_hashset_stored_hash := test() {
     h2 := s.stored_hash("pooled")!
     assert_eq(U64, h2, h)
 }
+
+priv collision_hash := func(data: Dynamic, count: USize) returns U64 { return fnv1a(data, count).band(0) }
+priv make_hasher := func(seed: U64) returns HashFn {
+    return func(data: Dynamic, count: USize) returns U64 [shallow seed] { return fnv1a(data, count).bxor(seed) }
+}
+
+test_hashset_hashing := test() {
+    mut defaults := HashSet(I64).new()
+    for i in 0..128 { defaults.add(own i.mul(256)) }
+    for i in 0..128 {
+        key := i.mul(256)
+        if defaults.has(key).not() || defaults.stored_hash(key)! != key.hash(fnv1a) { panic("HashSet default hash") }
+    }
+    if defaults.stored_hash(0)! == defaults.stored_hash(256)! { panic("HashSet primitive hash width") }
+    HashSet(I64).hasher = make_hasher(17)
+    mut captured := HashSet(I64).new()
+    captured.add(own 19)
+    captured_key : I64 = 19
+    if captured.stored_hash(19)! != captured_key.hash(fnv1a).bxor(17) { panic("HashSet capturing hasher") }
+    HashSet(I64).hasher = fnv1a
+}
+
+test_hashset_collisions := test() {
+    HashSet(I64).hasher = collision_hash
+    mut numbers := HashSet(I64).new()
+    for i in 0..128 { numbers.add(own i.clone()) }
+    for i in 0..128 { numbers.add(own i.clone()) }
+    if numbers.len() != 128 || numbers.buckets.count <= HASHMAP_INIT_BUCKETS { panic("HashSet growth/duplicates") }
+    for i in 0..128 {
+        if numbers.has(i).not() || numbers.stored_hash(i)! != 0 { panic("HashSet collision lookup") }
+    }
+    mut snapshot := numbers.clone()
+    // Remove a chain tail, a relocated entry, a middle and a head before
+    // removing the rest; every dense swap must repair the collision chain.
+    for key : I64 in array(I64, 0, 127, 63, 126) {
+        if numbers.remove(key).not() || numbers.has(key) || numbers.remove(key) { panic("HashSet swap removal") }
+    }
+    for i in 0..128 {
+        if i != 0 && i != 127 && i != 63 && i != 126 {
+            if numbers.has(i).not() || numbers.remove(i).not() { panic("HashSet remaining collision chain") }
+        }
+    }
+    if numbers.len() != 0 || snapshot.len() != 128 || snapshot.has(0).not() { panic("HashSet clone independence") }
+    mut caught := false
+    _ := numbers.stored_hash(7)?
+    catch (err: KeyNotFound) { caught = true }
+    if caught.not() { panic("HashSet missing hash error") }
+    numbers.clear()
+    numbers.add(own 7)
+    if numbers.has(7).not() || numbers.len() != 1 { panic("HashSet integer reuse") }
+    snapshot.clear()
+    HashSet(I64).hasher = fnv1a
+}
+
+priv check_owned_collision_strings := func() {
+    HashSet(Str).hasher = collision_hash
+    mut words := HashSet(Str).with_capacity(64)
+    capacity := words.keys.cap.clone()
+    buckets := words.buckets.count.clone()
+    for i in 0..64 { words.add(own format("word", i.to_str())) }
+    if words.keys.cap != capacity || words.buckets.count != buckets { panic("HashSet preallocation") }
+    // Each duplicate owns a fresh string buffer. Discard the incoming value,
+    // keeping the original element and its cached hash alive.
+    for i in 0..64 { words.add(own format("word", i.to_str())) }
+    if words.len() != 64 { panic("HashSet string duplicates") }
+    for i in 0..64 {
+        key := format("word", i.to_str())
+        if words.has(key).not() || words.stored_hash(key)! != 0 { panic("HashSet owned string lookup") }
+    }
+    mut snapshot := words.clone()
+    for i in 0..32 { if words.remove(format("word", i.to_str())).not() { panic("HashSet string removal") } }
+    for i in 32..64 { if words.has(format("word", i.to_str())).not() { panic("HashSet string chain repair") } }
+    words.clear()
+    words.add(own format("fresh"))
+    if words.len() != 1 || words.has("fresh").not() || snapshot.len() != 64 || snapshot.has("word0").not() {
+        panic("HashSet string clone independence/reuse")
+    }
+    snapshot.clear()
+    HashSet(Str).hasher = fnv1a
+}
+
+test_hashset_owned_collisions := test() {
+    for _ in 0..8 { check_owned_collision_strings() }
+}
+
 
 // --- DynHashSet: same contracts, runtime element type ---
 

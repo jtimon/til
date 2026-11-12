@@ -1,1 +1,1 @@
-error: HolyC codegen currently supports only modes script, cli and gui
+error: HolyC codegen currently supports only modes script, cli, gui and test

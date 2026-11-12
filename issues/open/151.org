@@ -1534,8 +1534,9 @@
     skipped old-value teardown because the unnamed FuncPtr type has no name.
     The shared lowering now retains callable cleanup even without a type name.
 
-  ~test/templeos/holyc_owned_primitives.til~ and ~test/templeos/holyc_hashmap.til~ are registered
-  for interpreter, ASAN C O0/O2, and HolyC translation at USize32/64. The native
+  ~test/templeos/holyc_owned_primitives.til~ and the HashMap regression cases
+  (now in ~test/hashmaps.til~) were checked through interpreter, ASAN C O0/O2,
+  and HolyC translation at USize32/64. The native
   driver wraps the existing runtime allocators for these fixtures and requires
   zero outstanding allocations after source-frame cleanup. This covers owned
   boxes and repeated aggregate/string replacement/removal as well as hasher
@@ -1559,7 +1560,7 @@
 
 **** HashSet and nested owned collection conformance
 
-  ~test/templeos/holyc_hashset.til~ runs the existing shared HashSet bodies with
+  The generic cases now in ~test/hashsets.til~ run the shared HashSet bodies with
   integer/string elements, lazy empty construction, preallocation, default and
   capturing hashers, cached hashes, growth, forced collisions, duplicates,
   dense-swap removal/rechaining, missing-key catches, clone independence and
@@ -1570,7 +1571,7 @@
   caller-slot ownership through the shared parameter ABI predicates for both
   scalar and aggregate values. Lifecycle methods retain real heap-outer cleanup.
 
-  ~test/templeos/holyc_hashmap_owned.til~ covers nested Vec(Str) values, USize/UPtr
+  The owned-value cases now in ~test/hashmaps.til~ cover nested Vec(Str) values, USize/UPtr
   enum payloads, directly stored capturing callbacks, and enum payloads containing
   strings, nested vectors and captured callbacks. Explicit destructor counters
   check replacement/removal/clear, independent clones, temporary cleanup, and
@@ -1596,6 +1597,47 @@
   runs pass (both fixtures, both widths, O0/O2). ~make test_templeos~ passes all
   119 guest cases, including eight ownership/collection cases whose allocation
   ledgers return to zero. Destructor counters agree across the execution paths.
+
+**** Native test mode and common collection suites
+
+  HolyC now emits the test entrypoint for ~mode test~ and the existing ~test~
+  command. It discovers top-level and struct/enum namespace tests across
+  dependency-ordered units, preserves source order and global initialization,
+  reports each successful named case, and prints the common final count (or
+  ~no tests found~). A failing test stops execution before its pass report or
+  any later test; the ordinary CLI main is not called in test mode.
+
+  ~test/hashmaps.til~ and ~test/hashsets.til~ execute directly on TempleOS:
+  28 HashMap and 18 HashSet/DynHashSet named cases. Collision, hash-width,
+  capturing-hasher, owned-string/record, nested-vector, enum-payload and exact
+  callback-destructor regressions live in these common suites. The three
+  platform-specific collection CLI wrappers and their redundant interpreter/C
+  registrations are removed. The existing Both rows supply hosted reference
+  coverage; HolyC translation and native allocation-ledger checks use the same
+  test-mode sources, plus ~test/test_in_namespace.til~.
+
+  Running the previously unexecuted DynHashSet cases exposed two missing native
+  paths: callable instance-field replacement and concrete values passed through
+  Dynamic parameters. Owned Dynamic arguments need a heap outer when their
+  concrete value lives in a caller slot; already heap-owned storage transfers
+  directly. Borrowed Dynamic arguments retain the concrete value's address.
+  Ordinary typed calls keep their value ABI. Dynamic hash wrappers reuse the
+  source Str/scalar hash methods, resolving USize/UPtr aliases to their native
+  implementations rather than emitting nonexistent alias methods.
+
+  The apparent interpreter-time increase was extra work: the collision and
+  ownership cases joined the common Both suites while the CLI reference runs
+  still executed them again. The saved common-suite results accounted for
+  11164 ms (HashMap) and 15736 ms (HashSet) in ~interp_ms~; these are workload
+  accounting observations, not controlled before/after performance measurements.
+  Concurrent-session timings remain unsuitable as regression evidence.
+
+  Verification on master ~88dee06ef~: ~make clean && make test~ passes
+  560/560, including clang validation. ~make test_templeos~ passes all 131
+  native guest cases. Both USize layouts run the common collection and
+  namespace suites directly with zero outstanding allocations; the new test
+  entrypoint cases cover imported/namespace ordering, library/CLI/script test
+  commands, empty suites and stopping after a failure.
 
 **** Manual GUI testing in one VM
 

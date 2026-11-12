@@ -1240,14 +1240,11 @@ main := proc(args: ..Str) returns I64 {
     }
     for bits : Str in array(Str, "32", "64") {
         for fixture : Str in array(Str, "holyc_primitives", "holyc_float_primitives", "holyc_numeric_cast",
-            "holyc_owned_primitives", "holyc_hashmap", "holyc_hashset", "holyc_hashmap_owned") {
+            "holyc_owned_primitives") {
             mut message := "Primitive integers and Booleans passed"
             if fixture == "holyc_float_primitives" { message = "Primitive floating-point passed" }
             if fixture == "holyc_numeric_cast" { message = "HolyC numeric casts passed" }
             if fixture == "holyc_owned_primitives" { message = "Owned primitive calls passed" }
-            if fixture == "holyc_hashmap" { message = "HolyC HashMap passed" }
-            if fixture == "holyc_hashset" { message = "HolyC HashSet passed" }
-            if fixture == "holyc_hashmap_owned" { message = "HolyC owned HashMap values passed" }
             name := format(fixture, "_", bits)
             source := format("test/templeos/", fixture, ".til")
             add_count(tests, format(name, "_interp"), "build", message, 1,
@@ -1264,6 +1261,18 @@ main := proc(args: ..Str) returns I64 {
         }
         add_count(tests,format("numeric_cast_failures_",bits),"build","Numeric cast failures passed",1,
             format(til_bin," test/templeos/numeric_cast_errors.til ",bits, driver_asan_arg))
+        // Run the common test-mode sources directly. Their normal Both rows
+        // already provide interpreter/C coverage; no CLI reference wrappers.
+        for fixture : Str in array(Str, "hashmaps", "hashsets", "test_in_namespace") {
+            name := format("holyc_", fixture, "_", bits)
+            source := format("test/", fixture, ".til")
+            add_counts(tests, format(name, "_translate"), "build",
+                format(til_bin, " translate --target=templeos --usize=", bits,
+                    " -c gen/c/", name, ".HC ", source, " '&&' cat gen/c/", name, ".HC"),
+                CountCheck(needle = "I64 TilMain()", expected_count = 1),
+                CountCheck(needle = "tests passed", expected_count = 1),
+                CountCheck(needle = "\nTilMain;\n", expected_count = 1))
+        }
     }
     add_counts(tests, "holyc_gui_keyboard_translate", "build",
         format(til_bin, " translate --target=templeos -c gen/c/gui_keyboard.HC examples/gui_keyboard.til '&&' cat gen/c/gui_keyboard.HC"),

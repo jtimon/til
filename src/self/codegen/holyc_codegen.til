@@ -59,6 +59,7 @@ priv HolyCEmitState := struct {
     dyn_initializers := ""
     extra_function_prototypes := ""
     extra_function_definitions := ""
+    boxed_types := Set(Str).new()
     inline_call_sigs := Map(Str, Str).new()
     inline_cleanup := Map(Str, Set(USize)).new()
     inline_indirect := Set(Str).new()
@@ -550,6 +551,47 @@ priv holyc_field_eq_expr := func(type_name: Str, left: Str, right: Str,
     return ""
 }
 
+priv holyc_owned_dynamic_arg := func(arg: Expr, type_name: Str, ctx: Context,
+    mut state: HolyCEmitState, locals: HolyCLocalState, mut error: Str) returns Str {
+    switch arg.node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name(ctx.symbols.names)
+        if locals.pointer_types.has(name).or(locals.str_pointer_names.has(name))
+            .or(locals.struct_pointer_types.has(name)) {
+            if locals.param_pointer_names.has(name).or(locals.caller_slot_params.has(name)).not() {
+                return holyc_pointer_expr(arg, ctx, state, locals, error)
+            }
+        }
+    case .FieldAccess:
+        if holyc_pointer_field(arg, ctx) { return holyc_pointer_expr(arg, ctx, state, locals, error) }
+    case:
+    }
+    name := format("TilBox_", type_name)
+    compound := type_name.eq("Str").or(type_name.eq("Array__Str")).or(holyc_aggregate_type(type_name, state))
+    mut ctype := holyc_value_ctype(type_name, state)
+    if type_name == "Array__Str" { ctype = "TilStrArray" }
+    if state.boxed_types.has(type_name).not() {
+        state.boxed_types.add(own type_name.clone())
+        mut param := format(ctype, " value")
+        mut source := "&value"
+        if compound { param = format(ctype, " *value"); source = "value" }
+        state.extra_function_prototypes = format(state.extra_function_prototypes, "extern U8 *", name, "(", param, ");\n")
+        mut body := format("U8 *", name, "(", param, ")\n{\n  ", ctype,
+            " *result=TilMAlloc(sizeof(", ctype, "))(", ctype, " *);\n",
+            "  TilMemCpy(result,", source, ",sizeof(", ctype, "));\n")
+        if type_name == "Str" {
+            body = format(body, "  if (result->cap==TIL_STR_CAP_LIT) result->cap=TIL_STR_CAP_VIEW;\n")
+        }
+        state.extra_function_definitions = format(state.extra_function_definitions, body, "  return result;\n}\n\n")
+    }
+    mut value := ""
+    if type_name == "Str" { value = holyc_str_ref(arg, ctx, locals, error) }
+    else if type_name == "Array__Str" { value = holyc_str_array_ref(arg, ctx, locals, error) }
+    else if compound { value = holyc_struct_ref(arg, ctx, locals, error) }
+    else { value = holyc_expr(arg, ctx, state, locals, error) }
+    return format(name, "(", value, ")")
+}
+
 priv holyc_call_args := func(e: Expr, start: USize, ctx: Context,
     mut state: HolyCEmitState, locals: HolyCLocalState, mut error: Str) returns Str {
     mut args := ""
@@ -561,6 +603,24 @@ priv holyc_call_args := func(e: Expr, start: USize, ctx: Context,
         mut value := ""
         mut is_str := false
         mut is_struct := false
+        mut actual_type := holyc_storage_type_name(til_type_name_c(arg.til_type(), ctx.symbols), state)
+        if type_name_o.is_some() { actual_type = holyc_storage_type_name(type_name_o.unwrap(), state) }
+        if state.callable_sigs.has(direct_name) {
+            ref sig : FuncSig = state.callable_sigs[direct_name]
+            if i - start < sig.params.len() {
+                ref param : Declaration = sig.params[i - start]
+                // Callable ownership already transfers the descriptor itself.
+                if decl_type_name_ref(param, ctx.symbols).eq("Dynamic").and(actual_type.neq("Dynamic"))
+                    .and(holyc_callable_type(actual_type, state).not()) {
+                    if param.own_type.is(OwnType.Own) {
+                        value = holyc_owned_dynamic_arg(arg, actual_type, ctx, state, locals, error)
+                    } else { value = holyc_pointer_expr(arg, ctx, state, locals, error) }
+                    if error.len() > 0 { return "" }
+                    args = format(args, value)
+                    continue
+                }
+            }
+        }
         if type_name_o.is_some() {
             type_name := holyc_storage_type_name(type_name_o.unwrap(), state)
             is_str = type_name == "Str"
@@ -1847,9 +1907,11 @@ priv holyc_prepare_dyn_methods := func(ctx: Context, mut state: HolyCEmitState, 
             ref fd : FunctionDef = funcdef_of(def)
             if fd.sig.func_type.is_core() { continue }
             if holyc_dyn_request_matches(method, fd, ctx, state).not() { continue }
-            if state.struct_names.has(owner).or(state.enum_types.has(owner)) {
+            native_owner := holyc_storage_type_name(owner, state)
+            if state.struct_names.has(native_owner).or(state.enum_types.has(native_owner))
+                .or(method.eq("hash").and(native_owner.eq("Str").or(holyc_scalar_type_name(native_owner)))) {
                 if method.eq("clone").or(method.eq("delete")).and(fd.auto_generated) { continue }
-                holyc_register_method(owner, method, ctx, state, error)
+                holyc_register_method(native_owner, method, ctx, state, error)
                 if error.len() > 0 { return }
             }
         }
@@ -1955,13 +2017,14 @@ priv holyc_dyn_lookup_definitions := func(mut ctx: Context, mut state: HolyCEmit
             } else if owner == "Str" {
                 if method == "cmp" { body = "  return TilStrCmp(arg0,arg1);\n" }
                 else if method == "eq" { body = "  return TilStrEq(arg0,arg1);\n" }
+                else if method == "hash" { body = format("  return Str_hash(", arguments, ");\n") }
                 else { error = format("unsupported dynamic Str method '", method, "'"); return "" }
             } else if is_scalar_type_name(owner).and(method.eq("cmp")) {
                 if owner == "F32" { body = "  return TilF64Compare(TilF32Load(*arg0(F32 *)),TilF32Load(*arg1(F32 *)),6);\n" }
                 else if owner == "F64" { body = "  return TilF64Compare(*arg0(F64 *),*arg1(F64 *),6);\n" }
                 else { body = format("  return (*arg0(", ctype, " *)>*arg1(", ctype, " *))-(*arg0(", ctype, " *)<*arg1(", ctype, " *));\n") }
             } else {
-                target := holyc_method_name(owner, method)
+                target := holyc_method_name(holyc_storage_type_name(owner, state), method)
                 if box {
                     result_ctype := holyc_value_ctype(fd.sig.return_type, state)
                     body = format("  ", result_ctype, " *result=TilMAlloc(sizeof(", result_ctype, "))(", result_ctype,
@@ -2621,7 +2684,7 @@ priv holyc_function_signature := func(name: Str, func_expr: Expr,
     state: HolyCEmitState, mut error: Str, symbols: SymbolPool) returns Str {
     switch func_expr.node_type {
     case .FuncDef(fdef):
-        if fdef.sig.func_type.is_plain().or(fdef.sig.func_type.is_ext()).not() {
+        if fdef.sig.func_type.is_plain().or(fdef.sig.func_type.is_ext()).or(fdef.sig.func_type.is(FuncType.Test)).not() {
             error = format("unsupported function kind '", func_type_name(fdef.sig.func_type), "'")
             return ""
         }
@@ -4248,6 +4311,17 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
                     out = format(out, prefix, "    ", field_path, " = ", replacement, ";\n")
                 }
                 out = format(out, prefix, "}\n")
+            } else if holyc_callable_type(field_type, state) {
+                mut value := holyc_expr(stmt.children[1], ctx, state, locals, error)
+                if error.len() > 0 { return "" }
+                if field_assign.is_move.not().and(stmt.children[1].node_type.is(NodeType.Ident)
+                    .or(stmt.children[1].node_type.is(NodeType.FieldAccess))) {
+                    value = format("TilClosureClone(", value, ")")
+                }
+                replacement := holyc_temp("callable_field", state)
+                out = format(out, prefix, "{ TilClosure *", replacement, " = ", value, "; ")
+                if field_assign.save_old_delete { out = format(out, "TilClosureDelete(", field_path, "); ") }
+                out = format(out, field_path, " = ", replacement, "; }\n")
             } else if holyc_plain_value_type(field_type, state) {
                 value := holyc_expr(stmt.children[1], ctx, state, locals, error)
                 if error.len() > 0 { return "" }
@@ -5706,13 +5780,50 @@ priv holyc_runtime_prelude := func(rest: Str, state: HolyCEmitState) returns Str
         "#include \"/Home/Ext.HC\"\n\n")
 }
 
-holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns I32 {
-    if lp.mode_str.eq("script").or(lp.mode_str.eq("cli")).or(lp.mode_str.eq("gui")).not() {
-        println("error: HolyC codegen currently supports only modes script, cli and gui")
-        return 1
+priv holyc_test_report := func(message: Str) returns Str {
+    return format("    TilRawWrite(\"", holyc_literal_text(message), "\", ", message.len().to_str(), ");\n")
+}
+
+priv holyc_test_body := func(lp: LoadedProgram, mut state: HolyCEmitState, mut error: Str) returns Str {
+    mut out := ""
+    mut count : USize = 0
+    // Match the other backends: dependency-ordered units, then top-level and
+    // struct/enum namespace tests in their source declaration order.
+    for unit : ProgramUnit in lp.units {
+        for stmt : Expr in lp.ctx.imported[unit.path].ast.children {
+            if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) { continue }
+            ref declaration : Declaration = decl_of(stmt)
+            ref value : Expr = stmt.children[0]
+            if value.node_type.is(NodeType.FuncDef) {
+                if funcdef_of(value).sig.func_type.is(FuncType.Test).not() { continue }
+                out = format(out, "    ", declaration.name, "();\n",
+                    holyc_test_report(format("  pass: ", declaration.name, "\n")))
+                count++
+            } else if value.node_type.is(NodeType.StructDef).or(value.node_type.is(NodeType.EnumDef)) {
+                ref members : Vec(Declaration) = def_ns_decls(value)
+                for i in 0..members.len() {
+                    ref member : Declaration = members[i]
+                    if member.default_value.is_none() { continue }
+                    ref body : Expr = member.default_expr()
+                    if body.node_type.is(NodeType.FuncDef).not() { continue }
+                    if funcdef_of(body).sig.func_type.is(FuncType.Test).not() { continue }
+                    ref name : Str = def_ns_name_at(value, i)
+                    holyc_register_method(declaration.name, name, lp.ctx, state, error)
+                    if error.len() > 0 { return "" }
+                    out = format(out, "    ", holyc_method_name(declaration.name, name), "();\n",
+                        holyc_test_report(format("  pass: ", declaration.name, ".", name, "\n")))
+                    count++
+                }
+            }
+        }
     }
-    if lp.run_tests {
-        println("error: HolyC codegen does not support test mode yet")
+    if count == 0 { return format(out, holyc_test_report("no tests found\n")) }
+    return format(out, holyc_test_report(format(count.to_str(), "/", count.to_str(), " tests passed\n")))
+}
+
+holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns I32 {
+    if lp.run_tests.not().and(lp.mode_str.eq("script").or(lp.mode_str.eq("cli")).or(lp.mode_str.eq("gui")).not()) {
+        println("error: HolyC codegen currently supports only modes script, cli, gui and test")
         return 1
     }
 
@@ -5737,6 +5848,11 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
             println("error: HolyC codegen: ", validation_error)
             return 1
         }
+    }
+    mut tests := ""
+    if lp.run_tests {
+        tests = holyc_test_body(lp, state, validation_error)
+        if validation_error.len() > 0 { println("error: HolyC codegen: ", validation_error); return 1 }
     }
     for key : Str in state.map_keys.values {
         holyc_register_method(key, "cmp", lp.ctx, state, validation_error)
@@ -5787,7 +5903,7 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
     mut body := ""
     mut imported_body := ""
     mut main_locals := HolyCLocalState()
-    if lp.mode_str.eq("cli").or(lp.mode_str.eq("gui")) {
+    if lp.run_tests.or(lp.mode_str.eq("cli")).or(lp.mode_str.eq("gui")) {
         for unit : ProgramUnit in lp.units {
             body = format(body, holyc_body(lp.ctx.imported[unit.path].ast, 0, true, "", lp.ctx, state, main_locals, validation_error))
             if validation_error.len() > 0 { break }
@@ -5826,7 +5942,7 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
         }
     }
     if prototypes.len() > 0 { prototypes = format(prototypes, "\n") }
-    if validation_error.len().eq(0).and(lp.mode_str.eq("script")) {
+    if validation_error.len().eq(0).and(lp.mode_str.eq("script")).and(lp.run_tests.not()) {
         for unit : ProgramUnit in lp.units {
             if unit.path != lp.path { continue }
             ref program : Expr = lp.ctx.imported[unit.path].ast
@@ -5918,7 +6034,7 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
     rest := format(structs, state.closure_classes, helpers, prototypes, state.extra_function_prototypes, state.closure_prototypes,
         state.namespace_prototypes, state.namespace_initializers,
         value_prototypes, adapters, reflection, state.dyn_definitions, dyn_lookup,
-        state.method_definitions, definitions, state.extra_function_definitions, state.closure_definitions, imported_body, body)
+        state.method_definitions, definitions, state.extra_function_definitions, state.closure_definitions, imported_body, body, tests)
 
     f := File.new(output_path, true)
     f.write(holyc_runtime_prelude(rest, state))
@@ -5956,7 +6072,10 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
     f.write(value_initializers)
     f.write(state.namespace_initializers)
     f.write(state.dyn_initializers)
-    if lp.mode_str.eq("cli").or(lp.mode_str.eq("gui")) {
+    if lp.run_tests {
+        f.write(body)
+        f.write("I64 TilMain()\n{\n").write(tests).write("    return 0;\n}\n\nTilMain;\n")
+    } else if lp.mode_str.eq("cli").or(lp.mode_str.eq("gui")) {
         ref main_expr : Expr = lp.ctx.scope.lookup_func_name("main", lp.ctx.symbols).unwrap()
         ref main_def : FunctionDef = funcdef_of(main_expr)
         signature := holyc_function_signature("TilMain", main_expr, state, validation_error, lp.ctx.symbols)

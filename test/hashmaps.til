@@ -300,3 +300,247 @@ test_hashmap_with_capacity_zero_is_lazy := test() {
     ref v : I64 = m.get("a")!
     assert_eq(I64, v, 1)
 }
+
+priv collision_hash := func(data: Dynamic, n: USize) returns U64 { return fnv1a(data,n).band(0) }
+priv hash_width := func(_: Dynamic, n: USize) returns U64 { return n.to_u64() }
+OwnedValue := struct { text: Str; number: I64 }
+priv make_hasher := func(seed: U64) returns HashFn {
+    return func(data: Dynamic, n: USize) returns U64 [shallow seed] { return fnv1a(data,n).bxor(seed) }
+}
+
+test_hashmap_hashing := test() {
+    // Hash the entire primitive, not the one-byte empty StructDef layout.
+    small : I16 = 258
+    medium : U32 = 65537
+    large : I64 = 65537
+    if small.hash(hash_width)!=2 || medium.hash(hash_width)!=4 || large.hash(hash_width)!=8 { panic("primitive hash width") }
+    mut defaults := HashMap(I64,I64).new()
+    for i in 0..128 { defaults.set(i.mul(256),own i.clone()) }
+    for i in 0..128 {
+        key := i.mul(256)
+        if defaults.get(key)! != i || defaults.stored_hash(key)! != key.hash(fnv1a) { panic("default HashMap hasher") }
+    }
+    if defaults.stored_hash(0)! == defaults.stored_hash(256)! { panic("primitive hash ignored upper bytes") }
+    HashMap(I64,I64).hasher = make_hasher(17)
+    mut captured := HashMap(I64,I64).new()
+    captured.set(19,own 23)
+    captured_key : I64 = 19
+    if captured.get(19)! != 23 || captured.stored_hash(19)! != captured_key.hash(fnv1a).bxor(17) { panic("capturing namespace hasher") }
+    HashMap(I64,I64).hasher = fnv1a
+}
+
+test_hashmap_collisions := test() {
+    HashMap(I64,I64).hasher = collision_hash
+    mut numbers := HashMap(I64,I64).new()
+    if numbers.len() != 0 || numbers.has(1) || numbers.remove(1) { panic("empty HashMap") }
+    for i in 0..128 { numbers.set(i,own i.clone()) }
+    if numbers.len() != 128 { panic("HashMap growth") }
+    for i in 0..128 {
+        if numbers.get(i)! != i || numbers.stored_hash(i)! != 0 { panic("HashMap collision lookup") }
+    }
+    for i in 0..128 { numbers.set(i,own i.add(1000)) }
+    if numbers.len() != 128 { panic("HashMap replacement count") }
+    for i in 0..128 { if numbers.get(i)! != i+1000 { panic("HashMap replacement") } }
+    mut copy := numbers.clone()
+    for i in 0..64 { if numbers.remove(i).not() { panic("HashMap removal") } }
+    if numbers.len() != 64 || numbers.has(0) || numbers.remove(0) { panic("HashMap missing removal") }
+    for i in 64..128 { if numbers.get(i)! != i+1000 { panic("HashMap swap removal chains") } }
+    if copy.len() != 128 || copy.get(0)! != 1000 { panic("HashMap clone independence") }
+    mut caught := false
+    ref _ : I64 = numbers.get(0)?
+    catch (err: KeyNotFound) { caught = true }
+    if caught.not() { panic("HashMap missing-key error") }
+    numbers.clear()
+    if numbers.len() != 0 || numbers.has(127) { panic("HashMap clear") }
+    numbers.set(7,own 77)
+    if numbers.get(7)! != 77 { panic("HashMap reuse") }
+    copy.clear()
+    HashMap(I64,I64).hasher = fnv1a
+}
+
+test_hashmap_owned_strings := test() {
+    HashMap(Str,Str).hasher = collision_hash
+    mut words := HashMap(Str,Str).with_capacity(64)
+    for i in 0..64 {
+        key := format("key",i.to_str())
+        value := format("value",i.to_str())
+        words.set(key,own value)
+    }
+    for i in 0..64 {
+        key := format("key",i.to_str())
+        if words.get(key)! != format("value",i.to_str()) { panic("owned HashMap strings") }
+    }
+    mut words_copy := words.clone()
+    for i in 0..64 {
+        key := format("key",i.to_str())
+        value := format("replacement",i.to_str())
+        words.set(key,own value)
+    }
+    if words_copy.get("key0")! != "value0" || words.get("key0")! != "replacement0" { panic("HashMap string clone/replacement") }
+    for i in 0..32 { if words.remove(format("key",i.to_str())).not() { panic("HashMap string removal") } }
+    for i in 32..64 { if words.get(format("key",i.to_str()))! != format("replacement",i.to_str()) { panic("HashMap string chain repair") } }
+    words.clear()
+    words.set("fresh",own format("new value"))
+    if words.len() != 1 || words.get("fresh")! != "new value" { panic("HashMap string reuse") }
+    words_copy.clear()
+    HashMap(Str,Str).hasher = fnv1a
+}
+
+test_hashmap_owned_records := test() {
+    // Owned aggregate values transfer, replace, clone and drop their strings.
+    for round in 0..8 {
+        mut values := HashMap(Str,OwnedValue).new()
+        for i in 0..32 { values.set(format("key",i.to_str()),own OwnedValue(text = format("value",i.to_str()),number = i)) }
+        snapshot := values.clone()
+        for i in 0..32 {
+            values.set(format("key",i.to_str()),own OwnedValue(text = format("replaced",i.to_str()),number = round))
+        }
+        for i in 0..32 {
+            key := format("key",i.to_str())
+            if snapshot.get(key)!.text != format("value",i.to_str()) || values.get(key)!.number != round { panic("aggregate HashMap ownership") }
+            if values.remove(key).not() { panic("aggregate HashMap remove") }
+        }
+        values.clear()
+    }
+}
+
+Callback := func(I64) returns I64
+DropCount := struct { closed : I64 = 0; created : I64 = 0 }
+Resource := struct {
+    text: Str
+    ref count: DropCount
+namespace:
+    delete := func(own self: Resource, call_free: Bool = true) {
+        self.count.closed++
+        own self.text.delete(false)
+        if call_free { free(own self) }
+    }
+}
+priv make_callback := func(mut count: DropCount, label: Str) returns Callback {
+    count.created++
+    resource := Resource(text = label.clone(), count = count)
+    return func(value: I64) returns I64 [own resource] { return value + resource.text.len().to_i64() }
+}
+Items := struct { words: Vec(Str) }
+Payload := enum { Empty, Text: Str, Items: Items, Run: Callback }
+AliasPayload := enum { Empty, Count: USize, Address: UPtr }
+
+test_hashmap_alias_payloads := test() {
+    mut values := HashMap(I64, AliasPayload).new()
+    values.set(1, own AliasPayload.Count(USize.MAX))
+    values.set(2, own AliasPayload.Address(UPtr.MAX))
+    snapshot := values.clone()
+    values.clear()
+    ref count : AliasPayload = snapshot.get(1)!
+    switch count {
+    case .Count(value): if value != USize.MAX { panic("HashMap USize payload width") }
+    case: panic("HashMap USize payload tag")
+    }
+    ref address : AliasPayload = snapshot.get(2)!
+    switch address {
+    case .Address(value): if value != UPtr.MAX { panic("HashMap UPtr payload width") }
+    case: panic("HashMap UPtr payload tag")
+    }
+}
+
+test_hashmap_nested_vectors := test() {
+    mut values := HashMap(I64, Vec(Str)).new()
+    for i in 0..32 {
+        mut words := Vec(Str).new()
+        words.push(own format("item", i.to_str()))
+        words.push(own format("tail", i.to_str()))
+        values.set(i, own words)
+    }
+    mut snapshot := values.clone()
+    for i in 0..32 {
+        mut replacement := Vec(Str).new()
+        replacement.push(own format("new", i.to_str()))
+        values.set(i, own replacement)
+    }
+    for i in 0..32 {
+        ref original : Vec(Str) = snapshot.get(i)!
+        ref current : Vec(Str) = values.get(i)!
+        if original.len() != 2 || original.get(0)! != format("item", i.to_str()) || current.len() != 1 || current.get(0)! != format("new", i.to_str()) {
+            panic("nested HashMap vector clone/replacement")
+        }
+    }
+    for i in 0..16 { if values.remove(i).not() { panic("nested HashMap vector removal") } }
+    values.clear()
+    snapshot.clear()
+    mut final_words := Vec(Str).new()
+    final_words.push(own format("reused"))
+    values.set(99, own final_words)
+    if values.get(99)!.get(0)! != "reused" { panic("nested HashMap vector reuse") }
+}
+
+test_hashmap_callbacks := test() {
+    mut count := DropCount()
+    {
+        mut callbacks := HashMap(I64, Callback).new()
+        callbacks.set(1, own make_callback(count, "first"))
+        callbacks.set(2, own make_callback(count, "second"))
+        ref first : Callback = callbacks.get(1)!
+        if first(10) != 15 { panic("HashMap stored callback") }
+        mut snapshot := callbacks.clone()
+        callbacks.set(1, own make_callback(count, "replacement"))
+        if count.closed != 1 { panic("HashMap callback replacement cleanup") }
+        ref old : Callback = snapshot.get(1)!
+        ref replacement : Callback = callbacks.get(1)!
+        if memcmp(old, to_ptr(old), Callback.size().to_uptr()) != 0 { panic("HashMap callable storage address") }
+        if old(10) != 15 || replacement(10) != 21 { panic("HashMap callback deep clone") }
+        if callbacks.remove(2).not() || count.closed != 2 { panic("HashMap callback removal cleanup") }
+        callbacks.clear()
+        if count.closed != 3 { panic("HashMap callback clear cleanup") }
+        {
+            ref original : Callback = snapshot.get(1)!
+            ref slot : Dynamic = to_ptr(original)
+            restored : Callback = Callback.clone(slot)
+            if restored(10) != 15 { panic("HashMap callback slot clone") }
+            Callback.delete(own restored, false)
+            again : Callback = Callback.clone(slot)
+            if again(10) != 15 { panic("HashMap callback second slot clone") }
+            Callback.delete(own again)
+        }
+        if count.closed != 5 { panic("HashMap callback slot clone cleanup") }
+        snapshot.clear()
+        if count.closed != 7 { panic("HashMap callback clone cleanup") }
+    }
+    if count.closed != 7 || count.created != 3 { panic("HashMap callback double cleanup") }
+}
+
+test_hashmap_payloads := test() {
+    mut count := DropCount()
+    {
+        mut values := HashMap(Str, Payload).new()
+        values.set("empty", own Payload.Empty)
+        values.set("text", own Payload.Text(format("payload text")))
+        mut words := Vec(Str).new()
+        words.push(own format("payload item"))
+        values.set("items", own Payload.Items(Items(words = words)))
+        values.set("run", own Payload.Run(make_callback(count, "enum")))
+        if count.closed != 1 { panic("HashMap enum constructor temporary cleanup") }
+        mut snapshot := values.clone()
+        values.set("text", own Payload.Text(format("replaced text")))
+        if values.remove("run").not() || count.closed != 2 { panic("HashMap enum callback removal") }
+        ref original_text : Payload = snapshot.get("text")!
+        switch original_text {
+        case .Text(text): if text != "payload text" { panic("HashMap enum text clone") }
+        case: panic("HashMap enum text tag")
+        }
+        ref original_items : Payload = snapshot.get("items")!
+        switch original_items {
+        case .Items(items): if items.words.get(0)! != "payload item" { panic("HashMap enum nested clone") }
+        case: panic("HashMap enum nested tag")
+        }
+        ref original_run : Payload = snapshot.get("run")!
+        switch original_run {
+        case .Run(callback): if callback(10) != 14 { panic("HashMap enum callback clone") }
+        case: panic("HashMap enum callback tag")
+        }
+        values.clear()
+        if count.closed != 2 { panic("HashMap enum duplicate callback cleanup") }
+        snapshot.clear()
+        if count.closed != 3 { panic("HashMap enum clone cleanup") }
+    }
+    if count.closed != 3 || count.created != 1 { panic("HashMap enum double cleanup") }
+}

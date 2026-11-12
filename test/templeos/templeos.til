@@ -450,6 +450,65 @@ numeric_cast_checks := proc(identity: Str, bits: Str) {
     run_guest(identity,format("numeric_cast_failures_",bits),expected,"pass")
 }
 
+priv test_reference_output := proc(source: Str, bits: Str) returns Str {
+    command := Cmd.new("bin/til", "interpret", format("--usize=", bits), source)
+    command.stderr_to_stdout().capture_out()
+    status := command.run()
+    if status != 0 { panic("test reference failed: ", source, ": ", command.out()) }
+    return command.out()
+}
+
+test_mode_checks := proc(identity: Str, bits: Str) {
+    File.writefile(format(WORK, "/test_mode_dep.til"), format(
+        "mode lib\nmut visits := 0\n",
+        "test_imported := test() { visits++; assert_eq(1, visits) }\n",
+        "ImportedTests := struct { namespace:\n",
+        "test_order := test() { visits++; assert_eq(2, visits) }\n}\n"))
+    expected := "  pass: test_imported\n  pass: ImportedTests.test_order\n  pass: test_root\n3/3 tests passed\n"
+    for mode : Str in array(Str, "test", "lib", "cli", "script") {
+        path := format(WORK, "/test_mode_", mode, ".til")
+        mut entry := ""
+        if mode == "cli" { entry = "main := proc() { panic(\"test invoked main\") }\n" }
+        File.writefile(path, format("mode ", mode, "\nimport(\"test_mode_dep\")\n",
+            entry, "test_root := test() { assert_eq(2, visits) }\n"))
+        mut command := "translate"
+        if mode != "test" { command = "test" }
+        translate := Cmd.new("bin/til", command, "--target=templeos", format("--usize=", bits),
+            "-c", format(WORK, "/TILTEST.HC"), path)
+        if mode == "test" { translate.run_checked() }
+        else {
+            // The test command performs its interpreter half, emits the native
+            // test entry, then stops at the existing guest compiler boundary.
+            translate.stderr_to_stdout().capture_out()
+            status := translate.run()
+            if status != 1 { panic("native test command status: ", translate.out()) }
+            if translate.out().contains(expected).not().or(
+                translate.out().contains("HolyC output must be compiled and run inside TempleOS").not()) {
+                panic("native test command output: ", translate.out())
+            }
+        }
+        run_guest(identity, format("test_mode_", mode, "_", bits), expected, "pass")
+    }
+    path := format(WORK, "/test_mode_empty.til")
+    File.writefile(path, "mode test\n")
+    Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+        "-c", format(WORK, "/TILTEST.HC"), path).run_checked()
+    run_guest(identity, format("test_mode_empty_", bits), "no tests found\n", "pass")
+    failure := format(WORK, "/test_mode_failure.til")
+    File.writefile(failure, format("mode test\n",
+        "test_before := test() {}\n",
+        "test_failure := test() { panic(\"test mode stopped\") }\n",
+        "test_after := test() { panic(\"ran after failure\") }\n"))
+    reference := Cmd.new("bin/til", "interpret", format("--usize=", bits), failure)
+    reference.stderr_to_stdout().capture_out()
+    if reference.run() != 1 { panic("test failure reference unexpectedly passed") }
+    Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+        "-c", format(WORK, "/TILTEST.HC"), failure).run_checked()
+    // The native panic facade omits the interpreter's "panic: " label.
+    run_guest(identity, format("test_mode_failure_", bits),
+        reference.out().replace(": panic: test mode stopped\n", ": test mode stopped\n"), "panic")
+}
+
 owned_collection_checks := proc(identity: Str, bits: Str) {
     runtime := File.readfile("src/self/codegen/ext.HC")
     // Count Til's allocations, including realloc's raw allocate/free pair.
@@ -462,18 +521,18 @@ owned_collection_checks := proc(identity: Str, bits: Str) {
         runtime.replace("=MAlloc(", "=TilTestMAlloc(")
             .replace("=CAlloc(", "=TilTestCAlloc(").replace(" Free(", " TilTestFree("))
     File.writefile(format(WORK, "/Ext.HC"), ledger)
-    for fixture : Str in array(Str, "holyc_owned_primitives", "holyc_hashmap", "holyc_hashset", "holyc_hashmap_owned") {
+    sources := array(Str, "test/templeos/holyc_owned_primitives.til", "test/hashmaps.til",
+        "test/hashsets.til", "test/test_in_namespace.til")
+    names := array(Str, "owned_primitives", "hashmaps", "hashsets", "namespace_tests")
+    for i, source in sources {
+        expected := test_reference_output(source, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
-            "-c", format(WORK, "/TILTEST.HC"), format("test/templeos/", fixture, ".til")).run_checked()
+            "-c", format(WORK, "/TILTEST.HC"), source).run_checked()
         program := File.readfile(format(WORK, "/TILTEST.HC"))
         File.writefile(format(WORK, "/TILTEST.HC"), program.replace("\nTilMain;\n", "\n"))
         File.appendfile(format(WORK, "/TILTEST.HC"),
             "\nTilMain; if (TilTestLiveAllocs) TilPanicZ(\"owned allocation ledger not empty\\n\");\n")
-        mut expected := "HolyC HashMap passed\n"
-        if fixture == "holyc_owned_primitives" { expected = "Owned primitive calls passed\n" }
-        if fixture == "holyc_hashset" { expected = "HolyC HashSet passed\n" }
-        if fixture == "holyc_hashmap_owned" { expected = "HolyC owned HashMap values passed\n" }
-        run_guest(identity, format(fixture, "_", bits), expected, "pass")
+        run_guest(identity, format(names[i], "_", bits), expected, "pass")
     }
     File.writefile(format(WORK, "/Ext.HC"), runtime)
 }
@@ -517,6 +576,7 @@ main := proc() {
         }
         numeric_cast_checks(identity,bits)
         owned_collection_checks(identity, bits)
+        test_mode_checks(identity, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), "test/templeos/holyc_terminal_model_support.til").run_checked()
         run_guest(identity, format("terminal_model_support_", bits), "Terminal model support passed\n", "pass")
