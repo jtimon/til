@@ -1,6 +1,6 @@
 # priority: low
 # category: backends
-** OPEN #462 Android through the C backend and the NDK
+** WIP #462 Android through the C backend and the NDK
 
 Run til programs on Android by compiling the C backend's output with the
 Android NDK, instead of translating til to a managed language (the JVM
@@ -79,11 +79,11 @@ Verified installation and scratch-build results:
   - Platform-tools 37.0.1, emulator 37.2.13, build-tools 36.0.0, platform
     API 37.0 revision 2, and NDK r30 (~30.0.16248370~). NDK clang reports
     version 21. ~aapt2~ and ~apksigner~ execute successfully.
-  - ~emulator -accel-check~ reports KVM installed and usable. An API 37
-    system-image directory is installed, but ~emulator -list-avds~ lists
-    no devices for ~jt~ and ~/home/jt/.android/avd~ does not exist. The Medium Phone
-    shown in Studio must be made available under the normal user before
-    execution; do not assume root's AVD settings moved with the SDK.
+  - ~emulator -accel-check~ reports KVM installed and usable. The human
+    recreated ~Medium_Phone~ under ~jt~ after previously running Studio
+    and the emulator as root. A root-owned ADB server caused an initial
+    authorization mismatch; restarting ADB as ~jt~ resolved it. The user
+    AVD is now listed by ~emulator -list-avds~.
   - The new ~sdkmanager~ is a wrapper for Android CLI and tried to download
     it even for ~--list_installed~. That command timed out; no matching
     downloader remained running. Package versions above were read from
@@ -104,8 +104,10 @@ Verified installation and scratch-build results:
     included ~-landroid -llog -lEGL -lGLESv2 -lOpenSLES -lm -ldl~.
   - The same NDK compiled ~examples/hello_script.til~ plus the unchanged
     runtime into the PIE executable ~tmp/android_hello~. Interpreter
-    reference output is saved as ~tmp/android_hello.expected~. Neither
-    the CLI executable nor Checkers has run on Android yet.
+    reference output is saved as ~tmp/android_hello.expected~. The binary
+    ran under ~adb shell~ on API 37 and exited successfully; ~diff -u~
+    against ~tmp/android_hello.actual~ found no output differences. The
+    same smoke check also passed on the fresh user-owned AVD.
   - Translation/compile/link logs are under ~tmp/~, including
     ~tmp/checkers_android_link.log~. The link succeeded with warnings in
     vendored ~par_shapes~ / ~stb_vorbis~. ELF alignment alone does not
@@ -189,16 +191,16 @@ not enough. Preserve the game logic and make any necessary adaptation at
 the GUI/platform boundary, with explicit agreement if public GUI behavior
 would change.
 
-  - [ ] Signed x86_64 APK installs and launches on the initial API 37 AVD;
+  - [X] Signed x86_64 APK installs and launches on the initial API 37 AVD;
     the whole board and header controls are visible and tappable.
-  - [ ] A piece can be selected and moved by emulator clicks/taps; 1P
+  - [X] A piece can be selected and moved by emulator clicks/taps; 1P
     produces an AI reply, 2P works, and Restart resets the game.
-  - [ ] Background/resume and surface recreation do not crash or leave a
+  - [X] Background/resume and surface recreation do not crash or leave a
     blank window. Define whether activity recreation restarts the game;
     saved-game persistence is not implied by the initial demo.
-  - [ ] Back/exit and relaunch work; logcat has no native crash, linker
+  - [X] Back/exit and relaunch work; logcat has no native crash, linker
     error or fatal seccomp violation during the tested sequence.
-  - [ ] The local session can rebuild/reinstall/relaunch from this
+  - [X] The local session can rebuild/reinstall/relaunch from this
     worktree and show the playable app on request, identifying the tested
     commit, ABI, API level and layout. Capture logs/screenshots in ~tmp/~.
   - [ ] Repeat smoke/lifecycle checks on API 28 and the newest stable API;
@@ -206,16 +208,105 @@ would change.
     claiming 16 KB compatibility. Cross-build the arm64 APK too; actual
     arm64 execution remains a separate device test, not an x86_64 claim.
 
-Recommended packaging proposal, still requiring approval: use the SDK's
-~aapt2~, ~zipalign~ and ~apksigner~ directly for this resource-light native
-app, avoiding a Gradle project/dependency. A worktree-local build would
-write the manifest, staging contents, debug signing key and signed APK
-under existing ~tmp/~ for SDK tools and ~adb~ to consume. Existing C/ELF
-outputs cannot supply Android package metadata or a signature. These are
-rebuildable demo outputs (a regenerated key requires reinstalling the
-app); this trades Android-specific packaging steps for avoiding Gradle.
-Agree the concrete filenames and build entry point before implementation;
-this plan does not approve a new command, flag or permanent output tree.
+APPROVED and exercised locally: package the demo directly with SDK
+~aapt2~, ~zipalign~ and ~apksigner~. The disposable outputs are
+~tmp/checkers-apk/~ (manifest and native-library staging),
+~tmp/checkers-debug.keystore~ and ~tmp/checkers.apk~. The shell build also
+uses unsigned/aligned intermediate APKs under ~tmp/~. SDK tools consume
+the manifest and staged library; ~adb~ consumes the signed APK. These
+metadata/signing steps are needed in addition to the C/ELF output. The
+key is local debug material, never committed; regenerating it requires
+reinstalling the app. This approval adds no til command/flag or permanent
+output layout. A production packaging/build interface still needs approval.
+
+*** First installed demo: results and remaining checks
+
+~tmp/checkers.apk~ is installed as ~org.til.checkers~, with launcher label
+"til Checkers" and activity ~android.app.NativeActivity~. The manifest
+uses ~hasCode=false~, ~extractNativeLibs=false~, minimum API 28, target
+API 37, portrait orientation, and metadata ~android.app.lib_name=checkers~.
+It handles orientation/keyboardHidden/screenSize configuration changes.
+The uncompressed native library is at ~lib/x86_64/libcheckers.so~.
+~apksigner verify --verbose~ passed (v3 signature), and
+~zipalign -c -P 16 4~ passed. This is APK/ELF alignment verification, not
+execution on a 16 KB device.
+
+The normal-user ~Medium_Phone~ connected as ~emulator-5554~: boot complete,
+API 37, x86_64, 4096-byte pages, 1080x2400 display. The unchanged 720x800
+game canvas is letterboxed at 1.5x scale, with top offset 600 display
+pixels. Taps map correctly to the rendered board and controls. On this
+display a logical point ~(x,y)~ maps to ~(1.5*x,600+1.5*y)~.
+
+Verified by ADB input and screenshots:
+
+  - 2P: red moved from row 5/column 2 to row 4/column 3; black moved from
+    row 2/column 3 to row 3/column 2. Screenshot:
+    ~tmp/checkers_two_player_verified.png~.
+  - Restart reset the board and applied Red/1P settings. After the red
+    move above, the AI replied and the turn returned to red. Screenshots:
+    ~tmp/checkers_restart_verified.png~, ~tmp/checkers_ai_completed.png~.
+  - Home followed by bringing the existing task forward retained the
+    same game position and rendered normally (~tmp/checkers_resumed.png~).
+    The later cold-boot run confirmed ~APP_CMD_TERM_WINDOW~ followed by
+    ~APP_CMD_INIT_WINDOW~, with the board rendered again
+    (~tmp/checkers_surface_resumed.log~ / ~.png~).
+  - After the lifecycle fixes below, two Back/relaunch cycles completed
+    in the same process, with fresh games on relaunch. Logs contain
+    ~APP_CMD_DESTROY~, ~Window closed successfully~ and
+    ~android_app_destroy!~ for each exit; there is no GL-without-context
+    error. Home/surface recreation also passed between those cycles.
+    Evidence: ~tmp/checkers_lifecycle_verified.log~ / ~.png~; the guest
+    crash buffer ~tmp/checkers_crash_final.log~ is empty. Saved-game
+    persistence across activity destruction or process death is not
+    implemented or implied.
+  - The human independently played the demo and confirmed it works.
+
+The host emulator subsequently crashed while the session was retrieving
+logs; no emulator shutdown command was issued. Studio's version-specific
+~idea.log~ records emulator 37.2.13 exiting with SIGSEGV / code 139 at
+20:07:56 and 20:10:18. Before the latter exit, gfxstream reported null GL
+contexts and ~DisplaySurfaceGlContextHelper context was preempted~. This
+proves a host-emulator crash, not its exact cause. Next isolate the host
+graphics path with Software graphics and a cold boot; do not hide this by
+changing til's game/runtime semantics. The first crash-buffer retrieval
+timed out after the device vanished, so no clean final logcat claim is made
+for that run.
+The subsequent cold boot still used the NVIDIA hardware renderer, not
+Software graphics. The fixed lifecycle sequence completed on that renderer;
+this is not proof that the earlier host SIGSEGV is permanently resolved.
+
+*** Android lifecycle fixes found by the demo
+
+Both fixes are in ~vendor/raylib/src/platforms/rcore_android.c~:
+
+  - Back delivered ~APP_CMD_DESTROY~, but ~PollInputEvents~ set
+    ~shouldClose~ and then entered another blocking ~ALooper_pollOnce~
+    because the activity was paused. Android's UI thread waited for the
+    native thread to exit, and the next launch timed out. Break out of
+    polling on destruction so the application can run ~CloseWindow~ and
+    return from its native entry point. The same reproducer then exits
+    and relaunches instead of hanging.
+  - ~APP_CMD_TERM_WINDOW~ had detached the GL context and destroyed the
+    window surface. Once the loop could exit, ~CloseWindow~ tried to
+    unload GL resources without a current context (confirmed by libEGL's
+    error). Request a config supporting window and pbuffer surfaces, and
+    on destruction bind a 1x1 pbuffer when the window surface is gone.
+    Cleanup then runs with the preserved context; ~ClosePlatform~ destroys
+    the pbuffer and context normally. Creation/binding failures are fatal,
+    not silently ignored. The GL-without-context error disappears.
+
+Manual regression sequence on the installed, rebuilt APK: launch; Home;
+wait three seconds for surface destruction; relaunch; Back; wait two
+seconds; relaunch; repeat Back/relaunch. Check both log markers and the
+rendered board, not only ~am start~'s result. The fixed warm launches
+completed in 112 ms and 192 ms, versus the pre-fix 10-second timeout.
+
+Once the emulator is running, reinstall/launch from the worktree with:
+
+#+begin_src sh
+/home/jt/Android/Sdk/platform-tools/adb -s emulator-5554 install -r tmp/checkers.apk
+/home/jt/Android/Sdk/platform-tools/adb -s emulator-5554 shell am start -W -n org.til.checkers/android.app.NativeActivity
+#+end_src
 
 *** Toolchain direction (agreed 2026-11-11)
 

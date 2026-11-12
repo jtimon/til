@@ -786,6 +786,8 @@ void PollInputEvents(void)
         if (platform.app->destroyRequested != 0)
         {
             CORE.Window.shouldClose = true;
+            // Return to the application so it can close; another paused poll would block forever.
+            break;
         }
     }
 }
@@ -925,6 +927,7 @@ static int InitGraphicsDevice(void)
     }
 
     const EGLint framebufferAttribs[] = {
+        EGL_SURFACE_TYPE, EGL_WINDOW_BIT | EGL_PBUFFER_BIT, // Keep a cleanup context current after the native window is destroyed
         EGL_RENDERABLE_TYPE, (rlGetVersion() == RL_OPENGL_ES_30)? EGL_OPENGL_ES3_BIT : EGL_OPENGL_ES2_BIT, // Type of context support
         EGL_RED_SIZE, 8,            // RED color bit depth (alternative: 5)
         EGL_GREEN_SIZE, 8,          // GREEN color bit depth (alternative: 6)
@@ -1151,7 +1154,18 @@ static void AndroidCommandCallback(struct android_app *app, int32_t cmd)
         } break;
         case APP_CMD_SAVE_STATE: break;
         case APP_CMD_STOP: break;
-        case APP_CMD_DESTROY: break;
+        case APP_CMD_DESTROY:
+        {
+            // TERM_WINDOW detached the context, but the application still needs it to unload GL resources on exit.
+            if ((platform.device != EGL_NO_DISPLAY) && platform.contextRebindRequired)
+            {
+                const EGLint cleanupSurfaceAttribs[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
+                platform.surface = eglCreatePbufferSurface(platform.device, platform.config, cleanupSurfaceAttribs);
+                if (platform.surface == EGL_NO_SURFACE) TRACELOG(LOG_FATAL, "DISPLAY: Failed to create EGL cleanup surface");
+                if (eglMakeCurrent(platform.device, platform.surface, platform.surface, platform.context) == EGL_FALSE)
+                    TRACELOG(LOG_FATAL, "DISPLAY: Failed to attach EGL context for cleanup");
+            }
+        } break;
         case APP_CMD_CONFIG_CHANGED:
         {
             //AConfiguration_fromAssetManager(platform.app->config, platform.app->activity->assetManager);
