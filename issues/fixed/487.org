@@ -1,0 +1,68 @@
+# priority: high
+# category: bugs
+** FIXED #487 Interpreter loses field storage width through borrowed scalar returns
+
+*** Post-mortem
+
+Root cause: field evaluation already reported the host-layout scalar storage
+type through RawResultInfo, but a borrowed field return bypassed that evaluator
+and carried only an address. Call-result metadata then used the declared target
+type; reference declarations and parameters also replaced source storage types
+with their target aliases. On a compact compiler interpreting USize64, a borrow
+of Str.count therefore read the neighbouring U32 cap as the high half of a U64.
+The same loss could widen a write or make a reference parameter a detached copy.
+
+The return evaluator now uses field/call raw-result metadata and carries its
+interned storage Type with the pending borrowed return. Direct, indirect,
+closure and interface dispatch thread that metadata back to the caller.
+Reference declarations and scalar reference parameters retain source storage
+types; ordinary by-value declarations/parameters still use declared target
+types. Nested native callback entry saves/restores the pending-return metadata
+alongside its address. The pointer identity and host layout remain unchanged.
+
+Regression: test/bug487.til. The ordinary suite registers interpretation and C
+execution at USize32 and USize64. It covers Str count/cap and Vec count, direct
+field returns, forwarding, reference parameters/aliases/rebinding, indirect and
+captured callables, pointer identity, sentinel capacities, value copies, Dynamic
+typed-reference boundaries and write-through without changing adjacent fields.
+ASAN compact/native compilers additionally run the same source interpreted and
+ASAN-compiled at both target widths (all eight combinations pass).
+
+Verification: make clean && make test passes 568/568. The original reproducer
+now prints 4 and succeeds.
+
+Found while extending the MLIR borrowed Str helpers (#317); reproduced on
+master 552c9f2ea with the compact USize32 compiler interpreting --usize=64.
+No existing issue describes this borrowed-return width loss. #192/#309 cover
+the host/target layout split; #399 concerns return-site lifetime, not width.
+
+*** Reproducer
+
+#+begin_src til
+mode cli
+count_ref := func(s: Str) returns ref USize { return s.count }
+main := proc() {
+    mut n: USize = 3
+    n++
+    mut s := Str.with_capacity(n)
+    s.push_str("abcd")
+    ref count: USize = count_ref(s)
+    println(count.to_str())
+    assert_eq(USize, count, 4)
+}
+#+end_src
+
+bin/til interpret --usize=64 <source> prints 17179869188 (4 + (4 << 32))
+and fails the assertion. The host Str stores four-byte count/cap fields, but
+the returned reference is decoded as target U64 and reads both at once.
+The C/native program must print 4 and succeed.
+
+*** Required fix
+
+Preserve the actual scalar pointee storage type across interpreted borrowed
+returns, forwarding, aliases and borrowed call parameters. Keep host evaluator
+layout distinct from target semantics; do not widen a pointer by copying its
+pointee into unrelated storage or substitute a default value.
+
+Regression coverage must exercise cross-width reads and write-through without
+touching adjacent fields, ordinary by-value conversions, and equal-width use.

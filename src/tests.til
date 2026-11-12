@@ -1199,6 +1199,13 @@ main := proc(args: ..Str) returns I64 {
     add_count(tests, "dynamic_widths", "build", "dynamic width options passed", 1,
         format(til_bin, " run", asan_flag,
             " -o bin/c/dynamic_widths -c gen/c/dynamic_widths.c test/dynamic_widths.til ", til_bin))
+    for width in array(Str, "32", "64") {
+        add_count(tests, format("borrow_width_", width, "_interp"), "build", "borrowed scalar widths PASS", 1,
+            format(til_bin, " interpret --usize=", width, " test/bug487.til"))
+        add_count(tests, format("borrow_width_", width, "_run"), "build", "borrowed scalar widths PASS", 1,
+            format(til_bin, " run", asan_flag, " --usize=", width, " -o bin/c/bug487_", width,
+                " -c gen/c/bug487_", width, ".c test/bug487.til"))
+    }
 
     // #151: Linux performs the frontend and emits HolyC; TempleOS is the
     // compiler/runtime. The first accepted subset is the fully lowered shape

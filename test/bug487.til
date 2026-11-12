@@ -1,0 +1,83 @@
+mode cli
+
+// #487: the interpreter's Str/Vec slots have the compiler's host width,
+// even when the requested USize alias resolves to another target width.
+count_ref := func(s: Str) returns ref USize { return s.count }
+cap_ref := func(s: Str) returns ref USize { return s.cap }
+forward_count := func(s: Str) returns ref USize { return count_ref(s) }
+alias_count := func(s: Str) returns ref USize {
+    ref value: USize = forward_count(s)
+    return value
+}
+identity_ref := func(n: USize) returns ref USize { return n }
+forward_param := func(s: Str) returns ref USize { return identity_ref(count_ref(s)) }
+copy_count := func(s: Str) returns USize { return alias_count(s).clone() }
+copy_param := func(n: USize) returns USize { return n + 1 }
+write_param := func(mut n: USize, value: USize) { n = value }
+CountReader := func(Str) returns ref USize
+indirect_count := func(s: Str, reader: CountReader) returns ref USize { return reader(s) }
+vec_count := func(v: Vec(I64)) returns ref USize { return v.count }
+typed_ref := func(p: Dynamic) returns ref USize { return p }
+typed_bool_ref := func(p: Dynamic) returns ref Bool { return p }
+
+main := proc() {
+    mut capacity: USize = 15
+    capacity++
+    assert_eq(USize, typed_ref(to_ptr(capacity)), capacity)
+    mut yes := false
+    yes = yes.not()
+    if typed_bool_ref(to_ptr(yes)) { assert(yes) } else { panic("lost typed Bool reference") }
+    mut s := Str.with_capacity(capacity)
+    s.push_str("abcd")
+    ref mut count: USize = count_ref(s)
+    ref cap: USize = cap_ref(s)
+    assert_eq(USize, count, 4)
+    assert_eq(USize, cap, capacity)
+    assert(ptr_eq(count, s.count))
+    assert(ptr_eq(alias_count(s), count))
+    assert(ptr_eq(forward_param(s), count))
+    assert(ptr_eq(indirect_count(s, forward_count), count))
+    assert_eq(USize, copy_count(s), 4)
+    assert_eq(USize, copy_param(count), 5)
+    ref alias: USize = count
+    assert_eq(USize, alias, 4)
+    reader := func() returns ref USize [s] { return s.count }
+    assert(ptr_eq(reader(), count))
+    assert_eq(USize, reader(), 4)
+
+    count = 3
+    assert_eq(USize, s.len(), 3)
+    assert_eq(USize, s.cap, capacity)
+    write_param(count, 2)
+    assert_eq(USize, s.len(), 2)
+    assert_eq(USize, s.cap, capacity)
+    write_param(count_ref(s), 4)
+    assert_eq(USize, copy_count(s), 4)
+    assert_eq(USize, s.cap, capacity)
+
+    mut other := Str.with_capacity(capacity + 1)
+    other.push_str("xy")
+    count = count_ref(other)
+    assert(ptr_eq(count, other.count))
+    count = 1
+    assert_eq(USize, other.len(), 1)
+    assert_eq(USize, other.cap, capacity + 1)
+    assert_eq(USize, s.len(), 4)
+    assert_eq(USize, s.cap, capacity)
+
+    literal := "literal"
+    ref literal_cap: USize = cap_ref(literal)
+    assert_eq(USize, literal_cap, USize.MAX)
+    view := s.borrowed_view()
+    ref view_cap: USize = cap_ref(view)
+    assert_eq(USize, view_cap, USize.MAX - 1)
+
+    mut values := Vec(I64).new()
+    values.push(own 11)
+    values.push(own 22)
+    ref length: USize = vec_count(values)
+    assert_eq(USize, length, 2)
+    assert(ptr_eq(identity_ref(length), values.count))
+    assert_eq(USize, copy_param(length), 3)
+    println("borrowed scalar widths PASS")
+}

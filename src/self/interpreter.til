@@ -1675,9 +1675,10 @@ priv init_field_raw := func(mut inst_data: Dynamic, dd: Declaration, field_offse
     if raw_is_place.not() { raw_block_free(raw) }
 }
 
-priv context_return_set := func(mut ctx: Context, raw: Dynamic) {
+priv context_return_set := func(mut ctx: Context, raw: Dynamic, shallow source_type: Type) {
     if ctx.eval.has_return { panic("return result already set") }
     ctx.eval.return_value = raw
+    if ctx.eval.interp_ret_is_ref { ctx.eval.return_source_type_p = to_ptr(interp_intern_type(source_type, ctx)) }
     ctx.eval.has_return = true
 }
 
@@ -1685,6 +1686,7 @@ priv context_return_take := func(mut ctx: Context) returns Dynamic {
     if ctx.eval.has_return.not() { panic("return result is not set") }
     result : Dynamic = ctx.eval.return_value
     ctx.eval.return_value = 0
+    ctx.eval.return_source_type_p = 0
     ctx.eval.has_return = false
     return result
 }
@@ -2672,7 +2674,12 @@ priv eval_declaration := proc(mut scope: Scope, mut stmt: Expr, dd: Declaration,
     }
     // Canonical block (as a raw word) for the binding to borrow;
     // decl_type stays the owned working copy for the value logic below.
-    bind_type_w : Dynamic = interp_intern_type(decl_type, ctx)
+    mut bind_type_w : Dynamic = interp_intern_type(decl_type, ctx)
+    // A borrow keeps the source storage type, not the target alias's width.
+    // Value declarations below still convert into their own declared storage.
+    if dd.own_type.is(OwnType.Ref).and(raw_type_is_prim(rhs_type, ctx)).and(raw_type_is_prim(decl_type, ctx)) {
+        bind_type_w = to_ptr(rhs_info.source_type_p)
+    }
     switch rhs.node_type {
     case .Ident(rhs_ident):
         ref mut source_hb : HeapBinding = source_hb_o.unwrap()
@@ -3425,22 +3432,11 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                         }
                     }
                     return_raw = raw_result_reframe(return_source_type, return_raw, return_source_is_ref, c.eval.interp_ret_is_ref, ctx)
-                case .FCall:
+                case .FCall, .FieldAccess:
                     mut inner_info := raw_result_info_new()
                     return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.eval.interp_ret_dest)
-                    return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_info.is_ref, c.eval.interp_ret_is_ref, ctx)
-                case .FieldAccess:
-                    if c.eval.interp_ret_is_ref {
-                        // field_access_returns_ref gated this branch, so the
-                        // base resolves.
-                        return_raw = field_access_base(scope, ret_expr, ctx).unwrap()
-                        return_source_is_ref = true
-                    } else {
-                        mut inner_info := raw_result_info_new()
-                        return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.eval.interp_ret_dest)
-                        return_source_type = raw_result_source_type(inner_info).clone()
-                        return_raw = raw_result_reframe(return_source_type, return_raw, inner_info.is_ref, false, ctx)
-                    }
+                    return_source_type = raw_result_source_type(inner_info).clone()
+                    return_raw = raw_result_reframe(return_source_type, return_raw, inner_info.is_ref, c.eval.interp_ret_is_ref, ctx)
                 case:
                     if ret_expr.node_type.is_literal_null().and(c.eval.interp_ret_is_ref) {
                         return_raw = 0
@@ -3448,7 +3444,8 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     } else {
                         mut inner_info := raw_result_info_new()
                         return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.eval.interp_ret_dest)
-                        return_raw = raw_result_reframe(ret_expr.til_type(), return_raw, inner_info.is_ref, c.eval.interp_ret_is_ref, ctx)
+                        return_source_type = raw_result_source_type(inner_info).clone()
+                        return_raw = raw_result_reframe(return_source_type, return_raw, inner_info.is_ref, c.eval.interp_ret_is_ref, ctx)
                     }
                 }
                 target_return_type := type_from_name_init_name(interp_ret_type_name(c), ctx.scope, ctx.symbols)
@@ -3456,10 +3453,10 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     return_raw = raw_coerce_value(return_raw, return_source_type, target_return_type, ctx, c.eval.interp_ret_own_type)
                     return_raw = raw_result_finish(target_return_type, return_raw, c.eval.interp_ret_dest, false, ctx)
                 }
-                context_return_set(c, return_raw)
+                context_return_set(c, return_raw, return_source_type)
             } else {
                 // A bare return carries the null None word: no allocation.
-                context_return_set(c, bits_word(0))
+                context_return_set(c, bits_word(0), Type.None)
             }
         case .Switch:
             eval_switch(scope, stmt, ctx)
@@ -3475,10 +3472,15 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
 
 priv interp_param_bind_type := func(param: Declaration, source_type_w: Dynamic, is_variadic: Bool, mut ctx: Context) returns Dynamic {
     if is_variadic { return source_type_w }
+    ref source_type: Type = to_ptr(source_type_w)
+    if param.own_type.is(OwnType.Ref).and(raw_type_is_prim(source_type, ctx))
+        .and(raw_type_is_prim(declaration_resolved_type(param, ctx.scope, ctx.symbols), ctx)) {
+        return source_type_w
+    }
     return interp_intern_type(declaration_resolved_type(param, ctx.scope, ctx.symbols), ctx)
 }
 
-priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_def: Expr, parent_scope: Scope, mut ctx: Context, mut destination: Dynamic = bits_word(0)) returns Dynamic {
+priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_def: Expr, parent_scope: Scope, mut ctx: Context, mut info: RawResultInfo, mut destination: Dynamic = bits_word(0)) returns Dynamic {
     ref mut c : Context = ctx
     if func_def.children.len() == 0 {
         interp_error(e, "cannot call an interface method through the interface: it has no implementation", ctx)
@@ -3690,7 +3692,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
                     scope_set_heap_owned(call_scope, param.name, dynamic_slot, dynamic_type_w, param.own_type, ctx, true)
                 }
             } else {
-                bind_type_w : Dynamic = interp_param_bind_type(param, interp_intern_type(param.til_type, ctx), is_variadic_param, ctx)
+                bind_type_w : Dynamic = interp_param_bind_type(param, to_ptr(arg_info.source_type_p), is_variadic_param, ctx)
                 ref bind_type : Type = to_ptr(bind_type_w)
                 mut borrowed := false
                 if arg_info.is_ref {
@@ -3741,6 +3743,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
     }
     c.eval.has_return = false
     c.eval.return_value = 0
+    c.eval.return_source_type_p = 0
     saved_ret_is_ref := c.eval.interp_ret_is_ref
     ref saved_ret_dest : Dynamic = c.eval.interp_ret_dest
     saved_ret_type := c.eval.interp_ret_type
@@ -3781,6 +3784,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
     c.eval.interp_ret_own_type = saved_ret_own_type
     mut result : Dynamic = 0
     if c.eval.has_return {
+        if callee_ret_is_ref { info.source_type_p = c.eval.return_source_type_p }
         result = context_return_take(c)
     } else {
         result = destination
@@ -3835,7 +3839,7 @@ priv check_dynamic_callable_signature := proc(callable: Dynamic, shallow expecte
     return false
 }
 
-priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callable: Dynamic, mut ctx: Context, mut destination: Dynamic = bits_word(0)) returns Dynamic {
+priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callable: Dynamic, mut ctx: Context, mut info: RawResultInfo, mut destination: Dynamic = bits_word(0)) returns Dynamic {
     if check_dynamic_callable_signature(callable, e.children[0].til_type(), e, ctx).not() {
         return raw_unit_result(e.til_type(), ctx)
     }
@@ -3899,13 +3903,13 @@ priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callab
                         if member.default_value.is_none() { continue }
                         if member.default_expr().ptr_eq(func_def) {
                             method := def_ns_name_at(iface, mi).clone()
-                            return eval_interface_call(caller_scope, e, iface_name, method, fd, ctx, destination)
+                            return eval_interface_call(caller_scope, e, iface_name, method, fd, ctx, info, destination)
                         }
                     }
                 }
             }
         }
-        return eval_user_func_call(caller_scope, e, func_def, parent_scope, ctx, destination)
+        return eval_user_func_call(caller_scope, e, func_def, parent_scope, ctx, info, destination)
     case:
         interp_error(e, "callee did not evaluate to a function", ctx)
         exit(1)
@@ -3938,7 +3942,7 @@ priv bind_interface_receiver := func(mut dispatch_scope: Scope, mut box: Dynamic
     return receiver
 }
 
-priv eval_interface_call := proc(mut scope: Scope, mut e: Expr, iface_name: Str, method: Str, contract: FunctionDef, mut ctx: Context, mut destination: Dynamic) returns Dynamic {
+priv eval_interface_call := proc(mut scope: Scope, mut e: Expr, iface_name: Str, method: Str, contract: FunctionDef, mut ctx: Context, mut info: RawResultInfo, mut destination: Dynamic) returns Dynamic {
     if interface_method_requires_concrete_types(contract, iface_name, ctx) {
         interp_eval_error(e, format("nested interface types require concrete dispatch: ", iface_name, ".", method), ctx)
         return raw_unit_result(e.til_type(), ctx)
@@ -3989,6 +3993,7 @@ priv eval_interface_call := proc(mut scope: Scope, mut e: Expr, iface_name: Str,
     call.set_til_type(ret_type)
     mut result_info := raw_result_info_new()
     mut result : Dynamic = eval_call_info(dispatch_scope, call, ret_type, ctx, result_info)
+    if contract.sig.return_own_type.is(OwnType.Ref) { info.source_type_p = result_info.source_type_p }
     if contract.sig.return_type == iface_name {
         mut wrapped : Dynamic = EvalHeap.heap_alloc(ctx_total_size(iface_name, ctx))
         tag_copy : Dynamic = heap_clone("Str", to_ptr(concrete_name), ctx)
@@ -4050,7 +4055,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         if callable_box_is(deref(fn_raw)) {
             ref boxed_func_def : Expr = callable_raw_func_def(fn_raw)
             set_resolved_call_result_info(call_type, boxed_func_def, destination, info, ctx)
-            result : Dynamic = eval_callable_call(scope, e, fn_raw, ctx, destination)
+            result : Dynamic = eval_callable_call(scope, e, fn_raw, ctx, info, destination)
             if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
             return result
         }
@@ -4064,7 +4069,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
             if iface_o.is_some().and(iface_o.unwrap().node_type.is(NodeType.StructDef)) {
                 if structdef_of(iface_o.unwrap()).is_interface {
                     ref method : Str = fieldaccess_of(callee_expr).field_access_name(ctx.symbols.names)
-                    result : Dynamic = eval_interface_call(scope, e, iface_name, method, iface_fd, ctx, destination)
+                    result : Dynamic = eval_interface_call(scope, e, iface_name, method, iface_fd, ctx, info, destination)
                     if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
                     return result
                 }
@@ -4181,7 +4186,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                 return result
             }
 
-        result : Dynamic = eval_callable_call(scope, e, fn_raw, ctx, destination)
+        result : Dynamic = eval_callable_call(scope, e, fn_raw, ctx, info, destination)
         if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
         return result
     }
@@ -4194,7 +4199,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         mut callable : Dynamic = eval_callable_callee_raw(scope, callee_expr, callable_owned, ctx)
         ref callable_fdef : Expr = callable_raw_func_def(callable)
         set_resolved_call_result_info(call_type, callable_fdef, destination, info, ctx)
-        result : Dynamic = eval_callable_call(scope, e, callable, ctx, destination)
+        result : Dynamic = eval_callable_call(scope, e, callable, ctx, info, destination)
         if callable_owned { callable_raw_free(callable, ctx) }
         return result
     }
@@ -4530,7 +4535,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                 return inst_data
         }
 
-        result : Dynamic = eval_callable_call(scope, e, fn_raw, ctx, destination)
+        result : Dynamic = eval_callable_call(scope, e, fn_raw, ctx, info, destination)
         if fn_raw_owned { callable_raw_free(fn_raw, ctx) }
         return result
     case .FCall:
@@ -4553,7 +4558,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
         }
         ref cast_func_def : Expr = callable_raw_func_def(cast_raw)
         set_resolved_call_result_info(call_type, cast_func_def, destination, info, ctx)
-        result : Dynamic = eval_callable_call(scope, e, cast_raw, ctx, destination)
+        result : Dynamic = eval_callable_call(scope, e, cast_raw, ctx, info, destination)
         if cast_raw_owned { callable_raw_free(cast_raw, ctx) }
         return result
     case:
@@ -7421,6 +7426,7 @@ priv native_callable_invoke := proc(mut state: NativeGuestCallable, mut native_r
     // slot; preserve the suspended interpreter's control flow and diagnostics.
     saved_return := ctx.eval.has_return
     ref saved_return_value: Dynamic = ctx.eval.return_value
+    ref saved_return_source_type: U8 = ctx.eval.return_source_type_p
     saved_break := ctx.eval.has_break
     saved_continue := ctx.eval.has_continue
     saved_aborted := ctx.eval.eval_aborted
@@ -7433,6 +7439,7 @@ priv native_callable_invoke := proc(mut state: NativeGuestCallable, mut native_r
     swap(Vec(SourceDiagnostic), saved_diagnostics, ctx.diagnostics)
     ctx.eval.has_return = false
     ctx.eval.return_value = bits_word(0)
+    ctx.eval.return_source_type_p = 0
     ctx.eval.has_break = false
     ctx.eval.has_continue = false
     ctx.eval.eval_aborted = false
@@ -7481,7 +7488,8 @@ priv native_callable_invoke := proc(mut state: NativeGuestCallable, mut native_r
         call.set_til_type(result_type)
         if state.signature.return_own_type.is(OwnType.Ref).not() { destination = EvalHeap.heap_alloc(raw_type_size(result_type, ctx)) }
     }
-    value: Dynamic = eval_callable_call(temps, call, state.callable, ctx, destination)
+    mut result_info := raw_result_info_new()
+    value: Dynamic = eval_callable_call(temps, call, state.callable, ctx, result_info, destination)
     ref returned_kind: I64 = to_ptr(native_callable_error_slot(state.signature, "_err_kind", arguments, ctx))
     if ctx.eval.eval_aborted {
         ref mut error: TilVmError = to_ptr(native_callable_error_slot(state.signature, "_err_TilVmError", arguments, ctx))
@@ -7519,6 +7527,7 @@ priv native_callable_invoke := proc(mut state: NativeGuestCallable, mut native_r
     scope_free(own temps)
     ctx.eval.has_return = saved_return
     ctx.eval.return_value = saved_return_value
+    ctx.eval.return_source_type_p = saved_return_source_type
     ctx.eval.has_break = saved_break
     ctx.eval.has_continue = saved_continue
     ctx.eval.eval_aborted = saved_aborted
@@ -8009,7 +8018,8 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     if expected.return_type.len() > 0 && expected.return_own_type.is(OwnType.Ref).not() {
         destination = EvalHeap.heap_alloc(raw_type_size(ret_type, lp.ctx))
     }
-    result : Dynamic = eval_callable_call(temps, call, callable, lp.ctx, destination)
+    mut result_info := raw_result_info_new()
+    result : Dynamic = eval_callable_call(temps, call, callable, lp.ctx, result_info, destination)
     mut values := Tuple.new()
     mut declared_error := false
     if lp.ctx.eval.eval_aborted.not().and(expected.throw_types.len() > 0) {

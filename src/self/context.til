@@ -1507,6 +1507,10 @@ EvalState := struct {
     // rejected with "cannot return ref variable from non-ref function".
     // Same ownership question as the Scope-typed fields; #324 first.
     ref return_value : Dynamic = 0
+    // #487: a borrowed scalar can point into host-layout storage whose width
+    // differs from the declared target type. Travels with return_value until
+    // eval_user_func_call takes it into RawResultInfo; never owns the Type.
+    ref return_source_type_p : U8 = 0
     // True while the interpreter runs the body of a `returns ref`
     // function (saved/restored per call in eval_user_func_call).
     // return propagation and the call boundary consult it:

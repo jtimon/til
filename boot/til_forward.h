@@ -2754,6 +2754,7 @@ typedef struct EvalState {
     Bool has_break;
     Bool has_continue;
     void * *return_value;
+    U8 *return_source_type_p;
     Bool interp_ret_is_ref;
     void * *interp_ret_dest;
     Option__ref_Str interp_ret_type;
