@@ -744,6 +744,39 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   widths, and focused C ASAN/UBSAN runs passed at USize32/O0 and USize64/O2
   without diagnostics. Native emitted assembly is not ASAN-instrumented.
 
+**** Wider vectors through baseline SSE2 chunks
+
+  On base ~e2c6b3f8c~, F32/I32/U32 support power-of-two widths 4..1024 and
+  F64/Bool widths 2..1024, within the existing generator limit. Arithmetic,
+  comparisons and numeric selection emit 128-bit chunks; packed Bool results
+  use the matching lane offsets. Snapshots copy complete values, including
+  eight-byte masks and masks spanning multiple registers. Reductions retain
+  their shared tree and FMA retains exact scalar rounding per lane.
+
+  Direct SIMD new writes scalar arguments into result frame storage, allowing
+  wide construction without changing the six-argument ordinary-call convention.
+  Existing generated memory, accessors, mask logic and lifecycle methods remain
+  shared. Ordinary shallow-call argument-ordering semantics are not changed.
+
+  Shared helpers cover widths across two to eight registers, all existing lane
+  families, intrinsic snapshots, raw-bit selection, FMA cancellation, checked
+  memory, wide records, indirect calls and owned captures. Counted eight-argument
+  constructors pin once-only argument evaluation. The native driver additionally
+  compares a 1024-lane F32 constructor, arithmetic, masks, reduction and FMA at
+  both USize widths against C/interpreter; that maximum-width frontend expansion
+  has a bounded 180-second execution timeout. Options tests pin SSE2-only output
+  and retain unsupported-lane/small-width diagnostics.
+
+  Allocation instrumentation pins 0/0 for wide computation and 2/2 for the
+  two-Array memory probe. No new CPU profile, runtime representation or artifact
+  path is introduced.
+
+  Verification: ~make clean && make test~ passed 572/572, including self-translate
+  and USize32-to-64 translation. Both FASM drivers passed, including the 1024-lane
+  fixture at both widths. The ASAN-built compiler assembled/executed the shared
+  wide corpus at both target widths, and C ASAN/UBSAN runs passed at USize32/O0
+  and USize64/O2 without diagnostics. Native assembly is not ASAN-instrumented.
+
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
   repeated work. In-process code allocation, relocation, lifetime management

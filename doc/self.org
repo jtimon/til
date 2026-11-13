@@ -1168,13 +1168,17 @@
   NaN payload/sign are unspecified. Ordinary multiply/add remains separately
   rounded; all three FMA arguments are evaluated once, in source order.
 
-  Baseline SIMD supports Simd(F32,4), Simd(F64,2), Simd(I32,4), Simd(U32,4)
-  and their Simd(Bool,4/2) masks. Values keep the shared scalar-lane representation
+  Baseline SIMD supports power-of-two widths from 4 through 1024 for F32/I32/U32,
+  and 2 through 1024 for F64 and Bool masks, within the shared generator limit.
+  Values keep the shared scalar-lane representation
   and scalar alignment in locals, fields, templates, captures and aggregate calls.
   Floating-point SSE2 packed arithmetic and IEEE comparisons operate on
   unaligned snapshots; later intrinsic arguments cannot change earlier values.
   Comparisons pack their result into canonical Bool bytes, and select expands
   those bytes into bit masks without changing selected NaN payloads or zeros.
+  Wider arithmetic, comparisons and selection use successive 128-bit SSE2
+  chunks. Snapshots copy the complete value, including masks larger than one
+  register; comparison bytes are packed at each chunk's corresponding lane offset.
 
   I32/U32 packed add/subtract/multiply wrap at 32 bits. SSE2 multiplication
   combines two pmuludq results and interleaves their low dwords, without SSE4.1.
@@ -1184,7 +1188,9 @@
   signed/unsigned ordering. Division uses its generated scalar-lane body,
   retaining zero for a zero divisor and MIN for signed MIN/-1.
 
-  Construction, splat/zero, checked lane get/set, mask logic/all/any and checked
+  Direct SIMD new calls write each scalar argument into result frame storage,
+  so wide constructors do not consume the six-register ordinary-call budget.
+  Splat/zero, checked lane get/set, mask logic/all/any and checked
   Array load/store use the ordinary generated bodies. Memory operations retain
   their whole-range checks, scalar alignment and OutOfBounds behavior. Reductions
   keep the shared fixed tree, including NaN propagation and signed-zero extrema.
@@ -1462,7 +1468,7 @@
     Removal follows ext.c's unlink contract: a missing path is harmless, but
     directories and other failures are errors.
 
-  Other integer lane sizes, other vector widths, vector casts and general
+  Other integer lane sizes, sub-register numeric vector widths, vector casts and general
   runtime-selected method/reflection lookup,
   unsupported external runtime services remain outside this
   subset. Array methods are no longer restricted to compiler-generated
@@ -1543,7 +1549,7 @@
   selection, fixed-order reductions, FMA ties, intrinsic snapshots, checked
   unaligned/overlapping memory, invalid indices/ranges and aggregate/callable
   boundaries. The assembler-free options test pins packed SSE2 emission and
-  rejects other integer/wider families. Allocation probes pin zero native allocations
+  rejects other integer/sub-register families. Allocation probes pin zero native allocations
   for SIMD computation and two buffer allocations/frees for two Array round trips.
 
   ~simd_baseline_integer_checks~ adds I32x4/U32x4 scalar-reference edge matrices:
@@ -1553,6 +1559,15 @@
   checked/overlapping memory and the existing nested mixed-SIMD POD-field corpus.
   Integer allocation probes likewise pin 0/0 computation and 2/2 Array buffers;
   assembler-free checks require SSE2 multiply/shuffle/comparison instructions.
+
+  ~simd_wide_checks~ reuses those scalar-reference, FMA, selection and memory
+  helpers at widths spanning two to eight registers, including byte masks of
+  8/16/32 lanes. It checks wide POD fields, indirect calls, owned captures and
+  eight-argument constructors for every supported element family. The native
+  driver additionally compares a 1024-lane F32 new/arithmetic/mask/reduction/FMA
+  program across all three execution paths at both USize widths, with a 180-second
+  bound for that maximum-width frontend expansion. Wide computation allocates
+  zero heap blocks; its two-Array memory probe allocates only two data buffers.
 
   The owned alias captures in the shared float test also regress a C emitter
   defect: a borrowed local scalar alias must be copied into a private capture

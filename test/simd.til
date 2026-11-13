@@ -274,10 +274,9 @@ simd_integer_replace := proc(T:Type,V:Type,mut source:V) returns V {
 }
 simd_integer_snapshots := proc(T:Type,V:Type,shape:V) {
     noop_proc()
-    assert_eq(USize,shape.len(),4)
     two:T=2
     five:T=5
-    mut source:=V.splat(two)
+    mut source:=shape+V.splat(two)
     sum:=source+simd_integer_replace(T,V,source)
     assert(sum.eq(V.splat(five)).all())
     assert(source.eq(V.splat(T.MAX)).all())
@@ -305,6 +304,117 @@ simd_baseline_integer_checks := proc() {
     simd_baseline_pod_fields()
 }
 test_simd_baseline_integer_slice := test() { simd_baseline_integer_checks() }
+
+simd_wide_float := proc(T:Type,V:Type,M:Type,B:Type,delta:T,bits:Array(B),shape:V,mask_shape:M) {
+    noop_proc()
+    simd_baseline_float(T,V,M,shape,mask_shape)
+    simd_fma_rounding(T,V,delta,shape)
+    simd_memory_roundtrip(T,V,T.from_i64(-2),T.from_i64(7),shape)
+    simd_memory_roundtrip(Bool,M,true,false,mask_shape)
+    simd_baseline_bounds(T,V,T.from_i64(9),T.from_i64(-7),shape)
+    simd_select_bits(T,V,M,B,bits,shape,mask_shape)
+}
+simd_wide_integer := proc(T:Type,V:Type,M:Type,values:Array(T),shape:V,mask_shape:M) {
+    noop_proc()
+    simd_baseline_integer(T,V,values,shape)
+    simd_integer_snapshots(T,V,shape)
+    sentinel:T=7
+    simd_memory_roundtrip(T,V,T.MAX,sentinel,shape)
+    simd_baseline_bounds(T,V,T.MAX,sentinel,shape)
+    simd_select_bits(T,V,M,U32,array(U32,0,0xffffffff,0x80000000,0x7fffffff),shape,mask_shape)
+}
+
+WideDouble8 := Simd(F64,8)
+WideSigned8 := Simd(I32,8)
+WideUnsigned8 := Simd(U32,8)
+WideMask8 := Simd(Bool,8)
+simd_wide_counted := proc(T:Type,mut calls:I64,value:T) returns T {
+    noop_proc()
+    calls++
+    return value
+}
+simd_wide_bool_counted := proc(mut calls:I64,digit:I64) returns Bool {
+    noop_proc()
+    calls++
+    return digit.mod(2)==0
+}
+simd_wide_constructors := proc() {
+    noop_proc()
+    mut calls:I64=0
+    f:=F8.new(simd_wide_counted(F32,calls,1),simd_wide_counted(F32,calls,2),simd_wide_counted(F32,calls,3),simd_wide_counted(F32,calls,4),simd_wide_counted(F32,calls,5),simd_wide_counted(F32,calls,6),simd_wide_counted(F32,calls,7),simd_wide_counted(F32,calls,8))
+    assert(calls==8)
+    calls=0
+    d:=WideDouble8.new(simd_wide_counted(F64,calls,1),simd_wide_counted(F64,calls,2),simd_wide_counted(F64,calls,3),simd_wide_counted(F64,calls,4),simd_wide_counted(F64,calls,5),simd_wide_counted(F64,calls,6),simd_wide_counted(F64,calls,7),simd_wide_counted(F64,calls,8))
+    assert(calls==8)
+    calls=0
+    s:=WideSigned8.new(simd_wide_counted(I32,calls,1),simd_wide_counted(I32,calls,2),simd_wide_counted(I32,calls,3),simd_wide_counted(I32,calls,4),simd_wide_counted(I32,calls,5),simd_wide_counted(I32,calls,6),simd_wide_counted(I32,calls,7),simd_wide_counted(I32,calls,8))
+    assert(calls==8)
+    calls=0
+    u:=WideUnsigned8.new(simd_wide_counted(U32,calls,1),simd_wide_counted(U32,calls,2),simd_wide_counted(U32,calls,3),simd_wide_counted(U32,calls,4),simd_wide_counted(U32,calls,5),simd_wide_counted(U32,calls,6),simd_wide_counted(U32,calls,7),simd_wide_counted(U32,calls,8))
+    assert(calls==8)
+    calls=0
+    mask:=WideMask8.new(simd_wide_bool_counted(calls,1),simd_wide_bool_counted(calls,2),simd_wide_bool_counted(calls,3),simd_wide_bool_counted(calls,4),simd_wide_bool_counted(calls,5),simd_wide_bool_counted(calls,6),simd_wide_bool_counted(calls,7),simd_wide_bool_counted(calls,8))
+    assert(calls==8)
+    for i:USize in 0..8 {
+        expected:=i.to_i64()+1
+        assert_eq(F32,f[i],expected.to_f32())
+        assert_eq(F64,d[i],expected.to_f64())
+        assert_eq(I32,s[i],expected.to_i32())
+        assert_eq(U32,u[i],expected.to_u32())
+        assert_eq(Bool,mask[i],expected.mod(2)==0)
+    }
+}
+
+WideFloat32 := Simd(F32,32)
+WideUnsigned32 := Simd(U32,32)
+WideSimdBox := struct { tag:I8=0; small:WideFloat32=WideFloat32.zero(); wide:F64x16=F64x16.zero(); signed:I32x32=I32x32.zero() }
+WideSimdMaker := func(shallow small:WideFloat32,shallow wide:F64x16,shallow signed:I32x32) returns WideSimdBox
+WideSimdHolder := struct { make:WideSimdMaker }
+simd_wide_make := func(shallow small:WideFloat32,shallow wide:F64x16,shallow signed:I32x32) returns WideSimdBox {
+    return WideSimdBox(tag=-7,small=small+WideFloat32.splat(1.0),wide=wide*F64x16.splat(2.0),signed=signed+I32x32.splat(3))
+}
+simd_wide_abi := proc(seed:I64) {
+    noop_proc()
+    f:=WideFloat32.splat(seed.to_f32())
+    d:=F64x16.splat(seed.to_f64())
+    s:=I32x32.splat(seed.to_i32())
+    make:WideSimdMaker=simd_wide_make
+    mut box:=make(f,d,s)
+    copy:=box.clone()
+    box.small.set(4,own 9.0)!
+    box.small.set(31,own 10.0)!
+    assert(box.tag == -7)
+    assert_eq(F32,copy.small[4],seed.to_f32()+1.0)
+    assert_eq(F32,copy.small[31],seed.to_f32()+1.0)
+    assert(box.wide.eq(F64x16.splat(seed.to_f64()*2.0)).all())
+    bias:=copy.small
+    original:=WideSimdHolder(make=func(shallow a:WideFloat32,shallow b:F64x16,shallow c:I32x32) returns WideSimdBox [own bias] {
+        return simd_wide_make(a+bias,b,c)
+    })
+    cloned:=original.clone()
+    result:=cloned.make(f,d,s)
+    assert(result.small.eq(WideFloat32.splat(seed.to_f32()*2.0+2.0)).all())
+    assert(result.signed.eq(I32x32.splat(seed.to_i32()+3)).all())
+}
+
+simd_wide_checks := proc() {
+    noop_proc()
+    bits32:=array(U32,0x80000000,0x7f800001,0x7fc12345,0xff800000,0x7f800000,1,0x7f7fffff,0)
+    bits64:=array(U64,0x8000000000000000,0x7ff0000000000001,0x7ff8123456789abc,0xfff0000000000000,0x7ff0000000000000,1,0x7fefffffffffffff,0)
+    simd_wide_float(F32,F8,WideMask8,U32,1.1920928955078125e-7,bits32,F8.zero(),WideMask8.zero())
+    simd_wide_float(F32,Simd(F32,32),Simd(Bool,32),U32,1.1920928955078125e-7,bits32,Simd(F32,32).zero(),Simd(Bool,32).zero())
+    simd_wide_float(F64,Simd(F64,4),FieldMask,U64,2.220446049250313e-16,bits64,Simd(F64,4).zero(),FieldMask.zero())
+    simd_wide_float(F64,F64x16,Simd(Bool,16),U64,2.220446049250313e-16,bits64,F64x16.zero(),Simd(Bool,16).zero())
+    signed:=array(I32,I32.MIN,-1,0,65537,I32.MAX)
+    unsigned:=array(U32,0,1,0x7fffffff,0x80000000,U32.MAX)
+    simd_wide_integer(I32,WideSigned8,WideMask8,signed,WideSigned8.zero(),WideMask8.zero())
+    simd_wide_integer(I32,I32x32,Simd(Bool,32),signed,I32x32.zero(),Simd(Bool,32).zero())
+    simd_wide_integer(U32,WideUnsigned8,WideMask8,unsigned,WideUnsigned8.zero(),WideMask8.zero())
+    simd_wide_integer(U32,Simd(U32,32),Simd(Bool,32),unsigned,Simd(U32,32).zero(),Simd(Bool,32).zero())
+    simd_wide_constructors()
+    simd_wide_abi(2)
+}
+test_simd_wide_slice := test() { simd_wide_checks() }
 
 simd_baseline_pod_fields := proc() {
     noop_proc()

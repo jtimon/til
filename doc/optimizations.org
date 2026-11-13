@@ -5,6 +5,32 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** FASM wider SSE2 SIMD allocation checks (2026-11-12, #453)
+
+Base: ~e2c6b3f8c~. The existing F32/F64/I32/U32 families now lower wider
+power-of-two vectors in 128-bit SSE2 chunks, retaining scalar alignment and
+the aggregate ABI. Snapshots copy every byte, comparisons pack Bool bytes at
+the matching chunk offsets, and selection preserves raw bits. Reductions keep
+the shared tree and FMA still rounds once per lane. Direct new writes scalar
+arguments into result storage without extending the private register budget.
+
+The shared helpers cover 8/32-lane F32, 4/16-lane F64 and 8/32-lane I32/U32,
+including masks, chunk-boundary lanes, exact-bit selection, FMA cancellation,
+checked/overlapping memory, records, indirect calls and owned captures. Counted
+eight-argument constructors cover all supported families. A separate native
+fixture compares a 1024-lane constructor and arithmetic/mask/reduction/FMA
+program with C and interpretation at both USize widths.
+
+| Probe            | Native malloc | Native free | Storage                |
+|------------------+---------------+-------------+------------------------|
+| simd_wide_values |             0 |           0 | Frame temporaries      |
+| simd_wide_memory |             2 |           2 | Two Array data buffers |
+
+Counts use the existing temporary allocator instrumentation after the same
+sources pass C and interpretation. Options checks reject YMM/ZMM or SSE4.1
+multiplication in the emitted baseline source. Wider values increase frame
+storage and emitted chunk code; no elapsed-time or peak-memory speedup is claimed.
+
 ** FASM baseline I32/U32 SIMD allocation checks (2026-11-12, #453)
 
 Base: ~1dc0a17e5~. I32x4/U32x4 retain scalar-aligned aggregate storage and frame

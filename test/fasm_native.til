@@ -6,20 +6,20 @@ realpath_str := ext_proc(path: Str) returns Str {}
 
 // Optional native integration: bootstrap vendor/fasm/fasm first, then:
 // bin/til run test/fasm_native.til bin/til
-check_shared := proc(compiler: Str, work: Str, source: Str, expected_exit: I64 = 0) {
+check_shared := proc(compiler: Str, work: Str, source: Str, expected_exit: I64 = 0, timeout: Str = "30s") {
     input := realpath_str(source)
     for width in array(Str, "32", "64") {
-        interpreted := Cmd.new("timeout", "30s", compiler, "interpret", format("--usize=", width), input)
+        interpreted := Cmd.new("timeout", timeout, compiler, "interpret", format("--usize=", width), input)
         interpreted.cwd(work).capture()
         interpreted_status := interpreted.run()
-        expect(interpreted_status == expected_exit, source, width, interpreted.out(), interpreted.err())
+        expect(interpreted_status == expected_exit, source, width, interpreted_status, interpreted.out(), interpreted.err())
         for backend in array(Str, "c", "fasm") {
             output := format("bin/shared-", backend, "-", width)
             build := Cmd.new(compiler, "build", format("--backend=", backend), format("--usize=", width), "-o", output, input)
             build.cwd(work).capture()
             status := build.run()
             expect(status == 0, source, backend, width, build.out(), build.err())
-            run := Cmd.new("timeout", "30s", format("./", output))
+            run := Cmd.new("timeout", timeout, format("./", output))
             run.cwd(work).capture()
             result := run.run()
             expect(result == expected_exit, source, backend, width, result, run.out(), run.err())
@@ -105,6 +105,26 @@ check_simd := proc(compiler: Str, work: Str) {
     File.writefile(path,format("mode cli\nimport(\"",realpath_str("test/simd.til").strip_suffix(".til").clone(),
         "\")\nmain:=proc() { simd_baseline_checks(2); simd_baseline_integer_checks(); println(\"SIMD baseline passed\") }\n"))
     check_shared(compiler,work,path)
+}
+
+check_simd_wide := proc(compiler: Str, work: Str) {
+    path:=format(work,"/simd_wide.til")
+    File.writefile(path,format("mode cli\nimport(\"",realpath_str("test/simd.til").strip_suffix(".til").clone(),
+        "\")\nmain:=proc() { simd_wide_checks(); println(\"Wide SIMD passed\") }\n"))
+    check_shared(compiler,work,path)
+    // The shared generator's maximum width also exercises constructor
+    // arguments beyond the qualifier bitmap and the private register budget.
+    mut source:="mode cli\nV:=Simd(F32,1024)\nruntime:=proc() returns F32 { noop_proc(); return 1.0 }\nmain:=proc() { seed:=runtime(); value:=V.new("
+    for lane:USize in 0..1024 {
+        if lane>0 { source=format(source,",") }
+        source=format(source,"seed+",lane.to_str(),".0")
+    }
+    source=format(source,"); sum:=value+V.splat(1.0); mask:=sum.gt(value); selected:=mask.select(sum,value);\n",
+        "assert(selected[0]==2.0 && selected[1023]==1025.0); assert(mask[0]); assert(mask[1023]);\n",
+        "assert(selected.reduce_add()==525824.0); fused:=selected.fma(V.splat(1.0),V.zero()); assert(fused[1023]==1025.0); println(\"SIMD limit passed\") }\n")
+    path_limit:=format(work,"/simd_limit.til")
+    File.writefile(path_limit,source)
+    check_shared(compiler,work,path_limit,timeout="180s")
 }
 
 check_test_command := proc(compiler: Str, work: Str) {
@@ -246,6 +266,7 @@ main := proc(compiler_arg: Str) {
     check_float_parsing(compiler,work)
     check_float_fma(compiler,work)
     check_simd(compiler,work)
+    check_simd_wide(compiler,work)
     check_rebuild(compiler, work)
     println("fasm_native PASS")
 }

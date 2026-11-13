@@ -176,9 +176,9 @@ priv fasm_bind := func(name: Str, shallow t: Type, own slot: Str, address: Bool,
 priv fasm_simd_supported := func(sd: StructDef, lp: LoadedProgram) returns Bool {
     if sd.simd_width == 0 { return false }
     lane:=declaration_resolved_type(sd.fields[0],lp.ctx.scope,lp.ctx.symbols)
-    if lane.eq(Type.Primitive(Primitive.F32)).or(lane.eq(Type.Primitive(Primitive.I32))).or(lane.eq(Type.Primitive(Primitive.U32))) { return sd.simd_width==4 }
-    if lane==Type.Primitive(Primitive.F64) { return sd.simd_width==2 }
-    return lane.eq(Type.Primitive(Primitive.Bool)).and(sd.simd_width.eq(2).or(sd.simd_width.eq(4)))
+    if lane.eq(Type.Primitive(Primitive.F32)).or(lane.eq(Type.Primitive(Primitive.I32))).or(lane.eq(Type.Primitive(Primitive.U32))) { return sd.simd_width>=4 }
+    if lane==Type.Primitive(Primitive.F64) { return sd.simd_width>=2 }
+    return lane.eq(Type.Primitive(Primitive.Bool)).and(sd.simd_width>=2)
 }
 
 priv fasm_simd := func(shallow t: Type, lp: LoadedProgram) returns Bool {
@@ -1687,7 +1687,9 @@ priv fasm_simd_snapshot := proc(e: Expr, shallow t: Type, mut state: FasmState, 
     fasm_pointer(e,state,lp)
     result:=fasm_value_slot(t,state,lp).strip_prefix("qword ").clone()
     bytes:=fasm_type_size(t,lp)
-    if bytes==16 { fasm_emit(state,format("movups xmm0, [rax]\n    movups ",result,", xmm0")) }
+    if bytes>16 { fasm_emit(state,format("mov rsi, rax\n    lea rdi, ",result,"\n    mov rdx, ",bytes.to_str(),"\n    call rt_memcpy")) }
+    else if bytes==16 { fasm_emit(state,format("movups xmm0, [rax]\n    movups ",result,", xmm0")) }
+    else if bytes==8 { fasm_emit(state,format("mov rax, [rax]\n    mov qword ",result,", rax")) }
     else if bytes==4 { fasm_emit(state,format("mov eax, [rax]\n    mov dword ",result,", eax")) }
     else if bytes==2 { fasm_emit(state,format("movzx eax, word [rax]\n    mov word ",result,", ax")) }
     else { UNREACHABLE("unsupported FASM SIMD snapshot size") }
@@ -1792,13 +1794,55 @@ priv fasm_simd_integer_binary := func(arguments: Vec(Str), result: Str, shallow 
     fasm_emit(state,format("movups ",result,", xmm0"))
 }
 
+priv fasm_simd_address := func(address: Str, offset: USize) returns Str {
+    if offset==0 { return address.clone() }
+    return format(address.strip_suffix("]"),"+",offset.to_str(),"]")
+}
+
+priv fasm_simd_float_binary := func(arguments: Vec(Str), result: Str, shallow lane: Type, op: Str, lanes: USize, mut state: FasmState) {
+    mut suffix:="pd"
+    mut mask:="movmskpd"
+    if lane==Type.Primitive(Primitive.F32) { suffix="ps"; mask="movmskps" }
+    fasm_emit(state,format("movups xmm0, ",arguments[0],"\n    movups xmm1, ",arguments[1]))
+    switch op {
+    case "add","sub","mul","div":
+        fasm_emit(state,format(op,suffix," xmm0, xmm1\n    movups ",result,", xmm0"))
+    case:
+        mut predicate:USize=0
+        switch op {
+        case "neq": predicate=4
+        case "lt","gt": predicate=1
+        case "lte","gte": predicate=2
+        case:
+        }
+        if op=="gt" || op=="gte" { fasm_emit(state,"movaps xmm2, xmm0\n    movaps xmm0, xmm1\n    movaps xmm1, xmm2") }
+        fasm_emit(state,format("cmp",suffix," xmm0, xmm1, ",predicate.to_str(),"\n    ",mask," eax, xmm0\n    lea rdx, ",result))
+        for i in 0..lanes {
+            fasm_emit(state,format("mov ecx, eax\n    shr ecx, ",i.to_str(),"\n    and ecx, 1\n    mov [rdx+",i.to_str(),"], cl"))
+        }
+    }
+}
+
 priv fasm_simd_core := proc(e: Expr, shallow owner: Type, op: Str, mut state: FasmState, mut lp: LoadedProgram) returns Bool {
     switch op {
-    case "len","add","sub","mul","div","band","bor","bxor","eq","neq","lt","lte","gt","gte","fma","select","reduce_min","reduce_max":
+    case "new","len","add","sub","mul","div","band","bor","bxor","eq","neq","lt","lte","gt","gte","fma","select","reduce_min","reduce_max":
     case: return false
     }
     ref sd:StructDef=structdef_of(lp.ctx.scope.get_struct(type_name_ref(owner,lp.ctx.symbols),lp.ctx.symbols).unwrap())
     lane:=declaration_resolved_type(sd.fields[0],lp.ctx.scope,lp.ctx.symbols)
+    if op=="new" {
+        // A direct SIMD constructor writes scalar arguments into its result,
+        // so its lane count does not consume the private call register budget.
+        result:=fasm_value_slot(owner,state,lp).strip_prefix("qword ").clone()
+        bytes:=fasm_type_size(lane,lp)
+        for i in 0..sd.simd_width {
+            fasm_expr(e.children[i+1],state,lp)
+            fasm_emit(state,format("lea rcx, ",fasm_simd_address(result,i*bytes)))
+            fasm_store_scalar(lane,state)
+        }
+        fasm_emit(state,format("lea rax, ",result))
+        return true
+    }
     integer:=lane.eq(Type.Primitive(Primitive.I32)).or(lane.eq(Type.Primitive(Primitive.U32)))
     // Bool mask logic has ordinary generated bodies, rather than core ops.
     if integer.not().and(op.eq("band").or(op.eq("bor")).or(op.eq("bxor"))) { return false }
@@ -1844,8 +1888,12 @@ priv fasm_simd_core := proc(e: Expr, shallow owner: Type, op: Str, mut state: Fa
                 fasm_emit(state,format("lea rdx, ",arguments[0],"\n    movzx eax, byte [rdx+",i.to_str(),"]\n    neg rax\n    lea rcx, ",expanded,"\n    add rcx, ",(i*bytes).to_str()))
                 fasm_store_scalar(lane,state)
             }
-            fasm_emit(state,format("movups xmm0, ",arguments[1],"\n    movups xmm1, ",arguments[2],"\n    movups xmm2, ",expanded,
-                "\n    pand xmm0, xmm2\n    pandn xmm2, xmm1\n    por xmm0, xmm2\n    movups ",result,", xmm0"))
+            for chunk in 0..(sd.simd_width*bytes/16) {
+                offset:=chunk*16
+                fasm_emit(state,format("movups xmm0, ",fasm_simd_address(arguments[1],offset),
+                    "\n    movups xmm1, ",fasm_simd_address(arguments[2],offset),"\n    movups xmm2, ",fasm_simd_address(expanded,offset),
+                    "\n    pand xmm0, xmm2\n    pandn xmm2, xmm1\n    por xmm0, xmm2\n    movups ",fasm_simd_address(result,offset),", xmm0"))
+            }
         }
     } else if lane==Type.Primitive(Primitive.Bool) {
         for i in 0..sd.simd_width {
@@ -1854,29 +1902,15 @@ priv fasm_simd_core := proc(e: Expr, shallow owner: Type, op: Str, mut state: Fa
             if op=="neq" { condition="ne" }
             fasm_emit(state,format("set",condition," al\n    lea rdx, ",result,"\n    mov [rdx+",i.to_str(),"], al"))
         }
-    } else if integer {
-        fasm_simd_integer_binary(arguments,result,lane,op,state)
     } else {
-        mut suffix:="pd"
-        mut mask:="movmskpd"
-        if bytes==4 { suffix="ps"; mask="movmskps" }
-        fasm_emit(state,format("movups xmm0, ",arguments[0],"\n    movups xmm1, ",arguments[1]))
-        switch op {
-        case "add","sub","mul","div":
-            fasm_emit(state,format(op,suffix," xmm0, xmm1\n    movups ",result,", xmm0"))
-        case:
-            mut predicate:USize=0
-            switch op {
-            case "neq": predicate=4
-            case "lt","gt": predicate=1
-            case "lte","gte": predicate=2
-            case:
-            }
-            if op=="gt" || op=="gte" { fasm_emit(state,"movaps xmm2, xmm0\n    movaps xmm0, xmm1\n    movaps xmm1, xmm2") }
-            fasm_emit(state,format("cmp",suffix," xmm0, xmm1, ",predicate.to_str(),"\n    ",mask," eax, xmm0\n    lea rdx, ",result))
-            for i in 0..sd.simd_width {
-                fasm_emit(state,format("mov ecx, eax\n    shr ecx, ",i.to_str(),"\n    and ecx, 1\n    mov [rdx+",i.to_str(),"], cl"))
-            }
+        lanes:USize=16/bytes
+        result_stride:=fasm_type_size(e.til_type(),lp)/sd.simd_width
+        for chunk in 0..(sd.simd_width/lanes) {
+            mut inputs:=Vec(Str).new()
+            for input in arguments { inputs.push(own fasm_simd_address(input,chunk*16)) }
+            output:=fasm_simd_address(result,chunk*lanes*result_stride)
+            if integer { fasm_simd_integer_binary(inputs,output,lane,op,state) }
+            else { fasm_simd_float_binary(inputs,output,lane,op,lanes,state) }
         }
     }
     fasm_emit(state,format("lea rax, ",result))
