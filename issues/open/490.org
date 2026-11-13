@@ -1,0 +1,117 @@
+# priority: medium
+# category: features
+** OPEN #490 Separate reference-slot mutability from referent write permission
+
+*** Motivation
+
+Reference declarations currently conflate two independent permissions:
+
+- Whether the reference slot can be replaced/rebound.
+- Whether the referent can be modified through this reference.
+
+The distinction surfaced while discussing the CounterRef indirect-write fix:
+
+#+begin_src til
+CounterRef := struct { ref value: I64 }
+increment := func(counter: CounterRef) {
+    ref mut value: I64 = counter.value
+    value++
+}
+#+end_src
+
+Under today's field defaults, ~CounterRef.value~ is mutable: fields require
+~const~ to opt out, while locals and parameters default to immutable. The
+example is therefore not evidence that plain ~ref~ already means a read-only
+referent in every context. The caller's scalar must be writable, and the
+indirect-write analysis now checks and credits that actual owner.
+
+However, mutable owner storage and permission to mutate through a particular
+borrow are separate facts. A read-only reference must not be upgraded to
+~ref mut~ merely because another path reaches a mutable owner.
+
+For comparison, C distinguishes ~T *const~ (fixed pointer, writable pointee),
+~const T *~ (replaceable pointer, read-only pointee), and ~const T *const~
+(both restricted), in addition to unrestricted ~T *~.
+
+*** Proposed direction from discussion
+
+Keep ~ref~ before the declaration name. Make plain ~ref~ grant read-only
+referent access in every context, including struct fields; writable referent
+access requires explicit ~ref mut~. This is an exception to implicit field
+mutability for the BORROW permission, not a change to ordinary value-field
+defaults.
+
+One proposed spelling for fields is:
+
+#+begin_src til
+ref value: I64           // Replaceable field; read-only referent.
+ref mut value: I64       // Replaceable field; writable referent.
+const ref value: I64     // Fixed field; read-only referent.
+const ref mut value: I64 // Fixed field; writable referent.
+#+end_src
+
+In this proposal, ~const~ before ~ref~ restricts the reference slot, while
+~mut~ after ~ref~ grants referent write access. ~const ref mut~ is deliberate:
+the reference cannot be replaced, but the pointed-to value can be modified.
+These spellings describe the proposed distinction, not current compiler
+behavior. Record the final grammar/default decisions before implementation.
+
+The earlier suggestion that a single ~ref const~ should restrict BOTH
+permissions is insufficient: it cannot express the other two restricted
+combinations. Putting ~ref~ in the type annotation was also discussed, but
+the preferred direction preserves Til's declaration-prefix style above.
+
+*** Semantics to settle
+
+- Preserve the ordinary mutable-slot default for fields and immutable-slot
+  default for locals/parameters, while specifying how explicit slot ~mut~
+  combines with referent ~mut~ outside the field examples above.
+- Define compatibility/migration for existing ~ref mut value: T~ and
+  ~ref const value: T~ declarations. Existing ~ref mut~ on fields is rejected
+  as redundant today; that rule must change deliberately. Existing ref
+  fields used for pointee mutation will need explicit write permission.
+- Check permission at creation of a writable alias. Deriving ~ref mut~ from
+  a read-only source must fail at that declaration, with a diagnostic
+  identifying the source field/reference that needs writable permission.
+  Making the owner mutable alone must not bypass the source restriction.
+- Carry referent permission through reference assignment/rebinding, field
+  access, getters/ref returns, parameters, captures, copies, containers and
+  enum payloads. Rebinding needs a writable SLOT; writing through a reference
+  needs a writable BORROW plus a writable actual owner/access path.
+- Read-only access is path-specific, not global immutability: another
+  independently writable alias may still modify the same object. This work
+  does not imply exclusive mutable borrows or change referent ownership.
+- Keep inference, mutability diagnostics, constant folding, lifetime analysis
+  and every backend consistent. Update reflection, generated bindings and
+  the native/TilVm bridge's schema/signature checks where they describe
+  these permissions; pointer layout alone cannot express the distinction.
+
+*** Acceptance coverage
+
+- Exercise all four slot/referent combinations: replacement, pointee write,
+  alias creation and reads, with both allowed and rejected operations.
+- Reject a writable alias derived from a read-only reference even when the
+  original owner is ~mut~; test aliases/getters/forwarding, not only direct
+  syntax. Do not allow cloning or rebinding to increase borrow permission.
+- Permit fixed-reference/writable-referent fields to mutate their referents
+  while rejecting replacement of those fields.
+- Preserve indirect-write credit for mutable owners and prevent stale
+  folding across permitted writes. A read-only sibling field must not gain
+  permission because another field is writable.
+- Cover field/local/parameter defaults and migration diagnostics, plus
+  interpreted, compiled, REPL and embedding behavior where applicable.
+
+*** Current implementation references
+
+- ~src/self/parser.til~: field qualifier parsing defaults ~is_mut~ to true
+  and records explicit field ~mut~ as redundant.
+- ~src/self/typer.til~: writable-root checks, reference declarations/rebinding,
+  and parameter-relative indirect-write effects.
+- ~src/core/ast.til~: Declaration/FuncSig qualifier representation and reflection.
+- ~doc/concepts/qualifiers.org~: context-dependent defaults and current ref-field
+  spellings. ~test/ref.til~ and ~test/reference_rebinding_readonly_error.til~
+  pin the recent CounterRef behavior.
+
+Related: #370 embedding/reference interoperability; #487 downstream lifetime
+and borrowed-storage investigation. The CounterRef write-tracking fix is
+already merged; this issue records a further language-design change.
