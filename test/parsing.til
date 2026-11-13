@@ -278,6 +278,88 @@ test_for_in := test() {
     assert_eq(USize, node.children.len(), 2)
 }
 
+test_reference_slot_and_referent_metadata := test() {
+    mut symbols := SymbolPool()
+    parsed := parse_src(format("Links := struct {\n",
+        "ref read: I64\nref mut write: I64\n",
+        "const ref fixed_read: I64\nconst ref mut fixed_write: I64\n}\n"), symbols)
+    copied := parsed.clone()
+    ref fields: Vec(Declaration) = structdef_of(copied.children[0].children[0]).fields
+    assert(fields.len() == 4)
+    assert(fields[0].own_type.is(OwnType.Ref) && fields[0].is_mut && fields[0].referent_mut.not())
+    assert(fields[1].own_type.is(OwnType.Ref) && fields[1].is_mut && fields[1].referent_mut)
+    assert(fields[1].redundant_mut.not())
+    assert(fields[2].is_mut.not() && fields[2].referent_mut.not() && fields[2].ref_slot_explicit)
+    assert(fields[3].is_mut.not() && fields[3].referent_mut && fields[3].ref_slot_explicit)
+}
+
+test_reference_local_slot_metadata := test() {
+    mut symbols := SymbolPool()
+    parsed := parse_src(format(
+        "mut ref read: I64 = owner\nmut ref mut write: I64 = owner\n",
+        "const ref fixed_read: I64 = owner\nconst ref mut fixed_write: I64 = owner\n",
+        "ref legacy_read: I64 = owner\nref mut legacy_write: I64 = owner\n"), symbols)
+    ref read: Declaration = decl_of(parsed.children[0])
+    ref write: Declaration = decl_of(parsed.children[1])
+    ref fixed_read: Declaration = decl_of(parsed.children[2])
+    ref fixed_write: Declaration = decl_of(parsed.children[3])
+    assert(read.is_mut && read.referent_mut.not() && read.ref_slot_explicit)
+    assert(write.is_mut && write.referent_mut && write.ref_slot_explicit)
+    assert(fixed_read.is_mut.not() && fixed_read.referent_mut.not() && fixed_read.ref_slot_explicit)
+    assert(fixed_write.is_mut.not() && fixed_write.referent_mut && fixed_write.ref_slot_explicit)
+    // Parser preparation does not flip the legacy local-slot default yet.
+    assert(decl_of(parsed.children[4]).is_mut.not() && decl_of(parsed.children[4]).ref_slot_explicit.not())
+    assert(decl_of(parsed.children[5]).is_mut && decl_of(parsed.children[5]).ref_slot_explicit.not())
+}
+
+test_reference_result_and_payload_metadata := test() {
+    mut symbols := SymbolPool()
+    parsed := parse_src(format(
+        "Read := func() returns ref I64\nWrite := func() returns ref mut I64\n",
+        "Links := enum { Read: ref I64, Write: ref mut I64, const FixedRead: ref I64, const FixedWrite: ref mut I64 }\n"), symbols)
+    copied := parsed.clone()
+    ref read: FunctionDef = funcdef_of(copied.children[0].children[0])
+    ref write: FunctionDef = funcdef_of(copied.children[1].children[0])
+    assert(read.sig.return_own_type.is(OwnType.Ref) && read.sig.return_ref_mut.not())
+    assert(write.sig.return_own_type.is(OwnType.Ref) && write.sig.return_ref_mut)
+    assert(read.sig.eq(write.sig).not())
+    ref variants: Vec(VariantDef) = enumdef_of(copied.children[2].children[0]).variants
+    assert(variants[0].payload_ref && variants[0].payload_ref_mut.not())
+    assert(variants[1].payload_ref && variants[1].payload_ref_mut)
+    assert(variants[0].payload_const.not() && variants[1].payload_const.not())
+    assert(variants[2].payload_const && variants[2].payload_ref && variants[2].payload_ref_mut.not())
+    assert(variants[3].payload_const && variants[3].payload_ref && variants[3].payload_ref_mut)
+}
+
+test_reference_permissions_distinguish_anonymous_types := test() {
+    mut symbols := SymbolPool()
+    parsed := parse_src(format(
+        "a := struct { ref value: I64 }(value = owner)\n",
+        "b := struct { ref mut value: I64 }(value = owner)\n",
+        "c := enum { Read, Value: ref I64 }.Read\n",
+        "d := enum { Read, Value: ref mut I64 }.Read\n"), symbols)
+    ref a: Expr = parsed.children[0].children[0].children[0]
+    ref b: Expr = parsed.children[1].children[0].children[0]
+    assert(ident_of(a).ident_sym() != ident_of(b).ident_sym())
+    ref c: Expr = parsed.children[2].children[0].children[0]
+    ref d: Expr = parsed.children[3].children[0].children[0]
+    assert(ident_of(c).ident_sym() != ident_of(d).ident_sym())
+}
+
+test_fn_reference_result_permission_identity := test() {
+    mut symbols := SymbolPool()
+    parsed := parse_src(format(
+        "read := func(callback: Fn() returns ref I64) {}\n",
+        "write := func(callback: Fn() returns ref mut I64) {}\n"), symbols)
+    ref read: FunctionDef = funcdef_of(parsed.children[0].children[0])
+    ref write: FunctionDef = funcdef_of(parsed.children[1].children[0])
+    assert(decl_type_name_ref(read.sig.params[0], symbols) != decl_type_name_ref(write.sig.params[0], symbols))
+    ref read_signature: FunctionDef = funcdef_of(parsed.children[2].children[0])
+    ref write_signature: FunctionDef = funcdef_of(parsed.children[3].children[0])
+    assert(read_signature.sig.return_own_type.is(OwnType.Ref) && read_signature.sig.return_ref_mut.not())
+    assert(write_signature.sig.return_own_type.is(OwnType.Ref) && write_signature.sig.return_ref_mut)
+}
+
 // #472 (moved from test/lexing.til, which then imports only the lexer).
 // Parsing the same source with fresh state twice interns the same names
 // in source order and synthesizes the same anonymous type names.

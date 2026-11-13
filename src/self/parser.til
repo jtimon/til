@@ -368,12 +368,14 @@ decl_type_from_name := func(name: Str, mut symbols: SymbolPool) returns Type {
 decl_typed := func(mut symbols: SymbolPool, type_name: Str, name: Str = "", doc: Str = "",
         is_mut: Bool = false, redundant_mut: Bool = false,
         is_priv: Bool = false, used: Bool = false,
-        own_type: OwnType = OwnType.Shallow) returns Declaration {
+        own_type: OwnType = OwnType.Shallow, referent_mut: Bool = false,
+        ref_slot_explicit: Bool = false) returns Declaration {
     return Declaration(name = name.clone(), doc = doc.clone(),
         til_type = decl_type_from_name(type_name, symbols),
         annotated = decl_type_from_name(type_name, symbols),
         is_mut = is_mut, redundant_mut = redundant_mut,
-        is_priv = is_priv, used = used, own_type = own_type)
+        is_priv = is_priv, used = used, own_type = own_type,
+        referent_mut = referent_mut, ref_slot_explicit = ref_slot_explicit)
 }
 
 priv set_decl_type := func(mut d: Declaration, name: Str, mut symbols: SymbolPool) {
@@ -397,6 +399,7 @@ priv anon_decl_key := func(dname: Str, d: Declaration, symbols: SymbolPool) retu
     if d.own_type.is(OwnType.Ref) { own_tag = "R" }
     mut mut_tag := "c"
     if d.is_mut { mut_tag = "m" }
+    if d.referent_mut { mut_tag = format(mut_tag, "w") }
     // "-" for a decl with no default: distinct from every real
     // default-value tree, so present-vs-absent yields distinct keys.
     mut dv_key := "-"
@@ -431,6 +434,7 @@ priv anon_def_key := func(def: Expr, symbols: SymbolPool) returns Str {
             if vd.payload_type.len() > 0 {
                 k = format(k, ":", vd.payload_type)
             }
+            if vd.payload_ref_mut { k = format(k, ":ref_mut") }
             k = format(k, ";")
         }
         k = format(k, "|ns:")
@@ -630,10 +634,17 @@ priv parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Str 
     }
     expect_token(p, TokenType.RParen)
 
-    // Parse optional 'returns Type'
+    // Parse optional 'returns [ref [mut]] Type'.
     mut return_type := ""
+    mut return_own_type := OwnType.Own
+    mut return_ref_mut := false
     if check(p, TokenType.KwReturns) {
         advance(p)
+        if check(p, TokenType.KwRef) {
+            advance(p)
+            return_own_type = OwnType.Ref
+            if check(p, TokenType.KwMut) { advance(p); return_ref_mut = true }
+        }
         return_type = parse_type_ref(p)
     }
 
@@ -648,6 +659,8 @@ priv parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Str 
     }
     if return_type.len() > 0 {
         name = format(name, "_ret_")
+        if return_own_type.is(OwnType.Ref) { name = format(name, "ref_") }
+        if return_ref_mut { name = format(name, "mut_") }
         name = format(name, return_type)
     }
 
@@ -656,11 +669,12 @@ priv parse_fn_signature := proc(mut p: Parser, line: U32, col: U32) returns Str 
     if return_type.len() > 0 { fd.sig.func_type = FuncType.Func }
     else { fd.sig.func_type = FuncType.Proc }
     fd.sig.return_type = return_type
-    fd.sig.return_own_type = OwnType.Own
+    fd.sig.return_own_type = return_own_type
+    fd.sig.return_ref_mut = return_ref_mut
     fd.sig.variadic_index = -1
     fd.sig.kwargs_index = -1
     for i in 0..ptypes.len() {
-        fd.sig.params.push(own decl_typed(p.symbols, type_name = ptypes[i], is_mut = pmuts[i], own_type = OwnType.Ref))
+        fd.sig.params.push(own decl_typed(p.symbols, type_name = ptypes[i], is_mut = pmuts[i], own_type = OwnType.Ref, referent_mut = pmuts[i]))
     }
     mut sig := Expr.new(own NodeType.FuncDef(fd), line, col)
 
@@ -711,7 +725,8 @@ priv parse_capture_list := func(mut p: Parser) returns Vec(Declaration) {
         mut cap_is_mut := false
         if check(p, TokenType.KwMut) { advance(p); cap_is_mut = true }
         cname := expect_text(p, TokenType.Ident)
-        caps.push(own Declaration(name = cname.clone(), is_mut = cap_is_mut, own_type = own_type))
+        caps.push(own Declaration(name = cname.clone(), is_mut = cap_is_mut, own_type = own_type,
+            referent_mut = own_type.is(OwnType.Ref).and(cap_is_mut)))
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RBracket)
@@ -857,7 +872,8 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
 
         // Build param_decl directly; struct field assigns delete the
         // previous value cleanly, unlike `mut nm := \"\"` reassignment.
-        mut param_decl := Declaration(is_mut = is_mut, own_type = own_type.clone())
+        mut param_decl := Declaration(is_mut = is_mut, own_type = own_type.clone(),
+            referent_mut = own_type.is(OwnType.Ref).and(is_mut))
         mut is_variadic := false
         mut is_kwargs := false
         if check(p, TokenType.Colon).not() {
@@ -962,6 +978,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         if check(p, TokenType.KwRef) {
             advance(p)
             fd.sig.return_own_type = OwnType.Ref
+            if check(p, TokenType.KwMut) { advance(p); fd.sig.return_ref_mut = true }
         } else if check(p, TokenType.KwOwn) {
             parse_fail(p, peek_line(p), peek_col(p), "no need for 'own' in return type; returns are owned by default")
         } else if check(p, TokenType.KwShallow) {
@@ -1251,10 +1268,26 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             // typer can reject it with a helpful message.
             mut f_is_mut := true
             mut f_redundant_mut := false
-            if check(p, TokenType.KwOwn) { advance(p); f_own_type = OwnType.Own }
-            if check(p, TokenType.KwRef) { advance(p); f_own_type = OwnType.Ref }
-            if check(p, TokenType.KwConst) { advance(p); f_is_mut = false }
-            else if check(p, TokenType.KwMut) { advance(p); f_redundant_mut = true }
+            mut slot_prefix := false
+            if check(p, TokenType.KwConst) {
+                advance(p)
+                f_is_mut = false
+                slot_prefix = check(p, TokenType.KwRef)
+            }
+            mut referent_mut := false
+            if f_is_mut.or(slot_prefix) {
+                if check(p, TokenType.KwOwn) { advance(p); f_own_type = OwnType.Own }
+                if check(p, TokenType.KwRef) { advance(p); f_own_type = OwnType.Ref }
+                if check(p, TokenType.KwConst) {
+                    if slot_prefix { parse_fail(p, peek_line(p), peek_col(p), "reference slot already has a 'const' qualifier before 'ref'") }
+                    advance(p)
+                    f_is_mut = false
+                } else if check(p, TokenType.KwMut) {
+                    advance(p)
+                    if f_own_type.is(OwnType.Ref) { referent_mut = true }
+                    else { f_redundant_mut = true }
+                }
+            }
             f_name := expect_text(p, TokenType.Ident)
             mut f_type_name := ""
             // #242: a field declared with an explicit `: Type` may omit
@@ -1279,6 +1312,7 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             mut f_dd := decl_typed(p.symbols, name = f_name, is_mut = f_is_mut,
                 redundant_mut = f_redundant_mut,
                 own_type = f_own_type, type_name = f_type_name,
+                referent_mut = referent_mut, ref_slot_explicit = slot_prefix,
                 doc = f_doc,
                 is_priv = member_priv)
             if f_has_default {
@@ -1464,6 +1498,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
             // default for compound payloads and is rejected as redundant,
             // mirroring the mut/const payload diagnostics above.
             mut v_payload_ref := false
+            mut v_payload_ref_mut := false
             if check(p, TokenType.Colon) {
                 advance(p)
                 if check(p, TokenType.KwOwn) {
@@ -1472,6 +1507,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
                 if check(p, TokenType.KwRef) {
                     advance(p)
                     v_payload_ref = true
+                    if check(p, TokenType.KwMut) { advance(p); v_payload_ref_mut = true }
                 }
                 vtype = expect_text(p, TokenType.Ident)
             }
@@ -1489,7 +1525,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
             mut vd := VariantDef(name = vname.clone(), doc = v_doc.clone(),
                 payload_type = vtype.clone(),
                 payload_const = v_payload_const, tag_value = this_tag,
-                payload_ref = v_payload_ref)
+                payload_ref = v_payload_ref, payload_ref_mut = v_payload_ref_mut)
             edd.variants.push(own vd)
             if check(p, TokenType.Comma) { advance(p) }
         }
@@ -2856,6 +2892,32 @@ priv parse_switch := proc(mut p: Parser) returns Expr {
 
 priv CONTROL_FLOW_CHILD_COUNT : USize = 2
 
+// #490 preparation: recognize an explicit qualifier of the reference SLOT
+// before ref, independently of the writable-borrow qualifier after ref. Keep
+// unprefixed local declarations' old is_mut behavior during bootstrap migration.
+priv parse_reference_decl := proc(mut p: Parser, slot_mut: Bool, slot_explicit: Bool) returns Expr {
+    expect_token(p, TokenType.KwRef)
+    mut referent_mut := false
+    if check(p, TokenType.KwMut) { advance(p); referent_mut = true }
+    line := peek_line(p)
+    col := peek_col(p)
+    name := expect_text(p, TokenType.Ident)
+    mut mutable := referent_mut
+    if slot_explicit { mutable = slot_mut }
+    mut declaration := Declaration(name = name, own_type = OwnType.Ref, is_mut = mutable,
+        referent_mut = referent_mut, ref_slot_explicit = slot_explicit)
+    if check(p, TokenType.Colon) {
+        advance(p)
+        set_decl_type(declaration, parse_type_ref(p), p.symbols)
+        expect_token(p, TokenType.Eq)
+    } else {
+        expect_token(p, TokenType.ColonEq)
+    }
+    mut stmt := Expr.new(own NodeType.Decl(declaration), line, col)
+    stmt.add_child(own parse_expression(p))
+    return stmt
+}
+
 priv parse_statement_body := proc(mut p: Parser) returns Expr {
     t_line := peek_line(p)
     t_col := peek_col(p)
@@ -2874,26 +2936,10 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         }
         return parse_expression(p)
     case .KwRef:
-        advance(p)
-        mut ref_mut := false
-        if check(p, TokenType.KwMut) { advance(p); ref_mut = true }
-        i_line := peek_line(p)
-        i_col := peek_col(p)
-        iname := expect_text(p, TokenType.Ident)
-        mut dd := Declaration(name = iname, own_type = OwnType.Ref)
-        if ref_mut { dd.is_mut = true }
-        if check(p, TokenType.Colon) {
-            advance(p)
-            set_decl_type(dd, parse_type_ref(p), p.symbols)
-            expect_token(p, TokenType.Eq)
-        } else {
-            expect_token(p, TokenType.ColonEq)
-        }
-        mut decl := Expr.new(own NodeType.Decl(dd), i_line, i_col)
-        decl.add_child(own parse_expression(p))
-        return decl
+        return parse_reference_decl(p, false, false)
     case .KwMut:
         advance(p)
+        if check(p, TokenType.KwRef) { return parse_reference_decl(p, true, true) }
         return parse_statement_ident(p, true, OwnType.Shallow)
     case .KwShallow:
         // No return: parse_fail records the diagnostic and parks on Eof, then
@@ -2903,6 +2949,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         parse_fail(p, t_line, t_col, "locals cannot use 'shallow'; locals are owned by default")
     case .KwConst:
         advance(p)
+        if check(p, TokenType.KwRef) { return parse_reference_decl(p, false, true) }
         parse_fail(p, t_line, t_col, "redundant 'const' on local: locals are immutable by default; drop it")
     case .KwReturn:
         advance(p)

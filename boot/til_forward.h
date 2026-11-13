@@ -675,6 +675,8 @@ typedef struct Declaration {
     Type annotated;
     Bool auto_shallow;
     Bool runtime_type_param;
+    Bool referent_mut;
+    Bool ref_slot_explicit;
 } Declaration;
 
 
@@ -738,6 +740,7 @@ typedef struct VariantDef {
     I64 tag_value;
     Bool payload_ref;
     Bool payload_funcsig;
+    Bool payload_ref_mut;
 } VariantDef;
 
 
@@ -2246,6 +2249,7 @@ typedef struct FuncSig {
     I32 kwargs_index;
     OwnType return_own_type;
     Bool return_shallow_explicit;
+    Bool return_ref_mut;
 } FuncSig;
 
 

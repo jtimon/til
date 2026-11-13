@@ -349,6 +349,11 @@ Declaration := struct {
     // A Type-valued parameter in a generated function's runtime list must
     // survive when its factory parameters are prepended for inference.
     runtime_type_param := false
+    // #490 preparation: keep referent access separate from the slot's is_mut.
+    // Legacy declarations retain their current semantics until the source
+    // migration; ref_slot_explicit marks a leading `const ref` / `mut ref`.
+    referent_mut := false
+    ref_slot_explicit := false
 namespace:
     eq := func(a: Declaration, b: Declaration) returns Bool { return a.name == b.name }
     to_str := func(self: Declaration) returns Str { return self.name }
@@ -420,6 +425,7 @@ FuncSig := struct {
     // closure re-typed as a UFCS-receiver-call arg). This flag preserves the
     // user's original intent across re-inference so the check stays idempotent.
     return_shallow_explicit := false
+    return_ref_mut := false
 namespace:
     eq := func(a: FuncSig, b: FuncSig) returns Bool {
         if a.func_type != b.func_type { return false }
@@ -433,6 +439,7 @@ namespace:
         }
         if a.return_type != b.return_type { return false }
         if a.return_own_type != b.return_own_type { return false }
+        if a.return_ref_mut != b.return_ref_mut { return false }
         if a.variadic_index != b.variadic_index { return false }
         if a.kwargs_index != b.kwargs_index { return false }
         if a.throw_types.len() != b.throw_types.len() { return false }
@@ -835,6 +842,8 @@ VariantDef := struct {
     // C shape (TilClosure *) with their own delete/clone special cases,
     // so they stay off the owned-payload niche.
     payload_funcsig := false
+    // Referent permission is independent of payload_const (slot permission).
+    payload_ref_mut := false
 namespace:
     eq := func(a: VariantDef, b: VariantDef) returns Bool { return a.name == b.name }
     to_str := func(self: VariantDef) returns Str { return self.name }

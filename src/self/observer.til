@@ -195,6 +195,8 @@ priv put_declaration := func(mut line: Vec(Str), d: Declaration, names: Vec(Str)
     put(line, "annotated", type_text(d.annotated, names))
     put_bool(line, "auto_shallow", d.auto_shallow)
     put_bool(line, "runtime_type_param", d.runtime_type_param)
+    put_bool(line, "referent_mut", d.referent_mut)
+    put_bool(line, "ref_slot_explicit", d.ref_slot_explicit)
 }
 
 // A Declaration that hangs off a node (a parameter, a capture, a struct
@@ -226,6 +228,7 @@ priv put_funcsig := func(mut line: Vec(Str), sig: FuncSig) {
     put(line, "kwargs_index", sig.kwargs_index.to_str())
     put(line, "return_own_type", own_text(sig.return_own_type))
     put_bool(line, "return_shallow_explicit", sig.return_shallow_explicit)
+    put_bool(line, "return_ref_mut", sig.return_ref_mut)
 }
 
 priv put_function := func(mut line: Vec(Str), fd: FunctionDef) {
@@ -290,6 +293,7 @@ priv put_variant := func(mut line: Vec(Str), variant: VariantDef) {
     put(line, "tag_value", variant.tag_value.to_str())
     put_bool(line, "payload_ref", variant.payload_ref)
     put_bool(line, "payload_funcsig", variant.payload_funcsig)
+    put_bool(line, "payload_ref_mut", variant.payload_ref_mut)
 }
 
 priv put_assign := func(mut line: Vec(Str), a: AssignData) {

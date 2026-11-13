@@ -1,6 +1,45 @@
 # priority: medium
 # category: features
-** OPEN #490 Separate reference-slot mutability from referent write permission
+** WIP #490 Separate reference-slot mutability from referent write permission
+
+*** Bootstrap plan and progress
+
+This is a parser-contract migration, using ~doc/self.org~ "Staged migration
+across master merges". The old bootstrap compiler cannot parse the new
+writable/fixed-reference field spelling needed by the compiler's own sources:
+
+#+begin_src til
+CounterRef := struct { const ref mut value: I64 }
+#+end_src
+
+HEAD's ~bin/til_boot translate~ reports ~expected 'identifier', found 'ref'~
+at that field. Two-pass cannot repair a source tree that pass 1 cannot parse.
+
+- [X] A: Prepare the grammar and independent AST metadata. Declarations keep
+  ~referent_mut~ separate from ~is_mut~, and ~ref_slot_explicit~ records an
+  explicit leading slot qualifier. Reference results and enum payloads have
+  separate writable-borrow bits. Parse all four field combinations, explicit
+  local slot qualifiers, named/inline Fn reference results, and borrowed enum
+  payload permissions. Clone and observation paths preserve these fields;
+  anonymous type identities and Fn result identities distinguish permissions.
+- [ ] Merge preparation so the next bootstrap compiler understands the new
+  field/local/result/payload syntax before compiler sources start using it.
+- [ ] B: Migrate writable reference declarations in compiler/core/std and
+  fixtures; enforce independent slot and referent permissions and the new
+  plain-ref defaults. Define the old local ~ref mut~ and ~ref const~ migration
+  diagnostics; carry permissions through type arguments, reflection/bindings,
+  captures, aliases, reference results and the native/TilVm boundary.
+- [ ] Run the full permission acceptance cases below, close this issue only
+  when enforcement and migration are complete.
+
+Preparation retains existing accepted declarations' behavior. In particular,
+unprefixed local ~ref mut~ still sets the legacy ~is_mut~ flag for now, and
+plain ref fields are not made read-only by this stage. The new bits/grammar
+are migration support, not a claim that the permission checks below are done.
+
+Preparation verification: ~make clean && make test_two_pass~ passed 575/575,
+including native self-translation, the parser metadata/identity regressions
+in ~test/parsing.til~, and ~test/observe_fields.til~'s AST-field coverage.
 
 *** Motivation
 
