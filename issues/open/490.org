@@ -22,8 +22,14 @@ at that field. Two-pass cannot repair a source tree that pass 1 cannot parse.
   local slot qualifiers, named/inline Fn reference results, and borrowed enum
   payload permissions. Clone and observation paths preserve these fields;
   anonymous type identities and Fn result identities distinguish permissions.
-- [ ] Merge preparation so the next bootstrap compiler understands the new
+- [X] Merge preparation so the next bootstrap compiler understands the new
   field/local/result/payload syntax before compiler sources start using it.
+- [X] Prepare writable reference TYPE arguments (~Name(ref mut T)~) before
+  migrating compiler containers. Preserve their distinct identities and
+  permission bits through annotation lifting, generic substitution, nested
+  forwarding, enum constructors, clones and AST observation.
+- [ ] Merge this type-argument preparation before compiler sources use the
+  spelling.
 - [ ] B: Migrate writable reference declarations in compiler/core/std and
   fixtures; enforce independent slot and referent permissions and the new
   plain-ref defaults. Define the old local ~ref mut~ and ~ref const~ migration
@@ -40,6 +46,59 @@ are migration support, not a claim that the permission checks below are done.
 Preparation verification: ~make clean && make test_two_pass~ passed 575/575,
 including native self-translation, the parser metadata/identity regressions
 in ~test/parsing.til~, and ~test/observe_fields.til~'s AST-field coverage.
+
+Preparation landed as ~ceca22348~. The source migration/enforcement stage is
+now based on a bootstrap compiler that understands these qualifiers.
+
+The remaining type-argument grammar also needs preparation: on ~1eb2f924b~,
+~bin/til_boot translate~ rejects ~Borrow(ref mut I64)~ with
+~expected 'identifier', found 'mut'~. This is the same staged parser-contract
+migration, not an enforcement failure. The follow-up carries read-only versus
+writable reference arguments separately, while retaining existing permission
+checks/defaults until stage B.
+
+Type-argument preparation verification: ~make clean && make test_two_pass~
+passed 575/575, including native self-translation and AST-field coverage.
+A fresh single-pass translation by ~bin/til_boot~ matched both regenerated
+~boot/til.c~ and ~boot/til_forward.h~ byte for byte. The success family of
+~test/type_arg_qualifiers.til~ also passed with compiled ASAN programs. Its
+permission cases exercise both generic spellings independently, explicit and
+forwarded type arguments, clones, borrowed enum payloads and typed AST metadata;
+~test/parsing.til~ checks the cloned value-position and lifted annotation bits.
+
+*** Downstream acceptance input (Tiled/tilminal)
+
+Tiled validated ~6499f67c2~ with installed ~0.0.1-22169738f~ and its matching
+SDK. Both the mutable CounterRef example and immutable-owner rejection behave
+correctly. This confirms CURRENT owner-write tracking, not the proposed new
+plain-ref defaults. Bridge/application teardown validation passed separately;
+the downstream session is not thereby declared finished. Details and the
+independent bare dispatch-callable crash report are in [[../fixed/370.org][#370]].
+
+The concrete new permission use case is a lifetime-test capture that reads a
+VM-owned cell and mutates a borrowed drop counter, with both reference slots
+fixed:
+
+#+begin_src til
+VmCapture := struct {
+    const ref cell: I64
+    const ref mut counts: VmDropCounts
+}
+#+end_src
+
+Downstream has NOT migrated to these defaults yet. Acceptance must cover:
+
+- Reject writable aliases from read-only fields/getters even when another
+  alias reaches a mutable owner.
+- Preserve permissions through captures, cloning, forwarding, containers and
+  enum payloads; cloning must not upgrade permission.
+- Check permissions in native/TilVm schemas and signatures, not just names
+  and pointer layouts.
+- Keep ownership/lifetime independent: writable access neither owns a
+  referent nor retains its VM. Retained guest callables die before the VM;
+  active-call retirement rules do not change.
+- Provide actionable migration diagnostics for existing ref fields used to
+  mutate their pointees.
 
 *** Motivation
 
@@ -101,6 +160,11 @@ combinations. Putting ~ref~ in the type annotation was also discussed, but
 the preferred direction preserves Til's declaration-prefix style above.
 
 *** Semantics to settle
+
+Return-specific contract enforcement and the related getter/indexing/generator
+API decisions are tracked in [[491.org][#491]]. The return grammar/metadata is already
+prepared; its enforcement remains an integration requirement for this issue's
+no-permission-upgrade guarantees.
 
 - Preserve the ordinary mutable-slot default for fields and immutable-slot
   default for locals/parameters, while specifying how explicit slot ~mut~

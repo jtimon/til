@@ -52,6 +52,44 @@ were fixed separately. Remaining embedding extensions are documented under
 Their reproducers are distinct from this issue's native return decoding,
 dependency composition, and owned-parameter wrapper cleanup regressions.
 
+*** Downstream validation and separate native-host feedback
+
+Tiled/tilminal reported validation with installed Til ~0.0.1-22169738f~ and
+its matching ~/usr/local/lib/til~ SDK, including ~6499f67c2~'s CounterRef fix:
+
+- The original indirect scalar-write example passes with ~mut count~ in
+  interpreted execution and compiled ASAN execution. Removing ~mut~ rejects
+  the write at the call with ~cannot write through borrowed field 'value'~
+  and ~'count' is an immutable binding; declare it 'mut'~.
+- Reference tests pass 39/39 and closure tests 29/29, interpreted and compiled
+  at U32/U64; compiled checks use ASAN.
+- Tiled/tilminal builds, callback ownership/error/re-entry checks,
+  configuration retirement/shutdown, Git status and relocated GUI checks pass.
+  No application workaround was needed for the CounterRef fix.
+- The application keeps its working explicit ~TilVmCallback~ registries;
+  migration to callable enums is not currently required. This validates
+  these paths, not completion of the entire downstream session or #490.
+
+The same report describes a SEPARATE unresolved native-host boundary failure.
+After ~./make.til~ in Tiled, ~tmp/host_probe.til~ contains:
+
+#+begin_src til
+mode gui
+import("../src/live_editor")
+main := proc() {
+    live_editor_begin("", "")
+    live_editor_close()
+}
+#+end_src
+
+~til interpret tmp/host_probe.til~ reportedly segfaults during bare dispatch
+callable attachment: ~til_closure_slot_clone -> Option__TiledHostDispatch_Some
+-> tiled_host_attach -> libffi~. This report has not been reproduced in this
+Til worktree. It does not invalidate the passing COMPILED host with interpreted
+guest configuration/commands. Unsupported bare callable transfers must receive
+a clear boundary diagnostic, not execute incompatible closure storage. Full
+interpreted-native-host support remains distinct from #490's permission work.
+
 *** Original problem and design history
 
 The narrative and milestones below record how this feature evolved. Earlier

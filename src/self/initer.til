@@ -713,7 +713,8 @@ priv generate_enum_variant_constructors := func(mut enum_def: Expr, ename: Str, 
             // #320: a `ref Type` payload is a borrow -- the ctor takes
             // the arg borrowed (no ownership transfer at call sites).
             if enum_variant_payload_ref(enum_def, j.to_i32()) { payload_own_type = OwnType.Ref }
-            param := decl_typed(symbols, name = "val", type_name = vtype, own_type = payload_own_type)
+            param := decl_typed(symbols, name = "val", type_name = vtype, own_type = payload_own_type,
+                referent_mut = evc_edd.variants[j].payload_ref_mut)
             func_decl.sig.params.push(own param)
         }
         func_decl.sig.return_type = ename.clone()
@@ -2743,7 +2744,9 @@ priv init_recurse_into_expr := proc(mut e: Expr, parent_prefix: Str, mut top_lev
 // arg expression (e.g. `LiteralNum 5`). Type-position substitutions use
 // the ident name when possible, or the deterministic macro-inst arg name
 // for nested template args like `Vec(Str)`.
-priv init_subst_ident_name := func(subs: Map(Str, Expr), ref_params: Set(Str), name: Str, symbols: SymbolPool) returns Str {
+// ref_params contains only borrowed type parameters: false is a read-only
+// referent, true is writable, and a missing entry is an owned type argument.
+priv init_subst_ident_name := func(subs: Map(Str, Expr), ref_params: Map(Str, Bool), name: Str, symbols: SymbolPool) returns Str {
     if subs.has(name) {
         ref repl : Expr = subs[name]
         switch repl.node_type {
@@ -2776,7 +2779,15 @@ priv init_subst_ident_name := func(subs: Map(Str, Expr), ref_params: Set(Str), n
             // `ref_` mangle segment in self-references, so `Opt__T` under
             // a ref T lands on `Opt__ref_X` -- the SAME type being
             // expanded, not the owned sibling.
-            if ref_params.has(arg) { out = format(out, "ref_") }
+            // An explicit ref/ref mut segment already describes this use;
+            // forwarding a qualified T must not add a second ref prefix.
+            mut explicit_ref := false
+            if i > 0 { explicit_ref = args[i - 1] == "ref" }
+            if i > 1 { explicit_ref = explicit_ref.or(args[i - 2].eq("ref").and(args[i - 1] == "mut")) }
+            if ref_params.has(arg).and(explicit_ref.not()) {
+                out = format(out, "ref_")
+                if ref_params[arg] { out = format(out, "mut_") }
+            }
             ref repl_arg : Expr = subs[arg]
             switch repl_arg.node_type {
             case .Ident(idn_arg):
@@ -2794,7 +2805,7 @@ priv init_subst_ident_name := func(subs: Map(Str, Expr), ref_params: Set(Str), n
     return ""
 }
 
-priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), ref_params: Set(Str), mut symbols: SymbolPool) {
+priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), ref_params: Map(Str, Bool), mut symbols: SymbolPool) {
     switch e.node_type {
     case .Decl(dd):
         // Issue #243: a body-local declaration (`ref x : T = ...`,
@@ -2827,7 +2838,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), ref_param
                 // `Opt(T).Some(x)`) must carry the ref bit onto the call,
                 // so the later hoist mangles the same `__ref_X` type.
                 if ref_params.has(nm).and(e.node_type.is(NodeType.FCall)) {
-                    set_ref_arg(e, i)
+                    if get_ref_arg(e, i).not() { set_ref_arg(e, i, ref_params[nm]) }
                 }
                 // Substitute through the parent slot: Vec.set deep-deletes
                 // the old Ident, so no manual in-place rewrite is needed
@@ -2873,7 +2884,7 @@ priv init_substitute_idents := func(mut e: Expr, subs: Map(Str, Expr), ref_param
 // CHILDREN (through the parent's children.set), so slot owners replace
 // the whole Expr via plain field assignment -- the old value is
 // reclaimed by the FieldAssign's own delete (issue #272).
-priv init_subst_default_slot := func(mut holder: Declaration, subs: Map(Str, Expr), ref_params: Set(Str), mut symbols: SymbolPool) {
+priv init_subst_default_slot := func(mut holder: Declaration, subs: Map(Str, Expr), ref_params: Map(Str, Bool), mut symbols: SymbolPool) {
     mut nm := ""
     switch holder.default_expr().node_type {
     case .Ident(idn): nm = Str.clone(idn.ident_name(symbols.names))
@@ -2886,13 +2897,16 @@ priv init_subst_default_slot := func(mut holder: Declaration, subs: Map(Str, Exp
     }
 }
 
-priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map(Str, Expr), ref_params: Set(Str), mut symbols: SymbolPool) {
+priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map(Str, Expr), ref_params: Map(Str, Bool), mut symbols: SymbolPool) {
     for mut fd : Declaration in sdef.fields {
         // #320: a field typed by a ref-qualified type param becomes a ref
         // (borrowed) field of the substituted type; with no default it is
         // mandatory at instantiation (#242), matching hand-written ref
         // fields.
-        if ref_params.has(decl_type_name_ref(fd, symbols)) { fd.own_type = OwnType.Ref }
+        if ref_params.has(decl_type_name_ref(fd, symbols)).and(fd.own_type.is(OwnType.Ref).not()) {
+            fd.referent_mut = ref_params[decl_type_name_ref(fd, symbols)]
+            fd.own_type = OwnType.Ref
+        }
         new_type := init_subst_ident_name(subs, ref_params, decl_type_name_ref(fd, symbols), symbols)
         if new_type.len() > 0 {
             fd.til_type = decl_type_from_name(new_type, symbols)
@@ -2920,13 +2934,16 @@ priv init_subst_struct_params := func(mut sdef: StructDef, subs: Map(Str, Expr),
     }
 }
 
-priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr), ref_params: Set(Str), mut symbols: SymbolPool) {
+priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr), ref_params: Map(Str, Bool), mut symbols: SymbolPool) {
     for mut vd : VariantDef in edef.variants {
         if vd.payload_type.len() > 0 {
             // #320: a payload typed by a ref-qualified type param is a
             // BORROWED payload of the substituted type (`Some: T` under a
             // ref T becomes `Some: ref X`), riding the stage-a machinery.
-            if ref_params.has(vd.payload_type) { vd.payload_ref = true }
+            if ref_params.has(vd.payload_type).and(vd.payload_ref.not()) {
+                vd.payload_ref = true
+                vd.payload_ref_mut = ref_params[vd.payload_type]
+            }
             new_pt := init_subst_ident_name(subs, ref_params, vd.payload_type, symbols)
             if new_pt.len() > 0 {
                 vd.payload_type = new_pt.clone()
@@ -2954,7 +2971,7 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr), ref
     }
 }
 
-priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr), ref_params: Set(Str), mut symbols: SymbolPool) {
+priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr), ref_params: Map(Str, Bool), mut symbols: SymbolPool) {
     for mut pd : Declaration in fdd.sig.params {
         new_type := init_subst_ident_name(subs, ref_params, decl_type_name_ref(pd, symbols), symbols)
         if new_type.len() > 0 {
@@ -2967,7 +2984,10 @@ priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr), 
     // #320: `returns T` under a ref-qualified T is a borrowed return
     // (`returns ref X`); params need no flag -- aggregates are borrowed
     // by default.
-    if ref_params.has(fdd.sig.return_type) { fdd.sig.return_own_type = OwnType.Ref }
+    if ref_params.has(fdd.sig.return_type).and(fdd.sig.return_own_type.is(OwnType.Ref).not()) {
+        fdd.sig.return_own_type = OwnType.Ref
+        fdd.sig.return_ref_mut = ref_params[fdd.sig.return_type]
+    }
     new_ret := init_subst_ident_name(subs, ref_params, fdd.sig.return_type, symbols)
     if new_ret.len() > 0 {
         fdd.sig.return_type = new_ret.clone()
@@ -2980,7 +3000,7 @@ priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr), 
     }
 }
 
-priv init_substitute_type_params := func(mut def: Expr, subs: Map(Str, Expr), ref_params: Set(Str), mut symbols: SymbolPool) {
+priv init_substitute_type_params := func(mut def: Expr, subs: Map(Str, Expr), ref_params: Map(Str, Bool), mut symbols: SymbolPool) {
     switch def.node_type {
     case .StructDef(sdd):
         init_subst_struct_params(sdd, subs, ref_params, symbols)
@@ -3125,7 +3145,7 @@ priv init_macro_lower_type_tests := func(mut e: Expr, scope: TypeScope, symbols:
 
 // Qualifier queries are resolved from the macro argument before the parameter
 // name is substituted. Other uses of a Type value do not acquire a ref bit.
-priv init_mark_qualifier_queries := func(mut e: Expr, ref_params: Set(Str), type_params: Set(Str), scope: TypeScope, symbols: SymbolPool) {
+priv init_mark_qualifier_queries := func(mut e: Expr, ref_params: Map(Str, Bool), type_params: Set(Str), scope: TypeScope, symbols: SymbolPool) {
     if e.node_type.is(NodeType.FCall).and(e.children.len() == 2) {
         switch e.children[0].node_type {
         case .Ident(callee):
@@ -3160,7 +3180,7 @@ priv init_mark_qualifier_queries := func(mut e: Expr, ref_params: Set(Str), type
 // Return or a recognised if-chain whose branches each terminate in a
 // single Return. unknown_condition distinguishes a failed condition from
 // an unsupported body shape; the caller must not select a branch on it.
-priv init_macro_pick_return := proc(body: Expr, subs: Map(Str, Expr), ref_params: Set(Str), type_params: Set(Str), mut scope: TypeScope, mut ctx: Context, mut unknown_condition: Bool) returns Option(ref Expr) {
+priv init_macro_pick_return := proc(body: Expr, subs: Map(Str, Expr), ref_params: Map(Str, Bool), type_params: Set(Str), mut scope: TypeScope, mut ctx: Context, mut unknown_condition: Bool) returns Option(ref Expr) {
     if body.node_type.is(NodeType.Body).not() { return Option(ref Expr).None }
     if body.children.len() != 1 { return Option(ref Expr).None }
     ref s : Expr = body.children[0]
@@ -3189,7 +3209,7 @@ priv init_macro_pick_return := proc(body: Expr, subs: Map(Str, Expr), ref_params
     } else {
         // Qualifier queries retain their explicit bit above. Other condition
         // helpers receive ordinary Type values, as before.
-        init_substitute_idents(cond_clone, subs, Set(Str).new(), ctx.symbols)
+        init_substitute_idents(cond_clone, subs, Map(Str, Bool).new(), ctx.symbols)
     }
     init_macro_lower_type_tests(cond_clone, scope, ctx.symbols)
     mut res : I32 = -1
@@ -3515,6 +3535,7 @@ priv init_macro_inst_name := func(e: Expr, symbols: SymbolPool) returns Str {
         // #320: a ref-qualified type arg mangles with a `ref_` prefix,
         // matching parse_type_ref's annotation-position mangling.
         if get_ref_arg(e, k) { out = format(out, "ref_") }
+        if get_ref_arg(e, k, writable = true) { out = format(out, "mut_") }
         ref arg : Expr = e.children[k]
         out = format(out, init_macro_inst_arg_name(arg, symbols))
     }
@@ -3532,6 +3553,7 @@ priv init_macro_inst_name_for_macro := func(e: Expr, macro_fdef: Expr, scope: Ty
         if k > 1 { out = format(out, "_") }
         // #320: same `ref_` prefix as init_macro_inst_name.
         if get_ref_arg(e, k) { out = format(out, "ref_") }
+        if get_ref_arg(e, k, writable = true) { out = format(out, "mut_") }
         ref arg : Expr = e.children[k]
         mut is_type_arg := false
         switch macro_fdef.node_type {
@@ -4386,7 +4408,7 @@ priv generic_remap_summary_bits := func(bits: U64, arg_pos: Vec(I64)) returns U6
     return out
 }
 
-priv generic_materialize_type_deps := func(src: GenericFuncSource, concrete_func: Expr, subs: Map(Str, Expr), ref_params: Set(Str), mut destination: Expr, scope: TypeScope, mut ctx: Context) {
+priv generic_materialize_type_deps := func(src: GenericFuncSource, concrete_func: Expr, subs: Map(Str, Expr), ref_params: Map(Str, Bool), mut destination: Expr, scope: TypeScope, mut ctx: Context) {
     prefix := format(src.path, "#")
     for dep_key, dep_template in ctx.generic_type_deps {
         if dep_key.starts_with(prefix).not() { continue }
@@ -4451,7 +4473,7 @@ priv check_generic_bounds := func(generic_name: Str, p: Declaration, concrete_ty
     }
 }
 
-generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(Str, Expr), ref_params: Set(Str), gs: GenericSources, local_types: Map(Str, Str), mut seen: Map(Str, Str), mut destination: Expr, mut arg_pos: Vec(I64), line: U32, col: U32, scope: TypeScope, mut ctx: Context) returns Str {
+generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(Str, Expr), ref_params: Map(Str, Bool), gs: GenericSources, local_types: Map(Str, Str), mut seen: Map(Str, Str), mut destination: Expr, mut arg_pos: Vec(I64), line: U32, col: U32, scope: TypeScope, mut ctx: Context) returns Str {
     switch gfd_expr.node_type {
     case .FuncDef(gfd):
         mut mono := format(src.name, "__")
@@ -4480,6 +4502,10 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
             if ref_params.has(p.name) {
                 mono = format(mono, "ref_")
                 dedup_mono = format(dedup_mono, "ref_")
+                if ref_params[p.name] {
+                    mono = format(mono, "mut_")
+                    dedup_mono = format(dedup_mono, "mut_")
+                }
             }
             // User aliases canonicalize, width aliases stay
             // target-independent: `MyInt := I64` and `I64` name one
@@ -4638,7 +4664,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
         // #320: type params whose arg carried the `ref` qualifier
         // (`gpick(ref X, v)`); substitution makes `returns T` a borrowed
         // return etc., exactly as for type-gen macros.
-        mut ref_params := Set(Str).new()
+        mut ref_params := Map(Str, Bool).new()
         mut ok := true
         // Issue #328: `explicit` flips to true the moment a present `Type`
         // slot holds a REAL type token. Until then a present slot holding a
@@ -4686,7 +4712,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
                 explicit = true
                 mut tid := Expr.new(own ident_node(ctx.symbols.intern(tn)), arg.line, arg.col)
                 subs.set(p.name, own tid)
-                if get_ref_arg(call, argidx) { ref_params.add(own p.name.clone()) }
+                if get_ref_arg(call, argidx) { ref_params.set(p.name, own get_ref_arg(call, argidx, writable = true)) }
             case:
                 // A literal (or any non-Ident) in the first expected type
                 // slot is an omitted-type call too; after a real type token
@@ -5362,7 +5388,7 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
     if body.node_type.is(NodeType.Body).not() { return false }
 
     mut subs := Map(Str, Expr).new()
-    mut ref_params := Set(Str).new()
+    mut ref_params := Map(Str, Bool).new()
     switch macro_fdef.node_type {
     case .FuncDef(mfd):
         for j in 0..mfd.sig.params.len() {
@@ -5370,7 +5396,7 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
             ref param : Declaration = mfd.sig.params[j]
             ref arg : Expr = rhs.children[j + 1]
             if decl_type_name_ref(param, ctx.symbols).eq("Type").and(get_ref_arg(rhs, j + 1)) {
-                ref_params.add(own param.name.clone())
+                ref_params.set(param.name, own get_ref_arg(rhs, j + 1, writable = true))
             }
             if decl_type_name_ref(param, ctx.symbols).eq("Type").and(arg.node_type.is(NodeType.Ident)) {
                 switch arg.node_type {
@@ -6380,7 +6406,7 @@ priv interface_collect_substitutions := func(e: Expr, from_name: Str, to_name: S
 priv gen_substitute_self_type := func(mut fexpr: Expr, from_name: Str, to_name: Str, mut requests: Expr, mut ctx: Context) {
     mut subs := Map(Str, Expr).new()
     interface_collect_substitutions(fexpr, from_name, to_name, subs, requests, ctx)
-    init_substitute_type_params(fexpr, subs, Set(Str).new(), ctx.symbols)
+    init_substitute_type_params(fexpr, subs, Map(Str, Bool).new(), ctx.symbols)
 }
 
 // Append only after the method-copy walk has released its declaration refs.

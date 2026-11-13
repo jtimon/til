@@ -497,6 +497,7 @@ priv try_ufcs_rewrite := proc(mut scope: TypeScope, mut e: Expr, fa: Expr, mut o
     flags.own_args = shift_fcall_bitmap_for_ufcs(flags.own_args)
     flags.keep_outer_args = shift_fcall_bitmap_for_ufcs(flags.keep_outer_args)
     flags.ref_args = shift_fcall_bitmap_for_ufcs(flags.ref_args)
+    flags.ref_mut_args = shift_fcall_bitmap_for_ufcs(flags.ref_mut_args)
     flags.splat_args = shift_fcall_bitmap_for_ufcs(flags.splat_args)
     mut fn_ident := Expr.new(own ident_node(ctx.symbols.intern(lookup_name)), fa.line, fa.col)
     mut new_children := Vec(Expr).new()
@@ -2718,6 +2719,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         ufcs_fcd.own_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.own_args)
         ufcs_fcd.keep_outer_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.keep_outer_args)
         ufcs_fcd.ref_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.ref_args)
+        ufcs_fcd.ref_mut_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.ref_mut_args)
         ufcs_fcd.splat_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.splat_args)
         mut new_children := Vec(Expr).with_capacity(e.children.len() + 1)
         new_children.push_take(e.children, 0)
@@ -3950,7 +3952,7 @@ priv generic_call_is_explicit := func(scope: TypeScope, e: Expr, gfd: FunctionDe
 }
 
 // Explicit late application: read the type tokens straight off the call.
-priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), mut ref_params: Set(Str), display_name: Str, mut ctx: Context) returns Bool {
+priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), mut ref_params: Map(Str, Bool), display_name: Str, mut ctx: Context) returns Bool {
     for i in 0..gfd.sig.params.len() {
         ref p : Declaration = gfd.sig.params[i]
         if generic_param_is_type(p, ctx.symbols).not() { continue }
@@ -3965,7 +3967,7 @@ priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, 
             tn := resolve_type_alias_for_name(scope, an.ident_name(ctx.symbols.names), ctx.symbols).clone()
             mut tid := Expr.new(own ident_node(ctx.symbols.intern(tn)), arg.line, arg.col)
             subs.set(p.name, own tid)
-            if get_ref_arg(e, argidx) { ref_params.add(own p.name.clone()) }
+            if get_ref_arg(e, argidx) { ref_params.set(p.name, own get_ref_arg(e, argidx, writable = true)) }
         case:
             e.type_error(format("type argument for parameter '", p.name, "' of generic '", display_name, "' must be a type"), ctx)
             return false
@@ -4322,6 +4324,7 @@ priv generic_rewrite_call_in_place := func(mut e: Expr, mono: Str, arg_pos: Vec(
     case .FCall(fcd):
         fcd.own_args = 0
         fcd.ref_args = 0
+        fcd.ref_mut_args = 0
         fcd.splat_args = 0
     case:
     }
@@ -4367,7 +4370,7 @@ priv generic_normalize_concrete_sig := func(mut scope: TypeScope, mut fdef_expr:
 // Instantiate through the shared init constructor, queue the concrete
 // declaration, rewrite the call, and continue down the ordinary concrete
 // path with the resolved concrete FunctionDef.
-priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: Str, subs: Map(Str, Expr), ref_params: Set(Str), explicit: Bool, in_func: I32, mut ctx: Context) {
+priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: Str, subs: Map(Str, Expr), ref_params: Map(Str, Bool), explicit: Bool, in_func: I32, mut ctx: Context) {
     mut src := GenericFuncSource(name = src_name.clone())
     ref sb : TypeBinding = scope.get_binding_name(src_name, ctx.symbols).unwrap()
     src.path = sb.path.clone()
@@ -4542,7 +4545,7 @@ priv infer_generic_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: St
     }
     gfd_o := scope.lookup_func_by_sym(src_sym, ctx.symbols)
     mut subs := Map(Str, Expr).new()
-    mut ref_params := Set(Str).new()
+    mut ref_params := Map(Str, Bool).new()
     mut ok := false
     mut explicit := false
     ref gfd : FunctionDef = funcdef_of(gfd_o.unwrap())

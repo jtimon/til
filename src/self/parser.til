@@ -481,7 +481,7 @@ priv anon_lift := func(mut p: Parser, own def: Expr, line: U32, col: U32) return
     return result
 }
 
-priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), arg_refs: Vec(Bool), arg_owns: Vec(Bool), mangled: Str, line: U32, col: U32) {
+priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), arg_refs: Vec(Bool), arg_ref_muts: Vec(Bool), arg_owns: Vec(Bool), mangled: Str, line: U32, col: U32) {
     // Own and bare share a generated type, but must both reach validation:
     // an earlier explicit-own annotation cannot legitimize a bare interface.
     mut seen_key := mangled.clone()
@@ -496,7 +496,7 @@ priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), arg_refs: V
         // #320: carry each arg's `ref` qualifier onto the generated call so
         // the init expansion sees the same bits a value-position
         // `Name(ref X)` instantiation would set.
-        if arg_refs[i] { set_ref_arg(call, call.children.len()) }
+        if arg_refs[i] { set_ref_arg(call, call.children.len(), arg_ref_muts[i]) }
         if arg_owns[i] { set_own_arg(call, call.children.len()) }
         mut arg_expr := Expr.new(own ident_node(p.symbols.intern(args[i])), line, col)
         call.add_child(own arg_expr)
@@ -569,6 +569,7 @@ priv parse_type_ref_after_name := proc(mut p: Parser, name: Str, tr_line: U32, t
     mut mangled := format(name, "__")
     mut args := Vec(Str).new()
     mut arg_refs := Vec(Bool).new()
+    mut arg_ref_muts := Vec(Bool).new()
     mut arg_owns := Vec(Bool).new()
     mut argi := 0
     while check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
@@ -578,11 +579,17 @@ priv parse_type_ref_after_name := proc(mut p: Parser, name: Str, tr_line: U32, t
         // the ref_args bit), so owned and borrowed instantiations are
         // distinct types.
         mut arg_is_ref := false
+        mut arg_ref_mut := false
         mut arg_is_own := false
         if check(p, TokenType.KwRef) {
             advance(p)
             arg_is_ref = true
             mangled = format(mangled, "ref_")
+            if check(p, TokenType.KwMut) {
+                advance(p)
+                arg_ref_mut = true
+                mangled = format(mangled, "mut_")
+            }
         } else if check(p, TokenType.KwOwn) {
             advance(p)
             arg_is_own = true
@@ -591,6 +598,7 @@ priv parse_type_ref_after_name := proc(mut p: Parser, name: Str, tr_line: U32, t
         mangled = format(mangled, argname)
         args.push(own argname.clone())
         arg_refs.push(own arg_is_ref.clone())
+        arg_ref_muts.push(own arg_ref_mut.clone())
         arg_owns.push(own arg_is_own.clone())
         argi++
         if check(p, TokenType.Comma) { advance(p) }
@@ -603,7 +611,7 @@ priv parse_type_ref_after_name := proc(mut p: Parser, name: Str, tr_line: U32, t
         }
     }
     if has_active_type_param.not() {
-        type_gen_lift(p, name, args, arg_refs, arg_owns, mangled, tr_line, tr_col)
+        type_gen_lift(p, name, args, arg_refs, arg_ref_muts, arg_owns, mangled, tr_line, tr_col)
     }
     return mangled
 }
@@ -1760,7 +1768,9 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
         // arguments of type templates).
         if is_ref_arg {
             advance(p)
-            set_ref_arg(call, call.children.len())
+            mut referent_mut := false
+            if check(p, TokenType.KwMut) { advance(p); referent_mut = true }
+            set_ref_arg(call, call.children.len(), referent_mut)
         }
         if is_splat {
             set_splat_arg(call, call.children.len())
@@ -3466,17 +3476,19 @@ get_splat_arg := func(fcall: Expr, arg_index: USize) returns Bool {
     return fcd.splat_args.band(bit) > 0
 }
 
-set_ref_arg := func(mut fcall: Expr, arg_index: USize) {
+set_ref_arg := func(mut fcall: Expr, arg_index: USize, referent_mut: Bool = false) {
     ref mut fcd : FCallData = fcall_of(fcall)
     mut bit : U64 = 1
     for _ in 0..arg_index { bit = bit * 2 }
     fcd.ref_args = fcd.ref_args.bor(bit)
+    if referent_mut { fcd.ref_mut_args = fcd.ref_mut_args.bor(bit) }
 }
 
-get_ref_arg := func(fcall: Expr, arg_index: USize) returns Bool {
+get_ref_arg := func(fcall: Expr, arg_index: USize, writable: Bool = false) returns Bool {
     ref fcd : FCallData = fcall_of(fcall)
     mut bit : U64 = 1
     for _ in 0..arg_index { bit = bit * 2 }
+    if writable { return fcd.ref_mut_args.band(bit) > 0 }
     return fcd.ref_args.band(bit) > 0
 }
 

@@ -1,0 +1,84 @@
+# priority: medium
+# category: features
+** OPEN #491 Enforce writable reference return contracts
+
+*** Existing preparation
+
+This is enforcement and source/API migration work, not a request for a new
+owned-return qualifier. The parser/AST preparation in ~ceca22348~ already
+accepts ~returns ref mut T~ on named functions/signatures and inline ~Fn~
+signatures, records ~FuncSig.return_ref_mut~, and distinguishes read-only
+and writable reference results in inline signature identities. The following
+type-argument preparation carries that bit through generic substitution.
+Existing accepted programs retain their old permission behavior until the
+enforcement migration. Parsed metadata is not proof of an enforced contract.
+
+*** Contract
+
+The function grants access to the referent; the caller chooses whether its
+own reference slot can be rebound. The caller may restrict granted access
+but cannot increase it.
+
+#+begin_src til
+read := func(value: Item) returns ref Item {
+    return value
+}
+write := func(mut value: Item) returns ref mut Item {
+    return value
+}
+#+end_src
+
+- ~returns ref T~ grants read-only referent access.
+- ~returns ref mut T~ grants writable referent access, which must be justified
+  by the returned source/access path. It must not launder a read-only borrow.
+- A caller's ~ref mut result = read(...)~ cannot manufacture write permission,
+  even when another alias reaches a mutable owner.
+- The returned reference does not fix the caller's reference SLOT. Fixed and
+  replaceable slots remain independent of referent permission (see #490).
+- ~returns T~ transfers/produces an owned value under the existing ownership
+  rules. No separate ~returns mut T~ is needed: the caller chooses its owned
+  binding's mutability.
+- Neither write permission nor pointer-slot mutability transfers ownership or
+  extends a referent/VM lifetime.
+
+The C comparison motivating the discussion is ~const T *~ versus ~T *~ for
+referent access. Top-level const on a pointer returned by value (~T *const~)
+does not fix the caller's pointer slot; it receives a copy. Native declarations
+must describe the actual foreign contract, including read-only pointer results.
+
+*** Accessor decisions still open
+
+The existing Vec/Array ~get~ and ~unsafe_get~, and Map ~get~, return plain
+~ref~. Once that means read-only, writable element access needs an explicit
+contract. No new public accessor/query API has been approved yet.
+
+- Decide between separate writable getters (~get_mut~, ~unsafe_get_mut~ where
+  applicable) and a permission-dependent getter signature. Separate getters
+  make contracts explicit but add methods/migration; permission-dependent
+  getters reduce duplication but require a further signature rule/notation.
+  Read-only getters plus setters alone cannot provide writable element aliases.
+- Separately decide whether indexing/iteration stays read-only with explicit
+  mutable accessor calls, or selects a writable accessor in explicitly mutable
+  contexts. The latter is convenient but adds context-sensitive lowering.
+- Separately decide whether generators get a public ~type_arg_is_ref_mut(T)~
+  query or permission inspection remains internal. A mutable container must
+  never upgrade an element stored as read-only ~ref T~.
+
+*** Implementation and acceptance
+
+- Check writable return sources and writable alias creation at call sites;
+  preserve read-only paths through getters, forwarding and cloning.
+- Carry result permission through direct/indirect calls, closures, named and
+  inline signatures, generic instantiations, and borrowed container elements.
+- Preserve/check it in reflection, generated bindings and native/TilVm schema
+  and signature validation; matching pointer layouts are insufficient.
+- Migrate compiler/core/std and fixtures to explicit writable contracts where
+  needed, with actionable diagnostics for old mutable uses of plain-ref results.
+- Cover both accepted and rejected programs in interpretation and compiled
+  execution, plus REPL/embedding and backend paths where applicable. Retain
+  actual-owner write credit and prevent stale folding across permitted writes.
+
+Related: [[490.org][#490]] tracks the independent slot/referent permission migration
+and its integration requirements; this issue tracks return-specific enforcement
+and accessor decisions. [[../fixed/370.org][#370]] records embedding ownership/lifetime
+work, which remains independent of write permission.

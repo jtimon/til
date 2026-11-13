@@ -698,6 +698,7 @@ typedef struct FCallData {
     Bool is_bang_check;
     U32 cast_path;
     Bool storage_size_read;
+    U64 ref_mut_args;
 } FCallData;
 
 

@@ -293,6 +293,27 @@ test_reference_slot_and_referent_metadata := test() {
     assert(fields[3].is_mut.not() && fields[3].referent_mut && fields[3].ref_slot_explicit)
 }
 
+test_reference_type_argument_permissions := test() {
+    mut symbols := SymbolPool()
+    parsed := parse_src(format(
+        "read: View(ref I64) = View(ref I64)(value)\n",
+        "write: View(ref mut I64) = View(ref mut I64)(value)\n"), symbols)
+    copied := parsed.clone()
+    assert_eq(Str, decl_type_name_ref(decl_of(copied.children[0]), symbols), "View__ref_I64")
+    assert_eq(Str, decl_type_name_ref(decl_of(copied.children[1]), symbols), "View__ref_mut_I64")
+    ref read_call: Expr = copied.children[0].children[0].children[0]
+    ref write_call: Expr = copied.children[1].children[0].children[0]
+    assert(get_ref_arg(read_call, 1) && get_ref_arg(read_call, 1, writable = true).not())
+    assert(get_ref_arg(write_call, 1) && get_ref_arg(write_call, 1, writable = true))
+    // Type annotations lift calls too; they must retain the same permissions
+    // as the value-position applications and remain separate instantiations.
+    assert_eq(USize, copied.children.len(), 4)
+    ref read_lift: Expr = copied.children[2].children[0]
+    ref write_lift: Expr = copied.children[3].children[0]
+    assert(get_ref_arg(read_lift, 1) && get_ref_arg(read_lift, 1, writable = true).not())
+    assert(get_ref_arg(write_lift, 1) && get_ref_arg(write_lift, 1, writable = true))
+}
+
 test_reference_local_slot_metadata := test() {
     mut symbols := SymbolPool()
     parsed := parse_src(format(

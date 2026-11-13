@@ -512,6 +512,68 @@ generic_call_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "UFCS receiver insertion would overflow the argument qualifier bitmap")
 }
 
+reference_permission_checks := proc(compiler: Str, root: Str, asan: Bool) {
+    // Keep the two generic spellings in separate programs: sharing a lifted
+    // placeholder can hide a missing late-instantiation dependency (#417/#423).
+    for angle in 0..2 {
+        for writable in 0..2 {
+            mut qualifier := "ref "
+            mut expected := "false"
+            if writable == 1 { qualifier = "ref mut "; expected = "true" }
+            name := format("permissions_", angle.to_str(), "_", writable.to_str())
+            path := format(root, "/", name, ".til")
+            mut forward := "forward := func(T: Type, box: PermBox(T)) returns PermBox(T)"
+            if angle == 1 { forward = "forward := func<T>(box: PermBox(T)) returns PermBox(T)" }
+            File.writefile(path, format(
+                "mode cli\nPayload := struct { n := 1 }\n",
+                "PermBox := struct<T> { permission_value: T\n",
+                "const ref permission_read: T\nconst ref mut permission_write: T\nnamespace:\n",
+                "borrow := func(self: PermBox(T)) returns T { return self.permission_value }\n}\n",
+                "PermChoice := macro(T: Type) returns EnumDef { return enum { Empty, PermissionPayload: T } }\n",
+                forward, " { return box.clone() }\n",
+                "explicit_forward := func<T>(box: PermBox(", qualifier, "T)) returns PermBox(", qualifier, "T) { return box.clone() }\n",
+                "main := proc() {\nmut payload := Payload()\n",
+                "box: PermBox(", qualifier, "Payload) = PermBox(", qualifier, "Payload)(permission_value = payload, permission_read = payload, permission_write = payload)\n",
+                "copy := forward(", qualifier, "Payload, box)\n",
+                "explicit_copy := explicit_forward(", qualifier, "Payload, box)\n",
+                "ref result: Payload = copy.borrow()\n",
+                "choice := PermChoice(", qualifier, "Payload).PermissionPayload(payload)\n",
+                "copied_choice := choice.clone()\npayload.n = 37\n",
+                "assert_eq(I64, result.n, 37)\nassert_eq(I64, copy.permission_read.n, 37)\n",
+                "assert_eq(I64, explicit_copy.permission_value.n, 37)\n",
+                "switch copied_choice { case .PermissionPayload(value): assert_eq(I64, value.n, 37)\ncase: panic(\"missing borrow\") }\n",
+                "assert(type_arg_is_ref(", qualifier, "Payload))\nprintln(\"permissions passed\")\n}\n"))
+            check(Cmd.new(compiler, "interpret", path), "permissions passed\n")
+            check_run(compiler, root, name, "permissions passed\n", asan)
+            ast := Cmd.new(compiler, "ast", "--phase=typed", path)
+            ast.capture()
+            status := ast.run()
+            output := format(ast.out(), ast.err())
+            expect(status == 0, output)
+            mut saw_field := false
+            mut saw_payload := false
+            mut saw_return := false
+            for line : Str in output.split("\n") {
+                if line.contains("member_name=\"permission_value\"").and(line.contains("til_type=StructSym(Payload)")) {
+                    expect(line.contains(format("referent_mut=", expected)), line)
+                    saw_field = true
+                }
+                if line.contains("member_name=\"permission_read\"") { expect(line.contains("referent_mut=false"), line) }
+                if line.contains("member_name=\"permission_write\"") { expect(line.contains("referent_mut=true"), line) }
+                if line.contains("name=\"PermissionPayload\"").and(line.contains("payload_type=\"Payload\"")) {
+                    expect(line.contains(format("payload_ref_mut=", expected)), line)
+                    saw_payload = true
+                }
+                if line.contains("return_type=\"Payload\"").and(line.contains("return_own_type=ref")) {
+                    expect(line.contains(format("return_ref_mut=", expected)), line)
+                    saw_return = true
+                }
+            }
+            expect(saw_field.and(saw_payload).and(saw_return), "missing permission metadata in typed AST: ", output)
+        }
+    }
+}
+
 main := proc(args: ..Str) {
     if args.len() > 3 { panic("expected compiler, optional family, and optional --asan") }
     ref compiler: Str = args[0]
@@ -534,6 +596,7 @@ main := proc(args: ..Str) {
     case "all":
         // Keep the standalone command's original case order.
         query_checks(compiler, root, asan)
+        reference_permission_checks(compiler, root, asan)
         container_checks(compiler, root, asan)
         family_borrow_checks(compiler, root)
         query_error_checks(compiler, root)
@@ -542,6 +605,7 @@ main := proc(args: ..Str) {
         generic_call_checks(compiler, root, asan)
     case "success":
         query_checks(compiler, root, asan)
+        reference_permission_checks(compiler, root, asan)
         container_checks(compiler, root, asan)
     case "borrows":
         family_borrow_checks(compiler, root)

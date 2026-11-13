@@ -648,6 +648,10 @@ FCallData := struct {
     // Set by the loader before folding. Appended to preserve existing
     // bootstrap-visible field offsets.
     storage_size_read := false
+    // #490: writable referents of ref-qualified type arguments. Every bit
+    // here also occurs in ref_args; slot mutability is not a type argument.
+    // Appended to preserve bootstrap-visible field offsets.
+    ref_mut_args : U64 = 0
 namespace:
     eq := func(_a: FCallData, _b: FCallData) returns Bool {
         return true

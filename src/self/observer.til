@@ -266,6 +266,7 @@ priv put_fcall := func(mut line: Vec(Str), fc: FCallData, names: Vec(Str)) {
     put_bool(line, "is_bang_check", fc.is_bang_check)
     put_text(line, "cast_path", sym_name(fc.cast_path, names))
     put_bool(line, "storage_size_read", fc.storage_size_read)
+    put(line, "ref_mut_args", fc.ref_mut_args.to_str())
 }
 
 priv put_struct := func(mut line: Vec(Str), sd: StructDef) {

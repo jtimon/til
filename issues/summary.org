@@ -35,6 +35,7 @@
 *** [[./open/460.org][#460]] Add enum template sugar consistent with struct and function generators
 *** [[./open/486.org][#486]] Compile-time conditionals on the build target (Jai's #if), so link() and declarations can be selected per OS
 *** [[./open/490.org][#490]] Separate reference-slot mutability from referent write permission
+*** [[./open/491.org][#491]] Enforce writable reference return contracts
 ** Low
 *** [[./open/156.org][#156]] Improve til-mode indentation rules
 *** [[./open/201.org][#201]] More built-in error types and safe_* methods
