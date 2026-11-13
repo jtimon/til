@@ -1348,6 +1348,23 @@ jobs:
           fi
           cat tmp/link_objects.out
           grep -q "link_objects PASS" tmp/link_objects.out
+      # Issue #473 (C3): this host's hash list for the collect job. til.exe
+      # BUILDS the collector with the runner's gcc (interpreting it takes
+      # hours); the hashes come from the sha256sum of Git for Windows, which
+      # a bash step has on its PATH. A Windows process ends the lines it
+      # prints with CR LF; the collector reads observations as text.
+      - name: Write the hash lists for the collector
+        shell: bash
+        run: |
+          mkdir -p tmp/hashes
+          ./winhost/til.exe build -o tmp/ci_collect.exe -c tmp/ci_collect.c examples/ci_collect.til
+          ./tmp/ci_collect.exe produce windows-x64 tmp/hashes/windows-x64.txt winhost/til.exe
+      - name: Upload the hash lists
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-windows-x64
+          path: tmp/hashes/windows-x64.txt
+          if-no-files-found: error
       - name: Cancel the rest of this run
         if: failure()
         shell: bash
@@ -1506,6 +1523,18 @@ jobs:
             bin/hello_script-from-mac.exe
             bin/hello_script-from-mac-linux
             bin/crypto-from-mac-linux
+      # Issue #473 (C3): this host's hash list for the collect job, as in
+      # linux-x64. Hashes come from shasum here.
+      - name: Write the hash lists for the collector
+        run: |
+          mkdir -p tmp/hashes
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce macos-arm64 tmp/hashes/macos-arm64.txt bin/til
+      - name: Upload the hash lists
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-macos-arm64
+          path: tmp/hashes/macos-arm64.txt
+          if-no-files-found: error
       # Guard Malloc puts every allocation on its own guarded page, so
       # an out-of-bounds or use-after-free write faults AT THE CULPRIT
       # INSTRUCTION (even from uninstrumented code like libffi asm) and
@@ -1641,6 +1670,17 @@ jobs:
       # Native mac GUI build -- see the macos-arm64 job for the rationale.
       - name: Build native mac examples (gui + portable)
         run: make build_mac
+      # Issue #473 (C3): this host's hash list for the collect job.
+      - name: Write the hash lists for the collector
+        run: |
+          mkdir -p tmp/hashes
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce macos-x64 tmp/hashes/macos-x64.txt bin/til
+      - name: Upload the hash lists
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-macos-x64
+          path: tmp/hashes/macos-x64.txt
+          if-no-files-found: error
       # See the macos-arm64 job for what the probe and the dump step
       # are for and why they look like this.
       - name: Guard Malloc probe
@@ -2048,12 +2088,12 @@ jobs:
   # examples/ci_collect.til. A producer that did not succeed, or whose list
   # is not there, fails this job. Differences between producers are printed
   # but do not fail it yet (`report`): the groups become blocking one by one
-  # as #472 establishes that they hold. Whether this job still runs after
-  # another job cancelled the run is the first thing to read from a failing
-  # run.
+  # as #472 establishes that they hold. It still runs after another job
+  # cancelled the run (run 3067): the producers were cancelled, no list
+  # arrived, and it failed saying so.
   collect:
     name: collect (compare the producers' hash lists)
-    needs: [doc-gate, linux-x64, linux-arm64-native]
+    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-host-run, macos-arm64, macos-x64]
     if: always() && needs.doc-gate.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -2062,9 +2102,13 @@ jobs:
         env:
           LINUX_X64: ${{ needs.linux-x64.result }}
           LINUX_ARM64: ${{ needs.linux-arm64-native.result }}
+          WINDOWS_X64: ${{ needs.windows-x64-host-run.result }}
+          MACOS_ARM64: ${{ needs.macos-arm64.result }}
+          MACOS_X64: ${{ needs.macos-x64.result }}
         run: |
           status=0
-          for pair in "linux-x64=$LINUX_X64" "linux-arm64-native=$LINUX_ARM64"; do
+          for pair in "linux-x64=$LINUX_X64" "linux-arm64-native=$LINUX_ARM64" \
+            "windows-x64-host-run=$WINDOWS_X64" "macos-arm64=$MACOS_ARM64" "macos-x64=$MACOS_X64"; do
             echo "$pair"
             if [ "${pair#*=}" != success ]; then status=1; fi
           done

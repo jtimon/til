@@ -732,3 +732,61 @@ The versions are in #472's L3b section. What they mean for decision 4:
   versioned packages where both carry the same one, or a release archive
   from LLVM, which is a download (a new tooling assumption, to be approved
   in C4's own commit). Not decided here.
+
+*** Progress: run 3067, and a Windows producer (base master 83deb02)
+
+**** What run 3067 showed
+
+- The Windows host step got one failure further. The nng archive now
+  arrives, and the compiled leg then fails to LINK on the runner:
+  ~libnng.a(win_file.c.obj): undefined reference to `__imp__snprintf'~.
+  The runner's gcc (MinGW-Builds 15.2.0) links the universal CRT; the
+  archive is built on Linux against msvcrt, and ~_snprintf~ is the one
+  C-runtime name it imports that the UCRT does not export. Reproduced here
+  with the cross gcc and a specs file that swaps ~-lmsvcrt~ for ~-lucrt~
+  (Ubuntu's mingw ships both sets of import libraries). Fixed in ~ext.c~,
+  beside the ~timespec_get~ shim for the opposite case: under ~_UCRT~ the
+  runtime defines that import pointer. Redirecting the call when nng is
+  built (~-D_snprintf=snprintf~) was tried first and crashes the cross gcc
+  13 on other nng files.
+- First answer for C3: the ~collect~ job DOES run after another job's
+  ~gh run cancel~. Both producers were cancelled, nothing was uploaded, and
+  it failed with "no hash list (*.txt) under hashes", as it should.
+- Still unknown from CI: the artifact layout ~download-artifact~ gives
+  with ~pattern: hashes-*~, and whether two hosts agree. No producer has
+  finished a suite yet.
+
+For L3b's version column: the Windows runner has gcc 15.2.0 with binutils
+2.46.0.20260210 (~dlltool~), UCRT by default.
+
+**** A Windows producer, checked under wine
+
+With ~til.exe~ under wine (and stand-ins that hand ~gcc~, ~dlltool~ and
+~sha256sum~ to the Linux tools): ~til.exe build examples/ci_collect.til~,
+then that ~.exe~ writes the full list with ~til.exe~ as its compiler, 1140
+lines in 154 s.
+
+Against the list of ~bin/til~ on Linux:
+- All 270 ~source~ items equal: every file ~til.exe~ translates, for all
+  fourteen targets at both widths, is byte for byte what the Linux compiler
+  writes.
+- All 40 observations differed at first, in line endings only: a Windows
+  process ends the lines it prints with CR LF. ~produce~ now reads an
+  observation as text (CR LF counts as LF). Then all 870 ~frontend~ items
+  are equal too: 1140 equal, 0 different, 0 missing.
+
+So for a Windows-hosted compiler levels 1 and 2 hold on this corpus, as far
+as wine stands in for Windows.
+
+Not changed: ~til ast --phase~ itself still prints CR LF on a Windows host,
+like everything a til program prints there. Making til programs write LF on
+Windows would change the output of every program and was not done.
+
+**** In the workflow
+
+- ~windows-x64-host-run~: after the link_objects step, build the collector
+  with ~til.exe~, write and upload ~hashes-windows-x64~.
+- ~macos-arm64~ and ~macos-x64~: the same two steps as the Linux jobs
+  (~shasum~), uploading ~hashes-macos-arm64~ / ~hashes-macos-x64~. Not run
+  anywhere: neither Mac job has got past the queue in the last runs.
+- ~collect~ needs all five producers and prints each one's result.

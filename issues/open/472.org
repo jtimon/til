@@ -1827,3 +1827,14 @@ computed NaN was ~-nan~ from an x86 host and ~nan~ from an ARM one.
 Windows host job pin its text. What other languages do, the options that
 were weighed and what a reversal would touch are in #489, opened to
 reconsider this later.
+
+*** Progress: a Windows-hosted compiler agrees, locally (base master 83deb02)
+
+~til.exe~ run under wine and ~bin/til~ on Linux give the same hash list on
+#473's corpus: 870 frontend items (five phases, eight programs, per source
+unit) and 270 translated files (fourteen targets, both widths), 1140 equal.
+The one difference found was CR LF line ends in what ~til.exe~ prints,
+which the collector now reads as text. Details and the workflow's new
+Windows and Mac producers are in #473. CI has still not completed a run
+with any producer; the Windows host step that kept cancelling it has a
+second fix (a C-runtime mismatch at link time, also in #473).

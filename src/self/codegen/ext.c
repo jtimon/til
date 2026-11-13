@@ -192,6 +192,26 @@ int timespec_get(struct timespec *ts, int base) {
 }
 #endif
 
+// The mirror case, under the universal CRT. That nng archive, built against
+// msvcrt, calls _snprintf (win_file.c) through msvcrt.dll's import pointer,
+// and the UCRT exports no _snprintf: there it is an inline in the headers. A
+// gcc that defaults to the UCRT -- MinGW-Builds on a Windows host, as on the
+// CI runner -- then cannot link a program with nng: "undefined reference to
+// `__imp__snprintf'" (CI run 3067). It is the only C-runtime name the
+// archive imports that the UCRT lacks, so supply that pointer here. Same
+// contract as msvcrt's: -1 when the text does not fit, and then no NUL.
+#if defined(_WIN32) && defined(_UCRT)
+#include <stdarg.h>
+static int til_msvcrt_snprintf(char *buffer, size_t count, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    int written = _vsnprintf(buffer, count, format, args);
+    va_end(args);
+    return written;
+}
+int (*__imp__snprintf)(char *, size_t, const char *, ...) = til_msvcrt_snprintf;
+#endif
+
 #ifdef _WIN32
 static HMODULE ffi_handle;
 #elif defined(__EMSCRIPTEN__)

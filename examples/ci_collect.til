@@ -13,7 +13,8 @@ import("../src/self/targets")
 //           <sha256> <level> <target> <backend> <width> <case> <item>
 //       level "frontend": what the compiler holds at each phase boundary
 //       (`til ast --phase=...`), for target linux-x64 at width 32, hashed
-//       per source unit so a difference names the phase and the file.
+//       per source unit so a difference names the phase and the file. Read
+//       as text: a Windows host's CR LF line ends count as LF.
 //       level "source": the files a translate emits, for every target at
 //       both widths, without the reuse stamp line (which names the compiler
 //       binary). A program a target refuses is listed as "refused", so
@@ -85,7 +86,11 @@ produce_frontend := proc(compiler: Str, source: Str, phase: Str, mut lines: Vec(
     command.stdout_to(observed)
     command.stderr_to_stdout()
     if command.run() != 0 { fail(format(command.render(), " failed:\n", File.readfile(observed))) }
-    text := File.readfile(observed)
+    // REM An observation is text on the compiler's standard output, and a
+    // Windows process ends the lines it writes there with CR LF. The records
+    // are compared, not the host's line ending. (The files a translate
+    // writes are compared byte for byte below.)
+    text := File.readfile(observed).replace("\r\n", "\n")
     mut names := Vec(Str).new()
     mut paths := Vec(Str).new()
     mut piece := 0
