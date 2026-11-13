@@ -995,7 +995,9 @@ rt_float_to_str:
     add rdi, 3
     jmp .allocate
 .nan:
-    ; Keep the decoded IEEE sign prefix, matching the shared contract (#472).
+    ; A NaN shows no sign (#489; ext.c, float_nonfinite_text): write over
+    ; the prefix the sign bit may have put at the start of the buffer.
+    lea rdi, [rbp-192]
     mov word [rdi], 'na'
     mov byte [rdi+2], 'n'
     add rdi, 3

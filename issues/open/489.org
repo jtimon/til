@@ -1,0 +1,98 @@
+# priority: low
+# category: features
+** OPEN #489 Reconsider whether a NaN's text should show its sign bit
+
+A NaN prints as ~nan~ whatever its sign bit. That was decided for #472
+(deterministic builds) as the simplest rule that holds on every host, "for
+now". This issue keeps what was found, so the choice can be made again with
+the facts at hand.
+
+*** What til does today
+
+- ~F32.to_str~, ~F32.to_repr~, ~F64.to_str~, ~F64.to_repr~ give ~nan~ for
+  every NaN, ~inf~ and ~-inf~ for the infinities.
+- Where: ~src/self/codegen/ext.c~ (~float_nonfinite_text~),
+  ~src/self/codegen/ext.HC~ (the float text routine), ~src/self/codegen/ext.fasm~
+  (~rt_float_to_str~, ~.nan~). The interpreter and the MLIR backend go
+  through ~ext.c~.
+- The value keeps its bit: parsing ~-nan~ or ~-nan(0x123)~ still sets it,
+  arithmetic and ~memcpy~ carry it, and a program can read it from the bits.
+  Only the text drops it.
+- A NaN the compiler folds is emitted as ~__builtin_nan("")~ in C whatever
+  its sign (~c_codegen.til~, ~num_lit_to_c~). That was so before this
+  decision too.
+- Pinned by: ~test/float_literals.til~ (~test_nonfinite_text~), the suite
+  row ~float_fold~ (a folded NaN's text in the generated C; the Windows host
+  job holds ~til.exe~ to the same list), and
+  ~test/templeos/script_str_runtime.expected~ for the HolyC runtime.
+
+*** Why the sign was a problem
+
+IEEE 754 does not say which sign a NaN gets when an invalid operation
+(~0/0~, ~inf - inf~) produces it. The CPUs differ: x86's default NaN has the
+sign bit set, ARM's (and RISC-V's) has it clear. While til printed the bit:
+
+- ~(zero / zero).to_str()~ was ~-nan~ on x86 and ~nan~ on ARM: the same
+  program, different output by CPU.
+- The compiler folds such an expression when its inputs are known, and the
+  folded text goes into the generated source. So the same source gave
+  different generated C by the CPU of the machine that compiled it, which is
+  what #472 forbids. ~test/float_fold.til~ had to leave folded NaN text out.
+
+A first attempt (F6 of #472) dropped the sign in ~ext.c~ only and broke the
+TempleOS guest job: the HolyC runtime printed the sign and its golden pinned
+~-nan~. Both now agree.
+
+*** What others do (read in November 2026)
+
+| Language | NaN text | Notes |
+|----------+----------+-------|
+| Mojo | ~nan~, never signed | ~_write_float~ returns "nan" before the sign is written; infinities are ~inf~ / ~-inf~. Same as Python. No reproducible-build promise found. |
+| Go | ~NaN~, never signed | ~strconv~: ~+Inf~ / ~-Inf~ for infinities |
+| Nim | ~nan~, never signed | normalizes the platform's output |
+| Rust | ~NaN~, never signed | from memory, not re-read |
+| Zig | ~-nan~ when the bit is set | ~std.fmt~ writes the sign first, then ~nan~ or ~inf~. No rule found for a comptime NaN's sign across compiler hosts. |
+| D | ~-nan~ when the bit is set | Phobos has a test for it |
+| C | the C library's | glibc ~-nan~; others ~nan~, ~1.#QNAN~ |
+
+Rust is the only one found with a written rule for the BITS (RFC 3514): at
+run time the sign of a produced NaN is "non-deterministic"; in const
+evaluation it is "some deterministic function of the operation's inputs",
+not specified, allowed to change across targets and versions, and with "no
+guarantee that the choice made in const evaluation is consistent with the
+choice made at runtime". LLVM has an open issue (61973) about its own
+folding giving a NaN of another sign than x86 gives at run time.
+
+Sources:
+- Zig: https://raw.githubusercontent.com/ziglang/zig/master/lib/std/fmt/float.zig
+- Mojo: https://raw.githubusercontent.com/modular/modular/refs/heads/modular/v25.7/mojo/stdlib/stdlib/builtin/_format_float.mojo
+- Rust RFC 3514: https://raw.githubusercontent.com/rust-lang/rfcs/master/text/3514-float-semantics.md
+- Rust, default NaN sign on x86 and aarch64: https://github.com/rust-lang/rust/issues/107247
+- LLVM: https://github.com/llvm/llvm-project/issues/61973
+- Go: https://tip.golang.org/src/strconv/ftoa.go
+- Nim: https://sources.debian.org/src/nim/2.2.4-2/lib/std/formatfloat.nim
+- D: https://gnu.googlesource.com/gcc/+/trunk/libphobos/src/std/format/internal/floats.d
+
+*** The options that were on the table
+
+- Drop the sign from the text (taken). Text is the same on every CPU, at
+  run time and when folded. Cost: ~to_repr~ does not round-trip a NaN's sign
+  (it never round-tripped the payload either), and a program that wants the
+  bit has to read the bits.
+- Keep the sign, never fold a NaN's text. Generated source is then the same
+  on every host, but a program's output still follows the CPU.
+- Keep the sign and fold, and state that NaN text is outside what #472
+  guarantees.
+- Not looked at closely: make the BITS deterministic instead, by giving
+  every NaN an operation produces one canonical sign (and payload) in
+  generated code. That would make the sign meaningful and printable again,
+  at the price of a check after float operations, or of only promising it
+  for folded values. Rust chose not to promise this.
+
+*** What a change would have to touch
+
+The three runtimes above, the two doc comments in ~src/core/numbers.til~,
+~num_lit_to_c~ if a signed NaN text can reach it again, the tests and
+golden named above, and the needle lists of the ~float_fold~ row and of the
+Windows host job. If the text can differ by host again, the folded NaN text
+has to leave ~test/float_fold.til~ and #472's guarantee has to say so.

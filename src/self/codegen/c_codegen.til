@@ -3924,7 +3924,7 @@ priv num_lit_to_c := func(text: Str) returns Str {
     // Constant evaluation can produce IEEE exceptional values even though
     // source numeric tokens do not spell these names. They are constants,
     // not references to C identifiers named nan/inf.
-    if text.eq("nan").or(text.eq("-nan")) { return "__builtin_nan(\"\")" }
+    if text == "nan" { return "__builtin_nan(\"\")" }
     if text == "inf" { return "__builtin_inf()" }
     if text == "-inf" { return "(-__builtin_inf())" }
     n := text.len()

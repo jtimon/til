@@ -1,0 +1,148 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+import("../src/self/targets")
+
+// Issue #473 (C8): the collector that compares hash lists between CI
+// producers (examples/ci_collect.til), against fixture directories. What it
+// must never do is call two things equal that it did not compare.
+//
+// Argument: the compiler.
+
+WORK := "tmp/ci_collect_test"
+
+HASH_A := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+HASH_B := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+HASH_C := "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+
+// Start a fixture directory.
+fixture := proc(name: Str) returns Str {
+    directory := format(WORK, "/", name)
+    mkdir_p(directory)
+    return directory
+}
+
+// One producer's list, in a directory of its own, as CI downloads them.
+list := proc(directory: Str, producer: Str, lines: ..Str) {
+    mkdir_p(format(directory, "/hashes-", producer))
+    mut text := ""
+    for line : Str in lines { text = format(text, line, "\n") }
+    File.writefile(format(directory, "/hashes-", producer, "/", producer, ".txt"), text)
+}
+
+// Run the collector; check its status and that its output holds every
+// expected piece and none of the excluded ones (those start with "!").
+collect := proc(collector: Str, directory: Str, mode: Str, expected_status: I64, pieces: ..Str) {
+    command := Cmd.new(collector, "collect", directory)
+    if mode.len() > 0 { command.arg(mode) }
+    command.capture()
+    status := command.run()
+    output := format(command.out(), command.err())
+    if status != expected_status {
+        panic(directory, ": exited with ", status.to_str(), ", expected ", expected_status.to_str(), "\n", output)
+    }
+    for piece : Str in pieces {
+        if piece.starts_with("!") {
+            if output.contains(piece.strip_prefix("!")) { panic(directory, ": output must not hold '", piece.strip_prefix("!"), "'\n", output) }
+        } else if output.contains(piece).not() {
+            panic(directory, ": output lacks '", piece, "'\n", output)
+        }
+    }
+}
+
+main := proc(args: ..Str) {
+    if args.len() != 1 { panic("usage: ci_collect <compiler>") }
+    // The list the producers and test/translate_layouts.til walk names every
+    // target there is.
+    names := target_names()
+    if names.len().to_i64() != enum_variant_count("Target") {
+        panic("target_names() has ", names.len().to_str(), " names, Target has ", enum_variant_count("Target").to_str(), " variants")
+    }
+    for name : Str in names {
+        if target_to_str(target_from_str(name)) != name { panic("target_names(): ", name, " is not a target's own name") }
+    }
+
+    File.remove_tree(WORK)
+    mkdir_p(WORK)
+    collector := format(WORK, "/ci_collect")
+    Cmd.new(args[0], "build", "-o", collector, "-c", format(WORK, "/ci_collect.c"), "examples/ci_collect.til").run_checked()
+
+    first := format(HASH_A, " frontend linux-x64 c 32 hello.til parsed:./a.til")
+    second := format(HASH_B, " frontend linux-x64 c 32 hello.til typed:./a.til")
+
+    // Two producers, the same lists.
+    equal := fixture("equal")
+    list(equal, "one", first, second)
+    list(equal, "two", first, second)
+    collect(collector, equal, "", 0, "2 producers (one, two), 2 items equal", "2 equal, 0 different, 0 missing, 0 not compared", "!DIFFERENT", "!MISSING")
+
+    // One byte of one producer's file changed: its hash is another one.
+    different := fixture("different")
+    list(different, "one", first, second)
+    list(different, "two", first, format(HASH_C, " frontend linux-x64 c 32 hello.til typed:./a.til"))
+    collect(collector, different, "", 1, "DIFFERENT frontend linux-x64 c 32: hello.til typed:./a.til",
+        format("one ", HASH_B), format("two ", HASH_C), "1 equal, 1 different")
+    // `report` prints the same and does not fail.
+    collect(collector, different, "report", 0, "DIFFERENT frontend linux-x64 c 32: hello.til typed:./a.til", "1 equal, 1 different")
+
+    // Three producers, one apart.
+    three := fixture("three")
+    list(three, "one", first)
+    list(three, "two", first)
+    list(three, "three", format(HASH_C, " frontend linux-x64 c 32 hello.til parsed:./a.til"))
+    collect(collector, three, "", 1, "DIFFERENT", format("three ", HASH_C), "0 equal, 1 different")
+
+    // A producer that takes part in a group but leaves an item out.
+    missing := fixture("missing")
+    list(missing, "one", first, second)
+    list(missing, "two", first)
+    collect(collector, missing, "", 1, "MISSING frontend linux-x64 c 32: two has no hello.til typed:./a.til", "1 equal, 0 different, 1 missing")
+
+    // A list for another width: a group of its own, so nothing is compared
+    // and nothing is called equal.
+    other_width := fixture("other_width")
+    list(other_width, "one", first)
+    list(other_width, "two", format(HASH_A, " frontend linux-x64 c 64 hello.til parsed:./a.til"))
+    collect(collector, other_width, "", 0, "frontend linux-x64 c 32: 1 producers (one), 0 items equal, 1 from one producer only (not compared)",
+        "frontend linux-x64 c 64: 1 producers (two)", "0 equal, 0 different, 0 missing, 2 not compared")
+    // The same for another target.
+    other_target := fixture("other_target")
+    list(other_target, "one", format(HASH_A, " source linux-x64 c 32 hello.til hello.c"))
+    list(other_target, "two", format(HASH_A, " source windows-x64 c 32 hello.til hello.c"))
+    collect(collector, other_target, "", 0, "0 equal, 0 different, 0 missing, 2 not compared")
+
+    // One producer only.
+    alone := fixture("alone")
+    list(alone, "one", first, second)
+    collect(collector, alone, "", 0, "1 producers (one), 0 items equal, 2 from one producer only (not compared)", "0 equal")
+
+    // One producer translated a program another refused.
+    refused := fixture("refused")
+    list(refused, "one", format(HASH_A, " source templeos-x86 c 32 option.til option.c"))
+    list(refused, "two", "refused source templeos-x86 c 32 option.til -")
+    collect(collector, refused, "", 1, "MISSING source templeos-x86 c 32: two has no option.til option.c",
+        "MISSING source templeos-x86 c 32: one has no option.til -")
+    // Both refusing is agreement.
+    both_refused := fixture("both_refused")
+    list(both_refused, "one", "refused source templeos-x86 c 32 option.til -")
+    list(both_refused, "two", "refused source templeos-x86 c 32 option.til -")
+    collect(collector, both_refused, "", 0, "1 equal, 0 different, 0 missing")
+
+    // A line that is not a hash-list line stops the collector.
+    malformed := fixture("malformed")
+    list(malformed, "one", first, "frontend linux-x64 c 32 hello.til parsed:./a.til")
+    collect(collector, malformed, "report", 1, "one.txt:2: expected 7 fields, found 6")
+    not_a_hash := fixture("not_a_hash")
+    list(not_a_hash, "one", "abc frontend linux-x64 c 32 hello.til parsed:./a.til")
+    collect(collector, not_a_hash, "report", 1, "not a sha256")
+    twice := fixture("twice")
+    list(twice, "one", first, first)
+    collect(collector, twice, "report", 1, "lists frontend linux-x64 c 32 hello.til parsed:./a.til twice")
+
+    // No list at all is not a pass.
+    empty := fixture("empty")
+    collect(collector, empty, "", 1, "no hash list")
+
+    println("ci collect passed")
+}

@@ -1,0 +1,287 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+import("../src/self/targets")
+
+// CI comparison of what different producers make of the same source
+// (issue #473, decisions 2 and 3; issue #472, levels 1 and 2 across hosts).
+//
+//   ci_collect produce <producer> <list file> <compiler>
+//       Run the compiler over the corpus and write a HASH LIST: one line
+//       per compared item,
+//           <sha256> <level> <target> <backend> <width> <case> <item>
+//       level "frontend": what the compiler holds at each phase boundary
+//       (`til ast --phase=...`), for target linux-x64 at width 32, hashed
+//       per source unit so a difference names the phase and the file.
+//       level "source": the files a translate emits, for every target at
+//       both widths, without the reuse stamp line (which names the compiler
+//       binary). A program a target refuses is listed as "refused", so
+//       producers have to refuse alike.
+//
+//   ci_collect collect <directory> [report]
+//       Read every *.txt hash list under the directory; the file's name is
+//       the producer's. Items are compared between the producers that
+//       took part in the same level, target, backend and width. Prints
+//       what differs, what a producer left out, and what only one producer
+//       has (which is not compared, never "equal"). Exits 1 on a
+//       difference, a missing item or a line it cannot read; with `report`
+//       a difference or a missing item is printed but does not fail.
+//
+// The lists are all that travels between CI jobs. Nothing reads them back
+// into a build.
+
+WORK := "tmp/ci_collect"
+
+Entry := struct {
+    producer := ""
+    hash := ""
+    group := ""
+    item := ""
+}
+
+fail := proc(message: Str) {
+    println("ci_collect: ", message)
+    exit(1)
+}
+
+// The SHA-256 of each file, in order, from the host's own tool.
+sha256_of := proc(paths: Vec(Str)) returns Vec(Str) {
+    mut hashes := Vec(Str).new()
+    if paths.len() == 0 { return hashes }
+    mut tool := Cmd.new("sha256sum")
+    if host_os() == "macos" { tool = Cmd.new("shasum", "-a", "256") }
+    for path : Str in paths { tool.arg(path) }
+    tool.capture()
+    if tool.run() != 0 { fail(format("cannot hash: ", tool.err())) }
+    for line : Str in tool.out().split("\n") {
+        if line.len() < 64 { continue }
+        hashes.push(own line.substr(0, 64).clone())
+    }
+    if hashes.len() != paths.len() { fail("the hash tool answered for fewer files than it was given") }
+    return hashes
+}
+
+// The text without its trailing reuse stamp line (#442).
+without_stamp := func(text: Str) returns Str {
+    at := text.rfind("/* til-translation-stamp: ")
+    if at < 0 { return text.clone() }
+    start := at.to_usize()
+    rest := text.substr(start, text.len() - start)
+    if rest.find("\n") != rest.len().to_i64() - 1 { return text.clone() }
+    return text.substr(0, start).clone()
+}
+
+file_stem := func(source: Str) returns Str {
+    slash := source.rfind("/").to_usize()
+    name := source.substr(slash + 1, source.len() - slash - 1)
+    return name.strip_suffix(".til").clone()
+}
+
+// One observation, cut at its `unit` lines; each piece is an item.
+produce_frontend := proc(compiler: Str, source: Str, phase: Str, mut lines: Vec(Str)) {
+    observed := format(WORK, "/observed.txt")
+    command := Cmd.new(compiler, "ast", format("--phase=", phase), "--target=linux-x64", "--usize=32", source)
+    command.stdout_to(observed)
+    command.stderr_to_stdout()
+    if command.run() != 0 { fail(format(command.render(), " failed:\n", File.readfile(observed))) }
+    text := File.readfile(observed)
+    mut names := Vec(Str).new()
+    mut paths := Vec(Str).new()
+    mut piece := 0
+    mut rest := text.clone()
+    mut name := "header"
+    while true {
+        next := rest.find("\nunit ")
+        mut body := rest.clone()
+        if next >= 0 { body = rest.substr(0, next.to_usize() + 1).clone() }
+        path := format(WORK, "/piece_", piece.to_str())
+        File.writefile(path, body)
+        names.push(own name.clone())
+        paths.push(own path)
+        piece++
+        if next < 0 { break }
+        after := next.to_usize() + 1
+        rest = rest.substr(after, rest.len() - after).clone()
+        line_end := rest.find("\n")
+        if line_end < 0 { fail("an observation ends inside a unit line") }
+        name = rest.substr(5, line_end.to_usize() - 5).clone()
+    }
+    hashes := sha256_of(paths)
+    for i, hash in hashes {
+        lines.push(own format(hash, " frontend linux-x64 c 32 ", source, " ", phase, ":", names[i]))
+    }
+}
+
+produce_source := proc(compiler: Str, source: Str, target: Str, width: Str, mut lines: Vec(Str)) {
+    stem := file_stem(source)
+    directory := format(WORK, "/source")
+    File.remove_tree(directory)
+    mkdir_p(directory)
+    emitted := format(directory, "/", stem, ".c")
+    command := Cmd.new(compiler, "translate", format("--target=", target), format("--usize=", width), "-c", emitted, source)
+    command.stdout_to(format(WORK, "/translate.log"))
+    command.stderr_to_stdout()
+    key := format(" source ", target, " c ", width, " ", source, " ")
+    if command.run() != 0 {
+        lines.push(own format("refused", key, "-"))
+        return
+    }
+    mut names := Vec(Str).new()
+    mut paths := Vec(Str).new()
+    for file : Str in array(Str, format(stem, ".c"), format(stem, "_forward.h")) {
+        path := format(directory, "/", file)
+        if File.is_file(path).not() { continue }
+        stripped := format(path, ".compared")
+        File.writefile(stripped, without_stamp(File.readfile(path)))
+        names.push(own file.clone())
+        paths.push(own stripped)
+    }
+    if paths.len() == 0 { fail(format(source, " for ", target, ": translated, but wrote no ", stem, ".c")) }
+    hashes := sha256_of(paths)
+    for i, hash in hashes { lines.push(own format(hash, key, names[i])) }
+}
+
+produce := proc(producer: Str, list: Str, compiler: Str) {
+    File.remove_tree(WORK)
+    mkdir_p(WORK)
+    mut lines := Vec(Str).new()
+    // REM The corpus of test/observe.til: control flow, a diamond of
+    // imports, generics, closures, ownership, layouts, constant evaluation.
+    for source : Str in array(Str, "examples/hello_script.til", "test/loops.til", "test/import_diamond.til",
+        "test/templ_vec.til", "test/closures.til", "test/ownership_shapes.til", "test/layout_corpus.til",
+        "test/constfold.til") {
+        for phase : Str in array(Str, "tokens", "parsed", "typed", "owned", "prepared") {
+            produce_frontend(compiler, source, phase, lines)
+        }
+    }
+    // REM The corpus of test/translate_layouts.til.
+    for target : Str in target_names() {
+        for width : Str in array(Str, "32", "64") {
+            for source : Str in array(Str, "examples/hello_script.til", "test/layout_corpus.til",
+                "test/float_fold.til", "test/option.til", "test/hashmaps.til") {
+                produce_source(compiler, source, target, width, lines)
+            }
+        }
+    }
+    File.writefile(list, format(join(lines, "\n"), "\n"))
+    println("ci_collect: ", producer, " wrote ", lines.len().to_str(), " lines to ", list)
+}
+
+// Every *.txt under `directory`, however deep: CI puts each producer's
+// artifact in a directory of its own.
+list_files := proc(directory: Str, mut found: Vec(Str)) {
+    for name : Str in Dir.list(directory) {
+        path := format(directory, "/", name)
+        if File.is_dir(path) { list_files(path, found) }
+        else if name.ends_with(".txt") { found.push(own path) }
+    }
+}
+
+read_list := proc(path: Str, mut entries: Vec(Entry)) {
+    producer := file_stem(path.strip_suffix(".txt").format(".til"))
+    mut number := 0
+    for line : Str in File.readfile(path).split("\n") {
+        number++
+        if line.len() == 0 { continue }
+        fields := line.split(" ")
+        if fields.len() != 7 {
+            fail(format(path, ":", number.to_str(), ": expected 7 fields, found ", fields.len().to_str()))
+        }
+        if fields[0].len() != 64 && fields[0] != "refused" {
+            fail(format(path, ":", number.to_str(), ": not a sha256 or \"refused\": ", fields[0]))
+        }
+        entries.push(own Entry(producer = producer.clone(), hash = fields[0].clone(),
+            group = format(fields[1], " ", fields[2], " ", fields[3], " ", fields[4]),
+            item = format(fields[5], " ", fields[6])))
+    }
+}
+
+collect := proc(directory: Str, report_only: Bool) {
+    mut files := Vec(Str).new()
+    list_files(directory, files)
+    if files.len() == 0 { fail(format("no hash list (*.txt) under ", directory)) }
+    mut entries := Vec(Entry).new()
+    for path : Str in files { read_list(path, entries) }
+
+    // Who took part in each group, and who has each item of it.
+    mut group_producers := Map(Str, Set(Str)).new()
+    mut item_hashes := Map(Str, Map(Str, Str)).new()
+    for entry : Entry in entries {
+        if group_producers.has(entry.group).not() { group_producers.set(entry.group, own Set(Str).new()) }
+        ref mut producers : Set(Str) = group_producers[entry.group]
+        producers.add(own entry.producer.clone())
+        key := format(entry.group, " ", entry.item)
+        if item_hashes.has(key).not() { item_hashes.set(key, own Map(Str, Str).new()) }
+        ref mut by_producer : Map(Str, Str) = item_hashes[key]
+        if by_producer.has(entry.producer) {
+            fail(format(entry.producer, " lists ", key, " twice"))
+        }
+        by_producer.set(entry.producer, own entry.hash.clone())
+    }
+
+    mut equal : USize = 0
+    mut different : USize = 0
+    mut missing : USize = 0
+    mut alone : USize = 0
+    for group, producers in group_producers {
+        mut group_equal : USize = 0
+        mut group_alone : USize = 0
+        prefix := format(group, " ")
+        for key, by_producer in item_hashes {
+            if key.starts_with(prefix).not() { continue }
+            item := key.substr(prefix.len(), key.len() - prefix.len())
+            for producer : Str in producers {
+                if by_producer.has(producer).not() {
+                    println("MISSING ", group, ": ", producer, " has no ", item)
+                    missing++
+                }
+            }
+            if by_producer.len() == 1 {
+                group_alone++
+                continue
+            }
+            mut first := ""
+            mut same := true
+            for _, hash in by_producer {
+                if first.len() == 0 { first = hash.clone() }
+                else if hash != first { same = false }
+            }
+            if same {
+                group_equal++
+                continue
+            }
+            different++
+            println("DIFFERENT ", group, ": ", item)
+            for producer, hash in by_producer { println("    ", producer, " ", hash) }
+        }
+        equal = equal + group_equal
+        alone = alone + group_alone
+        mut producer_names := ""
+        for producer : Str in producers {
+            if producer_names.len() > 0 { producer_names = format(producer_names, ", ") }
+            producer_names = format(producer_names, producer)
+        }
+        println(group, ": ", producers.len().to_str(), " producers (", producer_names, "), ",
+            group_equal.to_str(), " items equal, ", group_alone.to_str(), " from one producer only (not compared)")
+    }
+    println("ci_collect: ", equal.to_str(), " equal, ", different.to_str(), " different, ", missing.to_str(),
+        " missing, ", alone.to_str(), " not compared")
+    if different + missing > 0 && report_only.not() { exit(1) }
+}
+
+main := proc(args: ..Str) {
+    if args.len() == 4 && args[0] == "produce" {
+        produce(args[1], args[2], args[3])
+        return
+    }
+    if args.len() == 2 && args[0] == "collect" {
+        collect(args[1], false)
+        return
+    }
+    if args.len() == 3 && args[0] == "collect" && args[2] == "report" {
+        collect(args[1], true)
+        return
+    }
+    fail("usage: ci_collect produce <producer> <list file> <compiler> | ci_collect collect <directory> [report]")
+}

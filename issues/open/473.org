@@ -621,3 +621,114 @@ first run with these steps is the end-to-end evidence.
 
 No new job, artifact or file. Runner time added: a handful of file tests
 per job.
+
+*** Progress: steps C3, C5, C6 (first form) and C8
+
+**** The program
+
+~examples/ci_collect.til~, two commands.
+- ~produce <producer> <list file> <compiler>~ writes a hash list, one line
+  per item: ~<sha256> <level> <target> <backend> <width> <case> <item>~.
+  Level ~frontend~: ~til ast --phase=...~ (#472 level 1) for target
+  linux-x64 at width 32, five phases over eight programs, hashed per
+  source unit, so a difference names the phase and the file. Level
+  ~source~: what a translate emits for every target
+  (~targets.til::target_names()~, fourteen with the Android pair) at both
+  widths over five programs, without the reuse stamp line; a program a
+  target refuses is listed as ~refused~. 1140 lines, about 117 s on Linux
+  x64.
+  Hashes come from the host's ~sha256sum~ (~shasum -a 256~ on a Mac).
+- ~collect <directory> [report]~ reads every ~*.txt~ under the directory
+  (the file's name is the producer's), compares items between the
+  producers that took part in the same level, target, backend and width,
+  prints what differs and what a producer left out, and counts what only
+  one producer has as "not compared". Exit 1 on a difference, a missing
+  item or an unreadable list; with ~report~ differences and missing items
+  are printed and do not fail.
+
+Run here end to end: a compact and a native-layout compiler as two
+producers, 1140 items each, all equal.
+
+**** C8: collector validation
+
+~test/ci_collect.til~, suite row ~ci_collect~, fixtures under ~tmp/~:
+
+| Fixture | Result |
+|---------+--------|
+| Two producers, same lists | 2 equal, exit 0 |
+| One hash changed in one producer | DIFFERENT, names the item and both producers; exit 1; with ~report~ exit 0 |
+| Three producers, one apart | DIFFERENT; exit 1 |
+| A producer leaves one item of its group out | MISSING, names producer and item; exit 1 |
+| A list for another width, or another target | separate groups, everything "not compared", 0 equal; exit 0 |
+| One producer only | "not compared", 0 equal; exit 0 |
+| One producer translated what another refused | MISSING on both sides; exit 1 |
+| Both refused | equal |
+| A line with 6 fields; a first field that is no hash; an item listed twice | exit 1 naming the file and line, also with ~report~ |
+| No list at all | exit 1 |
+
+**** C3, C5, C6 in the workflow
+
+- ~linux-x64~ and ~linux-arm64-native~ each get two steps at their end:
+  write the hash list with their own ~bin/til~, upload it as
+  ~hashes-linux-x64~ / ~hashes-linux-arm64~.
+- New job ~collect~: ~needs~ those two, runs with ~always()~ (unless the
+  push is Doc-only), prints each producer's result and fails if one is not
+  ~success~, downloads every ~hashes-*~ artifact, builds ~bin/til~ and
+  runs ~collect hashes report~.
+
+So the first equality groups are in place in their exploratory form:
+frontend records (C5) and translator output for every target (C6), between
+a Linux x64 and a Linux arm64 host. Differences are printed, not failed
+on, until a run has been read.
+
+**** Not verified, and why
+
+Nothing of the workflow part has run. Every run on master since the #482
+commit is cancelled after about seven minutes by a failing step of the
+Windows host job (~test/link_objects.til~ wants
+~vendor/nng/build-windows-x64/libnng.a~ there), long before either
+producer finishes its suite. Open until a run gets through:
+- whether ~collect~ still runs after another job's ~gh run cancel~, and
+  what it then sees (the plan's first question for C3);
+- the artifact layout ~download-artifact~ with ~pattern: hashes-*~ gives;
+- whether the two hosts' lists agree.
+
+**** Next, in this order
+
+Read the first complete run. Then add the Mac producers (~shasum~ is
+handled), then the Windows ~til.exe~, then make a group blocking where the
+run shows it holds.
+
+The Windows producer has to BUILD the collector (~til.exe build~, which
+the host job already does for other programs) and needs a ~sha256sum~ on
+the runner. Interpreting it is not an option: measured on Linux,
+~bin/til interpret examples/ci_collect.til produce ...~ was stopped after
+an hour inside the fourth of the first program's five observations, out
+of forty (cutting an 11 MB observation into its units took it about ten
+seconds a unit), against 117 s in all for the built program.
+
+**** The target list
+
+~Target~ got ~android-x64~ and ~android-arm64~ (#462) while this was
+unmerged, and both the producers and ~test/translate_layouts.til~ had the
+twelve names written out. They now walk ~targets.til::target_names()~, and
+~test/ci_collect.til~ fails when that list and the ~Target~ enum disagree
+in length or a name does not round-trip, so the next target is compared
+from the commit that adds it.
+
+**** C4: what the runners have (run 3063, "Record the C toolchain")
+
+The versions are in #472's L3b section. What they mean for decision 4:
+- ~ubuntu-latest~ is Ubuntu 26.04 now: clang and lld 21.1.8, gcc 15.2.0.
+  ~ubuntu-24.04-arm~, which runs the native arm64 suite, has clang 18.1.3
+  and gcc 13.3.0. "LLVM 18 because the runners have it" holds for one of
+  the two images only.
+- The two Linux suite producers therefore build with different gcc
+  versions (15.2 and 13.3) today. That does not touch the collector's
+  groups (frontend records and translated source do not pass through a C
+  compiler); it does mean no binary comparison between those two jobs can
+  hold before a pinned compiler is installed in both.
+- A pin has to be a version both images can install: either apt's
+  versioned packages where both carry the same one, or a release archive
+  from LLVM, which is a download (a new tooling assumption, to be approved
+  in C4's own commit). Not decided here.

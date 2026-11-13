@@ -52,6 +52,7 @@
 *** [[./open/438.org][#438]] Packed BitMap container for boolean storage
 *** [[./open/459.org][#459]] Research bulk directory imports and package entry points
 *** [[./open/479.org][#479]] Call til from BEAM (Erlang, Elixir) through generated NIF bindings
+*** [[./open/489.org][#489]] Reconsider whether a NaN's text should show its sign bit
 * Backends
 ** Medium
 *** [[./open/383.org][#383]] Coordinate alternative backend runtimes and conformance tests

@@ -1775,3 +1775,55 @@ Seen on the way, not fixed: a user function named like one that core or
 ~std/sys~ already declares (~expect~, ~copy_tree~) is accepted, calls go
 to the existing one, and the user's is then an unused function the C
 compiler rejects.
+
+*** Progress: O4 and level 2 across hosts, first form
+
+The cross-host halves of levels 1 and 2 are wired through #473's
+collector (~examples/ci_collect.til~; details in #473's progress section).
+Each of the two Linux suite jobs writes a hash list with ~til ast
+--phase=...~ per phase and source unit (level 1) and with the translation
+of every target at both widths (level 2), and a ~collect~ job compares
+them. Locally a compact and a native-layout compiler agree on all 1140
+items (fourteen targets, with the Android pair of #462). In CI nothing has run yet: master's runs are being cancelled after
+seven minutes by an unrelated failure in the Windows host job, so whether a
+Linux x64 host and a Linux arm64 host agree is still unknown. Differences
+are reported, not failed on, until a run has been read.
+
+*** Progress: L3b, the version column (run 3063 on master)
+
+Read from the "Record the C toolchain" steps of the thirteen jobs that
+got that far before the run was cancelled.
+
+| Where | Compiler | Linker, archiver |
+|-------+----------+------------------|
+| ~ubuntu-latest~ (Ubuntu 26.04): linux-x64, linux-x86 | gcc 15.2.0 (Ubuntu 15.2.0-16ubuntu1) | GNU ld and ar 2.46 |
+| same image, cross: linux-arm64, linux-riscv64, linux-arm32 | Ubuntu's cross gcc 15.2.0 | GNU ld 2.46 |
+| same image: macos-x64, macos-arm64 from Linux | clang 21.1.8 | LLD 21.1.8, llvm-ar and dsymutil 21.1.8 |
+| same image: windows-x64, windows-x86 | ~x86_64-w64-mingw32-gcc~ / ~i686-w64-mingw32-gcc~ (GCC) 13-win32 | ld 2.45.90.20260125 |
+| same image: linux-riscv32 | Bootlin ~riscv32-linux-gcc~ 13.2.0 (Buildroot 2021.11-11272-ge2962af) | ld 2.42 |
+| same image: wasm32 | emcc 6.0.0 | emcc's own |
+| ~ubuntu-24.04-arm~: linux-arm64 native | gcc 13.3.0, clang 18.1.3 | GNU ld and ar 2.42 |
+| Windows runner: windows-x64 native | gcc 15.2.0 (MinGW-Builds; run 3051) | not read |
+| the two Mac runners | not known: neither job has run | |
+
+Corrections to what this issue said before:
+- This container (gcc 13.3.0, clang 18.1.3, binutils 2.42) is NOT the
+  image ~ubuntu-latest~ runs; it matches ~ubuntu-24.04-arm~'s versions.
+  Local results for the mac targets were made with clang and lld 18, CI's
+  with 21.
+- "LLVM 18 proposed" was argued from the runners having it. One of the two
+  Linux images has 21. The pin is open again; see #473 C4.
+
+The Android targets (#462) compile with clang against the vendored NDK
+sysroot; no job records a version for them yet.
+
+*** Progress: the NaN sign, decided
+
+A NaN's text is ~nan~ whatever its sign bit, in all three runtimes (~ext.c~,
+~ext.HC~, ~ext.fasm~). That closes the one case where the same source gave
+different generated C by the compiler's CPU: a folded ~to_str()~ of a
+computed NaN was ~-nan~ from an x86 host and ~nan~ from an ARM one.
+~test/float_fold.til~ folds one again and the ~float_fold~ row and the
+Windows host job pin its text. What other languages do, the options that
+were weighed and what a reversal would touch are in #489, opened to
+reconsider this later.

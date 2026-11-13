@@ -8904,6 +8904,8 @@ priv ffi_cif_rtype_is_struct := func(cif: ffi_cif) returns Bool {
 // already never folded (try_eval_call bails on ref returns).
 ffi_load_global_lib := ext_proc(soname: Str) returns shallow Bool {}
 ffi_open_user_so := ext_proc(path: Str) returns shallow Bool {}
+// REM Windows hosts only; see ffi_init_user_so.
+ffi_write_host_exports := ext_proc(path: Str) returns shallow Bool {}
 ffi_close_user_so := ext_proc() {}
 ffi_user_symbol := ext_func(name: Str) returns ref U8 {}
 ffi_global_symbol := ext_func(name: Str) returns ref U8 {}
@@ -9118,13 +9120,39 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     // time, and a name nothing defines is still refused by the linker --
     // ffi_dlopen_fail_interp asserts that shape on macos, which a blanket
     // -undefined dynamic_lookup broke (run 2879).
-    mut link_kind := " -shared"
-    if host_os() == "macos" { link_kind = format(" -bundle -bundle_loader ", get_exe_path()) }
-    cmd := format("cc -Wall -Wextra -fsigned-char", link_kind, " -fPIC", san, usize_define, " -I", ext_dir,
+    mut link_kind := " -shared -fPIC"
+    if host_os() == "macos" { link_kind = format(" -bundle -bundle_loader ", get_exe_path(), " -fPIC") }
+    mut compiler := "cc"
+    mut host_imports := ""
+    if host_os() == "windows" {
+        // A PE module resolves every name when it is linked, so those same
+        // runtime names cannot stay undefined until load. The bridge imports
+        // them from this executable: its exports, written as a module
+        // definition, become an import library. dlltool comes with the gcc
+        // a Windows host already needs to build anything (toolchain_command
+        // names it "gcc" there; no "cc" is installed). All PE code is
+        // position independent, so no -fPIC.
+        compiler = "gcc"
+        link_kind = " -shared"
+        definitions := format("tmp/ffi_", process_id().to_str(), ".def")
+        host_imports = format("tmp/ffi_", process_id().to_str(), "_host.a")
+        if ffi_write_host_exports(definitions).not() {
+            eprint_single(format("error: cannot list this executable's exports in '", definitions, "': ", ffi_last_error(), "\n"))
+            return 1
+        }
+        made := system_cmd(format("dlltool -d ", definitions, " -l ", host_imports))
+        File.remove(definitions)
+        if made != 0 {
+            eprint_single(format("error: dlltool could not make the import library '", host_imports, "' that '", user_c_path, "' links against\n"))
+            return 1
+        }
+    }
+    cmd := format(compiler, " -Wall -Wextra -fsigned-char", link_kind, san, usize_define, " -I", ext_dir,
         " -include ", fwd_path,
         " -o ", so_path_out,
-        " ", user_c_path, lf)
+        " ", user_c_path, lf, " ", host_imports)
     rc := system_cmd(cmd)
+    if host_imports.len() > 0 { File.remove(host_imports) }
     if rc != 0 {
         eprint_single(format("error: failed to compile FFI library '", user_c_path, "'\n"))
         return 1
@@ -13234,20 +13262,33 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
         ctx.ffi.entries_inited = false
     }
     mut so_path := ""
+    // REM A PE bridge names the twins it was linked against by file name
+    // alone, and the loader then takes the module already loaded under that
+    // name. So on a Windows host the twins, which are loaded by path, go in
+    // first. Elsewhere the bridge records the path it was linked with, and
+    // the order stays what it was.
+    windows := host_os() == "windows"
+    if windows {
+        if ffi_init_link_libs(link_flags, ctx) != 0 { return 1 }
+    }
     if ffi_init_user_so(fwd_path, user_c_path, ext_c_path, link_flags, so_path).eq(0).not() {
         return 1
     }
-    if ffi_init_link_libs(link_flags, ctx) != 0 {
-        if so_path.len() > 0 {
-            ffi_close_user_so()
-            File.remove(so_path)
+    if windows.not() {
+        if ffi_init_link_libs(link_flags, ctx) != 0 {
+            if so_path.len() > 0 {
+                ffi_close_user_so()
+                File.remove(so_path)
+            }
+            return 1
         }
-        return 1
     }
     ffi_init_struct_defs(program, ctx)
     ffi_init_scan_program(program, ctx)
     ctx.ffi.loaded = true
-    if so_path.len() > 0 { File.remove(so_path) }
+    // REM Windows keeps the file of a loaded module: there ffi_close_user_so
+    // removes it (ext.c).
+    if so_path.len() > 0 && windows.not() { File.remove(so_path) }
     return 0
 }
 ffi_cleanup := proc(mut ctx: Context) {

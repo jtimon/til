@@ -1516,7 +1516,8 @@ public U0 TilStrFromFloat(TilStr *out,U64 bits,I64 width,I64 precision)
   n=0;
   if (negative) text[n++]='-';
   if ((width==32 && exponent==255) || (width==64 && exponent==2047)) {
-    if (fraction) { MemCpy(text+n,"nan",3); n+=3; }
+    // A NaN shows no sign (#489; ext.c, float_nonfinite_text).
+    if (fraction) { MemCpy(text,"nan",3); n=3; }
     else { MemCpy(text+n,"inf",3); n+=3; }
   } else if (!magnitude) {
     text[n++]='0';

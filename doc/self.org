@@ -147,7 +147,7 @@
   compiler under test is built ~--usize=64~ and ~bin/til~ is compact. The
   ~self_translate~ row has the former reproduce ~boot/~, and the
   ~translate_layouts~ row (~test/translate_layouts.til~) has both
-  translate a small corpus for all twelve targets at both widths and
+  translate a small corpus for every target at both widths and
   compares every emitted file. The one line left out of that comparison
   is a trailing reuse stamp, which names the compiler binary that wrote
   the file.

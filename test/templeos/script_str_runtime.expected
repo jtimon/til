@@ -102,7 +102,7 @@ float text:0/0:0/0
 float text:inf/inf:inf/inf
 float text:-inf/-inf:-inf/-inf
 float text:nan/nan:nan/nan
-float text:-nan/-nan:-nan/-nan
+float text:nan/nan:nan/nan
 float text:1.25/1.25:1.25/1.25
 float text:3/3:3/3
 float text:-0/-0:-4.94066e-324/-4.9406564584124654e-324

@@ -32,6 +32,16 @@ a helper sets one of its options. Compiled programs continue to link the
 archives requested by their source. ~test/link_objects.til~ checks both routes
 against NNG's socket state (#482).
 
+On a Windows host the bridge is a DLL, and a DLL resolves every name when it
+is linked. What an ELF or Mach-O bridge leaves for load time -- the runtime's
+allocator and cage, which live in the interpreter -- it imports from the
+interpreter's executable: ~til.exe~ writes its own exports as a module
+definition and ~dlltool~ (it comes with the ~gcc~ a Windows host already
+needs) makes the import library the bridge links against. The twins load
+before the bridge there, since a DLL finds the ones it was linked against by
+file name among the modules already loaded. ~bin/make build_win_host~ builds
+nng's twin, ~vendor/nng/build-windows-x64/libnng.dll~, beside the others.
+
 ~link_macos("OpenGL Cocoa")~ names macOS frameworks, which ~link()~ cannot
 spell. They are linked for the mac targets only: as ~-framework~ on a mac
 host, and off a mac -- where there is no Apple SDK -- as the ~.tbd~ stubs

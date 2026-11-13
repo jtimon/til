@@ -207,20 +207,22 @@ float_bits32:=func(value:F32) returns U32 { mut bits:U32=0; memcpy(to_ptr(bits),
 float_bits64:=func(value:F64) returns U64 { mut bits:U64=0; memcpy(to_ptr(bits),to_ptr(value),8); return bits }
 
 // #472 (F6): nonfinite text is spelled by til's runtime, not by the C
-// library. A NaN shows its sign bit, like glibc and the HolyC runtime
-// (test/templeos/script_str_runtime.expected); which sign a COMPUTED NaN has
-// is the CPU's choice (set on x86, clear on ARM), so only parsed ones are
-// pinned to one spelling here.
+// library. A NaN is "nan" whatever its sign bit (#489): which sign a
+// COMPUTED NaN has is the CPU's choice (set on x86, clear on ARM), so the
+// text would differ by CPU. The bit itself is kept in the value.
 test_nonfinite_text := test() {
-    assert_eq(Str, parse_runtime_f64("-nan(0x123)").to_str(), "-nan")
-    assert_eq(Str, parse_runtime_f64("-nan(0x123)").to_repr(), "-nan")
+    negative := parse_runtime_f64("-nan(0x123)")
+    assert(float_bits64(negative) >= 9223372036854775808)
+    assert_eq(Str, negative.to_str(), "nan")
+    assert_eq(Str, negative.to_repr(), "nan")
     assert_eq(Str, parse_runtime_f64("nan").to_str(), "nan")
     assert_eq(Str, parse_runtime_f64("nan").to_repr(), "nan")
-    assert_eq(Str, parse_runtime_f32("-nan(0123)").to_str(), "-nan")
+    assert_eq(Str, parse_runtime_f32("-nan(0123)").to_str(), "nan")
+    assert_eq(Str, parse_runtime_f32("-nan(0123)").to_repr(), "nan")
     assert_eq(Str, parse_runtime_f32("nan").to_repr(), "nan")
     zero := runtime_f64(0.0)
-    computed := (zero / zero).to_str()
-    assert(computed == "nan" || computed == "-nan")
+    assert_eq(Str, (zero / zero).to_str(), "nan")
+    assert_eq(Str, (zero / zero).to_repr(), "nan")
     assert_eq(Str, (runtime_f64(1.0) / zero).to_str(), "inf")
     assert_eq(Str, (runtime_f64(-1.0) / zero).to_str(), "-inf")
     assert_eq(Str, (runtime_f64(-1.0) / zero).to_repr(), "-inf")

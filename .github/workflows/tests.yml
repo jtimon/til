@@ -120,6 +120,21 @@ jobs:
           path: |
             gen/lib/jni_lib.jar
             gen/til/java/til/jni_lib/JniLib.java
+      # Issue #473 (C5, C6) / #472 (levels 1 and 2 across hosts): what this
+      # host's compiler makes of the corpus, as a list of hashes -- the
+      # state at each phase boundary for one target, and the source every
+      # target translates to. The collect job compares the lists of all
+      # producers. About two minutes.
+      - name: Write the hash lists for the collector
+        run: |
+          mkdir -p tmp/hashes
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce linux-x64 tmp/hashes/linux-x64.txt bin/til
+      - name: Upload the hash lists
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-linux-x64
+          path: tmp/hashes/linux-x64.txt
+          if-no-files-found: error
       - name: Cancel the rest of this run
         if: failure()
         shell: bash
@@ -216,6 +231,16 @@ jobs:
           path: |
             gen/lib/jni_lib.jar
             gen/til/java/til/jni_lib/JniLib.java
+      - name: Write the hash lists for the collector
+        run: |
+          mkdir -p tmp/hashes
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce linux-arm64 tmp/hashes/linux-arm64.txt bin/til
+      - name: Upload the hash lists
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-linux-arm64
+          path: tmp/hashes/linux-arm64.txt
+          if-no-files-found: error
       - name: Cancel the rest of this run
         if: failure()
         shell: bash
@@ -983,7 +1008,7 @@ jobs:
         run: |
           ./bin/til build --target=windows-x64 -o bin/repl_wincon.exe test/repl_wincon.til
           file bin/repl_wincon.exe | grep -q "PE32+"
-      # Issue #473 (C2): every file of the three uploads below, by name, as
+      # Issue #473 (C2): every file of the four uploads below, by name, as
       # in windows-x64-build. Keep this list and the uploads' the same.
       - name: Check the windows-host artifacts are complete
         run: |
@@ -996,7 +1021,9 @@ jobs:
             vendor/raylib/build-windows-x64/libraylib.dll \
             vendor/raylib/build-windows-x64/libraylib.a \
             vendor/tinyfiledialogs/build-windows-x64/libtinyfd.dll \
-            vendor/tinyfiledialogs/build-windows-x64/libtinyfd.a; do
+            vendor/tinyfiledialogs/build-windows-x64/libtinyfd.a \
+            vendor/nng/build-windows-x64/libnng.dll \
+            vendor/nng/build-windows-x64/libnng.a; do
             if [ ! -f "$f" ] || [ ! -s "$f" ]; then
               echo "missing or empty: $f"; status=1
             fi
@@ -1041,6 +1068,17 @@ jobs:
             vendor/raylib/build-windows-x64/libraylib.a
             vendor/tinyfiledialogs/build-windows-x64/libtinyfd.dll
             vendor/tinyfiledialogs/build-windows-x64/libtinyfd.a
+      # Issue #482: the same for a program that links nng. til.exe builds
+      # it against the windows-x64 archive, and interprets it through the
+      # DLL twin build_win_host made beside that archive.
+      - name: Upload the windows-host nng
+        uses: actions/upload-artifact@v4
+        with:
+          name: nng-windows-host
+          if-no-files-found: error
+          path: |
+            vendor/nng/build-windows-x64/libnng.dll
+            vendor/nng/build-windows-x64/libnng.a
       - name: Cancel the rest of this run
         if: failure()
         shell: bash
@@ -1135,6 +1173,7 @@ jobs:
           TIL_OWN_LIT("0.333333", 8ULL)
           TIL_OWN_LIT("-0", 2ULL)
           TIL_OWN_LIT("-inf", 4ULL)
+          TIL_OWN_LIT("nan", 3ULL)
           NEEDLES
           exit $status
       # Both files share one directory, which becomes the artifact's root.
@@ -1252,6 +1291,23 @@ jobs:
           echo "--- sender output ---"; cat sender.out
           grep -q "nng version" receiver.out
           grep -q "received: hello from til over nng" receiver.out
+      # Both files share one directory, which becomes the artifact's root.
+      - name: Download the windows-host nng
+        uses: actions/download-artifact@v4
+        with:
+          name: nng-windows-host
+          path: vendor/nng/build-windows-x64
+      - name: Check the downloaded nng is complete
+        shell: bash
+        run: |
+          status=0
+          for f in libnng.dll libnng.a; do
+            p="vendor/nng/build-windows-x64/$f"
+            if [ ! -f "$p" ] || [ ! -s "$p" ]; then
+              echo "missing or empty: $p"; status=1
+            fi
+          done
+          exit $status
       # Full compiler on windows: til.exe BUILDS (compiles + links) a
       # program natively, the last host capability beyond interpret/
       # translate. It needs a C toolchain -- `til.exe build` invokes
@@ -1275,6 +1331,15 @@ jobs:
           ./hello_native.exe | grep -q "Hello World"
           # Execute the regression with the Windows compiler and native GCC,
           # including its compiled compiler wrapper and both linked fixtures.
+          # Its last part (#482) builds and then INTERPRETS a program that
+          # links nng and a link_c bridge: the archive and its DLL twin from
+          # the step above, and for the interpreted bridge the dlltool that
+          # comes with gcc (interpreter.til, ffi_init_user_so).
+          dlltool --version | head -1
+          # Which C runtime this gcc links by default. The nng archive is
+          # built against msvcrt (make.til's NngTarget), and nothing else
+          # links it with this compiler.
+          gcc -v 2>&1 | tr ' ' '\n' | grep -- '--with-default-msvcrt' || echo "gcc -v names no default C runtime"
           mkdir -p tmp
           compiler=$(cygpath -w "$PWD/winhost/til.exe")
           if ! ./winhost/til.exe run --force-rebuild -o tmp/link_objects_driver.exe -c tmp/link_objects_driver.c test/link_objects.til "$compiler" > tmp/link_objects.out 2>&1; then
@@ -1976,3 +2041,48 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
+
+  # Issue #473 (C3): one place that says what every producer delivered and
+  # whether their outputs agree. It runs whatever the producers' results
+  # were, prints each one, and compares the hash lists they uploaded with
+  # examples/ci_collect.til. A producer that did not succeed, or whose list
+  # is not there, fails this job. Differences between producers are printed
+  # but do not fail it yet (`report`): the groups become blocking one by one
+  # as #472 establishes that they hold. Whether this job still runs after
+  # another job cancelled the run is the first thing to read from a failing
+  # run.
+  collect:
+    name: collect (compare the producers' hash lists)
+    needs: [doc-gate, linux-x64, linux-arm64-native]
+    if: always() && needs.doc-gate.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Producer results
+        env:
+          LINUX_X64: ${{ needs.linux-x64.result }}
+          LINUX_ARM64: ${{ needs.linux-arm64-native.result }}
+        run: |
+          status=0
+          for pair in "linux-x64=$LINUX_X64" "linux-arm64-native=$LINUX_ARM64"; do
+            echo "$pair"
+            if [ "${pair#*=}" != success ]; then status=1; fi
+          done
+          exit $status
+      - name: Download the producers' hash lists
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          pattern: hashes-*
+          path: hashes
+      - name: Create test tmp directory
+        if: always()
+        run: mkdir -p tmp hashes
+      - name: Build bin/til
+        if: always()
+        run: make
+      - name: Compare the hash lists
+        if: always()
+        run: |
+          find hashes -type f | sort
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til collect hashes report

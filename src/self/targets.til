@@ -41,6 +41,15 @@ Target := enum {
     TempleosX86,
 }
 
+// The name of every Target, for code that has to visit them all (tests,
+// the CI hash lists). test/ci_collect.til holds this list to the enum: a
+// target added to Target and not here fails it.
+target_names := func() returns Vec(Str) {
+    return vec(Str, "linux-x64", "linux-arm64", "linux-riscv64", "linux-x86", "linux-arm32", "linux-riscv32",
+        "windows-x64", "windows-x86", "macos-x64", "macos-arm64", "android-x64", "android-arm64", "wasm32",
+        "templeos-x86")
+}
+
 target_from_str := func(s: Str) returns Target {
     switch s {
     case "linux-x64", "linux-x86_64", "linux-amd64": return Target.LinuxX64

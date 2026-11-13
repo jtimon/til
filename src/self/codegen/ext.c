@@ -1379,12 +1379,17 @@ F32 F32_from_i64_ext(const I64 *a) { return (F32)*a; }
 // #472: nonfinite values are spelled here, not by the host's printf, whose
 // text for them differs between C libraries ("inf" or "1.#INF"; a NaN with
 // its sign bit set is "-nan" in glibc and "nan" in others). Text folded at
-// compile time ends up in the generated source. The sign bit is shown as it
-// is, for a NaN too: that is what glibc prints and what the HolyC runtime
-// (ext.HC) prints, and test/templeos/script_str_runtime.expected holds both
-// to it. NULL for a finite value.
+// compile time ends up in the generated source.
+//
+// A NaN is "nan" whatever its sign bit (#489). The sign of a NaN an
+// operation produces is the CPU's choice -- set on x86, clear on ARM -- so
+// showing it gave the same program different text by CPU, and a folded
+// to_str() different generated source by the compiler's host. The bit is
+// still in the value. The other runtimes (ext.HC, ext.fasm) spell it the
+// same, and test/templeos/script_str_runtime.expected holds HolyC to it.
+// NULL for a finite value.
 static const char *float_nonfinite_text(double v) {
-    if (isnan(v)) return signbit(v) ? "-nan" : "nan";
+    if (isnan(v)) return "nan";
     if (isinf(v)) return v < 0 ? "-inf" : "inf";
     return NULL;
 }
@@ -4804,17 +4809,101 @@ Bool ffi_load_global_lib(const Str *soname) {
     return ok;
 }
 
+// Windows does not let go of a loaded module's file, so the bridge the
+// interpreter built cannot be removed right after loading as on the other
+// hosts: it goes when the module is closed, or when the process exits.
+static char *ffi_user_so_path;
+void ffi_close_user_so(void);
+
 Bool ffi_open_user_so(const Str *path) {
+    static Bool closes_at_exit;
     char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
     ffi_handle = LoadLibraryA(p);
+    if (!ffi_handle) {
+        DWORD error = GetLastError();
+        free(p);
+        SetLastError(error);
+        return 0;
+    }
+    ffi_user_so_path = p;
+    if (!closes_at_exit) {
+        closes_at_exit = 1;
+        atexit(ffi_close_user_so);
+    }
+    return 1;
+}
+
+// What this executable exports, written as a module-definition file: the
+// input dlltool turns into the import library an interpreted link_c bridge
+// links against (interpreter.til, ffi_init_user_so). A PE module resolves
+// every name when it is linked, so the runtime's names the bridge uses
+// (til_malloc, til_cage_base, ...) have to be imported from this image; an
+// ELF host leaves them undefined until the bridge is loaded.
+//
+// LIBRARY is the file this process runs from, not the name the image was
+// linked under: the loader resolves the bridge's import against the loaded
+// module of that name, which is this one. An export outside the executable
+// sections is marked DATA, so the import library gives it no call thunk and
+// a reference to the variable reaches the variable.
+Bool ffi_write_host_exports(const Str *path) {
+    BYTE *base = (BYTE *)GetModuleHandleA(NULL);
+    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + ((IMAGE_DOS_HEADER *)base)->e_lfanew);
+    IMAGE_DATA_DIRECTORY dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+    if (dir.Size == 0) {
+        SetLastError(ERROR_PROC_NOT_FOUND);
+        return 0;
+    }
+    char image_path[MAX_PATH];
+    DWORD image_len = GetModuleFileNameA(NULL, image_path, sizeof(image_path));
+    if (image_len == 0 || image_len == sizeof(image_path)) return 0;
+    const char *image_name = image_path;
+    for (const char *c = image_path; *c; c++) {
+        if (*c == '\\' || *c == '/') image_name = c + 1;
+    }
+    char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
+    HANDLE file = CreateFileA(p, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     free(p);
-    return ffi_handle != NULL;
+    if (file == INVALID_HANDLE_VALUE) return 0;
+    IMAGE_EXPORT_DIRECTORY *exports = (IMAGE_EXPORT_DIRECTORY *)(base + dir.VirtualAddress);
+    DWORD *names = (DWORD *)(base + exports->AddressOfNames);
+    WORD *ordinals = (WORD *)(base + exports->AddressOfNameOrdinals);
+    DWORD *addresses = (DWORD *)(base + exports->AddressOfFunctions);
+    IMAGE_SECTION_HEADER *sections = IMAGE_FIRST_SECTION(nt);
+    CmdBuf text = {0};
+    cmd_buf_puts(&text, "LIBRARY \"");
+    cmd_buf_puts(&text, image_name);
+    cmd_buf_puts(&text, "\"\nEXPORTS\n");
+    for (DWORD i = 0; i < exports->NumberOfNames; i++) {
+        DWORD rva = addresses[ordinals[i]];
+        Bool is_code = 0;
+        for (WORD s = 0; s < nt->FileHeader.NumberOfSections; s++) {
+            if (rva >= sections[s].VirtualAddress && rva - sections[s].VirtualAddress < sections[s].Misc.VirtualSize) {
+                is_code = (sections[s].Characteristics & IMAGE_SCN_MEM_EXECUTE) != 0;
+                break;
+            }
+        }
+        cmd_buf_puts(&text, (const char *)(base + names[i]));
+        cmd_buf_puts(&text, is_code ? "\n" : " DATA\n");
+    }
+    DWORD written = 0;
+    DWORD length = (DWORD)text.len;
+    BOOL ok = WriteFile(file, text.data, length, &written, NULL) && written == length;
+    DWORD error = GetLastError();
+    CloseHandle(file);
+    free(text.data);
+    SetLastError(error);
+    return ok ? 1 : 0;
 }
 
 void ffi_close_user_so(void) {
     if (ffi_handle) {
         FreeLibrary(ffi_handle);
         ffi_handle = NULL;
+    }
+    if (ffi_user_so_path) {
+        DeleteFileA(ffi_user_so_path);
+        free(ffi_user_so_path);
+        ffi_user_so_path = NULL;
     }
 }
 
@@ -4874,6 +4963,14 @@ Bool ffi_open_user_so(const Str *path) {
     return 0;
 }
 
+// Only a Windows host links a bridge against its executable (see the
+// _WIN32 definition); interpreter.til calls this nowhere else.
+Bool ffi_write_host_exports(const Str *path) {
+    (void)path;
+    fprintf(stderr, "ffi_write_host_exports: called on a host that is not Windows\n");
+    exit(1);
+}
+
 void ffi_close_user_so(void) {
 }
 
@@ -4905,6 +5002,14 @@ Bool ffi_open_user_so(const Str *path) {
     ffi_handle = dlopen(p, RTLD_NOW);
     free(p);
     return ffi_handle != NULL;
+}
+
+// Only a Windows host links a bridge against its executable (see the
+// _WIN32 definition); interpreter.til calls this nowhere else.
+Bool ffi_write_host_exports(const Str *path) {
+    (void)path;
+    fprintf(stderr, "ffi_write_host_exports: called on a host that is not Windows\n");
+    exit(1);
 }
 
 void ffi_close_user_so(void) {

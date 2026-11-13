@@ -2,6 +2,7 @@ mode cli
 
 import("../src/std/sys")
 import("../src/std/file")
+import("../src/self/targets")
 
 // #472, level 2: the source a program translates to does not depend on the
 // layout of the compiler doing the translating. This driver takes two
@@ -164,8 +165,7 @@ main := proc(args: ..Str) {
     if args.len() != 2 { panic("usage: translate_layouts <compiler under test> <reference compiler>") }
     tested := args[0].clone()
     reference := args[1].clone()
-    targets := array(Str, "linux-x64", "linux-arm64", "linux-riscv64", "linux-x86", "linux-arm32",
-        "linux-riscv32", "windows-x64", "windows-x86", "macos-x64", "macos-arm64", "wasm32", "templeos-x86")
+    targets := target_names()
     widths := array(Str, "32", "64")
     // REM test/layout_corpus.til is the one written for this: awkward layouts,
     // sizes read while folding, sizes baked by macros. The rest add floats,

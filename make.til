@@ -1729,14 +1729,48 @@ build_gui_win_twins := proc(mut b: Build) {
     build_win_twin(tinyfd_lib("windows-x64"), TINYFD_WIN64_DLL, "-lole32 -lcomdlg32 -luuid")
 }
 
+/// The windows-host twin of the windows-x64 nng archive (issue #482): what
+/// til.exe's interpreter loads for a program that links nng, and what an
+/// interpreted link_c bridge of such a program links against, so both see
+/// one nng. The archive calls timespec_get, which the msvcrt it is built
+/// against does not have and every til program's runtime (ext.c) supplies;
+/// in this DLL that name is imported from the interpreter, til.exe.
+build_nng_win_twin := proc(mut b: Build) {
+    if b.begin("nng_win_twin").not() { return }
+    build_nng_target(b, "windows-x64")
+    build_win_twin(nng_lib("windows-x64"), NNG_WIN64_DLL, "-lws2_32 -lmswsock -ladvapi32", "timespec_get")
+}
+
+NNG_WIN64_DLL := "vendor/nng/build-windows-x64/libnng.dll"
+
 /// Force-link a win64 archive into a DLL with every symbol exported, plus
 /// the system libraries it needs (space-separated -l flags). The static
 /// archives carry no dllexport annotations, so --export-all-symbols is
 /// what exports them; spelled out rather than left to ld's default.
-build_win_twin := proc(archive: Str, dll: Str, sys_libs: Str) {
+///
+/// `runtime_names` (space-separated, usually empty) are functions the
+/// archive expects from the til runtime of the program it is linked into.
+/// A DLL must resolve everything at link time, so they are imported from
+/// til.exe, the one process that loads a twin: an import library made from
+/// a module definition naming them.
+build_win_twin := proc(archive: Str, dll: Str, sys_libs: Str, runtime_names: Str = "") {
     mut inputs := Vec(Str).new()
     inputs.push(own archive.clone())
     if needs_rebuild(dll, inputs).not() { return }
+    mut runtime_imports := ""
+    if runtime_names.is_empty().not() {
+        slash := dll.rfind("/").to_usize()
+        stem := dll.substr(slash + 1, dll.len() - slash - 1).strip_suffix(".dll")
+        definitions := format("tmp/", stem, "-windows-x64-runtime.def")
+        runtime_imports = format("tmp/", stem, "-windows-x64-runtime.a")
+        mut text := "LIBRARY \"til.exe\"\nEXPORTS\n"
+        for name : Str in runtime_names.split(" ") {
+            if name.is_empty().not() { text = format(text, name, "\n") }
+        }
+        mkdir_p("tmp")
+        File.writefile(definitions, text)
+        run("x86_64-w64-mingw32-dlltool", "-d", definitions, "-l", runtime_imports)
+    }
     mut argv := Vec(Str).new()
     argv.push(own "x86_64-w64-mingw32-gcc")
     argv.push(own "-shared")
@@ -1749,6 +1783,7 @@ build_win_twin := proc(archive: Str, dll: Str, sys_libs: Str) {
     for lib : Str in sys_libs.split(" ") {
         if lib.is_empty().not() { argv.push(own lib.clone()) }
     }
+    if runtime_imports.is_empty().not() { argv.push(own runtime_imports.clone()) }
     run_argv(argv)
 }
 
@@ -1896,6 +1931,7 @@ build_win_host := proc(mut b: Build) {
     // Not linked into til.exe: the interpreter loads these at run time.
     build_secp256k1_win_twin(b)
     build_gui_win_twins(b)
+    build_nng_win_twin(b)
     mut inputs := compiler_sources()
     inputs.push(own TIL.clone())
     inputs.push(own libffi_lib("windows-x64"))
@@ -2326,6 +2362,7 @@ commands := func() returns Vec(Command) {
     out.push(own Command(name = secp256k1_lib("wasm32"), is_path = true, go = secp256k1_wasm32,
         about = "wasm32 libsecp256k1 (emcc, vendored emsdk), for std/crypto"))
     out.push(own Command(name = SECP256K1_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_secp256k1_win_twin))
+    out.push(own Command(name = NNG_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_nng_win_twin))
     out.push(own Command(name = RAYLIB_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_gui_win_twins))
     out.push(own Command(name = TINYFD_WIN64_DLL, alias_of = "build_win_host", is_path = true, go = build_gui_win_twins))
     gui_archive_goals(out, "linux-x64", gui_linux_x64, "(--linux-x64-cc= off a linux-x64 host)")
