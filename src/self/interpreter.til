@@ -3446,7 +3446,17 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     return_raw = raw_result_reframe(return_source_type, return_raw, return_source_is_ref, c.eval.interp_ret_is_ref, ctx)
                 case .FCall, .FieldAccess:
                     mut inner_info := raw_result_info_new()
+                    // A `returns ref` function returning a stored closure
+                    // (`return holder.on_click`) lends the field's slot, as
+                    // the compiled backend does and as a borrowed callable
+                    // argument is lent. Read as a value, the field would be a
+                    // fresh clone that the reframe below passes on as a
+                    // borrow nobody frees: one leaked slot a call.
+                    if c.eval.interp_ret_is_ref.and(ret_expr.node_type.is(NodeType.FieldAccess)) {
+                        ctx.eval.interp_callable_arg_borrow = true
+                    }
                     return_raw = eval_expr_raw_info(scope, ret_expr, ctx, inner_info, c.eval.interp_ret_dest)
+                    ctx.eval.interp_callable_arg_borrow = false
                     return_source_type = raw_result_source_type(inner_info).clone()
                     return_raw = raw_result_reframe(return_source_type, return_raw, inner_info.is_ref, c.eval.interp_ret_is_ref, ctx)
                 case:

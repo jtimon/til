@@ -1545,7 +1545,8 @@ EvalState := struct {
     interp_cstr_arg := false
     // One-shot "the field read about to happen is a callable argument that
     // the callee only borrows". eval_user_func_call sets it for a field
-    // access passed to a non-own callable parameter, and eval_expr_field_raw
+    // access passed to a non-own callable parameter, the Return statement for
+    // a field access a `returns ref` function returns, and eval_expr_field_raw
     // consumes it at entry like interp_cstr_arg. The read then lends the
     // field's own slot, as the compiled call passes the stored closure,
     // instead of the clone a callable field read otherwise yields: nothing

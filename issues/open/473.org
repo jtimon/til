@@ -790,3 +790,25 @@ Windows would change the output of every program and was not done.
   (~shasum~), uploading ~hashes-macos-arm64~ / ~hashes-macos-x64~. Not run
   anywhere: neither Mac job has got past the queue in the last runs.
 - ~collect~ needs all five producers and prints each one's result.
+
+*** Progress: run 3071 (base master 66330f3)
+
+- The Windows host job passes, every step: ~link_objects PASS~ on the
+  runner (nng compiled and interpreted, the bridge built against the
+  UCRT), and the new producer step: ~til.exe build examples/ci_collect.til~,
+  then that program wrote ~hashes-windows-x64~, 1140 lines in three
+  minutes.
+- The run was then cancelled by the native arm64 suite: 577/578, the one
+  failure ~test/fn_ptr.til~ interpreted under ASAN, "til cage: 32 byte(s)
+  leaked in 2 allocation(s)". Reproduced here with ~bin/til_asan~. The leak:
+  a ~returns ref~ function returning a stored callable (~return
+  holder.on_click~) read the field as an owned clone, and the return passed
+  that clone on as a borrow nobody frees, one slot a call. The interpreter
+  now lends the field's slot there, the way a borrowed callable argument is
+  lent. Every run before this one was cancelled by Windows before the
+  suites finished, so this failure had been on master unseen.
+- So ~collect~ saw only the Windows list and failed on the cancelled
+  producers. Still nothing compared between two hosts in CI.
+
+~make test_asan~ here: everything passes except the eleven ~install_tilvm~
+rows, which need clang's ASAN headers and this container has none.
