@@ -8,7 +8,8 @@ import("../src/std/file")
 // builds one program and one library three times -- in this checkout, and
 // twice, a second apart, in a second root holding a copy of the compiler,
 // of src/ and of the runtime's forward header -- and compares every file
-// byte for byte.
+// byte for byte, and what the compiler holds before a backend
+// (`ast --phase=prepared`) between the two roots.
 //
 // What used to differ: the C compiler recorded the checkout's absolute path
 // in debug info, the executable's reuse stamp hashed it, and on Mach-O the
@@ -41,6 +42,19 @@ compile := proc(root: Str, compiler: Str, target_flag: Str, what: Str, arguments
     if command.run() != 0 {
         panic(command.render(), " in ", root, ": ", command.out(), command.err())
     }
+}
+
+// What the compiler holds for `source` just before a backend (#472 level 1).
+observation := proc(root: Str, compiler: Str, target_flag: Str, source: Str) returns Str {
+    command := Cmd.new(format("./", compiler), "ast", "--phase=prepared")
+    if target_flag.len() > 0 { command.arg(target_flag) }
+    command.arg(source)
+    command.cwd(root)
+    command.capture()
+    if command.run() != 0 {
+        panic(command.render(), " in ", root, ": ", command.err())
+    }
+    return command.out()
 }
 
 same_file := proc(what: Str, first: Str, second: Str) {
@@ -103,6 +117,9 @@ main := proc(args: ..Str) {
     compile(SECOND, compiler, target_flag, program_source, "build", "--force-rebuild", "-o", binary, "-c", generated)
     compile(SECOND, compiler, target_flag, library_source, "build", "--force-rebuild")
 
+    if observation(".", compiler, target_flag, program_source) != observation(SECOND, compiler, target_flag, program_source) {
+        panic("two checkout roots: the observations of ", program_source, " before a backend differ")
+    }
     same_file("two checkout roots", binary, format(SECOND, "/", binary))
     same_file("two checkout roots", generated, format(SECOND, "/", generated))
     same_file("two build times", format(WORK, "/first/program.bin"), format(SECOND, "/", binary))

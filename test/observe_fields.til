@@ -1,0 +1,77 @@
+mode script
+
+import("../src/std/file")
+
+// #472 (O2): `til ast --phase=...` has to write EVERY field of every AST
+// payload struct (src/self/observer.til). This compares, for each struct,
+// the fields reflection lists with the keys its writer function names: a
+// field added to src/core/ast.til fails here until the writer writes it or
+// it is excluded below, by name, with the reason.
+//
+// Interpreted only (the suite runs it with `til interpret`): the structs
+// are the compiler's own, which a compiled program that merely names them
+// in a string would not keep.
+
+SOURCE := "src/self/observer.til"
+
+writer_body := func(source: Str, writer: Str) returns Str {
+    start := source.find(format("priv ", writer, " := func("))
+    if start < 0 { panic(SOURCE, " has no writer ", writer) }
+    rest := source.substr(start.to_usize(), source.len() - start.to_usize())
+    end := rest.find("\n}\n")
+    if end < 0 { panic(SOURCE, ": ", writer, " does not end") }
+    return rest.substr(0, end.to_usize()).clone()
+}
+
+// excluded: fields the writer must NOT name, each for a reason given at the
+// call.
+check := proc(source: Str, type_name: Str, writer: Str, excluded: ..Str) {
+    body := writer_body(source, writer)
+    count := struct_field_count(type_name)
+    if count <= 0 { panic("no fields found for ", type_name) }
+    for i in 0..count {
+        field := struct_field_name(type_name, i)
+        key := format("\"", field, "\"")
+        mut is_excluded := false
+        for name : Str in excluded { if name == field { is_excluded = true } }
+        if is_excluded {
+            if body.contains(key) { panic(type_name, ".", field, " is excluded here but ", writer, " writes it") }
+            continue
+        }
+        if body.contains(key).not() {
+            panic(type_name, ".", field, " is not written by ", writer, " in ", SOURCE)
+        }
+    }
+    println("  ", type_name, ": ", count.to_str(), " fields")
+}
+
+source := File.readfile(SOURCE)
+check(source, "Declaration", "put_declaration")
+check(source, "FuncSig", "put_funcsig")
+// sig is written by put_funcsig, which put_function calls. namespace_decl is
+// a pointer the interpreter caches, into storage the scavenger moves.
+check(source, "FunctionDef", "put_function", "sig", "namespace_decl")
+if writer_body(source, "put_function").contains("put_funcsig(line, fd.sig)").not() {
+    panic("put_function no longer writes FunctionDef.sig")
+}
+check(source, "FCallData", "put_fcall")
+// The two index maps are how members get their names: written as each
+// member's member_name, in member order.
+check(source, "StructDef", "put_struct", "fields_index", "ns_index")
+check(source, "EnumDef", "put_enum", "ns_index")
+check(source, "VariantDef", "put_variant")
+check(source, "AssignData", "put_assign")
+check(source, "FieldAssignData", "put_field_assign")
+check(source, "ForInData", "put_for_in")
+check(source, "CaptureBlockData", "put_capture_block")
+check(source, "PrecomputedSequenceData", "put_sequence")
+check(source, "LiteralNumData", "put_number")
+check(source, "IdentData", "put_ident")
+check(source, "FieldAccessData", "put_field_access")
+check(source, "MatchData", "put_match")
+check(source, "CaseData", "put_case")
+if source.contains("member_name(definition.fields_index, i)").not()
+    || source.contains("member_name(definition.ns_index, i)").not() {
+    panic("member names are no longer written from the index maps")
+}
+println("observe fields passed")

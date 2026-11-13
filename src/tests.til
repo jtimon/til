@@ -910,6 +910,22 @@ main := proc(args: ..Str) returns I64 {
             format(TIL, " run -o bin/c/translate_layouts -c gen/c/translate_layouts.c test/translate_layouts.til ",
                 til_bin, " ", TIL))
     }
+    // #472 (level 1): `til ast --phase=...` writes what the compiler holds at
+    // each phase boundary (src/self/observer.til). test/observe.til checks
+    // that two processes agree at every phase, that the records are
+    // sensitive to what each phase decides, and -- when the compiler under
+    // test is a separate binary with an explicit --usize, a native-layout
+    // one under make check_usize64 -- that it and bin/til agree at every
+    // phase for both target widths. Registered early: about fifty seconds
+    // with one plain compiler, several minutes with an ASAN one.
+    mut observe_second := ""
+    if til_bin != TIL && usize_flag.len() > 0 { observe_second = format(" ", TIL) }
+    add_count(tests, "observe", "build", "observe passed", 1,
+        format(TIL, " run -o bin/c/observe -c gen/c/observe.c test/observe.til ", til_bin, observe_second))
+    // Every field of every AST payload struct is in those records, checked
+    // against reflection. Interpreted: the structs are the compiler's own.
+    add_count(tests, "observe_fields", "build", "observe fields passed", 1,
+        format(til_bin, " interpret test/observe_fields.til"))
     // The native compiler's self-translate is the canonical self_ms/self_mem
     // benchmark. It also checks the default compiler's bootstrap fixed point.
     // Historical ASAN measurements remain archived in their original CSV

@@ -2173,6 +2173,7 @@ typedef struct CliArgs {
     Bool asan;
     Bool prof;
     Bool force_rebuild;
+    Str phase;
     Bool jni;
     I64 usize_bits;
     Bool check_unused_imports;

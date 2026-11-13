@@ -899,17 +899,24 @@ priv holyc_size_for_target_is_size := proc(mut lp: LoadedProgram) {
     }
 }
 
+// The last step before any backend, and the last one `til ast
+// --phase=prepared` observes (#472, observer.til): every size the program
+// still asks for becomes the target's.
+// HolyC lays aggregates out differently from C (payload enums,
+// pointer-bearing structs), so its emitter keeps spelling sizes as its
+// own sizeof; til's target layout computation describes the C targets.
+// In the built program size_for_target() IS size(), so the calls that
+// reach emission are handed to that same path.
+sizes_for_backend := proc(mut lp: LoadedProgram, target: Target) {
+    if target_lang(target).is(Lang.HolyC) { holyc_size_for_target_is_size(lp) }
+    else { fold_generated_sizes_to_target(lp) }
+}
+
 priv translate_ast := proc(mut lp: LoadedProgram, paths: BuildPaths, target: Target, functions: Set(Str) = Set(Str).new()) returns I32 {
     if lp.mode_str == "theme" {
         return theme_codegen_translate(lp, paths.theme_path)
     }
-    // HolyC lays aggregates out differently from C (payload enums,
-    // pointer-bearing structs), so its emitter keeps spelling sizes as its
-    // own sizeof; til's target layout computation describes the C targets.
-    // In the built program size_for_target() IS size(), so the calls that
-    // reach emission are handed to that same path.
-    if target_lang(target).is(Lang.HolyC) { holyc_size_for_target_is_size(lp) }
-    else { fold_generated_sizes_to_target(lp) }
+    sizes_for_backend(lp, target)
     switch paths.backend {
     case "mlir":
         if c_codegen_translate_runtime(lp, paths.runtime_c_path, paths.runtime_fwd_path, paths.name) != 0 { return 1 }

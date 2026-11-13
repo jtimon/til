@@ -1,0 +1,161 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+// #472, level 1 (O3): the gates on `til ast --phase=...`, the record of what
+// the compiler holds at each phase boundary (src/self/observer.til).
+//
+// - Two processes agree at every phase, for a corpus that covers control
+//   flow, imports, generics, closures, ownership, sizes and constant
+//   evaluation, and one program the ownership checks reject.
+// - The records are sensitive: two sources that differ in one thing give
+//   records that differ in that thing, at the phase that first knows it.
+// - With a second compiler (the suite passes bin/til when the compiler
+//   under test is a separate binary with an explicit --usize, which is a
+//   native-layout one under `make check_usize64`): both compilers agree at
+//   every phase, for both target widths.
+//
+// Arguments: the compiler under test, and optionally the second compiler.
+
+WORK := "tmp/observe"
+
+// One observation. Returns everything the compiler printed.
+observe := proc(compiler: Str, phase: Str, width: Str, source: Str, expected_status: I64) returns Str {
+    output := format(WORK, "/observed.txt")
+    command := Cmd.new(compiler, "ast", format("--phase=", phase), format("--usize=", width), source)
+    command.stdout_to(output)
+    command.stderr_to_stdout()
+    status := command.run()
+    if status != expected_status {
+        panic(command.render(), ": exited with ", status.to_str(), ", expected ", expected_status.to_str())
+    }
+    return File.readfile(output)
+}
+
+// The records of one unit: from its `unit` line to the next one.
+unit_records := func(observed: Str, path: Str) returns Str {
+    start := observed.find(format("\nunit ", path, "\n"))
+    if start < 0 { panic("no unit ", path, " in the observation") }
+    rest := observed.substr(start.to_usize() + 1, observed.len() - start.to_usize() - 1)
+    next := rest.find("\nunit ")
+    if next < 0 { return rest.clone() }
+    return rest.substr(0, next.to_usize()).clone()
+}
+
+// How many records hold every one of `parts`.
+records_with := func(records: Str, parts: ..Str) returns USize {
+    mut count : USize = 0
+    for record : Str in records.split("\n") {
+        mut all := true
+        for part : Str in parts { if record.contains(part).not() { all = false } }
+        if all { count++ }
+    }
+    return count
+}
+
+// Write a small program and observe it at one phase.
+observe_text := proc(compiler: Str, phase: Str, name: Str, text: Str) returns Str {
+    path := format(WORK, "/", name, ".til")
+    File.writefile(path, text)
+    return unit_records(observe(compiler, phase, "32", path, 0), path)
+}
+
+// REM expect(condition, message...) is core's: it stops the program with the
+// message when the condition does not hold.
+sensitivity := proc(compiler: Str) {
+    // A literal: the parser's record of it.
+    one := observe_text(compiler, "parsed", "literal_a", "mode script\nvalue := 41\nprintln(value.to_str())\n")
+    other := observe_text(compiler, "parsed", "literal_b", "mode script\nvalue := 42\nprintln(value.to_str())\n")
+    expect(records_with(one, "LiteralNum", "text=\"41\"") == 1 && records_with(other, "LiteralNum", "text=\"41\"") == 0, "not sensitive to a literal's text")
+    expect(records_with(other, "LiteralNum", "text=\"42\"") == 1, "not sensitive to a literal's text")
+
+    // A type annotation: the type the typer resolved for the declaration.
+    wide := observe_text(compiler, "typed", "annotation_a", "mode script\nvalue : I64 = 1\nprintln(value.to_str())\n")
+    narrow := observe_text(compiler, "typed", "annotation_b", "mode script\nvalue : I32 = 1\nprintln(value.to_str())\n")
+    expect(records_with(wide, "Decl", "name=\"value\"", "til_type=I64") == 1, "not sensitive to a declaration's resolved type")
+    expect(records_with(narrow, "Decl", "name=\"value\"", "til_type=I32") == 1, "not sensitive to a declaration's resolved type")
+    expect(records_with(narrow, "Decl", "name=\"value\"", "til_type=I64") == 0, "not sensitive to a declaration's resolved type")
+
+    // A signature: a parameter's ownership.
+    borrowed := observe_text(compiler, "parsed", "signature_a",
+        "mode script\nlength := func(text: Str) returns USize { return text.len() }\nprintln(length(\"abc\").to_str())\n")
+    owned := observe_text(compiler, "parsed", "signature_b",
+        "mode script\nlength := func(own text: Str) returns USize { return text.len() }\nprintln(length(own \"abc\".clone()).to_str())\n")
+    expect(records_with(owned, "param", "name=\"text\"", "own_type=own") == 1, "not sensitive to a parameter's ownership")
+    expect(records_with(borrowed, "param", "name=\"text\"", "own_type=own") == 0, "not sensitive to a parameter's ownership")
+
+    // Declaration order: the same two declarations, swapped.
+    first_then_second := observe_text(compiler, "parsed", "order_a",
+        "mode script\nfirst := func() returns I64 { return 1 }\nsecond := func() returns I64 { return 2 }\nprintln((first() + second()).to_str())\n")
+    second_then_first := observe_text(compiler, "parsed", "order_b",
+        "mode script\nsecond := func() returns I64 { return 2 }\nfirst := func() returns I64 { return 1 }\nprintln((first() + second()).to_str())\n")
+    expect(first_then_second.find("name=\"first\"") < first_then_second.find("name=\"second\""), "not sensitive to declaration order")
+    expect(second_then_first.find("name=\"second\"") < second_then_first.find("name=\"first\""), "not sensitive to declaration order")
+
+    // The garbager's phase: the free it inserts for an owning local.
+    frees := "mode script\ncount := func() returns USize {\n    mut words := Vec(Str).new()\n    words.push(own format(\"a\", \"b\"))\n    return words.len()\n}\nprintln(count().to_str())\n"
+    before := observe_text(compiler, "typed", "frees", frees)
+    after := observe_text(compiler, "owned", "frees", frees)
+    expect(records_with(after, "name=\"delete\"") > records_with(before, "name=\"delete\""), "not sensitive to the frees the garbager inserts")
+
+    // Constant folding: the call is there after typing, its value after preparing.
+    folds := "mode script\nsix := func() returns I64 { return 2 * 3 }\nshow := proc(value: I64) { println(value.to_str()) }\nshow(six())\n"
+    unfolded := observe_text(compiler, "typed", "folds", folds)
+    folded := observe_text(compiler, "prepared", "folds", folds)
+    expect(records_with(unfolded, "LiteralNum", "text=\"6\"") == 0, "not sensitive to a folded call's value")
+    expect(records_with(folded, "LiteralNum", "text=\"6\"") >= 1, "not sensitive to a folded call's value")
+}
+
+main := proc(args: ..Str) {
+    if args.len() < 1 || args.len() > 2 { panic("usage: observe <compiler under test> [second compiler]") }
+    compiler := args[0].clone()
+    mut second := ""
+    if args.len() == 2 { second = args[1].clone() }
+    File.remove_tree(WORK)
+    mkdir_p(WORK)
+
+    sensitivity(compiler)
+
+    phases := array(Str, "tokens", "parsed", "typed", "owned", "prepared")
+    // Control flow; a diamond of imports; generics; closures; ownership
+    // and throwing; sizes and layouts; constant evaluation.
+    corpus := array(Str, "examples/hello_script.til", "test/loops.til", "test/import_diamond.til",
+        "test/templ_vec.til", "test/closures.til", "test/ownership_shapes.til", "test/layout_corpus.til",
+        "test/constfold.til")
+    mut observations : USize = 0
+    for source : Str in corpus {
+        for phase : Str in phases {
+            first := observe(compiler, phase, "32", source, 0)
+            if first != observe(compiler, phase, "32", source, 0) {
+                panic(source, " at ", phase, ": two runs of one compiler differ")
+            }
+            observations++
+            if second.len() == 0 { continue }
+            if first != observe(second, phase, "32", source, 0) {
+                panic(source, " at ", phase, " --usize=32: the two compilers differ")
+            }
+            if observe(compiler, phase, "64", source, 0) != observe(second, phase, "64", source, 0) {
+                panic(source, " at ", phase, " --usize=64: the two compilers differ")
+            }
+            observations = observations + 2
+        }
+    }
+
+    // A program that is rejected, by the ownership checks: it still types,
+    // and from the phase that rejects it on, the same diagnostics and the
+    // same status every time.
+    rejected := "test/loop_transfer_error.til"
+    accepted := observe(compiler, "typed", "32", rejected, 0)
+    // REM A diagnostic is a line that starts with the file it is about.
+    diagnostic := format("\n", rejected, ":")
+    if accepted.contains(diagnostic) { panic(rejected, ": rejected before the ownership phase") }
+    refusal := observe(compiler, "owned", "32", rejected, 1)
+    if refusal.contains(diagnostic).not() { panic(rejected, ": no diagnostic in the observation") }
+    if refusal != observe(compiler, "owned", "32", rejected, 1) { panic(rejected, ": two runs differ") }
+    if second.len() > 0 && refusal != observe(second, "owned", "32", rejected, 1) {
+        panic(rejected, ": the two compilers differ")
+    }
+
+    println("observe passed: ", observations.to_str(), " observations compared")
+}

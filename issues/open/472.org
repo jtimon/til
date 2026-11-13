@@ -1608,3 +1608,170 @@ change: ~test/link_objects.til~ now links
 
 Open from F6: only the NaN sign decision recorded in the correction
 above.
+
+*** Progress: level 3, step L3b, the inventory (base master bee3aa7)
+
+L3b is "one toolchain per target, the same on every producer". This is
+its first part: what each target is compiled with TODAY, read from
+~src/self/targets.til~, ~src/self/builder.til~ and the workflow. Nothing
+is switched here.
+
+**** Compiler and where it comes from
+
+| Target | ~toolchain_command~ | In CI it is | Headers and libraries |
+|--------+---------------------+-------------+-----------------------|
+| linux-x64 | ~gcc~ | the runner image's gcc (~ubuntu-latest~) | the distribution's glibc |
+| linux-arm64 | ~aarch64-linux-gnu-gcc~ | apt ~gcc-aarch64-linux-gnu~ on x64; the native gcc under that name on ~ubuntu-24.04-arm~ | the distribution's cross sysroot, or the native glibc |
+| linux-riscv64 | ~riscv64-linux-gnu-gcc~ | apt ~gcc-riscv64-linux-gnu~ | the distribution's cross sysroot |
+| linux-x86 | ~gcc~ with ~-m32~ | apt ~gcc-multilib~ | the distribution's multilib glibc, plus ~-idirafter /usr/include/x86_64-linux-gnu~ |
+| linux-arm32 | ~arm-linux-gnueabihf-gcc~ | apt ~gcc-arm-linux-gnueabihf~ | the distribution's cross sysroot |
+| linux-riscv32 | ~riscv32-linux-gnu-gcc~, in CI ~--cc~ names Bootlin's | Bootlin ~riscv32-ilp32d--glibc--bleeding-edge-2024.02-1~, downloaded by the job | Bootlin's own sysroot |
+| windows-x64 | ~x86_64-w64-mingw32-gcc~; plain ~gcc~ on a Windows host | apt ~mingw-w64~ on Linux, Homebrew ~mingw-w64~ on the Mac, Chocolatey ~mingw~ on Windows | each mingw-w64 distribution's own headers and CRT |
+| windows-x86 | ~i686-w64-mingw32-gcc~; plain ~gcc~ on a Windows host | apt ~mingw-w64~ | the same |
+| macos-arm64, macos-x64 | ~clang~ | from Linux: the image's clang with ~lld~ (apt ~clang lld llvm~). On a Mac: Apple's clang and linker | from Linux: ~vendor/macos~ (zig's darwin headers and ~libSystem.tbd~, in the repository). On a Mac: the Xcode SDK |
+| wasm32 | ~emcc~, in CI ~--cc~ names the vendored one | the emsdk ~make~ installs under ~vendor/emscripten~ | emscripten's own |
+| templeos-x86 | none: HolyC is compiled inside the guest | | |
+
+So today there are four different C compiler families in play (GNU gcc
+from Ubuntu, from Bootlin and from three mingw-w64 distributions; clang
+from Ubuntu; Apple's clang; emscripten's clang), and for two targets the
+same target is built by different compilers depending on the producer:
+windows-x64 (three mingw distributions) and the mac targets (Ubuntu clang
+with lld against ~vendor/macos~, Apple's toolchain against the SDK).
+
+**** Flags til passes (every target, from ~builder.til::compile_c~)
+
+~-Wall -Wextra -fsigned-char~, the CPU profile (~-march=x86-64
+-mtune=generic~ for x64 targets, ~-march=armv8-a -mtune=generic~ for
+arm64, none for the others), ~-O<level>~ (0 unless ~--opt~),
+~-ffp-contract=off -fexcess-precision=standard~,
+~-ffile-prefix-map=<working directory>=.~ (L3a), ~-Werror~,
+~-DTIL_USIZE32~ or ~-DTIL_USIZE64~, ~-DTIL_BUILD_STAMP=<n>~, ~-g~, then
+per target:
+- Linux: ~-rdynamic~, ~-ldl -lrt -lm -lpthread~; linux-x86 adds ~-m32
+  -idirafter /usr/include/x86_64-linux-gnu~.
+- Windows: ~-Wl,--export-all-symbols~, ~-lpsapi~.
+- mac from another host: ~-target arm64-apple-macos11~ or
+  ~x86_64-apple-macos10.12~, ~-nostdlibinc -isystem
+  vendor/macos/include~, ~-fuse-ld=lld -Lvendor/macos~, ~-rdynamic~,
+  ~-Wl,-oso_prefix,.~ (L3a).
+- wasm32: ~-sSINGLE_FILE -sALLOW_MEMORY_GROWTH=1~.
+
+**** Versions
+
+Known from logs so far: Ubuntu's gcc 13.3.0, clang 18.1.3, LLD 18.1.3,
+binutils 2.42 (this container, the same image family as
+~ubuntu-latest~); gcc 15.2.0 "MinGW-Builds" on the Windows runner (run
+3051). Everything else is not known. Each job that compiles C now has a
+step "Record the C toolchain" that prints its compiler, linker and
+archiver versions (the two Mac jobs print Apple's clang, linker and SDK
+versions); the table gets its version column from the first run with
+those steps.
+
+**** What L3b still has to do
+
+Decision 4 of #473 fixes the direction: clang and lld at one pinned
+version for every target, LLVM 18 proposed. Per target that means a
+clang that every producer can install at that version, and one set of
+headers and libraries: ~vendor/macos~ already is that for the mac
+targets; the Windows and Linux targets need a pinned mingw-w64 and a
+pinned sysroot each, which is a download or a vendored tree to be named
+in its own commit (#473 step C4). No toolchain is switched in this step.
+
+*** Progress: Track O, steps O1 to O3 (base master bee3aa7)
+
+The other session that had offered Track O's preparation had not started
+it and left it; all of O1 to O3 is here.
+
+**** O1: the command
+
+~til ast --phase=tokens|parsed|typed|owned|prepared file.til~. The
+spelling is ~--phase=~, on the existing ~ast~ command (decision 3);
+without it ~ast~ prints the parsed S-expression as before, and ~--phase~
+with any other command is an error. A phased ~ast~ goes through the same
+configuration in ~src/til.til~ as a translate (target, widths, backend,
+compile mode) and then ~observer.til::cmd_observe~ runs the pipeline's own
+entry points up to the phase: ~type_program_errors~,
+~finish_init_and_type_program~, ~finish_prepare_program~, and for
+~prepared~ also ~builder.til::sizes_for_backend~, the one step a
+translate does before any backend (it was inline in ~translate_ast~ and
+is now shared).
+
+**** O2: the record contract, as built
+
+Written out at the top of ~src/self/observer.til~. In short:
+- First line: phase, compiler revision, target, backend, mode, the
+  requested width, ~cptr32~, CPU profile, compile mode. From ~typed~ on a
+  second line with what the typer settled: USize and UPtr primitive,
+  ~cptr32~, 64-bit scalar alignment, SIMD width.
+- Per unit in load order (~lp.unit_paths()~, core first): its path, then
+  every node in pre-order with depth, kind, line:col, resolved type and
+  every field of its payload struct. Declarations that hang off a node
+  (parameters, captures, struct fields, namespace members, enum variants)
+  are records of their own, followed by their default value's nodes.
+  Symbols are written by name; text is quoted with unambiguous escapes.
+- After ~prepared~: the target size and alignment of every struct and
+  enum left, the foldable classification, the throw registries, and one
+  record for the intern order (count and hash of every spelling).
+- Left out, each with its reason there: ~ctx.struct_layouts~, the
+  evaluation heap, scopes and caches, addresses and capacities,
+  ~FunctionDef.namespace_decl~ (a pointer the interpreter caches; it
+  dangles after the scavenger), the index maps (written as member names),
+  the body of a generated ~size()~, and the body of a generated ~hash()~
+  before ~prepared~. Not written, against the plan's wording: the
+  ~builder_*~ inventories. They do not exist until a backend runs; they
+  are derived inside it from the records above, and level 2 compares what
+  comes out.
+- Completeness: ~NodeType~, ~Literal~ and ~Type~ are switched over with
+  no default arm. For the payload structs, ~test/observe_fields.til~
+  compares each struct's fields, as reflection lists them, with the keys
+  its writer function names; exclusions are by name with the reason.
+  Removing one field from a writer fails it, naming the field.
+
+One thing the plan did not foresee. A generated ~size()~ body, and a
+generated ~hash()~'s byte count, hold the RUNNING compiler's own layout
+until emission starts (decision 1), so they differed between a compact
+and a native compiler at ~typed~, ~owned~ and ~prepared~. They are what
+compile-time code reads, and no backend emits them, so they are left out
+as above, and ~prepared~ includes the pre-backend step. With that the two
+layouts agree at all five phases.
+
+**** O3: the gates
+
+~test/observe.til~, suite row ~observe~:
+- Sensitivity, six cases, each asserted on the record that must change:
+  a literal's text (~parsed~), a declaration's resolved type (~typed~), a
+  parameter's ownership (~parsed~), declaration order (~parsed~), the
+  frees the garbager inserts (~owned~ against ~typed~), a folded call's
+  value (~prepared~ against ~typed~).
+- Two processes agree at every phase, for eight programs: control flow,
+  a diamond of imports, generics, closures, ownership, layouts and sizes,
+  constant evaluation. Plus one program the ownership checks reject: it
+  types, and from ~owned~ on gives the same diagnostics and status.
+- With a second compiler, which the suite passes under
+  ~make check_usize64~ (native against compact): both agree at every
+  phase, for ~--usize=32~ and ~--usize=64~. 120 observations.
+- Two checkout roots: ~test/reproducible_build.til~ now also compares the
+  ~prepared~ observation of its program between its two roots.
+
+Cost: 50 s with one plain compiler, 98 s with two; 164 s with one
+ASAN-built compiler.
+
+~src/til.til~ is not in the row, by cost: ~parsed~ 2.3 s and 57 MB of
+records, ~typed~ 17 s and 220 MB, ~prepared~ 120 s and 205 MB (1.5
+million records). Measured once by hand: its ~prepared~ observation has
+the same hash from two runs and from the native-layout compiler.
+
+No import cycle is in the corpus: the repository has no test that is one.
+
+**** O4
+
+The command and the corpus are what #473 step C5 needs: every producer
+runs ~til ast --phase=prepared~ (and the earlier phases to localize) for
+target linux-x64, ~--usize=32~, over ~test/observe.til~'s corpus, and
+uploads hashes. Nothing of that is done here.
+
+Seen on the way, not fixed: a user function named like one that core or
+~std/sys~ already declares (~expect~, ~copy_tree~) is accepted, calls go
+to the existing one, and the user's is then an unused function the C
+compiler rejects.

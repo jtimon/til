@@ -33,6 +33,7 @@ import("std/file")
 import("self/loader")
 import("self/codegen/c_codegen")
 import("self/builder")
+import("self/observer")
 import("self/interpreter")
 import("self/binder")
 import("self/repl_editor")
@@ -760,7 +761,9 @@ usage := proc() {
     println("  run        Compile and run a .til file")
     println("  test       Run test() functions interpreted, then compiled")
     println("  doc        Emit org-mode and HTML docs under doc/gen/")
-    println("  ast        Print the parsed AST as a Lisp-like S-expression")
+    println("  ast        Print the parsed AST as a Lisp-like S-expression;")
+    println("             with --phase=tokens|parsed|typed|owned|prepared, the")
+    println("             compiler's state at that phase, one record a line")
     println("  bindings   Generate a `mode lib` .til binding from a C header")
     println("  help       Print this message")
     println("")
@@ -831,6 +834,9 @@ CliArgs := struct {
     prof := false
     // #442: skip the timestamp reuse check; always translate and compile.
     force_rebuild := false
+    // #472: `ast --phase=<phase>` prints the compiler's state at a phase
+    // boundary (self/observer.til) instead of the parsed S-expression.
+    phase := ""
     // #463: build --jni / install --jni also compile a library's JNI bridge
     // and jar its Java binding.
     jni := false
@@ -1008,6 +1014,17 @@ parse_args := proc(args: Array(Str)) returns CliArgs {
             cli.path_idx++
         } else if flag == "--force-rebuild" {
             cli.force_rebuild = true
+            cli.path_idx++
+        } else if flag.starts_with("--phase=") {
+            cli.phase = flag.strip_prefix("--phase=").clone()
+            if observe_phase_is_known(cli.phase).not() {
+                println(format("error: --phase expects tokens, parsed, typed, owned or prepared, got '", cli.phase, "'"))
+                exit(1)
+            }
+            if cli.command != "ast" {
+                println("error: --phase belongs to the ast command")
+                exit(1)
+            }
             cli.path_idx++
         } else if flag == "--prof" {
             cli.prof = true
@@ -1276,7 +1293,10 @@ main := proc(args: ..Str) {
     // `ast` prints the raw parsed AST -- skip init/typecheck/constfolder/scavenge
     // so output matches the parser's direct output and stays cheap on large
     // programs (full pipeline on src/til.til takes minutes).
-    if cli.command == "ast" {
+    // With --phase it is the observation of #472 instead, which runs the
+    // pipeline up to that phase: further down, after the configuration every
+    // backend command gets.
+    if cli.command == "ast" && cli.phase.len() == 0 {
         cmd_ast(lp)
         return
     }
@@ -1291,8 +1311,9 @@ main := proc(args: ..Str) {
 
     // Tell the typer whether this command emits backend source. `interpret`, `ast`, and
     // `doc` stay in interpreter mode; every backend command compiles.
+    // REM An `ast` that reaches this line has a --phase: it observes what a
+    // translate would emit, so it compiles.
     lp.ctx.compile_mode = cli.command.eq("interpret")
-        .or(cli.command.eq("ast"))
         .or(cli.command.eq("doc")).not()
 
     // #442: placed between load_program and prepare_program -- loading
@@ -1315,6 +1336,13 @@ main := proc(args: ..Str) {
         lp.ctx.param_value_abi_ok = false
     }
     if cli.backend == "fasm" { backend_functions = fasm_source_declarations(lp) }
+    if cli.command == "ast" {
+        observed := cmd_observe(lp, cli.phase, target, cli.backend)
+        ffi_cleanup(lp.ctx)
+        lexer_cleanup()
+        if observed != 0 { exit(observed.cast(I64)) }
+        return
+    }
     prepare_program(lp, cli.command == "test")
 
     if cli.backend.eq("fasm").or(cli.backend.eq("mlir")) && (lp.link_c_paths.len() > 0 || lp.link_flags_for_target().len() > 0) {

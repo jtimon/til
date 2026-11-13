@@ -1,0 +1,615 @@
+mode lib
+
+import("context")
+import("../std/file")
+import("builder")
+import("lexer")
+import("loader")
+import("targets")
+import("typer")
+
+// #472, level 1: what the compiler holds before it emits anything, written
+// out so that two runs can be compared -- two processes, two hosts, two
+// compiler layouts. `til ast --phase=<phase> file.til` stops the ordinary
+// pipeline at one of its phase boundaries and prints the state there:
+//
+//   tokens     after lexing each source file
+//   parsed     after load_program (what the parser built)
+//   typed      after type_program_errors (init, expansion, typing)
+//   owned      after finish_init_and_type_program (the garbager's frees)
+//   prepared   after finish_prepare_program (constant folding, scavenging)
+//              and builder.til sizes_for_backend: what a backend is handed
+//
+// The same configuration as a real translate runs first (target, widths,
+// backend, compile mode), so the state observed is the one that would be
+// emitted.
+//
+// FORMAT. One record a line, fields separated by one space.
+//
+//   til-observation phase=... target=... (the configuration; first line)
+//   unit <path>                           (one per source file, load order)
+//   <depth> <Kind> <line>:<col> <type> key=value ...     (one per AST node,
+//       pre-order; depth 0 is the file's root Body; a role=... field marks
+//       a node that is not an ordinary child: a default value, a member)
+//   <depth> param|capture|field|member|variant key=value ...   (the
+//       Declaration and VariantDef records that hang off a node)
+//   t <Type> <line>:<col> "<text>"        (tokens phase)
+//   type|foldable|throw_type|throws|symbols ...   (after `prepared`, the
+//       state a backend reads beside the AST)
+//
+// Text is written between double quotes with \\ \" \n \t \r and \xNN for
+// every other byte outside printable ASCII, so a record is always one line
+// and a value never ends early.
+//
+// WHAT IS IN A NODE RECORD: every field of the node's payload struct in
+// src/core/ast.til. NodeType is switched over without a default arm, so a
+// new node kind does not compile until it is written here, and
+// test/observe.til compares the keys written for each payload struct with
+// the struct's fields as reflection lists them: a new field fails that test
+// until it is written here or excluded there by name with its reason.
+//
+// WHAT IS LEFT OUT, and why:
+// - ctx.struct_layouts: the layout of the RUNNING compiler's own memory,
+//   different by design between a compact and a native compiler. The TARGET
+//   layout is written (the `type` records).
+// - The evaluation heap, interpreter scopes, the type scope and every cache:
+//   working state of the phases, rebuilt from what is written here.
+// - Addresses and Vec capacities. FunctionDef.namespace_decl is one: a
+//   pointer the interpreter caches while it evaluates a namespace function,
+//   into a Declaration the scavenger later moves.
+// - StructDef.fields_index, ns_index and EnumDef.ns_index are how members
+//   are named (a member Declaration carries no name of its own); they are
+//   written as each member's name, in member order.
+// - The body of a generated size() method, and of a generated hash()
+//   method before `prepared`: see observe_expr.
+
+priv quoted := func(text: Str) returns Str {
+    // REM A Str does not grow: room for the worst case, every byte as \xNN.
+    mut out := Str.with_capacity(text.len() * 4 + 2)
+    out.push_str("\"")
+    hex := "0123456789abcdef"
+    mut plain_from : USize = 0
+    for i in 0..text.len() {
+        byte := text.get(i).cast(U8)
+        mut escape := ""
+        if byte == 92 { escape = "\\\\" }
+        else if byte == 34 { escape = "\\\"" }
+        else if byte == 10 { escape = "\\n" }
+        else if byte == 9 { escape = "\\t" }
+        else if byte == 13 { escape = "\\r" }
+        else if byte < 32 || byte > 126 {
+            escape = format("\\x", hex.substr((byte / 16).to_usize(), 1), hex.substr((byte % 16).to_usize(), 1))
+        }
+        if escape.len() == 0 { continue }
+        if i > plain_from { out.push_str(text.substr(plain_from, i - plain_from)) }
+        out.push_str(escape)
+        plain_from = i + 1
+    }
+    if text.len() > plain_from { out.push_str(text.substr(plain_from, text.len() - plain_from)) }
+    out.push_str("\"")
+    return out
+}
+
+// A record is its fields in order; it is joined with spaces when printed.
+priv put := func(mut line: Vec(Str), key: Str, value: Str) {
+    line.push(own format(key, "=", value))
+}
+
+priv put_text := func(mut line: Vec(Str), key: Str, value: Str) {
+    put(line, key, quoted(value))
+}
+
+priv put_bool := func(mut line: Vec(Str), key: Str, value: Bool) {
+    if value { put(line, key, "true") } else { put(line, key, "false") }
+}
+
+priv print_record := proc(line: Vec(Str)) {
+    println(join(line, " "))
+}
+
+priv sym_name := func(sym: Sym, names: Vec(Str)) returns Str {
+    if sym == 0 { return "" }
+    return names.unsafe_get(sym.cast(USize) - 1).clone()
+}
+
+priv primitive_text := func(p: Primitive) returns Str {
+    switch p {
+    case .I16: return "I16"
+    case .U16: return "U16"
+    case .I8: return "I8"
+    case .U8: return "U8"
+    case .U32: return "U32"
+    case .I32: return "I32"
+    case .U64: return "U64"
+    case .I64: return "I64"
+    case .F32: return "F32"
+    case .Bool: return "Bool"
+    case .F64: return "F64"
+    }
+}
+
+// A Type as text. The Str and the Sym spelling of one type stay apart: which
+// of the two a phase leaves in a node is part of what it did.
+priv type_text := func(shallow t: Type, names: Vec(Str)) returns Str {
+    switch t {
+    case .Unknown: return "Unknown"
+    case .None: return "None"
+    case .Struct(name): return format("Struct(", name, ")")
+    case .StructDef: return "StructDef"
+    case .Enum(name): return format("Enum(", name, ")")
+    case .EnumDef: return "EnumDef"
+    case .FuncDef: return "FuncDef"
+    case .FuncPtr: return "FuncPtr"
+    case .Dynamic: return "Dynamic"
+    case .Custom(name): return format("Custom(", name, ")")
+    case .Primitive(p): return primitive_text(p)
+    case .FuncPtrSig(name): return format("FuncPtrSig(", name, ")")
+    case .Body: return "Body"
+    case .StructSym(sym): return format("StructSym(", sym_name(sym, names), ")")
+    case .EnumSym(sym): return format("EnumSym(", sym_name(sym, names), ")")
+    case .CustomSym(sym): return format("CustomSym(", sym_name(sym, names), ")")
+    case .FuncPtrSigSym(sym): return format("FuncPtrSigSym(", sym_name(sym, names), ")")
+    }
+}
+
+priv own_text := func(own_type: OwnType) returns Str {
+    switch own_type {
+    case .Own: return "own"
+    case .Ref: return "ref"
+    case .Shallow: return "shallow"
+    }
+}
+
+priv storage_text := func(storage: GcStorage) returns Str {
+    switch storage {
+    case .Unset: return "unset"
+    case .Stack: return "stack"
+    case .HeapBox: return "heap_box"
+    }
+}
+
+priv start_record := func(depth: USize, kind: Str) returns Vec(Str) {
+    mut line := Vec(Str).new()
+    line.push(own depth.to_str())
+    line.push(own kind.clone())
+    return line
+}
+
+// Every field of Declaration but default_value, which is an Expr and
+// follows the record as nodes of its own.
+priv put_declaration := func(mut line: Vec(Str), d: Declaration, names: Vec(Str)) {
+    put_text(line, "name", d.name)
+    put_text(line, "doc", d.doc)
+    put_bool(line, "is_mut", d.is_mut)
+    put_bool(line, "redundant_mut", d.redundant_mut)
+    put_bool(line, "is_priv", d.is_priv)
+    put_bool(line, "used", d.used)
+    put(line, "own_type", own_text(d.own_type))
+    put(line, "til_type", type_text(d.til_type, names))
+    put_bool(line, "default_value", d.default_value.is_some())
+    put_text(line, "orig_name", d.orig_name)
+    put(line, "gc_storage", storage_text(d.gc_storage))
+    put_text(line, "external_symbol", d.external_symbol)
+    put_bool(line, "infer_call_ownership", d.infer_call_ownership)
+    put_text(line, "bounds", d.bounds)
+    put(line, "annotated", type_text(d.annotated, names))
+    put_bool(line, "auto_shallow", d.auto_shallow)
+    put_bool(line, "runtime_type_param", d.runtime_type_param)
+}
+
+// A Declaration that hangs off a node (a parameter, a capture, a struct
+// field, a namespace member): its own record, then its default value.
+priv observe_declaration := proc(d: Declaration, kind: Str, named: Str, depth: USize, names: Vec(Str), sized: Bool) {
+    mut line := start_record(depth, kind)
+    if kind == "field" || kind == "member" { put_text(line, "member_name", named) }
+    put_declaration(line, d, names)
+    print_record(line)
+    if d.default_value.is_some() {
+        mut role := "default"
+        if kind == "member" && named == "size" { role = "size_method" }
+        if kind == "member" && named == "hash" { role = "hash_method" }
+        observe_expr(d.default_expr(), depth + 1, role, names, sized)
+    }
+}
+
+priv put_funcsig := func(mut line: Vec(Str), sig: FuncSig) {
+    put(line, "func_type", sig.func_type.variant_name())
+    put(line, "params", sig.params.len().to_str())
+    put_text(line, "return_type", sig.return_type)
+    mut thrown_types := ""
+    for i, thrown in sig.throw_types {
+        if i > 0 { thrown_types = format(thrown_types, ",") }
+        thrown_types = format(thrown_types, thrown)
+    }
+    put_text(line, "throw_types", thrown_types)
+    put(line, "variadic_index", sig.variadic_index.to_str())
+    put(line, "kwargs_index", sig.kwargs_index.to_str())
+    put(line, "return_own_type", own_text(sig.return_own_type))
+    put_bool(line, "return_shallow_explicit", sig.return_shallow_explicit)
+}
+
+priv put_function := func(mut line: Vec(Str), fd: FunctionDef) {
+    put_funcsig(line, fd.sig)
+    put_bool(line, "auto_generated", fd.auto_generated)
+    put_bool(line, "typed_on_demand", fd.typed_on_demand)
+    put_bool(line, "is_enum_variant_ctor", fd.is_enum_variant_ctor)
+    put_bool(line, "noreturn", fd.noreturn)
+    put(line, "captures", fd.captures.len().to_str())
+    put_text(line, "closure_name", fd.closure_name)
+    put(line, "ref_return_params", fd.ref_return_params.to_str())
+    put(line, "ref_return_into_params", fd.ref_return_into_params.to_str())
+    put(line, "ref_return_carried_params", fd.ref_return_carried_params.to_str())
+    // REM namespace_decl is not written: a pointer the interpreter caches
+    // while evaluating, into storage the scavenger later moves.
+    put(line, "deposit_matrix", fd.deposit_matrix.to_str())
+    put(line, "deposit_borrow_matrix", fd.deposit_borrow_matrix.to_str())
+}
+
+priv put_fcall := func(mut line: Vec(Str), fc: FCallData, names: Vec(Str)) {
+    put_bool(line, "constfold_value", fc.constfold_value)
+    put_bool(line, "does_throw", fc.does_throw)
+    put_bool(line, "is_bang", fc.is_bang)
+    put(line, "own_args", fc.own_args.to_str())
+    put(line, "keep_outer_args", fc.keep_outer_args.to_str())
+    put_bool(line, "swap_replace", fc.swap_replace)
+    put(line, "til_type", type_text(fc.til_type, names))
+    put(line, "ref_args", fc.ref_args.to_str())
+    put(line, "splat_args", fc.splat_args.to_str())
+    put_bool(line, "is_subscript", fc.is_subscript)
+    put_bool(line, "is_throw_default", fc.is_throw_default)
+    put_bool(line, "iface_box_owns_payload", fc.iface_box_owns_payload)
+    put_bool(line, "propagates_error", fc.propagates_error)
+    put_bool(line, "panic_on_error", fc.panic_on_error)
+    put_bool(line, "is_bang_check", fc.is_bang_check)
+    put_text(line, "cast_path", sym_name(fc.cast_path, names))
+    put_bool(line, "storage_size_read", fc.storage_size_read)
+}
+
+priv put_struct := func(mut line: Vec(Str), sd: StructDef) {
+    put(line, "fields", sd.fields.len().to_str())
+    put(line, "ns_decls", sd.ns_decls.len().to_str())
+    put_text(line, "c_tag", sd.c_tag)
+    put_bool(line, "is_interface", sd.is_interface)
+    put_bool(line, "interface_ns_marker", sd.interface_ns_marker)
+    put_text(line, "implements_name", sd.implements_name)
+    put(line, "simd_width", sd.simd_width.to_str())
+}
+
+priv put_enum := func(mut line: Vec(Str), ed: EnumDef) {
+    put(line, "ns_decls", ed.ns_decls.len().to_str())
+    put(line, "variants", ed.variants.len().to_str())
+    put_text(line, "implements_name", ed.implements_name)
+    put_text(line, "tag_type", ed.tag_type)
+}
+
+priv put_variant := func(mut line: Vec(Str), variant: VariantDef) {
+    put_text(line, "name", variant.name)
+    put_text(line, "doc", variant.doc)
+    put_text(line, "payload_type", variant.payload_type)
+    put_bool(line, "payload_const", variant.payload_const)
+    put(line, "tag_value", variant.tag_value.to_str())
+    put_bool(line, "payload_ref", variant.payload_ref)
+    put_bool(line, "payload_funcsig", variant.payload_funcsig)
+}
+
+priv put_assign := func(mut line: Vec(Str), a: AssignData) {
+    put_text(line, "name", a.name)
+    put_bool(line, "save_old_delete", a.save_old_delete)
+    put_bool(line, "is_payload_alias", a.is_payload_alias)
+    put_bool(line, "swap_replace", a.swap_replace)
+    put_bool(line, "is_move", a.is_move)
+}
+
+priv put_field_assign := func(mut line: Vec(Str), a: FieldAssignData) {
+    put_text(line, "name", a.name)
+    put_bool(line, "save_old_delete", a.save_old_delete)
+    put_bool(line, "transfers_own", a.transfers_own)
+    put_bool(line, "is_move", a.is_move)
+}
+
+priv put_for_in := func(mut line: Vec(Str), loop: ForInData, names: Vec(Str)) {
+    put_text(line, "name", loop.name)
+    put_bool(line, "is_mut", loop.is_mut)
+    put(line, "til_type", type_text(loop.til_type, names))
+    put_text(line, "name2", loop.name2)
+    put_bool(line, "is_mut2", loop.is_mut2)
+}
+
+priv put_capture_block := func(mut line: Vec(Str), block: CaptureBlockData) {
+    put(line, "captures", block.captures.len().to_str())
+    put_text(line, "closure_name", block.closure_name)
+}
+
+priv put_sequence := func(mut line: Vec(Str), sequence: PrecomputedSequenceData, names: Vec(Str)) {
+    put(line, "til_type", type_text(sequence.til_type, names))
+    put(line, "element_type", type_text(sequence.element_type, names))
+    put(line, "capacity", sequence.capacity.to_str())
+    put(line, "ordinal", sequence.ordinal.to_str())
+}
+
+priv put_number := func(mut line: Vec(Str), number: LiteralNumData, names: Vec(Str)) {
+    put_text(line, "text", number.text)
+    put(line, "til_type", type_text(number.til_type, names))
+}
+
+priv put_ident := func(mut line: Vec(Str), id: IdentData, names: Vec(Str)) {
+    put_text(line, "name", sym_name(id.name, names))
+    put(line, "til_type", type_text(id.til_type, names))
+}
+
+priv put_field_access := func(mut line: Vec(Str), access: FieldAccessData, names: Vec(Str)) {
+    put_text(line, "name", sym_name(access.name, names))
+    put(line, "til_type", type_text(access.til_type, names))
+}
+
+priv put_match := func(mut line: Vec(Str), matched: MatchData, names: Vec(Str)) {
+    put(line, "til_type", type_text(matched.til_type, names))
+    put_text(line, "result_temp", matched.result_temp)
+}
+
+priv put_case := func(mut line: Vec(Str), arm: CaseData) {
+    put(line, "pattern_count", arm.pattern_count.to_str())
+}
+
+priv member_name := func(index: Map(Str, USize), position: USize) returns Str {
+    switch member_name_of(index, position) {
+    case .Some(name): return name.clone()
+    case .None: return ""
+    }
+}
+
+// One node and everything under it, pre-order. NO default arm: a node kind
+// this does not know must not compile.
+// sized: the pre-backend step has run, so no size left is the compiler's own.
+observe_expr := proc(e: Expr, depth: USize, role: Str, names: Vec(Str), sized: Bool) {
+    mut line := Vec(Str).new()
+    mut kind := ""
+    switch e.node_type {
+    case .Body: kind = "Body"
+    case .Literal(literal):
+        switch literal {
+        case .Str(text):
+            kind = "LiteralStr"
+            put_text(line, "value", text)
+        case .Num(number):
+            kind = "LiteralNum"
+            put_number(line, number, names)
+        case .Bool(value):
+            kind = "LiteralBool"
+            put_bool(line, "value", value)
+        case .Null: kind = "LiteralNull"
+        case .MapLit: kind = "MapLit"
+        case .SetLit: kind = "SetLit"
+        }
+    case .Ident(id):
+        kind = "Ident"
+        put_ident(line, id, names)
+    case .Decl(declaration):
+        kind = "Decl"
+        put_declaration(line, declaration, names)
+    case .Assign(assign):
+        kind = "Assign"
+        put_assign(line, assign)
+    case .FCall(call):
+        kind = "FCall"
+        put_fcall(line, call, names)
+    case .FuncDef(function):
+        kind = "FuncDef"
+        put_function(line, function)
+    case .StructDef(definition):
+        kind = "StructDef"
+        put_struct(line, definition)
+    case .EnumDef(definition):
+        kind = "EnumDef"
+        put_enum(line, definition)
+    case .FieldAccess(access):
+        kind = "FieldAccess"
+        put_field_access(line, access, names)
+    case .FieldAssign(assign):
+        kind = "FieldAssign"
+        put_field_assign(line, assign)
+    case .Return: kind = "Return"
+    case .If: kind = "If"
+    case .While: kind = "While"
+    case .ForIn(loop):
+        kind = "ForIn"
+        put_for_in(line, loop, names)
+    case .NamedArg(name):
+        kind = "NamedArg"
+        put_text(line, "name", name)
+    case .Break: kind = "Break"
+    case .Continue: kind = "Continue"
+    case .Switch: kind = "Switch"
+    case .Match(matched):
+        kind = "Match"
+        put_match(line, matched, names)
+    case .Case(arm):
+        kind = "Case"
+        put_case(line, arm)
+    case .NoDefaultArg: kind = "NoDefaultArg"
+    case .Throw: kind = "Throw"
+    case .Catch: kind = "Catch"
+    case .RestPattern: kind = "RestPattern"
+    case .CaptureBlock(block):
+        kind = "CaptureBlock"
+        put_capture_block(line, block)
+    case .Loc: kind = "Loc"
+    case .BodyValue(block):
+        kind = "BodyValue"
+        put_capture_block(line, block)
+    case .ListPattern: kind = "ListPattern"
+    case .PrecomputedSequence(sequence):
+        kind = "PrecomputedSequence"
+        put_sequence(line, sequence, names)
+    }
+    mut head := start_record(depth, kind)
+    head.push(own format(e.line.to_str(), ":", e.col.to_str()))
+    head.push(own type_text(e.til_type(), names))
+    if role.len() > 0 { put(head, "role", role) }
+    for field : Str in line { head.push(own field.clone()) }
+    print_record(head)
+
+    // The records that hang off this node, before its children.
+    switch e.node_type {
+    case .Decl(declaration):
+        if declaration.default_value.is_some() {
+            observe_expr(declaration.default_expr(), depth + 1, "default", names, sized)
+        }
+    case .FuncDef(function):
+        for parameter : Declaration in function.sig.params { observe_declaration(parameter, "param", "", depth + 1, names, sized) }
+        for capture : Declaration in function.captures { observe_declaration(capture, "capture", "", depth + 1, names, sized) }
+    case .StructDef(definition):
+        for i, field in definition.fields {
+            observe_declaration(field, "field", member_name(definition.fields_index, i), depth + 1, names, sized)
+        }
+        for i, member in definition.ns_decls {
+            observe_declaration(member, "member", member_name(definition.ns_index, i), depth + 1, names, sized)
+        }
+    case .EnumDef(definition):
+        for variant : VariantDef in definition.variants {
+            mut variant_line := start_record(depth + 1, "variant")
+            put_variant(variant_line, variant)
+            print_record(variant_line)
+        }
+        for i, member in definition.ns_decls {
+            observe_declaration(member, "member", member_name(definition.ns_index, i), depth + 1, names, sized)
+        }
+    case .CaptureBlock(block):
+        for capture : Declaration in block.captures { observe_declaration(capture, "capture", "", depth + 1, names, sized) }
+    case .BodyValue(block):
+        for capture : Declaration in block.captures { observe_declaration(capture, "capture", "", depth + 1, names, sized) }
+    case:
+    }
+    // The body of a GENERATED size() is the running compiler's own size of
+    // the type (#472 decision 1): what compile-time code reads, different
+    // between a compact and a native compiler by design, and never emitted --
+    // a backend writes the target's number, which the `type` records carry.
+    // A size() the program wrote itself is ordinary code and is written.
+    // A generated hash() carries the same kind of number, how many bytes of
+    // the value it hashes, until the pre-backend step makes it the
+    // target's: its body is written from then on.
+    switch e.node_type {
+    case .FuncDef(function):
+        if role == "size_method" && function.auto_generated { return }
+        if role == "hash_method" && function.auto_generated && sized.not() { return }
+    case:
+    }
+    for child : Expr in e.children { observe_expr(child, depth + 1, "", names, sized) }
+}
+
+// What was asked for: known before any phase runs.
+priv observe_header := proc(lp: LoadedProgram, phase: Str, target: Target, backend: Str) {
+    mut line := Vec(Str).new()
+    line.push(own "til-observation")
+    put(line, "phase", phase)
+    put(line, "revision", lp.compiler_revision)
+    put(line, "target", target_to_str(target))
+    put(line, "backend", backend)
+    put_text(line, "mode", lp.mode_str)
+    put(line, "usize_bits", lp.usize_override_bits.to_str())
+    put_bool(line, "cptr32", lp.cptr32)
+    put_text(line, "cpu", lp.cpu.name)
+    put_bool(line, "compile_mode", lp.ctx.compile_mode)
+    print_record(line)
+}
+
+// What the typer settled for the target: known once typing has run.
+priv observe_layout := proc(lp: LoadedProgram) {
+    mut line := Vec(Str).new()
+    line.push(own "layout")
+    put(line, "usize", lp.ctx.target_usize_pname)
+    put(line, "uptr", lp.ctx.target_uptr_pname)
+    put_bool(line, "cptr32", lp.ctx.target_cptr32)
+    put(line, "scalar64_align", lp.ctx.target_scalar64_align.to_str())
+    put(line, "simd_bits", lp.ctx.target_simd_bits.to_str())
+    print_record(line)
+}
+
+priv observe_units := proc(lp: LoadedProgram, sized: Bool) {
+    for path : Str in lp.unit_paths() {
+        println("unit ", path)
+        ref unit : ImportUnit = lp.ctx.imported[path]
+        observe_expr(unit.ast, 0, "", lp.ctx.symbols.names, sized)
+    }
+}
+
+priv observe_tokens := proc(lp: LoadedProgram) {
+    for path : Str in lp.unit_paths() {
+        println("unit ", path)
+        // REM A unit that is not a file on disk (a prelude handed in as
+        // text) has no tokens to read again.
+        if File.is_file(path).not() { continue }
+        source := File.readfile(path)
+        for token : Token in tokenize(source, path, true) {
+            println("t ", token.type.to_str(), " ", token.line.to_str(), ":", token.col.to_str(), " ",
+                quoted(source.substr(token.start, token.len)))
+        }
+    }
+}
+
+// What a backend reads beside the AST, once the program is prepared.
+priv observe_side_state := proc(lp: LoadedProgram) {
+    for path : Str in lp.unit_paths() {
+        ref unit : ImportUnit = lp.ctx.imported[path]
+        for statement : Expr in unit.ast.children {
+            if is_struct_or_enum(statement).not() { continue }
+            ref name : Str = decl_of(statement).name
+            mut size : USize = 0
+            mut align : USize = 0
+            target_value_size_align(name, lp.ctx.scope, lp.ctx, size, align)
+            println("type ", quoted(name), " size=", size.to_str(), " align=", align.to_str())
+        }
+    }
+    for name, kind in lp.ctx.constfolder_foldables {
+        println("foldable ", quoted(name), " ", kind.variant_name())
+    }
+    for i, thrown in lp.ctx.throw_type_registry {
+        println("throw_type ", i.to_str(), " ", quoted(thrown))
+    }
+    for name, thrown in lp.ctx.throws_global {
+        mut line := format("throws ", quoted(name))
+        for one : Str in thrown { line = format(line, " ", quoted(one)) }
+        println(line)
+    }
+    // One record for the intern order: every spelling, in the order the
+    // phases met them.
+    mut spellings := ""
+    for spelling : Str in lp.ctx.symbols.names { spellings = format(spellings, spelling, "\n") }
+    println("symbols count=", lp.ctx.symbols.names.len().to_str(), " hash=", hash_str(spellings).to_str())
+}
+
+observe_phase_is_known := func(phase: Str) returns Bool {
+    return phase.eq("tokens").or(phase.eq("parsed")).or(phase.eq("typed")).or(phase.eq("owned")).or(phase.eq("prepared"))
+}
+
+// `til ast --phase=<phase>`. The program is loaded and configured as for a
+// translate; this runs the pipeline up to the phase and prints what is there.
+cmd_observe := proc(mut lp: LoadedProgram, phase: Str, target: Target, backend: Str) returns I32 {
+    observe_header(lp, phase, target, backend)
+    if phase == "tokens" {
+        observe_tokens(lp)
+        return 0
+    }
+    if phase != "parsed" {
+        errors := type_program_errors(lp, false)
+        if errors > 0 {
+            println(errors.to_str(), " type error(s) found")
+            return 1
+        }
+    }
+    if phase == "owned" || phase == "prepared" {
+        errors := finish_init_and_type_program(lp)
+        if errors > 0 {
+            println(errors.to_str(), " type error(s) found")
+            return 1
+        }
+    }
+    if phase == "prepared" {
+        finish_prepare_program(lp)
+        sizes_for_backend(lp, target)
+    }
+    if phase != "parsed" { observe_layout(lp) }
+    observe_units(lp, phase == "prepared")
+    if phase == "prepared" { observe_side_state(lp) }
+    return 0
+}

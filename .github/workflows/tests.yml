@@ -90,6 +90,19 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri clang
       - name: Create test tmp directory
         run: mkdir -p tmp
+      # Issue #472 (L3b) / #473 (C4): which C compiler, linker and archiver
+      # this runner really has. Comparing binaries between producers means
+      # one pinned toolchain per target, and the first step is knowing what
+      # each job uses today. Printed in every job that compiles C.
+      - name: Record the C toolchain
+        run: |
+          for tool in gcc clang ld ar; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "$tool: $("$tool" --version 2>&1 | head -1)"
+            else
+              echo "$tool: not installed"
+            fi
+          done
       - name: Build and run tests
         run: make test_asan
       - name: Test target build
@@ -131,6 +144,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb libgl1-mesa-dri clang
       - name: Create test tmp directory
         run: mkdir -p tmp
+      - name: Record the C toolchain
+        run: |
+          for tool in gcc clang ld ar; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "$tool: $("$tool" --version 2>&1 | head -1)"
+            else
+              echo "$tool: not installed"
+            fi
+          done
       - name: Suite through the native-layout compiler
         run: make check_usize64
       - name: Cancel the rest of this run
@@ -167,6 +189,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri clang
       - name: Create test tmp directory
         run: mkdir -p tmp
+      - name: Record the C toolchain
+        run: |
+          for tool in aarch64-linux-gnu-gcc gcc clang ld ar; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "$tool: $("$tool" --version 2>&1 | head -1)"
+            else
+              echo "$tool: not installed"
+            fi
+          done
       - name: Build and run tests
         run: make test_asan
       - name: Test target build
@@ -203,6 +234,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri gcc-aarch64-linux-gnu qemu-user cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
+      - name: Record the C toolchain
+        run: |
+          for tool in gcc aarch64-linux-gnu-gcc aarch64-linux-gnu-ld; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "$tool: $("$tool" --version 2>&1 | head -1)"
+            else
+              echo "$tool: not installed"
+            fi
+          done
       - name: Build bin/til (native)
         run: make
       - name: Cross-compile for linux-arm64
@@ -280,6 +320,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri gcc-riscv64-linux-gnu qemu-user cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
+      - name: Record the C toolchain
+        run: |
+          for tool in gcc riscv64-linux-gnu-gcc riscv64-linux-gnu-ld; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "$tool: $("$tool" --version 2>&1 | head -1)"
+            else
+              echo "$tool: not installed"
+            fi
+          done
       - name: Build bin/til (native)
         run: make
       - name: Cross-compile for linux-riscv64
@@ -353,6 +402,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri gcc-multilib qemu-user
       - name: Create test tmp directory
         run: mkdir -p tmp
+      - name: Record the C toolchain
+        run: |
+          for tool in gcc ld; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "$tool: $("$tool" --version 2>&1 | head -1)"
+            else
+              echo "$tool: not installed"
+            fi
+          done
       - name: Build bin/til (native)
         run: make
       - name: Cross-compile and run for linux-x86
@@ -456,6 +514,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri gcc-arm-linux-gnueabihf qemu-user
       - name: Create test tmp directory
         run: mkdir -p tmp
+      - name: Record the C toolchain
+        run: |
+          for tool in gcc arm-linux-gnueabihf-gcc arm-linux-gnueabihf-ld; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "$tool: $("$tool" --version 2>&1 | head -1)"
+            else
+              echo "$tool: not installed"
+            fi
+          done
       - name: Build bin/til (native)
         run: make
       - name: Cross-compile for linux-arm32
@@ -544,6 +611,15 @@ jobs:
           "$TC_DIR/relocate-sdk.sh"
           echo "RISCV32_TC=$TC_DIR" >> $GITHUB_ENV
           echo "Toolchain: $TC_DIR"
+      - name: Record the C toolchain
+        run: |
+          for tool in gcc "$RISCV32_TC"/bin/riscv32-*-gcc "$RISCV32_TC"/bin/riscv32-*-ld; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "$tool: $("$tool" --version 2>&1 | head -1)"
+            else
+              echo "$tool: not installed"
+            fi
+          done
       - name: Build bin/til (native)
         run: make
       - name: Cross-compile and run for linux-riscv32
@@ -640,6 +716,16 @@ jobs:
         run: make
       - name: Install the vendored emsdk and the wasm32 libsecp256k1
         run: make vendor/secp256k1/build-wasm32/lib/libsecp256k1.a vendor/raylib/build-wasm32/libraylib.a
+      - name: Record the C toolchain
+        run: |
+          export EM_CONFIG=$PWD/vendor/emscripten/.emscripten
+          for tool in gcc "$PWD/vendor/emscripten/upstream/emscripten/emcc"; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "$tool: $("$tool" --version 2>&1 | head -1)"
+            else
+              echo "$tool: not installed"
+            fi
+          done
       - name: Build and run wasm32 programs
         run: |
           export EM_CONFIG=$PWD/vendor/emscripten/.emscripten
@@ -672,6 +758,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri mingw-w64 cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
+      - name: Record the C toolchain
+        run: |
+          for tool in gcc x86_64-w64-mingw32-gcc i686-w64-mingw32-gcc x86_64-w64-mingw32-ld; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "$tool: $("$tool" --version 2>&1 | head -1)"
+            else
+              echo "$tool: not installed"
+            fi
+          done
       - name: Build bin/til (native)
         run: make
       - name: Cross-compile for windows-x64 and windows-x86
@@ -852,6 +947,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri mingw-w64 cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
+      - name: Record the C toolchain
+        run: |
+          for tool in gcc x86_64-w64-mingw32-gcc x86_64-w64-mingw32-ld; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "$tool: $("$tool" --version 2>&1 | head -1)"
+            else
+              echo "$tool: not installed"
+            fi
+          done
       - name: Build bin/til (native)
         run: make
       - name: Cross-build til.exe (windows host compiler) and nng server
@@ -1258,6 +1362,11 @@ jobs:
           ./machost/nng_pair-macos-arm64 | grep -q "nng pair ok"
           ./machost/til-macos-arm64 interpret examples/hello_script.til | grep -q "Hello World"
           ./machost/til-macos-arm64 interpret test/ext_libc.til
+      - name: Record the C toolchain
+        run: |
+          echo "clang: $(clang --version 2>&1 | head -1)"
+          echo "ld: $(ld -v 2>&1 | head -1)"
+          echo "sdk: $(xcrun --show-sdk-version 2>&1 | head -1)"
       - name: Build and run tests (no gui, ASAN)
         run: |
           make bin/til bin/til_asan bin/test_runner bin/plot bin/tests
@@ -1439,6 +1548,11 @@ jobs:
           ./machost/nng_pair-macos-x64 | grep -q "nng pair ok"
           ./machost/til-macos-x64 interpret examples/hello_script.til | grep -q "Hello World"
           ./machost/til-macos-x64 interpret test/ext_libc.til
+      - name: Record the C toolchain
+        run: |
+          echo "clang: $(clang --version 2>&1 | head -1)"
+          echo "ld: $(ld -v 2>&1 | head -1)"
+          echo "sdk: $(xcrun --show-sdk-version 2>&1 | head -1)"
       - name: Build and run tests (no gui, ASAN)
         run: |
           make bin/til bin/til_asan bin/test_runner bin/plot bin/tests
@@ -1618,6 +1732,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri clang lld llvm cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
+      - name: Record the C toolchain
+        run: |
+          for tool in gcc clang ld.lld llvm-ar dsymutil; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "$tool: $("$tool" --version 2>&1 | head -1)"
+            else
+              echo "$tool: not installed"
+            fi
+          done
       - name: Build bin/til (native)
         run: make
       - name: Cross-compile for macos-arm64 and macos-x64
@@ -1810,6 +1933,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri clang lld llvm
       - name: Create test tmp directory
         run: mkdir -p tmp
+      - name: Record the C toolchain
+        run: |
+          for tool in gcc clang ld.lld llvm-ar; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              echo "$tool: $("$tool" --version 2>&1 | head -1)"
+            else
+              echo "$tool: not installed"
+            fi
+          done
       - name: Build bin/til (native)
         run: make
       # The one job that drives the build program DIRECTLY (issue #345):

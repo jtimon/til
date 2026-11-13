@@ -127,6 +127,22 @@
   cross targets, and anything a different C compiler or linker version
   would change.
 
+  What the compiler holds BEFORE any backend can be looked at directly
+  (#472, level 1): ~til ast --phase=<phase> file.til~ stops the ordinary
+  pipeline at a phase boundary and prints the state there, one record a
+  line: ~tokens~, ~parsed~, ~typed~, ~owned~ (after the garbager) or
+  ~prepared~ (after constant folding and scavenging, with sizes made the
+  target's: what a backend is handed). The same ~--target~, ~--usize~ and
+  ~--backend~ configuration as a translate applies. The format, what is
+  in a record and what is left out and why are at the top of
+  ~src/self/observer.til~. Two runs, two compiler layouts and two
+  checkout roots give the same records; when two builds differ, the first
+  phase whose records differ is where to look. ~test/observe.til~ (suite
+  row ~observe~) holds that, and ~test/observe_fields.til~ (row
+  ~observe_fields~) compares the fields written with the AST structs as
+  reflection lists them, so a new field cannot be left out silently.
+  Without ~--phase~ the command prints the parsed S-expression, as before.
+
   What checks the compiler-layout half: under ~make check_usize64~ the
   compiler under test is built ~--usize=64~ and ~bin/til~ is compact. The
   ~self_translate~ row has the former reproduce ~boot/~, and the
