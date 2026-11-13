@@ -672,6 +672,60 @@ priv body_has_local := proc(body: Expr, name: Str) returns Bool {
     return false
 }
 
+// Namespace methods may use the interpreter's supported allocation/memory
+// operations internally. Follow their state dependencies without treating
+// those implementation details as unknown caller inputs.
+priv reads_mutable_namespace := func(e: Expr, mut visiting: Set(UPtr), mut ctx: Context) returns Bool {
+    mut called := Option(ref Expr).None
+    switch e.node_type {
+    case .FuncDef: return false
+    case .FCall:
+        if fcall_is_direct(e) {
+            switch e.children[0].node_type {
+            case .Ident(id):
+                called = ctx.scope.lookup_func_name(id.ident_name(ctx.symbols.names), ctx.symbols)
+            case:
+            }
+        }
+    case .FieldAccess(member):
+        ref owner : Str = fa_recv_type_name(e, ctx)
+        definition_o := ctx.scope.get_struct(owner, ctx.symbols)
+        if definition_o.is_some() {
+            ref definition : Expr = definition_o.unwrap()
+            ref field_name : Str = member.field_access_name(ctx.symbols.names)
+            mut instance_field := false
+            switch definition.node_type {
+            case .StructDef(sd): instance_field = sd.fields_index.has(field_name)
+            case:
+            }
+            if instance_field.not() {
+                declaration_o := def_ns_get(definition, field_name)
+                if declaration_o.is_some() {
+                    ref declaration : Declaration = declaration_o.unwrap()
+                    if declaration.default_value.is_some().and(declaration.default_expr().node_type.is(NodeType.FuncDef)) {
+                        called = safe_ref(declaration.default_expr())
+                    } else if declaration.is_mut { return true }
+                }
+            }
+        }
+    case:
+    }
+    if called.is_some() {
+        ref function : Expr = called.unwrap()
+        identity := word_bits(to_ptr(function)).cast(UPtr)
+        if visiting.has(identity).not() {
+            visiting.add(own identity)
+            if function.children.len() > 0 {
+                if reads_mutable_namespace(function.children[0], visiting, ctx) { return true }
+            }
+        }
+    }
+    for child : Expr in e.children {
+        if reads_mutable_namespace(child, visiting, ctx) { return true }
+    }
+    return false
+}
+
 // `lenient`: when true, body-local Decl names (typer-hoisted temps,
 // user-named locals) are NOT flagged as unknown -- the interpreter will
 // see them when it walks the body. When false (master's behaviour),
@@ -992,6 +1046,8 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
             if fdef.children.len() > 0 {
                 // Issue #191: skip unknown-global check for macro calls.
                 if is_macro_mode.not() {
+                    mut namespace_visiting := Set(UPtr).new()
+                    if reads_mutable_namespace(fdef.children[0], namespace_visiting, ctx) { return Option(Expr).None }
                     mut fuug_visiting := Set(Str).new()
                     uses_unknown := func_uses_unknown_globals(fdef.children[0], fdef, scope, fdef.children[0], true, fuug_visiting, ctx)
                     if uses_unknown {

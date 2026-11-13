@@ -5536,6 +5536,7 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
         mut ns_declared := Type.Unknown
         if has_ns_declared {
             ns_declared = type_from_name(ns_declared_name, inner, ctx)
+            rewrite_zero_to_null(tc_cd.default_expr(), ns_declared, tc_cd.own_type.is(OwnType.Own))
             if is_numeric_type(ns_declared) {
                 pre_coerce_decl_numeric_literals(tc_cd.default_expr(), ns_declared, ctx.symbols)
             }
@@ -7387,6 +7388,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                             }
                         }
                         mark_callable_field_transfer(stmt, nsd_type, ctx.symbols.names)
+                        rewrite_zero_to_null(rhs, nsd_type, false)
                         mut handled_lit2 := false
                         switch rhs.node_type {
                         case .Literal(Literal.Num):

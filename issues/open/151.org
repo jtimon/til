@@ -867,11 +867,11 @@
 
   Keep ~bin/til translate --target=templeos -c tmp/til.HC src/til.til~ as a
   development pressure test, not a claim of a working TempleOS compiler.
-  The latest full attempt on ~5de47305e~ plus the Dynamic Map changes, at both
-  USize widths, reaches ~FFITypePtrBox_Clone~ and reports ~unsupported namespace
-  field 'ffi_type.size'~ (U32/U64 respectively). Dynamic Map values and nested
-  ordered-container lifecycle now pass shared native regressions. General
-  Dynamic-to-typed casts, the remaining
+  The latest full attempt on ~e2c6b3f8c~ plus the namespace changes, at both
+  USize widths, passes ~FFITypePtrBox_Clone~ and reports ~custom payload method
+  'FFIEntryBox.clone' is not supported yet~. Dynamic Map values, nested ordered
+  containers and scalar namespace storage pass shared native regressions.
+  General Dynamic-to-typed casts, the remaining
   compiler data/operation shapes, and actual foreign/native boundaries still
   need coverage. Translation, native compilation and a usable compiler are
   separate acceptance milestones. Broader CLI checks should include imported
@@ -1671,8 +1671,41 @@
   four additional C/ASAN runs pass at O0/O2 and USize32/64. All ten focused
   native allocation-ledger cases pass, including the common Map suite at both
   widths. Compiler translation at both widths passes the former Map and Set
-  lifecycle frontiers and reaches the ~ffi_type.size~ field-access diagnostic
-  described above.
+  lifecycle frontiers and reached the then-current ~ffi_type.size~ field-access
+  diagnostic.
+
+**** Instance fields and scalar namespace storage
+
+  The ~ffi_type.size~ diagnostic was an instance/namespace collision, not a
+  request to materialize a size constant: the actual U64 instance field was
+  mistaken for the generated ~size()~ member (whose return type is USize).
+  HolyC now distinguishes the receiver when a struct has both members. The
+  common ~test_instance_field_named_size~ checks full-width reads, writes and
+  borrowed instance access while the generated ~Type.size()~ remains callable.
+
+  Genuine scalar namespace data now has typed native storage, shared across
+  functions and tests. Reads, assignment and mutable arguments use the same
+  slot; immutable literal constants retain direct literal emission. The shared
+  namespace suite covers I64/U64/USize, Bool, F32/F64, Dynamic null/pointer
+  values, and data on both structs and enums alongside enum variants.
+
+  These tests exposed shared defects as well. Constfolder dependency analysis
+  now rejects runtime reads of mutable namespace data, including transitive
+  namespace method calls, instead of baking a function's initial result into
+  later calls. Interpreted primitive namespace reads lend their stable slots
+  so mut parameters update the stored value. Namespace Dynamic initializers
+  and assignments use the ordinary destination-guided null rewrite; storing a
+  Dynamic null materializes its binding slot, and storing a borrowed pointer
+  preserves its address rather than cloning bytes at the pointee. The two new
+  shared state cases check mutation and persistence across separate test calls.
+
+  Verification on master ~e2c6b3f8c~: ~make clean && make test_two_pass~ passes
+  572/572, including clang validation. The full native TempleOS runner passes
+  all 133 guest cases. An ASAN compiler interprets and compiles the namespace
+  suite (12/12 each); four additional C/ASAN runs pass at O0/O2 and USize32/64.
+  Both compiler-to-HolyC pressure tests reach the custom ~FFIEntryBox.clone~
+  payload diagnostic, beyond the instance-size-field failure. The commit uses
+  the two-pass workflow so boot/ reflects the new folding rules self-applied.
 
 **** Manual GUI testing in one VM
 

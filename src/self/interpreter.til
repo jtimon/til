@@ -2042,8 +2042,12 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
                 return result
             }
             if raw_type_is_prim(stored_type, ctx) {
-                ns_word : Dynamic = scalar_word_load(stored_type, stored, ctx)
-                return raw_result_finish(stored_type, ns_word, destination, false, ctx)
+                // Namespace data has a stable slot, just like an instance
+                // field. Mut parameters must borrow it rather than a copy.
+                info.is_ref = true
+                info.is_word = false
+                result : Dynamic = stored
+                return result
             }
             if type_is_callable_storage(stored_type) {
                 mut result : Dynamic = destination
@@ -3244,30 +3248,27 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                     case:
                     }
                 }
-                if sname_o.is_some() {
-                    ref sname : Str = sname_o.unwrap()
-                    target_type := ns_field_type(sname, fname, ctx)
-                    if val_is_ref {
-                        owned : Dynamic = heap_clone_by_type(target_type, val_raw, ctx)
-                        val_raw = owned
-                    } else {
-                        val_raw = raw_coerce_value(val_raw, val_source_type, target_type, ctx)
-                        // ns storage is a binding: a scalar word needs a block.
-                        val_raw = binding_block_from_word(target_type, val_raw, false, ctx)
-                    }
-                    ns_set(sname, fname, val_raw, target_type, ctx)
+                mut namespace_name := ""
+                if sname_o.is_some() { namespace_name = sname_o.unwrap().clone() }
+                target_type := ns_field_type(namespace_name, fname, ctx)
+                if val_is_ref.and(target_type.is(Type.Dynamic)) {
+                    // A borrowed Dynamic result carries its address, whereas
+                    // a Dynamic binding lends the slot containing that address.
+                    val_info.is_ref = true
+                    val_info.is_word = val_is_word
+                    val_info.source_type_p = to_ptr(interp_intern_type(val_source_type, ctx))
+                    address : Dynamic = raw_arg_pointer(val_raw, val_info, ctx)
+                    mut slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+                    write_ptr(slot, address)
+                    val_raw = slot
+                } else if val_is_ref {
+                    val_raw = heap_clone_by_type(target_type, val_raw, ctx)
                 } else {
-                    target_type := ns_field_type("", fname, ctx)
-                    if val_is_ref {
-                        owned : Dynamic = heap_clone_by_type(target_type, val_raw, ctx)
-                        val_raw = owned
-                    } else {
-                        val_raw = raw_coerce_value(val_raw, val_source_type, target_type, ctx)
-                    }
+                    val_raw = raw_coerce_value(val_raw, val_source_type, target_type, ctx)
                     // ns storage is a binding: a scalar word needs a block.
                     val_raw = binding_block_from_word(target_type, val_raw, false, ctx)
-                    ns_set("", fname, val_raw, target_type, ctx)
                 }
+                ns_set(namespace_name, fname, val_raw, target_type, ctx)
             } else {
                 // Reads and writes resolve the same place, including foreign
                 // globals, nested fields, and ref-returning call receivers.
@@ -6473,6 +6474,11 @@ priv ns_set := func(sname: Str, fname: Str, raw: Dynamic, shallow supplied_type:
     ref mut c : Context = ctx
     qn := ns_qname(sname, fname)
     mut incoming : Dynamic = raw
+    // A Dynamic null expression is an unboxed zero word. Namespace bindings
+    // own pointer-word storage, so materialize its zeroed slot at this boundary.
+    if supplied_type.is(Type.Dynamic).and(incoming.is_null()) {
+        incoming = EvalHeap.heap_alloc(Dynamic.size())
+    }
     mut hb_o := scope_lookup_heap_binding(ns_scope(c), qn)
     // An existing binding's type is already canonical; a fresh one interns
     // the supplied type. scope_set_raw_owned panics on Unknown either way.
@@ -6489,11 +6495,11 @@ priv ns_set := func(sname: Str, fname: Str, raw: Dynamic, shallow supplied_type:
             }
             return
         }
-        scope_set_raw_owned(ns_scope(c), qn, raw, hb_o.unwrap().til_type_p, OwnType.Own, ctx)
+        scope_set_raw_owned(ns_scope(c), qn, incoming, hb_o.unwrap().til_type_p, OwnType.Own, ctx)
         return
     }
     if supplied_type.is(Type.Unknown) { panic("namespace field type not found: ", qn) }
-    scope_set_raw_owned(ns_scope(c), qn, raw, interp_intern_type(supplied_type, ctx), OwnType.Own, ctx)
+    scope_set_raw_owned(ns_scope(c), qn, incoming, interp_intern_type(supplied_type, ctx), OwnType.Own, ctx)
 }
 
 priv ns_decl_raw_type := func(decl: Declaration) returns Type {

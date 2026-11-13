@@ -324,6 +324,20 @@ priv holyc_pointer_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState
             .or(locals.str_pointer_names.has(name)).or(locals.callable_slot_names.has(name)) { return emitted_name }
         return format("&", emitted_name)
     case .FieldAccess(fa):
+        if holyc_fa_is_namespace(e, ctx) {
+            owner := holyc_field_owner_name(e, ctx.symbols)
+            ref definition : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
+            ref declaration : Declaration = def_ns_get(definition, fa.field_access_name(ctx.symbols.names)).unwrap()
+            mut is_variant := false
+            if definition.node_type.is(NodeType.EnumDef) {
+                is_variant = enum_variant_index(definition, fa.field_access_name(ctx.symbols.names)) >= 0
+            }
+            if declaration.default_expr().node_type.is(NodeType.FuncDef).or(is_variant).not() {
+                name := holyc_namespace_field(owner, fa.field_access_name(ctx.symbols.names), ctx, state, error)
+                if decl_type_name_ref(declaration, ctx.symbols) == "Dynamic" { return name }
+                return format("&", name)
+            }
+        }
         switch e.children[0].node_type {
         case .Literal(Literal.Str(text)):
             if fa.field_access_name(ctx.symbols.names) == "c_str" { return format("\"", holyc_literal_text(text), "\"") }
@@ -1455,6 +1469,30 @@ priv holyc_field_owner_name := func(e: Expr, symbols: SymbolPool) returns Str {
     }
 }
 
+priv holyc_fa_is_namespace := func(e: Expr, ctx: Context) returns Bool {
+    if fa_is_ns(e, ctx.scope, ctx.symbols).not() { return false }
+    owner := holyc_field_owner_name(e, ctx.symbols)
+    ref definition : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
+    mut member := ""
+    switch e.node_type {
+    case .FieldAccess(fa): member = fa.field_access_name(ctx.symbols.names).clone()
+    case .FieldAssign(fa): member = fa.name.clone()
+    case: UNREACHABLE("expected a field access or assignment")
+    }
+    switch definition.node_type {
+    case .StructDef(sd):
+        if sd.fields_index.has(member) {
+            // An instance's size field is not the type's generated size method.
+            switch e.children[0].node_type {
+            case .Ident(id): return id.ident_name(ctx.symbols.names) == owner
+            case: return false
+            }
+        }
+    case:
+    }
+    return true
+}
+
 priv holyc_namespace_field := func(owner: Str, member: Str, ctx: Context,
     mut state: HolyCEmitState, mut error: Str) returns Str {
     key := format(owner, ".", member)
@@ -1467,16 +1505,18 @@ priv holyc_namespace_field := func(owner: Str, member: Str, ctx: Context,
         state.funcsig_names.add(own type_name.clone())
         state.callable_sigs.set(type_name, own funcdef_of(signature).sig.clone())
     }
-    if holyc_callable_type(type_name, state).not() {
+    if holyc_callable_type(type_name, state).or(holyc_plain_value_type(type_name, state)).not() {
         error = format("unsupported namespace field '", key, "' of type '", type_name, "'")
         return ""
     }
     name := format("TilNamespace_", owner, "_", member)
     state.namespace_fields.set(key, own name.clone())
-    state.namespace_prototypes = format(state.namespace_prototypes, "extern TilClosure *", name, ";\n")
+    mut declaration_text := format(holyc_value_ctype(type_name, state), " ", name)
+    if holyc_callable_type(type_name, state) { declaration_text = format("TilClosure *", name) }
+    state.namespace_prototypes = format(state.namespace_prototypes, "extern ", declaration_text, ";\n")
     value := holyc_expr(declaration.default_expr(), ctx, state, state.global_locals, error)
     if error.len() > 0 { return "" }
-    state.namespace_initializers = format(state.namespace_initializers, "TilClosure *", name, "=", value, ";\n")
+    state.namespace_initializers = format(state.namespace_initializers, declaration_text, "=", value, ";\n")
     return name
 }
 
@@ -2872,11 +2912,23 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
         }
         return emitted_name
     case .FieldAccess(fa):
-        if fa_is_ns(e, ctx.scope, ctx.symbols) {
+        if holyc_fa_is_namespace(e, ctx) {
             owner := holyc_field_owner_name(e, ctx.symbols)
             ref definition : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
             ref declaration : Declaration = def_ns_get(definition, fa.field_access_name(ctx.symbols.names)).unwrap()
             if declaration.is_mut {
+                return holyc_namespace_field(owner, fa.field_access_name(ctx.symbols.names), ctx, state, error)
+            }
+            ref value : Expr = declaration.default_expr()
+            mut is_variant := false
+            if definition.node_type.is(NodeType.EnumDef) {
+                is_variant = enum_variant_index(definition, fa.field_access_name(ctx.symbols.names)) >= 0
+            }
+            if holyc_plain_value_type(holyc_storage_type_name(decl_type_name_ref(declaration, ctx.symbols), state), state)
+                .and(value.node_type.is(NodeType.Literal)).and(is_variant.not()) {
+                return holyc_expr(value, ctx, state, locals, error)
+            }
+            if value.node_type.is(NodeType.FuncDef).or(is_variant).not() {
                 return holyc_namespace_field(owner, fa.field_access_name(ctx.symbols.names), ctx, state, error)
             }
         }
@@ -4235,11 +4287,18 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
                 error = "invalid field assignment"
                 return ""
             }
-            if fa_is_ns(stmt, ctx.scope, ctx.symbols) {
+            if holyc_fa_is_namespace(stmt, ctx) {
                 owner := holyc_field_owner_name(stmt, ctx.symbols)
                 target := holyc_namespace_field(owner, field_assign.name, ctx, state, error)
                 value := holyc_expr(stmt.children[1], ctx, state, locals, error)
                 if error.len() > 0 { return "" }
+                ref definition : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
+                ref declaration : Declaration = def_ns_get(definition, field_assign.name).unwrap()
+                if holyc_plain_value_type(holyc_storage_type_name(decl_type_name_ref(declaration, ctx.symbols), state), state) {
+                    out = format(out, prefix, target, "=", value, ";\n")
+                    i++
+                    continue
+                }
                 replacement := holyc_temp("namespace_replacement", state)
                 mut install := value
                 if field_assign.is_move.or(field_assign.transfers_own).not() {
