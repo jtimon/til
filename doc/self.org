@@ -1017,11 +1017,37 @@
   integration objects additionally finds ordinary swap_bytes and I32.to_str
   references; the latter still reaches the remaining integer-formatting path.
   This is an audit of MLIR-object references, not of C-core-origin/transitive
-  calls. The generic bridge and save_old_delete emitter path also remain.
+  calls. The generic bridge remains for unsupported ordinary core bodies and
+  retained native boundaries.
+
+  swap_bytes and every fixed-width integer to_str body now emit directly,
+  including USize/UPtr aliases. Signed formatting keeps core's U64-magnitude
+  treatment of MIN. U64.to_str's function-local ext declaration is lexical ABI
+  metadata: a read-only canonical AST identity in the emitter's binding table,
+  not a retained callable or copied signature. Its existing U64_to_str_ext
+  runtime boundary still returns an owned Str box; call lowering loads the
+  descriptor and frees that outer, retaining the character buffer for the caller.
+
+  save_old_delete assignments root the appropriate direct Str/Array(Str)
+  destructor. They snapshot the old descriptor, evaluate/store the replacement,
+  then delete the saved contents without freeing its stack outer. The separate
+  marked Str-replacement operation does not root or emit an unused raw swap.
+  check_swap_format_cleanup covers all integer widths and aliases, decimal
+  boundary/random inputs and forwarding, zero/self/unaligned raw swaps, and
+  repeated conditional Str/Array(Str) replacement under native ASAN/UBSAN and
+  til ASAN at O0/O2/O3. The mixed-ref pointer fixture keeps referents typed so
+  newer field-write checking distinguishes immutable text from mutable bytes;
+  native C callers still exercise its raw Dynamic factory.
+
+  The updated 26-object audit finds only print_single/print_flush direct C-core
+  references. Integer formatting reaches the existing U64_to_str_ext runtime
+  symbol, and the runtime object has no C-core undefined references. The retained
+  C-core object still contains internal ordinary calls and depends on runtime
+  primitives. Separating its raw printing glue is the next partition cut point.
 
   MLIR now emits Str literals, locals, borrowed/mutable/own parameters and
   value returns, plus the Array(Str) packing used by variadic core calls.
-  Remaining string methods and numeric formatting
+  Remaining string methods and native formatting primitives
   call the existing C-compiled core/runtime implementations. This is a
   temporary implementation bridge, not the intended final backend architecture.
   The goal is to emit til core bodies directly as MLIR, depending on libc and

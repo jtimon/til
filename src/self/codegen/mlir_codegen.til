@@ -15,6 +15,9 @@ priv MlirBinding := struct {
     is_dynamic := false
     reference_slot := ""
     owns_wrapper := false
+    // Read-only AST identity. Mutable lexical bindings must not carry an AST
+    // loan; resolution borrows the canonical declaration without copying it.
+    native_definition_id : U64 = 0
 }
 
 priv MlirCallable := struct {
@@ -54,6 +57,22 @@ priv MlirState := struct {
 
 priv mlir_f4_type := func() returns Str {
     return "!llvm.struct<(vector<2xf32>, vector<2xf32>)>"
+}
+
+priv mlir_resolve_call := func(e:Expr,state:MlirState,lp:LoadedProgram) returns Option(ref Expr) {
+    switch e.children[0].node_type {
+    case .Ident(id):
+        ref name:Str=id.ident_name(lp.ctx.symbols.names)
+        if state.values.has(name) {
+            ref binding:MlirBinding=state.values[name]
+            if binding.native_definition_id!=0 {
+                ref definition:Expr=to_ptr(bits_word(binding.native_definition_id))
+                return safe_ref(definition)
+            }
+        }
+    case:
+    }
+    return resolve_direct_fcall(e,lp.ctx.scope,lp.ctx.symbols)
 }
 
 priv mlir_i4_type := func() returns Str { return "!llvm.struct<(i64, i64)>" }
@@ -523,7 +542,7 @@ priv mlir_reference_rhs := func(rhs:Expr,state:MlirState,lp:LoadedProgram) retur
         t:=mlir_type(rhs.children[0].til_type(),lp)
         return mlir_pod(t).or(mlir_record(t))
     case .FCall:
-        target:=resolve_direct_fcall(rhs,lp.ctx.scope,lp.ctx.symbols)
+        target:=mlir_resolve_call(rhs,state,lp)
         return target.is_some().and(funcdef_of(target.unwrap()).sig.return_own_type.is(OwnType.Ref))
     case: return false
     }
@@ -1024,7 +1043,7 @@ priv mlir_callable_inventory := func(lp: LoadedProgram, names: Set(Str)) returns
             if stmt.node_type.is(NodeType.Decl) && stmt.children.len()==1 && stmt.children[0].node_type.is(NodeType.FuncDef) {
                 ref dd:Declaration=decl_of(stmt)
                 synthetic:=lp.ctx.generic_func_synth_names.has(dd.name)
-                if dd.name=="concat3" || dd.name=="format" || dd.name=="print" || dd.name=="println"
+                if dd.name=="concat3" || dd.name=="format" || dd.name=="swap_bytes" || dd.name=="print" || dd.name=="println"
                     || dd.name=="panic" || dd.name=="assert" || dd.name=="expect"
                     || dd.name=="TODO" || dd.name=="UNREACHABLE" || synthetic {
                     mut source_path:=unit.path.clone()
@@ -1058,6 +1077,8 @@ priv mlir_callable_inventory := func(lp: LoadedProgram, names: Set(Str)) returns
                     }
                 } else if dd.name=="Array__Str" {
                     if mlir_string_array_member(name).not() {continue}
+                } else if name=="to_str" && mlir_integer_type(type_from_name_init_name(dd.name,lp.ctx.scope,lp.ctx.symbols)) {
+                    if funcdef_of(value).sig.func_type.is(FuncType.Func).not() {continue}
                 } else if mlir_scalar_core_body(name,funcdef_of(value),lp).not() {continue}
                 functions.push(own MlirCallable(path=unit.path.clone(),source_path=unit.path.clone(),declaration=i,member=j.to_i64(),
                     name=format(dd.name,".",name),symbol=format("til.mlir.core.",dd.name,".",name),exported=false))
@@ -1078,16 +1099,29 @@ priv mlir_require_function := func(symbol:Str,functions:Map(UPtr,MlirCallable),m
 
 priv mlir_collect_calls := func(e: Expr, functions: Map(UPtr,MlirCallable), mut selected: Set(UPtr), mut pending: Vec(UPtr), lp: LoadedProgram) {
     if e.node_type.is(NodeType.FuncDef) { return }
+    switch e.node_type {
+    case .Assign(assignment):
+        if assignment.save_old_delete {
+            t:=mlir_type(e.til_type(),lp)
+            if mlir_record(t) {
+                mut symbol:="til.mlir.core.Array__Str.delete"
+                if t=="!llvm.struct<(!llvm.ptr, i32, i32)>" || mlir_sret(t) {symbol="til.mlir.core.Str.delete"}
+                mlir_require_function(symbol,functions,selected,pending)
+            }
+        }
+    case:
+    }
     if e.node_type.is(NodeType.FCall) {
         // The frontend's mut-parameter replacement carries cleanup in this
         // mark, not in a separate delete AST call. Root its real core body.
-        if fcall_of(e).swap_replace && type_name_ref(e.children[1].til_type(),lp.ctx.symbols)=="Str" {
+        replacement:=fcall_of(e).swap_replace && type_name_ref(e.children[1].til_type(),lp.ctx.symbols)=="Str"
+        if replacement {
             ref owner:Expr=lp.ctx.scope.get_struct("Str",lp.ctx.symbols).unwrap()
             id:=mlir_callable_id(def_ns_get(owner,"delete").unwrap().default_expr())
             if selected.has(id).not() {selected.add(own id.clone());pending.push(own id.clone())}
         }
         target := resolve_direct_fcall(e,lp.ctx.scope,lp.ctx.symbols)
-        if target.is_some() {
+        if target.is_some().and(replacement.not()) {
             // Checked floating casts synthesize a panic edge during emission.
             // Root its ordinary helpers without pulling diagnostics into
             // modules containing only infallible integer/float conversions.
@@ -1351,7 +1385,7 @@ priv mlir_cast := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram) ret
 }
 
 priv mlir_legacy_numeric_conversion := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram) returns Str {
-    ref fd : FunctionDef = funcdef_of(resolve_direct_fcall(e,lp.ctx.scope,lp.ctx.symbols).unwrap())
+    ref fd : FunctionDef = funcdef_of(mlir_resolve_call(e,state,lp).unwrap())
     ref source_type:Type=e.children[1].til_type()
     target_type:=type_from_name_init_name(fd.sig.return_type,lp.ctx.scope,lp.ctx.symbols)
     source:=mlir_type(source_type,lp)
@@ -1467,7 +1501,7 @@ priv mlir_memory_call := proc(e: Expr, name: Str, borrow: Bool, mut state: MlirS
         return ""
     }
     if name.starts_with("write_") {
-        ref fd:FunctionDef=funcdef_of(resolve_direct_fcall(e,lp.ctx.scope,lp.ctx.symbols).unwrap())
+        ref fd:FunctionDef=funcdef_of(mlir_resolve_call(e,state,lp).unwrap())
         t:=mlir_type(declaration_resolved_type(fd.sig.params[1],lp.ctx.scope,lp.ctx.symbols),lp)
         raw:=mlir_expr(e.children[2],state,lp)
         mut value:=mlir_coerce(raw,e.children[2],t,state,lp)
@@ -1564,6 +1598,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
         ref name : Str = id.ident_name(lp.ctx.symbols.names)
         if state.values.has(name) {
             ref mut binding : MlirBinding = state.values[name]
+            if binding.native_definition_id!=0 {return mlir_error(e,"native declarations cannot be retained as runtime values",lp)}
             if binding.reference_slot.len()>0 {
                 pointer:=mlir_load(binding.reference_slot,"!llvm.ptr",state)
                 return mlir_pointer_result(pointer,e,borrow,state,lp,binding.type_name,binding.is_signed)
@@ -1696,7 +1731,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             return ""
         }
         if type_is_callable_storage(callee.til_type()) { return mlir_error(e,"indirect calls are not supported",lp) }
-        target := resolve_direct_fcall(e,lp.ctx.scope,lp.ctx.symbols)
+        target := mlir_resolve_call(e,state,lp)
         if target.is_some() && state.functions.has(mlir_callable_id(target.unwrap())) {
             ref fd : FunctionDef = funcdef_of(target.unwrap())
             ref callable : MlirCallable = state.functions[mlir_callable_id(target.unwrap())]
@@ -1822,7 +1857,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                 if id.ident_name(lp.ctx.symbols.names)=="Dynamic" {
                     if op=="size" {return mlir_value(state,"arith.constant 8 : i64")}
                     if op=="delete" || op=="clone" {
-                        return mlir_runtime_call(e,format("Dynamic_",op),funcdef_of(resolve_direct_fcall(e,lp.ctx.scope,lp.ctx.symbols).unwrap()),state,lp,borrow)
+                        return mlir_runtime_call(e,format("Dynamic_",op),funcdef_of(mlir_resolve_call(e,state,lp).unwrap()),state,lp,borrow)
                     }
                 }
                 if mlir_scalar(t) && op=="size" && e.children.len()==1 {
@@ -1840,7 +1875,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     return mlir_value(state, format("arith.constant ", size.to_str(), " : ", mlir_count_type(lp)))
                 }
                 if mlir_record(t) || op == "to_str" || op == "to_repr" {
-                    found := resolve_direct_fcall(e, lp.ctx.scope, lp.ctx.symbols)
+                    found := mlir_resolve_call(e,state,lp)
                     if found.is_none() { return mlir_error(e, "unresolved runtime method", lp) }
                     return mlir_runtime_call(e, format(id.ident_name(lp.ctx.symbols.names), "_", op), funcdef_of(found.unwrap()), state, lp, borrow)
                 }
@@ -2042,7 +2077,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                 }
                 if op == "clone" && e.children.len() == 2 {
                     if mlir_pod(t) {
-                        ref method : Expr = resolve_direct_fcall(e, lp.ctx.scope, lp.ctx.symbols).unwrap()
+                        ref method : Expr = mlir_resolve_call(e,state,lp).unwrap()
                         if funcdef_of(method).auto_generated.not() { return mlir_error(e, "custom POD clone methods are not supported", lp) }
                     }
                     // The typer also uses clone for a widened declaration,
@@ -2070,7 +2105,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             if target.is_some() && funcdef_of(target.unwrap()).sig.func_type.is_bodyless() {
                 if mlir_memory_primitive(name) { return mlir_memory_call(e,name,borrow,state,lp) }
             }
-            primitive := resolve_direct_fcall(e, lp.ctx.scope, lp.ctx.symbols)
+            primitive := mlir_resolve_call(e,state,lp)
             if primitive.is_some() {
                 if funcdef_of(primitive.unwrap()).sig.func_type.is_core() {
                     if name == "not" && e.children.len() == 2 {
@@ -2105,7 +2140,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                 // struct constructors, rather than calls to .new/.splat.
                 return mlir_construct(e, state, lp)
             }
-            found := resolve_direct_fcall(e, lp.ctx.scope, lp.ctx.symbols)
+            found := mlir_resolve_call(e,state,lp)
             if found.is_none() { return mlir_error(e, format("unsupported call '", name, "'"), lp) }
             return mlir_runtime_call(e, name, funcdef_of(found.unwrap()), state, lp, borrow)
         case: return mlir_error(e, "indirect calls are not supported", lp)
@@ -2140,6 +2175,12 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
             if stmt.children.len() != 1 {
                 mlir_error(stmt, "only initialized value locals are supported", lp)
                 break
+            }
+            if stmt.children[0].node_type.is(NodeType.FuncDef) && funcdef_of(stmt.children[0]).sig.func_type.is_bodyless() {
+                // A lexical ext declaration supplies ABI metadata, not a
+                // runtime callable value (e.g. U64.to_str's native formatter).
+                state.values.set(local.name,own MlirBinding(native_definition_id=word_bits(to_ptr(stmt.children[0]))))
+                continue
             }
             local_type := declaration_resolved_type(local, lp.ctx.scope, lp.ctx.symbols)
             t := mlir_type(local_type, lp)
@@ -2231,10 +2272,8 @@ priv mlir_body := proc(body: Expr, ret: Str, mut state: MlirState, mut lp: Loade
                 mlir_store(address, byte, "i8", state)
             } else { mlir_store(address, value, binding.type_name, state,"1") }
             if old.len() > 0 {
-                mut destructor := "Array__Str_delete"
-                if binding.type_name == "!llvm.struct<(!llvm.ptr, i32, i32)>" || mlir_sret(binding.type_name) { destructor = "Str_delete" }
-                symbol := format(lp.ctx.builder_core_c_prefix, lp.ctx.builder_core_c_names[destructor])
-                state.externals.set(symbol, own format("  llvm.func @\"", symbol, "\"(!llvm.ptr, i8)\n"))
+                mut symbol := "til.mlir.core.Array__Str.delete"
+                if binding.type_name == "!llvm.struct<(!llvm.ptr, i32, i32)>" || mlir_sret(binding.type_name) { symbol = "til.mlir.core.Str.delete" }
                 no_free := mlir_value(state, "arith.constant 0 : i8")
                 state.text = format(state.text, "    llvm.call @\"", symbol, "\"(", old, ", ", no_free, ") : (!llvm.ptr, i8) -> ()\n")
             }

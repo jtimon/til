@@ -159,6 +159,55 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Raw swap, integer formatting and saved-value cleanup (base 22169738f)
+
+swap_bytes and all I8/U8 through I64/U64 to_str methods now use their prepared
+bodies as private MLIR helpers, including USize/UPtr aliases. Signed formatting
+retains U64 magnitude arithmetic for MIN. U64.to_str's existing local ext_func
+declaration is recorded as lexical ABI metadata and resolved from its canonical
+AST identity; it is not a runtime callable value or a copied signature cache.
+This avoids carrying an immutable AST loan inside the mutable binding table.
+The existing U64_to_str_ext runtime boundary remains unchanged, including its
+owned Str-box result and the caller's release of that outer wrapper.
+
+save_old_delete now roots and calls direct Str/Array(Str) destructors, after
+snapshotting the old descriptor and evaluating/storing its replacement. The
+saved outer is stack storage and is not freed. Marked Str replacement suppresses
+the obsolete raw-swap dependency because it already emits delete-copy-free.
+
+test/mlir.til check_swap_format_cleanup checks decimal boundary/random values,
+MIN/MAX, all widths/aliases, narrow forwarding, raw swap guards/unaligned/self/
+zero-length cases, and repeated conditional Str/Array(Str) replacement. Native
+ASAN/UBSAN callers and ASAN til consumers run at O0/O2/O3 with interpreter/C
+references. Options tests check private bodies, the retained native formatter,
+and isolated saved-cleanup destructor reachability.
+
+The full integration exposed a pre-existing rejection on this base's stricter
+field-write checking: the mixed immutable-text/mutable-bytes Handles fixture
+erased both field roots through a Dynamic factory. Master's til_boot reproduced
+the same rejection. Its reference/til-consumer construction now preserves typed
+field provenance instead of weakening text's mutability; native C factory and
+raw/null-pointer coverage are retained.
+
+**** Updated dependency audit
+
+nm -u on 26 current MLIR integration objects finds only print_single and
+print_flush in the C-core namespace. swap_bytes and integer formatting entry
+bodies no longer use that namespace; U64_to_str_ext comes from the runtime.
+The new fixture asserts that direct-reference limit as part of integration.
+
+The retained C-core object's undefined symbols include libc I/O/memory and
+runtime conversions/parsers/formatting, with ordinary C-core calls internal to
+the object. The runtime object's undefined symbols are platform/libc/libm and
+optional sanitizer hooks, with no C-core dependency. Thus the next partition
+cut point is separating the two raw printing definitions from generated til
+core, followed by bridge coverage for other supported source bodies. This
+increment keeps the existing artifact/layout and generic native-call bridge.
+
+Verification: make clean && make test passes 575/575. The ASAN compiler and
+ASAN integration driver pass the full optional MLIR suite, including native
+ASAN/UBSAN formatting/swap/saved-cleanup and ASAN til callers at O0/O2/O3.
+
 *** Printing, diagnostics and checked-cast failure helpers (base bad794adb)
 
 print/println, panic/assert/expect and TODO/UNREACHABLE now emit their prepared

@@ -1745,6 +1745,7 @@ typedef struct priv___src_self_codegen_mlir_codegen_til__MlirBinding {
     Bool is_dynamic;
     Str reference_slot;
     Bool owns_wrapper;
+    U64 native_definition_id;
 } priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 
 

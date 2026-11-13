@@ -229,13 +229,40 @@ main := proc(compiler_arg: Str) {
         }
         expect(str_ir.contains("llvm.call @memcmp") && str_ir.contains("llvm.getelementptr") && str_ir.contains("-> !llvm.ptr"),str_ir)
         expect(str_ir.contains("til.mlir.core.Str.clone").or(str_ir.contains("til.mlir.core.Str.find")).not(),str_ir)
-        File.writefile(format(work,"/str_bridge.til"),"mode lib\nnumber:=func(n:I64) returns Str{return n.to_str()}\n")
+        File.writefile(format(work,"/str_bridge.til"),"mode lib\nnumber:=func(n:F64) returns Str{return n.to_str()}\n")
         str_bridge:=Cmd.new(compiler,"translate","--backend=mlir","str_bridge.til")
         str_bridge.cwd(work).capture()
         bridge_status:=str_bridge.run()
         expect(bridge_status==0,str_bridge.out(),str_bridge.err())
         bridge_ir:=File.readfile(format(work,"/gen/mlir/str_bridge.mlir"))
-        expect(bridge_ir.contains("__I64_to_str\"") && bridge_ir.contains("til.mlir.core.I64.to_str\"").not(),bridge_ir)
+        expect(bridge_ir.contains("__F64_to_str\"") && bridge_ir.contains("til.mlir.core.F64.to_str\"").not(),bridge_ir)
+        mut formatting_source:="mode lib\nswap_raw:=func(mut a:Dynamic,mut b:Dynamic,n:UPtr){swap_bytes(a,b,n)}\n"
+        for t in array(Str,"I8","U8","I16","U16","I32","U32","I64","U64") {
+            formatting_source=format(formatting_source,"render_",t,":=func(n:",t,") returns Str{return n.to_str()}\n")
+        }
+        File.writefile(format(work,"/integer_formatting.til"),formatting_source)
+        formatting:=Cmd.new(compiler,"translate","--backend=mlir","integer_formatting.til")
+        formatting.cwd(work).capture()
+        formatting_status:=formatting.run()
+        expect(formatting_status==0,formatting.out(),formatting.err())
+        formatting_ir:=File.readfile(format(work,"/gen/mlir/integer_formatting.mlir"))
+        for t in array(Str,"I8","U8","I16","U16","I32","U32","I64","U64") {
+            expect(formatting_ir.contains(format("llvm.func internal @\"til.mlir.core.",t,".to_str\"")),formatting_ir)
+            expect(formatting_ir.contains(format("__",t,"_to_str\"")).not(),formatting_ir)
+        }
+        expect(formatting_ir.contains("llvm.func internal @\"til.mlir.core.swap_bytes\"") && formatting_ir.contains("__U64_to_str_ext\""),formatting_ir)
+        for target in array(Str,"Str","Array(Str)") {
+            File.writefile(format(work,"/saved_cleanup.til"),format("mode lib\nreplace:=func(a:",target,",flag:Bool) returns ",target,"{mut out:=a.clone();if flag{out=a.clone()};return out}\n"))
+            cleanup:=Cmd.new(compiler,"translate","--backend=mlir","saved_cleanup.til")
+            cleanup.cwd(work).capture()
+            cleanup_status:=cleanup.run()
+            expect(cleanup_status==0,cleanup.out(),cleanup.err())
+            cleanup_ir:=File.readfile(format(work,"/gen/mlir/saved_cleanup.mlir"))
+            mut owner:="Str"
+            if target!="Str" {owner="Array__Str"}
+            expect(cleanup_ir.contains(format("llvm.call @\"til.mlir.core.",owner,".delete\"")) && cleanup_ir.contains(format("llvm.func internal @\"til.mlir.core.",owner,".delete\"")),cleanup_ir)
+            expect(cleanup_ir.contains("__Str_delete\"").or(cleanup_ir.contains("__Array__Str_delete\"")).not(),cleanup_ir)
+        }
         File.writefile(format(work,"/str_more.til"),format("mode lib\n",
             "checked:=func(s:Str,shallow i:USize) returns ref I8{return s.get(i)}\nempty:=func(s:Str) returns Bool{return s.is_empty()}\nstarts:=func(a:Str,b:Str) returns Bool{return a.starts_with(b)}\nends:=func(a:Str,b:Str) returns Bool{return a.ends_with(b)}\nfirst:=func(a:Str,b:Str) returns I64{return a.find(b)}\nlast:=func(a:Str,b:Str) returns I64{return a.rfind(b)}\nhas:=func(a:Str,b:Str) returns Bool{return a.contains(b)}\n",
             "decode:=func(s:Str,i:USize,final:Bool) returns Utf8Read{return s.read_utf8(i,final)}\nvalid:=func(s:Str) returns Bool{return s.is_valid_utf8()}\nview:=func(s:Str) returns Str{return s.borrowed_view()}\nslice:=func(s:Str,i:USize,n:USize) returns Str{return s.substr(i,n)}\ntrim_left:=func(s:Str) returns Str{return s.trim_start()}\ntrim_both:=func(s:Str) returns Str{return s.trim()}\n",
