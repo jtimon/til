@@ -912,6 +912,29 @@
   existing core bodies, selected by reachability rather than reimplemented as
   backend-specific string algorithms. Other Str methods retain the bridge.
 
+  Str.from_byte/from_codepoint, get_char, strip_prefix/strip_suffix and replace
+  also emit directly. UTF-8 encoding retains scalar validation, embedded NUL
+  bytes and the original panic contract. Character access remains byte-oriented;
+  successful stripping returns a view, while a mismatch returns an owned clone.
+  Replacement follows core's non-overlapping byte matching and cleanup.
+
+  Top-level concat3 and format use private prepared core bodies too. Str
+  variadics lower to their existing Array(Str) carrier BEFORE signature/argument
+  ABI calculation; this is not C varargs. The selected concrete Array(Str)
+  new/len/unsafe_get/get/unsafe_set/set/clone/concat/delete bodies use the native
+  pointer/cap descriptor and inline Str elements. Registered concrete generic
+  helpers such as adopt(Str) use their ordinary bodies and source identities.
+  Typed values passed to Dynamic parameters retain their addresses. Checked
+  collector writes have independent error slots and do not invalidate the
+  surrounding function's unrelated OutOfBounds-state proof.
+
+  An ordinary til Str-variadic function owns its collector, including its heap
+  outer. Native C callers pass an owned Array(Str) pointer. A til ext_func
+  binding spells this as an ordinary own Array(Str) parameter; a til variadic
+  wrapper can forward its collector with own. Bodyless variadic declarations
+  do not by themselves express this consuming contract. This matches the C
+  backend's existing calling/ownership convention.
+
   read_utf8 returns the ordinary Utf8Read POD through the same target layout and
   SysV aggregate ABI as user structs; native USize64 makes it a 24-byte sret
   result. Calls, forwarding and reading the result's fields share that ABI.
@@ -959,9 +982,19 @@
   replacement at O0/O2/O3. Failure fixtures compare bounds, decoder assertions,
   literal/view mutation and capacity diagnostics across interpreter/C/MLIR.
 
+  check_str_composition adds all byte encodings, UTF-8 scalar boundaries and
+  sampled codepoints, invalid-scalar panic parity, stripping/view identity,
+  binary replacement, concat3, formatting order and pure/multiple mixed splats.
+  Native C and til ASAN consumers cover Array(Str) value returns, deep clone,
+  concat, element references, failed/successful replacement and destruction at
+  O0/O2/O3. Its til ASAN consumer uses the pinned Clang 18: GCC 13 misinstruments
+  the inlined C reference encoder's loop-local byte at O2, reproduced separately
+  in valid standalone C (see #317). The native MLIR encoder passes the bytewise
+  checks and the ASAN/UBSAN native caller.
+
   MLIR now emits Str literals, locals, borrowed/mutable/own parameters and
   value returns, plus the Array(Str) packing used by variadic core calls.
-  ~println~, ~print~, ~format~, ~panic~, remaining string methods and numeric formatting
+  ~println~, ~print~, ~panic~, remaining string methods and numeric formatting
   call the existing C-compiled core/runtime implementations. This is a
   temporary implementation bridge, not the intended final backend architecture.
   The goal is to emit til core bodies directly as MLIR, depending on libc and

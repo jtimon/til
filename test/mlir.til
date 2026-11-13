@@ -192,6 +192,73 @@ priv check_str_more := proc(compiler:Str,work:Str) {
     }
 }
 
+priv check_str_composition := proc(compiler:Str,work:Str) {
+    File.writefile(format(work,"/str_composition.til"),format("mode lib\n",
+        "encode_byte:=func(n:U8) returns Str{return Str.from_byte(n)}\nencode_point:=func(n:I64) returns Str{return Str.from_codepoint(n)}\nchar_at:=func(s:Str,i:USize) returns Str{return s.get_char(i)}\nstrip_pre:=func(s:Str,p:Str) returns Str{return s.strip_prefix(p)}\nstrip_suf:=func(s:Str,p:Str) returns Str{return s.strip_suffix(p)}\nreplace_bytes:=func(s:Str,a:Str,b:Str) returns Str{return s.replace(a,b)}\njoin_three:=func(a:Str,b:Str,c:Str) returns Str{return concat3(a,b,c)}\nformat_three:=func(a:Str,b:Str,c:Str) returns Str{return format(a,b,c)}\n",
+        "format_parts:=func(parts:Array(Str)) returns Str{return format(..parts)}\nformat_forward:=func(parts:..Str) returns Str{return format(..parts)}\nformat_mixed:=func(a:Array(Str),b:Array(Str)) returns Str{return format(\"[\",..a,\"|\",..b,\"]\")}\n",
+        "array_make:=func(a:Str,b:Str) returns Array(Str){return array(Str,a,b)}\narray_copy:=func(a:Array(Str)) returns Array(Str){return a.clone()}\narray_concat:=func(a:Array(Str),b:Array(Str)) returns Array(Str){return a.concat(b)}\narray_length:=func(a:Array(Str)) returns USize{return a.len()}\narray_read:=func(a:Array(Str),shallow i:USize) returns ref Str throws OutOfBounds{return a.get(i)?}\narray_write:=func(mut a:Array(Str),i:USize,s:Str) throws OutOfBounds{a.set(i,own s.clone())?}\narray_destroy:=func(own a:Array(Str)){Array(Str).delete(own a)}\n",
+        "priv mark:=func(mut trace:I64,s:Str,tag:I64) returns ref Str{trace=trace*10+tag;return s}\nformat_order:=func(mut trace:I64,a:Str,b:Str,c:Str) returns Str{return format(mark(trace,a,1),mark(trace,b,2),mark(trace,c,3))}\n"))
+    File.writefile(format(work,"/str_composition_caller.c"),format(
+        "#include <assert.h>\n#include <stdbool.h>\n#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n",
+        "typedef struct{unsigned char*data;uint64_t count,cap;}Text;typedef struct{Text*data;uint64_t cap;}Parts;extern Text encode_byte(uint8_t),encode_point(int64_t),char_at(const Text*,uint64_t),strip_pre(const Text*,const Text*),strip_suf(const Text*,const Text*),replace_bytes(const Text*,const Text*,const Text*),join_three(const Text*,const Text*,const Text*),format_three(const Text*,const Text*,const Text*),format_order(int64_t*,const Text*,const Text*,const Text*),format_parts(const Parts*),format_forward(const Parts*),format_mixed(const Parts*,const Parts*);extern Parts array_make(const Text*,const Text*),array_copy(const Parts*),array_concat(const Parts*,const Parts*);extern uint64_t array_length(const Parts*);extern const Text*array_read(const Parts*,uint64_t,int64_t*);extern void array_write(Parts*,uint64_t,const Text*,int64_t*),array_destroy(Parts*);\n",
+        "static void equal(Text a,const unsigned char*b,uint64_t n){assert(a.count==n);if(n)assert(!memcmp(a.data,b,n));}static void release(Text a){if(a.cap<UINT64_MAX-1)free(a.data);}static void destroy(Parts a){Parts*box=malloc(sizeof *box);assert(box);*box=a;array_destroy(box);}\n",
+        // Variadic parameters consume their collector, including its outer.
+        "static Text forward_copy(Parts p){Parts*box=malloc(sizeof *box);assert(box);*box=array_copy(&p);return format_forward(box);}\n",
+        "static unsigned encode(uint32_t c,unsigned char*b){unsigned n=1;if(c<128)b[0]=(unsigned char)c;else if(c<2048){n=2;b[0]=(unsigned char)(192+(c>>6));}else if(c<65536){n=3;b[0]=(unsigned char)(224+(c>>12));}else{n=4;b[0]=(unsigned char)(240+(c>>18));}for(unsigned j=1;j<n;j++)b[j]=(unsigned char)(128+((c>>(6*(n-1-j)))&63));return n;}\n",
+        "static void strip(const Text*s,const Text*p){bool pre=p->count<=s->count && (!p->count || !memcmp(s->data,p->data,p->count)),suf=p->count<=s->count && (!p->count || !memcmp(s->data+s->count-p->count,p->data,p->count));Text a=strip_pre(s,p),b=strip_suf(s,p);equal(a,s->data+(pre?p->count:0),s->count-(pre?p->count:0));equal(b,s->data,s->count-(suf?p->count:0));if(pre)assert(a.data==s->data+p->count && a.cap==UINT64_MAX-1);else if(s->count)assert(a.data!=s->data && a.cap==s->count);if(suf)assert(b.data==s->data && b.cap==UINT64_MAX-1);else if(s->count)assert(b.data!=s->data && b.cap==s->count);release(a);release(b);}\n",
+        "static void replacement(const Text*s,const Text*from,const Text*to){unsigned char expected[1024];uint64_t n=0,i=0;while(i<s->count){if(from->count && from->count<=s->count-i && !memcmp(s->data+i,from->data,from->count)){if(to->count)memcpy(expected+n,to->data,to->count);n+=to->count;i+=from->count;}else expected[n++]=s->data[i++];}Text r=replace_bytes(s,from,to);equal(r,expected,n);if(n)assert(r.data!=s->data && r.data[n]==0);release(r);}\n",
+        "static void formatted(const Text*a,const Text*b,const Text*c){unsigned char expected[128];uint64_t n=0;const Text*inputs[]={a,b,c};for(unsigned j=0;j<3;j++){if(inputs[j]->count)memcpy(expected+n,inputs[j]->data,inputs[j]->count);n+=inputs[j]->count;}Text x=join_three(a,b,c),y=format_three(a,b,c);equal(x,expected,n);equal(y,expected,n);release(x);release(y);int64_t trace=0;x=format_order(&trace,a,b,c);equal(x,expected,n);assert(trace==123);release(x);Text items[]={*a,*b,*c};Parts p={items,3};x=format_parts(&p);y=forward_copy(p);equal(x,expected,n);equal(y,expected,n);release(x);release(y);Parts left={items,2},right={items+2,1};unsigned char mixed[132];mixed[0]='[';uint64_t size=1;for(unsigned i=0;i<2;i++){if(items[i].count)memcpy(mixed+size,items[i].data,items[i].count);size+=items[i].count;}mixed[size++]='|';if(c->count)memcpy(mixed+size,c->data,c->count);size+=c->count;mixed[size++]=']';x=format_mixed(&left,&right);equal(x,mixed,size);release(x);}\n",
+        "static void arrays(const Text*a,const Text*b){Parts p=array_make(a,b);assert(p.cap==2 && array_length(&p)==2);equal(p.data[0],a->data,a->count);equal(p.data[1],b->data,b->count);if(a->count)assert(p.data[0].data!=a->data);int64_t error=0;assert(array_read(&p,0,&error)==p.data && !error);array_write(&p,UINT64_MAX,a,&error);assert(error==1);equal(p.data[1],b->data,b->count);error=0;array_write(&p,1,a,&error);assert(!error);equal(p.data[1],a->data,a->count);Parts q=array_copy(&p),both=array_concat(&p,&q);assert(q.cap==2 && both.cap==4);for(unsigned i=0;i<4;i++)equal(both.data[i],a->data,a->count);if(a->count)assert(q.data[0].data!=p.data[0].data && both.data[0].data!=p.data[0].data);error=0;array_read(&p,2,&error);assert(error==1);error=0;assert(array_read(&p,1,&error)==p.data+1 && !error);destroy(both);destroy(q);destroy(p);}\n",
+        "int main(void){for(unsigned b=0;b<256;b++){Text r=encode_byte((uint8_t)b);unsigned char expected=(unsigned char)b;equal(r,&expected,1);assert(r.cap==1 && r.data[1]==0);release(r);}uint32_t points[]={0,1,127,128,255,2047,2048,55295,57344,65535,65536,1114111};uint64_t seed=UINT64_C(0xa489e3705f2c1bd6);for(unsigned i=0;i<1040;i++){seed=seed*UINT64_C(6364136223846793005)+1;uint32_t c=i<sizeof points/sizeof points[0]?points[i]:(uint32_t)((seed>>32)%1114112);if(c>=55296 && c<=57343)c=57344;unsigned char bytes[4];unsigned n=encode(c,bytes);Text r=encode_point(c);equal(r,bytes,n);assert(r.cap==n && r.data[n]==0);release(r);}\n",
+        "unsigned char bytes[24][16];Text values[24];for(unsigned i=0;i<24;i++){for(unsigned j=0;j<16;j++){seed=seed*UINT64_C(6364136223846793005)+1;bytes[i][j]=(unsigned char)((seed>>32)%5);if(i%4==0)bytes[i][j]=(unsigned char)(128+j);}values[i]=(Text){bytes[i],i%16,UINT64_MAX-1};for(uint64_t j=0;j<=values[i].count+2;j++){Text r=char_at(values+i,j);uint64_t pos=j<values[i].count?j:values[i].count;assert(r.data==bytes[i]+pos && r.cap==UINT64_MAX-1);equal(r,bytes[i]+pos,j<values[i].count?1:0);}Text end=char_at(values+i,UINT64_MAX);assert(end.count==0 && end.data==bytes[i]+values[i].count);for(unsigned j=0;j<=i;j++){strip(values+i,values+j);strip(values+j,values+i);for(unsigned k=0;k<4;k++)replacement(values+i,values+j,values+k);}formatted(values+i,values+(i+7)%24,values+(i+13)%24);arrays(values+i,values+(i+3)%24);}\n",
+        "unsigned char a[]={'a','a','a','a','a'},b[]={'a','a'},c[]={'x',0,'y'};Text hay={a,5,UINT64_MAX-1},from={b,2,UINT64_MAX-1},to={c,3,UINT64_MAX-1};replacement(&hay,&from,&to);Parts empty={0,0};Text r=format_parts(&empty);equal(r,0,0);release(r);r=forward_copy(empty);equal(r,0,0);release(r);r=format_mixed(&empty,&empty);equal(r,(const unsigned char*)\"[|]\",3);release(r);return 0;}\n"))
+    checks:=format("main:=proc(){mut code:I64=127;code++;high:=encode_byte(code.to_u8());assert_eq(USize,high.len(),1);assert_eq(I8,high[0],-128);point:=encode_point(code);assert_eq(USize,point.len(),2);assert_eq(Str,point,Str.from_codepoint(code));s:=format(\"a\\0\",high,\"b\");assert_eq(Str,char_at(s,1),\"\\0\");assert(char_at(s,USize.MAX).is_empty());pre:=strip_pre(s,\"a\");assert(ptr_eq(pre.c_str,ptr_add(s.c_str,1)));copy:=strip_pre(s,\"z\");assert_eq(Str,copy,s);assert(ptr_eq(copy.c_str,s.c_str).not());assert_eq(Str,strip_suf(s,\"b\"),format(\"a\\0\",high));assert_eq(Str,replace_bytes(s,\"\\0\",\"XY\"),format(\"aXY\",high,\"b\"));assert_eq(Str,join_three(s,\"|\",s),format(s,\"|\",s));assert_eq(Str,format_three(s,\"|\",s),format(s,\"|\",s));\n",
+        "parts:=array_make(s,high);assert_eq(USize,array_length(parts),2);assert_eq(Str,format_parts(parts),format(s,high));assert_eq(Str,format_forward(s,high),format(s,high));assert_eq(Str,format_mixed(parts,parts),format(\"[\",s,high,\"|\",s,high,\"]\"));mut changed:=array_copy(parts);array_write(changed,1,\"last\")!;assert_eq(Str,array_read(changed,1)!,\"last\");assert_eq(Str,array_read(parts,1)!,high);mut caught:=false;array_write(changed,USize.MAX,s)? catch(err:OutOfBounds){caught=true};assert(caught);assert_eq(Str,array_read(changed,1)!,\"last\");println(\"Str composition PASS\")}\n")
+    File.writefile(format(work,"/str_composition_reference.til"),format("mode cli\nimport(\"str_composition\")\n",checks))
+    File.writefile(format(work,"/str_composition_consumer.til"),format("mode cli\nlink(\"gen/lib/libstr_composition.so\")\n",
+        "encode_byte:=ext_func(shallow n:U8) returns shallow Str{}\nencode_point:=ext_func(shallow n:I64) returns shallow Str{}\nchar_at:=ext_func(s:Str,shallow i:USize) returns shallow Str{}\nstrip_pre:=ext_func(s:Str,p:Str) returns shallow Str{}\nstrip_suf:=ext_func(s:Str,p:Str) returns shallow Str{}\nreplace_bytes:=ext_func(s:Str,a:Str,b:Str) returns shallow Str{}\njoin_three:=ext_func(a:Str,b:Str,c:Str) returns shallow Str{}\nformat_three:=ext_func(a:Str,b:Str,c:Str) returns shallow Str{}\nformat_parts:=ext_func(parts:Array(Str)) returns shallow Str{}\nformat_forward:=ext_func(own parts:Array(Str)) returns shallow Str{}\nformat_mixed:=ext_func(a:Array(Str),b:Array(Str)) returns shallow Str{}\n",
+        // The native variadic ABI consumes one Array(Str), not C varargs.
+        "forward_parts:=func(parts:..Str) returns Str{return format_forward(own parts)}\n",
+        "array_make:=ext_func(a:Str,b:Str) returns shallow Array(Str){}\narray_copy:=ext_func(a:Array(Str)) returns shallow Array(Str){}\narray_concat:=ext_func(a:Array(Str),b:Array(Str)) returns shallow Array(Str){}\narray_length:=ext_func(a:Array(Str)) returns shallow USize{}\narray_read:=ext_func(a:Array(Str),shallow i:USize) returns ref Str throws OutOfBounds{}\narray_write:=ext_func(mut a:Array(Str),shallow i:USize,s:Str) throws OutOfBounds{}\n",checks.replace("format_forward(s,high)","forward_parts(s,high)")))
+    for execution in array(Str,"interpret","run") {
+        reference:=Cmd.new(compiler,execution,"--usize=64","str_composition_reference.til")
+        checked(reference,work)
+    }
+    invalid:=array(Str,"-1","55296","57343","1114112")
+    mut messages:=Vec(Str).new()
+    for i in 0..invalid.len() {
+        name:=format("codepoint_failure_",i.to_str(),".til")
+        File.writefile(format(work,"/",name),format("mode cli\nmain:=proc(){mut code:I64=",invalid[i],";code=code+0;s:=Str.from_codepoint(code);println(s)}\n"))
+        reference:=Cmd.new(compiler,"run","--usize=64",name)
+        reference.cwd(work).capture()
+        expect(reference.run()==1 && reference.err().len()==0,reference.out(),reference.err())
+        interpreted:=Cmd.new(compiler,"interpret","--usize=64",name)
+        interpreted.cwd(work).capture()
+        expect(interpreted.run()==1 && interpreted.err().len()==0,interpreted.out(),interpreted.err())
+        assert_eq(Str,interpreted.out(),reference.out())
+        messages.push(own reference.out())
+    }
+    for level in array(Str,"0","2","3") {
+        build:=Cmd.new(compiler,"build","--backend=mlir",format("--opt=",level),"str_composition.til")
+        checked(build,work)
+        cc:=Cmd.new("clang-18","-O2","-Wall","-Wextra","-Werror","-fsanitize=address,undefined","str_composition_caller.c","gen/lib/libstr_composition.a","-lm","-o","str_composition_caller")
+        checked(cc,work)
+        native:=Cmd.new("./str_composition_caller")
+        checked(native,work)
+        // GCC 13 ASAN misinstruments the loop-local UTF-8 byte when inlining
+        // the C reference encoder at O2 (also reproduced in standalone C).
+        // Use the pinned LLVM toolchain for this caller, with ASAN enabled.
+        consumer:=Cmd.new(compiler,"run","--cc=clang-18","--usize=64","--asan",format("--opt=",level),"str_composition_consumer.til")
+        checked(consumer,work)
+        for i in 0..invalid.len() {
+            failure:=Cmd.new(compiler,"run","--backend=mlir",format("--opt=",level),format("codepoint_failure_",i.to_str(),".til"))
+            failure.cwd(work).capture()
+            expect(failure.run()==1 && failure.err().len()==0,failure.out(),failure.err())
+            assert_eq(Str,failure.out(),messages[i])
+        }
+    }
+}
+
 priv check_control_flow := proc(compiler: Str, work: Str) {
     File.writefile(format(work, "/flow.til"), format(
         "mode pure\nF4 := Simd(F32,4)\nCount := USize\n",
@@ -1513,6 +1580,7 @@ main := proc(compiler_arg: Str) {
     compiler := realpath_str(compiler_arg)
     work := "tmp/mlir_integration"
     mkdir_p(work)
+    check_str_composition(compiler,work)
     check_str_more(compiler,work)
     check_str_bodies(compiler,work)
     check_core_bodies(compiler,work)

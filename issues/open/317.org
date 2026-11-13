@@ -159,6 +159,87 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Str construction, composition and variadic formatting (base e2c6b3f8c)
+
+Str.from_byte/from_codepoint, get_char, strip_prefix/strip_suffix and replace
+now emit their prepared bodies, together with the top-level concat3/format
+functions. The call inventory includes the concrete Array(Str) access/lifecycle
+methods and registered concrete generic helpers (including adopt(Str)). ABI
+calculation resolves a Str-variadic parameter to its Array(Str) carrier rather
+than treating it as one Str descriptor. Arrays keep their native pointer/cap
+layout and inline Str elements; all owning transfers and cleanup follow the AST.
+
+Two direct-call details surfaced when the previously bridged array code became
+native: a typed value supplied to a Dynamic parameter must lend its address,
+not load a record value; and the checked-set error slots used for variadic
+packing are independent from the enclosing function's lowered throw slot.
+Direct calls now mirror the existing runtime boundary for both cases.
+
+The consuming variadic ABI matches C: an ordinary til variadic function owns
+the Array(Str) collector AND its outer. A native C caller allocates that outer
+and supplies owned elements; a til ext_func binding expresses the contract as
+an ordinary own Array(Str) parameter, optionally wrapped by a til variadic
+forwarder. A bodyless variadic declaration alone borrows its collector and is
+therefore not the binding for this owning contract.
+
+test/mlir.til check_str_composition verifies all 256 bytes, Unicode scalar
+boundaries and sampled encodings, byte access/clamping, stripping alias/clone
+identity, non-overlapping binary replacement, concat3, formatting order, empty
+collectors, pure splats and multiple mixed splats. Native C and ASAN til callers
+exercise Array(Str) value returns, clone/concat, element references, failed-set
+cleanup, later successful access and destruction at O0/O2/O3. Invalid scalar
+panics are compared byte-for-byte across interpreter/C/MLIR. The options test
+checks private direct bodies and the carrier ABI without LLVM tools.
+
+The new ASAN til composition caller explicitly uses the pinned Clang 18.
+GCC 13 at O2 reports a false stack-use-after-scope in the C reference UTF-8
+encoder, independently reproduced by the valid C below with
+cc -O2 -g -fsanitize=address. Clang 18 passes the same source; ASAN remains
+enabled for the composition caller under that compiler.
+
+#+begin_src c
+#include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+typedef struct { char *data; uint64_t count, cap; } Text;
+static Text encode(int64_t code) {
+    uint64_t length = 2;
+    char *buf = malloc(length + 1);
+    int64_t value = code;
+    uint64_t index = length;
+    while (1) {
+        uint64_t one = 1;
+        bool condition = index > one;
+        if (!condition) { break; }
+        --index;
+        unsigned char byte = (unsigned char)(128 + value % 64);
+        memcpy(buf + index, &byte, 1);
+        value = value / 64;
+    }
+    unsigned char first = (unsigned char)(192 + value);
+    memcpy(buf, &first, 1);
+    memset(buf + length, 0, 1);
+    return (Text){buf, length, length};
+}
+int main(void) {
+    Text text = encode(128);
+    assert(text.count == 2);
+    free(text.data);
+    return 0;
+}
+#+end_src
+
+The approved C-core partition remains for printing, panic/numeric formatting,
+other core bodies and C-origin calls. No new artifact or source-of-truth cache
+is introduced.
+
+Verification: make clean && make test passes 572/572. The ASAN compiler and
+ASAN driver pass the full optional MLIR integration, including native
+ASAN/UBSAN composition/collector callers and Clang ASAN til consumers at
+O0/O2/O3.
+
 *** Str search, aggregate results and lifecycle bodies (base 1dc0a17e5)
 
 Direct core selection now includes Str.get/is_empty, starts_with/ends_with,

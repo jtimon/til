@@ -257,6 +257,14 @@ priv mlir_byval_type := func(t: Str) returns Str {
 // a later scalar (or an aggregate in the other bank) can still use registers.
 // Scalar stack placement is left to LLVM. Both definitions and direct calls
 // consume this same plan, including the leading sret and trailing error args.
+priv mlir_parameter_type := func(fd:FunctionDef,index:USize,lp:LoadedProgram) returns Type {
+    ref p:Declaration=fd.sig.params[index]
+    if fd.sig.variadic_index==index.to_i32() && decl_type_name_ref(p,lp.ctx.symbols)=="Str" {
+        return type_from_name_init_name("Array__Str",lp.ctx.scope,lp.ctx.symbols)
+    }
+    return declaration_resolved_type(p,lp.ctx.scope,lp.ctx.symbols)
+}
+
 priv mlir_stack_arguments := func(fd: FunctionDef, lp: LoadedProgram) returns Vec(Bool) {
     mut integer_slots : USize = 0
     mut sse_slots : USize = 0
@@ -265,8 +273,9 @@ priv mlir_stack_arguments := func(fd: FunctionDef, lp: LoadedProgram) returns Ve
         if fd.sig.return_own_type.is(OwnType.Ref).not() && mlir_return_sret(ret, lp) { integer_slots = 1 }
     }
     mut stack := Vec(Bool).new()
-    for p : Declaration in fd.sig.params {
-        t := mlir_type(declaration_resolved_type(p, lp.ctx.scope, lp.ctx.symbols), lp)
+    for i in 0..fd.sig.params.len() {
+        ref p:Declaration=fd.sig.params[i]
+        t := mlir_type(mlir_parameter_type(fd,i,lp), lp)
         mut spilled := false
         if p.own_type.is(OwnType.Ref) || mlir_record(t) || t == "!llvm.ptr" {
             if integer_slots < 6 { integer_slots++ }
@@ -511,7 +520,8 @@ priv mlir_reference_rhs := func(rhs:Expr,state:MlirState,lp:LoadedProgram) retur
         ref name:Str=id.ident_name(lp.ctx.symbols.names)
         return state.values.has(name).and(state.values[name].is_local_ref)
     case .FieldAccess:
-        return mlir_pod(mlir_type(rhs.children[0].til_type(),lp)).or(type_name_ref(rhs.children[0].til_type(),lp.ctx.symbols)=="Str")
+        t:=mlir_type(rhs.children[0].til_type(),lp)
+        return mlir_pod(t).or(mlir_record(t))
     case .FCall:
         target:=resolve_direct_fcall(rhs,lp.ctx.scope,lp.ctx.symbols)
         return target.is_some().and(funcdef_of(target.unwrap()).sig.return_own_type.is(OwnType.Ref))
@@ -957,6 +967,13 @@ priv mlir_scalar_core_body := func(name:Str,fd:FunctionDef,lp:LoadedProgram) ret
     return true
 }
 
+priv mlir_string_array_member := func(name:Str) returns Bool {
+    switch name {
+    case "new", "len", "unsafe_get", "get", "unsafe_set", "set", "delete", "clone", "concat": return true
+    case: return false
+    }
+}
+
 priv mlir_callable_inventory := func(lp: LoadedProgram, names: Set(Str)) returns Vec(MlirCallable) {
     mut functions := Vec(MlirCallable).new()
     for unit : ProgramUnit in lp.units {
@@ -985,14 +1002,17 @@ priv mlir_callable_inventory := func(lp: LoadedProgram, names: Set(Str)) returns
                 for j in 0..members.len() {
                     ref member : Declaration = members[j]
                     ref name : Str = def_ns_name_at(definition,j)
-                    if mlir_source_member(unit.path,dd,name,names).not().or(member.default_value.is_none()) { continue }
+                    core_array:=dd.name=="Array__Str" && mlir_string_array_member(name)
+                    if mlir_source_member(unit.path,dd,name,names).or(core_array).not().or(member.default_value.is_none()) { continue }
                     ref value : Expr = member.default_expr()
                     if value.node_type.is(NodeType.FuncDef).not() { continue }
                     if value.children.len() == 0 { continue }
                     ref fd : FunctionDef = funcdef_of(value)
                     if fd.auto_generated || fd.sig.func_type.is_bodyless() || fd.sig.func_type.is(FuncType.Macro) { continue }
+                    mut symbol:=format(dd.name,"_",name)
+                    if core_array {symbol=format("til.mlir.core.",dd.name,".",name)}
                     functions.push(own MlirCallable(path=unit.path.clone(),source_path=unit.path.clone(),declaration=i,member=j.to_i64(),
-                        name=format(dd.name,".",name),symbol=format(dd.name,"_",name),exported=dd.is_priv.or(member.is_priv).not()))
+                        name=format(dd.name,".",name),symbol=symbol,exported=dd.is_priv.or(member.is_priv).or(core_array).not()))
                 }
             }
         }
@@ -1001,9 +1021,20 @@ priv mlir_callable_inventory := func(lp: LoadedProgram, names: Set(Str)) returns
         ref root:Expr=lp.ctx.imported[unit.path].ast
         for i in 0..root.children.len() {
             ref stmt:Expr=root.children[i]
+            if stmt.node_type.is(NodeType.Decl) && stmt.children.len()==1 && stmt.children[0].node_type.is(NodeType.FuncDef) {
+                ref dd:Declaration=decl_of(stmt)
+                synthetic:=lp.ctx.generic_func_synth_names.has(dd.name)
+                if dd.name=="concat3" || dd.name=="format" || synthetic {
+                    mut source_path:=unit.path.clone()
+                    if synthetic {source_path=mlir_generic_source(dd,lp)}
+                    functions.push(own MlirCallable(path=unit.path.clone(),source_path=source_path,declaration=i,
+                        name=dd.name.clone(),symbol=format("til.mlir.core.",dd.name),exported=false))
+                }
+                continue
+            }
             if is_struct_or_enum(stmt).not() {continue}
             ref dd:Declaration=decl_of(stmt)
-            if is_primitive(type_from_name_init_name(dd.name,lp.ctx.scope,lp.ctx.symbols)).or(dd.name=="Str").not() {continue}
+            if is_primitive(type_from_name_init_name(dd.name,lp.ctx.scope,lp.ctx.symbols)).or(dd.name=="Str").or(dd.name=="Array__Str").not() {continue}
             ref definition:Expr=stmt.children[0]
             ref members:Vec(Declaration)=def_ns_decls(definition)
             for j in 0..members.len() {
@@ -1019,9 +1050,12 @@ priv mlir_callable_inventory := func(lp: LoadedProgram, names: Set(Str)) returns
                     case "len", "unsafe_get", "cmp", "eq", "get", "is_empty",
                         "starts_with", "ends_with", "find", "rfind", "contains",
                         "read_utf8", "is_valid_utf8", "borrowed_view", "substr",
-                        "trim_start", "trim", "with_capacity", "push_str", "clone", "delete":
+                        "trim_start", "trim", "with_capacity", "push_str", "clone", "delete",
+                        "from_byte", "from_codepoint", "get_char", "strip_prefix", "strip_suffix", "replace":
                     case: continue
                     }
+                } else if dd.name=="Array__Str" {
+                    if mlir_string_array_member(name).not() {continue}
                 } else if mlir_scalar_core_body(name,funcdef_of(value),lp).not() {continue}
                 functions.push(own MlirCallable(path=unit.path.clone(),source_path=unit.path.clone(),declaration=i,member=j.to_i64(),
                     name=format(dd.name,".",name),symbol=format("til.mlir.core.",dd.name,".",name),exported=false))
@@ -1315,7 +1349,7 @@ priv mlir_legacy_numeric_conversion := proc(e: Expr, mut state: MlirState, mut l
 
 priv mlir_pod_field_address := proc(parent: Expr, field: Str, mut state: MlirState, mut lp: LoadedProgram) returns Str {
     t := mlir_type(parent.til_type(), lp)
-    if mlir_pod(t).or(type_name_ref(parent.til_type(),lp.ctx.symbols)=="Str").not() { return mlir_error(parent, "field access requires a supported POD struct or Str descriptor", lp) }
+    if mlir_pod(t).or(mlir_record(t)).not() { return mlir_error(parent, "field access requires a supported POD struct or runtime descriptor", lp) }
     ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(type_name_ref(parent.til_type(),lp.ctx.symbols), lp.ctx.symbols).unwrap())
     ref index : USize = sd.fields_index[field]
     address := mlir_expr(parent, state, lp, true)
@@ -1564,7 +1598,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
         case:
         }
         parent_type := mlir_type(e.children[0].til_type(), lp)
-        if mlir_pod(parent_type).or(type_name_ref(e.children[0].til_type(),lp.ctx.symbols)=="Str").not() { return mlir_error(e, "field access requires a supported POD struct or Str descriptor", lp) }
+        if mlir_pod(parent_type).or(mlir_record(parent_type)).not() { return mlir_error(e, "field access requires a supported POD struct or runtime descriptor", lp) }
         ref sd : StructDef = structdef_of(lp.ctx.scope.get_struct(type_name_ref(e.children[0].til_type(),lp.ctx.symbols), lp.ctx.symbols).unwrap())
         ref declaration:Declaration=sd.fields[sd.fields_index[field.field_access_name(lp.ctx.symbols.names)]]
         field_type := declaration_resolved_type(declaration, lp.ctx.scope, lp.ctx.symbols)
@@ -1632,16 +1666,14 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
         if target.is_some() && state.functions.has(mlir_callable_id(target.unwrap())) {
             ref fd : FunctionDef = funcdef_of(target.unwrap())
             ref callable : MlirCallable = state.functions[mlir_callable_id(target.unwrap())]
-            if fd.sig.throw_types.len() > 0 && state.error_parameter.len() == 0 {
-                return mlir_error(e, "throwing call has no lowered error slot", lp)
-            }
             ref call_name : Str = callable.symbol
             mut args := ""
             mut types := ""
             stack_arguments := mlir_stack_arguments(fd, lp)
             for i in 0..fd.sig.params.len() {
-                t := mlir_type(declaration_resolved_type(fd.sig.params[i], lp.ctx.scope, lp.ctx.symbols), lp)
-                if (fd.sig.params[i].own_type.is(OwnType.Ref) && t != "!llvm.ptr") || mlir_record(t) {
+                parameter_type:=mlir_parameter_type(fd,i,lp)
+                t := mlir_type(parameter_type, lp)
+                if (fd.sig.params[i].own_type.is(OwnType.Ref) && t != "!llvm.ptr") || mlir_record(t) || parameter_type.is(Type.Dynamic) {
                     mut address := ""
                     if mlir_record(t) { address = mlir_record_arg(e, i+1, t, state, lp) }
                     else { address = mlir_expr(e.children[i + 1], state, lp, true) }
@@ -1710,7 +1742,17 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                 abi_ret = "void"
             }
             mut result := ""
-            if fd.sig.throw_types.len() > 0 { mlir_error_write(state) }
+            if fd.sig.throw_types.len() > 0 {
+                // Variadic packing has independent checked-set error slots.
+                // Invalidate the enclosing throw proof only for its own slot.
+                for i in 0..fd.sig.params.len() {
+                    if fd.sig.params[i].name!="_err_kind" {continue}
+                    switch e.children[i+1].node_type {
+                    case .Ident(id): if id.ident_name(lp.ctx.symbols.names)==state.error_parameter {mlir_error_write(state)}
+                    case:
+                    }
+                }
+            }
             if abi_ret == "void" {
                 state.text = format(state.text, "    llvm.call @\"", call_name, "\"(", args, ") : (", types, ") -> ()\n")
                 if mlir_return_sret(ret, lp) { result = mlir_value(state, format("llvm.load ", record_result, " {alignment = ", mlir_alignment(ret), " : i64} : !llvm.ptr -> ", ret)) }
@@ -2023,7 +2065,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             }
             constructor_type := type_from_name_init_name(name, lp.ctx.scope, lp.ctx.symbols)
             constructor_mlir_type := mlir_type(constructor_type, lp)
-            if mlir_pod(constructor_mlir_type).or(name=="Str") { return mlir_construct_pod(e, constructor_mlir_type, borrow, state, lp) }
+            if mlir_pod(constructor_mlir_type).or(mlir_record(constructor_mlir_type)) { return mlir_construct_pod(e, constructor_mlir_type, borrow, state, lp) }
             if mlir_vector(constructor_mlir_type) && e.children.len() == 5 {
                 // The constant folder materializes SIMD values as positional
                 // struct constructors, rather than calls to .new/.splat.
@@ -2321,8 +2363,11 @@ priv mlir_function := proc(callable: MlirCallable, functions: Map(UPtr,MlirCalla
     ref fd : FunctionDef = funcdef_of(fexpr)
     if fd.sig.func_type.is_bodyless() || fd.sig.func_type.is(FuncType.Macro)
         || fd.captures.len() > 0
-        || fd.sig.variadic_index >= 0 || fd.sig.kwargs_index >= 0 {
+        || fd.sig.kwargs_index >= 0 {
         return mlir_error(decl, "only ordinary non-capturing functions are supported", lp)
+    }
+    if fd.sig.variadic_index>=0 && decl_type_name_ref(fd.sig.params[fd.sig.variadic_index.to_usize()],lp.ctx.symbols)!="Str" {
+        return mlir_error(decl,"only Str variadic parameters are supported",lp)
     }
     for error_type : Str in fd.sig.throw_types {
         if error_type != "OutOfBounds" { return mlir_error(decl, "only OutOfBounds propagation is supported", lp) }
@@ -2340,7 +2385,7 @@ priv mlir_function := proc(callable: MlirCallable, functions: Map(UPtr,MlirCalla
     stack_arguments := mlir_stack_arguments(fd, lp)
     for i in 0..fd.sig.params.len() {
         ref p : Declaration = fd.sig.params[i]
-        t := mlir_type(declaration_resolved_type(p, lp.ctx.scope, lp.ctx.symbols), lp)
+        t := mlir_type(mlir_parameter_type(fd,i,lp), lp)
         if t != "!llvm.ptr" && p.own_type.is(OwnType.Ref) && t.len()>0 && t!="void" {
             if i > 0 { signature = format(signature, ", ") }
             arg := format("%p", i.to_str())

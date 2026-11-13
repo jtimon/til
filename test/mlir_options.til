@@ -85,7 +85,7 @@ main := proc(compiler_arg: Str) {
             strings_status := strings.run()
             expect(strings_status == 0, strings.out(), strings.err())
             strings_ir := File.readfile(format(work, "/gen/mlir/strings.mlir"))
-            expect(strings_ir.contains("__format\"") && strings_ir.contains("__Array__Str_set\""), strings_ir)
+            expect(strings_ir.contains("til.mlir.core.format\"") && strings_ir.contains("til.mlir.core.Array__Str.set\""), strings_ir)
             assert_eq(Bool, strings_ir.contains("llvm.sret"), width=="64")
             support := File.readfile(format(work, "/gen/til/strings.c"))
             expect(support.contains("TIL_CORE_ONLY"), support)
@@ -130,7 +130,7 @@ main := proc(compiler_arg: Str) {
         buffer_bang_status := buffer_bang.run()
         expect(buffer_bang_status == 0, buffer_bang.out(), buffer_bang.err())
         bang_ir := File.readfile(format(work, "/gen/mlir/buffer_bang.mlir"))
-        expect(bang_ir.contains("__panic\"") && bang_ir.contains("__Array__Str_set\"") && bang_ir.contains("llvm.unreachable"), bang_ir)
+        expect(bang_ir.contains("__panic\"") && bang_ir.contains("til.mlir.core.Array__Str.set\"") && bang_ir.contains("llvm.unreachable"), bang_ir)
         expect(bang_ir.contains("til.mlir.panic.").not(), bang_ir)
         File.writefile(format(work, "/helper_bang.til"), "mode pure\nF4:=Simd(F32,4)\nload_values := func(a: Array(F32)) returns F4 throws OutOfBounds { return F4.load(a,0)? }\nunsafe_caller := func(a: Array(F32)) returns F32 { v:=load_values(a)!; return v[0] }\n")
         helper_bang := Cmd.new(compiler, "translate", "--backend=mlir", "helper_bang.til")
@@ -257,6 +257,21 @@ main := proc(compiler_arg: Str) {
         replace_ir:=File.readfile(format(work,"/gen/mlir/str_replace.mlir"))
         expect(replace_ir.contains("llvm.call @\"til.mlir.core.Str.delete\"") && replace_ir.contains("llvm.func internal @\"til.mlir.core.Str.delete\""),replace_ir)
         expect(replace_ir.contains("swap_bytes").not(),replace_ir)
+        File.writefile(format(work,"/str_compose.til"),format("mode lib\n",
+            "byte:=func(n:U8) returns Str{return Str.from_byte(n)}\ncodepoint:=func(n:I64) returns Str{return Str.from_codepoint(n)}\nchar:=func(s:Str,i:USize) returns Str{return s.get_char(i)}\nprefix:=func(s:Str,p:Str) returns Str{return s.strip_prefix(p)}\nsuffix:=func(s:Str,p:Str) returns Str{return s.strip_suffix(p)}\nreplace:=func(s:Str,a:Str,b:Str) returns Str{return s.replace(a,b)}\nthree:=func(a:Str,b:Str,c:Str) returns Str{return concat3(a,b,c)}\n",
+            "parts:=func(items:..Str) returns Str{return format(..items)}\nmixed:=func(a:Array(Str),b:Array(Str)) returns Str{return format(\"[\",..a,\"|\",..b,\"]\")}\n"))
+        compose:=Cmd.new(compiler,"translate","--backend=mlir","str_compose.til")
+        compose.cwd(work).capture()
+        compose_status:=compose.run()
+        expect(compose_status==0,compose.out(),compose.err())
+        compose_ir:=File.readfile(format(work,"/gen/mlir/str_compose.mlir"))
+        for method in array(Str,"from_byte","from_codepoint","get_char","strip_prefix","strip_suffix","replace") {
+            expect(compose_ir.contains(format("llvm.func internal @\"til.mlir.core.Str.",method,"\"")),compose_ir)
+        }
+        for method in array(Str,"format","concat3","Array__Str.new","Array__Str.len","Array__Str.unsafe_get","Array__Str.set","Array__Str.delete","Array__Str.concat") {
+            expect(compose_ir.contains(format("llvm.func internal @\"til.mlir.core.",method,"\"")),compose_ir)
+        }
+        expect(compose_ir.contains("llvm.func @\"parts\"(%result: !llvm.ptr {llvm.sret") && compose_ir.contains("__format\"").not(),compose_ir)
         File.writefile(format(work, "/bad.til"), "mode pure\nbad := func(a: I32) returns U64 { return I32.distance(to_ptr(a),to_ptr(a)) }\n")
         bad := Cmd.new(compiler, "translate", "--backend=mlir", "bad.til")
         bad.cwd(work).capture()
