@@ -198,15 +198,18 @@ would change.
   - [X] Background/resume and surface recreation do not crash or leave a
     blank window. Define whether activity recreation restarts the game;
     saved-game persistence is not implied by the initial demo.
-  - [X] Back/exit and relaunch work; logcat has no native crash, linker
-    error or fatal seccomp violation during the tested sequence.
+  - [X] Initial API 37 / 4 KB Back/exit and relaunch work; logcat has no
+    native crash, linker error or fatal seccomp violation in that sequence.
   - [X] The local session can rebuild/reinstall/relaunch from this
     worktree and show the playable app on request, identifying the tested
     commit, ABI, API level and layout. Capture logs/screenshots in ~tmp/~.
-  - [ ] Repeat smoke/lifecycle checks on API 28 and the newest stable API;
-    audit ELF segment and APK zip alignment and run on the 16 KB image before
-    claiming 16 KB compatibility. Cross-build the arm64 APK too; actual
-    arm64 execution remains a separate device test, not an x86_64 claim.
+  - [X] Repeat x86_64 CLI/library and Checkers smoke/lifecycle checks on
+    API 28 / 4 KB and API 35 / 16 KB, with native page-size measurement
+    and ELF/APK alignment checks. Exit paths tested are qualified below.
+  - [ ] Consistent Back-to-exit behavior on API 28 and API 35; raylib
+    consumes legacy Back input on these images.
+  - [ ] Cross-build the arm64 APK and run it on an ARM device; x86_64
+    execution and ARM64 CLI/library cross-builds do not establish this.
 
 APPROVED and exercised locally: package the demo directly with SDK
 ~aapt2~, ~zipalign~ and ~apksigner~. The disposable outputs are
@@ -388,10 +391,166 @@ Local verification on API 37 x86_64, 4096-byte pages:
 All builds above used the normal ~bin/til build --target=...~ path, except
 the explicit NDK cross-check and the C consumers. This stage supports CLI
 executables and C libraries from the checkout; a permanent APK build
-interface, Android JNI app packaging, API 28/16 KB execution and ARM64
-device execution remain later checks. No emulator/NDK requirement was
-added to the default suite, and no new test command or flag was introduced.
+interface, Android JNI app packaging and ARM64 device execution remain
+later work. API 28 / 16 KB follow-up results are below. No emulator/NDK
+requirement was added to the default suite, and no new test command or
+flag was introduced.
 ~make clean && make test~ passed all 572 tests after these changes.
+
+*** API 28 / 16 KB compatibility matrix setup
+
+Installed with the SDK's Android CLI, using Google's stable image
+catalogue and the existing SDK at ~/home/jt/Android/Sdk~:
+
+  - ~system-images;android-28;google_apis;x86_64~, revision 11
+    (~x86_64-28_r11.zip~).
+  - ~system-images;android-37.0;google_apis_ps16k;x86_64~, revision 8
+    (~x86_64-ps16k-37.0_r08.zip~). SDK ~package.xml~ records revision 8;
+    the upstream archive's ~source.properties~ still says 7. Preserve
+    both as distributed. Its kernel command line includes ~page_shift=14~;
+    that image's user-space probe was blocked by the boot failure below.
+
+The SDK's ~android~ launcher stalled while downloading Android CLI.
+Downloading its official executable directly from
+~https://dl.google.com/android/cli/latest/linux_x86_64/android-cli~ into
+~tmp/android-cli~ worked. Its ~sdk install --ignore-outdated-xmls~ command
+installed the two pinned packages. A leftover root-owned SDK
+~system-images/~ directory initially blocked extraction; the human fixed
+its ownership, and both installations completed as ~jt~.
+
+~avdmanager~ created ~Til_API_28~ and ~Til_API_37_16KB~, both using the
+Medium Phone profile (1080x2400). These test AVDs use Software graphics.
+The human starts them, one configuration at a time, while the session
+drives ADB and verifies API level/page size before testing. The existing
+~Medium_Phone~ is API 37 / 4096-byte pages and is not either matrix result.
+
+On base ~bad794adb~, prepared fresh hello, process, layout, string,
+container, closure, float and SIMD binaries for both USize layouts, plus
+both shared/static namespace-library C consumers. Temporary corpus
+wrappers report a running-test marker to stderr, preserving observable
+procedure execution under the current effect rules. Refreshed
+~tmp/checkers.apk~ from Android-target C using the existing NDK recipe;
+signature and 16 KB zip-alignment verification passed.
+
+The API 28 / 4 KB and API 35 / 16 KB runtime checks below are complete,
+with the Back-input gap recorded separately. The API 37 16 KB image's
+pre-application boot failure remains an SDK/image finding.
+
+*** API 28 compatibility results
+
+~Til_API_28~ booted as ~emulator-5556~, Android 9 / API 28, build
+~google/sdk_gphone_x86_64/generic_x86_64:9/PSR1.180720.122/6736742:userdebug/dev-keys~.
+The image has no ~getconf~ executable. A native C probe built against the
+vendored API 28 sysroot measured 4096 using all three of
+~sysconf(_SC_PAGESIZE)~, ~getpagesize()~ and ~getauxval(AT_PAGESZ)~.
+
+  - Hello, the process corpus, layout corpus, strings, arrays, structs,
+    enums, closures, vectors, float literals and SIMD passed at both
+    USize layouts. Every corpus's stdout matched its expected output;
+    process checks reported ~host_os() == "android"~. Evidence:
+    ~tmp/android_api28_*.actual~ / ~.log~.
+  - Both shared-library namespace C consumers and both static-library
+    consumers exited successfully (USize32 and USize64).
+  - Checkers installed and rendered the full board and controls with
+    Google SwiftShader. Verified 2P moves, Restart and a human move
+    followed by the 1P AI reply. Evidence:
+    ~tmp/checkers_api28_two_player.png~, ~checkers_api28_restart.png~ and
+    ~checkers_api28_ai.png~.
+  - Home/resume retained the position. Logs captured window termination
+    followed by initialization, and the resumed screenshot matched the
+    pre-pause board. Dismissing the task from Recents then produced
+    ~APP_CMD_DESTROY~, ~Window closed successfully~ and
+    ~android_app_destroy!~. Relaunch succeeded with a fresh game and a
+    new PID. ~tmp/checkers_api28_crash.log~ is empty.
+  - Compatibility gap: legacy Back does not close the game on API 28.
+    Upstream raylib's ~AndroidInputCallback~ explicitly consumes
+    ~AKEYCODE_BACK~ / ~AKEYCODE_MENU~ and does not let Android handle them.
+    This differs from the API 37 Back path tested earlier. No additional
+    vendor patch was made; consistent Back-to-exit behavior needs an
+    explicit Android GUI/application policy. Recents dismissal is a
+    separately tested exit path, not a passing Back-key check.
+
+API 28's navigation bar leaves a 1080x2274 drawable display. The 720x800
+logical canvas scales by 1.5 with a 537-pixel top offset, so input probes
+used that transform rather than the API 37 gesture-navigation offset.
+
+*** 16 KB guest boot failure and next image
+
+~Til_API_37_16KB~ did not reach a usable Android session. The host console
+remained responsive and showed the boot animation, while guest shell and
+logcat requests stalled and ADB eventually went offline. No til binary
+was uploaded or run. The generated hardware configuration confirmed
+4096 MB RAM and the Software renderer selecting Lavapipe.
+
+The human restarted it with explicit SwiftShader, ~-show-kernel~ and
+~-verbose~, saving output to ~tmp/android_16k_emulator.log~. That log
+identifies a guest kernel boot loop, rather than merely slow first boot:
+
+  - Kernel ~6.12.81-android16-6-g4f69fc7b210c-ab16167562~.
+  - ~page_shift=14~; apexd reports a current page size of 16384.
+  - ~goldfish_sync.c:408~ warns in ~goldfish_sync_interrupt~.
+  - UBSAN reports an array-index-out-of-bounds trap in that interrupt
+    handler, followed by ~Kernel panic - not syncing: Fatal exception in interrupt~.
+  - The virtual machine then reboots. The captured sequence panicked
+    about eight seconds into that boot, before app testing could begin.
+
+Also installed the official stable API 37.2 16 KB image, revision 7,
+as a candidate. Its kernel has the same SHA-256 as the API 37.0 image's
+kernel. No API 37.2 execution result is claimed; matching kernels alone
+do not prove that their separately supplied driver modules are identical.
+
+Prepared a different-kernel test configuration instead:
+~system-images;android-35;google_apis_ps16k;x86_64~, revision 5, in the new
+AVD ~Til_API_35_16KB~. Its distributed kernel is
+~6.6.50-android15-8-g8adecb593e9b-ab12525588~. The AVD uses SwiftShader.
+The source SDK images were not patched. This configuration subsequently
+booted and passed the native page-size probe and application checks below.
+The API 37 kernel panic remains a separate SDK/image finding.
+
+*** API 35 / 16 KB compatibility results
+
+~Til_API_35_16KB~ booted in 18.5 seconds with SwiftShader, as
+~emulator-5556~, Android 15 / API 35, build
+~google/sdk_gphone16k_x86_64/emu64xa16k:15/AE3A.240806.043/12960925:userdebug/dev-keys~.
+~getconf PAGE_SIZE~ and the same native probe used on API 28 all reported
+16384: ~sysconf(_SC_PAGESIZE)~, ~getpagesize()~ and ~getauxval(AT_PAGESZ)~
+agreed. This is running-kernel/user-space coverage, not an image-tag or
+ELF-alignment inference.
+
+The exact executables and libraries tested on API 28 were reused:
+
+  - All 11 program/harness cases passed at both USize layouts: hello,
+    process, layout, strings, arrays, structs, enums, closures, vectors,
+    float literals and SIMD. Each stdout matched the expected output.
+    Evidence: ~tmp/android_16k_*.actual~ / ~.log~.
+  - Both shared-library C consumers and both static-library C consumers
+    exited successfully. This exercises the default compressed-pointer
+    cage and the native layout with real 16 KB pages, including shared
+    runtime/core loading.
+  - The same signed Checkers APK installed and rendered using Google
+    SwiftShader. Verified 2P moves, Restart and the 1P AI reply, with
+    screenshots ~tmp/checkers_16k_two_player.png~, ~checkers_16k_restart.png~
+    and ~checkers_16k_ai.png~.
+  - Home/resume preserved the board and recreated the window surface
+    (~tmp/checkers_16k_resumed.log~ / ~.png~). The drawable display is
+    1080x2400, with the logical canvas at 1.5x and a 600-pixel top offset.
+  - Legacy Back was consumed here too; an injected Back gesture also did
+    not exit. The scripted Recents swipe did not remove the task, so it
+    is not counted as a passing dismissal. Activity-manager removal of
+    the identified Checkers root task (~am stack remove 8~) completed
+    normal native teardown: ~APP_CMD_DESTROY~, ~Window closed successfully~
+    and ~android_app_destroy!~. Relaunch created a fresh game in a new PID.
+    Evidence: ~tmp/checkers_16k_removed.log~, ~checkers_16k_verified.log~
+    and ~checkers_16k_verified.png~.
+  - The PID-filtered Checkers crash buffer is empty
+    (~tmp/checkers_16k_own_crash.log~). The unfiltered guest crash buffer
+    contains an unrelated Google Search SIGILL in PID 5270; it must not be
+    described as globally empty or as a Checkers crash.
+
+These results validate the tested x86_64 CLI/library paths at both layouts
+and the USize32 native GUI demo on real 16 KB pages. They do not establish
+ARM64 execution, APK/JNI build-interface support, uniform Back behavior,
+or successful boot of the API 37 16 KB image.
 
 *** Preparation notes (remote session, 2026-11-11)
 
