@@ -127,6 +127,13 @@ check_simd_wide := proc(compiler: Str, work: Str) {
     check_shared(compiler,work,path_limit,timeout="180s")
 }
 
+check_simd_narrow := proc(compiler : Str, work : Str) {
+    path := format(work, "/simd_narrow.til")
+    File.writefile(path, format("mode cli\nimport(\"", realpath_str("test/simd.til").strip_suffix(".til").clone(),
+        "\")\nmain := proc() { simd_narrow_checks(); println(\"Narrow SIMD passed\") }\n"))
+    check_shared(compiler, work, path)
+}
+
 check_checked_bool_bounds := proc(compiler:Str,work:Str) {
     for operation in array(Str,"and","or") {
         mut first:="true"
@@ -279,6 +286,7 @@ main := proc(compiler_arg: Str) {
     check_float_fma(compiler,work)
     check_simd(compiler,work)
     check_simd_wide(compiler,work)
+    check_simd_narrow(compiler, work)
     check_checked_bool_bounds(compiler,work)
     check_rebuild(compiler, work)
     println("fasm_native PASS")

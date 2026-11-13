@@ -5,6 +5,30 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** FASM byte/word integer SIMD allocation checks (2026-11-13, #453)
+
+Base: ~22169738f~. I8/U8 start at 16 lanes and I16/U16 at 8; wider supported
+power-of-two vectors reuse the existing SSE2 chunk convention through 1024.
+Word multiplication uses low-word products. Byte multiplication widens both
+halves, multiplies as words, masks to low bytes and packs: the mask prevents
+saturation from changing modular results. Unsigned comparisons flip each lane's
+sign bit before signed comparisons; byte sign masks are packed into Bool lanes.
+
+Shared 12-value natural-width edge matrices and 5-value 32-lane matrices compare
+10,112 lane pairs with scalar arithmetic, division, bitwise operations, all
+comparisons, selection and reductions. The same helpers cover snapshots,
+checked/overlapping memory and raw-bit selection. Natural-width constructors
+and mixed unaligned POD fields, indirect calls and owned captures exercise the
+argument/result representation. Options checks pin the SSE2 byte/word opcodes.
+
+| Probe              | Native malloc | Native free | Storage                |
+|--------------------+---------------+-------------+------------------------|
+| simd_narrow_values |             0 |           0 | Frame temporaries      |
+| simd_narrow_memory |             2 |           2 | Two Array data buffers |
+
+Counts use the existing temporary allocator instrumentation after C/interpreter
+semantic checks at both USize widths. No elapsed-time speedup is claimed.
+
 ** FASM wider SSE2 SIMD allocation checks (2026-11-12, #453)
 
 Base: ~e2c6b3f8c~. The existing F32/F64/I32/U32 families now lower wider

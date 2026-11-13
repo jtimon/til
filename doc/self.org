@@ -1200,6 +1200,7 @@
 
   Baseline SIMD supports power-of-two widths from 4 through 1024 for F32/I32/U32,
   and 2 through 1024 for F64 and Bool masks, within the shared generator limit.
+  I8/U8 widths start at 16 lanes and I16/U16 widths at 8, also through 1024.
   Values keep the shared scalar-lane representation
   and scalar alignment in locals, fields, templates, captures and aggregate calls.
   Floating-point SSE2 packed arithmetic and IEEE comparisons operate on
@@ -1217,6 +1218,14 @@
   canonical Bool bytes. Integer sum/extrema reductions preserve wrapping and
   signed/unsigned ordering. Division uses its generated scalar-lane body,
   retaining zero for a zero divisor and MIN for signed MIN/-1.
+
+  Byte/word integer arithmetic wraps at 8/16 bits. SSE2 word multiplication
+  uses pmullw. Byte multiplication widens each half to words, multiplies, masks
+  to low bytes and packs only values in 0..255, avoiding packuswb saturation.
+  Unsigned comparisons bias each lane's sign bit before pcmpgtb/pcmpgtw;
+  pmovmskb extracts comparison bits into canonical Bool bytes. Extrema honor
+  the declared signedness and element stride. The generated division and
+  reduction bodies retain the same scalar overflow and zero-divisor contract.
 
   Direct SIMD new calls write each scalar argument into result frame storage,
   so wide constructors do not consume the six-register ordinary-call budget.
@@ -1500,7 +1509,7 @@
     Removal follows ext.c's unlink contract: a missing path is harmless, but
     directories and other failures are errors.
 
-  Other integer lane sizes, sub-register numeric vector widths, vector casts and general
+  I64/U64 SIMD, sub-register numeric vector widths, vector casts and general
   runtime-selected method/reflection lookup,
   unsupported external runtime services remain outside this
   subset. Array methods are no longer restricted to compiler-generated
@@ -1591,6 +1600,14 @@
   checked/overlapping memory and the existing nested mixed-SIMD POD-field corpus.
   Integer allocation probes likewise pin 0/0 computation and 2/2 Array buffers;
   assembler-free checks require SSE2 multiply/shuffle/comparison instructions.
+
+  ~simd_narrow_checks~ adds I8/U8/I16/U16 edge matrices at natural register
+  widths and at 32 lanes: 10,112 lane pairs compare arithmetic, masks, bitwise
+  operations, selection and reductions with scalar results. Shared helpers pin
+  snapshots, checked/overlapping memory and raw-bit selection. Constructors,
+  unaligned mixed POD fields, indirect calls and owned captures cover narrow
+  argument/result storage. Allocation probes pin 0/0 computation and only two
+  data buffers for the two-Array memory probe.
 
   ~simd_wide_checks~ reuses those scalar-reference, FMA, selection and memory
   helpers at widths spanning two to eight registers, including byte masks of

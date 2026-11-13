@@ -6999,8 +6999,8 @@ static void priv___src_self_codegen_fasm_codegen_til__fasm_store_scalar(Type t, 
 static Type priv___src_self_codegen_fasm_codegen_til__fasm_conversion(Str * op, LoadedProgram * lp);
 static Str priv___src_self_codegen_fasm_codegen_til__fasm_simd_snapshot(Expr * e, Type t, priv___src_self_codegen_fasm_codegen_til__FasmState * state, LoadedProgram * lp);
 static void priv___src_self_codegen_fasm_codegen_til__fasm_simd_extrema(Str * input, StructDef * sd, Type lane, Str * op, priv___src_self_codegen_fasm_codegen_til__FasmState * state, LoadedProgram * lp);
-static void priv___src_self_codegen_fasm_codegen_til__fasm_simd_integer_extrema(Str * input, StructDef * sd, Type lane, Str * op, priv___src_self_codegen_fasm_codegen_til__FasmState * state);
-static void priv___src_self_codegen_fasm_codegen_til__fasm_simd_integer_binary(Vec__Str * arguments, Str * result, Type lane, Str * op, priv___src_self_codegen_fasm_codegen_til__FasmState * state);
+static void priv___src_self_codegen_fasm_codegen_til__fasm_simd_integer_extrema(Str * input, StructDef * sd, Type lane, Str * op, USize bytes, priv___src_self_codegen_fasm_codegen_til__FasmState * state);
+static void priv___src_self_codegen_fasm_codegen_til__fasm_simd_integer_binary(Vec__Str * arguments, Str * result, Type lane, Str * op, USize bytes, priv___src_self_codegen_fasm_codegen_til__FasmState * state);
 static Str priv___src_self_codegen_fasm_codegen_til__fasm_simd_address(Str * address, USize offset);
 static void priv___src_self_codegen_fasm_codegen_til__fasm_simd_float_binary(Vec__Str * arguments, Str * result, Type lane, Str * op, USize lanes, priv___src_self_codegen_fasm_codegen_til__FasmState * state);
 static Bool priv___src_self_codegen_fasm_codegen_til__fasm_simd_core(Expr * e, Type owner, Str * op, priv___src_self_codegen_fasm_codegen_til__FasmState * state, LoadedProgram * lp);
@@ -10064,6 +10064,7 @@ static struct {
     Str ha3d49550422a;
     Str h5adbe6f703e8;
     Str he769257283cf;
+    Str h0653145df490;
     Str he76b77c2622f;
     Str h00000b889e14;
     Str h075a72e23ce4;
@@ -10345,6 +10346,7 @@ static struct {
     Str h595fb3591346;
     Str h557497a05cfc;
     Str he7a8c5959725;
+    Str h00000002b61c;
     Str hdd7fec975ad5;
     Str h065324911682;
     Str h003110a3387e;
@@ -12125,6 +12127,7 @@ static void til_str_lits_init(void) {
         {offsetof(__typeof__(*_til_str_lits_cage), ha3d49550422a), "pass a clone (own ", 18ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), h5adbe6f703e8), "pass a clone: ", 14ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), he769257283cf), "payload ", 8ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h0653145df490), "pcmpgt", 6ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), he76b77c2622f), "pipefail", 8ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), h00000b889e14), "pop", 3ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), h075a72e23ce4), "positional argument after named argument", 40ULL},
@@ -12406,6 +12409,7 @@ static void til_str_lits_init(void) {
         {offsetof(__typeof__(*_til_str_lits_cage), h595fb3591346), "void *dyn_call_", 15ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), h557497a05cfc), "void dyn_call_", 14ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), he7a8c5959725), "volatile", 8ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h00000002b61c), "w", 1ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), hdd7fec975ad5), "warning: ", 9ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), h065324911682), "wasm32", 6ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), h003110a3387e), "while", 5ULL},
@@ -14436,30 +14440,31 @@ static struct {
     Str hoisted__Str_self_codegen_fasm_codegen_fasm_signature_name_15;
     Str hoisted__Str_self_codegen_fasm_codegen_fasm_signature_name_7;
     Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_10;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_128;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_146;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_151;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_163;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_168;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_148;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_166;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_171;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_183;
     Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_188;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_196;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_219;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_264;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_269;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_274;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_322;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_351;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_356;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_397;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_402;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_469;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_208;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_217;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_240;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_285;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_290;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_295;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_343;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_372;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_377;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_418;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_423;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_490;
     Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_61;
     Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_68;
     Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_float_binary_4;
     Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_float_binary_9;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_39;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_4;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_9;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_13;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_3;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_8;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_92;
     Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_snapshot_47;
     Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_supported_5;
     Str hoisted__Str_self_codegen_fasm_codegen_fasm_static_callable_24;
@@ -18896,15 +18901,15 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fa_is_ns_12), "./src/self/typer.til:8:9", 24ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fa_own_type_10), "./src/self/typer.til:150:9", 26ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fa_own_type_19), "./src/self/typer.til:174:9", 26ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_11), "./src/self/codegen/fasm_codegen.til:2931:37", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_157), "./src/self/codegen/fasm_codegen.til:2976:40", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_163), "./src/self/codegen/fasm_codegen.til:2983:32", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_23), "./src/self/codegen/fasm_codegen.til:2934:37", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_4), "./src/self/codegen/fasm_codegen.til:2927:40", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_62), "./src/self/codegen/fasm_codegen.til:2958:61", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_77), "./src/self/codegen/fasm_codegen.til:2963:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_98), "./src/self/codegen/fasm_codegen.til:2965:41", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_source_declarations_2), "./src/self/codegen/fasm_codegen.til:2141:61", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_11), "./src/self/codegen/fasm_codegen.til:2958:37", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_157), "./src/self/codegen/fasm_codegen.til:3003:40", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_163), "./src/self/codegen/fasm_codegen.til:3010:32", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_23), "./src/self/codegen/fasm_codegen.til:2961:37", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_4), "./src/self/codegen/fasm_codegen.til:2954:40", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_62), "./src/self/codegen/fasm_codegen.til:2985:61", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_77), "./src/self/codegen/fasm_codegen.til:2990:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_codegen_translate_98), "./src/self/codegen/fasm_codegen.til:2992:41", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fasm_source_declarations_2), "./src/self/codegen/fasm_codegen.til:2168:61", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_arg_for_param_16), "./src/self/typer.til:12913:53", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_arg_for_param_25), "./src/self/typer.til:12914:70", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_arg_for_param_4), "./src/self/typer.til:12910:9", 28ULL},
@@ -20343,169 +20348,169 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_c_codegen_topo_emit_struct_enum_defs_lp_6), "./src/self/codegen/c_codegen.til:7309:13", 40ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_c_codegen_topo_emit_struct_enum_defs_lp_63), "./src/self/codegen/c_codegen.til:7336:17", 40ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_c_codegen_topo_emit_struct_enum_defs_lp_68), "./src/self/codegen/c_codegen.til:7339:17", 40ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_aggregate_21), "./src/self/codegen/fasm_codegen.til:213:26", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binary_58), "./src/self/codegen/fasm_codegen.til:1980:25", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binary_63), "./src/self/codegen/fasm_codegen.til:1983:25", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_aggregate_21), "./src/self/codegen/fasm_codegen.til:215:26", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binary_58), "./src/self/codegen/fasm_codegen.til:2007:25", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binary_63), "./src/self/codegen/fasm_codegen.til:2010:25", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_bind_globals_11), "./src/self/codegen/fasm_codegen.til:41:13", 41ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_bind_globals_6), "./src/self/codegen/fasm_codegen.til:40:13", 41ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_pointer_17), "./src/self/codegen/fasm_codegen.til:2448:66", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_pointer_28), "./src/self/codegen/fasm_codegen.til:2448:95", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_pointer_49), "./src/self/codegen/fasm_codegen.til:2449:58", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_pointer_63), "./src/self/codegen/fasm_codegen.til:2450:63", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_value_18), "./src/self/codegen/fasm_codegen.til:2455:61", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_value_38), "./src/self/codegen/fasm_codegen.til:2457:95", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_value_4), "./src/self/codegen/fasm_codegen.til:2454:85", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_value_45), "./src/self/codegen/fasm_codegen.til:2460:38", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_106), "./src/self/codegen/fasm_codegen.til:2543:55", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_148), "./src/self/codegen/fasm_codegen.til:2548:56", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_153), "./src/self/codegen/fasm_codegen.til:2550:75", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_19), "./src/self/codegen/fasm_codegen.til:2526:76", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_193), "./src/self/codegen/fasm_codegen.til:2558:48", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_208), "./src/self/codegen/fasm_codegen.til:2561:57", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_221), "./src/self/codegen/fasm_codegen.til:2561:120", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_234), "./src/self/codegen/fasm_codegen.til:2562:89", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_242), "./src/self/codegen/fasm_codegen.til:2563:43", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_251), "./src/self/codegen/fasm_codegen.til:2565:75", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_280), "./src/self/codegen/fasm_codegen.til:2570:21", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_290), "./src/self/codegen/fasm_codegen.til:2571:72", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_298), "./src/self/codegen/fasm_codegen.til:2572:35", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_340), "./src/self/codegen/fasm_codegen.til:2590:94", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_368), "./src/self/codegen/fasm_codegen.til:2596:65", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_389), "./src/self/codegen/fasm_codegen.til:2604:100", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_394), "./src/self/codegen/fasm_codegen.til:2604:137", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_421), "./src/self/codegen/fasm_codegen.til:2608:104", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_435), "./src/self/codegen/fasm_codegen.til:2609:77", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_46), "./src/self/codegen/fasm_codegen.til:2533:63", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_475), "./src/self/codegen/fasm_codegen.til:2620:66", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_489), "./src/self/codegen/fasm_codegen.til:2622:66", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_51), "./src/self/codegen/fasm_codegen.til:2534:82", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_515), "./src/self/codegen/fasm_codegen.til:2630:55", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_528), "./src/self/codegen/fasm_codegen.til:2636:17", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_533), "./src/self/codegen/fasm_codegen.til:2637:21", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_543), "./src/self/codegen/fasm_codegen.til:2638:72", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_59), "./src/self/codegen/fasm_codegen.til:2535:47", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_643), "./src/self/codegen/fasm_codegen.til:2667:65", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_651), "./src/self/codegen/fasm_codegen.til:2669:47", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_656), "./src/self/codegen/fasm_codegen.til:2673:59", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_690), "./src/self/codegen/fasm_codegen.til:2676:47", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_704), "./src/self/codegen/fasm_codegen.til:2684:37", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_709), "./src/self/codegen/fasm_codegen.til:2686:43", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_714), "./src/self/codegen/fasm_codegen.til:2687:47", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_719), "./src/self/codegen/fasm_codegen.til:2690:47", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_73), "./src/self/codegen/fasm_codegen.til:2537:121", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_782), "./src/self/codegen/fasm_codegen.til:2680:16", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_789), "./src/self/codegen/fasm_codegen.til:2707:52", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_798), "./src/self/codegen/fasm_codegen.til:2717:36", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_803), "./src/self/codegen/fasm_codegen.til:2719:36", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_867), "./src/self/codegen/fasm_codegen.til:2730:36", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_872), "./src/self/codegen/fasm_codegen.til:2732:36", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_877), "./src/self/codegen/fasm_codegen.til:2734:65", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_boxed_18), "./src/self/codegen/fasm_codegen.til:773:42", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_boxed_36), "./src/self/codegen/fasm_codegen.til:780:40", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_call_argument_4), "./src/self/codegen/fasm_codegen.til:1048:9", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_call_argument_9), "./src/self/codegen/fasm_codegen.til:1050:9", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_call_outer_34), "./src/self/codegen/fasm_codegen.til:1106:9", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_call_outer_4), "./src/self/codegen/fasm_codegen.til:1100:21", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_call_returns_ref_12), "./src/self/codegen/fasm_codegen.til:702:36", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_call_returns_ref_7), "./src/self/codegen/fasm_codegen.til:700:18", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_callable_fd_17), "./src/self/codegen/fasm_codegen.til:481:11", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_callee_name_11), "./src/self/codegen/fasm_codegen.til:749:13", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_callee_name_35), "./src/self/codegen/fasm_codegen.til:750:30", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_callee_name_4), "./src/self/codegen/fasm_codegen.til:746:22", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_captures_3), "./src/self/codegen/fasm_codegen.til:462:11", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_closure_name_5), "./src/self/codegen/fasm_codegen.til:470:11", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_closure_value_11), "./src/self/codegen/fasm_codegen.til:587:49", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_closure_value_18), "./src/self/codegen/fasm_codegen.til:590:13", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_closure_value_23), "./src/self/codegen/fasm_codegen.til:595:38", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_closure_value_68), "./src/self/codegen/fasm_codegen.til:609:46", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_19), "./src/self/codegen/fasm_codegen.til:414:21", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_34), "./src/self/codegen/fasm_codegen.til:420:25", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_6), "./src/self/codegen/fasm_codegen.til:411:17", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_65), "./src/self/codegen/fasm_codegen.til:431:31", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_70), "./src/self/codegen/fasm_codegen.til:432:54", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_79), "./src/self/codegen/fasm_codegen.til:413:36", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_closures_19), "./src/self/codegen/fasm_codegen.til:404:41", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_closures_24), "./src/self/codegen/fasm_codegen.til:405:16", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_pointer_17), "./src/self/codegen/fasm_codegen.til:2475:66", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_pointer_28), "./src/self/codegen/fasm_codegen.til:2475:95", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_pointer_49), "./src/self/codegen/fasm_codegen.til:2476:58", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_pointer_63), "./src/self/codegen/fasm_codegen.til:2477:63", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_value_18), "./src/self/codegen/fasm_codegen.til:2482:61", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_value_38), "./src/self/codegen/fasm_codegen.til:2484:95", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_value_4), "./src/self/codegen/fasm_codegen.til:2481:85", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_binding_value_45), "./src/self/codegen/fasm_codegen.til:2487:38", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_106), "./src/self/codegen/fasm_codegen.til:2570:55", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_148), "./src/self/codegen/fasm_codegen.til:2575:56", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_153), "./src/self/codegen/fasm_codegen.til:2577:75", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_19), "./src/self/codegen/fasm_codegen.til:2553:76", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_193), "./src/self/codegen/fasm_codegen.til:2585:48", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_208), "./src/self/codegen/fasm_codegen.til:2588:57", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_221), "./src/self/codegen/fasm_codegen.til:2588:120", 44ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_234), "./src/self/codegen/fasm_codegen.til:2589:89", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_242), "./src/self/codegen/fasm_codegen.til:2590:43", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_251), "./src/self/codegen/fasm_codegen.til:2592:75", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_280), "./src/self/codegen/fasm_codegen.til:2597:21", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_290), "./src/self/codegen/fasm_codegen.til:2598:72", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_298), "./src/self/codegen/fasm_codegen.til:2599:35", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_340), "./src/self/codegen/fasm_codegen.til:2617:94", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_368), "./src/self/codegen/fasm_codegen.til:2623:65", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_389), "./src/self/codegen/fasm_codegen.til:2631:100", 44ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_394), "./src/self/codegen/fasm_codegen.til:2631:137", 44ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_421), "./src/self/codegen/fasm_codegen.til:2635:104", 44ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_435), "./src/self/codegen/fasm_codegen.til:2636:77", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_46), "./src/self/codegen/fasm_codegen.til:2560:63", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_475), "./src/self/codegen/fasm_codegen.til:2647:66", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_489), "./src/self/codegen/fasm_codegen.til:2649:66", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_51), "./src/self/codegen/fasm_codegen.til:2561:82", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_515), "./src/self/codegen/fasm_codegen.til:2657:55", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_528), "./src/self/codegen/fasm_codegen.til:2663:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_533), "./src/self/codegen/fasm_codegen.til:2664:21", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_543), "./src/self/codegen/fasm_codegen.til:2665:72", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_59), "./src/self/codegen/fasm_codegen.til:2562:47", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_643), "./src/self/codegen/fasm_codegen.til:2694:65", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_651), "./src/self/codegen/fasm_codegen.til:2696:47", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_656), "./src/self/codegen/fasm_codegen.til:2700:59", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_690), "./src/self/codegen/fasm_codegen.til:2703:47", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_704), "./src/self/codegen/fasm_codegen.til:2711:37", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_709), "./src/self/codegen/fasm_codegen.til:2713:43", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_714), "./src/self/codegen/fasm_codegen.til:2714:47", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_719), "./src/self/codegen/fasm_codegen.til:2717:47", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_73), "./src/self/codegen/fasm_codegen.til:2564:121", 44ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_782), "./src/self/codegen/fasm_codegen.til:2707:16", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_789), "./src/self/codegen/fasm_codegen.til:2734:52", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_798), "./src/self/codegen/fasm_codegen.til:2744:36", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_803), "./src/self/codegen/fasm_codegen.til:2746:36", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_867), "./src/self/codegen/fasm_codegen.til:2757:36", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_872), "./src/self/codegen/fasm_codegen.til:2759:36", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_body_877), "./src/self/codegen/fasm_codegen.til:2761:65", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_boxed_18), "./src/self/codegen/fasm_codegen.til:775:42", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_boxed_36), "./src/self/codegen/fasm_codegen.til:782:40", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_call_argument_4), "./src/self/codegen/fasm_codegen.til:1050:9", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_call_argument_9), "./src/self/codegen/fasm_codegen.til:1052:9", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_call_outer_34), "./src/self/codegen/fasm_codegen.til:1108:9", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_call_outer_4), "./src/self/codegen/fasm_codegen.til:1102:21", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_call_returns_ref_12), "./src/self/codegen/fasm_codegen.til:704:36", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_call_returns_ref_7), "./src/self/codegen/fasm_codegen.til:702:18", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_callable_fd_17), "./src/self/codegen/fasm_codegen.til:483:11", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_callee_name_11), "./src/self/codegen/fasm_codegen.til:751:13", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_callee_name_35), "./src/self/codegen/fasm_codegen.til:752:30", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_callee_name_4), "./src/self/codegen/fasm_codegen.til:748:22", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_captures_3), "./src/self/codegen/fasm_codegen.til:464:11", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_closure_name_5), "./src/self/codegen/fasm_codegen.til:472:11", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_closure_value_11), "./src/self/codegen/fasm_codegen.til:589:49", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_closure_value_18), "./src/self/codegen/fasm_codegen.til:592:13", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_closure_value_23), "./src/self/codegen/fasm_codegen.til:597:38", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_closure_value_68), "./src/self/codegen/fasm_codegen.til:611:46", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_19), "./src/self/codegen/fasm_codegen.til:416:21", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_34), "./src/self/codegen/fasm_codegen.til:422:25", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_6), "./src/self/codegen/fasm_codegen.til:413:17", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_65), "./src/self/codegen/fasm_codegen.til:433:31", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_70), "./src/self/codegen/fasm_codegen.til:434:54", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_79), "./src/self/codegen/fasm_codegen.til:415:36", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_closures_19), "./src/self/codegen/fasm_codegen.til:406:41", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_closures_24), "./src/self/codegen/fasm_codegen.til:407:16", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_global_29), "./src/self/codegen/fasm_codegen.til:61:126", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_global_73), "./src/self/codegen/fasm_codegen.til:71:52", 41ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_collect_global_74), "./src/self/codegen/fasm_codegen.til:53:28", 41ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_constructor_13), "./src/self/codegen/fasm_codegen.til:1443:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_constructor_93), "./src/self/codegen/fasm_codegen.til:1431:26", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_definition_14), "./src/self/codegen/fasm_codegen.til:445:58", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_definition_25), "./src/self/codegen/fasm_codegen.til:446:44", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_definition_4), "./src/self/codegen/fasm_codegen.til:441:9", 41ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_definition_9), "./src/self/codegen/fasm_codegen.til:442:9", 41ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_enum_constructor_20), "./src/self/codegen/fasm_codegen.til:336:13", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_enum_is_4), "./src/self/codegen/fasm_codegen.til:313:29", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_enum_is_9), "./src/self/codegen/fasm_codegen.til:316:29", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_enum_payload_offset_14), "./src/self/codegen/fasm_codegen.til:279:24", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_120), "./src/self/codegen/fasm_codegen.til:659:79", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_14), "./src/self/codegen/fasm_codegen.til:636:53", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_152), "./src/self/codegen/fasm_codegen.til:671:91", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_4), "./src/self/codegen/fasm_codegen.til:624:51", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_50), "./src/self/codegen/fasm_codegen.til:641:13", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_61), "./src/self/codegen/fasm_codegen.til:649:46", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_80), "./src/self/codegen/fasm_codegen.til:653:46", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_9), "./src/self/codegen/fasm_codegen.til:628:34", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_188), "./src/self/codegen/fasm_codegen.til:2217:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_236), "./src/self/codegen/fasm_codegen.til:2231:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_242), "./src/self/codegen/fasm_codegen.til:2235:35", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_257), "./src/self/codegen/fasm_codegen.til:2241:88", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_288), "./src/self/codegen/fasm_codegen.til:2249:65", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_297), "./src/self/codegen/fasm_codegen.til:2266:45", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_32), "./src/self/codegen/fasm_codegen.til:2170:49", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_398), "./src/self/codegen/fasm_codegen.til:2303:41", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_421), "./src/self/codegen/fasm_codegen.til:2309:41", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_446), "./src/self/codegen/fasm_codegen.til:2314:44", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_483), "./src/self/codegen/fasm_codegen.til:2325:41", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_502), "./src/self/codegen/fasm_codegen.til:2330:81", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_525), "./src/self/codegen/fasm_codegen.til:2332:41", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_571), "./src/self/codegen/fasm_codegen.til:2342:114", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_585), "./src/self/codegen/fasm_codegen.til:2343:37", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_595), "./src/self/codegen/fasm_codegen.til:2348:63", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_604), "./src/self/codegen/fasm_codegen.til:2350:69", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_609), "./src/self/codegen/fasm_codegen.til:2351:44", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_644), "./src/self/codegen/fasm_codegen.til:2358:44", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_681), "./src/self/codegen/fasm_codegen.til:2366:41", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_686), "./src/self/codegen/fasm_codegen.til:2370:41", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_728), "./src/self/codegen/fasm_codegen.til:2375:38", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_733), "./src/self/codegen/fasm_codegen.til:2379:42", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_738), "./src/self/codegen/fasm_codegen.til:2380:56", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_756), "./src/self/codegen/fasm_codegen.til:2384:58", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_771), "./src/self/codegen/fasm_codegen.til:2388:45", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_776), "./src/self/codegen/fasm_codegen.til:2389:51", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_819), "./src/self/codegen/fasm_codegen.til:2404:38", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_829), "./src/self/codegen/fasm_codegen.til:2408:38", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_888), "./src/self/codegen/fasm_codegen.til:2424:44", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_894), "./src/self/codegen/fasm_codegen.til:2429:45", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_field_decl_4), "./src/self/codegen/fasm_codegen.til:1421:39", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_field_decl_9), "./src/self/codegen/fasm_codegen.til:1420:26", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_field_layout_16), "./src/self/codegen/fasm_codegen.til:364:26", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_field_layout_22), "./src/self/codegen/fasm_codegen.til:377:5", 41ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_float_binary_37), "./src/self/codegen/fasm_codegen.til:1941:25", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_float_binary_42), "./src/self/codegen/fasm_codegen.til:1944:25", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_float_factory_19), "./src/self/codegen/fasm_codegen.til:1491:9", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_float_factory_37), "./src/self/codegen/fasm_codegen.til:1495:49", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_float_factory_4), "./src/self/codegen/fasm_codegen.til:1489:9", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_float_factory_52), "./src/self/codegen/fasm_codegen.til:1493:19", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_105), "./src/self/codegen/fasm_codegen.til:2778:34", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_124), "./src/self/codegen/fasm_codegen.til:2787:46", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_15), "./src/self/codegen/fasm_codegen.til:2756:51", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_162), "./src/self/codegen/fasm_codegen.til:2803:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_174), "./src/self/codegen/fasm_codegen.til:2810:29", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_184), "./src/self/codegen/fasm_codegen.til:2815:58", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_261), "./src/self/codegen/fasm_codegen.til:2830:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_273), "./src/self/codegen/fasm_codegen.til:2835:31", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_278), "./src/self/codegen/fasm_codegen.til:2836:67", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_283), "./src/self/codegen/fasm_codegen.til:2836:92", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_329), "./src/self/codegen/fasm_codegen.til:2842:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_334), "./src/self/codegen/fasm_codegen.til:2845:17", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_339), "./src/self/codegen/fasm_codegen.til:2847:17", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_348), "./src/self/codegen/fasm_codegen.til:2849:80", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_358), "./src/self/codegen/fasm_codegen.til:2855:17", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_40), "./src/self/codegen/fasm_codegen.til:2760:37", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_417), "./src/self/codegen/fasm_codegen.til:2871:37", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_431), "./src/self/codegen/fasm_codegen.til:2876:33", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_constructor_13), "./src/self/codegen/fasm_codegen.til:1445:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_constructor_93), "./src/self/codegen/fasm_codegen.til:1433:26", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_definition_14), "./src/self/codegen/fasm_codegen.til:447:58", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_definition_25), "./src/self/codegen/fasm_codegen.til:448:44", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_definition_4), "./src/self/codegen/fasm_codegen.til:443:9", 41ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_definition_9), "./src/self/codegen/fasm_codegen.til:444:9", 41ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_enum_constructor_20), "./src/self/codegen/fasm_codegen.til:338:13", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_enum_is_4), "./src/self/codegen/fasm_codegen.til:315:29", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_enum_is_9), "./src/self/codegen/fasm_codegen.til:318:29", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_enum_payload_offset_14), "./src/self/codegen/fasm_codegen.til:281:24", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_120), "./src/self/codegen/fasm_codegen.til:661:79", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_14), "./src/self/codegen/fasm_codegen.til:638:53", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_152), "./src/self/codegen/fasm_codegen.til:673:91", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_4), "./src/self/codegen/fasm_codegen.til:626:51", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_50), "./src/self/codegen/fasm_codegen.til:643:13", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_61), "./src/self/codegen/fasm_codegen.til:651:46", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_80), "./src/self/codegen/fasm_codegen.til:655:46", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_environment_function_9), "./src/self/codegen/fasm_codegen.til:630:34", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_188), "./src/self/codegen/fasm_codegen.til:2244:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_236), "./src/self/codegen/fasm_codegen.til:2258:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_242), "./src/self/codegen/fasm_codegen.til:2262:35", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_257), "./src/self/codegen/fasm_codegen.til:2268:88", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_288), "./src/self/codegen/fasm_codegen.til:2276:65", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_297), "./src/self/codegen/fasm_codegen.til:2293:45", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_32), "./src/self/codegen/fasm_codegen.til:2197:49", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_398), "./src/self/codegen/fasm_codegen.til:2330:41", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_421), "./src/self/codegen/fasm_codegen.til:2336:41", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_446), "./src/self/codegen/fasm_codegen.til:2341:44", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_483), "./src/self/codegen/fasm_codegen.til:2352:41", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_502), "./src/self/codegen/fasm_codegen.til:2357:81", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_525), "./src/self/codegen/fasm_codegen.til:2359:41", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_571), "./src/self/codegen/fasm_codegen.til:2369:114", 44ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_585), "./src/self/codegen/fasm_codegen.til:2370:37", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_595), "./src/self/codegen/fasm_codegen.til:2375:63", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_604), "./src/self/codegen/fasm_codegen.til:2377:69", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_609), "./src/self/codegen/fasm_codegen.til:2378:44", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_644), "./src/self/codegen/fasm_codegen.til:2385:44", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_681), "./src/self/codegen/fasm_codegen.til:2393:41", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_686), "./src/self/codegen/fasm_codegen.til:2397:41", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_728), "./src/self/codegen/fasm_codegen.til:2402:38", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_733), "./src/self/codegen/fasm_codegen.til:2406:42", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_738), "./src/self/codegen/fasm_codegen.til:2407:56", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_756), "./src/self/codegen/fasm_codegen.til:2411:58", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_771), "./src/self/codegen/fasm_codegen.til:2415:45", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_776), "./src/self/codegen/fasm_codegen.til:2416:51", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_819), "./src/self/codegen/fasm_codegen.til:2431:38", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_829), "./src/self/codegen/fasm_codegen.til:2435:38", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_888), "./src/self/codegen/fasm_codegen.til:2451:44", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_expr_894), "./src/self/codegen/fasm_codegen.til:2456:45", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_field_decl_4), "./src/self/codegen/fasm_codegen.til:1423:39", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_field_decl_9), "./src/self/codegen/fasm_codegen.til:1422:26", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_field_layout_16), "./src/self/codegen/fasm_codegen.til:366:26", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_field_layout_22), "./src/self/codegen/fasm_codegen.til:379:5", 41ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_float_binary_37), "./src/self/codegen/fasm_codegen.til:1968:25", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_float_binary_42), "./src/self/codegen/fasm_codegen.til:1971:25", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_float_factory_19), "./src/self/codegen/fasm_codegen.til:1493:9", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_float_factory_37), "./src/self/codegen/fasm_codegen.til:1497:49", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_float_factory_4), "./src/self/codegen/fasm_codegen.til:1491:9", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_float_factory_52), "./src/self/codegen/fasm_codegen.til:1495:19", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_105), "./src/self/codegen/fasm_codegen.til:2805:34", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_124), "./src/self/codegen/fasm_codegen.til:2814:46", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_15), "./src/self/codegen/fasm_codegen.til:2783:51", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_162), "./src/self/codegen/fasm_codegen.til:2830:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_174), "./src/self/codegen/fasm_codegen.til:2837:29", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_184), "./src/self/codegen/fasm_codegen.til:2842:58", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_261), "./src/self/codegen/fasm_codegen.til:2857:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_273), "./src/self/codegen/fasm_codegen.til:2862:31", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_278), "./src/self/codegen/fasm_codegen.til:2863:67", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_283), "./src/self/codegen/fasm_codegen.til:2863:92", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_329), "./src/self/codegen/fasm_codegen.til:2869:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_334), "./src/self/codegen/fasm_codegen.til:2872:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_339), "./src/self/codegen/fasm_codegen.til:2874:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_348), "./src/self/codegen/fasm_codegen.til:2876:80", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_358), "./src/self/codegen/fasm_codegen.til:2882:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_40), "./src/self/codegen/fasm_codegen.til:2787:37", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_417), "./src/self/codegen/fasm_codegen.til:2898:37", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_function_431), "./src/self/codegen/fasm_codegen.til:2903:33", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_global_body_101), "./src/self/codegen/fasm_codegen.til:108:38", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_global_body_109), "./src/self/codegen/fasm_codegen.til:108:108", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_global_body_19), "./src/self/codegen/fasm_codegen.til:86:29", 41ULL},
@@ -20513,153 +20518,154 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_global_body_6), "./src/self/codegen/fasm_codegen.til:81:21", 41ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_global_body_62), "./src/self/codegen/fasm_codegen.til:84:63", 41ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_global_body_65), "./src/self/codegen/fasm_codegen.til:103:60", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_indirect_call_23), "./src/self/codegen/fasm_codegen.til:716:31", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_indirect_call_35), "./src/self/codegen/fasm_codegen.til:717:108", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_indirect_call_4), "./src/self/codegen/fasm_codegen.til:706:9", 41ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_indirect_call_54), "./src/self/codegen/fasm_codegen.til:721:52", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_indirect_call_8), "./src/self/codegen/fasm_codegen.til:711:14", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_indirect_call_86), "./src/self/codegen/fasm_codegen.til:732:100", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_indirect_signature_4), "./src/self/codegen/fasm_codegen.til:688:9", 41ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_109), "./src/self/codegen/fasm_codegen.til:1227:66", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_114), "./src/self/codegen/fasm_codegen.til:1228:63", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_14), "./src/self/codegen/fasm_codegen.til:1185:59", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_162), "./src/self/codegen/fasm_codegen.til:1233:95", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_198), "./src/self/codegen/fasm_codegen.til:1246:21", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_203), "./src/self/codegen/fasm_codegen.til:1247:27", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_21), "./src/self/codegen/fasm_codegen.til:1189:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_216), "./src/self/codegen/fasm_codegen.til:1248:63", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_221), "./src/self/codegen/fasm_codegen.til:1249:51", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_226), "./src/self/codegen/fasm_codegen.til:1250:79", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_231), "./src/self/codegen/fasm_codegen.til:1251:59", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_26), "./src/self/codegen/fasm_codegen.til:1192:72", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_268), "./src/self/codegen/fasm_codegen.til:1204:34", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_277), "./src/self/codegen/fasm_codegen.til:1207:40", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_342), "./src/self/codegen/fasm_codegen.til:1180:28", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_347), "./src/self/codegen/fasm_codegen.til:1184:23", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_4), "./src/self/codegen/fasm_codegen.til:1181:9", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_47), "./src/self/codegen/fasm_codegen.til:1200:43", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_54), "./src/self/codegen/fasm_codegen.til:1202:17", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_59), "./src/self/codegen/fasm_codegen.til:1212:78", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_66), "./src/self/codegen/fasm_codegen.til:1217:21", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_71), "./src/self/codegen/fasm_codegen.til:1218:27", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_76), "./src/self/codegen/fasm_codegen.til:1222:67", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_9), "./src/self/codegen/fasm_codegen.til:1182:9", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatchable_19), "./src/self/codegen/fasm_codegen.til:234:40", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatchable_32), "./src/self/codegen/fasm_codegen.til:231:28", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_114), "./src/self/codegen/fasm_codegen.til:1322:42", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_14), "./src/self/codegen/fasm_codegen.til:1273:22", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_4), "./src/self/codegen/fasm_codegen.til:1268:22", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_47), "./src/self/codegen/fasm_codegen.til:1281:28", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_52), "./src/self/codegen/fasm_codegen.til:1284:28", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_60), "./src/self/codegen/fasm_codegen.til:1291:47", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_67), "./src/self/codegen/fasm_codegen.til:1293:59", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_68), "./src/self/codegen/fasm_codegen.til:1294:36", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_owner_19), "./src/self/codegen/fasm_codegen.til:220:9", 41ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_owner_24), "./src/self/codegen/fasm_codegen.til:222:9", 41ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_owner_36), "./src/self/codegen/fasm_codegen.til:224:8", 41ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_owner_38), "./src/self/codegen/fasm_codegen.til:225:12", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_owner_4), "./src/self/codegen/fasm_codegen.til:218:9", 41ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_indirect_call_23), "./src/self/codegen/fasm_codegen.til:718:31", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_indirect_call_35), "./src/self/codegen/fasm_codegen.til:719:108", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_indirect_call_4), "./src/self/codegen/fasm_codegen.til:708:9", 41ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_indirect_call_54), "./src/self/codegen/fasm_codegen.til:723:52", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_indirect_call_8), "./src/self/codegen/fasm_codegen.til:713:14", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_indirect_call_86), "./src/self/codegen/fasm_codegen.til:734:100", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_indirect_signature_4), "./src/self/codegen/fasm_codegen.til:690:9", 41ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_109), "./src/self/codegen/fasm_codegen.til:1229:66", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_114), "./src/self/codegen/fasm_codegen.til:1230:63", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_14), "./src/self/codegen/fasm_codegen.til:1187:59", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_162), "./src/self/codegen/fasm_codegen.til:1235:95", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_198), "./src/self/codegen/fasm_codegen.til:1248:21", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_203), "./src/self/codegen/fasm_codegen.til:1249:27", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_21), "./src/self/codegen/fasm_codegen.til:1191:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_216), "./src/self/codegen/fasm_codegen.til:1250:63", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_221), "./src/self/codegen/fasm_codegen.til:1251:51", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_226), "./src/self/codegen/fasm_codegen.til:1252:79", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_231), "./src/self/codegen/fasm_codegen.til:1253:59", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_26), "./src/self/codegen/fasm_codegen.til:1194:72", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_268), "./src/self/codegen/fasm_codegen.til:1206:34", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_277), "./src/self/codegen/fasm_codegen.til:1209:40", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_342), "./src/self/codegen/fasm_codegen.til:1182:28", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_347), "./src/self/codegen/fasm_codegen.til:1186:23", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_4), "./src/self/codegen/fasm_codegen.til:1183:9", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_47), "./src/self/codegen/fasm_codegen.til:1202:43", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_54), "./src/self/codegen/fasm_codegen.til:1204:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_59), "./src/self/codegen/fasm_codegen.til:1214:78", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_66), "./src/self/codegen/fasm_codegen.til:1219:21", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_71), "./src/self/codegen/fasm_codegen.til:1220:27", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_76), "./src/self/codegen/fasm_codegen.til:1224:67", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatch_9), "./src/self/codegen/fasm_codegen.til:1184:9", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatchable_19), "./src/self/codegen/fasm_codegen.til:236:40", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dispatchable_32), "./src/self/codegen/fasm_codegen.til:233:28", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_114), "./src/self/codegen/fasm_codegen.til:1324:42", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_14), "./src/self/codegen/fasm_codegen.til:1275:22", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_4), "./src/self/codegen/fasm_codegen.til:1270:22", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_47), "./src/self/codegen/fasm_codegen.til:1283:28", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_52), "./src/self/codegen/fasm_codegen.til:1286:28", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_60), "./src/self/codegen/fasm_codegen.til:1293:47", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_67), "./src/self/codegen/fasm_codegen.til:1295:59", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_dynamic_68), "./src/self/codegen/fasm_codegen.til:1296:36", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_owner_19), "./src/self/codegen/fasm_codegen.til:222:9", 41ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_owner_24), "./src/self/codegen/fasm_codegen.til:224:9", 41ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_owner_36), "./src/self/codegen/fasm_codegen.til:226:8", 41ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_owner_38), "./src/self/codegen/fasm_codegen.til:227:12", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_interface_owner_4), "./src/self/codegen/fasm_codegen.til:220:9", 41ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_namespace_name_22), "./src/self/codegen/fasm_codegen.til:134:15", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_namespace_name_26), "./src/self/codegen/fasm_codegen.til:128:26", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_namespace_name_29), "./src/self/codegen/fasm_codegen.til:139:25", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_namespace_name_5), "./src/self/codegen/fasm_codegen.til:120:9", 41ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_namespace_name_52), "./src/self/codegen/fasm_codegen.til:144:11", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_outer_selector_22), "./src/self/codegen/fasm_codegen.til:1092:67", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_outer_selector_5), "./src/self/codegen/fasm_codegen.til:1092:25", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_owned_26), "./src/self/codegen/fasm_codegen.til:993:44", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_owned_54), "./src/self/codegen/fasm_codegen.til:1009:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_owned_70), "./src/self/codegen/fasm_codegen.til:1017:30", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_owned_78), "./src/self/codegen/fasm_codegen.til:1019:58", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_param_stack_outer_25), "./src/self/codegen/fasm_codegen.til:1084:62", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_param_stack_outer_4), "./src/self/codegen/fasm_codegen.til:1081:9", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_parameter_type_4), "./src/self/codegen/fasm_codegen.til:1039:9", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_pointer_100), "./src/self/codegen/fasm_codegen.til:1642:69", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_pointer_115), "./src/self/codegen/fasm_codegen.til:1646:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_pointer_64), "./src/self/codegen/fasm_codegen.til:1640:67", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_pointer_75), "./src/self/codegen/fasm_codegen.til:1640:95", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_pointer_87), "./src/self/codegen/fasm_codegen.til:1641:92", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_register_9), "./src/self/codegen/fasm_codegen.til:2154:11", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_release_arguments_107), "./src/self/codegen/fasm_codegen.til:1123:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_release_arguments_15), "./src/self/codegen/fasm_codegen.til:1123:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_release_arguments_157), "./src/self/codegen/fasm_codegen.til:1140:55", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_release_arguments_65), "./src/self/codegen/fasm_codegen.til:1140:55", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_request_12), "./src/self/codegen/fasm_codegen.til:455:26", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_root_4), "./src/self/codegen/fasm_codegen.til:2135:36", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_root_9), "./src/self/codegen/fasm_codegen.til:2135:27", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_114), "./src/self/codegen/fasm_codegen.til:2089:33", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_140), "./src/self/codegen/fasm_codegen.til:2082:30", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_149), "./src/self/codegen/fasm_codegen.til:2087:48", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_171), "./src/self/codegen/fasm_codegen.til:2088:136", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_186), "./src/self/codegen/fasm_codegen.til:2089:33", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_205), "./src/self/codegen/fasm_codegen.til:2095:90", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_24), "./src/self/codegen/fasm_codegen.til:2065:26", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_257), "./src/self/codegen/fasm_codegen.til:2077:28", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_5), "./src/self/codegen/fasm_codegen.til:2057:26", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_68), "./src/self/codegen/fasm_codegen.til:2082:30", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_77), "./src/self/codegen/fasm_codegen.til:2087:48", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_99), "./src/self/codegen/fasm_codegen.til:2088:136", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_signature_name_15), "./src/self/codegen/fasm_codegen.til:492:62", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_signature_name_7), "./src/self/codegen/fasm_codegen.til:491:52", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_10), "./src/self/codegen/fasm_codegen.til:205:32", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_128), "./src/self/codegen/fasm_codegen.til:1869:29", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_146), "./src/self/codegen/fasm_codegen.til:1874:84", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_151), "./src/self/codegen/fasm_codegen.til:1874:98", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_163), "./src/self/codegen/fasm_codegen.til:1874:84", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_168), "./src/self/codegen/fasm_codegen.til:1874:98", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_188), "./src/self/codegen/fasm_codegen.til:1876:57", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_196), "./src/self/codegen/fasm_codegen.til:1877:43", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_219), "./src/self/codegen/fasm_codegen.til:1888:61", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_264), "./src/self/codegen/fasm_codegen.til:1898:61", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_269), "./src/self/codegen/fasm_codegen.til:1898:92", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_274), "./src/self/codegen/fasm_codegen.til:1898:123", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_322), "./src/self/codegen/fasm_codegen.til:1904:61", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_351), "./src/self/codegen/fasm_codegen.til:1909:83", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_356), "./src/self/codegen/fasm_codegen.til:1910:70", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_397), "./src/self/codegen/fasm_codegen.til:1916:57", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_402), "./src/self/codegen/fasm_codegen.til:1916:122", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_469), "./src/self/codegen/fasm_codegen.til:1847:22", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_61), "./src/self/codegen/fasm_codegen.til:1848:46", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_68), "./src/self/codegen/fasm_codegen.til:1855:33", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_float_binary_4), "./src/self/codegen/fasm_codegen.til:1822:53", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_float_binary_9), "./src/self/codegen/fasm_codegen.til:1822:88", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_39), "./src/self/codegen/fasm_codegen.til:1801:15", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_4), "./src/self/codegen/fasm_codegen.til:1780:53", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_9), "./src/self/codegen/fasm_codegen.til:1780:88", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_snapshot_47), "./src/self/codegen/fasm_codegen.til:1711:12", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_supported_5), "./src/self/codegen/fasm_codegen.til:194:46", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_callable_24), "./src/self/codegen/fasm_codegen.til:529:42", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_callable_32), "./src/self/codegen/fasm_codegen.til:534:106", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_callable_59), "./src/self/codegen/fasm_codegen.til:536:26", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_value_25), "./src/self/codegen/fasm_codegen.til:841:87", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_value_261), "./src/self/codegen/fasm_codegen.til:925:65", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_value_275), "./src/self/codegen/fasm_codegen.til:927:21", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_value_315), "./src/self/codegen/fasm_codegen.til:893:30", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_value_45), "./src/self/codegen/fasm_codegen.til:855:60", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_value_74), "./src/self/codegen/fasm_codegen.til:864:70", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_value_93), "./src/self/codegen/fasm_codegen.til:867:65", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_store_scalar_8), "./src/self/codegen/fasm_codegen.til:1677:16", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_131), "./src/self/codegen/fasm_codegen.til:2477:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_138), "./src/self/codegen/fasm_codegen.til:2482:17", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_14), "./src/self/codegen/fasm_codegen.til:2477:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_154), "./src/self/codegen/fasm_codegen.til:2493:43", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_159), "./src/self/codegen/fasm_codegen.til:2495:43", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_21), "./src/self/codegen/fasm_codegen.til:2482:17", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_250), "./src/self/codegen/fasm_codegen.til:2504:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_255), "./src/self/codegen/fasm_codegen.til:2506:31", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_287), "./src/self/codegen/fasm_codegen.til:2504:13", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_292), "./src/self/codegen/fasm_codegen.til:2506:31", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_37), "./src/self/codegen/fasm_codegen.til:2493:43", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_4), "./src/self/codegen/fasm_codegen.til:2465:9", 42ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_42), "./src/self/codegen/fasm_codegen.til:2495:43", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_test_entry_22), "./src/self/codegen/fasm_codegen.til:2897:17", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_test_entry_23), "./src/self/codegen/fasm_codegen.til:2899:20", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_test_entry_52), "./src/self/codegen/fasm_codegen.til:2906:25", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_test_entry_58), "./src/self/codegen/fasm_codegen.til:2910:24", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_test_entry_6), "./src/self/codegen/fasm_codegen.til:2894:41", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_test_entry_90), "./src/self/codegen/fasm_codegen.til:2896:41", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_user_call_50), "./src/self/codegen/fasm_codegen.til:1346:100", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_user_call_81), "./src/self/codegen/fasm_codegen.til:1335:28", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_variant_index_4), "./src/self/codegen/fasm_codegen.til:259:54", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_outer_selector_22), "./src/self/codegen/fasm_codegen.til:1094:67", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_outer_selector_5), "./src/self/codegen/fasm_codegen.til:1094:25", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_owned_26), "./src/self/codegen/fasm_codegen.til:995:44", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_owned_54), "./src/self/codegen/fasm_codegen.til:1011:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_owned_70), "./src/self/codegen/fasm_codegen.til:1019:30", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_owned_78), "./src/self/codegen/fasm_codegen.til:1021:58", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_param_stack_outer_25), "./src/self/codegen/fasm_codegen.til:1086:62", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_param_stack_outer_4), "./src/self/codegen/fasm_codegen.til:1083:9", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_parameter_type_4), "./src/self/codegen/fasm_codegen.til:1041:9", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_pointer_100), "./src/self/codegen/fasm_codegen.til:1644:69", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_pointer_115), "./src/self/codegen/fasm_codegen.til:1648:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_pointer_64), "./src/self/codegen/fasm_codegen.til:1642:67", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_pointer_75), "./src/self/codegen/fasm_codegen.til:1642:95", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_pointer_87), "./src/self/codegen/fasm_codegen.til:1643:92", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_register_9), "./src/self/codegen/fasm_codegen.til:2181:11", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_release_arguments_107), "./src/self/codegen/fasm_codegen.til:1125:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_release_arguments_15), "./src/self/codegen/fasm_codegen.til:1125:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_release_arguments_157), "./src/self/codegen/fasm_codegen.til:1142:55", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_release_arguments_65), "./src/self/codegen/fasm_codegen.til:1142:55", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_request_12), "./src/self/codegen/fasm_codegen.til:457:26", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_root_4), "./src/self/codegen/fasm_codegen.til:2162:36", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_root_9), "./src/self/codegen/fasm_codegen.til:2162:27", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_114), "./src/self/codegen/fasm_codegen.til:2116:33", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_140), "./src/self/codegen/fasm_codegen.til:2109:30", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_149), "./src/self/codegen/fasm_codegen.til:2114:48", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_171), "./src/self/codegen/fasm_codegen.til:2115:136", 44ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_186), "./src/self/codegen/fasm_codegen.til:2116:33", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_205), "./src/self/codegen/fasm_codegen.til:2122:90", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_24), "./src/self/codegen/fasm_codegen.til:2092:26", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_257), "./src/self/codegen/fasm_codegen.til:2104:28", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_5), "./src/self/codegen/fasm_codegen.til:2084:26", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_68), "./src/self/codegen/fasm_codegen.til:2109:30", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_77), "./src/self/codegen/fasm_codegen.til:2114:48", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_runtime_call_99), "./src/self/codegen/fasm_codegen.til:2115:136", 44ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_signature_name_15), "./src/self/codegen/fasm_codegen.til:494:62", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_signature_name_7), "./src/self/codegen/fasm_codegen.til:493:52", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_10), "./src/self/codegen/fasm_codegen.til:207:32", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_148), "./src/self/codegen/fasm_codegen.til:1896:29", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_166), "./src/self/codegen/fasm_codegen.til:1901:84", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_171), "./src/self/codegen/fasm_codegen.til:1901:98", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_183), "./src/self/codegen/fasm_codegen.til:1901:84", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_188), "./src/self/codegen/fasm_codegen.til:1901:98", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_208), "./src/self/codegen/fasm_codegen.til:1903:57", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_217), "./src/self/codegen/fasm_codegen.til:1904:43", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_240), "./src/self/codegen/fasm_codegen.til:1915:61", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_285), "./src/self/codegen/fasm_codegen.til:1925:61", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_290), "./src/self/codegen/fasm_codegen.til:1925:92", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_295), "./src/self/codegen/fasm_codegen.til:1925:123", 44ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_343), "./src/self/codegen/fasm_codegen.til:1931:61", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_372), "./src/self/codegen/fasm_codegen.til:1936:83", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_377), "./src/self/codegen/fasm_codegen.til:1937:70", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_418), "./src/self/codegen/fasm_codegen.til:1943:57", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_423), "./src/self/codegen/fasm_codegen.til:1943:122", 44ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_490), "./src/self/codegen/fasm_codegen.til:1872:22", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_61), "./src/self/codegen/fasm_codegen.til:1873:46", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_68), "./src/self/codegen/fasm_codegen.til:1880:33", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_float_binary_4), "./src/self/codegen/fasm_codegen.til:1847:53", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_float_binary_9), "./src/self/codegen/fasm_codegen.til:1847:88", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_13), "./src/self/codegen/fasm_codegen.til:1789:88", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_3), "./src/self/codegen/fasm_codegen.til:1787:11", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_8), "./src/self/codegen/fasm_codegen.til:1789:53", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_92), "./src/self/codegen/fasm_codegen.til:1822:15", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_snapshot_47), "./src/self/codegen/fasm_codegen.til:1713:12", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_simd_supported_5), "./src/self/codegen/fasm_codegen.til:194:48", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_callable_24), "./src/self/codegen/fasm_codegen.til:531:42", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_callable_32), "./src/self/codegen/fasm_codegen.til:536:106", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_callable_59), "./src/self/codegen/fasm_codegen.til:538:26", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_value_25), "./src/self/codegen/fasm_codegen.til:843:87", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_value_261), "./src/self/codegen/fasm_codegen.til:927:65", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_value_275), "./src/self/codegen/fasm_codegen.til:929:21", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_value_315), "./src/self/codegen/fasm_codegen.til:895:30", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_value_45), "./src/self/codegen/fasm_codegen.til:857:60", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_value_74), "./src/self/codegen/fasm_codegen.til:866:70", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_static_value_93), "./src/self/codegen/fasm_codegen.til:869:65", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_store_scalar_8), "./src/self/codegen/fasm_codegen.til:1679:16", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_131), "./src/self/codegen/fasm_codegen.til:2504:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_138), "./src/self/codegen/fasm_codegen.til:2509:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_14), "./src/self/codegen/fasm_codegen.til:2504:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_154), "./src/self/codegen/fasm_codegen.til:2520:43", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_159), "./src/self/codegen/fasm_codegen.til:2522:43", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_21), "./src/self/codegen/fasm_codegen.til:2509:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_250), "./src/self/codegen/fasm_codegen.til:2531:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_255), "./src/self/codegen/fasm_codegen.til:2533:31", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_287), "./src/self/codegen/fasm_codegen.til:2531:13", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_292), "./src/self/codegen/fasm_codegen.til:2533:31", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_37), "./src/self/codegen/fasm_codegen.til:2520:43", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_4), "./src/self/codegen/fasm_codegen.til:2492:9", 42ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_switch_42), "./src/self/codegen/fasm_codegen.til:2522:43", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_test_entry_22), "./src/self/codegen/fasm_codegen.til:2924:17", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_test_entry_23), "./src/self/codegen/fasm_codegen.til:2926:20", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_test_entry_52), "./src/self/codegen/fasm_codegen.til:2933:25", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_test_entry_58), "./src/self/codegen/fasm_codegen.til:2937:24", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_test_entry_6), "./src/self/codegen/fasm_codegen.til:2921:41", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_test_entry_90), "./src/self/codegen/fasm_codegen.til:2923:41", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_user_call_50), "./src/self/codegen/fasm_codegen.til:1348:100", 44ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_user_call_81), "./src/self/codegen/fasm_codegen.til:1337:28", 43ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_fasm_codegen_fasm_variant_index_4), "./src/self/codegen/fasm_codegen.til:261:54", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_holyc_codegen_holyc_append_function_outputs_14), "./src/self/codegen/holyc_codegen.til:5684:59", 44ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_holyc_codegen_holyc_append_function_outputs_28), "./src/self/codegen/holyc_codegen.til:5686:33", 44ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_holyc_codegen_holyc_append_function_outputs_33), "./src/self/codegen/holyc_codegen.til:5688:33", 44ULL},
@@ -26769,30 +26775,31 @@ static void til_loc_lits_init(void) {
 #define hoisted__Str_self_codegen_fasm_codegen_fasm_signature_name_15 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_signature_name_15)
 #define hoisted__Str_self_codegen_fasm_codegen_fasm_signature_name_7 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_signature_name_7)
 #define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_10 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_10)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_128 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_128)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_146 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_146)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_151 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_151)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_163 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_163)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_168 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_168)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_148 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_148)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_166 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_166)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_171 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_171)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_183 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_183)
 #define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_188 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_188)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_196 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_196)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_219 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_219)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_264 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_264)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_269 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_269)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_274 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_274)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_322 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_322)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_351 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_351)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_356 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_356)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_397 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_397)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_402 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_402)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_469 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_469)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_208 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_208)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_217 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_217)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_240 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_240)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_285 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_285)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_290 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_290)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_295 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_295)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_343 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_343)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_372 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_372)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_377 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_377)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_418 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_418)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_423 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_423)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_490 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_490)
 #define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_61 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_61)
 #define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_68 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_68)
 #define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_float_binary_4 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_float_binary_4)
 #define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_float_binary_9 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_float_binary_9)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_39 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_39)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_4 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_4)
-#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_9 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_9)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_13 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_13)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_3 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_3)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_8 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_8)
+#define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_92 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_92)
 #define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_snapshot_47 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_snapshot_47)
 #define hoisted__Str_self_codegen_fasm_codegen_fasm_simd_supported_5 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_simd_supported_5)
 #define hoisted__Str_self_codegen_fasm_codegen_fasm_static_callable_24 (_til_loc_lits_cage->hoisted__Str_self_codegen_fasm_codegen_fasm_static_callable_24)
@@ -53070,8 +53077,7 @@ static Str priv___src_self_parser_til__anon_decl_key(Str * dname, Declaration * 
         Str hoisted__Str_self_parser_anon_decl_key_2 = Str_clone(&mut_tag);
         Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_self_parser_anon_decl_key_2, &_va_Array_0_ek);
         U32 hoisted__U32_3 = 1;
-        Str hoisted__Str_self_parser_anon_decl_key_4 = (Str){.c_str = TIL_OWN_LIT("w", 1ULL), .count = 1ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_0, hoisted__U32_3, &hoisted__Str_self_parser_anon_decl_key_4, &_va_Array_0_ek);
+        Array__Str_set(&_va_Array_0, hoisted__U32_3, &_til_str_lits.h00000002b61c, &_va_Array_0_ek);
         { Str _new = format(&_va_Array_0); Str_delete(&mut_tag, (Bool){0}); mut_tag = _new; }
     }
     Str dv_key = (Str){.c_str = TIL_OWN_LIT("-", 1ULL), .count = 1ULL, .cap = TIL_CAP_LIT};
@@ -338832,17 +338838,17 @@ static void priv___src_self_codegen_fasm_codegen_til__fasm_bind(Str * name, Type
 
 static Bool priv___src_self_codegen_fasm_codegen_til__fasm_simd_supported(StructDef * sd, LoadedProgram * lp) {
     I64 _err_kind = 0;
-    U32 hoisted__U32_31 = 0;
-    Bool hoisted__Bool_32 = ((Bool)(sd->simd_width == hoisted__U32_31));
-    if (hoisted__Bool_32) {
+    U32 hoisted__U32_51 = 0;
+    Bool hoisted__Bool_52 = ((Bool)(sd->simd_width == hoisted__U32_51));
+    if (hoisted__Bool_52) {
         Bool hoisted__Bool_0 = 0;
         return hoisted__Bool_0;
     }
-    U32 hoisted__U32_33 = 0;
-    Declaration *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_33) < TIL_OWN_GET(Vec__Declaration, (sd->fields))->count)) ? (Declaration *)((Declaration *)((void *)((U8 *)(TIL_OWN_GET(U8, (TIL_OWN_GET(Vec__Declaration, (sd->fields))->data))) + (((U64)(((U64)((U32)(hoisted__U32_33))) * ((U64)(136)))))))) : (_err_kind = 1, (Declaration *)NULL));
-    I64 hoisted__I64_34 = 1;
-    Bool hoisted__Bool_35 = ((Bool)(_err_kind == hoisted__I64_34));
-    if (hoisted__Bool_35) {
+    U32 hoisted__U32_53 = 0;
+    Declaration *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_53) < TIL_OWN_GET(Vec__Declaration, (sd->fields))->count)) ? (Declaration *)((Declaration *)((void *)((U8 *)(TIL_OWN_GET(U8, (TIL_OWN_GET(Vec__Declaration, (sd->fields))->data))) + (((U64)(((U64)((U32)(hoisted__U32_53))) * ((U64)(136)))))))) : (_err_kind = 1, (Declaration *)NULL));
+    I64 hoisted__I64_54 = 1;
+    Bool hoisted__Bool_55 = ((Bool)(_err_kind == hoisted__I64_54));
+    if (hoisted__Bool_55) {
         I64 hoisted__I64_1 = 0;
         _err_kind = hoisted__I64_1;
         U32 hoisted__U32_2 = 1;
@@ -338855,67 +338861,113 @@ static Bool priv___src_self_codegen_fasm_codegen_til__fasm_simd_supported(Struct
     Type lane = declaration_resolved_type(_bang_ret_0, &lp->ctx.scope, &lp->ctx.symbols);
     Bool _m_Bool_6 = 0;
     {
-        {
-            Type hoisted__Type_11 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_F32});
-            Bool _sw_Bool_7 = Type_eq(&lane, &hoisted__Type_11);
-            Type_delete(&hoisted__Type_11, 0);
-            Bool hoisted__Bool_12 = 1;
-            Bool hoisted__Bool_13 = ((Bool)(_sw_Bool_7 == hoisted__Bool_12));
-            if (hoisted__Bool_13) {
-                Bool hoisted__Bool_8 = 1;
-                _m_Bool_6 = hoisted__Bool_8;
-            } else {
-                Type hoisted__Type_9 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_I32});
-                Bool hoisted__Bool_10 = Type_eq(&lane, &hoisted__Type_9);
-                Type_delete(&hoisted__Type_9, 0);
-                _m_Bool_6 = hoisted__Bool_10;
-            }
-        }
-        Bool hoisted__Bool_17 = 1;
-        Bool hoisted__Bool_18 = ((Bool)(_m_Bool_6 == hoisted__Bool_17));
-        if (hoisted__Bool_18) {
-            Bool hoisted__Bool_14 = 1;
-            _m_Bool_6 = hoisted__Bool_14;
+        Type hoisted__Type_11 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_I8});
+        Bool _sw_Bool_7 = Type_eq(&lane, &hoisted__Type_11);
+        Type_delete(&hoisted__Type_11, 0);
+        Bool hoisted__Bool_12 = 1;
+        Bool hoisted__Bool_13 = ((Bool)(_sw_Bool_7 == hoisted__Bool_12));
+        if (hoisted__Bool_13) {
+            Bool hoisted__Bool_8 = 1;
+            _m_Bool_6 = hoisted__Bool_8;
         } else {
-            Type hoisted__Type_15 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_U32});
-            Bool hoisted__Bool_16 = Type_eq(&lane, &hoisted__Type_15);
-            Type_delete(&hoisted__Type_15, 0);
-            _m_Bool_6 = hoisted__Bool_16;
+            Type hoisted__Type_9 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_U8});
+            Bool hoisted__Bool_10 = Type_eq(&lane, &hoisted__Type_9);
+            Type_delete(&hoisted__Type_9, 0);
+            _m_Bool_6 = hoisted__Bool_10;
         }
     }
     if (_m_Bool_6) {
-        U32 hoisted__U32_19 = 4;
-        Bool hoisted__Bool_20 = ((Bool)(sd->simd_width >= hoisted__U32_19));
+        U32 hoisted__U32_14 = 16;
+        Bool hoisted__Bool_15 = ((Bool)(sd->simd_width >= hoisted__U32_14));
         Type_delete(&lane, 0);
-        return hoisted__Bool_20;
+        return hoisted__Bool_15;
     }
-    Type hoisted__Type_36 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_F64});
-    Bool hoisted__Bool_37 = Type_eq(&lane, &hoisted__Type_36);
-    Type_delete(&hoisted__Type_36, 0);
-    if (hoisted__Bool_37) {
-        U32 hoisted__U32_21 = 2;
-        Bool hoisted__Bool_22 = ((Bool)(sd->simd_width >= hoisted__U32_21));
-        Type_delete(&lane, 0);
-        return hoisted__Bool_22;
-    }
-    Bool _m_Bool_23 = 0;
+    Bool _m_Bool_16 = 0;
     {
-        Type hoisted__Type_28 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_Bool});
-        Bool _sw_Bool_24 = Type_eq(&lane, &hoisted__Type_28);
-        Type_delete(&hoisted__Type_28, 0);
-        Bool hoisted__Bool_29 = 1;
-        Bool hoisted__Bool_30 = ((Bool)(_sw_Bool_24 == hoisted__Bool_29));
-        if (hoisted__Bool_30) {
-            U32 hoisted__U32_25 = 2;
-            Bool hoisted__Bool_26 = ((Bool)(sd->simd_width >= hoisted__U32_25));
-            _m_Bool_23 = hoisted__Bool_26;
+        Type hoisted__Type_21 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_I16});
+        Bool _sw_Bool_17 = Type_eq(&lane, &hoisted__Type_21);
+        Type_delete(&hoisted__Type_21, 0);
+        Bool hoisted__Bool_22 = 1;
+        Bool hoisted__Bool_23 = ((Bool)(_sw_Bool_17 == hoisted__Bool_22));
+        if (hoisted__Bool_23) {
+            Bool hoisted__Bool_18 = 1;
+            _m_Bool_16 = hoisted__Bool_18;
         } else {
-            Bool hoisted__Bool_27 = 0;
-            _m_Bool_23 = hoisted__Bool_27;
+            Type hoisted__Type_19 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_U16});
+            Bool hoisted__Bool_20 = Type_eq(&lane, &hoisted__Type_19);
+            Type_delete(&hoisted__Type_19, 0);
+            _m_Bool_16 = hoisted__Bool_20;
+        }
+    }
+    if (_m_Bool_16) {
+        U32 hoisted__U32_24 = 8;
+        Bool hoisted__Bool_25 = ((Bool)(sd->simd_width >= hoisted__U32_24));
+        Type_delete(&lane, 0);
+        return hoisted__Bool_25;
+    }
+    Bool _m_Bool_26 = 0;
+    {
+        {
+            Type hoisted__Type_31 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_F32});
+            Bool _sw_Bool_27 = Type_eq(&lane, &hoisted__Type_31);
+            Type_delete(&hoisted__Type_31, 0);
+            Bool hoisted__Bool_32 = 1;
+            Bool hoisted__Bool_33 = ((Bool)(_sw_Bool_27 == hoisted__Bool_32));
+            if (hoisted__Bool_33) {
+                Bool hoisted__Bool_28 = 1;
+                _m_Bool_26 = hoisted__Bool_28;
+            } else {
+                Type hoisted__Type_29 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_I32});
+                Bool hoisted__Bool_30 = Type_eq(&lane, &hoisted__Type_29);
+                Type_delete(&hoisted__Type_29, 0);
+                _m_Bool_26 = hoisted__Bool_30;
+            }
+        }
+        Bool hoisted__Bool_37 = 1;
+        Bool hoisted__Bool_38 = ((Bool)(_m_Bool_26 == hoisted__Bool_37));
+        if (hoisted__Bool_38) {
+            Bool hoisted__Bool_34 = 1;
+            _m_Bool_26 = hoisted__Bool_34;
+        } else {
+            Type hoisted__Type_35 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_U32});
+            Bool hoisted__Bool_36 = Type_eq(&lane, &hoisted__Type_35);
+            Type_delete(&hoisted__Type_35, 0);
+            _m_Bool_26 = hoisted__Bool_36;
+        }
+    }
+    if (_m_Bool_26) {
+        U32 hoisted__U32_39 = 4;
+        Bool hoisted__Bool_40 = ((Bool)(sd->simd_width >= hoisted__U32_39));
+        Type_delete(&lane, 0);
+        return hoisted__Bool_40;
+    }
+    Type hoisted__Type_56 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_F64});
+    Bool hoisted__Bool_57 = Type_eq(&lane, &hoisted__Type_56);
+    Type_delete(&hoisted__Type_56, 0);
+    if (hoisted__Bool_57) {
+        U32 hoisted__U32_41 = 2;
+        Bool hoisted__Bool_42 = ((Bool)(sd->simd_width >= hoisted__U32_41));
+        Type_delete(&lane, 0);
+        return hoisted__Bool_42;
+    }
+    Bool _m_Bool_43 = 0;
+    {
+        Type hoisted__Type_48 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_Bool});
+        Bool _sw_Bool_44 = Type_eq(&lane, &hoisted__Type_48);
+        Type_delete(&hoisted__Type_48, 0);
+        Bool hoisted__Bool_49 = 1;
+        Bool hoisted__Bool_50 = ((Bool)(_sw_Bool_44 == hoisted__Bool_49));
+        if (hoisted__Bool_50) {
+            U32 hoisted__U32_45 = 2;
+            Bool hoisted__Bool_46 = ((Bool)(sd->simd_width >= hoisted__U32_45));
+            _m_Bool_43 = hoisted__Bool_46;
+        } else {
+            Bool hoisted__Bool_47 = 0;
+            _m_Bool_43 = hoisted__Bool_47;
         }
     }
     Type_delete(&lane, 0);
-    return _m_Bool_23;
+    return _m_Bool_43;
 }
 
 static Bool priv___src_self_codegen_fasm_codegen_til__fasm_simd(Type t, LoadedProgram * lp) {
@@ -348242,25 +348294,25 @@ static void priv___src_self_codegen_fasm_codegen_til__fasm_simd_extrema(Str * in
     priv___src_self_codegen_fasm_codegen_til__fasm_load_scalar(lane, state);
 }
 
-static void priv___src_self_codegen_fasm_codegen_til__fasm_simd_integer_extrema(Str * input, StructDef * sd, Type lane, Str * op, priv___src_self_codegen_fasm_codegen_til__FasmState * state) {
+static void priv___src_self_codegen_fasm_codegen_til__fasm_simd_integer_extrema(Str * input, StructDef * sd, Type lane, Str * op, USize bytes, priv___src_self_codegen_fasm_codegen_til__FasmState * state) {
     Str condition = (Str){.c_str = TIL_OWN_LIT("g", 1ULL), .count = 1ULL, .cap = TIL_CAP_LIT};
-    Bool hoisted__Bool_49 = Str_eq(op, &_til_str_lits.hbf045dd85742);
-    if (hoisted__Bool_49) {
+    Bool hoisted__Bool_46 = Str_eq(op, &_til_str_lits.hbf045dd85742);
+    if (hoisted__Bool_46) {
         { Str _new = _til_str_lits.h00000002b611; Str_delete(&condition, (Bool){0}); condition = _new; }
     }
-    Bool hoisted__Bool_50 = priv___src_self_codegen_fasm_codegen_til__fasm_unsigned(lane);
-    if (hoisted__Bool_50) {
+    Bool hoisted__Bool_47 = priv___src_self_codegen_fasm_codegen_til__fasm_unsigned(lane);
+    if (hoisted__Bool_47) {
         { Str _new = _til_str_lits.h00000002b606; Str_delete(&condition, (Bool){0}); condition = _new; }
         Bool hoisted__Bool_1 = Str_eq(op, &_til_str_lits.hbf045dd85742);
         if (hoisted__Bool_1) {
             { Str _new = _til_str_lits.h00000002b607; Str_delete(&condition, (Bool){0}); condition = _new; }
         }
     }
-    U32 hoisted__U32_51 = 2;
-    U32 half = ({ U32 _cf_a = sd->simd_width; U32 _cf_b = hoisted__U32_51; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
+    U32 hoisted__U32_48 = 2;
+    U32 half = ({ U32 _cf_a = sd->simd_width; U32 _cf_b = hoisted__U32_48; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
     while (1) {
-        U32 hoisted__U32_45 = 0;
-        Bool _wcond_Bool_2 = ((Bool)(half > hoisted__U32_45));
+        U32 hoisted__U32_42 = 0;
+        Bool _wcond_Bool_2 = ((Bool)(half > hoisted__U32_42));
         if (!(_wcond_Bool_2)) {
             break;
         }
@@ -348286,292 +348338,418 @@ static void priv___src_self_codegen_fasm_codegen_til__fasm_simd_integer_extrema(
                 U32 hoisted__U32_10 = 2;
                 Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_11 = (Str){.c_str = TIL_OWN_LIT("\n    lea rax, [r10+", 19ULL), .count = 19ULL, .cap = TIL_CAP_LIT};
                 Array__Str_set(&_va_Array_0, hoisted__U32_10, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_11, &_va_Array_0_ek);
-                U32 hoisted__U32_12 = 4;
-                U32 hoisted__U32_13 = ((U32)(i * hoisted__U32_12));
-                U32 hoisted__U32_14 = 3;
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_15 = U32_to_str(hoisted__U32_13);
-                Array__Str_set(&_va_Array_0, hoisted__U32_14, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_15, &_va_Array_0_ek);
-                U32 hoisted__U32_16 = 4;
-                Array__Str_set(&_va_Array_0, hoisted__U32_16, &_til_str_lits.h00000002b602, &_va_Array_0_ek);
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_18 = format(&_va_Array_0);
-                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_18);
-                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_18, 0);
+                U32 hoisted__U32_12 = ((U32)(i * bytes));
+                U32 hoisted__U32_13 = 3;
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_14 = U32_to_str(hoisted__U32_12);
+                Array__Str_set(&_va_Array_0, hoisted__U32_13, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_14, &_va_Array_0_ek);
+                U32 hoisted__U32_15 = 4;
+                Array__Str_set(&_va_Array_0, hoisted__U32_15, &_til_str_lits.h00000002b602, &_va_Array_0_ek);
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_17 = format(&_va_Array_0);
+                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_17);
+                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_17, 0);
                 priv___src_self_codegen_fasm_codegen_til__fasm_load_scalar(lane, state);
                 priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &_til_str_lits.h249a7b4e39d8);
-                U32 hoisted__U32_20 = 3;
-                Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_20);
+                U32 hoisted__U32_19 = 3;
+                Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_19);
                 I64 _va_Array_1_ek = 0;
-                U32 hoisted__U32_21 = 0;
-                Array__Str_set(&_va_Array_1, hoisted__U32_21, &_til_str_lits.hd0eaced6e427, &_va_Array_1_ek);
-                U32 hoisted__U32_23 = ((U32)(i + half));
-                U32 hoisted__U32_24 = 4;
-                U32 hoisted__U32_25 = ((U32)(hoisted__U32_23 * hoisted__U32_24));
-                U32 hoisted__U32_26 = 1;
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_27 = U32_to_str(hoisted__U32_25);
-                Array__Str_set(&_va_Array_1, hoisted__U32_26, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_27, &_va_Array_1_ek);
-                U32 hoisted__U32_28 = 2;
-                Array__Str_set(&_va_Array_1, hoisted__U32_28, &_til_str_lits.h00000002b602, &_va_Array_1_ek);
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_30 = format(&_va_Array_1);
-                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_30);
-                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_30, 0);
+                U32 hoisted__U32_20 = 0;
+                Array__Str_set(&_va_Array_1, hoisted__U32_20, &_til_str_lits.hd0eaced6e427, &_va_Array_1_ek);
+                U32 hoisted__U32_22 = ((U32)(i + half));
+                U32 hoisted__U32_23 = ((U32)(hoisted__U32_22 * bytes));
+                U32 hoisted__U32_24 = 1;
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_25 = U32_to_str(hoisted__U32_23);
+                Array__Str_set(&_va_Array_1, hoisted__U32_24, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_25, &_va_Array_1_ek);
+                U32 hoisted__U32_26 = 2;
+                Array__Str_set(&_va_Array_1, hoisted__U32_26, &_til_str_lits.h00000002b602, &_va_Array_1_ek);
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_28 = format(&_va_Array_1);
+                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_28);
+                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_28, 0);
                 priv___src_self_codegen_fasm_codegen_til__fasm_load_scalar(lane, state);
-                U32 hoisted__U32_31 = 5;
-                Array__Str _va_Array_2 = Array__Str_new(hoisted__U32_31);
+                U32 hoisted__U32_29 = 5;
+                Array__Str _va_Array_2 = Array__Str_new(hoisted__U32_29);
                 I64 _va_Array_2_ek = 0;
-                U32 hoisted__U32_32 = 0;
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_33 = (Str){.c_str = TIL_OWN_LIT("mov rcx, rax\n    mov rax, r8\n    cmp rax, rcx\n    cmov", 54ULL), .count = 54ULL, .cap = TIL_CAP_LIT};
+                U32 hoisted__U32_30 = 0;
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_31 = (Str){.c_str = TIL_OWN_LIT("mov rcx, rax\n    mov rax, r8\n    cmp rax, rcx\n    cmov", 54ULL), .count = 54ULL, .cap = TIL_CAP_LIT};
+                Array__Str_set(&_va_Array_2, hoisted__U32_30, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_31, &_va_Array_2_ek);
+                U32 hoisted__U32_32 = 1;
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_33 = Str_clone(&condition);
                 Array__Str_set(&_va_Array_2, hoisted__U32_32, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_33, &_va_Array_2_ek);
-                U32 hoisted__U32_34 = 1;
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_35 = Str_clone(&condition);
+                U32 hoisted__U32_34 = 2;
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_35 = (Str){.c_str = TIL_OWN_LIT(" rax, rcx\n    lea rcx, [r10+", 28ULL), .count = 28ULL, .cap = TIL_CAP_LIT};
                 Array__Str_set(&_va_Array_2, hoisted__U32_34, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_35, &_va_Array_2_ek);
-                U32 hoisted__U32_36 = 2;
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_37 = (Str){.c_str = TIL_OWN_LIT(" rax, rcx\n    lea rcx, [r10+", 28ULL), .count = 28ULL, .cap = TIL_CAP_LIT};
-                Array__Str_set(&_va_Array_2, hoisted__U32_36, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_37, &_va_Array_2_ek);
-                U32 hoisted__U32_38 = 4;
-                U32 hoisted__U32_39 = ((U32)(i * hoisted__U32_38));
-                U32 hoisted__U32_40 = 3;
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_41 = U32_to_str(hoisted__U32_39);
-                Array__Str_set(&_va_Array_2, hoisted__U32_40, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_41, &_va_Array_2_ek);
-                U32 hoisted__U32_42 = 4;
-                Array__Str_set(&_va_Array_2, hoisted__U32_42, &_til_str_lits.h00000002b602, &_va_Array_2_ek);
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_44 = format(&_va_Array_2);
-                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_44);
-                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_44, 0);
+                U32 hoisted__U32_36 = ((U32)(i * bytes));
+                U32 hoisted__U32_37 = 3;
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_38 = U32_to_str(hoisted__U32_36);
+                Array__Str_set(&_va_Array_2, hoisted__U32_37, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_38, &_va_Array_2_ek);
+                U32 hoisted__U32_39 = 4;
+                Array__Str_set(&_va_Array_2, hoisted__U32_39, &_til_str_lits.h00000002b602, &_va_Array_2_ek);
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_41 = format(&_va_Array_2);
+                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_41);
+                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_41, 0);
                 priv___src_self_codegen_fasm_codegen_til__fasm_store_scalar(lane, state);
             }
         }
-        U32 hoisted__U32_46 = 2;
-        U32 hoisted__U32_47 = ({ U32 _cf_a = half; U32 _cf_b = hoisted__U32_46; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
-        half = hoisted__U32_47;
+        U32 hoisted__U32_43 = 2;
+        U32 hoisted__U32_44 = ({ U32 _cf_a = half; U32 _cf_b = hoisted__U32_43; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
+        half = hoisted__U32_44;
     }
     Str_delete(&condition, 0);
-    U32 hoisted__U32_52 = 2;
-    Array__Str _va_Array_3 = Array__Str_new(hoisted__U32_52);
+    U32 hoisted__U32_49 = 2;
+    Array__Str _va_Array_3 = Array__Str_new(hoisted__U32_49);
     I64 _va_Array_3_ek = 0;
-    U32 hoisted__U32_53 = 0;
-    Array__Str_set(&_va_Array_3, hoisted__U32_53, &_til_str_lits.hcf8fca516b8e, &_va_Array_3_ek);
-    U32 hoisted__U32_55 = 1;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_56 = Str_clone(input);
-    Array__Str_set(&_va_Array_3, hoisted__U32_55, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_56, &_va_Array_3_ek);
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_57 = format(&_va_Array_3);
-    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_57);
-    Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_57, 0);
+    U32 hoisted__U32_50 = 0;
+    Array__Str_set(&_va_Array_3, hoisted__U32_50, &_til_str_lits.hcf8fca516b8e, &_va_Array_3_ek);
+    U32 hoisted__U32_52 = 1;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_53 = Str_clone(input);
+    Array__Str_set(&_va_Array_3, hoisted__U32_52, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_53, &_va_Array_3_ek);
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_54 = format(&_va_Array_3);
+    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_54);
+    Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_extrema_54, 0);
     priv___src_self_codegen_fasm_codegen_til__fasm_load_scalar(lane, state);
 }
 
-static void priv___src_self_codegen_fasm_codegen_til__fasm_simd_integer_binary(Vec__Str * arguments, Str * result, Type lane, Str * op, priv___src_self_codegen_fasm_codegen_til__FasmState * state) {
+static void priv___src_self_codegen_fasm_codegen_til__fasm_simd_integer_binary(Vec__Str * arguments, Str * result, Type lane, Str * op, USize bytes, priv___src_self_codegen_fasm_codegen_til__FasmState * state) {
     I64 _err_kind = 0;
-    U32 hoisted__U32_101 = 0;
-    Str *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_101) < arguments->count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments->data))) + (((U64)(((U64)((U32)(hoisted__U32_101))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
-    I64 hoisted__I64_102 = 1;
-    Bool hoisted__Bool_103 = ((Bool)(_err_kind == hoisted__I64_102));
-    if (hoisted__Bool_103) {
-        I64 hoisted__I64_0 = 0;
-        _err_kind = hoisted__I64_0;
-        U32 hoisted__U32_1 = 1;
-        Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_1);
+    Str suffix = (Str){.c_str = TIL_OWN_LIT("d", 1ULL), .count = 1ULL, .cap = TIL_CAP_LIT};
+    switch (bytes) {
+    case 1: {
+        { Str _new = _til_str_lits.h00000002b607; Str_delete(&suffix, (Bool){0}); suffix = _new; }
+        break;
+    }
+    case 2: {
+        { Str _new = _til_str_lits.h00000002b61c; Str_delete(&suffix, (Bool){0}); suffix = _new; }
+        break;
+    }
+    case 4: {
+        break;
+    }
+    default: {
+        U32 hoisted__U32_0 = 1;
+        Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_0);
         I64 _va_Array_0_ek = 0;
-        U32 hoisted__U32_2 = 0;
-        Array__Str_set(&_va_Array_0, hoisted__U32_2, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
-        panic(&_va_Array_0, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_4);
+        U32 hoisted__U32_1 = 0;
+        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_2 = (Str){.c_str = TIL_OWN_LIT("unsupported FASM integer SIMD lane size", 39ULL), .count = 39ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_2, &_va_Array_0_ek);
+        UNREACHABLE(&_va_Array_0, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_3);
     }
-    U32 hoisted__U32_104 = 1;
-    Str *_bang_ret_1 = (((Bool)((U32)(hoisted__U32_104) < arguments->count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments->data))) + (((U64)(((U64)((U32)(hoisted__U32_104))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
-    I64 hoisted__I64_105 = 1;
-    Bool hoisted__Bool_106 = ((Bool)(_err_kind == hoisted__I64_105));
-    if (hoisted__Bool_106) {
-        I64 hoisted__I64_5 = 0;
-        _err_kind = hoisted__I64_5;
-        U32 hoisted__U32_6 = 1;
-        Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_6);
+    }
+    U32 hoisted__U32_161 = 0;
+    Str *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_161) < arguments->count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments->data))) + (((U64)(((U64)((U32)(hoisted__U32_161))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
+    I64 hoisted__I64_162 = 1;
+    Bool hoisted__Bool_163 = ((Bool)(_err_kind == hoisted__I64_162));
+    if (hoisted__Bool_163) {
+        I64 hoisted__I64_4 = 0;
+        _err_kind = hoisted__I64_4;
+        U32 hoisted__U32_5 = 1;
+        Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_5);
         I64 _va_Array_1_ek = 0;
-        U32 hoisted__U32_7 = 0;
-        Array__Str_set(&_va_Array_1, hoisted__U32_7, &_til_str_lits.h4d3ab87300de, &_va_Array_1_ek);
-        panic(&_va_Array_1, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_9);
+        U32 hoisted__U32_6 = 0;
+        Array__Str_set(&_va_Array_1, hoisted__U32_6, &_til_str_lits.h4d3ab87300de, &_va_Array_1_ek);
+        panic(&_va_Array_1, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_8);
     }
-    U32 hoisted__U32_107 = 4;
-    Array__Str _va_Array_5 = Array__Str_new(hoisted__U32_107);
-    I64 _va_Array_5_ek = 0;
-    U32 hoisted__U32_108 = 0;
-    Array__Str_set(&_va_Array_5, hoisted__U32_108, &_til_str_lits.hb8cd9aaf797d, &_va_Array_5_ek);
-    U32 hoisted__U32_110 = 1;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_111 = Str_clone(_bang_ret_0);
-    Array__Str_set(&_va_Array_5, hoisted__U32_110, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_111, &_va_Array_5_ek);
-    U32 hoisted__U32_112 = 2;
-    Array__Str_set(&_va_Array_5, hoisted__U32_112, &_til_str_lits.h022b8c0ebaa8, &_va_Array_5_ek);
-    U32 hoisted__U32_114 = 3;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_115 = Str_clone(_bang_ret_1);
-    Array__Str_set(&_va_Array_5, hoisted__U32_114, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_115, &_va_Array_5_ek);
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_116 = format(&_va_Array_5);
-    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_116);
-    Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_116, 0);
+    U32 hoisted__U32_164 = 1;
+    Str *_bang_ret_1 = (((Bool)((U32)(hoisted__U32_164) < arguments->count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments->data))) + (((U64)(((U64)((U32)(hoisted__U32_164))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
+    I64 hoisted__I64_165 = 1;
+    Bool hoisted__Bool_166 = ((Bool)(_err_kind == hoisted__I64_165));
+    if (hoisted__Bool_166) {
+        I64 hoisted__I64_9 = 0;
+        _err_kind = hoisted__I64_9;
+        U32 hoisted__U32_10 = 1;
+        Array__Str _va_Array_2 = Array__Str_new(hoisted__U32_10);
+        I64 _va_Array_2_ek = 0;
+        U32 hoisted__U32_11 = 0;
+        Array__Str_set(&_va_Array_2, hoisted__U32_11, &_til_str_lits.h4d3ab87300de, &_va_Array_2_ek);
+        panic(&_va_Array_2, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_13);
+    }
+    U32 hoisted__U32_167 = 4;
+    Array__Str _va_Array_11 = Array__Str_new(hoisted__U32_167);
+    I64 _va_Array_11_ek = 0;
+    U32 hoisted__U32_168 = 0;
+    Array__Str_set(&_va_Array_11, hoisted__U32_168, &_til_str_lits.hb8cd9aaf797d, &_va_Array_11_ek);
+    U32 hoisted__U32_170 = 1;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_171 = Str_clone(_bang_ret_0);
+    Array__Str_set(&_va_Array_11, hoisted__U32_170, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_171, &_va_Array_11_ek);
+    U32 hoisted__U32_172 = 2;
+    Array__Str_set(&_va_Array_11, hoisted__U32_172, &_til_str_lits.h022b8c0ebaa8, &_va_Array_11_ek);
+    U32 hoisted__U32_174 = 3;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_175 = Str_clone(_bang_ret_1);
+    Array__Str_set(&_va_Array_11, hoisted__U32_174, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_175, &_va_Array_11_ek);
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_176 = format(&_va_Array_11);
+    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_176);
+    Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_176, 0);
     {
-        Bool hoisted__Bool_100 = Str_eq(op, &_til_str_lits.h00000b885cce);
-        if (hoisted__Bool_100) {
-            Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_10 = (Str){.c_str = TIL_OWN_LIT("paddd xmm0, xmm1", 16ULL), .count = 16ULL, .cap = TIL_CAP_LIT};
-            priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_10);
+        Bool hoisted__Bool_160 = Str_eq(op, &_til_str_lits.h00000b885cce);
+        if (hoisted__Bool_160) {
+            U32 hoisted__U32_14 = 3;
+            Array__Str _va_Array_3 = Array__Str_new(hoisted__U32_14);
+            I64 _va_Array_3_ek = 0;
+            U32 hoisted__U32_15 = 0;
+            Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_16 = (Str){.c_str = TIL_OWN_LIT("padd", 4ULL), .count = 4ULL, .cap = TIL_CAP_LIT};
+            Array__Str_set(&_va_Array_3, hoisted__U32_15, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_16, &_va_Array_3_ek);
+            U32 hoisted__U32_17 = 1;
+            Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_18 = Str_clone(&suffix);
+            Array__Str_set(&_va_Array_3, hoisted__U32_17, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_18, &_va_Array_3_ek);
+            U32 hoisted__U32_19 = 2;
+            Array__Str_set(&_va_Array_3, hoisted__U32_19, &_til_str_lits.h9dbf850d5416, &_va_Array_3_ek);
+            Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_21 = format(&_va_Array_3);
+            priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_21);
+            Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_21, 0);
         } else {
-            Bool hoisted__Bool_98 = Str_eq(op, &_til_str_lits.h00000b88ab8f);
-            if (hoisted__Bool_98) {
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_11 = (Str){.c_str = TIL_OWN_LIT("psubd xmm0, xmm1", 16ULL), .count = 16ULL, .cap = TIL_CAP_LIT};
-                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_11);
+            Bool hoisted__Bool_158 = Str_eq(op, &_til_str_lits.h00000b88ab8f);
+            if (hoisted__Bool_158) {
+                U32 hoisted__U32_22 = 3;
+                Array__Str _va_Array_4 = Array__Str_new(hoisted__U32_22);
+                I64 _va_Array_4_ek = 0;
+                U32 hoisted__U32_23 = 0;
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_24 = (Str){.c_str = TIL_OWN_LIT("psub", 4ULL), .count = 4ULL, .cap = TIL_CAP_LIT};
+                Array__Str_set(&_va_Array_4, hoisted__U32_23, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_24, &_va_Array_4_ek);
+                U32 hoisted__U32_25 = 1;
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_26 = Str_clone(&suffix);
+                Array__Str_set(&_va_Array_4, hoisted__U32_25, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_26, &_va_Array_4_ek);
+                U32 hoisted__U32_27 = 2;
+                Array__Str_set(&_va_Array_4, hoisted__U32_27, &_til_str_lits.h9dbf850d5416, &_va_Array_4_ek);
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_29 = format(&_va_Array_4);
+                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_29);
+                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_29, 0);
             } else {
-                Bool hoisted__Bool_96 = Str_eq(op, &_til_str_lits.h00017c9477da);
-                if (hoisted__Bool_96) {
-                    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_12 = (Str){.c_str = TIL_OWN_LIT("pand xmm0, xmm1", 15ULL), .count = 15ULL, .cap = TIL_CAP_LIT};
-                    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_12);
+                Bool hoisted__Bool_156 = Str_eq(op, &_til_str_lits.h00017c9477da);
+                if (hoisted__Bool_156) {
+                    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_30 = (Str){.c_str = TIL_OWN_LIT("pand xmm0, xmm1", 15ULL), .count = 15ULL, .cap = TIL_CAP_LIT};
+                    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_30);
                 } else {
-                    Bool hoisted__Bool_94 = Str_eq(op, &_til_str_lits.h00000b886288);
-                    if (hoisted__Bool_94) {
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_13 = (Str){.c_str = TIL_OWN_LIT("por xmm0, xmm1", 14ULL), .count = 14ULL, .cap = TIL_CAP_LIT};
-                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_13);
+                    Bool hoisted__Bool_154 = Str_eq(op, &_til_str_lits.h00000b886288);
+                    if (hoisted__Bool_154) {
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_31 = (Str){.c_str = TIL_OWN_LIT("por xmm0, xmm1", 14ULL), .count = 14ULL, .cap = TIL_CAP_LIT};
+                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_31);
                     } else {
-                        Bool hoisted__Bool_92 = Str_eq(op, &_til_str_lits.h00017c94d9e0);
-                        if (hoisted__Bool_92) {
-                            Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_14 = (Str){.c_str = TIL_OWN_LIT("pxor xmm0, xmm1", 15ULL), .count = 15ULL, .cap = TIL_CAP_LIT};
-                            priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_14);
+                        Bool hoisted__Bool_152 = Str_eq(op, &_til_str_lits.h00017c94d9e0);
+                        if (hoisted__Bool_152) {
+                            Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_32 = (Str){.c_str = TIL_OWN_LIT("pxor xmm0, xmm1", 15ULL), .count = 15ULL, .cap = TIL_CAP_LIT};
+                            priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_32);
                         } else {
-                            Bool hoisted__Bool_90 = Str_eq(op, &_til_str_lits.h00000b889213);
-                            if (hoisted__Bool_90) {
-                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_15 = (Str){.c_str = TIL_OWN_LIT("movdqa xmm2, xmm0\n    pmuludq xmm0, xmm1\n    psrldq xmm2, 4\n    psrldq xmm1, 4\n    pmuludq xmm2, xmm1\n    pshufd xmm0, xmm0, 136\n    pshufd xmm2, xmm2, 136\n    punpckldq xmm0, xmm2", 180ULL), .count = 180ULL, .cap = TIL_CAP_LIT};
-                                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_15);
+                            Bool hoisted__Bool_150 = Str_eq(op, &_til_str_lits.h00000b889213);
+                            if (hoisted__Bool_150) {
+                                U32 hoisted__U32_38 = 1;
+                                Bool hoisted__Bool_39 = ((Bool)(bytes == hoisted__U32_38));
+                                if (hoisted__Bool_39) {
+                                    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_33 = (Str){.c_str = TIL_OWN_LIT("movdqa xmm2, xmm0\n    movdqa xmm3, xmm1\n    pxor xmm4, xmm4\n    punpcklbw xmm0, xmm4\n    punpcklbw xmm1, xmm4\n    punpckhbw xmm2, xmm4\n    punpckhbw xmm3, xmm4\n    pmullw xmm0, xmm1\n    pmullw xmm2, xmm3\n    pcmpeqw xmm4, xmm4\n    psrlw xmm4, 8\n    pand xmm0, xmm4\n    pand xmm2, xmm4\n    packuswb xmm0, xmm2", 308ULL), .count = 308ULL, .cap = TIL_CAP_LIT};
+                                    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_33);
+                                } else {
+                                    U32 hoisted__U32_36 = 2;
+                                    Bool hoisted__Bool_37 = ((Bool)(bytes == hoisted__U32_36));
+                                    if (hoisted__Bool_37) {
+                                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_34 = (Str){.c_str = TIL_OWN_LIT("pmullw xmm0, xmm1", 17ULL), .count = 17ULL, .cap = TIL_CAP_LIT};
+                                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_34);
+                                    } else {
+                                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_35 = (Str){.c_str = TIL_OWN_LIT("movdqa xmm2, xmm0\n    pmuludq xmm0, xmm1\n    psrldq xmm2, 4\n    psrldq xmm1, 4\n    pmuludq xmm2, xmm1\n    pshufd xmm0, xmm0, 136\n    pshufd xmm2, xmm2, 136\n    punpckldq xmm0, xmm2", 180ULL), .count = 180ULL, .cap = TIL_CAP_LIT};
+                                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_35);
+                                    }
+                                }
                             } else {
-                                Bool _m_Bool_16 = 0;
+                                Bool _m_Bool_40 = 0;
                                 {
-                                    Bool _sw_Bool_17 = priv___src_self_codegen_fasm_codegen_til__fasm_unsigned(lane);
-                                    Bool hoisted__Bool_28 = 1;
-                                    Bool hoisted__Bool_29 = ((Bool)(_sw_Bool_17 == hoisted__Bool_28));
-                                    if (hoisted__Bool_29) {
-                                        Bool _m_Bool_18 = 0;
+                                    Bool _sw_Bool_41 = priv___src_self_codegen_fasm_codegen_til__fasm_unsigned(lane);
+                                    Bool hoisted__Bool_52 = 1;
+                                    Bool hoisted__Bool_53 = ((Bool)(_sw_Bool_41 == hoisted__Bool_52));
+                                    if (hoisted__Bool_53) {
+                                        Bool _m_Bool_42 = 0;
                                         {
-                                            Bool _sw_Bool_19 = Str_eq(op, &_til_str_lits.h0000005977bb);
-                                            Bool hoisted__Bool_24 = 1;
-                                            Bool hoisted__Bool_25 = ((Bool)(_sw_Bool_19 == hoisted__Bool_24));
-                                            if (hoisted__Bool_25) {
-                                                Bool hoisted__Bool_20 = 1;
-                                                _m_Bool_18 = hoisted__Bool_20;
+                                            Bool _sw_Bool_43 = Str_eq(op, &_til_str_lits.h0000005977bb);
+                                            Bool hoisted__Bool_48 = 1;
+                                            Bool hoisted__Bool_49 = ((Bool)(_sw_Bool_43 == hoisted__Bool_48));
+                                            if (hoisted__Bool_49) {
+                                                Bool hoisted__Bool_44 = 1;
+                                                _m_Bool_42 = hoisted__Bool_44;
                                             } else {
-                                                Bool hoisted__Bool_22 = Str_eq(op, &_til_str_lits.h00000b889449);
-                                                _m_Bool_18 = hoisted__Bool_22;
+                                                Bool hoisted__Bool_46 = Str_eq(op, &_til_str_lits.h00000b889449);
+                                                _m_Bool_42 = hoisted__Bool_46;
                                             }
                                         }
-                                        Bool hoisted__Bool_26 = ((Bool)(!(_m_Bool_18)));
-                                        _m_Bool_16 = hoisted__Bool_26;
+                                        Bool hoisted__Bool_50 = ((Bool)(!(_m_Bool_42)));
+                                        _m_Bool_40 = hoisted__Bool_50;
                                     } else {
-                                        Bool hoisted__Bool_27 = 0;
-                                        _m_Bool_16 = hoisted__Bool_27;
+                                        Bool hoisted__Bool_51 = 0;
+                                        _m_Bool_40 = hoisted__Bool_51;
                                     }
                                 }
-                                if (_m_Bool_16) {
-                                    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_30 = (Str){.c_str = TIL_OWN_LIT("pcmpeqd xmm2, xmm2\n    pslld xmm2, 31\n    pxor xmm0, xmm2\n    pxor xmm1, xmm2", 77ULL), .count = 77ULL, .cap = TIL_CAP_LIT};
-                                    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_30);
+                                if (_m_Bool_40) {
+                                    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_59 = (Str){.c_str = TIL_OWN_LIT("pcmpeqd xmm2, xmm2", 18ULL), .count = 18ULL, .cap = TIL_CAP_LIT};
+                                    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_59);
+                                    U32 hoisted__U32_60 = 1;
+                                    Bool hoisted__Bool_61 = ((Bool)(bytes == hoisted__U32_60));
+                                    if (hoisted__Bool_61) {
+                                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_54 = (Str){.c_str = TIL_OWN_LIT("psllw xmm2, 15\n    movdqa xmm3, xmm2\n    psrlw xmm3, 8\n    por xmm2, xmm3", 73ULL), .count = 73ULL, .cap = TIL_CAP_LIT};
+                                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_54);
+                                    } else {
+                                        U32 hoisted__U32_57 = 2;
+                                        Bool hoisted__Bool_58 = ((Bool)(bytes == hoisted__U32_57));
+                                        if (hoisted__Bool_58) {
+                                            Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_55 = (Str){.c_str = TIL_OWN_LIT("psllw xmm2, 15", 14ULL), .count = 14ULL, .cap = TIL_CAP_LIT};
+                                            priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_55);
+                                        } else {
+                                            Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_56 = (Str){.c_str = TIL_OWN_LIT("pslld xmm2, 31", 14ULL), .count = 14ULL, .cap = TIL_CAP_LIT};
+                                            priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_56);
+                                        }
+                                    }
+                                    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_62 = (Str){.c_str = TIL_OWN_LIT("pxor xmm0, xmm2\n    pxor xmm1, xmm2", 35ULL), .count = 35ULL, .cap = TIL_CAP_LIT};
+                                    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_62);
                                 }
                                 {
-                                    Bool hoisted__Bool_52 = Str_eq(op, &_til_str_lits.h0000005977bb);
-                                    Bool hoisted__Bool_53 = Str_eq(op, &_til_str_lits.h00000b889449);
-                                    Bool hoisted__Bool_54 = ((Bool)((hoisted__Bool_52) || (hoisted__Bool_53)));
-                                    if (hoisted__Bool_54) {
-                                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_31 = (Str){.c_str = TIL_OWN_LIT("pcmpeqd xmm0, xmm1", 18ULL), .count = 18ULL, .cap = TIL_CAP_LIT};
-                                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_31);
+                                    Bool hoisted__Bool_105 = Str_eq(op, &_til_str_lits.h0000005977bb);
+                                    Bool hoisted__Bool_106 = Str_eq(op, &_til_str_lits.h00000b889449);
+                                    Bool hoisted__Bool_107 = ((Bool)((hoisted__Bool_105) || (hoisted__Bool_106)));
+                                    if (hoisted__Bool_107) {
+                                        U32 hoisted__U32_63 = 3;
+                                        Array__Str _va_Array_5 = Array__Str_new(hoisted__U32_63);
+                                        I64 _va_Array_5_ek = 0;
+                                        U32 hoisted__U32_64 = 0;
+                                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_65 = (Str){.c_str = TIL_OWN_LIT("pcmpeq", 6ULL), .count = 6ULL, .cap = TIL_CAP_LIT};
+                                        Array__Str_set(&_va_Array_5, hoisted__U32_64, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_65, &_va_Array_5_ek);
+                                        U32 hoisted__U32_66 = 1;
+                                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_67 = Str_clone(&suffix);
+                                        Array__Str_set(&_va_Array_5, hoisted__U32_66, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_67, &_va_Array_5_ek);
+                                        U32 hoisted__U32_68 = 2;
+                                        Array__Str_set(&_va_Array_5, hoisted__U32_68, &_til_str_lits.h9dbf850d5416, &_va_Array_5_ek);
+                                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_70 = format(&_va_Array_5);
+                                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_70);
+                                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_70, 0);
                                     } else {
-                                        Bool hoisted__Bool_47 = Str_eq(op, &_til_str_lits.h0000005978a5);
-                                        Bool hoisted__Bool_48 = Str_eq(op, &_til_str_lits.h00000b887865);
-                                        Bool hoisted__Bool_49 = ((Bool)((hoisted__Bool_47) || (hoisted__Bool_48)));
-                                        if (hoisted__Bool_49) {
-                                            Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_32 = (Str){.c_str = TIL_OWN_LIT("pcmpgtd xmm1, xmm0\n    movdqa xmm0, xmm1", 40ULL), .count = 40ULL, .cap = TIL_CAP_LIT};
-                                            priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_32);
+                                        Bool hoisted__Bool_100 = Str_eq(op, &_til_str_lits.h0000005978a5);
+                                        Bool hoisted__Bool_101 = Str_eq(op, &_til_str_lits.h00000b887865);
+                                        Bool hoisted__Bool_102 = ((Bool)((hoisted__Bool_100) || (hoisted__Bool_101)));
+                                        if (hoisted__Bool_102) {
+                                            U32 hoisted__U32_71 = 3;
+                                            Array__Str _va_Array_6 = Array__Str_new(hoisted__U32_71);
+                                            I64 _va_Array_6_ek = 0;
+                                            U32 hoisted__U32_72 = 0;
+                                            Array__Str_set(&_va_Array_6, hoisted__U32_72, &_til_str_lits.h0653145df490, &_va_Array_6_ek);
+                                            U32 hoisted__U32_74 = 1;
+                                            Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_75 = Str_clone(&suffix);
+                                            Array__Str_set(&_va_Array_6, hoisted__U32_74, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_75, &_va_Array_6_ek);
+                                            U32 hoisted__U32_76 = 2;
+                                            Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_77 = (Str){.c_str = TIL_OWN_LIT(" xmm1, xmm0\n    movdqa xmm0, xmm1", 33ULL), .count = 33ULL, .cap = TIL_CAP_LIT};
+                                            Array__Str_set(&_va_Array_6, hoisted__U32_76, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_77, &_va_Array_6_ek);
+                                            Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_78 = format(&_va_Array_6);
+                                            priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_78);
+                                            Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_78, 0);
                                         } else {
-                                            Bool hoisted__Bool_42 = Str_eq(op, &_til_str_lits.h000000597800);
-                                            Bool hoisted__Bool_43 = Str_eq(op, &_til_str_lits.h00000b888daa);
-                                            Bool hoisted__Bool_44 = ((Bool)((hoisted__Bool_42) || (hoisted__Bool_43)));
-                                            if (hoisted__Bool_44) {
-                                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_33 = (Str){.c_str = TIL_OWN_LIT("pcmpgtd xmm0, xmm1", 18ULL), .count = 18ULL, .cap = TIL_CAP_LIT};
-                                                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_33);
+                                            Bool hoisted__Bool_95 = Str_eq(op, &_til_str_lits.h000000597800);
+                                            Bool hoisted__Bool_96 = Str_eq(op, &_til_str_lits.h00000b888daa);
+                                            Bool hoisted__Bool_97 = ((Bool)((hoisted__Bool_95) || (hoisted__Bool_96)));
+                                            if (hoisted__Bool_97) {
+                                                U32 hoisted__U32_79 = 3;
+                                                Array__Str _va_Array_7 = Array__Str_new(hoisted__U32_79);
+                                                I64 _va_Array_7_ek = 0;
+                                                U32 hoisted__U32_80 = 0;
+                                                Array__Str_set(&_va_Array_7, hoisted__U32_80, &_til_str_lits.h0653145df490, &_va_Array_7_ek);
+                                                U32 hoisted__U32_82 = 1;
+                                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_83 = Str_clone(&suffix);
+                                                Array__Str_set(&_va_Array_7, hoisted__U32_82, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_83, &_va_Array_7_ek);
+                                                U32 hoisted__U32_84 = 2;
+                                                Array__Str_set(&_va_Array_7, hoisted__U32_84, &_til_str_lits.h9dbf850d5416, &_va_Array_7_ek);
+                                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_86 = format(&_va_Array_7);
+                                                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_86);
+                                                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_86, 0);
                                             } else {
-                                                U32 hoisted__U32_34 = 2;
-                                                Array__Str _va_Array_2 = Array__Str_new(hoisted__U32_34);
-                                                I64 _va_Array_2_ek = 0;
-                                                U32 hoisted__U32_35 = 0;
-                                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_36 = (Str){.c_str = TIL_OWN_LIT("unsupported FASM integer SIMD operation: ", 41ULL), .count = 41ULL, .cap = TIL_CAP_LIT};
-                                                Array__Str_set(&_va_Array_2, hoisted__U32_35, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_36, &_va_Array_2_ek);
-                                                U32 hoisted__U32_37 = 1;
-                                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_38 = Str_clone(op);
-                                                Array__Str_set(&_va_Array_2, hoisted__U32_37, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_38, &_va_Array_2_ek);
-                                                UNREACHABLE(&_va_Array_2, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_39);
+                                                U32 hoisted__U32_87 = 2;
+                                                Array__Str _va_Array_8 = Array__Str_new(hoisted__U32_87);
+                                                I64 _va_Array_8_ek = 0;
+                                                U32 hoisted__U32_88 = 0;
+                                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_89 = (Str){.c_str = TIL_OWN_LIT("unsupported FASM integer SIMD operation: ", 41ULL), .count = 41ULL, .cap = TIL_CAP_LIT};
+                                                Array__Str_set(&_va_Array_8, hoisted__U32_88, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_89, &_va_Array_8_ek);
+                                                U32 hoisted__U32_90 = 1;
+                                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_91 = Str_clone(op);
+                                                Array__Str_set(&_va_Array_8, hoisted__U32_90, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_91, &_va_Array_8_ek);
+                                                UNREACHABLE(&_va_Array_8, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_92);
                                             }
                                         }
                                     }
                                 }
-                                Bool _m_Bool_55 = 0;
+                                Bool _m_Bool_108 = 0;
                                 {
                                     {
-                                        Bool _sw_Bool_56 = Str_eq(op, &_til_str_lits.h00000b889449);
-                                        Bool hoisted__Bool_61 = 1;
-                                        Bool hoisted__Bool_62 = ((Bool)(_sw_Bool_56 == hoisted__Bool_61));
-                                        if (hoisted__Bool_62) {
-                                            Bool hoisted__Bool_57 = 1;
-                                            _m_Bool_55 = hoisted__Bool_57;
+                                        Bool _sw_Bool_109 = Str_eq(op, &_til_str_lits.h00000b889449);
+                                        Bool hoisted__Bool_114 = 1;
+                                        Bool hoisted__Bool_115 = ((Bool)(_sw_Bool_109 == hoisted__Bool_114));
+                                        if (hoisted__Bool_115) {
+                                            Bool hoisted__Bool_110 = 1;
+                                            _m_Bool_108 = hoisted__Bool_110;
                                         } else {
-                                            Bool hoisted__Bool_59 = Str_eq(op, &_til_str_lits.h00000b888daa);
-                                            _m_Bool_55 = hoisted__Bool_59;
+                                            Bool hoisted__Bool_112 = Str_eq(op, &_til_str_lits.h00000b888daa);
+                                            _m_Bool_108 = hoisted__Bool_112;
                                         }
                                     }
-                                    Bool hoisted__Bool_66 = 1;
-                                    Bool hoisted__Bool_67 = ((Bool)(_m_Bool_55 == hoisted__Bool_66));
-                                    if (hoisted__Bool_67) {
-                                        Bool hoisted__Bool_63 = 1;
-                                        _m_Bool_55 = hoisted__Bool_63;
+                                    Bool hoisted__Bool_119 = 1;
+                                    Bool hoisted__Bool_120 = ((Bool)(_m_Bool_108 == hoisted__Bool_119));
+                                    if (hoisted__Bool_120) {
+                                        Bool hoisted__Bool_116 = 1;
+                                        _m_Bool_108 = hoisted__Bool_116;
                                     } else {
-                                        Bool hoisted__Bool_65 = Str_eq(op, &_til_str_lits.h00000b887865);
-                                        _m_Bool_55 = hoisted__Bool_65;
+                                        Bool hoisted__Bool_118 = Str_eq(op, &_til_str_lits.h00000b887865);
+                                        _m_Bool_108 = hoisted__Bool_118;
                                     }
                                 }
-                                if (_m_Bool_55) {
-                                    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_68 = (Str){.c_str = TIL_OWN_LIT("pcmpeqd xmm2, xmm2\n    pxor xmm0, xmm2", 38ULL), .count = 38ULL, .cap = TIL_CAP_LIT};
-                                    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_68);
+                                if (_m_Bool_108) {
+                                    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_121 = (Str){.c_str = TIL_OWN_LIT("pcmpeqd xmm2, xmm2\n    pxor xmm0, xmm2", 38ULL), .count = 38ULL, .cap = TIL_CAP_LIT};
+                                    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_121);
                                 }
-                                U32 hoisted__U32_83 = 2;
-                                Array__Str _va_Array_4 = Array__Str_new(hoisted__U32_83);
-                                I64 _va_Array_4_ek = 0;
-                                U32 hoisted__U32_84 = 0;
-                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_85 = (Str){.c_str = TIL_OWN_LIT("movmskps eax, xmm0\n    lea rdx, ", 32ULL), .count = 32ULL, .cap = TIL_CAP_LIT};
-                                Array__Str_set(&_va_Array_4, hoisted__U32_84, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_85, &_va_Array_4_ek);
-                                U32 hoisted__U32_86 = 1;
-                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_87 = Str_clone(result);
-                                Array__Str_set(&_va_Array_4, hoisted__U32_86, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_87, &_va_Array_4_ek);
-                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_88 = format(&_va_Array_4);
-                                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_88);
-                                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_88, 0);
+                                USize mask_step = 1;
+                                U32 hoisted__U32_140 = 4;
+                                Bool hoisted__Bool_141 = ((Bool)(bytes == hoisted__U32_140));
+                                if (hoisted__Bool_141) {
+                                    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_122 = (Str){.c_str = TIL_OWN_LIT("movmskps eax, xmm0", 18ULL), .count = 18ULL, .cap = TIL_CAP_LIT};
+                                    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_122);
+                                } else {
+                                    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_123 = (Str){.c_str = TIL_OWN_LIT("pmovmskb eax, xmm0", 18ULL), .count = 18ULL, .cap = TIL_CAP_LIT};
+                                    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_123);
+                                    U32 hoisted__U32_124 = (bytes);
+                                    mask_step = hoisted__U32_124;
+                                }
+                                U32 hoisted__U32_142 = 2;
+                                Array__Str _va_Array_10 = Array__Str_new(hoisted__U32_142);
+                                I64 _va_Array_10_ek = 0;
+                                U32 hoisted__U32_143 = 0;
+                                Array__Str_set(&_va_Array_10, hoisted__U32_143, &_til_str_lits.hcf8fca5310b1, &_va_Array_10_ek);
+                                U32 hoisted__U32_145 = 1;
+                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_146 = Str_clone(result);
+                                Array__Str_set(&_va_Array_10, hoisted__U32_145, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_146, &_va_Array_10_ek);
+                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_147 = format(&_va_Array_10);
+                                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_147);
+                                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_147, 0);
+                                U32 hoisted__U32_148 = 16;
+                                USize lanes = ({ U32 _cf_a = hoisted__U32_148; U32 _cf_b = bytes; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
                                 {
-                                    USize _re_USize_69 = 4;
-                                    USize _rc_USize_69 = 0;
+                                    U32 *_re_U32_125 = &lanes;
+                                    U32 _rc_U32_125 = 0;
                                     while (1) {
-                                        Bool _wcond_Bool_70 = ((Bool)(_rc_USize_69 < _re_USize_69));
-                                        if (!(_wcond_Bool_70)) {
+                                        Bool _wcond_Bool_126 = ((Bool)(_rc_U32_125 < DEREF(_re_U32_125)));
+                                        if (!(_wcond_Bool_126)) {
                                             break;
                                         }
-                                        USize i = (_rc_USize_69);
-                                        (++_rc_USize_69);
-                                        U32 hoisted__U32_71 = 5;
-                                        Array__Str _va_Array_3 = Array__Str_new(hoisted__U32_71);
-                                        I64 _va_Array_3_ek = 0;
-                                        U32 hoisted__U32_72 = 0;
-                                        Array__Str_set(&_va_Array_3, hoisted__U32_72, &_til_str_lits.ha2a160f4cf44, &_va_Array_3_ek);
-                                        U32 hoisted__U32_74 = 1;
-                                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_75 = U32_to_str(i);
-                                        Array__Str_set(&_va_Array_3, hoisted__U32_74, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_75, &_va_Array_3_ek);
-                                        U32 hoisted__U32_76 = 2;
-                                        Array__Str_set(&_va_Array_3, hoisted__U32_76, &_til_str_lits.hc22f63044bef, &_va_Array_3_ek);
-                                        U32 hoisted__U32_78 = 3;
-                                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_79 = U32_to_str(i);
-                                        Array__Str_set(&_va_Array_3, hoisted__U32_78, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_79, &_va_Array_3_ek);
-                                        U32 hoisted__U32_80 = 4;
-                                        Array__Str_set(&_va_Array_3, hoisted__U32_80, &_til_str_lits.h00310eaa9cfd, &_va_Array_3_ek);
-                                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_82 = format(&_va_Array_3);
-                                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_82);
-                                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_82, 0);
+                                        U32 i = (_rc_U32_125);
+                                        (++_rc_U32_125);
+                                        U32 hoisted__U32_127 = 5;
+                                        Array__Str _va_Array_9 = Array__Str_new(hoisted__U32_127);
+                                        I64 _va_Array_9_ek = 0;
+                                        U32 hoisted__U32_128 = 0;
+                                        Array__Str_set(&_va_Array_9, hoisted__U32_128, &_til_str_lits.ha2a160f4cf44, &_va_Array_9_ek);
+                                        U32 hoisted__U32_130 = ((U32)(i * mask_step));
+                                        U32 hoisted__U32_131 = 1;
+                                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_132 = U32_to_str(hoisted__U32_130);
+                                        Array__Str_set(&_va_Array_9, hoisted__U32_131, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_132, &_va_Array_9_ek);
+                                        U32 hoisted__U32_133 = 2;
+                                        Array__Str_set(&_va_Array_9, hoisted__U32_133, &_til_str_lits.hc22f63044bef, &_va_Array_9_ek);
+                                        U32 hoisted__U32_135 = 3;
+                                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_136 = U32_to_str(i);
+                                        Array__Str_set(&_va_Array_9, hoisted__U32_135, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_136, &_va_Array_9_ek);
+                                        U32 hoisted__U32_137 = 4;
+                                        Array__Str_set(&_va_Array_9, hoisted__U32_137, &_til_str_lits.h00310eaa9cfd, &_va_Array_9_ek);
+                                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_139 = format(&_va_Array_9);
+                                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_139);
+                                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_139, 0);
                                     }
                                 }
+                                Str_delete(&suffix, 0);
                                 return;
                             }
                         }
@@ -348580,20 +348758,21 @@ static void priv___src_self_codegen_fasm_codegen_til__fasm_simd_integer_binary(V
             }
         }
     }
-    U32 hoisted__U32_117 = 3;
-    Array__Str _va_Array_6 = Array__Str_new(hoisted__U32_117);
-    I64 _va_Array_6_ek = 0;
-    U32 hoisted__U32_118 = 0;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_119 = (Str){.c_str = TIL_OWN_LIT("movups ", 7ULL), .count = 7ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_6, hoisted__U32_118, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_119, &_va_Array_6_ek);
-    U32 hoisted__U32_120 = 1;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_121 = Str_clone(result);
-    Array__Str_set(&_va_Array_6, hoisted__U32_120, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_121, &_va_Array_6_ek);
-    U32 hoisted__U32_122 = 2;
-    Array__Str_set(&_va_Array_6, hoisted__U32_122, &_til_str_lits.h06527108bbf3, &_va_Array_6_ek);
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_124 = format(&_va_Array_6);
-    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_124);
-    Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_124, 0);
+    Str_delete(&suffix, 0);
+    U32 hoisted__U32_177 = 3;
+    Array__Str _va_Array_12 = Array__Str_new(hoisted__U32_177);
+    I64 _va_Array_12_ek = 0;
+    U32 hoisted__U32_178 = 0;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_179 = (Str){.c_str = TIL_OWN_LIT("movups ", 7ULL), .count = 7ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_12, hoisted__U32_178, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_179, &_va_Array_12_ek);
+    U32 hoisted__U32_180 = 1;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_181 = Str_clone(result);
+    Array__Str_set(&_va_Array_12, hoisted__U32_180, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_181, &_va_Array_12_ek);
+    U32 hoisted__U32_182 = 2;
+    Array__Str_set(&_va_Array_12, hoisted__U32_182, &_til_str_lits.h06527108bbf3, &_va_Array_12_ek);
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_184 = format(&_va_Array_12);
+    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_184);
+    Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_integer_binary_184, 0);
 }
 
 static Str priv___src_self_codegen_fasm_codegen_til__fasm_simd_address(Str * address, USize offset) {
@@ -348856,15 +349035,15 @@ static Bool priv___src_self_codegen_fasm_codegen_til__fasm_simd_core(Expr * e, T
             return hoisted__Bool_0;
         }
     }
-    Str *hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_466 = type_name_ref(&owner, &lp->ctx.symbols);
-    Option__ref_Expr hoisted__Option__ref_Expr_467 = TypeScope_get_struct(&lp->ctx.scope, hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_466, &lp->ctx.symbols);
-    Expr *hoisted__Expr_468 = Option__ref_Expr_unwrap(&hoisted__Option__ref_Expr_467);
-    StructDef *sd = structdef_of(hoisted__Expr_468, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_469);
-    U32 hoisted__U32_470 = 0;
-    Declaration *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_470) < TIL_OWN_GET(Vec__Declaration, (sd->fields))->count)) ? (Declaration *)((Declaration *)((void *)((U8 *)(TIL_OWN_GET(U8, (TIL_OWN_GET(Vec__Declaration, (sd->fields))->data))) + (((U64)(((U64)((U32)(hoisted__U32_470))) * ((U64)(136)))))))) : (_err_kind = 1, (Declaration *)NULL));
-    I64 hoisted__I64_471 = 1;
-    Bool hoisted__Bool_472 = ((Bool)(_err_kind == hoisted__I64_471));
-    if (hoisted__Bool_472) {
+    Str *hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_487 = type_name_ref(&owner, &lp->ctx.symbols);
+    Option__ref_Expr hoisted__Option__ref_Expr_488 = TypeScope_get_struct(&lp->ctx.scope, hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_487, &lp->ctx.symbols);
+    Expr *hoisted__Expr_489 = Option__ref_Expr_unwrap(&hoisted__Option__ref_Expr_488);
+    StructDef *sd = structdef_of(hoisted__Expr_489, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_490);
+    U32 hoisted__U32_491 = 0;
+    Declaration *_bang_ret_0 = (((Bool)((U32)(hoisted__U32_491) < TIL_OWN_GET(Vec__Declaration, (sd->fields))->count)) ? (Declaration *)((Declaration *)((void *)((U8 *)(TIL_OWN_GET(U8, (TIL_OWN_GET(Vec__Declaration, (sd->fields))->data))) + (((U64)(((U64)((U32)(hoisted__U32_491))) * ((U64)(136)))))))) : (_err_kind = 1, (Declaration *)NULL));
+    I64 hoisted__I64_492 = 1;
+    Bool hoisted__Bool_493 = ((Bool)(_err_kind == hoisted__I64_492));
+    if (hoisted__Bool_493) {
         I64 hoisted__I64_57 = 0;
         _err_kind = hoisted__I64_57;
         U32 hoisted__U32_58 = 1;
@@ -348875,8 +349054,8 @@ static Bool priv___src_self_codegen_fasm_codegen_til__fasm_simd_core(Expr * e, T
         panic(&_va_Array_0, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_61);
     }
     Type lane = declaration_resolved_type(_bang_ret_0, &lp->ctx.scope, &lp->ctx.symbols);
-    Bool hoisted__Bool_474 = Str_eq(op, &_til_str_lits.h00000b88944f);
-    if (hoisted__Bool_474) {
+    Bool hoisted__Bool_495 = Str_eq(op, &_til_str_lits.h00000b88944f);
+    if (hoisted__Bool_495) {
         Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_81 = priv___src_self_codegen_fasm_codegen_til__fasm_value_slot(owner, state, lp);
         Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_83 = Str_strip_prefix(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_81, &_til_str_lits.h0653181e27d2);
         Str result = Str_clone(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_83);
@@ -348944,763 +349123,816 @@ static Bool priv___src_self_codegen_fasm_codegen_til__fasm_simd_core(Expr * e, T
     }
     Bool _m_Bool_91 = 0;
     {
-        Type hoisted__Type_96 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_I32});
-        Bool _sw_Bool_92 = Type_eq(&lane, &hoisted__Type_96);
-        Type_delete(&hoisted__Type_96, 0);
-        Bool hoisted__Bool_97 = 1;
-        Bool hoisted__Bool_98 = ((Bool)(_sw_Bool_92 == hoisted__Bool_97));
-        if (hoisted__Bool_98) {
-            Bool hoisted__Bool_93 = 1;
-            _m_Bool_91 = hoisted__Bool_93;
+        {
+            {
+                {
+                    {
+                        Type hoisted__Type_96 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_I8});
+                        Bool _sw_Bool_92 = Type_eq(&lane, &hoisted__Type_96);
+                        Type_delete(&hoisted__Type_96, 0);
+                        Bool hoisted__Bool_97 = 1;
+                        Bool hoisted__Bool_98 = ((Bool)(_sw_Bool_92 == hoisted__Bool_97));
+                        if (hoisted__Bool_98) {
+                            Bool hoisted__Bool_93 = 1;
+                            _m_Bool_91 = hoisted__Bool_93;
+                        } else {
+                            Type hoisted__Type_94 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_U8});
+                            Bool hoisted__Bool_95 = Type_eq(&lane, &hoisted__Type_94);
+                            Type_delete(&hoisted__Type_94, 0);
+                            _m_Bool_91 = hoisted__Bool_95;
+                        }
+                    }
+                    Bool hoisted__Bool_102 = 1;
+                    Bool hoisted__Bool_103 = ((Bool)(_m_Bool_91 == hoisted__Bool_102));
+                    if (hoisted__Bool_103) {
+                        Bool hoisted__Bool_99 = 1;
+                        _m_Bool_91 = hoisted__Bool_99;
+                    } else {
+                        Type hoisted__Type_100 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_I16});
+                        Bool hoisted__Bool_101 = Type_eq(&lane, &hoisted__Type_100);
+                        Type_delete(&hoisted__Type_100, 0);
+                        _m_Bool_91 = hoisted__Bool_101;
+                    }
+                }
+                Bool hoisted__Bool_107 = 1;
+                Bool hoisted__Bool_108 = ((Bool)(_m_Bool_91 == hoisted__Bool_107));
+                if (hoisted__Bool_108) {
+                    Bool hoisted__Bool_104 = 1;
+                    _m_Bool_91 = hoisted__Bool_104;
+                } else {
+                    Type hoisted__Type_105 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_U16});
+                    Bool hoisted__Bool_106 = Type_eq(&lane, &hoisted__Type_105);
+                    Type_delete(&hoisted__Type_105, 0);
+                    _m_Bool_91 = hoisted__Bool_106;
+                }
+            }
+            Bool hoisted__Bool_112 = 1;
+            Bool hoisted__Bool_113 = ((Bool)(_m_Bool_91 == hoisted__Bool_112));
+            if (hoisted__Bool_113) {
+                Bool hoisted__Bool_109 = 1;
+                _m_Bool_91 = hoisted__Bool_109;
+            } else {
+                Type hoisted__Type_110 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_I32});
+                Bool hoisted__Bool_111 = Type_eq(&lane, &hoisted__Type_110);
+                Type_delete(&hoisted__Type_110, 0);
+                _m_Bool_91 = hoisted__Bool_111;
+            }
+        }
+        Bool hoisted__Bool_117 = 1;
+        Bool hoisted__Bool_118 = ((Bool)(_m_Bool_91 == hoisted__Bool_117));
+        if (hoisted__Bool_118) {
+            Bool hoisted__Bool_114 = 1;
+            _m_Bool_91 = hoisted__Bool_114;
         } else {
-            Type hoisted__Type_94 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_U32});
-            Bool hoisted__Bool_95 = Type_eq(&lane, &hoisted__Type_94);
-            Type_delete(&hoisted__Type_94, 0);
-            _m_Bool_91 = hoisted__Bool_95;
+            Type hoisted__Type_115 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_U32});
+            Bool hoisted__Bool_116 = Type_eq(&lane, &hoisted__Type_115);
+            Type_delete(&hoisted__Type_115, 0);
+            _m_Bool_91 = hoisted__Bool_116;
         }
     }
     Bool integer = (_m_Bool_91);
-    Bool _m_Bool_99 = 0;
+    Bool _m_Bool_119 = 0;
     {
-        Bool _sw_Bool_100 = ((Bool)(!(integer)));
-        Bool hoisted__Bool_114 = 1;
-        Bool hoisted__Bool_115 = ((Bool)(_sw_Bool_100 == hoisted__Bool_114));
-        if (hoisted__Bool_115) {
+        Bool _sw_Bool_120 = ((Bool)(!(integer)));
+        Bool hoisted__Bool_134 = 1;
+        Bool hoisted__Bool_135 = ((Bool)(_sw_Bool_120 == hoisted__Bool_134));
+        if (hoisted__Bool_135) {
             {
                 {
-                    Bool _sw_Bool_101 = Str_eq(op, &_til_str_lits.h00017c9477da);
-                    Bool hoisted__Bool_106 = 1;
-                    Bool hoisted__Bool_107 = ((Bool)(_sw_Bool_101 == hoisted__Bool_106));
-                    if (hoisted__Bool_107) {
-                        Bool hoisted__Bool_102 = 1;
-                        _m_Bool_99 = hoisted__Bool_102;
+                    Bool _sw_Bool_121 = Str_eq(op, &_til_str_lits.h00017c9477da);
+                    Bool hoisted__Bool_126 = 1;
+                    Bool hoisted__Bool_127 = ((Bool)(_sw_Bool_121 == hoisted__Bool_126));
+                    if (hoisted__Bool_127) {
+                        Bool hoisted__Bool_122 = 1;
+                        _m_Bool_119 = hoisted__Bool_122;
                     } else {
-                        Bool hoisted__Bool_104 = Str_eq(op, &_til_str_lits.h00000b886288);
-                        _m_Bool_99 = hoisted__Bool_104;
+                        Bool hoisted__Bool_124 = Str_eq(op, &_til_str_lits.h00000b886288);
+                        _m_Bool_119 = hoisted__Bool_124;
                     }
                 }
-                Bool hoisted__Bool_111 = 1;
-                Bool hoisted__Bool_112 = ((Bool)(_m_Bool_99 == hoisted__Bool_111));
-                if (hoisted__Bool_112) {
-                    Bool hoisted__Bool_108 = 1;
-                    _m_Bool_99 = hoisted__Bool_108;
+                Bool hoisted__Bool_131 = 1;
+                Bool hoisted__Bool_132 = ((Bool)(_m_Bool_119 == hoisted__Bool_131));
+                if (hoisted__Bool_132) {
+                    Bool hoisted__Bool_128 = 1;
+                    _m_Bool_119 = hoisted__Bool_128;
                 } else {
-                    Bool hoisted__Bool_110 = Str_eq(op, &_til_str_lits.h00017c94d9e0);
-                    _m_Bool_99 = hoisted__Bool_110;
+                    Bool hoisted__Bool_130 = Str_eq(op, &_til_str_lits.h00017c94d9e0);
+                    _m_Bool_119 = hoisted__Bool_130;
                 }
             }
         } else {
-            Bool hoisted__Bool_113 = 0;
-            _m_Bool_99 = hoisted__Bool_113;
+            Bool hoisted__Bool_133 = 0;
+            _m_Bool_119 = hoisted__Bool_133;
         }
     }
-    if (_m_Bool_99) {
-        Bool hoisted__Bool_116 = 0;
+    if (_m_Bool_119) {
+        Bool hoisted__Bool_136 = 0;
         Type_delete(&lane, 0);
-        return hoisted__Bool_116;
+        return hoisted__Bool_136;
     }
-    Bool _m_Bool_117 = 0;
+    Bool _m_Bool_137 = 0;
     {
-        Bool hoisted__Bool_121 = 1;
-        Bool hoisted__Bool_122 = ((Bool)(integer == hoisted__Bool_121));
-        if (hoisted__Bool_122) {
-            Bool hoisted__Bool_119 = Str_eq(op, &_til_str_lits.h00000b886a48);
-            _m_Bool_117 = hoisted__Bool_119;
+        Bool hoisted__Bool_141 = 1;
+        Bool hoisted__Bool_142 = ((Bool)(integer == hoisted__Bool_141));
+        if (hoisted__Bool_142) {
+            Bool hoisted__Bool_139 = Str_eq(op, &_til_str_lits.h00000b886a48);
+            _m_Bool_137 = hoisted__Bool_139;
         } else {
-            Bool hoisted__Bool_120 = 0;
-            _m_Bool_117 = hoisted__Bool_120;
+            Bool hoisted__Bool_140 = 0;
+            _m_Bool_137 = hoisted__Bool_140;
         }
     }
-    if (_m_Bool_117) {
-        Bool hoisted__Bool_123 = 0;
+    if (_m_Bool_137) {
+        Bool hoisted__Bool_143 = 0;
         Type_delete(&lane, 0);
-        return hoisted__Bool_123;
+        return hoisted__Bool_143;
     }
-    Bool hoisted__Bool_476 = Str_eq(op, &_til_str_lits.h00000b888bc4);
-    if (hoisted__Bool_476) {
-        U32 hoisted__U32_129 = 1;
-        Expr *_bang_ret_2 = (((Bool)((U32)(hoisted__U32_129) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(TIL_OWN_GET(U8, (e->children.data))) + (((U64)(((U64)((U32)(hoisted__U32_129))) * ((U64)(168)))))))) : (_err_kind = 1, (Expr *)NULL));
-        I64 hoisted__I64_130 = 1;
-        Bool hoisted__Bool_131 = ((Bool)(_err_kind == hoisted__I64_130));
-        if (hoisted__Bool_131) {
-            I64 hoisted__I64_124 = 0;
-            _err_kind = hoisted__I64_124;
-            U32 hoisted__U32_125 = 1;
-            Array__Str _va_Array_4 = Array__Str_new(hoisted__U32_125);
+    Bool hoisted__Bool_497 = Str_eq(op, &_til_str_lits.h00000b888bc4);
+    if (hoisted__Bool_497) {
+        U32 hoisted__U32_149 = 1;
+        Expr *_bang_ret_2 = (((Bool)((U32)(hoisted__U32_149) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(TIL_OWN_GET(U8, (e->children.data))) + (((U64)(((U64)((U32)(hoisted__U32_149))) * ((U64)(168)))))))) : (_err_kind = 1, (Expr *)NULL));
+        I64 hoisted__I64_150 = 1;
+        Bool hoisted__Bool_151 = ((Bool)(_err_kind == hoisted__I64_150));
+        if (hoisted__Bool_151) {
+            I64 hoisted__I64_144 = 0;
+            _err_kind = hoisted__I64_144;
+            U32 hoisted__U32_145 = 1;
+            Array__Str _va_Array_4 = Array__Str_new(hoisted__U32_145);
             I64 _va_Array_4_ek = 0;
-            U32 hoisted__U32_126 = 0;
-            Array__Str_set(&_va_Array_4, hoisted__U32_126, &_til_str_lits.h4d3ab87300de, &_va_Array_4_ek);
-            panic(&_va_Array_4, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_128);
+            U32 hoisted__U32_146 = 0;
+            Array__Str_set(&_va_Array_4, hoisted__U32_146, &_til_str_lits.h4d3ab87300de, &_va_Array_4_ek);
+            panic(&_va_Array_4, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_148);
         }
-        Bool hoisted__Bool_132 = 0;
-        priv___src_self_codegen_fasm_codegen_til__fasm_expr(_bang_ret_2, state, lp, hoisted__Bool_132);
-        U32 hoisted__U32_133 = 2;
-        Array__Str _va_Array_5 = Array__Str_new(hoisted__U32_133);
+        Bool hoisted__Bool_152 = 0;
+        priv___src_self_codegen_fasm_codegen_til__fasm_expr(_bang_ret_2, state, lp, hoisted__Bool_152);
+        U32 hoisted__U32_153 = 2;
+        Array__Str _va_Array_5 = Array__Str_new(hoisted__U32_153);
         I64 _va_Array_5_ek = 0;
-        U32 hoisted__U32_134 = 0;
-        Array__Str_set(&_va_Array_5, hoisted__U32_134, &_til_str_lits.hd140c9e7292e, &_va_Array_5_ek);
-        U32 hoisted__U32_136 = 1;
-        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_137 = U32_to_str(sd->simd_width);
-        Array__Str_set(&_va_Array_5, hoisted__U32_136, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_137, &_va_Array_5_ek);
-        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_138 = format(&_va_Array_5);
-        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_138);
-        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_138, 0);
-        Bool hoisted__Bool_139 = 1;
+        U32 hoisted__U32_154 = 0;
+        Array__Str_set(&_va_Array_5, hoisted__U32_154, &_til_str_lits.hd140c9e7292e, &_va_Array_5_ek);
+        U32 hoisted__U32_156 = 1;
+        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_157 = U32_to_str(sd->simd_width);
+        Array__Str_set(&_va_Array_5, hoisted__U32_156, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_157, &_va_Array_5_ek);
+        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_158 = format(&_va_Array_5);
+        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_158);
+        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_158, 0);
+        Bool hoisted__Bool_159 = 1;
         Type_delete(&lane, 0);
-        return hoisted__Bool_139;
+        return hoisted__Bool_159;
     }
     Vec__Str arguments = Vec__Str_clone(_til_precomputed_sequence_891_get());
     {
-        U32 _re_U32_140 = (e->children.count);
-        U32 _rc_U32_140 = 1;
-        Bool hoisted__Bool_175 = ((Bool)(_rc_U32_140 <= _re_U32_140));
-        if (hoisted__Bool_175) {
+        U32 _re_U32_160 = (e->children.count);
+        U32 _rc_U32_160 = 1;
+        Bool hoisted__Bool_195 = ((Bool)(_rc_U32_160 <= _re_U32_160));
+        if (hoisted__Bool_195) {
             while (1) {
-                Bool _wcond_Bool_141 = ((Bool)(_rc_U32_140 < _re_U32_140));
-                if (!(_wcond_Bool_141)) {
+                Bool _wcond_Bool_161 = ((Bool)(_rc_U32_160 < _re_U32_160));
+                if (!(_wcond_Bool_161)) {
                     break;
                 }
-                U32 i = (_rc_U32_140);
-                (++_rc_U32_140);
+                U32 i = (_rc_U32_160);
+                (++_rc_U32_160);
                 Expr *_bang_ret_3 = (((Bool)((U32)(i) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(TIL_OWN_GET(U8, (e->children.data))) + (((U64)(((U64)((U32)(i))) * ((U64)(168)))))))) : (_err_kind = 1, (Expr *)NULL));
-                I64 hoisted__I64_152 = 1;
-                Bool hoisted__Bool_153 = ((Bool)(_err_kind == hoisted__I64_152));
-                if (hoisted__Bool_153) {
-                    I64 hoisted__I64_142 = 0;
-                    _err_kind = hoisted__I64_142;
-                    U32 hoisted__U32_143 = 1;
-                    Array__Str _va_Array_6 = Array__Str_new(hoisted__U32_143);
+                I64 hoisted__I64_172 = 1;
+                Bool hoisted__Bool_173 = ((Bool)(_err_kind == hoisted__I64_172));
+                if (hoisted__Bool_173) {
+                    I64 hoisted__I64_162 = 0;
+                    _err_kind = hoisted__I64_162;
+                    U32 hoisted__U32_163 = 1;
+                    Array__Str _va_Array_6 = Array__Str_new(hoisted__U32_163);
                     I64 _va_Array_6_ek = 0;
-                    U32 hoisted__U32_144 = 0;
-                    Array__Str_set(&_va_Array_6, hoisted__U32_144, &_til_str_lits.h4d3ab87300de, &_va_Array_6_ek);
-                    panic(&_va_Array_6, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_146);
+                    U32 hoisted__U32_164 = 0;
+                    Array__Str_set(&_va_Array_6, hoisted__U32_164, &_til_str_lits.h4d3ab87300de, &_va_Array_6_ek);
+                    panic(&_va_Array_6, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_166);
                 }
                 Expr *_bang_ret_4 = (((Bool)((U32)(i) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(TIL_OWN_GET(U8, (e->children.data))) + (((U64)(((U64)((U32)(i))) * ((U64)(168)))))))) : (_err_kind = 1, (Expr *)NULL));
-                I64 hoisted__I64_154 = 1;
-                Bool hoisted__Bool_155 = ((Bool)(_err_kind == hoisted__I64_154));
-                if (hoisted__Bool_155) {
-                    I64 hoisted__I64_147 = 0;
-                    _err_kind = hoisted__I64_147;
-                    U32 hoisted__U32_148 = 1;
-                    Array__Str _va_Array_7 = Array__Str_new(hoisted__U32_148);
+                I64 hoisted__I64_174 = 1;
+                Bool hoisted__Bool_175 = ((Bool)(_err_kind == hoisted__I64_174));
+                if (hoisted__Bool_175) {
+                    I64 hoisted__I64_167 = 0;
+                    _err_kind = hoisted__I64_167;
+                    U32 hoisted__U32_168 = 1;
+                    Array__Str _va_Array_7 = Array__Str_new(hoisted__U32_168);
                     I64 _va_Array_7_ek = 0;
-                    U32 hoisted__U32_149 = 0;
-                    Array__Str_set(&_va_Array_7, hoisted__U32_149, &_til_str_lits.h4d3ab87300de, &_va_Array_7_ek);
-                    panic(&_va_Array_7, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_151);
+                    U32 hoisted__U32_169 = 0;
+                    Array__Str_set(&_va_Array_7, hoisted__U32_169, &_til_str_lits.h4d3ab87300de, &_va_Array_7_ek);
+                    panic(&_va_Array_7, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_171);
                 }
-                Type *hoisted__Type_156 = Expr_til_type(_bang_ret_4);
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_157 = priv___src_self_codegen_fasm_codegen_til__fasm_simd_snapshot(_bang_ret_3, DEREF(hoisted__Type_156), state, lp);
-                Vec__Str_push(&arguments, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_157);
+                Type *hoisted__Type_176 = Expr_til_type(_bang_ret_4);
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_177 = priv___src_self_codegen_fasm_codegen_til__fasm_simd_snapshot(_bang_ret_3, DEREF(hoisted__Type_176), state, lp);
+                Vec__Str_push(&arguments, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_177);
             }
         } else {
             while (1) {
-                Bool _wcond_Bool_158 = ((Bool)(_rc_U32_140 > _re_U32_140));
-                if (!(_wcond_Bool_158)) {
+                Bool _wcond_Bool_178 = ((Bool)(_rc_U32_160 > _re_U32_160));
+                if (!(_wcond_Bool_178)) {
                     break;
                 }
-                U32 i = (_rc_U32_140);
-                (--_rc_U32_140);
+                U32 i = (_rc_U32_160);
+                (--_rc_U32_160);
                 Expr *_bang_ret_3 = (((Bool)((U32)(i) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(TIL_OWN_GET(U8, (e->children.data))) + (((U64)(((U64)((U32)(i))) * ((U64)(168)))))))) : (_err_kind = 1, (Expr *)NULL));
-                I64 hoisted__I64_169 = 1;
-                Bool hoisted__Bool_170 = ((Bool)(_err_kind == hoisted__I64_169));
-                if (hoisted__Bool_170) {
-                    I64 hoisted__I64_159 = 0;
-                    _err_kind = hoisted__I64_159;
-                    U32 hoisted__U32_160 = 1;
-                    Array__Str _va_Array_8 = Array__Str_new(hoisted__U32_160);
+                I64 hoisted__I64_189 = 1;
+                Bool hoisted__Bool_190 = ((Bool)(_err_kind == hoisted__I64_189));
+                if (hoisted__Bool_190) {
+                    I64 hoisted__I64_179 = 0;
+                    _err_kind = hoisted__I64_179;
+                    U32 hoisted__U32_180 = 1;
+                    Array__Str _va_Array_8 = Array__Str_new(hoisted__U32_180);
                     I64 _va_Array_8_ek = 0;
-                    U32 hoisted__U32_161 = 0;
-                    Array__Str_set(&_va_Array_8, hoisted__U32_161, &_til_str_lits.h4d3ab87300de, &_va_Array_8_ek);
-                    panic(&_va_Array_8, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_163);
+                    U32 hoisted__U32_181 = 0;
+                    Array__Str_set(&_va_Array_8, hoisted__U32_181, &_til_str_lits.h4d3ab87300de, &_va_Array_8_ek);
+                    panic(&_va_Array_8, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_183);
                 }
                 Expr *_bang_ret_4 = (((Bool)((U32)(i) < e->children.count)) ? (Expr *)((Expr *)((void *)((U8 *)(TIL_OWN_GET(U8, (e->children.data))) + (((U64)(((U64)((U32)(i))) * ((U64)(168)))))))) : (_err_kind = 1, (Expr *)NULL));
-                I64 hoisted__I64_171 = 1;
-                Bool hoisted__Bool_172 = ((Bool)(_err_kind == hoisted__I64_171));
-                if (hoisted__Bool_172) {
-                    I64 hoisted__I64_164 = 0;
-                    _err_kind = hoisted__I64_164;
-                    U32 hoisted__U32_165 = 1;
-                    Array__Str _va_Array_9 = Array__Str_new(hoisted__U32_165);
+                I64 hoisted__I64_191 = 1;
+                Bool hoisted__Bool_192 = ((Bool)(_err_kind == hoisted__I64_191));
+                if (hoisted__Bool_192) {
+                    I64 hoisted__I64_184 = 0;
+                    _err_kind = hoisted__I64_184;
+                    U32 hoisted__U32_185 = 1;
+                    Array__Str _va_Array_9 = Array__Str_new(hoisted__U32_185);
                     I64 _va_Array_9_ek = 0;
-                    U32 hoisted__U32_166 = 0;
-                    Array__Str_set(&_va_Array_9, hoisted__U32_166, &_til_str_lits.h4d3ab87300de, &_va_Array_9_ek);
-                    panic(&_va_Array_9, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_168);
+                    U32 hoisted__U32_186 = 0;
+                    Array__Str_set(&_va_Array_9, hoisted__U32_186, &_til_str_lits.h4d3ab87300de, &_va_Array_9_ek);
+                    panic(&_va_Array_9, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_188);
                 }
-                Type *hoisted__Type_173 = Expr_til_type(_bang_ret_4);
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_174 = priv___src_self_codegen_fasm_codegen_til__fasm_simd_snapshot(_bang_ret_3, DEREF(hoisted__Type_173), state, lp);
-                Vec__Str_push(&arguments, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_174);
+                Type *hoisted__Type_193 = Expr_til_type(_bang_ret_4);
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_194 = priv___src_self_codegen_fasm_codegen_til__fasm_simd_snapshot(_bang_ret_3, DEREF(hoisted__Type_193), state, lp);
+                Vec__Str_push(&arguments, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_194);
             }
         }
     }
-    Bool _m_Bool_176 = 0;
+    Bool _m_Bool_196 = 0;
     {
-        Bool _sw_Bool_177 = Str_eq(op, &_til_str_lits.hbf045dd85840);
-        Bool hoisted__Bool_182 = 1;
-        Bool hoisted__Bool_183 = ((Bool)(_sw_Bool_177 == hoisted__Bool_182));
-        if (hoisted__Bool_183) {
-            Bool hoisted__Bool_178 = 1;
-            _m_Bool_176 = hoisted__Bool_178;
+        Bool _sw_Bool_197 = Str_eq(op, &_til_str_lits.hbf045dd85840);
+        Bool hoisted__Bool_202 = 1;
+        Bool hoisted__Bool_203 = ((Bool)(_sw_Bool_197 == hoisted__Bool_202));
+        if (hoisted__Bool_203) {
+            Bool hoisted__Bool_198 = 1;
+            _m_Bool_196 = hoisted__Bool_198;
         } else {
-            Bool hoisted__Bool_180 = Str_eq(op, &_til_str_lits.hbf045dd85742);
-            _m_Bool_176 = hoisted__Bool_180;
+            Bool hoisted__Bool_200 = Str_eq(op, &_til_str_lits.hbf045dd85742);
+            _m_Bool_196 = hoisted__Bool_200;
         }
     }
-    if (_m_Bool_176) {
+    if (_m_Bool_196) {
         if (integer) {
-            U32 hoisted__U32_189 = 0;
-            Str *_bang_ret_5 = (((Bool)((U32)(hoisted__U32_189) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_189))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
-            I64 hoisted__I64_190 = 1;
-            Bool hoisted__Bool_191 = ((Bool)(_err_kind == hoisted__I64_190));
-            if (hoisted__Bool_191) {
-                I64 hoisted__I64_184 = 0;
-                _err_kind = hoisted__I64_184;
-                U32 hoisted__U32_185 = 1;
-                Array__Str _va_Array_10 = Array__Str_new(hoisted__U32_185);
+            U32 hoisted__U32_209 = 0;
+            Str *_bang_ret_5 = (((Bool)((U32)(hoisted__U32_209) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_209))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
+            I64 hoisted__I64_210 = 1;
+            Bool hoisted__Bool_211 = ((Bool)(_err_kind == hoisted__I64_210));
+            if (hoisted__Bool_211) {
+                I64 hoisted__I64_204 = 0;
+                _err_kind = hoisted__I64_204;
+                U32 hoisted__U32_205 = 1;
+                Array__Str _va_Array_10 = Array__Str_new(hoisted__U32_205);
                 I64 _va_Array_10_ek = 0;
-                U32 hoisted__U32_186 = 0;
-                Array__Str_set(&_va_Array_10, hoisted__U32_186, &_til_str_lits.h4d3ab87300de, &_va_Array_10_ek);
-                panic(&_va_Array_10, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_188);
+                U32 hoisted__U32_206 = 0;
+                Array__Str_set(&_va_Array_10, hoisted__U32_206, &_til_str_lits.h4d3ab87300de, &_va_Array_10_ek);
+                panic(&_va_Array_10, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_208);
             }
-            priv___src_self_codegen_fasm_codegen_til__fasm_simd_integer_extrema(_bang_ret_5, sd, lane, op, state);
+            U32 hoisted__U32_212 = priv___src_self_codegen_fasm_codegen_til__fasm_type_size(lane, lp);
+            priv___src_self_codegen_fasm_codegen_til__fasm_simd_integer_extrema(_bang_ret_5, sd, lane, op, hoisted__U32_212, state);
         } else {
-            U32 hoisted__U32_197 = 0;
-            Str *_bang_ret_6 = (((Bool)((U32)(hoisted__U32_197) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_197))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
-            I64 hoisted__I64_198 = 1;
-            Bool hoisted__Bool_199 = ((Bool)(_err_kind == hoisted__I64_198));
-            if (hoisted__Bool_199) {
-                I64 hoisted__I64_192 = 0;
-                _err_kind = hoisted__I64_192;
-                U32 hoisted__U32_193 = 1;
-                Array__Str _va_Array_11 = Array__Str_new(hoisted__U32_193);
+            U32 hoisted__U32_218 = 0;
+            Str *_bang_ret_6 = (((Bool)((U32)(hoisted__U32_218) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_218))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
+            I64 hoisted__I64_219 = 1;
+            Bool hoisted__Bool_220 = ((Bool)(_err_kind == hoisted__I64_219));
+            if (hoisted__Bool_220) {
+                I64 hoisted__I64_213 = 0;
+                _err_kind = hoisted__I64_213;
+                U32 hoisted__U32_214 = 1;
+                Array__Str _va_Array_11 = Array__Str_new(hoisted__U32_214);
                 I64 _va_Array_11_ek = 0;
-                U32 hoisted__U32_194 = 0;
-                Array__Str_set(&_va_Array_11, hoisted__U32_194, &_til_str_lits.h4d3ab87300de, &_va_Array_11_ek);
-                panic(&_va_Array_11, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_196);
+                U32 hoisted__U32_215 = 0;
+                Array__Str_set(&_va_Array_11, hoisted__U32_215, &_til_str_lits.h4d3ab87300de, &_va_Array_11_ek);
+                panic(&_va_Array_11, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_217);
             }
             priv___src_self_codegen_fasm_codegen_til__fasm_simd_extrema(_bang_ret_6, sd, lane, op, state, lp);
         }
-        Bool _m_Bool_200 = 0;
+        Bool _m_Bool_221 = 0;
         {
-            Type *hoisted__Type_205 = Expr_til_type(e);
-            Bool _sw_Bool_201 = priv___src_self_codegen_fasm_codegen_til__fasm_float(DEREF(hoisted__Type_205));
-            Bool hoisted__Bool_206 = 1;
-            Bool hoisted__Bool_207 = ((Bool)(_sw_Bool_201 == hoisted__Bool_206));
-            if (hoisted__Bool_207) {
-                Type *hoisted__Type_202 = Expr_til_type(e);
-                Bool hoisted__Bool_203 = Type_neq(&lane, hoisted__Type_202);
-                _m_Bool_200 = hoisted__Bool_203;
+            Type *hoisted__Type_226 = Expr_til_type(e);
+            Bool _sw_Bool_222 = priv___src_self_codegen_fasm_codegen_til__fasm_float(DEREF(hoisted__Type_226));
+            Bool hoisted__Bool_227 = 1;
+            Bool hoisted__Bool_228 = ((Bool)(_sw_Bool_222 == hoisted__Bool_227));
+            if (hoisted__Bool_228) {
+                Type *hoisted__Type_223 = Expr_til_type(e);
+                Bool hoisted__Bool_224 = Type_neq(&lane, hoisted__Type_223);
+                _m_Bool_221 = hoisted__Bool_224;
             } else {
-                Bool hoisted__Bool_204 = 0;
-                _m_Bool_200 = hoisted__Bool_204;
+                Bool hoisted__Bool_225 = 0;
+                _m_Bool_221 = hoisted__Bool_225;
             }
         }
-        if (_m_Bool_200) {
-            Type *hoisted__Type_208 = Expr_til_type(e);
-            Bool hoisted__Bool_209 = 0;
-            priv___src_self_codegen_fasm_codegen_til__fasm_float_cast(e, lane, DEREF(hoisted__Type_208), hoisted__Bool_209, state, lp);
+        if (_m_Bool_221) {
+            Type *hoisted__Type_229 = Expr_til_type(e);
+            Bool hoisted__Bool_230 = 0;
+            priv___src_self_codegen_fasm_codegen_til__fasm_float_cast(e, lane, DEREF(hoisted__Type_229), hoisted__Bool_230, state, lp);
         }
-        Bool hoisted__Bool_210 = 1;
+        Bool hoisted__Bool_231 = 1;
         Vec__Str_delete(&arguments, 0);
         Type_delete(&lane, 0);
-        return hoisted__Bool_210;
+        return hoisted__Bool_231;
     }
-    Type *hoisted__Type_477 = Expr_til_type(e);
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_478 = priv___src_self_codegen_fasm_codegen_til__fasm_value_slot(DEREF(hoisted__Type_477), state, lp);
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_480 = Str_strip_prefix(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_478, &_til_str_lits.h0653181e27d2);
-    Str result = Str_clone(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_480);
-    Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_478, 0);
-    Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_480, 0);
+    Type *hoisted__Type_498 = Expr_til_type(e);
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_499 = priv___src_self_codegen_fasm_codegen_til__fasm_value_slot(DEREF(hoisted__Type_498), state, lp);
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_501 = Str_strip_prefix(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_499, &_til_str_lits.h0653181e27d2);
+    Str result = Str_clone(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_501);
+    Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_499, 0);
+    Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_501, 0);
     U32 bytes = priv___src_self_codegen_fasm_codegen_til__fasm_type_size(lane, lp);
-    Bool hoisted__Bool_482 = Str_eq(op, &_til_str_lits.h00000b887339);
-    if (hoisted__Bool_482) {
+    Bool hoisted__Bool_503 = Str_eq(op, &_til_str_lits.h00000b887339);
+    if (hoisted__Bool_503) {
         Str runtime = (Str){.c_str = TIL_OWN_LIT("rt_f64_fma", 10ULL), .count = 10ULL, .cap = TIL_CAP_LIT};
-        U32 hoisted__U32_256 = 4;
-        Bool hoisted__Bool_257 = ((Bool)(bytes == hoisted__U32_256));
-        if (hoisted__Bool_257) {
+        U32 hoisted__U32_277 = 4;
+        Bool hoisted__Bool_278 = ((Bool)(bytes == hoisted__U32_277));
+        if (hoisted__Bool_278) {
             { Str _new = _til_str_lits.hd1fd9d9da268; Str_delete(&runtime, (Bool){0}); runtime = _new; }
         }
         {
-            U32 _re_U32_211 = sd->simd_width;
-            U32 _rc_U32_211 = 0;
+            U32 _re_U32_232 = sd->simd_width;
+            U32 _rc_U32_232 = 0;
             while (1) {
-                Bool _wcond_Bool_212 = ((Bool)(_rc_U32_211 < _re_U32_211));
-                if (!(_wcond_Bool_212)) {
+                Bool _wcond_Bool_233 = ((Bool)(_rc_U32_232 < _re_U32_232));
+                if (!(_wcond_Bool_233)) {
                     break;
                 }
-                U32 i = (_rc_U32_211);
-                (++_rc_U32_211);
+                U32 i = (_rc_U32_232);
+                (++_rc_U32_232);
                 {
-                    USize _re_USize_213 = 3;
-                    USize _rc_USize_213 = 0;
+                    USize _re_USize_234 = 3;
+                    USize _rc_USize_234 = 0;
                     while (1) {
-                        Bool _wcond_Bool_214 = ((Bool)(_rc_USize_213 < _re_USize_213));
-                        if (!(_wcond_Bool_214)) {
+                        Bool _wcond_Bool_235 = ((Bool)(_rc_USize_234 < _re_USize_234));
+                        if (!(_wcond_Bool_235)) {
                             break;
                         }
-                        USize j = (_rc_USize_213);
-                        (++_rc_USize_213);
+                        USize j = (_rc_USize_234);
+                        (++_rc_USize_234);
                         Str *_bang_ret_7 = (((Bool)((U32)(j) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(j))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
-                        I64 hoisted__I64_220 = 1;
-                        Bool hoisted__Bool_221 = ((Bool)(_err_kind == hoisted__I64_220));
-                        if (hoisted__Bool_221) {
-                            I64 hoisted__I64_215 = 0;
-                            _err_kind = hoisted__I64_215;
-                            U32 hoisted__U32_216 = 1;
-                            Array__Str _va_Array_12 = Array__Str_new(hoisted__U32_216);
+                        I64 hoisted__I64_241 = 1;
+                        Bool hoisted__Bool_242 = ((Bool)(_err_kind == hoisted__I64_241));
+                        if (hoisted__Bool_242) {
+                            I64 hoisted__I64_236 = 0;
+                            _err_kind = hoisted__I64_236;
+                            U32 hoisted__U32_237 = 1;
+                            Array__Str _va_Array_12 = Array__Str_new(hoisted__U32_237);
                             I64 _va_Array_12_ek = 0;
-                            U32 hoisted__U32_217 = 0;
-                            Array__Str_set(&_va_Array_12, hoisted__U32_217, &_til_str_lits.h4d3ab87300de, &_va_Array_12_ek);
-                            panic(&_va_Array_12, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_219);
+                            U32 hoisted__U32_238 = 0;
+                            Array__Str_set(&_va_Array_12, hoisted__U32_238, &_til_str_lits.h4d3ab87300de, &_va_Array_12_ek);
+                            panic(&_va_Array_12, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_240);
                         }
-                        U32 hoisted__U32_222 = 4;
-                        Array__Str _va_Array_13 = Array__Str_new(hoisted__U32_222);
+                        U32 hoisted__U32_243 = 4;
+                        Array__Str _va_Array_13 = Array__Str_new(hoisted__U32_243);
                         I64 _va_Array_13_ek = 0;
-                        U32 hoisted__U32_223 = 0;
-                        Array__Str_set(&_va_Array_13, hoisted__U32_223, &_til_str_lits.hcf8fca516b8e, &_va_Array_13_ek);
-                        U32 hoisted__U32_225 = 1;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_226 = Str_clone(_bang_ret_7);
-                        Array__Str_set(&_va_Array_13, hoisted__U32_225, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_226, &_va_Array_13_ek);
-                        U32 hoisted__U32_227 = 2;
-                        Array__Str_set(&_va_Array_13, hoisted__U32_227, &_til_str_lits.h553965a6c9cf, &_va_Array_13_ek);
-                        U32 hoisted__U32_229 = ((U32)(i * bytes));
-                        U32 hoisted__U32_230 = 3;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_231 = U32_to_str(hoisted__U32_229);
-                        Array__Str_set(&_va_Array_13, hoisted__U32_230, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_231, &_va_Array_13_ek);
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_232 = format(&_va_Array_13);
-                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_232);
-                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_232, 0);
+                        U32 hoisted__U32_244 = 0;
+                        Array__Str_set(&_va_Array_13, hoisted__U32_244, &_til_str_lits.hcf8fca516b8e, &_va_Array_13_ek);
+                        U32 hoisted__U32_246 = 1;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_247 = Str_clone(_bang_ret_7);
+                        Array__Str_set(&_va_Array_13, hoisted__U32_246, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_247, &_va_Array_13_ek);
+                        U32 hoisted__U32_248 = 2;
+                        Array__Str_set(&_va_Array_13, hoisted__U32_248, &_til_str_lits.h553965a6c9cf, &_va_Array_13_ek);
+                        U32 hoisted__U32_250 = ((U32)(i * bytes));
+                        U32 hoisted__U32_251 = 3;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_252 = U32_to_str(hoisted__U32_250);
+                        Array__Str_set(&_va_Array_13, hoisted__U32_251, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_252, &_va_Array_13_ek);
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_253 = format(&_va_Array_13);
+                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_253);
+                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_253, 0);
                         priv___src_self_codegen_fasm_codegen_til__fasm_load_scalar(lane, state);
-                        U32 hoisted__U32_233 = 3;
-                        Array__Str _va_Array_14 = Array__Str_new(hoisted__U32_233);
+                        U32 hoisted__U32_254 = 3;
+                        Array__Str _va_Array_14 = Array__Str_new(hoisted__U32_254);
                         I64 _va_Array_14_ek = 0;
-                        U32 hoisted__U32_234 = 0;
-                        Array__Str_set(&_va_Array_14, hoisted__U32_234, &_til_str_lits.h00017c9abc57, &_va_Array_14_ek);
-                        U32 hoisted__U32_236 = 1;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_237 = priv___src_self_codegen_fasm_codegen_til__fasm_register(j);
-                        Array__Str_set(&_va_Array_14, hoisted__U32_236, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_237, &_va_Array_14_ek);
-                        U32 hoisted__U32_238 = 2;
-                        Array__Str_set(&_va_Array_14, hoisted__U32_238, &_til_str_lits.h00310b2eb45c, &_va_Array_14_ek);
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_240 = format(&_va_Array_14);
-                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_240);
-                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_240, 0);
+                        U32 hoisted__U32_255 = 0;
+                        Array__Str_set(&_va_Array_14, hoisted__U32_255, &_til_str_lits.h00017c9abc57, &_va_Array_14_ek);
+                        U32 hoisted__U32_257 = 1;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_258 = priv___src_self_codegen_fasm_codegen_til__fasm_register(j);
+                        Array__Str_set(&_va_Array_14, hoisted__U32_257, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_258, &_va_Array_14_ek);
+                        U32 hoisted__U32_259 = 2;
+                        Array__Str_set(&_va_Array_14, hoisted__U32_259, &_til_str_lits.h00310b2eb45c, &_va_Array_14_ek);
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_261 = format(&_va_Array_14);
+                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_261);
+                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_261, 0);
                     }
                 }
-                U32 hoisted__U32_241 = 6;
-                Array__Str _va_Array_15 = Array__Str_new(hoisted__U32_241);
+                U32 hoisted__U32_262 = 6;
+                Array__Str _va_Array_15 = Array__Str_new(hoisted__U32_262);
                 I64 _va_Array_15_ek = 0;
-                U32 hoisted__U32_242 = 0;
-                Array__Str_set(&_va_Array_15, hoisted__U32_242, &_til_str_lits.h00310f358441, &_va_Array_15_ek);
-                U32 hoisted__U32_244 = 1;
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_245 = Str_clone(&runtime);
-                Array__Str_set(&_va_Array_15, hoisted__U32_244, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_245, &_va_Array_15_ek);
-                U32 hoisted__U32_246 = 2;
-                Array__Str_set(&_va_Array_15, hoisted__U32_246, &_til_str_lits.h63546c53dc3a, &_va_Array_15_ek);
-                U32 hoisted__U32_248 = 3;
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_249 = Str_clone(&result);
-                Array__Str_set(&_va_Array_15, hoisted__U32_248, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_249, &_va_Array_15_ek);
-                U32 hoisted__U32_250 = 4;
-                Array__Str_set(&_va_Array_15, hoisted__U32_250, &_til_str_lits.h553965a7e291, &_va_Array_15_ek);
-                U32 hoisted__U32_252 = ((U32)(i * bytes));
-                U32 hoisted__U32_253 = 5;
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_254 = U32_to_str(hoisted__U32_252);
-                Array__Str_set(&_va_Array_15, hoisted__U32_253, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_254, &_va_Array_15_ek);
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_255 = format(&_va_Array_15);
-                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_255);
-                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_255, 0);
+                U32 hoisted__U32_263 = 0;
+                Array__Str_set(&_va_Array_15, hoisted__U32_263, &_til_str_lits.h00310f358441, &_va_Array_15_ek);
+                U32 hoisted__U32_265 = 1;
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_266 = Str_clone(&runtime);
+                Array__Str_set(&_va_Array_15, hoisted__U32_265, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_266, &_va_Array_15_ek);
+                U32 hoisted__U32_267 = 2;
+                Array__Str_set(&_va_Array_15, hoisted__U32_267, &_til_str_lits.h63546c53dc3a, &_va_Array_15_ek);
+                U32 hoisted__U32_269 = 3;
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_270 = Str_clone(&result);
+                Array__Str_set(&_va_Array_15, hoisted__U32_269, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_270, &_va_Array_15_ek);
+                U32 hoisted__U32_271 = 4;
+                Array__Str_set(&_va_Array_15, hoisted__U32_271, &_til_str_lits.h553965a7e291, &_va_Array_15_ek);
+                U32 hoisted__U32_273 = ((U32)(i * bytes));
+                U32 hoisted__U32_274 = 5;
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_275 = U32_to_str(hoisted__U32_273);
+                Array__Str_set(&_va_Array_15, hoisted__U32_274, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_275, &_va_Array_15_ek);
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_276 = format(&_va_Array_15);
+                priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_276);
+                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_276, 0);
                 priv___src_self_codegen_fasm_codegen_til__fasm_store_scalar(lane, state);
             }
         }
         Str_delete(&runtime, 0);
     } else {
-        Bool hoisted__Bool_465 = Str_eq(op, &_til_str_lits.h06531b80e3c5);
-        if (hoisted__Bool_465) {
-            Type hoisted__Type_389 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_Bool});
-            Bool hoisted__Bool_390 = Type_eq(&lane, &hoisted__Type_389);
-            Type_delete(&hoisted__Type_389, 0);
-            if (hoisted__Bool_390) {
+        Bool hoisted__Bool_486 = Str_eq(op, &_til_str_lits.h06531b80e3c5);
+        if (hoisted__Bool_486) {
+            Type hoisted__Type_410 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_Bool});
+            Bool hoisted__Bool_411 = Type_eq(&lane, &hoisted__Type_410);
+            Type_delete(&hoisted__Type_410, 0);
+            if (hoisted__Bool_411) {
                 {
-                    U32 _re_U32_258 = sd->simd_width;
-                    U32 _rc_U32_258 = 0;
+                    U32 _re_U32_279 = sd->simd_width;
+                    U32 _rc_U32_279 = 0;
                     while (1) {
-                        Bool _wcond_Bool_259 = ((Bool)(_rc_U32_258 < _re_U32_258));
-                        if (!(_wcond_Bool_259)) {
+                        Bool _wcond_Bool_280 = ((Bool)(_rc_U32_279 < _re_U32_279));
+                        if (!(_wcond_Bool_280)) {
                             break;
                         }
-                        U32 i = (_rc_U32_258);
-                        (++_rc_U32_258);
-                        U32 hoisted__U32_275 = 0;
-                        Str *_bang_ret_8 = (((Bool)((U32)(hoisted__U32_275) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_275))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
-                        I64 hoisted__I64_276 = 1;
-                        Bool hoisted__Bool_277 = ((Bool)(_err_kind == hoisted__I64_276));
-                        if (hoisted__Bool_277) {
-                            I64 hoisted__I64_260 = 0;
-                            _err_kind = hoisted__I64_260;
-                            U32 hoisted__U32_261 = 1;
-                            Array__Str _va_Array_16 = Array__Str_new(hoisted__U32_261);
+                        U32 i = (_rc_U32_279);
+                        (++_rc_U32_279);
+                        U32 hoisted__U32_296 = 0;
+                        Str *_bang_ret_8 = (((Bool)((U32)(hoisted__U32_296) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_296))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
+                        I64 hoisted__I64_297 = 1;
+                        Bool hoisted__Bool_298 = ((Bool)(_err_kind == hoisted__I64_297));
+                        if (hoisted__Bool_298) {
+                            I64 hoisted__I64_281 = 0;
+                            _err_kind = hoisted__I64_281;
+                            U32 hoisted__U32_282 = 1;
+                            Array__Str _va_Array_16 = Array__Str_new(hoisted__U32_282);
                             I64 _va_Array_16_ek = 0;
-                            U32 hoisted__U32_262 = 0;
-                            Array__Str_set(&_va_Array_16, hoisted__U32_262, &_til_str_lits.h4d3ab87300de, &_va_Array_16_ek);
-                            panic(&_va_Array_16, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_264);
+                            U32 hoisted__U32_283 = 0;
+                            Array__Str_set(&_va_Array_16, hoisted__U32_283, &_til_str_lits.h4d3ab87300de, &_va_Array_16_ek);
+                            panic(&_va_Array_16, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_285);
                         }
-                        U32 hoisted__U32_278 = 1;
-                        Str *_bang_ret_9 = (((Bool)((U32)(hoisted__U32_278) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_278))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
-                        I64 hoisted__I64_279 = 1;
-                        Bool hoisted__Bool_280 = ((Bool)(_err_kind == hoisted__I64_279));
-                        if (hoisted__Bool_280) {
-                            I64 hoisted__I64_265 = 0;
-                            _err_kind = hoisted__I64_265;
-                            U32 hoisted__U32_266 = 1;
-                            Array__Str _va_Array_17 = Array__Str_new(hoisted__U32_266);
+                        U32 hoisted__U32_299 = 1;
+                        Str *_bang_ret_9 = (((Bool)((U32)(hoisted__U32_299) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_299))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
+                        I64 hoisted__I64_300 = 1;
+                        Bool hoisted__Bool_301 = ((Bool)(_err_kind == hoisted__I64_300));
+                        if (hoisted__Bool_301) {
+                            I64 hoisted__I64_286 = 0;
+                            _err_kind = hoisted__I64_286;
+                            U32 hoisted__U32_287 = 1;
+                            Array__Str _va_Array_17 = Array__Str_new(hoisted__U32_287);
                             I64 _va_Array_17_ek = 0;
-                            U32 hoisted__U32_267 = 0;
-                            Array__Str_set(&_va_Array_17, hoisted__U32_267, &_til_str_lits.h4d3ab87300de, &_va_Array_17_ek);
-                            panic(&_va_Array_17, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_269);
+                            U32 hoisted__U32_288 = 0;
+                            Array__Str_set(&_va_Array_17, hoisted__U32_288, &_til_str_lits.h4d3ab87300de, &_va_Array_17_ek);
+                            panic(&_va_Array_17, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_290);
                         }
-                        U32 hoisted__U32_281 = 2;
-                        Str *_bang_ret_10 = (((Bool)((U32)(hoisted__U32_281) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_281))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
-                        I64 hoisted__I64_282 = 1;
-                        Bool hoisted__Bool_283 = ((Bool)(_err_kind == hoisted__I64_282));
-                        if (hoisted__Bool_283) {
-                            I64 hoisted__I64_270 = 0;
-                            _err_kind = hoisted__I64_270;
-                            U32 hoisted__U32_271 = 1;
-                            Array__Str _va_Array_18 = Array__Str_new(hoisted__U32_271);
+                        U32 hoisted__U32_302 = 2;
+                        Str *_bang_ret_10 = (((Bool)((U32)(hoisted__U32_302) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_302))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
+                        I64 hoisted__I64_303 = 1;
+                        Bool hoisted__Bool_304 = ((Bool)(_err_kind == hoisted__I64_303));
+                        if (hoisted__Bool_304) {
+                            I64 hoisted__I64_291 = 0;
+                            _err_kind = hoisted__I64_291;
+                            U32 hoisted__U32_292 = 1;
+                            Array__Str _va_Array_18 = Array__Str_new(hoisted__U32_292);
                             I64 _va_Array_18_ek = 0;
-                            U32 hoisted__U32_272 = 0;
-                            Array__Str_set(&_va_Array_18, hoisted__U32_272, &_til_str_lits.h4d3ab87300de, &_va_Array_18_ek);
-                            panic(&_va_Array_18, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_274);
+                            U32 hoisted__U32_293 = 0;
+                            Array__Str_set(&_va_Array_18, hoisted__U32_293, &_til_str_lits.h4d3ab87300de, &_va_Array_18_ek);
+                            panic(&_va_Array_18, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_295);
                         }
-                        U32 hoisted__U32_284 = 15;
-                        Array__Str _va_Array_19 = Array__Str_new(hoisted__U32_284);
+                        U32 hoisted__U32_305 = 15;
+                        Array__Str _va_Array_19 = Array__Str_new(hoisted__U32_305);
                         I64 _va_Array_19_ek = 0;
-                        U32 hoisted__U32_285 = 0;
-                        Array__Str_set(&_va_Array_19, hoisted__U32_285, &_til_str_lits.hcf8fca5310b1, &_va_Array_19_ek);
-                        U32 hoisted__U32_287 = 1;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_288 = Str_clone(_bang_ret_8);
-                        Array__Str_set(&_va_Array_19, hoisted__U32_287, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_288, &_va_Array_19_ek);
-                        U32 hoisted__U32_289 = 2;
-                        Array__Str_set(&_va_Array_19, hoisted__U32_289, &_til_str_lits.h63546c52c378, &_va_Array_19_ek);
-                        U32 hoisted__U32_291 = 3;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_292 = Str_clone(_bang_ret_9);
-                        Array__Str_set(&_va_Array_19, hoisted__U32_291, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_292, &_va_Array_19_ek);
-                        U32 hoisted__U32_293 = 4;
-                        Array__Str_set(&_va_Array_19, hoisted__U32_293, &_til_str_lits.h63546c53dc3a, &_va_Array_19_ek);
-                        U32 hoisted__U32_295 = 5;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_296 = Str_clone(_bang_ret_10);
-                        Array__Str_set(&_va_Array_19, hoisted__U32_295, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_296, &_va_Array_19_ek);
-                        U32 hoisted__U32_297 = 6;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_298 = (Str){.c_str = TIL_OWN_LIT("\n    cmp byte [rdx+", 19ULL), .count = 19ULL, .cap = TIL_CAP_LIT};
-                        Array__Str_set(&_va_Array_19, hoisted__U32_297, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_298, &_va_Array_19_ek);
-                        U32 hoisted__U32_299 = 7;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_300 = U32_to_str(i);
-                        Array__Str_set(&_va_Array_19, hoisted__U32_299, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_300, &_va_Array_19_ek);
-                        U32 hoisted__U32_301 = 8;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_302 = (Str){.c_str = TIL_OWN_LIT("], 0\n    cmove rax, rcx\n    movzx eax, byte [rax+", 49ULL), .count = 49ULL, .cap = TIL_CAP_LIT};
-                        Array__Str_set(&_va_Array_19, hoisted__U32_301, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_302, &_va_Array_19_ek);
-                        U32 hoisted__U32_303 = 9;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_304 = U32_to_str(i);
-                        Array__Str_set(&_va_Array_19, hoisted__U32_303, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_304, &_va_Array_19_ek);
-                        U32 hoisted__U32_305 = 10;
-                        Array__Str_set(&_va_Array_19, hoisted__U32_305, &_til_str_lits.hd2d74a068058, &_va_Array_19_ek);
-                        U32 hoisted__U32_307 = 11;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_308 = Str_clone(&result);
-                        Array__Str_set(&_va_Array_19, hoisted__U32_307, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_308, &_va_Array_19_ek);
-                        U32 hoisted__U32_309 = 12;
-                        Array__Str_set(&_va_Array_19, hoisted__U32_309, &_til_str_lits.h65056a5154b5, &_va_Array_19_ek);
-                        U32 hoisted__U32_311 = 13;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_312 = U32_to_str(i);
-                        Array__Str_set(&_va_Array_19, hoisted__U32_311, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_312, &_va_Array_19_ek);
-                        U32 hoisted__U32_313 = 14;
-                        Array__Str_set(&_va_Array_19, hoisted__U32_313, &_til_str_lits.h00310eaa9cbb, &_va_Array_19_ek);
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_315 = format(&_va_Array_19);
-                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_315);
-                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_315, 0);
+                        U32 hoisted__U32_306 = 0;
+                        Array__Str_set(&_va_Array_19, hoisted__U32_306, &_til_str_lits.hcf8fca5310b1, &_va_Array_19_ek);
+                        U32 hoisted__U32_308 = 1;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_309 = Str_clone(_bang_ret_8);
+                        Array__Str_set(&_va_Array_19, hoisted__U32_308, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_309, &_va_Array_19_ek);
+                        U32 hoisted__U32_310 = 2;
+                        Array__Str_set(&_va_Array_19, hoisted__U32_310, &_til_str_lits.h63546c52c378, &_va_Array_19_ek);
+                        U32 hoisted__U32_312 = 3;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_313 = Str_clone(_bang_ret_9);
+                        Array__Str_set(&_va_Array_19, hoisted__U32_312, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_313, &_va_Array_19_ek);
+                        U32 hoisted__U32_314 = 4;
+                        Array__Str_set(&_va_Array_19, hoisted__U32_314, &_til_str_lits.h63546c53dc3a, &_va_Array_19_ek);
+                        U32 hoisted__U32_316 = 5;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_317 = Str_clone(_bang_ret_10);
+                        Array__Str_set(&_va_Array_19, hoisted__U32_316, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_317, &_va_Array_19_ek);
+                        U32 hoisted__U32_318 = 6;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_319 = (Str){.c_str = TIL_OWN_LIT("\n    cmp byte [rdx+", 19ULL), .count = 19ULL, .cap = TIL_CAP_LIT};
+                        Array__Str_set(&_va_Array_19, hoisted__U32_318, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_319, &_va_Array_19_ek);
+                        U32 hoisted__U32_320 = 7;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_321 = U32_to_str(i);
+                        Array__Str_set(&_va_Array_19, hoisted__U32_320, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_321, &_va_Array_19_ek);
+                        U32 hoisted__U32_322 = 8;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_323 = (Str){.c_str = TIL_OWN_LIT("], 0\n    cmove rax, rcx\n    movzx eax, byte [rax+", 49ULL), .count = 49ULL, .cap = TIL_CAP_LIT};
+                        Array__Str_set(&_va_Array_19, hoisted__U32_322, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_323, &_va_Array_19_ek);
+                        U32 hoisted__U32_324 = 9;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_325 = U32_to_str(i);
+                        Array__Str_set(&_va_Array_19, hoisted__U32_324, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_325, &_va_Array_19_ek);
+                        U32 hoisted__U32_326 = 10;
+                        Array__Str_set(&_va_Array_19, hoisted__U32_326, &_til_str_lits.hd2d74a068058, &_va_Array_19_ek);
+                        U32 hoisted__U32_328 = 11;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_329 = Str_clone(&result);
+                        Array__Str_set(&_va_Array_19, hoisted__U32_328, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_329, &_va_Array_19_ek);
+                        U32 hoisted__U32_330 = 12;
+                        Array__Str_set(&_va_Array_19, hoisted__U32_330, &_til_str_lits.h65056a5154b5, &_va_Array_19_ek);
+                        U32 hoisted__U32_332 = 13;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_333 = U32_to_str(i);
+                        Array__Str_set(&_va_Array_19, hoisted__U32_332, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_333, &_va_Array_19_ek);
+                        U32 hoisted__U32_334 = 14;
+                        Array__Str_set(&_va_Array_19, hoisted__U32_334, &_til_str_lits.h00310eaa9cbb, &_va_Array_19_ek);
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_336 = format(&_va_Array_19);
+                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_336);
+                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_336, 0);
                     }
                 }
             } else {
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_386 = priv___src_self_codegen_fasm_codegen_til__fasm_value_slot(owner, state, lp);
-                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_388 = Str_strip_prefix(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_386, &_til_str_lits.h0653181e27d2);
-                Str expanded = Str_clone(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_388);
-                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_386, 0);
-                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_388, 0);
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_407 = priv___src_self_codegen_fasm_codegen_til__fasm_value_slot(owner, state, lp);
+                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_409 = Str_strip_prefix(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_407, &_til_str_lits.h0653181e27d2);
+                Str expanded = Str_clone(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_409);
+                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_407, 0);
+                Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_409, 0);
                 {
-                    U32 _re_U32_316 = sd->simd_width;
-                    U32 _rc_U32_316 = 0;
+                    U32 _re_U32_337 = sd->simd_width;
+                    U32 _rc_U32_337 = 0;
                     while (1) {
-                        Bool _wcond_Bool_317 = ((Bool)(_rc_U32_316 < _re_U32_316));
-                        if (!(_wcond_Bool_317)) {
+                        Bool _wcond_Bool_338 = ((Bool)(_rc_U32_337 < _re_U32_337));
+                        if (!(_wcond_Bool_338)) {
                             break;
                         }
-                        U32 i = (_rc_U32_316);
-                        (++_rc_U32_316);
-                        U32 hoisted__U32_323 = 0;
-                        Str *_bang_ret_11 = (((Bool)((U32)(hoisted__U32_323) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_323))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
-                        I64 hoisted__I64_324 = 1;
-                        Bool hoisted__Bool_325 = ((Bool)(_err_kind == hoisted__I64_324));
-                        if (hoisted__Bool_325) {
-                            I64 hoisted__I64_318 = 0;
-                            _err_kind = hoisted__I64_318;
-                            U32 hoisted__U32_319 = 1;
-                            Array__Str _va_Array_20 = Array__Str_new(hoisted__U32_319);
+                        U32 i = (_rc_U32_337);
+                        (++_rc_U32_337);
+                        U32 hoisted__U32_344 = 0;
+                        Str *_bang_ret_11 = (((Bool)((U32)(hoisted__U32_344) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_344))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
+                        I64 hoisted__I64_345 = 1;
+                        Bool hoisted__Bool_346 = ((Bool)(_err_kind == hoisted__I64_345));
+                        if (hoisted__Bool_346) {
+                            I64 hoisted__I64_339 = 0;
+                            _err_kind = hoisted__I64_339;
+                            U32 hoisted__U32_340 = 1;
+                            Array__Str _va_Array_20 = Array__Str_new(hoisted__U32_340);
                             I64 _va_Array_20_ek = 0;
-                            U32 hoisted__U32_320 = 0;
-                            Array__Str_set(&_va_Array_20, hoisted__U32_320, &_til_str_lits.h4d3ab87300de, &_va_Array_20_ek);
-                            panic(&_va_Array_20, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_322);
+                            U32 hoisted__U32_341 = 0;
+                            Array__Str_set(&_va_Array_20, hoisted__U32_341, &_til_str_lits.h4d3ab87300de, &_va_Array_20_ek);
+                            panic(&_va_Array_20, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_343);
                         }
-                        U32 hoisted__U32_326 = 8;
-                        Array__Str _va_Array_21 = Array__Str_new(hoisted__U32_326);
+                        U32 hoisted__U32_347 = 8;
+                        Array__Str _va_Array_21 = Array__Str_new(hoisted__U32_347);
                         I64 _va_Array_21_ek = 0;
-                        U32 hoisted__U32_327 = 0;
-                        Array__Str_set(&_va_Array_21, hoisted__U32_327, &_til_str_lits.hcf8fca5310b1, &_va_Array_21_ek);
-                        U32 hoisted__U32_329 = 1;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_330 = Str_clone(_bang_ret_11);
-                        Array__Str_set(&_va_Array_21, hoisted__U32_329, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_330, &_va_Array_21_ek);
-                        U32 hoisted__U32_331 = 2;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_332 = (Str){.c_str = TIL_OWN_LIT("\n    movzx eax, byte [rdx+", 26ULL), .count = 26ULL, .cap = TIL_CAP_LIT};
-                        Array__Str_set(&_va_Array_21, hoisted__U32_331, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_332, &_va_Array_21_ek);
-                        U32 hoisted__U32_333 = 3;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_334 = U32_to_str(i);
-                        Array__Str_set(&_va_Array_21, hoisted__U32_333, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_334, &_va_Array_21_ek);
-                        U32 hoisted__U32_335 = 4;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_336 = (Str){.c_str = TIL_OWN_LIT("]\n    neg rax\n    lea rcx, ", 27ULL), .count = 27ULL, .cap = TIL_CAP_LIT};
-                        Array__Str_set(&_va_Array_21, hoisted__U32_335, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_336, &_va_Array_21_ek);
-                        U32 hoisted__U32_337 = 5;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_338 = Str_clone(&expanded);
-                        Array__Str_set(&_va_Array_21, hoisted__U32_337, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_338, &_va_Array_21_ek);
-                        U32 hoisted__U32_339 = 6;
-                        Array__Str_set(&_va_Array_21, hoisted__U32_339, &_til_str_lits.h553965a7e291, &_va_Array_21_ek);
-                        U32 hoisted__U32_341 = ((U32)(i * bytes));
-                        U32 hoisted__U32_342 = 7;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_343 = U32_to_str(hoisted__U32_341);
-                        Array__Str_set(&_va_Array_21, hoisted__U32_342, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_343, &_va_Array_21_ek);
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_344 = format(&_va_Array_21);
-                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_344);
-                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_344, 0);
+                        U32 hoisted__U32_348 = 0;
+                        Array__Str_set(&_va_Array_21, hoisted__U32_348, &_til_str_lits.hcf8fca5310b1, &_va_Array_21_ek);
+                        U32 hoisted__U32_350 = 1;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_351 = Str_clone(_bang_ret_11);
+                        Array__Str_set(&_va_Array_21, hoisted__U32_350, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_351, &_va_Array_21_ek);
+                        U32 hoisted__U32_352 = 2;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_353 = (Str){.c_str = TIL_OWN_LIT("\n    movzx eax, byte [rdx+", 26ULL), .count = 26ULL, .cap = TIL_CAP_LIT};
+                        Array__Str_set(&_va_Array_21, hoisted__U32_352, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_353, &_va_Array_21_ek);
+                        U32 hoisted__U32_354 = 3;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_355 = U32_to_str(i);
+                        Array__Str_set(&_va_Array_21, hoisted__U32_354, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_355, &_va_Array_21_ek);
+                        U32 hoisted__U32_356 = 4;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_357 = (Str){.c_str = TIL_OWN_LIT("]\n    neg rax\n    lea rcx, ", 27ULL), .count = 27ULL, .cap = TIL_CAP_LIT};
+                        Array__Str_set(&_va_Array_21, hoisted__U32_356, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_357, &_va_Array_21_ek);
+                        U32 hoisted__U32_358 = 5;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_359 = Str_clone(&expanded);
+                        Array__Str_set(&_va_Array_21, hoisted__U32_358, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_359, &_va_Array_21_ek);
+                        U32 hoisted__U32_360 = 6;
+                        Array__Str_set(&_va_Array_21, hoisted__U32_360, &_til_str_lits.h553965a7e291, &_va_Array_21_ek);
+                        U32 hoisted__U32_362 = ((U32)(i * bytes));
+                        U32 hoisted__U32_363 = 7;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_364 = U32_to_str(hoisted__U32_362);
+                        Array__Str_set(&_va_Array_21, hoisted__U32_363, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_364, &_va_Array_21_ek);
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_365 = format(&_va_Array_21);
+                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_365);
+                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_365, 0);
                         priv___src_self_codegen_fasm_codegen_til__fasm_store_scalar(lane, state);
                     }
                 }
                 {
-                    U32 hoisted__U32_384 = ((U32)(sd->simd_width * bytes));
-                    U32 hoisted__U32_385 = 16;
-                    U32 _re_U32_345 = ({ U32 _cf_a = hoisted__U32_384; U32 _cf_b = hoisted__U32_385; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
-                    U32 _rc_U32_345 = 0;
+                    U32 hoisted__U32_405 = ((U32)(sd->simd_width * bytes));
+                    U32 hoisted__U32_406 = 16;
+                    U32 _re_U32_366 = ({ U32 _cf_a = hoisted__U32_405; U32 _cf_b = hoisted__U32_406; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
+                    U32 _rc_U32_366 = 0;
                     while (1) {
-                        Bool _wcond_Bool_346 = ((Bool)(_rc_U32_345 < _re_U32_345));
-                        if (!(_wcond_Bool_346)) {
+                        Bool _wcond_Bool_367 = ((Bool)(_rc_U32_366 < _re_U32_366));
+                        if (!(_wcond_Bool_367)) {
                             break;
                         }
-                        U32 chunk = (_rc_U32_345);
-                        (++_rc_U32_345);
-                        U32 hoisted__U32_357 = 16;
-                        U32 offset = ((U32)(chunk * hoisted__U32_357));
-                        U32 hoisted__U32_358 = 1;
-                        Str *_bang_ret_12 = (((Bool)((U32)(hoisted__U32_358) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_358))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
-                        I64 hoisted__I64_359 = 1;
-                        Bool hoisted__Bool_360 = ((Bool)(_err_kind == hoisted__I64_359));
-                        if (hoisted__Bool_360) {
-                            I64 hoisted__I64_347 = 0;
-                            _err_kind = hoisted__I64_347;
-                            U32 hoisted__U32_348 = 1;
-                            Array__Str _va_Array_22 = Array__Str_new(hoisted__U32_348);
+                        U32 chunk = (_rc_U32_366);
+                        (++_rc_U32_366);
+                        U32 hoisted__U32_378 = 16;
+                        U32 offset = ((U32)(chunk * hoisted__U32_378));
+                        U32 hoisted__U32_379 = 1;
+                        Str *_bang_ret_12 = (((Bool)((U32)(hoisted__U32_379) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_379))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
+                        I64 hoisted__I64_380 = 1;
+                        Bool hoisted__Bool_381 = ((Bool)(_err_kind == hoisted__I64_380));
+                        if (hoisted__Bool_381) {
+                            I64 hoisted__I64_368 = 0;
+                            _err_kind = hoisted__I64_368;
+                            U32 hoisted__U32_369 = 1;
+                            Array__Str _va_Array_22 = Array__Str_new(hoisted__U32_369);
                             I64 _va_Array_22_ek = 0;
-                            U32 hoisted__U32_349 = 0;
-                            Array__Str_set(&_va_Array_22, hoisted__U32_349, &_til_str_lits.h4d3ab87300de, &_va_Array_22_ek);
-                            panic(&_va_Array_22, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_351);
+                            U32 hoisted__U32_370 = 0;
+                            Array__Str_set(&_va_Array_22, hoisted__U32_370, &_til_str_lits.h4d3ab87300de, &_va_Array_22_ek);
+                            panic(&_va_Array_22, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_372);
                         }
-                        U32 hoisted__U32_361 = 2;
-                        Str *_bang_ret_13 = (((Bool)((U32)(hoisted__U32_361) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_361))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
-                        I64 hoisted__I64_362 = 1;
-                        Bool hoisted__Bool_363 = ((Bool)(_err_kind == hoisted__I64_362));
-                        if (hoisted__Bool_363) {
-                            I64 hoisted__I64_352 = 0;
-                            _err_kind = hoisted__I64_352;
-                            U32 hoisted__U32_353 = 1;
-                            Array__Str _va_Array_23 = Array__Str_new(hoisted__U32_353);
+                        U32 hoisted__U32_382 = 2;
+                        Str *_bang_ret_13 = (((Bool)((U32)(hoisted__U32_382) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_382))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
+                        I64 hoisted__I64_383 = 1;
+                        Bool hoisted__Bool_384 = ((Bool)(_err_kind == hoisted__I64_383));
+                        if (hoisted__Bool_384) {
+                            I64 hoisted__I64_373 = 0;
+                            _err_kind = hoisted__I64_373;
+                            U32 hoisted__U32_374 = 1;
+                            Array__Str _va_Array_23 = Array__Str_new(hoisted__U32_374);
                             I64 _va_Array_23_ek = 0;
-                            U32 hoisted__U32_354 = 0;
-                            Array__Str_set(&_va_Array_23, hoisted__U32_354, &_til_str_lits.h4d3ab87300de, &_va_Array_23_ek);
-                            panic(&_va_Array_23, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_356);
+                            U32 hoisted__U32_375 = 0;
+                            Array__Str_set(&_va_Array_23, hoisted__U32_375, &_til_str_lits.h4d3ab87300de, &_va_Array_23_ek);
+                            panic(&_va_Array_23, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_377);
                         }
-                        U32 hoisted__U32_364 = 9;
-                        Array__Str _va_Array_24 = Array__Str_new(hoisted__U32_364);
+                        U32 hoisted__U32_385 = 9;
+                        Array__Str _va_Array_24 = Array__Str_new(hoisted__U32_385);
                         I64 _va_Array_24_ek = 0;
-                        U32 hoisted__U32_365 = 0;
-                        Array__Str_set(&_va_Array_24, hoisted__U32_365, &_til_str_lits.hb8cd9aaf797d, &_va_Array_24_ek);
-                        U32 hoisted__U32_367 = 1;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_368 = priv___src_self_codegen_fasm_codegen_til__fasm_simd_address(_bang_ret_12, offset);
-                        Array__Str_set(&_va_Array_24, hoisted__U32_367, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_368, &_va_Array_24_ek);
-                        U32 hoisted__U32_369 = 2;
-                        Array__Str_set(&_va_Array_24, hoisted__U32_369, &_til_str_lits.h022b8c0ebaa8, &_va_Array_24_ek);
-                        U32 hoisted__U32_371 = 3;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_372 = priv___src_self_codegen_fasm_codegen_til__fasm_simd_address(_bang_ret_13, offset);
-                        Array__Str_set(&_va_Array_24, hoisted__U32_371, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_372, &_va_Array_24_ek);
-                        U32 hoisted__U32_373 = 4;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_374 = (Str){.c_str = TIL_OWN_LIT("\n    movups xmm2, ", 18ULL), .count = 18ULL, .cap = TIL_CAP_LIT};
-                        Array__Str_set(&_va_Array_24, hoisted__U32_373, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_374, &_va_Array_24_ek);
-                        U32 hoisted__U32_375 = 5;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_376 = priv___src_self_codegen_fasm_codegen_til__fasm_simd_address(&expanded, offset);
-                        Array__Str_set(&_va_Array_24, hoisted__U32_375, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_376, &_va_Array_24_ek);
-                        U32 hoisted__U32_377 = 6;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_378 = (Str){.c_str = TIL_OWN_LIT("\n    pand xmm0, xmm2\n    pandn xmm2, xmm1\n    por xmm0, xmm2\n    movups ", 72ULL), .count = 72ULL, .cap = TIL_CAP_LIT};
-                        Array__Str_set(&_va_Array_24, hoisted__U32_377, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_378, &_va_Array_24_ek);
-                        U32 hoisted__U32_379 = 7;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_380 = priv___src_self_codegen_fasm_codegen_til__fasm_simd_address(&result, offset);
-                        Array__Str_set(&_va_Array_24, hoisted__U32_379, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_380, &_va_Array_24_ek);
-                        U32 hoisted__U32_381 = 8;
-                        Array__Str_set(&_va_Array_24, hoisted__U32_381, &_til_str_lits.h06527108bbf3, &_va_Array_24_ek);
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_383 = format(&_va_Array_24);
-                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_383);
-                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_383, 0);
+                        U32 hoisted__U32_386 = 0;
+                        Array__Str_set(&_va_Array_24, hoisted__U32_386, &_til_str_lits.hb8cd9aaf797d, &_va_Array_24_ek);
+                        U32 hoisted__U32_388 = 1;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_389 = priv___src_self_codegen_fasm_codegen_til__fasm_simd_address(_bang_ret_12, offset);
+                        Array__Str_set(&_va_Array_24, hoisted__U32_388, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_389, &_va_Array_24_ek);
+                        U32 hoisted__U32_390 = 2;
+                        Array__Str_set(&_va_Array_24, hoisted__U32_390, &_til_str_lits.h022b8c0ebaa8, &_va_Array_24_ek);
+                        U32 hoisted__U32_392 = 3;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_393 = priv___src_self_codegen_fasm_codegen_til__fasm_simd_address(_bang_ret_13, offset);
+                        Array__Str_set(&_va_Array_24, hoisted__U32_392, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_393, &_va_Array_24_ek);
+                        U32 hoisted__U32_394 = 4;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_395 = (Str){.c_str = TIL_OWN_LIT("\n    movups xmm2, ", 18ULL), .count = 18ULL, .cap = TIL_CAP_LIT};
+                        Array__Str_set(&_va_Array_24, hoisted__U32_394, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_395, &_va_Array_24_ek);
+                        U32 hoisted__U32_396 = 5;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_397 = priv___src_self_codegen_fasm_codegen_til__fasm_simd_address(&expanded, offset);
+                        Array__Str_set(&_va_Array_24, hoisted__U32_396, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_397, &_va_Array_24_ek);
+                        U32 hoisted__U32_398 = 6;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_399 = (Str){.c_str = TIL_OWN_LIT("\n    pand xmm0, xmm2\n    pandn xmm2, xmm1\n    por xmm0, xmm2\n    movups ", 72ULL), .count = 72ULL, .cap = TIL_CAP_LIT};
+                        Array__Str_set(&_va_Array_24, hoisted__U32_398, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_399, &_va_Array_24_ek);
+                        U32 hoisted__U32_400 = 7;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_401 = priv___src_self_codegen_fasm_codegen_til__fasm_simd_address(&result, offset);
+                        Array__Str_set(&_va_Array_24, hoisted__U32_400, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_401, &_va_Array_24_ek);
+                        U32 hoisted__U32_402 = 8;
+                        Array__Str_set(&_va_Array_24, hoisted__U32_402, &_til_str_lits.h06527108bbf3, &_va_Array_24_ek);
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_404 = format(&_va_Array_24);
+                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_404);
+                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_404, 0);
                     }
                 }
                 Str_delete(&expanded, 0);
             }
         } else {
-            Type hoisted__Type_462 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_Bool});
-            Bool hoisted__Bool_463 = Type_eq(&lane, &hoisted__Type_462);
-            Type_delete(&hoisted__Type_462, 0);
-            if (hoisted__Bool_463) {
+            Type hoisted__Type_483 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_Bool});
+            Bool hoisted__Bool_484 = Type_eq(&lane, &hoisted__Type_483);
+            Type_delete(&hoisted__Type_483, 0);
+            if (hoisted__Bool_484) {
                 {
-                    U32 _re_U32_391 = sd->simd_width;
-                    U32 _rc_U32_391 = 0;
+                    U32 _re_U32_412 = sd->simd_width;
+                    U32 _rc_U32_412 = 0;
                     while (1) {
-                        Bool _wcond_Bool_392 = ((Bool)(_rc_U32_391 < _re_U32_391));
-                        if (!(_wcond_Bool_392)) {
+                        Bool _wcond_Bool_413 = ((Bool)(_rc_U32_412 < _re_U32_412));
+                        if (!(_wcond_Bool_413)) {
                             break;
                         }
-                        U32 i = (_rc_U32_391);
-                        (++_rc_U32_391);
-                        U32 hoisted__U32_403 = 0;
-                        Str *_bang_ret_14 = (((Bool)((U32)(hoisted__U32_403) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_403))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
-                        I64 hoisted__I64_404 = 1;
-                        Bool hoisted__Bool_405 = ((Bool)(_err_kind == hoisted__I64_404));
-                        if (hoisted__Bool_405) {
-                            I64 hoisted__I64_393 = 0;
-                            _err_kind = hoisted__I64_393;
-                            U32 hoisted__U32_394 = 1;
-                            Array__Str _va_Array_25 = Array__Str_new(hoisted__U32_394);
+                        U32 i = (_rc_U32_412);
+                        (++_rc_U32_412);
+                        U32 hoisted__U32_424 = 0;
+                        Str *_bang_ret_14 = (((Bool)((U32)(hoisted__U32_424) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_424))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
+                        I64 hoisted__I64_425 = 1;
+                        Bool hoisted__Bool_426 = ((Bool)(_err_kind == hoisted__I64_425));
+                        if (hoisted__Bool_426) {
+                            I64 hoisted__I64_414 = 0;
+                            _err_kind = hoisted__I64_414;
+                            U32 hoisted__U32_415 = 1;
+                            Array__Str _va_Array_25 = Array__Str_new(hoisted__U32_415);
                             I64 _va_Array_25_ek = 0;
-                            U32 hoisted__U32_395 = 0;
-                            Array__Str_set(&_va_Array_25, hoisted__U32_395, &_til_str_lits.h4d3ab87300de, &_va_Array_25_ek);
-                            panic(&_va_Array_25, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_397);
+                            U32 hoisted__U32_416 = 0;
+                            Array__Str_set(&_va_Array_25, hoisted__U32_416, &_til_str_lits.h4d3ab87300de, &_va_Array_25_ek);
+                            panic(&_va_Array_25, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_418);
                         }
-                        U32 hoisted__U32_406 = 1;
-                        Str *_bang_ret_15 = (((Bool)((U32)(hoisted__U32_406) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_406))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
-                        I64 hoisted__I64_407 = 1;
-                        Bool hoisted__Bool_408 = ((Bool)(_err_kind == hoisted__I64_407));
-                        if (hoisted__Bool_408) {
-                            I64 hoisted__I64_398 = 0;
-                            _err_kind = hoisted__I64_398;
-                            U32 hoisted__U32_399 = 1;
-                            Array__Str _va_Array_26 = Array__Str_new(hoisted__U32_399);
+                        U32 hoisted__U32_427 = 1;
+                        Str *_bang_ret_15 = (((Bool)((U32)(hoisted__U32_427) < arguments.count)) ? (Str *)((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (arguments.data))) + (((U64)(((U64)((U32)(hoisted__U32_427))) * ((U64)(12)))))))) : (_err_kind = 1, (Str *)NULL));
+                        I64 hoisted__I64_428 = 1;
+                        Bool hoisted__Bool_429 = ((Bool)(_err_kind == hoisted__I64_428));
+                        if (hoisted__Bool_429) {
+                            I64 hoisted__I64_419 = 0;
+                            _err_kind = hoisted__I64_419;
+                            U32 hoisted__U32_420 = 1;
+                            Array__Str _va_Array_26 = Array__Str_new(hoisted__U32_420);
                             I64 _va_Array_26_ek = 0;
-                            U32 hoisted__U32_400 = 0;
-                            Array__Str_set(&_va_Array_26, hoisted__U32_400, &_til_str_lits.h4d3ab87300de, &_va_Array_26_ek);
-                            panic(&_va_Array_26, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_402);
+                            U32 hoisted__U32_421 = 0;
+                            Array__Str_set(&_va_Array_26, hoisted__U32_421, &_til_str_lits.h4d3ab87300de, &_va_Array_26_ek);
+                            panic(&_va_Array_26, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_423);
                         }
-                        U32 hoisted__U32_409 = 9;
-                        Array__Str _va_Array_27 = Array__Str_new(hoisted__U32_409);
+                        U32 hoisted__U32_430 = 9;
+                        Array__Str _va_Array_27 = Array__Str_new(hoisted__U32_430);
                         I64 _va_Array_27_ek = 0;
-                        U32 hoisted__U32_410 = 0;
-                        Array__Str_set(&_va_Array_27, hoisted__U32_410, &_til_str_lits.hcf8fca5310b1, &_va_Array_27_ek);
-                        U32 hoisted__U32_412 = 1;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_413 = Str_clone(_bang_ret_14);
-                        Array__Str_set(&_va_Array_27, hoisted__U32_412, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_413, &_va_Array_27_ek);
-                        U32 hoisted__U32_414 = 2;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_415 = (Str){.c_str = TIL_OWN_LIT("\n    mov al, [rdx+", 18ULL), .count = 18ULL, .cap = TIL_CAP_LIT};
-                        Array__Str_set(&_va_Array_27, hoisted__U32_414, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_415, &_va_Array_27_ek);
-                        U32 hoisted__U32_416 = 3;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_417 = U32_to_str(i);
-                        Array__Str_set(&_va_Array_27, hoisted__U32_416, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_417, &_va_Array_27_ek);
-                        U32 hoisted__U32_418 = 4;
-                        Array__Str_set(&_va_Array_27, hoisted__U32_418, &_til_str_lits.hd2d74a068058, &_va_Array_27_ek);
-                        U32 hoisted__U32_420 = 5;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_421 = Str_clone(_bang_ret_15);
-                        Array__Str_set(&_va_Array_27, hoisted__U32_420, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_421, &_va_Array_27_ek);
-                        U32 hoisted__U32_422 = 6;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_423 = (Str){.c_str = TIL_OWN_LIT("\n    cmp al, [rdx+", 18ULL), .count = 18ULL, .cap = TIL_CAP_LIT};
-                        Array__Str_set(&_va_Array_27, hoisted__U32_422, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_423, &_va_Array_27_ek);
-                        U32 hoisted__U32_424 = 7;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_425 = U32_to_str(i);
-                        Array__Str_set(&_va_Array_27, hoisted__U32_424, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_425, &_va_Array_27_ek);
-                        U32 hoisted__U32_426 = 8;
-                        Array__Str_set(&_va_Array_27, hoisted__U32_426, &_til_str_lits.h00000002b602, &_va_Array_27_ek);
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_428 = format(&_va_Array_27);
-                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_428);
-                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_428, 0);
+                        U32 hoisted__U32_431 = 0;
+                        Array__Str_set(&_va_Array_27, hoisted__U32_431, &_til_str_lits.hcf8fca5310b1, &_va_Array_27_ek);
+                        U32 hoisted__U32_433 = 1;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_434 = Str_clone(_bang_ret_14);
+                        Array__Str_set(&_va_Array_27, hoisted__U32_433, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_434, &_va_Array_27_ek);
+                        U32 hoisted__U32_435 = 2;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_436 = (Str){.c_str = TIL_OWN_LIT("\n    mov al, [rdx+", 18ULL), .count = 18ULL, .cap = TIL_CAP_LIT};
+                        Array__Str_set(&_va_Array_27, hoisted__U32_435, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_436, &_va_Array_27_ek);
+                        U32 hoisted__U32_437 = 3;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_438 = U32_to_str(i);
+                        Array__Str_set(&_va_Array_27, hoisted__U32_437, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_438, &_va_Array_27_ek);
+                        U32 hoisted__U32_439 = 4;
+                        Array__Str_set(&_va_Array_27, hoisted__U32_439, &_til_str_lits.hd2d74a068058, &_va_Array_27_ek);
+                        U32 hoisted__U32_441 = 5;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_442 = Str_clone(_bang_ret_15);
+                        Array__Str_set(&_va_Array_27, hoisted__U32_441, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_442, &_va_Array_27_ek);
+                        U32 hoisted__U32_443 = 6;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_444 = (Str){.c_str = TIL_OWN_LIT("\n    cmp al, [rdx+", 18ULL), .count = 18ULL, .cap = TIL_CAP_LIT};
+                        Array__Str_set(&_va_Array_27, hoisted__U32_443, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_444, &_va_Array_27_ek);
+                        U32 hoisted__U32_445 = 7;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_446 = U32_to_str(i);
+                        Array__Str_set(&_va_Array_27, hoisted__U32_445, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_446, &_va_Array_27_ek);
+                        U32 hoisted__U32_447 = 8;
+                        Array__Str_set(&_va_Array_27, hoisted__U32_447, &_til_str_lits.h00000002b602, &_va_Array_27_ek);
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_449 = format(&_va_Array_27);
+                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_449);
+                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_449, 0);
                         Str condition = (Str){.c_str = TIL_OWN_LIT("e", 1ULL), .count = 1ULL, .cap = TIL_CAP_LIT};
-                        Bool hoisted__Bool_430 = Str_eq(op, &_til_str_lits.h00000b889449);
-                        if (hoisted__Bool_430) {
+                        Bool hoisted__Bool_451 = Str_eq(op, &_til_str_lits.h00000b889449);
+                        if (hoisted__Bool_451) {
                             { Str _new = _til_str_lits.h0000005978d8; Str_delete(&condition, (Bool){0}); condition = _new; }
                         }
-                        U32 hoisted__U32_431 = 7;
-                        Array__Str _va_Array_28 = Array__Str_new(hoisted__U32_431);
+                        U32 hoisted__U32_452 = 7;
+                        Array__Str _va_Array_28 = Array__Str_new(hoisted__U32_452);
                         I64 _va_Array_28_ek = 0;
-                        U32 hoisted__U32_432 = 0;
-                        Array__Str_set(&_va_Array_28, hoisted__U32_432, &_til_str_lits.h00000b88a991, &_va_Array_28_ek);
-                        U32 hoisted__U32_434 = 1;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_435 = Str_clone(&condition);
-                        Array__Str_set(&_va_Array_28, hoisted__U32_434, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_435, &_va_Array_28_ek);
-                        U32 hoisted__U32_436 = 2;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_437 = (Str){.c_str = TIL_OWN_LIT(" al\n    lea rdx, ", 17ULL), .count = 17ULL, .cap = TIL_CAP_LIT};
-                        Array__Str_set(&_va_Array_28, hoisted__U32_436, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_437, &_va_Array_28_ek);
-                        U32 hoisted__U32_438 = 3;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_439 = Str_clone(&result);
-                        Array__Str_set(&_va_Array_28, hoisted__U32_438, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_439, &_va_Array_28_ek);
-                        U32 hoisted__U32_440 = 4;
-                        Array__Str_set(&_va_Array_28, hoisted__U32_440, &_til_str_lits.h65056a5154b5, &_va_Array_28_ek);
-                        U32 hoisted__U32_442 = 5;
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_443 = U32_to_str(i);
-                        Array__Str_set(&_va_Array_28, hoisted__U32_442, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_443, &_va_Array_28_ek);
-                        U32 hoisted__U32_444 = 6;
-                        Array__Str_set(&_va_Array_28, hoisted__U32_444, &_til_str_lits.h00310eaa9cbb, &_va_Array_28_ek);
-                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_446 = format(&_va_Array_28);
+                        U32 hoisted__U32_453 = 0;
+                        Array__Str_set(&_va_Array_28, hoisted__U32_453, &_til_str_lits.h00000b88a991, &_va_Array_28_ek);
+                        U32 hoisted__U32_455 = 1;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_456 = Str_clone(&condition);
+                        Array__Str_set(&_va_Array_28, hoisted__U32_455, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_456, &_va_Array_28_ek);
+                        U32 hoisted__U32_457 = 2;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_458 = (Str){.c_str = TIL_OWN_LIT(" al\n    lea rdx, ", 17ULL), .count = 17ULL, .cap = TIL_CAP_LIT};
+                        Array__Str_set(&_va_Array_28, hoisted__U32_457, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_458, &_va_Array_28_ek);
+                        U32 hoisted__U32_459 = 3;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_460 = Str_clone(&result);
+                        Array__Str_set(&_va_Array_28, hoisted__U32_459, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_460, &_va_Array_28_ek);
+                        U32 hoisted__U32_461 = 4;
+                        Array__Str_set(&_va_Array_28, hoisted__U32_461, &_til_str_lits.h65056a5154b5, &_va_Array_28_ek);
+                        U32 hoisted__U32_463 = 5;
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_464 = U32_to_str(i);
+                        Array__Str_set(&_va_Array_28, hoisted__U32_463, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_464, &_va_Array_28_ek);
+                        U32 hoisted__U32_465 = 6;
+                        Array__Str_set(&_va_Array_28, hoisted__U32_465, &_til_str_lits.h00310eaa9cbb, &_va_Array_28_ek);
+                        Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_467 = format(&_va_Array_28);
                         Str_delete(&condition, 0);
-                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_446);
-                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_446, 0);
+                        priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_467);
+                        Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_467, 0);
                     }
                 }
             } else {
-                U32 hoisted__U32_459 = 16;
-                USize lanes = ({ U32 _cf_a = hoisted__U32_459; U32 _cf_b = bytes; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
-                Type *hoisted__Type_460 = Expr_til_type(e);
-                U32 hoisted__U32_461 = priv___src_self_codegen_fasm_codegen_til__fasm_type_size(DEREF(hoisted__Type_460), lp);
-                U32 result_stride = ({ U32 _cf_a = hoisted__U32_461; U32 _cf_b = sd->simd_width; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
+                U32 hoisted__U32_480 = 16;
+                USize lanes = ({ U32 _cf_a = hoisted__U32_480; U32 _cf_b = bytes; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
+                Type *hoisted__Type_481 = Expr_til_type(e);
+                U32 hoisted__U32_482 = priv___src_self_codegen_fasm_codegen_til__fasm_type_size(DEREF(hoisted__Type_481), lp);
+                U32 result_stride = ({ U32 _cf_a = hoisted__U32_482; U32 _cf_b = sd->simd_width; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
                 {
-                    U32 _re_U32_447 = ({ U32 _cf_a = sd->simd_width; U32 _cf_b = lanes; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
-                    U32 _rc_U32_447 = 0;
+                    U32 _re_U32_468 = ({ U32 _cf_a = sd->simd_width; U32 _cf_b = lanes; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
+                    U32 _rc_U32_468 = 0;
                     while (1) {
-                        Bool _wcond_Bool_448 = ((Bool)(_rc_U32_447 < _re_U32_447));
-                        if (!(_wcond_Bool_448)) {
+                        Bool _wcond_Bool_469 = ((Bool)(_rc_U32_468 < _re_U32_468));
+                        if (!(_wcond_Bool_469)) {
                             break;
                         }
-                        U32 chunk = (_rc_U32_447);
-                        (++_rc_U32_447);
+                        U32 chunk = (_rc_U32_468);
+                        (++_rc_U32_468);
                         Vec__Str inputs = Vec__Str_clone(_til_precomputed_sequence_892_get());
                         {
-                            Vec__Str *_fc_Vec__Str_449 = &arguments;
-                            USize _fi_USize_449 = 0;
+                            Vec__Str *_fc_Vec__Str_470 = &arguments;
+                            USize _fi_USize_470 = 0;
                             while (1) {
-                                U32 hoisted__U32_451 = (_fc_Vec__Str_449->count);
-                                Bool _wcond_Bool_450 = ((Bool)(_fi_USize_449 < hoisted__U32_451));
-                                if (!(_wcond_Bool_450)) {
+                                U32 hoisted__U32_472 = (_fc_Vec__Str_470->count);
+                                Bool _wcond_Bool_471 = ((Bool)(_fi_USize_470 < hoisted__U32_472));
+                                if (!(_wcond_Bool_471)) {
                                     break;
                                 }
-                                Str *input = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Vec__Str_449->data))) + (((U64)(((U64)(_fi_USize_449)) * ((U64)(12))))))));
-                                U32 hoisted__U32_452 = 1;
-                                U32 hoisted__U32_453 = ((U32)(_fi_USize_449 + hoisted__U32_452));
-                                _fi_USize_449 = hoisted__U32_453;
-                                U32 hoisted__U32_454 = 16;
-                                U32 hoisted__U32_455 = ((U32)(chunk * hoisted__U32_454));
-                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_456 = priv___src_self_codegen_fasm_codegen_til__fasm_simd_address(input, hoisted__U32_455);
-                                Vec__Str_push(&inputs, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_456);
+                                Str *input = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (_fc_Vec__Str_470->data))) + (((U64)(((U64)(_fi_USize_470)) * ((U64)(12))))))));
+                                U32 hoisted__U32_473 = 1;
+                                U32 hoisted__U32_474 = ((U32)(_fi_USize_470 + hoisted__U32_473));
+                                _fi_USize_470 = hoisted__U32_474;
+                                U32 hoisted__U32_475 = 16;
+                                U32 hoisted__U32_476 = ((U32)(chunk * hoisted__U32_475));
+                                Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_477 = priv___src_self_codegen_fasm_codegen_til__fasm_simd_address(input, hoisted__U32_476);
+                                Vec__Str_push(&inputs, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_477);
                             }
                         }
-                        U32 hoisted__U32_457 = ((U32)(chunk * lanes));
-                        U32 hoisted__U32_458 = ((U32)(hoisted__U32_457 * result_stride));
-                        Str output = priv___src_self_codegen_fasm_codegen_til__fasm_simd_address(&result, hoisted__U32_458);
+                        U32 hoisted__U32_478 = ((U32)(chunk * lanes));
+                        U32 hoisted__U32_479 = ((U32)(hoisted__U32_478 * result_stride));
+                        Str output = priv___src_self_codegen_fasm_codegen_til__fasm_simd_address(&result, hoisted__U32_479);
                         if (integer) {
-                            priv___src_self_codegen_fasm_codegen_til__fasm_simd_integer_binary(&inputs, &output, lane, op, state);
+                            priv___src_self_codegen_fasm_codegen_til__fasm_simd_integer_binary(&inputs, &output, lane, op, bytes, state);
                         } else {
                             priv___src_self_codegen_fasm_codegen_til__fasm_simd_float_binary(&inputs, &output, lane, op, lanes, state);
                         }
@@ -349712,21 +349944,21 @@ static Bool priv___src_self_codegen_fasm_codegen_til__fasm_simd_core(Expr * e, T
         }
     }
     Vec__Str_delete(&arguments, 0);
-    U32 hoisted__U32_483 = 2;
-    Array__Str _va_Array_29 = Array__Str_new(hoisted__U32_483);
+    U32 hoisted__U32_504 = 2;
+    Array__Str _va_Array_29 = Array__Str_new(hoisted__U32_504);
     I64 _va_Array_29_ek = 0;
-    U32 hoisted__U32_484 = 0;
-    Array__Str_set(&_va_Array_29, hoisted__U32_484, &_til_str_lits.hcf8fca516b8e, &_va_Array_29_ek);
-    U32 hoisted__U32_486 = 1;
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_487 = Str_clone(&result);
-    Array__Str_set(&_va_Array_29, hoisted__U32_486, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_487, &_va_Array_29_ek);
-    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_488 = format(&_va_Array_29);
+    U32 hoisted__U32_505 = 0;
+    Array__Str_set(&_va_Array_29, hoisted__U32_505, &_til_str_lits.hcf8fca516b8e, &_va_Array_29_ek);
+    U32 hoisted__U32_507 = 1;
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_508 = Str_clone(&result);
+    Array__Str_set(&_va_Array_29, hoisted__U32_507, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_508, &_va_Array_29_ek);
+    Str hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_509 = format(&_va_Array_29);
     Str_delete(&result, 0);
-    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_488);
-    Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_488, 0);
+    priv___src_self_codegen_fasm_codegen_til__fasm_emit(state, &hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_509);
+    Str_delete(&hoisted__Str_self_codegen_fasm_codegen_fasm_simd_core_509, 0);
     Type_delete(&lane, 0);
-    Bool hoisted__Bool_489 = 1;
-    return hoisted__Bool_489;
+    Bool hoisted__Bool_510 = 1;
+    return hoisted__Bool_510;
 }
 
 static Bool priv___src_self_codegen_fasm_codegen_til__fasm_float_binary(Expr * e, Type owner, Str * op, priv___src_self_codegen_fasm_codegen_til__FasmState * state, LoadedProgram * lp) {
@@ -474016,8 +474248,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-ceca22348", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("ceca22348ac8dc5050e2c5e1d832727fbcb1d033", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-892870f9b", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("892870f9b74e3ff16b93d45dd8baf308d2c62222", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

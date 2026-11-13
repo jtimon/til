@@ -107,13 +107,13 @@ check_unboxed := proc(compiler: Str, work: Str) {
         "drop_value := func(own value:Value,call_free:Bool) { Value.delete(own value,call_free) }\n",
         "forward_value := func(own value:Value,call_free:Bool) returns Value { if call_free { assert(value.text.len()>0) }; return value }\n",
         "flag := func(mut calls:I64) returns Bool { calls++; return true }\n",
-        "run := func(counts:Counts) { mut calls:I64=0; value:=Value(counts=counts,text=\"frame\"); Value.delete(own value,flag(calls));\n",
+        "run := func(mut counts : Counts) { mut calls : I64 = 0; value := Value(counts=counts,text=\"frame\"); Value.delete(own value,flag(calls));\n",
         "assert(calls==1); assert(counts.drops==1); assert(counts.flags==0);\n",
         "other:=Value(counts=counts,text=\"indirect\"); drop:Drop=drop_value; drop(own other,flag(calls));\n",
         "assert(calls==2); assert(counts.drops==2); assert(counts.flags==1);\n",
         "mut allocated:Value=calloc(1,Value.size().to_uptr()); allocated.counts=counts; allocated.text=\"heap return\";\n",
         "returned:=forward_value(own allocated,true); assert(returned.text.eq(\"heap return\")); assert(counts.drops==3) }\n",
-        "main := proc() { counts:=Counts(); run(counts); println(\"unboxed lifecycle passed\") }\n"),"unboxed lifecycle passed\n")
+        "main := proc() { mut counts := Counts(); run(counts); println(\"unboxed lifecycle passed\") }\n"),"unboxed lifecycle passed\n")
     check_allocations(compiler,work,"unboxed_values",format(
         "mode cli\nPair := struct { first: I64 = 0; last: I64 = 0 }\n",
         "Maker := func(a:I64,b:I64,c:I64,d:I64,e:I64,f:I64) returns Pair\n",
@@ -211,6 +211,21 @@ check_interface_allocations := proc(compiler: Str, work: Str) {
 }
 
 check_float_allocations := proc(compiler: Str, work: Str) {
+    check_allocations(compiler, work, "simd_narrow_values", format(
+        "mode cli\nB := Simd(I8,16)\nU := Simd(U8,16)\nW := Simd(I16,8)\nV := Simd(U16,8)\nruntime := proc(n : I64) returns I64 { noop_proc(); return n }\n",
+        "main := proc() { a := B.splat(runtime(-65).to_i8()); assert((a*a).eq(B.splat(-127)).all());\n",
+        "u := U.splat(runtime(255).to_u8()); assert((u*u).eq(U.splat(1)).all()); assert(u.gt(U.splat(127)).all());\n",
+        "mask := a.lt(B.splat(-1)); assert(mask.select(a,B.zero()).eq(a).all());\n",
+        "assert((B.splat(I8.MAX)+B.splat(1)).eq(B.splat(I8.MIN)).all()); assert((u+U.splat(1)).eq(U.zero()).all());\n",
+        "w := W.splat(runtime(257).to_i16()); assert((w*w).eq(W.splat(513)).all());\n",
+        "v := V.splat(runtime(65535).to_u16()); assert((v*v).eq(V.splat(1)).all()); assert(v.gt(V.splat(32767)).all());\n",
+        "assert((W.splat(I16.MIN)/W.splat(-1)).eq(W.splat(I16.MIN)).all()); assert((v/V.zero()).eq(V.zero()).all());\n",
+        "assert(a.reduce_min()==-65 && v.reduce_max()==65535) }\n"), 0, 0)
+    check_allocations(compiler, work, "simd_narrow_memory", format(
+        "mode cli\nB := Simd(I8,16)\nW := Simd(I16,8)\nmain := proc() { mut a := Array(I8).new(18); mut b := Array(I16).new(10); z8 : I8 = 0; z16 : I16 = 0;\n",
+        "for i in 0..18 { a.set(i,own (z8-i.to_i8()))! }; for i in 0..10 { b.set(i,own (z16-i.to_i16()))! };\n",
+        "x := B.load(a,1)!; x.store(a,2)!; assert(a[2]==-1 && a[17]==-16);\n",
+        "y := W.load(b,1)!; y.store(b,2)!; assert(b[2]==-1 && b[9]==-8) }\n"), 2, 2)
     check_allocations(compiler,work,"simd_wide_values",format(
         "mode cli\nF:=Simd(F32,32)\nD:=Simd(F64,16)\nS:=Simd(I32,32)\nU:=Simd(U32,32)\nE:=Simd(F32,8)\nruntime:=proc(n:I64) returns I64 { noop_proc(); return n }\n",
         "main:=proc() { n:=runtime(2); a:=F.splat(n.to_f32()); b:=F.splat(3.0); value:=(a+b).fma(a,b);\n",

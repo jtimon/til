@@ -808,6 +808,37 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   also passed at USize64/O2. No sanitizer diagnostics were reported; emitted
   native assembly itself is not ASAN-instrumented.
 
+**** I8/U8 and I16/U16 SIMD
+
+  On base ~22169738f~, byte/word families use SSE2 chunks at natural minimum
+  widths 16/8 through the existing 1024-lane generator limit. Packed arithmetic
+  wraps at the lane width. Words multiply with pmullw; bytes widen both halves,
+  multiply as words, mask to low bytes and pack without saturation. Unsigned
+  ordering flips each sign bit before signed packed comparisons. pmovmskb
+  extracts one comparison result per byte/word into canonical Bool bytes.
+  Extrema use the proper element stride and signedness; generated division,
+  sum/complement, memory and lifecycle bodies retain their shared contracts.
+
+  Natural-width and 32-lane edge matrices compare 10,112 lane pairs with scalar
+  results, including overflow, high-bit unsigned values, division by zero and
+  MIN/-1. Shared helpers cover intrinsic snapshots, bit-preserving select and
+  checked/overlapping memory. Constructor and mixed unaligned POD-field tests
+  cover narrow arguments/results, indirect calls and owned captures. The scalar
+  complement reference uses MIN xor MAX because I16/U16 have no scalar bnot API.
+
+  The native driver imports these ordinary helpers at both USize widths.
+  Options checks pin byte/word multiply/comparison/mask instructions while
+  retaining rejection of I64/U64 and sub-register shapes. Allocation probes
+  pin 0/0 computation and 2/2 Array data buffers. The existing unboxed lifecycle
+  fixture now declares its modified counter parameter/local mutable, matching
+  the current borrowed-field write contract.
+
+  Verification: ~make clean && make test~ passed 575/575, including self-translate
+  and USize32-to-64 translation. Both native FASM drivers passed at both widths.
+  The ASAN-built compiler assembled/executed the narrow corpus at both target
+  widths, and C ASAN/UBSAN checks passed at USize32/O0 and USize64/O2 without
+  diagnostics. Emitted native assembly itself is not ASAN-instrumented.
+
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
   repeated work. In-process code allocation, relocation, lifetime management

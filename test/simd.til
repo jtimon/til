@@ -249,6 +249,7 @@ test_simd_baseline_float_slice := test() { simd_baseline_checks(2) }
 simd_baseline_integer := proc(T:Type,V:Type,values:Array(T),shape:V) {
     noop_proc()
     width:=shape.len()
+    all_bits := T.MIN.bxor(T.MAX)
     for first in 0..values.len() {
         for second in 0..values.len() {
             mut a:=shape
@@ -285,7 +286,7 @@ simd_baseline_integer := proc(T:Type,V:Type,values:Array(T),shape:V) {
                 assert_eq(T,both[lane],left.band(right))
                 assert_eq(T,either[lane],left.bor(right))
                 assert_eq(T,exclusive[lane],left.bxor(right))
-                assert_eq(T,complement[lane],left.bnot())
+                assert_eq(T,complement[lane],left.bxor(all_bits))
                 assert_eq(Bool,equal[lane],left==right)
                 assert_eq(Bool,unequal[lane],left!=right)
                 assert_eq(Bool,less[lane],left<right)
@@ -455,6 +456,111 @@ simd_wide_checks := proc() {
     simd_checked_bool_logic(Simd(Bool,32),Simd(Bool,32).zero())
 }
 test_simd_wide_slice := test() { simd_wide_checks() }
+
+NarrowSignedBytes := Simd(I8, 16)
+NarrowUnsignedBytes := Simd(U8, 16)
+NarrowSignedWords := Simd(I16, 8)
+NarrowUnsignedWords := Simd(U16, 8)
+NarrowMask16 := Simd(Bool, 16)
+NarrowMask8 := Simd(Bool, 8)
+
+simd_narrow_family := proc(T : Type, V : Type, M : Type, B : Type, values : Array(T), bits : Array(B), shape : V, mask_shape : M) {
+    noop_proc()
+    simd_baseline_integer(T, V, values, shape)
+    simd_integer_snapshots(T, V, shape)
+    sentinel : T = 7
+    simd_memory_roundtrip(T, V, T.MIN, sentinel, shape)
+    simd_memory_roundtrip(T, V, T.MAX, sentinel, shape)
+    simd_baseline_bounds(T, V, T.MAX, sentinel, shape)
+    simd_select_bits(T, V, M, B, bits, shape, mask_shape)
+}
+
+NarrowSimdBox := struct {
+    tag : I8 = 0
+    signed_bytes : NarrowSignedBytes = NarrowSignedBytes.zero()
+    unsigned_bytes : NarrowUnsignedBytes = NarrowUnsignedBytes.zero()
+    signed_words : NarrowSignedWords = NarrowSignedWords.zero()
+    unsigned_words : NarrowUnsignedWords = NarrowUnsignedWords.zero()
+}
+NarrowSimdMaker := func(shallow a : NarrowSignedBytes, shallow b : NarrowUnsignedBytes, shallow c : NarrowSignedWords, shallow d : NarrowUnsignedWords) returns NarrowSimdBox
+NarrowSimdHolder := struct { make : NarrowSimdMaker }
+simd_narrow_make := func(shallow a : NarrowSignedBytes, shallow b : NarrowUnsignedBytes, shallow c : NarrowSignedWords, shallow d : NarrowUnsignedWords) returns NarrowSimdBox {
+    return NarrowSimdBox(tag = -7, signed_bytes = a + NarrowSignedBytes.splat(1),
+        unsigned_bytes = b * NarrowUnsignedBytes.splat(17), signed_words = c - NarrowSignedWords.splat(3),
+        unsigned_words = d * NarrowUnsignedWords.splat(257))
+}
+simd_narrow_constructors := proc(seed : I64) {
+    noop_proc()
+    signed_bytes := NarrowSignedBytes.new(seed.to_i8(), -1, -128, -127, -65, -17, 0, 1, 2, 15, 16, 17, 63, 64, 127, -17)
+    unsigned_bytes := NarrowUnsignedBytes.new(seed.to_u8(), 255, 128, 127, 129, 254, 0, 1, 2, 15, 16, 17, 63, 64, 127, 255)
+    signed_words := NarrowSignedWords.new(seed.to_i16(), -1, -32768, -32767, -257, 0, 32767, -257)
+    unsigned_words := NarrowUnsignedWords.new(seed.to_u16(), 65535, 32768, 32767, 32769, 0, 1, 65535)
+    assert_eq(I8, signed_bytes[0], seed.to_i8())
+    assert_eq(I8, signed_bytes[2], I8.MIN)
+    assert_eq(I8, signed_bytes[15], -17)
+    assert_eq(U8, unsigned_bytes[0], seed.to_u8())
+    assert_eq(U8, unsigned_bytes[2], 128)
+    assert_eq(U8, unsigned_bytes[15], U8.MAX)
+    assert_eq(I16, signed_words[0], seed.to_i16())
+    assert_eq(I16, signed_words[2], I16.MIN)
+    assert_eq(I16, signed_words[7], -257)
+    assert_eq(U16, unsigned_words[0], seed.to_u16())
+    assert_eq(U16, unsigned_words[2], 32768)
+    assert_eq(U16, unsigned_words[7], U16.MAX)
+}
+simd_narrow_abi := proc(seed : I64) {
+    noop_proc()
+    a := NarrowSignedBytes.splat(seed.to_i8())
+    b := NarrowUnsignedBytes.splat(seed.to_u8())
+    c := NarrowSignedWords.splat(seed.to_i16())
+    d := NarrowUnsignedWords.splat(seed.to_u16())
+    make : NarrowSimdMaker = simd_narrow_make
+    mut box := make(a, b, c, d)
+    copy := box.clone()
+    box.signed_bytes.set(15, own -9)!
+    box.signed_words.set(7, own -10)!
+    assert(box.tag == -7)
+    assert_eq(I8, copy.signed_bytes[15], seed.to_i8() + 1)
+    assert_eq(I16, copy.signed_words[7], seed.to_i16() - 3)
+    assert(box.unsigned_bytes.eq(NarrowUnsignedBytes.splat(seed.to_u8() * 17)).all())
+    assert(box.unsigned_words.eq(NarrowUnsignedWords.splat(seed.to_u16() * 257)).all())
+    bias := copy.signed_bytes
+    original := NarrowSimdHolder(make = func(shallow x : NarrowSignedBytes, shallow y : NarrowUnsignedBytes, shallow z : NarrowSignedWords, shallow w : NarrowUnsignedWords) returns NarrowSimdBox [own bias] {
+        return simd_narrow_make(x + bias, y, z, w)
+    })
+    cloned := original.clone()
+    result := cloned.make(a, b, c, d)
+    assert(result.signed_bytes.eq(NarrowSignedBytes.splat(seed.to_i8() * 2 + 2)).all())
+}
+
+simd_narrow_checks := proc() {
+    noop_proc()
+    byte_bits := array(U8, 0, 255, 128, 127, 129, 1)
+    word_bits := array(U16, 0, 65535, 32768, 32767, 32769, 1)
+    simd_narrow_family(I8, NarrowSignedBytes, NarrowMask16, U8,
+        array(I8, I8.MIN, I8.MIN + 1, -65, -17, -1, 0, 1, 2, 15, 16, I8.MAX - 1, I8.MAX),
+        byte_bits, NarrowSignedBytes.zero(), NarrowMask16.zero())
+    simd_narrow_family(U8, NarrowUnsignedBytes, NarrowMask16, U8,
+        array(U8, 0, 1, 2, 15, 16, 17, 63, 127, 128, 129, 254, 255),
+        byte_bits, NarrowUnsignedBytes.zero(), NarrowMask16.zero())
+    simd_narrow_family(I16, NarrowSignedWords, NarrowMask8, U16,
+        array(I16, I16.MIN, I16.MIN + 1, -257, -129, -1, 0, 1, 2, 255, 256, I16.MAX - 1, I16.MAX),
+        word_bits, NarrowSignedWords.zero(), NarrowMask8.zero())
+    simd_narrow_family(U16, NarrowUnsignedWords, NarrowMask8, U16,
+        array(U16, 0, 1, 2, 255, 256, 257, 0x7fff, 0x8000, 0x8001, 0x80ff, 65534, 65535),
+        word_bits, NarrowUnsignedWords.zero(), NarrowMask8.zero())
+    simd_narrow_family(I8, Simd(I8, 32), Simd(Bool, 32), U8, array(I8, I8.MIN, -1, 0, 17, I8.MAX),
+        byte_bits, Simd(I8, 32).zero(), Simd(Bool, 32).zero())
+    simd_narrow_family(U8, Simd(U8, 32), Simd(Bool, 32), U8, array(U8, 0, 1, 127, 128, U8.MAX),
+        byte_bits, Simd(U8, 32).zero(), Simd(Bool, 32).zero())
+    simd_narrow_family(I16, Simd(I16, 32), Simd(Bool, 32), U16, array(I16, I16.MIN, -1, 0, 257, I16.MAX),
+        word_bits, Simd(I16, 32).zero(), Simd(Bool, 32).zero())
+    simd_narrow_family(U16, Simd(U16, 32), Simd(Bool, 32), U16, array(U16, 0, 1, 32767, 32768, U16.MAX),
+        word_bits, Simd(U16, 32).zero(), Simd(Bool, 32).zero())
+    simd_narrow_abi(2)
+    simd_narrow_constructors(2)
+}
+test_simd_narrow_integer_slice := test() { simd_narrow_checks() }
 
 simd_baseline_pod_fields := proc() {
     noop_proc()

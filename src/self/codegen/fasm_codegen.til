@@ -191,7 +191,9 @@ priv fasm_bind := func(name: Str, shallow t: Type, own slot: Str, address: Bool,
 
 priv fasm_simd_supported := func(sd: StructDef, lp: LoadedProgram) returns Bool {
     if sd.simd_width == 0 { return false }
-    lane:=declaration_resolved_type(sd.fields[0],lp.ctx.scope,lp.ctx.symbols)
+    lane := declaration_resolved_type(sd.fields[0], lp.ctx.scope, lp.ctx.symbols)
+    if lane.eq(Type.Primitive(Primitive.I8)).or(lane.eq(Type.Primitive(Primitive.U8))) { return sd.simd_width >= 16 }
+    if lane.eq(Type.Primitive(Primitive.I16)).or(lane.eq(Type.Primitive(Primitive.U16))) { return sd.simd_width >= 8 }
     if lane.eq(Type.Primitive(Primitive.F32)).or(lane.eq(Type.Primitive(Primitive.I32))).or(lane.eq(Type.Primitive(Primitive.U32))) { return sd.simd_width>=4 }
     if lane==Type.Primitive(Primitive.F64) { return sd.simd_width>=2 }
     return lane.eq(Type.Primitive(Primitive.Bool)).and(sd.simd_width>=2)
@@ -1751,23 +1753,23 @@ priv fasm_simd_extrema := func(input: Str, sd: StructDef, shallow lane: Type, op
     fasm_load_scalar(lane,state)
 }
 
-priv fasm_simd_integer_extrema := func(input: Str, sd: StructDef, shallow lane: Type, op: Str, mut state: FasmState) {
-    mut condition:="g"
+priv fasm_simd_integer_extrema := func(input : Str, sd : StructDef, shallow lane : Type, op : Str, bytes : USize, mut state : FasmState) {
+    mut condition := "g"
     if op=="reduce_max" { condition="l" }
     if fasm_unsigned(lane) {
         condition="a"
         if op=="reduce_max" { condition="b" }
     }
-    mut half:=sd.simd_width/2
+    mut half := sd.simd_width / 2
     while half>0 {
         for i in 0..half {
-            fasm_emit(state,format("lea r10, ",input,"\n    lea rax, [r10+",(i*4).to_str(),"]"))
+            fasm_emit(state,format("lea r10, ",input,"\n    lea rax, [r10+",(i * bytes).to_str(),"]"))
             fasm_load_scalar(lane,state)
             fasm_emit(state,"mov r8, rax")
-            fasm_emit(state,format("lea rax, [r10+",((i+half)*4).to_str(),"]"))
+            fasm_emit(state,format("lea rax, [r10+",((i + half) * bytes).to_str(),"]"))
             fasm_load_scalar(lane,state)
             fasm_emit(state,format("mov rcx, rax\n    mov rax, r8\n    cmp rax, rcx\n    cmov",condition,
-                " rax, rcx\n    lea rcx, [r10+",(i*4).to_str(),"]"))
+                " rax, rcx\n    lea rcx, [r10+",(i * bytes).to_str(),"]"))
             fasm_store_scalar(lane,state)
         }
         half=half/2
@@ -1776,34 +1778,57 @@ priv fasm_simd_integer_extrema := func(input: Str, sd: StructDef, shallow lane: 
     fasm_load_scalar(lane,state)
 }
 
-priv fasm_simd_integer_binary := func(arguments: Vec(Str), result: Str, shallow lane: Type, op: Str, mut state: FasmState) {
+priv fasm_simd_integer_binary := func(arguments : Vec(Str), result : Str, shallow lane : Type, op : Str, bytes : USize, mut state : FasmState) {
+    mut suffix := "d"
+    switch bytes {
+    case 1: suffix = "b"
+    case 2: suffix = "w"
+    case 4:
+    case: UNREACHABLE("unsupported FASM integer SIMD lane size")
+    }
     fasm_emit(state,format("movups xmm0, ",arguments[0],"\n    movups xmm1, ",arguments[1]))
     switch op {
-    case "add": fasm_emit(state,"paddd xmm0, xmm1")
-    case "sub": fasm_emit(state,"psubd xmm0, xmm1")
+    case "add": fasm_emit(state, format("padd", suffix, " xmm0, xmm1"))
+    case "sub": fasm_emit(state, format("psub", suffix, " xmm0, xmm1"))
     case "band": fasm_emit(state,"pand xmm0, xmm1")
     case "bor": fasm_emit(state,"por xmm0, xmm1")
     case "bxor": fasm_emit(state,"pxor xmm0, xmm1")
     case "mul":
-        // SSE2 multiplies unsigned even dwords into qwords. The low dword
-        // is the same signed/unsigned wrapped product. Repeat for odd lanes,
-        // discard the high halves and interleave all four products.
-        fasm_emit(state,"movdqa xmm2, xmm0\n    pmuludq xmm0, xmm1\n    psrldq xmm2, 4\n    psrldq xmm1, 4\n    pmuludq xmm2, xmm1\n    pshufd xmm0, xmm0, 136\n    pshufd xmm2, xmm2, 136\n    punpckldq xmm0, xmm2")
+        if bytes == 1 {
+            // Widen both byte halves, multiply as words, mask to low bytes,
+            // then pack. Masking first prevents packuswb from saturating.
+            fasm_emit(state, "movdqa xmm2, xmm0\n    movdqa xmm3, xmm1\n    pxor xmm4, xmm4\n    punpcklbw xmm0, xmm4\n    punpcklbw xmm1, xmm4\n    punpckhbw xmm2, xmm4\n    punpckhbw xmm3, xmm4\n    pmullw xmm0, xmm1\n    pmullw xmm2, xmm3\n    pcmpeqw xmm4, xmm4\n    psrlw xmm4, 8\n    pand xmm0, xmm4\n    pand xmm2, xmm4\n    packuswb xmm0, xmm2")
+        } else if bytes == 2 {
+            fasm_emit(state, "pmullw xmm0, xmm1")
+        } else {
+            // Low dwords have the same signed/unsigned wrapped product.
+            // Repeat the even-lane multiply for odd lanes and interleave.
+            fasm_emit(state,"movdqa xmm2, xmm0\n    pmuludq xmm0, xmm1\n    psrldq xmm2, 4\n    psrldq xmm1, 4\n    pmuludq xmm2, xmm1\n    pshufd xmm0, xmm0, 136\n    pshufd xmm2, xmm2, 136\n    punpckldq xmm0, xmm2")
+        }
     case:
         if fasm_unsigned(lane).and(op.eq("eq").or(op.eq("neq")).not()) {
-            // XOR the sign bit to order U32 lanes with signed pcmpgtd.
-            fasm_emit(state,"pcmpeqd xmm2, xmm2\n    pslld xmm2, 31\n    pxor xmm0, xmm2\n    pxor xmm1, xmm2")
+            // XOR each lane's sign bit before the signed packed comparison.
+            fasm_emit(state, "pcmpeqd xmm2, xmm2")
+            if bytes == 1 {
+                fasm_emit(state, "psllw xmm2, 15\n    movdqa xmm3, xmm2\n    psrlw xmm3, 8\n    por xmm2, xmm3")
+            } else if bytes == 2 { fasm_emit(state, "psllw xmm2, 15") }
+            else { fasm_emit(state, "pslld xmm2, 31") }
+            fasm_emit(state, "pxor xmm0, xmm2\n    pxor xmm1, xmm2")
         }
         switch op {
-        case "eq","neq": fasm_emit(state,"pcmpeqd xmm0, xmm1")
-        case "lt","gte": fasm_emit(state,"pcmpgtd xmm1, xmm0\n    movdqa xmm0, xmm1")
-        case "gt","lte": fasm_emit(state,"pcmpgtd xmm0, xmm1")
+        case "eq","neq": fasm_emit(state, format("pcmpeq", suffix, " xmm0, xmm1"))
+        case "lt","gte": fasm_emit(state, format("pcmpgt", suffix, " xmm1, xmm0\n    movdqa xmm0, xmm1"))
+        case "gt","lte": fasm_emit(state, format("pcmpgt", suffix, " xmm0, xmm1"))
         case: UNREACHABLE("unsupported FASM integer SIMD operation: ",op)
         }
         if op.eq("neq").or(op.eq("lte")).or(op.eq("gte")) { fasm_emit(state,"pcmpeqd xmm2, xmm2\n    pxor xmm0, xmm2") }
-        fasm_emit(state,format("movmskps eax, xmm0\n    lea rdx, ",result))
-        for i:USize in 0..4 {
-            fasm_emit(state,format("mov ecx, eax\n    shr ecx, ",i.to_str(),"\n    and ecx, 1\n    mov [rdx+",i.to_str(),"], cl"))
+        mut mask_step : USize = 1
+        if bytes == 4 { fasm_emit(state, "movmskps eax, xmm0") }
+        else { fasm_emit(state, "pmovmskb eax, xmm0"); mask_step = bytes }
+        fasm_emit(state, format("lea rdx, ", result))
+        lanes : USize = 16 / bytes
+        for i in 0..lanes {
+            fasm_emit(state,format("mov ecx, eax\n    shr ecx, ",(i * mask_step).to_str(),"\n    and ecx, 1\n    mov [rdx+",i.to_str(),"], cl"))
         }
         return
     }
@@ -1859,7 +1884,9 @@ priv fasm_simd_core := proc(e: Expr, shallow owner: Type, op: Str, mut state: Fa
         fasm_emit(state,format("lea rax, ",result))
         return true
     }
-    integer:=lane.eq(Type.Primitive(Primitive.I32)).or(lane.eq(Type.Primitive(Primitive.U32)))
+    integer := lane.eq(Type.Primitive(Primitive.I8)).or(lane.eq(Type.Primitive(Primitive.U8)))
+        .or(lane.eq(Type.Primitive(Primitive.I16))).or(lane.eq(Type.Primitive(Primitive.U16)))
+        .or(lane.eq(Type.Primitive(Primitive.I32))).or(lane.eq(Type.Primitive(Primitive.U32)))
     // Bool mask logic has ordinary generated bodies, rather than core ops.
     if integer.not().and(op.eq("band").or(op.eq("bor")).or(op.eq("bxor"))) { return false }
     // The generated integer div body already preserves zero-divisor and
@@ -1873,7 +1900,7 @@ priv fasm_simd_core := proc(e: Expr, shallow owner: Type, op: Str, mut state: Fa
     mut arguments:=Vec(Str).new()
     for i in 1..e.children.len() { arguments.push(own fasm_simd_snapshot(e.children[i],e.children[i].til_type(),state,lp)) }
     if op=="reduce_min" || op=="reduce_max" {
-        if integer { fasm_simd_integer_extrema(arguments[0],sd,lane,op,state) }
+        if integer { fasm_simd_integer_extrema(arguments[0],sd,lane,op,fasm_type_size(lane,lp),state) }
         else { fasm_simd_extrema(arguments[0],sd,lane,op,state,lp) }
         if fasm_float(e.til_type()).and(lane.neq(e.til_type())) { fasm_float_cast(e,lane,e.til_type(),false,state,lp) }
         return true
@@ -1925,7 +1952,7 @@ priv fasm_simd_core := proc(e: Expr, shallow owner: Type, op: Str, mut state: Fa
             mut inputs:=Vec(Str).new()
             for input in arguments { inputs.push(own fasm_simd_address(input,chunk*16)) }
             output:=fasm_simd_address(result,chunk*lanes*result_stride)
-            if integer { fasm_simd_integer_binary(inputs,output,lane,op,state) }
+            if integer { fasm_simd_integer_binary(inputs,output,lane,op,bytes,state) }
             else { fasm_simd_float_binary(inputs,output,lane,op,lanes,state) }
         }
     }
