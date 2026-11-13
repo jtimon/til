@@ -316,3 +316,195 @@ test_map_ordered_container_payloads := test() {
     snapshot.clear()
     assert_eq(I64, payload, 123)
 }
+
+MapLifecycleCounts := struct {
+    created : I64 = 0
+    cloned : I64 = 0
+    dropped : I64 = 0
+    freed_outer : I64 = 0
+}
+
+// Lifecycle instrumentation is external to the read-only values being cloned.
+// Each test resets this ledger before constructing its resources.
+mut map_lifecycle_counts := MapLifecycleCounts()
+
+MapHookedResource := struct {
+    own bytes : U8
+namespace:
+    new := func(value: I64) returns MapHookedResource {
+        map_lifecycle_counts.created++
+        mut bytes : U8 = malloc(I64.size())
+        write_i64(bytes, value)
+        return MapHookedResource(bytes = bytes)
+    }
+    clone := func(self: MapHookedResource) returns MapHookedResource {
+        map_lifecycle_counts.cloned++
+        // The raw buffer is a full I64, not the U8 field label's one byte.
+        mut bytes : U8 = malloc(I64.size())
+        memcpy(bytes, self.bytes, I64.size())
+        return MapHookedResource(bytes = bytes)
+    }
+    read := func(self: MapHookedResource) returns I64 {
+        ref value : I64 = to_ptr(self.bytes)
+        return value.clone()
+    }
+    set := func(mut self: MapHookedResource, value: I64) { write_i64(self.bytes, value) }
+    delete := func(own self: MapHookedResource, call_free: Bool = true) {
+        map_lifecycle_counts.dropped++
+        free(own self.bytes)
+        if call_free { map_lifecycle_counts.freed_outer++; free(own self) }
+    }
+}
+
+MapHookedWrapper := struct { value: MapHookedResource }
+MapHookedPayload := enum { Empty, Direct: MapHookedResource, Wrapped: MapHookedWrapper }
+MapOwnedHookedWrapper := struct { own value: MapHookedResource }
+MapOwnedHookedPayload := enum { Empty, Wrapped: MapOwnedHookedWrapper }
+
+test_map_nested_custom_resource_hooks := test() {
+    map_lifecycle_counts = MapLifecycleCounts()
+    ref counts : MapLifecycleCounts = to_ptr(map_lifecycle_counts)
+    {
+        mut items := Vec(MapHookedResource).new()
+        items.push(own MapHookedResource.new(4294967301))
+        items.push(own MapHookedResource.new(73))
+        mut values := Map(I64, Vec(MapHookedResource)).new()
+        values.set(1, own items)
+        before_clone := counts.cloned.clone()
+        mut snapshot := values.clone()
+        assert_eq(I64, counts.cloned, before_clone + 2)
+        ref mut stored_items : Vec(MapHookedResource) = values.get(1)!
+        ref mut original : MapHookedResource = stored_items.get(0)!
+        original.set(99)
+        ref copied_items : Vec(MapHookedResource) = snapshot.get(1)!
+        assert_eq(I64, copied_items.get(0)!.read(), 4294967301)
+        before_drop := counts.dropped.clone()
+        assert(values.remove(1))
+        assert_eq(I64, counts.dropped, before_drop + 2)
+        assert_eq(I64, copied_items.get(1)!.read(), 73)
+        snapshot.clear()
+        assert_eq(I64, counts.dropped, before_drop + 4)
+    }
+    assert_eq(I64, counts.created, 2)
+    assert_eq(I64, counts.dropped, counts.created + counts.cloned)
+    assert_eq(I64, counts.freed_outer, 0)
+}
+
+test_map_custom_resource_enum_payloads := test() {
+    map_lifecycle_counts = MapLifecycleCounts()
+    ref counts : MapLifecycleCounts = to_ptr(map_lifecycle_counts)
+    {
+        mut values := Map(I64, MapHookedPayload).new()
+        values.set(1, own MapHookedPayload.Direct(MapHookedResource.new(4294967301)))
+        wrapped := MapHookedWrapper(value = MapHookedResource.new(17))
+        values.set(2, own MapHookedPayload.Wrapped(wrapped))
+        before_clone := counts.cloned.clone()
+        mut snapshot := values.clone()
+        assert_eq(I64, counts.cloned, before_clone + 2)
+        before_drop := counts.dropped.clone()
+        values.clear()
+        assert_eq(I64, counts.dropped, before_drop + 2)
+        ref direct : MapHookedPayload = snapshot.get(1)!
+        switch direct {
+        case .Direct(resource): assert_eq(I64, resource.read(), 4294967301)
+        case: panic("custom resource payload tag")
+        }
+        ref nested : MapHookedPayload = snapshot.get(2)!
+        switch nested {
+        case .Wrapped(wrapper): assert_eq(I64, wrapper.value.read(), 17)
+        case: panic("custom nested resource payload tag")
+        }
+        snapshot.clear()
+        assert_eq(I64, counts.dropped, before_drop + 4)
+    }
+    assert_eq(I64, counts.created, 2)
+    assert_eq(I64, counts.dropped, counts.created + counts.cloned)
+    assert_eq(I64, counts.freed_outer, 0)
+}
+
+test_map_custom_owned_payload_outer := test() {
+    map_lifecycle_counts = MapLifecycleCounts()
+    ref counts : MapLifecycleCounts = to_ptr(map_lifecycle_counts)
+    {
+        mut values := Map(I64, MapOwnedHookedPayload).new()
+        wrapped := MapOwnedHookedWrapper(value = MapHookedResource.new(4294967301))
+        values.set(1, own MapOwnedHookedPayload.Wrapped(wrapped))
+        before_clone := counts.cloned.clone()
+        mut snapshot := values.clone()
+        assert_eq(I64, counts.cloned, before_clone + 1)
+        before_drop := counts.dropped.clone()
+        before_free := counts.freed_outer.clone()
+        values.clear()
+        assert_eq(I64, counts.dropped, before_drop + 1)
+        assert_eq(I64, counts.freed_outer, before_free + 1)
+        ref nested : MapOwnedHookedPayload = snapshot.get(1)!
+        switch nested {
+        case .Wrapped(wrapper): assert_eq(I64, wrapper.value.read(), 4294967301)
+        case: panic("custom owned payload tag")
+        }
+        snapshot.clear()
+        assert_eq(I64, counts.dropped, before_drop + 2)
+        assert_eq(I64, counts.freed_outer, before_free + 2)
+    }
+    assert_eq(I64, counts.created, 1)
+    assert_eq(I64, counts.dropped, counts.created + counts.cloned)
+    assert_eq(I64, counts.freed_outer, counts.dropped)
+}
+
+mut map_enum_clones : I64 = 0
+mut map_enum_drops : I64 = 0
+MapCustomLifecycle := enum {
+    Empty, Number: I64,
+namespace:
+    clone := func(self: MapCustomLifecycle) returns MapCustomLifecycle {
+        map_enum_clones++
+        switch self {
+        case .Empty: return MapCustomLifecycle.Empty
+        case .Number(value): return MapCustomLifecycle.Number(value + 1)
+        }
+    }
+    delete := func(own self: MapCustomLifecycle, call_free: Bool = true) {
+        map_enum_drops++
+        if call_free { free(own self) }
+    }
+}
+
+MapCustomLiteralClone := enum {
+    Empty, Number: I64,
+namespace:
+    clone := func(self: MapCustomLiteralClone) returns MapCustomLiteralClone {
+        map_enum_clones++
+        if self.is(MapCustomLiteralClone.Empty) { return MapCustomLiteralClone.Number(99) }
+        return MapCustomLiteralClone.Empty
+    }
+}
+
+test_map_custom_enum_lifecycle := test() {
+    map_enum_clones = 0
+    map_enum_drops = 0
+    {
+        mut values := Map(I64, MapCustomLifecycle).new()
+        values.set(1, own MapCustomLifecycle.Number(7))
+        mut snapshot := values.clone()
+        assert_eq(I64, map_enum_clones, 1)
+        ref copied : MapCustomLifecycle = snapshot.get(1)!
+        switch copied {
+        case .Number(value): assert_eq(I64, value, 8)
+        case: panic("custom enum clone result")
+        }
+        values.set(1, own MapCustomLifecycle.Number(9))
+        assert_eq(I64, map_enum_drops, 1)
+        values.clear()
+        snapshot.clear()
+        assert_eq(I64, map_enum_drops, 3)
+        // The container above reaches its hooks implicitly. This separate
+        // type checks that cloning a literal cannot bypass a custom hook.
+        literal := MapCustomLiteralClone.Empty.clone()
+        assert_eq(I64, map_enum_clones, 2)
+        switch literal {
+        case .Number(value): assert_eq(I64, value, 99)
+        case: panic("custom literal clone result")
+        }
+    }
+    assert_eq(I64, map_enum_drops, 3)
+}

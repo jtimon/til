@@ -1372,17 +1372,15 @@ priv holyc_enum_init := func(type_name: Str, dest: Str, e: Expr, depth: USize,
     }
     if e.node_type.is(NodeType.FCall) {
         if variant_name == "clone" {
-            if holyc_struct_method_is_generated(type_name, "clone", ctx).not() {
-                error = format("custom enum clone for '", type_name, "' is not supported yet")
-                return ""
-            }
-            switch e.children[1].node_type {
-            case .FieldAccess(fa):
-                variant_index := enum_variant_index(def, fa.field_access_name(ctx.symbols.names))
-                if variant_index.gte(0).and(holyc_field_owner_name(e.children[1], ctx.symbols).eq(type_name)) {
-                    return holyc_enum_init(type_name, dest, e.children[1], depth, ctx, state, locals, error)
+            if holyc_struct_method_is_generated(type_name, "clone", ctx) {
+                switch e.children[1].node_type {
+                case .FieldAccess(fa):
+                    variant_index := enum_variant_index(def, fa.field_access_name(ctx.symbols.names))
+                    if variant_index.gte(0).and(holyc_field_owner_name(e.children[1], ctx.symbols).eq(type_name)) {
+                        return holyc_enum_init(type_name, dest, e.children[1], depth, ctx, state, locals, error)
+                    }
+                case:
                 }
-            case:
             }
             src := holyc_struct_ref(e.children[1], ctx, locals, error)
             return format(prefix, type_name, "_Clone(&", dest, ", ", src, ");\n")
@@ -4645,40 +4643,9 @@ priv holyc_struct_field_ctype := func(owner: Str, field_name: Str,
     return ""
 }
 
-priv holyc_payload_lifecycle := func(name: Str, ctx: Context,
-    state: HolyCEmitState, mut error: Str) {
-    if holyc_aggregate_type(name, state).not() { return }
-    // These containers already have native clone/delete helpers, even though
-    // their shared source methods are not auto-generated struct lifecycle.
-    if state.collection_elements.has(name).or(state.map_keys.has(name)).or(state.set_elements.has(name)) { return }
-    ref def : Expr = ctx.scope.get_struct(name, ctx.symbols).unwrap()
-    for method : Str in "clone delete".split(" ") {
-        if def_ns_has(def, method).and(holyc_struct_method_is_generated(name, method, ctx).not()) {
-            error = format("custom payload method '", name, ".", method, "' is not supported yet")
-            return
-        }
-    }
-    switch def.node_type {
-    case .StructDef(sd):
-        for field : Declaration in sd.fields {
-            holyc_payload_lifecycle(decl_type_name_ref(field, ctx.symbols), ctx, state, error)
-            if error.len() > 0 { return }
-        }
-    case .EnumDef(ed):
-        for variant : VariantDef in ed.variants {
-            if variant.payload_ref { continue }
-            holyc_payload_lifecycle(variant.payload_type, ctx, state, error)
-            if error.len() > 0 { return }
-        }
-    case:
-    }
-}
-
 priv holyc_enum_definition := func(name: Str, def: Expr, ctx: Context,
     state: HolyCEmitState, mut error: Str) returns Str {
     ref ed : EnumDef = enumdef_of(def)
-    holyc_payload_lifecycle(name, ctx, state, error)
-    if error.len() > 0 { return "" }
     mut out := format("class ", name, " {\n  ", state.enum_types[name], " tag;\n  union {\n")
     for variant : VariantDef in ed.variants {
         if variant.payload_type.len() == 0 { continue }
@@ -4700,6 +4667,10 @@ priv holyc_enum_definition := func(name: Str, def: Expr, ctx: Context,
         }
     }
     for method : Str in "CopyValue Clone Delete Eq".split(" ") {
+        if state.needed_methods.has(name) {
+            if method.eq("Clone").and(state.needed_methods[name].has("clone")) { continue }
+            if method.eq("Delete").and(state.needed_methods[name].has("delete")) { continue }
+        }
         if method.eq("Eq").and(holyc_struct_eq_supported(name, ctx, state).not()) { continue }
         if method == "Eq" {
             out = format(out, "Bool ", name, "_Eq(", name, " *a, ", name, " *b)\n{\n",
@@ -4828,7 +4799,7 @@ priv holyc_collection_move_element := func(elem: Str, dest: Str, src: Str,
     return format(indent, dest, " = ", src, ";\n", indent, src, " = 0;\n")
 }
 
-priv holyc_collection_definition := func(name: Str, ctx: Context, state: HolyCEmitState,
+priv holyc_collection_definition := func(name: Str, state: HolyCEmitState,
     mut error: Str) returns Str {
     ref elem : Str = state.collection_elements[name]
     ctype := holyc_value_ctype(elem, state)
@@ -4838,10 +4809,6 @@ priv holyc_collection_definition := func(name: Str, ctx: Context, state: HolyCEm
         .or(holyc_callable_type(elem, state)).or(is_managed).not() {
         error = format("unsupported collection element type '", elem, "'")
         return ""
-    }
-    if holyc_aggregate_type(elem, state) {
-        holyc_payload_lifecycle(elem, ctx, state, error)
-        if error.len() > 0 { return "" }
     }
     mut value_param := format(ctype, " value")
     if is_managed { value_param = format(ctype, " *value") }
@@ -5374,7 +5341,7 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, mut state: HolyCEmit
                         vec_name := format("Vec__", elem)
                         if state.vec_names.has(vec_name).and(state.vec_names.has(decl.name).not())
                             .and(emitted.has(vec_name).not()) { continue }
-                        collection := holyc_collection_definition(decl.name, lp.ctx, state, error)
+                        collection := holyc_collection_definition(decl.name, state, error)
                         if error.len() > 0 { return }
                         output = format(output, collection)
                         holyc_collect_aggregate_output(output, classes, helpers)
@@ -5537,7 +5504,7 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, mut state: HolyCEmit
             vec_name := format("Vec__", elem)
             if state.vec_names.has(vec_name).and(state.vec_names.has(name).not())
                 .and(emitted.has(vec_name).not()) { continue }
-            collection := holyc_collection_definition(name, lp.ctx, state, error)
+            collection := holyc_collection_definition(name, state, error)
             if error.len() > 0 { return }
             output = format(output, collection)
             holyc_collect_aggregate_output(output, classes, helpers)
@@ -5952,7 +5919,7 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             ref decl : Declaration = decl_of(stmt)
             ref name : Str = decl.name
-            if state.struct_names.has(name).not() { continue }
+            if state.struct_names.has(name).or(state.payload_enum_names.has(name)).not() { continue }
             if state.collection_elements.has(name).or(state.map_keys.has(name)).or(state.set_elements.has(name)) { continue }
             ref def : Expr = lp.ctx.scope.get_struct(name, lp.ctx.symbols).unwrap()
             for method : Str in array(Str, "clone", "delete") {

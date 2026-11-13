@@ -867,10 +867,11 @@
 
   Keep ~bin/til translate --target=templeos -c tmp/til.HC src/til.til~ as a
   development pressure test, not a claim of a working TempleOS compiler.
-  The latest full attempt on ~e2c6b3f8c~ plus the namespace changes, at both
-  USize widths, passes ~FFITypePtrBox_Clone~ and reports ~custom payload method
-  'FFIEntryBox.clone' is not supported yet~. Dynamic Map values, nested ordered
-  containers and scalar namespace storage pass shared native regressions.
+  The latest full attempt on ~22169738f~ plus the custom-payload changes, at
+  both USize widths, passes ~FFIEntryBox.clone~ and reaches
+  ~TypeScope_active_type_name: unsupported switch subject type 'Enum'~.
+  Dynamic Map values, nested ordered containers, scalar namespace storage and
+  custom nested lifecycle hooks pass shared native regressions.
   General Dynamic-to-typed casts, the remaining
   compiler data/operation shapes, and actual foreign/native boundaries still
   need coverage. Translation, native compilation and a usable compiler are
@@ -1706,6 +1707,41 @@
   Both compiler-to-HolyC pressure tests reach the custom ~FFIEntryBox.clone~
   payload diagnostic, beyond the instance-size-field failure. The commit uses
   the two-pass workflow so boot/ reflects the new folding rules self-applied.
+
+**** Custom nested clone/delete hooks
+
+  Aggregate payloads and typed collections already call the native
+  ~Type_Clone~ / ~Type_Delete~ helpers. The blanket validator that rejected
+  handwritten payload lifecycle methods is removed; their actual source
+  bodies are emitted through the ordinary method path. Payload enum hooks
+  are now registered before helper emission, and an overridden clone/delete
+  suppresses the corresponding generated helper rather than producing two
+  definitions. Move/copy-value operations retain their existing transfers.
+
+  A custom enum clone also runs for a literal variant: the generated-clone
+  literal shortcut must not bypass a handwritten hook or its result.
+  The common Map suite covers nested Vec resources, direct and struct-wrapped
+  enum payloads, owned-pointer payloads, implicit custom enum lifecycle calls
+  through a container, and a custom literal clone that changes the variant.
+  Resource clone hooks copy an eight-byte raw buffer whose field label is U8,
+  so a generated one-byte clone cannot accidentally pass. Counters check exact
+  clone/drop deltas and outer frees, and the native allocation ledger checks
+  complete cleanup at both USize widths.
+
+  The lifecycle ledger is module-level test instrumentation, reset before each
+  resource case. Keeping a ref to mutable counters inside every resource made
+  the clone hook write through a borrowed field of Vec.clone's read-only self;
+  master's field-write effect tracking reported that conflict after rebasing.
+  External accounting retains every exact clone/drop/free assertion
+  without making the cloned resources carry mutable instrumentation borrows.
+
+  Verification on master ~22169738f~: ~make clean && make test~ passes
+  575/575, including clang validation. The common Map suite passes 21/21
+  interpreted and compiled, plus C/ASAN at O0/O2 and USize32/64. All ten focused
+  native allocation-ledger cases pass, including those 21 Map cases at each
+  width. Both compiler-to-HolyC pressure tests pass the former custom-hook
+  rejection and reach ~TypeScope_active_type_name~'s unnamed Enum switch
+  diagnostic.
 
 **** Manual GUI testing in one VM
 
