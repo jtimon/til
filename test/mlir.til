@@ -259,6 +259,102 @@ priv check_str_composition := proc(compiler:Str,work:Str) {
     }
 }
 
+priv check_diagnostics := proc(compiler:Str,work:Str) {
+    File.writefile(format(work,"/diagnostic_helpers.til"),format("mode lib\n",
+        "empty_once:=proc(){print();println();print_flush()}\nemit:=proc(s:Str){print(\"<\",s,\">\");println(\"!\",s);eprint_single(\"E\");eprint_single(s);eprint_single(\"\\n\")}\nhealthy:=func(n:I64,s:Str){assert(n>=0);expect(n==0,\"unused \",s,loc=\"success:site\")}\n",
+        "priv marked:=func(mut trace:I64,s:Str,tag:I64) returns Str{trace=trace*10+tag;return s.clone()}\nordered:=proc(s:Str){mut trace:I64=0;print(marked(trace,s,1),marked(trace,\":\",2),marked(trace,s,3));assert(trace==123);println()}\n",
+        "fatal_value:=func(n:I64) returns I64{if n>0{panic(\"stop\",loc=\"fatal:site\")};return 9}\nterminate:=proc(code:I64){print(\"exit\\0\");exit(code)}\n"))
+    File.writefile(format(work,"/diagnostic_reference.til"),"mode cli\nimport(\"diagnostic_helpers\")\nmain:=proc(){mut n:I64=-1;n++;s:=format(\"A\\0\",\"B\");for _ in 0..32{empty_once();healthy(n,s);emit(s);ordered(s);assert_eq(I64,fatal_value(n),9)}}\n")
+    File.writefile(format(work,"/diagnostic_caller.c"),format(
+        "#include <assert.h>\n#include <stdint.h>\ntypedef struct{char*data;uint64_t count,cap;}Text;extern void empty_once(void),healthy(int64_t,const Text*),emit(const Text*),ordered(const Text*);extern int64_t fatal_value(int64_t);\n",
+        "int main(void){char bytes[3]={'A',0,'B'};Text s={bytes,3,UINT64_MAX-1};for(int i=0;i<32;i++){empty_once();healthy(0,&s);emit(&s);ordered(&s);assert(fatal_value(0)==9);}return 0;}\n"))
+    File.writefile(format(work,"/diagnostic_consumer.til"),format("mode cli\nlink(\"gen/lib/libdiagnostic_helpers.so\")\n",
+        "empty_once:=ext_proc(){}\nhealthy:=ext_func(shallow n:I64,s:Str){}\nemit:=ext_proc(s:Str){}\nordered:=ext_proc(s:Str){}\nfatal_value:=ext_func(shallow n:I64) returns shallow I64{}\n",
+        "main:=proc(){mut n:I64=-1;n++;s:=format(\"A\\0\",\"B\");for _ in 0..32{empty_once();healthy(n,s);emit(s);ordered(s);assert_eq(I64,fatal_value(n),9)}}\n"))
+    reference:=Cmd.new(compiler,"run","--usize=64","diagnostic_reference.til")
+    checked(reference,work)
+    interpreted:=Cmd.new(compiler,"interpret","--usize=64","diagnostic_reference.til")
+    checked(interpreted,work)
+    assert_eq(Str,interpreted.out(),reference.out())
+    assert_eq(Str,interpreted.err(),reference.err())
+    bodies:=array(Str,
+        "panic(\"default \",s)",
+        "panic(\"explicit \",s,loc=\"custom:7:9\")",
+        "assert(seed==0)",
+        "assert(seed==0,loc=\"assert:site\")",
+        "expect(seed==0,loc=\"expect:empty\")",
+        "expect(seed==0,\"message\\0\",s)",
+        "TODO()",
+        "TODO(\"owned \",s,loc=\"todo:site\")",
+        "UNREACHABLE()",
+        "UNREACHABLE(\"owned \",s,loc=\"unreachable:site\")",
+        "forward(seed)",
+        "forward(seed,loc=\"forward:explicit\")",
+        "println(fatal_value(seed).to_str())")
+    mut messages:=Vec(Str).new()
+    mut errors:=Vec(Str).new()
+    for i in 0..bodies.len() {
+        name:=format("diagnostic_failure_",i.to_str(),".til")
+        File.writefile(format(work,"/",name),format("mode cli\nimport(\"diagnostic_helpers\")\nforward:=func(value:I64,loc:Str=__LOC__){if value>0{panic(\"nested\",loc=loc)}}\nmain:=proc(){mut seed:I64=0;seed++;s:=format(\"item\",seed.to_str());healthy(seed-1,s);assert(s.len()>0);eprint_single(\"trace\\0err\\n\");",bodies[i],"}\n"))
+        expected:=Cmd.new(compiler,"run","--usize=64",name)
+        expected.cwd(work).capture()
+        expected_status:=expected.run()
+        expect(expected_status==1,expected.out(),expected.err())
+        expect(expected.out().contains(": panic: "),expected.out(),expected.err())
+        assert_eq(Str,expected.err(),"trace\0err\n")
+        interp:=Cmd.new(compiler,"interpret","--usize=64",name)
+        interp.cwd(work).capture()
+        interp_status:=interp.run()
+        expect(interp_status==1,interp.out(),interp.err())
+        assert_eq(Str,interp.out(),expected.out())
+        assert_eq(Str,interp.err(),expected.err())
+        messages.push(own expected.out());errors.push(own expected.err())
+    }
+    statuses:=array(I64,0,1,7,255,256,4294967297,-1)
+    exits:=array(I64,0,1,7,255,0,1,255)
+    for i in 0..statuses.len() {
+        name:=format("diagnostic_exit_",i.to_str(),".til")
+        File.writefile(format(work,"/",name),format("mode cli\nimport(\"diagnostic_helpers\")\nmain:=proc(){mut status:I64=",statuses[i].to_str(),";status=status+0;terminate(status)}\n"))
+        for execution in array(Str,"interpret","run") {
+            expected:=Cmd.new(compiler,execution,"--usize=64",name)
+            expected.cwd(work).capture()
+            assert_eq(I64,expected.run(),exits[i])
+            assert_eq(Str,expected.out(),"exit\0")
+            assert_eq(Str,expected.err(),"")
+        }
+    }
+    for level in array(Str,"0","2","3") {
+        build:=Cmd.new(compiler,"build","--backend=mlir",format("--opt=",level),"diagnostic_helpers.til")
+        checked(build,work)
+        audit:=Cmd.new("nm","-u","gen/lib/diagnostic_helpers.o")
+        checked(audit,work)
+        for line:Str in audit.out().split("\n") {
+            if line.contains("til_tilcore") {expect(line.ends_with("__print_single").or(line.ends_with("__print_flush")),line)}
+        }
+        cc:=Cmd.new("clang-18","-O2","-Wall","-Wextra","-Werror","-fsanitize=address,undefined","diagnostic_caller.c","gen/lib/libdiagnostic_helpers.a","-lm","-o","diagnostic_caller")
+        checked(cc,work)
+        native:=Cmd.new("./diagnostic_caller")
+        checked(native,work)
+        assert_eq(Str,native.out(),reference.out());assert_eq(Str,native.err(),reference.err())
+        consumer:=Cmd.new(compiler,"run","--usize=64","--asan",format("--opt=",level),"diagnostic_consumer.til")
+        checked(consumer,work)
+        assert_eq(Str,consumer.out(),reference.out());assert_eq(Str,consumer.err(),reference.err())
+        for i in 0..bodies.len() {
+            failure:=Cmd.new(compiler,"run","--backend=mlir",format("--opt=",level),format("diagnostic_failure_",i.to_str(),".til"))
+            failure.cwd(work).capture()
+            failure_status:=failure.run()
+            expect(failure_status==1,failure.out(),failure.err())
+            assert_eq(Str,failure.out(),messages[i]);assert_eq(Str,failure.err(),errors[i])
+        }
+        for i in 0..statuses.len() {
+            status:=Cmd.new(compiler,"run","--backend=mlir",format("--opt=",level),format("diagnostic_exit_",i.to_str(),".til"))
+            status.cwd(work).capture()
+            assert_eq(I64,status.run(),exits[i])
+            assert_eq(Str,status.out(),"exit\0");assert_eq(Str,status.err(),"")
+        }
+    }
+}
+
 priv check_control_flow := proc(compiler: Str, work: Str) {
     File.writefile(format(work, "/flow.til"), format(
         "mode pure\nF4 := Simd(F32,4)\nCount := USize\n",
@@ -1580,6 +1676,7 @@ main := proc(compiler_arg: Str) {
     compiler := realpath_str(compiler_arg)
     work := "tmp/mlir_integration"
     mkdir_p(work)
+    check_diagnostics(compiler,work)
     check_str_composition(compiler,work)
     check_str_more(compiler,work)
     check_str_bodies(compiler,work)

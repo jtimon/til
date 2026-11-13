@@ -992,9 +992,36 @@
   in valid standalone C (see #317). The native MLIR encoder passes the bytewise
   checks and the ASAN/UBSAN native caller.
 
+  print/println, panic/assert/expect and TODO/UNREACHABLE now emit their ordinary
+  prepared bodies too. Printing retains the native print_single/eprint_single
+  and print_flush boundaries; print_flush keeps its existing newline behavior.
+  The raw print_single/print_flush implementations currently reside in the C
+  support partition, while eprint_single is in ext.c. Diagnostics use the same
+  direct format and Array(Str) cleanup as other calls, with default/explicit
+  caller locations unchanged. exit lowers to libc's int ABI (truncating core's
+  I64 status as C does) and terminates the LLVM block with unreachable.
+
+  Checked numeric-cast failures construct their message through the direct
+  Array(Str).new/set and panic helpers. Reachability roots those synthetic
+  dependencies only for floating-to-integer checked casts; infallible casts do
+  not pull diagnostic bodies into otherwise independent objects. Bounds/NaN
+  checks still precede LLVM fptosi/fptoui, and imported source locations retain
+  their original numeric-cast diagnostic.
+
+  check_diagnostics compares counted stdout/stderr (including embedded NULs),
+  empty printing, newlines, operand order, repeated successful assert/expect
+  cleanup, default/explicit/forwarded locations and non-returning branches.
+  Native ASAN/UBSAN and til ASAN callers run at O0/O2/O3; subprocesses check all
+  diagnostic wrappers and exit-status narrowing. Its object-symbol audit permits
+  only print_single/print_flush C-core references. A broader audit of 25 current
+  integration objects additionally finds ordinary swap_bytes and I32.to_str
+  references; the latter still reaches the remaining integer-formatting path.
+  This is an audit of MLIR-object references, not of C-core-origin/transitive
+  calls. The generic bridge and save_old_delete emitter path also remain.
+
   MLIR now emits Str literals, locals, borrowed/mutable/own parameters and
   value returns, plus the Array(Str) packing used by variadic core calls.
-  ~println~, ~print~, ~panic~, remaining string methods and numeric formatting
+  Remaining string methods and numeric formatting
   call the existing C-compiled core/runtime implementations. This is a
   temporary implementation bridge, not the intended final backend architecture.
   The goal is to emit til core bodies directly as MLIR, depending on libc and

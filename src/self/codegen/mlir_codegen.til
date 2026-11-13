@@ -1024,7 +1024,9 @@ priv mlir_callable_inventory := func(lp: LoadedProgram, names: Set(Str)) returns
             if stmt.node_type.is(NodeType.Decl) && stmt.children.len()==1 && stmt.children[0].node_type.is(NodeType.FuncDef) {
                 ref dd:Declaration=decl_of(stmt)
                 synthetic:=lp.ctx.generic_func_synth_names.has(dd.name)
-                if dd.name=="concat3" || dd.name=="format" || synthetic {
+                if dd.name=="concat3" || dd.name=="format" || dd.name=="print" || dd.name=="println"
+                    || dd.name=="panic" || dd.name=="assert" || dd.name=="expect"
+                    || dd.name=="TODO" || dd.name=="UNREACHABLE" || synthetic {
                     mut source_path:=unit.path.clone()
                     if synthetic {source_path=mlir_generic_source(dd,lp)}
                     functions.push(own MlirCallable(path=unit.path.clone(),source_path=source_path,declaration=i,
@@ -1065,6 +1067,15 @@ priv mlir_callable_inventory := func(lp: LoadedProgram, names: Set(Str)) returns
     return functions
 }
 
+priv mlir_require_function := func(symbol:Str,functions:Map(UPtr,MlirCallable),mut selected:Set(UPtr),mut pending:Vec(UPtr)) {
+    for id:UPtr in functions.keys {
+        if functions[id].symbol!=symbol {continue}
+        if selected.has(id).not() {selected.add(own id.clone());pending.push(own id.clone())}
+        return
+    }
+    panic("MLIR required core function is absent: ",symbol)
+}
+
 priv mlir_collect_calls := func(e: Expr, functions: Map(UPtr,MlirCallable), mut selected: Set(UPtr), mut pending: Vec(UPtr), lp: LoadedProgram) {
     if e.node_type.is(NodeType.FuncDef) { return }
     if e.node_type.is(NodeType.FCall) {
@@ -1077,6 +1088,23 @@ priv mlir_collect_calls := func(e: Expr, functions: Map(UPtr,MlirCallable), mut 
         }
         target := resolve_direct_fcall(e,lp.ctx.scope,lp.ctx.symbols)
         if target.is_some() {
+            // Checked floating casts synthesize a panic edge during emission.
+            // Root its ordinary helpers without pulling diagnostics into
+            // modules containing only infallible integer/float conversions.
+            ref callee:Expr=e.children[0]
+            if e.children.len()==3 && callee.node_type.is(NodeType.Ident)
+                && ident_of(callee).ident_name(lp.ctx.symbols.names)=="cast"
+                && funcdef_of(target.unwrap()).sig.func_type.is_bodyless() {
+                source:=mlir_type(e.children[1].til_type(),lp)
+                cast_type:=type_from_name_init_name(ident_of(e.children[2]).ident_name(lp.ctx.symbols.names),lp.ctx.scope,lp.ctx.symbols)
+                cast_target:=mlir_type(cast_type,lp)
+                if mlir_float(source).or(source=="vector<4xf32>")
+                    && (mlir_integer_bits(cast_target)>0 || cast_target=="vector<4xi32>") {
+                    mlir_require_function("til.mlir.core.Array__Str.new",functions,selected,pending)
+                    mlir_require_function("til.mlir.core.Array__Str.set",functions,selected,pending)
+                    mlir_require_function("til.mlir.core.panic",functions,selected,pending)
+                }
+            }
             id := mlir_callable_id(target.unwrap())
             if functions.has(id).and(selected.has(id).not()) { selected.add(own id.clone());pending.push(own id.clone()) }
         }
@@ -1234,12 +1262,9 @@ priv mlir_cast_failure := func(e: Expr, mut state: MlirState, lp: LoadedProgram)
     str_type := mlir_type(type_from_name_init_name("Str", lp.ctx.scope, lp.ctx.symbols), lp)
     array_type := mlir_type(type_from_name_init_name("Array__Str", lp.ctx.scope, lp.ctx.symbols), lp)
     count_type := mlir_count_type(lp)
-    new_name := format(lp.ctx.builder_core_c_prefix, lp.ctx.builder_core_c_names["Array__Str_new"])
-    set_name := format(lp.ctx.builder_core_c_prefix, lp.ctx.builder_core_c_names["Array__Str_set"])
-    panic_name := format(lp.ctx.builder_core_c_prefix, lp.ctx.builder_core_c_names["panic"])
-    state.externals.set(new_name, own format("  llvm.func @\"", new_name, "\"(", count_type, ") -> ", array_type, "\n"))
-    state.externals.set(set_name, own format("  llvm.func @\"", set_name, "\"(!llvm.ptr, ", count_type, ", !llvm.ptr, !llvm.ptr)\n"))
-    state.externals.set(panic_name, own format("  llvm.func @\"", panic_name, "\"(!llvm.ptr, !llvm.ptr)\n"))
+    new_name := "til.mlir.core.Array__Str.new"
+    set_name := "til.mlir.core.Array__Str.set"
+    panic_name := "til.mlir.core.panic"
     state.externals.set("malloc", own "  llvm.func @malloc(i64) -> !llvm.ptr\n")
     one := mlir_value(state, format("arith.constant 1 : ", count_type))
     array := mlir_value(state, format("llvm.call @\"", new_name, "\"(", one, ") : (", count_type, ") -> ", array_type))
@@ -1359,7 +1384,7 @@ priv mlir_pod_field_address := proc(parent: Expr, field: Str, mut state: MlirSta
 priv mlir_memory_primitive := func(name: Str) returns Bool {
     switch name {
     case "to_ptr", "ptr_add", "deref", "write_ptr", "ptr_eq", "is_null", "word_bits",
-         "malloc", "calloc", "realloc", "free", "memcpy", "memmove", "memset", "memcmp",
+         "malloc", "calloc", "realloc", "free", "memcpy", "memmove", "memset", "memcmp", "exit",
          "write_i64", "write_u8", "write_i8", "write_i16", "write_u16", "write_i32", "write_u32", "write_u64", "write_f32", "write_bool": return true
     case: return false
     }
@@ -1395,6 +1420,15 @@ priv mlir_pointer_result := proc(pointer: Str, e: Expr, borrow: Bool, mut state:
 }
 
 priv mlir_memory_call := proc(e: Expr, name: Str, borrow: Bool, mut state: MlirState, mut lp: LoadedProgram) returns Str {
+    if name=="exit" {
+        // Core spells the status I64; libc's boundary is int, as in C output.
+        raw:=mlir_expr(e.children[1],state,lp)
+        code:=mlir_coerce(raw,e.children[1],"i32",state,lp)
+        state.externals.set("exit",own "  llvm.func @exit(i32)\n")
+        state.text=format(state.text,"    llvm.call @exit(",code,") : (i32) -> ()\n    llvm.unreachable\n")
+        state.terminated=true
+        return ""
+    }
     if name=="malloc" || name=="calloc" || name=="realloc" {
         mut args:=""
         mut types:=""
@@ -2538,6 +2572,7 @@ mlir_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_function
     while next < pending.len() {
         ref callable : MlirCallable = functions[pending[next]]
         ref function : Expr = mlir_callable_expr(callable,lp)
+        context_enter_file(lp.ctx,callable.source_path)
         mlir_collect_calls(function.children[0],functions,selected,pending,lp)
         next++
     }

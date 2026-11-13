@@ -159,6 +159,52 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Printing, diagnostics and checked-cast failure helpers (base bad794adb)
+
+print/println, panic/assert/expect and TODO/UNREACHABLE now emit their prepared
+core bodies. The existing counted print_single/eprint_single and newline
+print_flush primitives stay at the native boundary. exit uses libc's int ABI,
+including the C conversion from the declared I64 status, and emits unreachable.
+The ordinary helper call graph preserves caller/default/explicit loc arguments
+and all Array(Str) ownership/destruction decisions.
+
+Checked floating-to-integer casts now call direct Array(Str).new/set and panic
+bodies instead of explicitly named C-core functions. The graph collector roots
+these generated dependencies only where a checked failure edge is emitted;
+infallible conversions do not acquire printing/diagnostic dependencies. Call
+collection enters each body's source context before resolving the cast target.
+
+test/mlir.til check_diagnostics compares counted stdout/stderr, embedded NULs,
+empty print/println, newline behavior, argument order, repeated successful
+assert/expect cleanup, all diagnostic wrappers, forwarded/default/explicit
+locations and non-returning branches. It tests statuses 0, 1, 7, 255, 256,
+4294967297 and -1 against interpreter/C at O0/O2/O3, with native ASAN/UBSAN and
+til ASAN consumers. Existing scalar/vector/imported numeric-cast failures now
+exercise the direct panic path too. Options tests verify private definitions,
+no-value-return fatal bodies and absence of the old C-core cast/panic entries.
+
+**** Remaining-reference audit
+
+nm -u on the 25 current MLIR integration objects finds four distinct direct
+C-core names: print_single, print_flush, swap_bytes and I32_to_str. The first
+two are raw native glue emitted into the existing C support partition. The
+other two are ordinary til bodies: memory.o uses swap_bytes, and stack_abi.o
+uses I32.to_str (which forwards through the remaining integer-formatting path).
+diagnostic_helpers.o is checked in the integration test to allow only the two
+printing primitive C-core references; eprint_single comes from the runtime.
+
+This inventories direct MLIR-object references. The C partition still has its
+own internal/transitive calls, and the emitter retains a generic runtime bridge
+plus its separate save_old_delete cleanup path. The next bridge work is the
+ordinary swap_bytes/integer-formatting bodies and separation of retained raw
+printing glue from generated til core. No partition/artifact/layout change is
+made in this increment.
+
+Verification: make clean && make test passes 574/574. The ASAN compiler and
+ASAN integration driver pass the full optional MLIR suite, including the
+diagnostic native ASAN/UBSAN and til ASAN callers, scalar/vector cast failures,
+all wrapper failure/location cases and exit statuses at O0/O2/O3.
+
 *** Str construction, composition and variadic formatting (base e2c6b3f8c)
 
 Str.from_byte/from_codepoint, get_char, strip_prefix/strip_suffix and replace
