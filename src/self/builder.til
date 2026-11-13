@@ -1255,7 +1255,9 @@ fasm_prepare := proc(root: Str, required: Bool) returns I32 {
 priv compile_fasm := proc(lp: LoadedProgram, paths: BuildPaths) returns I32 {
     assembler := format(lp.ctx.import_support_dir, "/vendor/fasm/fasm")
     if fasm_prepare(lp.ctx.import_support_dir, true) != 0 { return 1 }
-    assemble := Cmd.new(assembler, paths.c_path, paths.bin_path)
+    // Wide-vector helpers and checked lazy arms can exceed FASM's default
+    // 16 MiB workspace even for a sub-megabyte executable.
+    assemble := Cmd.new(assembler, "-m", "32768", paths.c_path, paths.bin_path)
     if assemble.run() != 0 { File.remove(paths.bin_path); return 1 }
     permissions := Cmd.new("chmod", "+x", paths.bin_path)
     if permissions.run() != 0 { return 1 }

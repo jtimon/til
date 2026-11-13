@@ -777,6 +777,37 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   wide corpus at both target widths, and C ASAN/UBSAN runs passed at USize32/O0
   and USize64/O2 without diagnostics. Native assembly is not ASAN-instrumented.
 
+**** Checked Bool reads in short-circuit arms
+
+  On base ~bad794adb~, mask[0] && mask[3] failed shared type checking with
+  an empty-versus-Bool match-arm type. Panic-on-throw lowering treated the
+  arm's final getter as a discarded statement and appended its checks after
+  it, losing the value position. The arm now binds that final bang result
+  before statement lowering and leaves the binding as its final expression.
+  Ownership follows the callee, and the call/checks remain inside the lazy arm.
+
+  Shared match regressions cover direct/nested scalar and owned-Str bang
+  results plus checked Bool containers. SIMD checks cover &&/||, method and
+  n-ary forms, taken/skipped index side effects and skipped invalid indices.
+  The native driver runs the full match corpus, compares evaluated bounds
+  failures against C/interpreter, and checks compound Bool reads at width 1024.
+
+  Running the current native corpus also exposed FASM treating a value's
+  field named size as the auto-generated namespace method. Runtime receiver
+  bindings now distinguish actual fields from static namespace accesses,
+  pinned by the existing namespace tests. The valid wide source exhausted
+  FASM's default 16 MiB workspace; program assembly now explicitly uses its
+  existing 32 MiB setting, which assembles that same source successfully.
+
+  Verification: ~make clean && make test~ passed 574/574, including self-translate
+  and USize32-to-64 translation. Both FASM drivers passed at both widths,
+  including evaluated bounds failures and the compound 1024-lane Bool read.
+  The ASAN-built compiler passed all 18 match cases in interpretation and the
+  wide SIMD corpus through native assembly at both target widths. Focused C
+  ASAN/UBSAN match checks passed at USize32/O0 and USize64/O2; the wide corpus
+  also passed at USize64/O2. No sanitizer diagnostics were reported; emitted
+  native assembly itself is not ASAN-instrumented.
+
   Differential testing against C and interpretation is a primary motivation.
   Selective future JIT execution could amortize compilation for expensive or
   repeated work. In-process code allocation, relocation, lifetime management

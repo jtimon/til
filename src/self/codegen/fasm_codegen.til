@@ -115,9 +115,25 @@ priv fasm_global_body := proc(root: Expr, phase: USize, mut program: FasmProgram
     return body
 }
 
-priv fasm_namespace_name := func(e: Expr, lp: LoadedProgram) returns Str {
+priv fasm_namespace_name := func(e: Expr, lp: LoadedProgram, state: FasmState) returns Str {
     if fa_is_ns(e, lp.ctx.scope, lp.ctx.symbols).not() { return "" }
     ref owner : Expr = e.children[0]
+    mut instance:=true
+    switch owner.node_type {
+    case .Ident(id): instance=state.values.has(id.ident_name(lp.ctx.symbols.names))
+    case:
+    }
+    if instance.and(is_struct_type(owner.til_type())) {
+        ref definition:Expr=lp.ctx.scope.get_struct(type_name_ref(owner.til_type(),lp.ctx.symbols),lp.ctx.symbols).unwrap()
+        ref sd:StructDef=structdef_of(definition)
+        // A value's actual field wins over a same-named namespace method
+        // (for example source.size versus NamespaceSized.size()).
+        switch e.node_type {
+        case .FieldAccess(field): if sd.fields_index.has(field.field_access_name(lp.ctx.symbols.names)) { return "" }
+        case .FieldAssign(field): if sd.fields_index.has(field.name) { return "" }
+        case: UNREACHABLE("namespace access without a field")
+        }
+    }
     mut owner_name := ""
     if is_named_type(owner.til_type()) { owner_name = type_name_ref(owner.til_type(), lp.ctx.symbols).clone() }
     else { owner_name = ident_of(owner).ident_name(lp.ctx.symbols.names).clone() }
@@ -745,7 +761,7 @@ priv fasm_callee_name := func(e: Expr, lp: LoadedProgram) returns Str {
 priv fasm_boxed := func(e: Expr, state: FasmState, lp: LoadedProgram) returns Bool {
     if type_is_callable_storage(e.til_type()) { return false }
     if fasm_enum_literal_index(e, lp) >= 0 { return false }
-    global_name := fasm_namespace_name(e, lp)
+    global_name := fasm_namespace_name(e, lp, state)
     if global_name.len() > 0 { return state.boxes.has(global_name) }
     switch e.node_type {
     case .Ident(id):
@@ -814,7 +830,7 @@ priv fasm_static_value := proc(e: Expr, shallow t: Type, mut state: FasmState, m
         switch e.node_type {
         case .Ident(id): name = id.ident_name(lp.ctx.symbols.names).clone()
         case .FuncDef, .BodyValue: name = fasm_closure_name(e)
-        case .FieldAccess: name = fasm_namespace_name(e, lp)
+        case .FieldAccess: name = fasm_namespace_name(e, lp, state)
         case:
         }
         if state.program.definitions.has(name).not() { fasm_error(e, "unsupported precomputed callable", lp); return "" }
@@ -987,7 +1003,7 @@ priv fasm_owned := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
         fasm_box_copy(t, state, lp)
         return
     }
-    global_name := fasm_namespace_name(e, lp)
+    global_name := fasm_namespace_name(e, lp, state)
     if global_name.len() > 0 {
         fasm_pointer(e, state, lp)
         ref global : FasmGlobal = state.program.globals[global_name]
@@ -1607,7 +1623,7 @@ priv fasm_pointer := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) 
         }
     }
     if fasm_enum_literal_index(e, lp) >= 0 { fasm_expr(e, state, lp, true); return }
-    global_name := fasm_namespace_name(e, lp)
+    global_name := fasm_namespace_name(e, lp, state)
     if global_name.len() > 0 {
         if state.values.has(global_name).not() {
             if type_is_callable_storage(e.til_type()).and(state.program.definitions.has(global_name)) {
@@ -2154,7 +2170,7 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
         variant := fasm_variant_index(e.children[0], type_name_ref(e.til_type(), lp.ctx.symbols), fasm_enum_def(e.til_type(), lp), lp)
         if variant >= 0 { fasm_enum_constructor(e, e.til_type(), variant, state, lp); return }
     }
-    global_name := fasm_namespace_name(e, lp)
+    global_name := fasm_namespace_name(e, lp, state)
     if global_name.len() > 0 {
         if state.values.has(global_name).not() {
             if type_is_callable_storage(e.til_type()).and(state.program.definitions.has(global_name)) {
@@ -2605,7 +2621,7 @@ priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram, 
                 fasm_store_scalar(stmt.til_type(), state)
             } else { fasm_emit(state, format("mov ", state.values[dd.name], ", rax")) }
         case .FieldAssign(fd):
-            global_name := fasm_namespace_name(stmt, lp)
+            global_name := fasm_namespace_name(stmt, lp, state)
             if global_name.len() > 0 {
                 mut assignment := stmt.clone()
                 assignment.node_type = NodeType.Assign(AssignData(name=global_name.clone(),

@@ -213,3 +213,31 @@ test_nested_match_arm_throwing := test() {
     }
     expect(b, "nested nonempty: taken arms")
 }
+
+match_arm_text := func(ok:Bool) returns Str throws MatchArmErr {
+    if ok.not() { throw MatchArmErr() }
+    return format("owned-","arm")
+}
+test_match_arm_direct_bang_value := test() {
+    value:=match true { case true: pos_or_throw(5)! case: 0 }
+    assert_eq(I64,value,5)
+    skipped:=match false { case true: pos_or_throw(-1)! case: 7 }
+    assert_eq(I64,skipped,7)
+    nested:=match true {
+    case true: match true { case true: pos_or_throw(9)! case: 0 }
+    case: 0
+    }
+    assert_eq(I64,nested,9)
+    text:=match true { case true: match_arm_text(true)! case: "unused" }
+    assert_eq(Str,text,"owned-arm")
+}
+
+test_checked_bool_container_short_circuit := test() {
+    values:=array(Bool,true,false)
+    assert((values[0] && values[1]).not())
+    assert(values[1] || values[0])
+    assert(values[0].and(values[0]))
+    assert(values[1].or(values[0]))
+    assert(and(values[0],values[1],values[99]).not())
+    assert(or(values[1],values[0],values[99]))
+}

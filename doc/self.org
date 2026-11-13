@@ -1167,6 +1167,9 @@
   while loops. Range for loops use the shared frontend lowering; nested
   break/continue and lexical blocks preserve their normal control flow.
   Bool and/or, including &&/|| and their n-ary forms, short-circuit.
+  A checked Bool read can be an operand directly. Shared match-arm lowering
+  retains a final bang call's value after its panic checks, with the call and
+  checks confined to the selected arm; skipped bounds failures are not evaluated.
 
   Integer add/subtract/multiply/inc/dec wrap at the declared width. Division,
   remainder and shifts follow the shared scalar integer contract above,
@@ -1272,6 +1275,8 @@
   this does not yet expose a library ABI. Library output, program arguments,
   other modes, ~-c~, ~--cc~, ~--asan~, ~--prof~, ~--cpu~, ~--opt~, ~link_c~
   and link flags are rejected. See README for the assembler bootstrap.
+  Program assembly uses the vendored assembler's existing 32 MiB workspace
+  setting; large wide-vector/checked-arm sources can exceed its 16 MiB default.
 
   Native test entry points run user-unit test declarations in dependency and
   declaration order, including struct/enum namespace tests. Initialization runs

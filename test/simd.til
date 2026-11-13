@@ -178,6 +178,43 @@ simd_baseline_abi := proc(seed:I64) {
     assert(result.small.eq(F4.splat((seed.to_f32()+1.0)*2.0+1.0)).all())
 }
 
+checked_bool_index := proc(mut calls:I64,index:USize) returns USize {
+    noop_proc()
+    calls++
+    return index
+}
+simd_checked_bool_logic := proc(M:Type,shape:M) {
+    noop_proc()
+    width:=shape.len()
+    mut mask:=shape
+    mask.set(0,own true)!
+    last:=width-1
+    mask.set(last,own false)!
+    assert(mask[0] && mask[0])
+    assert((mask[0] && mask[last]).not())
+    assert(mask[last] || mask[0])
+    assert((mask[last] || mask[last]).not())
+    assert(mask[0].and(mask[0]))
+    assert(mask[last].or(mask[0]))
+    mut calls:I64=0
+    skipped_and:=mask[last] && mask[checked_bool_index(calls,width)]
+    assert(skipped_and.not() && calls==0)
+    skipped_or:=mask[0] || mask[checked_bool_index(calls,width)]
+    assert(skipped_or && calls==0)
+    taken_and:=mask[0] && mask[checked_bool_index(calls,last)]
+    assert(taken_and.not() && calls==1)
+    taken_or:=mask[last] || mask[checked_bool_index(calls,0)]
+    assert(taken_or && calls==2)
+    assert(and(mask[0],mask[last],mask[checked_bool_index(calls,width)]).not())
+    assert(or(mask[last],mask[0],mask[checked_bool_index(calls,width)]))
+    assert(calls==2)
+}
+test_simd_checked_bool_short_circuit := test() {
+    simd_checked_bool_logic(Simd(Bool,2),Simd(Bool,2).zero())
+    simd_checked_bool_logic(FieldMask,FieldMask.zero())
+    simd_checked_bool_logic(Simd(Bool,32),Simd(Bool,32).zero())
+}
+
 simd_baseline_checks := proc(seed:I64) {
     noop_proc()
     simd_baseline_float(F32,F4,Simd(Bool,4),F4.zero(),Simd(Bool,4).zero())
@@ -193,6 +230,8 @@ simd_baseline_checks := proc(seed:I64) {
     simd_select_bits(F32,F4,Simd(Bool,4),U32,array(U32,0x80000000,0x7f800001,0x7fc12345,0xff800000,1,0),F4.zero(),Simd(Bool,4).zero())
     simd_select_bits(F64,D2,Simd(Bool,2),U64,array(U64,0x8000000000000000,0x7ff0000000000001,0x7ff8123456789abc,0xfff0000000000000,1,0),D2.zero(),Simd(Bool,2).zero())
     simd_baseline_abi(seed)
+    simd_checked_bool_logic(Simd(Bool,2),Simd(Bool,2).zero())
+    simd_checked_bool_logic(FieldMask,FieldMask.zero())
     mut source:=F4.splat(seed.to_f32())
     snapshot:=source.fma(fma_replace_source(source),F4.splat(4.0))
     assert(snapshot.eq(F4.splat(seed.to_f32()*3.0+4.0)).all())
@@ -413,6 +452,7 @@ simd_wide_checks := proc() {
     simd_wide_integer(U32,Simd(U32,32),Simd(Bool,32),unsigned,Simd(U32,32).zero(),Simd(Bool,32).zero())
     simd_wide_constructors()
     simd_wide_abi(2)
+    simd_checked_bool_logic(Simd(Bool,32),Simd(Bool,32).zero())
 }
 test_simd_wide_slice := test() { simd_wide_checks() }
 

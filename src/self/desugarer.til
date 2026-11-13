@@ -2423,6 +2423,24 @@ priv process_match_arms_in := proc(
                 // Case = [pattern, (guard,) body]; process its Body arm(s).
                 for mut ccn : Expr in child.children {
                     if ccn.node_type.is(NodeType.Body) {
+                        // An arm's final bang call is a value, not a discarded
+                        // statement. Bind it before lowering appends its panic
+                        // checks, then leave the value after those checks. The
+                        // binding stays inside the arm, preserving laziness.
+                        if ccn.children.len()>0 {
+                            last:=ccn.children.len()-1
+                            ref tail:Expr=ccn.children[last]
+                            if tail.node_type.is(NodeType.FCall).and(fcall_of(tail).is_bang) {
+                                line:=tail.line
+                                col:=tail.col
+                                name:=format("match_value_",synth_suffix(ctx,ctx.bang_counter.to_str()))
+                                ctx.bang_counter++
+                                mut value:=Expr.new(own NodeType.Decl(Declaration(name=name.clone(),infer_call_ownership=true)),line,col)
+                                value.children.push_take(ccn.children,last)
+                                ccn.children[last]=value
+                                ccn.add_child(own Expr.new(own ident_node(ctx.symbols.intern(name)),line,col))
+                            }
+                        }
                         process_throw_catch_in_body(scope, ctx, ccn, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
                     } else {
                         process_match_arms_in(scope, ctx, ccn, root_body, fdef_throws, pending, seen, types_to_declare, path, return_type, return_own_type)
