@@ -94,8 +94,8 @@ Verified installation and scratch-build results:
     it and the unchanged C runtime, then linked them with the vendored
     Android raylib sources and NDK native-app glue into
     ~tmp/libcheckers.so~, using ~-Wl,-z,defs~ to reject unresolved symbols.
-    This is a manual bring-up experiment using the existing 64-bit Linux
-    C layout, not implemented ~--target=android-x64~ support.
+    That initial manual bring-up used the existing 64-bit Linux C layout;
+    the Android targets implemented below now replace that workaround.
   - ~llvm-nm --dynamic --defined-only~ confirms exported
     ~ANativeActivity_onCreate~. ~llvm-readelf~ confirms Android system
     library dependencies, SONAME ~libcheckers.so~, and ~0x4000~ LOAD
@@ -331,6 +331,68 @@ from them). So the remote session prepares and documents; the
 implementation is done by a local session with the Android SDK installed
 (adb, an emulator or a phone), and CI runs it afterwards.
 
+*** CLI/shared-library targets and extracted sysroot
+
+~android-x64~ and ~android-arm64~ are implemented C-backend targets with
+baseline SIMD/CPU selection and distinct Android runtime/core ABI names.
+They use host clang/LLD and the unmodified NDK r30 subset in
+~vendor/android/~. Its README records the exact source package, selection,
+licenses, measured size (about 13.3 MB apparent), build commands and
+extraction/upgrade recipe. Byte comparisons against the installed NDK
+confirmed that copied headers, stubs, startup objects, builtins and notices
+were unchanged. There is no new sysroot setting or NDK installation lookup.
+
+API 28 selects both the clang triple and stub/startup directory. The link
+uses 16 KB alignment and explicit compiler-rt/libc/dl/m rather than host
+libgcc or separate Linux rt/pthread libraries. Android shared libraries get
+a SONAME, so their consumers do not record build-directory paths. The
+runtime reports ~host_os() == "android"~ and ~spawn_cmd~ uses
+~/system/bin/sh~; argv-based ~Cmd~ continues to use ~posix_spawnp~.
+
+Local verification on API 37 x86_64, 4096-byte pages:
+
+  - Hello executes at both ~--usize=32~ and ~--usize=64~, with stdout equal
+    to the interpreter and successful exit status.
+  - ~test/layout_corpus.til~, ~strings.til~, ~arrays.til~, ~structs.til~,
+    ~enums.til~, ~closures.til~, ~vecs.til~, ~float_literals.til~ and
+    ~simd.til~ execute at both layouts with output matching the interpreter.
+    Test-mode sources were regenerated
+    under ~tmp/~ as script harnesses invoking their existing test bodies;
+    ~til build~ alone does not emit a test-mode runner.
+  - The existing process corpus also runs through a temporary script
+    harness at both layouts: shell spawn/wait, exit/signal statuses, argv
+    quoting, stdout/stderr capture, local temporary storage, redirection,
+    cwd and environment handling, and concurrent captures. It prints
+    ~android~ and ~Android runtime process checks passed~. The new
+    ~test_spawn_cmd_reports_exit_code~ regression lives in the existing
+    ~test/process.til~ corpus. Existing CPU-profile tests cover both targets.
+  - NDK clang 21 independently rebuilt both process harnesses against its
+    own sysroot; their Android output matched the host-clang-18/vendored
+    builds. Logs: ~tmp/android_ndk_runtime{32,64}.log~ and
+    ~tmp/android_runtime{32,64}.log~.
+  - Both existing namespace-library fixtures built as Android shared
+    libraries, sharing the revision/target/layout-qualified runtime and
+    core. Their existing C consumer ~test/library_namespace.c~ passed at
+    both layouts, exercising globals, link_c sources, strings and parsing.
+    The static-library C consumer also passed at USize64.
+  - The profiler-enabled hello program ran successfully, including its
+    emulated-TLS/compiler-rt path, and emitted CPU/allocation reports.
+  - Executable reuse tracks the selected sysroot's transitive headers,
+    startup objects, linker stubs and builtins archive. A local freshness
+    regression confirmed unchanged builds are reused, while touching a
+    used header or the builtins archive triggers relinking. Original
+    vendor timestamps were restored, and source bytes remained unchanged.
+  - ARM64 hello, the layout corpus and the namespace-library fixture
+    cross-compiled at both layouts. No ARM64 execution is claimed.
+
+All builds above used the normal ~bin/til build --target=...~ path, except
+the explicit NDK cross-check and the C consumers. This stage supports CLI
+executables and C libraries from the checkout; a permanent APK build
+interface, Android JNI app packaging, API 28/16 KB execution and ARM64
+device execution remain later checks. No emulator/NDK requirement was
+added to the default suite, and no new test command or flag was introduced.
+~make clean && make test~ passed all 572 tests after these changes.
+
 *** Preparation notes (remote session, 2026-11-11)
 
 What the vendored sysroot must hold, per ABI (arm64-v8a first; x86_64 for
@@ -454,12 +516,13 @@ Hand-off checklist for the local session:
 
 *** Acceptance
 
-  - [ ] Local SDK/NDK/KVM and emulator checks above are recorded as passed.
-  - [ ] A til CLI program built with both the reference NDK and vendored
+  - [X] Local SDK/NDK/KVM and emulator checks above are recorded as passed.
+  - [X] A til CLI program built with both the reference NDK and vendored
     sysroot runs on the x86_64 emulator with matching output/exit status,
-    at both USize layouts. arm64 builds and then runs on an ARM device.
+    at both USize layouts.
+  - [ ] ARM64 builds run on an ARM device (cross-compilation passed).
   - [ ] Checkers meets the playable ~NativeActivity~ milestone above.
   - [ ] A Java or Kotlin app on a device or emulator calls a til ~mode lib~
     library through its generated JNI binding, built with the NDK.
-  - [ ] A default build and ~make test~ need neither the NDK nor the
+  - [X] A default build and ~make test~ need neither the NDK nor the
     Android SDK.

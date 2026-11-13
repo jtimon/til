@@ -233,9 +233,10 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     // so consumers find it through their own rpath (a JNI bridge's
     // @loader_path, an installed prefix's lib/).
     mut lib_identity := ""
-    if target.is(Target.MacosX64).or(target.is(Target.MacosArm64)) {
+    if target.is(Target.MacosX64).or(target.is(Target.MacosArm64)).or(is_android_target(target)) {
         lib_identity = runtime_link_identity_args(target, format("lib", lib_name, shared_lib_extension(target)), "")
     }
+    if is_android_target(target) { lf = format(lf, " ", target_system_libs(target)) }
     cmd = compiler.format(extra, asan_flags, target_link_extra_args(target), " -shared -o ", so_path, lib_identity,
         " ", shared_obj_path, core_dependency, runtime_dependency, user_objs, lf)
     result = system_cmd(cmd)
@@ -446,7 +447,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // intact. Anything unrecognized is kept and fails loudly at link with
     // its real name.
     if is_windows_target(target).or(target.is(Target.Wasm32))
-        .or(target.is(Target.MacosX64)).or(target.is(Target.MacosArm64)) {
+        .or(target.is(Target.MacosX64)).or(target.is(Target.MacosArm64)).or(is_android_target(target)) {
         // -latomic must go on macos (no such lib on darwin) and windows
         // (nng's linux-only dep, which the mingw nng build does not need);
         // on wasm it stays.
@@ -1596,6 +1597,21 @@ priv executable_inputs := proc(lp: LoadedProgram, paths: BuildPaths) returns Vec
     if ext_slash >= 0 { include_dirs.push(own lp.ext_c_path.substr(0, ext_slash.to_usize())) }
     for flag : Str in lp.include_flags_for_target().split(" ") {
         if flag.starts_with("-I") { include_dirs.push(own flag.strip_prefix("-I").clone()) }
+    }
+    if is_android_target(lp.target) {
+        // These are vendored build inputs, not untracked host system headers
+        // and libraries. A sysroot upgrade must invalidate a reused executable.
+        mut triple := "x86_64-linux-android"
+        if lp.target.is(Target.AndroidArm64) { triple = "aarch64-linux-android" }
+        include_dirs.push(own format("vendor/android/sysroot/usr/include/", triple))
+        include_dirs.push(own "vendor/android/sysroot/usr/include")
+        for name : Str in array(Str, "libc.so", "libm.so", "libdl.so",
+                "crtbegin_dynamic.o", "crtend_android.o") {
+            inputs.push(own format("vendor/android/sysroot/usr/lib/", triple, "/28/", name))
+        }
+        for library : Str in target_system_libs(lp.target).split(" ") {
+            if library.ends_with(".a") { inputs.push(own library.clone()) }
+        }
     }
     mut sources := Vec(Str).new()
     sources.push(own lp.ext_c_path.clone())

@@ -1,0 +1,88 @@
+* Vendored Android C cross-compilation support (#462)
+
+This is an unmodified subset of Android NDK r30, package revision
+30.0.16248370, installed with Google's SDK Manager. The source toolchain
+is ~toolchains/llvm/prebuilt/linux-x86_64/~; its clang reports version 21
+and LLVM revision ~9f872551d3c681d06fd303b36f16ed5c274735eb~.
+The NDK is needed to extract/update or cross-check this subset, not to
+build a til program against it.
+
+** Contents
+
+  - ~sysroot/usr/include/~: bionic, Linux UAPI and Android C headers,
+    including the ~aarch64-linux-android/~ and ~x86_64-linux-android/~
+    architecture headers. Excludes libc++ headers and other architectures.
+  - ~sysroot/usr/lib/<triple>/28/~: the upstream ~libc.so~, ~libm.so~,
+    ~libdl.so~ and ~liblog.so~ linker stubs, plus ~crtbegin_dynamic.o~,
+    ~crtbegin_so.o~, ~crtend_android.o~ and ~crtend_so.o~. The stubs describe
+    the minimum API 28 interface; Android supplies the real libraries at
+    runtime. Do not package these stubs into an APK or copy them to a device.
+  - ~lib/~: upstream ~libclang_rt.builtins-aarch64-android.a~ and
+    ~libclang_rt.builtins-x86_64-android.a~, from
+    ~lib/clang/21/lib/linux/~ in that toolchain.
+  - ~NOTICE~ and ~NOTICE.toolchain~: upstream aggregate notices, copied
+    verbatim. Headers retain their per-file notices. These cover bionic
+    and Linux UAPI licensing and compiler-rt's Apache-2.0 with LLVM
+    exception, among the NDK's other components.
+
+The initial subset has about 13.3 MB apparent size (17 MiB allocated on
+the extraction filesystem), including notices. The full NDK C/C++ include
+tree alone occupied 32 MiB; excluded C++ headers accounted for 17 MiB.
+No libc++, libffi, sanitizer runtime, unwinder or host compiler binary is
+included. C programs tested here do not require a separate unwinder.
+
+** Building
+
+From the til checkout, with host ~clang~ and ~ld.lld~ available:
+
+#+begin_src sh
+bin/til build --target=android-x64 examples/hello_script.til
+bin/til build --target=android-arm64 examples/hello_script.til
+#+end_src
+
+~src/self/targets.til~ selects the Android API 28 triple and this sysroot,
+including the selected architecture's headers and API-level library path.
+The link uses LLD, the explicit compiler-rt archive, libc/dl/m, and
+16 KB maximum page alignment. ~-nodefaultlibs~ prevents the host clang
+driver from injecting host libgcc or looking for an Android compiler-rt
+under its own resource directory. The host clang still uses its own
+builtin headers (stddef, stdarg, intrinsics); they are compiler-specific.
+The initial host check used clang/LLD 18.1.3.
+Executable freshness checks track the selected vendored headers, startup
+objects, linker stubs and builtins archive, so upgrading them invalidates
+an existing output.
+
+Both targets support the existing ~--usize=32~ and ~--usize=64~ layouts.
+The subset is optional: the default build and test suite do not need the
+Android SDK, NDK, ADB or emulator. Running the resulting executable needs
+an Android device/emulator; ~til run~ does not launch an emulator.
+NativeActivity/APK and Android JNI packaging remain separate #462 work.
+
+** Extraction and upgrades
+
+Use a fresh destination for an upgrade so files removed upstream do not
+remain accidentally. The commands below describe the initial selection;
+~NDK~ and ~TOOLCHAIN~ are local shell variables, not til configuration.
+Preserve the source bytes and notices, record the new package/compiler
+revisions above, measure the result, and repeat the NDK comparison and
+device checks described in #462 before committing an upgrade.
+
+#+begin_src sh
+NDK="$HOME/Android/Sdk/ndk/30.0.16248370"
+TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64"
+mkdir -p vendor/android/sysroot/usr/include vendor/android/lib
+tar -C "$TOOLCHAIN/sysroot/usr/include" \
+    --exclude=./c++ --exclude=./arm-linux-androideabi \
+    --exclude=./i686-linux-android --exclude=./riscv64-linux-android \
+    -cf - . | tar -C vendor/android/sysroot/usr/include -xf -
+for triple in aarch64-linux-android x86_64-linux-android; do
+    mkdir -p "vendor/android/sysroot/usr/lib/$triple/28"
+    for file in libc.so libm.so libdl.so liblog.so crtbegin_dynamic.o crtbegin_so.o crtend_android.o crtend_so.o; do
+        cp -a "$TOOLCHAIN/sysroot/usr/lib/$triple/28/$file" \
+            "vendor/android/sysroot/usr/lib/$triple/28/"
+    done
+done
+cp -a "$TOOLCHAIN/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a" \
+    "$TOOLCHAIN/lib/clang/21/lib/linux/libclang_rt.builtins-x86_64-android.a" vendor/android/lib/
+cp -a "$NDK/NOTICE" "$NDK/NOTICE.toolchain" vendor/android/
+#+end_src

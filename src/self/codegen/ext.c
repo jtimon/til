@@ -3448,7 +3448,7 @@ Str *get_bin_dir(void) {
 
 // Returns the OS family the running .exe is on. Mirrors target_to_str() OS
 // segments so til source can compare against "linux" / "windows" / "macos" /
-// "wasm" / "templeos". This is the host, not the build target.
+// "android" / "wasm" / "templeos". This is the host, not the build target.
 Str *host_os(void) {
 #if defined(__EMSCRIPTEN__)
     return ext_str_box_bytes((const char *)"wasm", (size_t)(4));
@@ -3456,6 +3456,8 @@ Str *host_os(void) {
     return ext_str_box_bytes((const char *)"windows", (size_t)(7));
 #elif defined(__APPLE__)
     return ext_str_box_bytes((const char *)"macos", (size_t)(5));
+#elif defined(__ANDROID__)
+    return ext_str_box_bytes((const char *)"android", (size_t)(7));
 #elif defined(__linux__)
     return ext_str_box_bytes((const char *)"linux", (size_t)(5));
 #elif defined(__wasm__) || defined(__wasm32__)
@@ -3546,10 +3548,15 @@ I64 *spawn_cmd(const Str *cmd) {
     char *argv[] = {"sh", "-c", c, NULL};
     pid_t pid;
     fflush(NULL);
-    int rc = posix_spawn(&pid, "/bin/sh", NULL, NULL, argv, TIL_ENVIRON);
+#ifdef __ANDROID__
+    const char *shell = "/system/bin/sh";
+#else
+    const char *shell = "/bin/sh";
+#endif
+    int rc = posix_spawn(&pid, shell, NULL, NULL, argv, TIL_ENVIRON);
     free(c);
     if (rc != 0) {
-        fprintf(stderr, "spawn_cmd: cannot execute /bin/sh: %s\n", strerror(rc));
+        fprintf(stderr, "spawn_cmd: cannot execute %s: %s\n", shell, strerror(rc));
         exit(1);
     }
     return new_i64((I64)pid);

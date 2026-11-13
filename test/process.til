@@ -9,6 +9,10 @@ import("../src/std/file")
 // The old spawn_cmd/run_cmd path could not state that -- it built a
 // shell command line out of string concatenation.
 
+test_spawn_cmd_reports_exit_code := test() {
+    assert_eq(I64, wait_cmd(spawn_cmd("exit 7")), 7)
+}
+
 test_cmd_runs_and_captures_stdout := test() {
     c := Cmd.new("echo", "hello")
     c.capture()

@@ -82,7 +82,7 @@ main := proc(args: ..Str) {
         expected := format(width.to_str(), "\n", (width * 6).to_str(), "\n")
         // Target queries/type expansion must work on every host, without
         // executing any instructions from the selected x86 profile.
-        for target : Str in array(Str, "linux-x64", "windows-x64", "macos-x64") {
+        for target : Str in array(Str, "linux-x64", "windows-x64", "macos-x64", "android-x64") {
             expect_output(Cmd.new(compiler, "interpret", format("--target=", target),
                 format("--cpu=", profile), "width.til", "4097", "4097", "-16785408"), expected)
         }
@@ -103,11 +103,11 @@ main := proc(args: ..Str) {
             if commands != 2 { panic("expected link_c and main compile commands: ", flags) }
         }
     }
-    for target : Str in array(Str, "linux-arm64", "macos-arm64") {
+    for target : Str in array(Str, "linux-arm64", "macos-arm64", "android-arm64") {
         expect_output(Cmd.new(compiler, "interpret", format("--target=", target),
             "--cpu=baseline", "width.til", "4097", "4097", "-16785408"), "4\n24\n")
     }
-    for target : Str in array(Str, "linux-x86", "linux-arm32", "linux-riscv64", "wasm32", "linux-arm64") {
+    for target : Str in array(Str, "linux-x86", "linux-arm32", "linux-riscv64", "wasm32", "linux-arm64", "android-arm64") {
         reject(Cmd.new(compiler, "translate", format("--target=", target),
             "--cpu=x86-64-v3", "width.til"), "requires an x86-64 C target")
     }

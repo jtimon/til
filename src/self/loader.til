@@ -408,6 +408,8 @@ namespace:
         case .WindowsX86: target_name = "windows-x86"
         case .MacosX64: target_name = "macos-x64"
         case .MacosArm64: target_name = "macos-arm64"
+        case .AndroidX64: target_name = "android-x64"
+        case .AndroidArm64: target_name = "android-arm64"
         case .Wasm32: target_name = "wasm32"
         case .TempleosX86: target_name = "templeos-x86"
         }

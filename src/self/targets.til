@@ -35,6 +35,8 @@ Target := enum {
     WindowsX86,
     MacosX64,
     MacosArm64,
+    AndroidX64,
+    AndroidArm64,
     Wasm32,
     TempleosX86,
 }
@@ -51,10 +53,12 @@ target_from_str := func(s: Str) returns Target {
     case "windows-x86", "windows-i686", "windows-i386", "win32": return Target.WindowsX86
     case "macos-x64", "macos-x86_64", "darwin-x64": return Target.MacosX64
     case "macos-arm64", "macos-aarch64", "darwin-arm64": return Target.MacosArm64
+    case "android-x64": return Target.AndroidX64
+    case "android-arm64": return Target.AndroidArm64
     case "wasm32", "wasm", "webassembly": return Target.Wasm32
     case "templeos-x86", "templeos": return Target.TempleosX86
     }
-    panic("Unknown target '", s, "'. Supported targets: linux-x64, linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x64, windows-x86, macos-x64, macos-arm64, wasm32, templeos-x86")
+    panic("Unknown target '", s, "'. Supported targets: linux-x64, linux-arm64, linux-riscv64, linux-x86, linux-arm32, linux-riscv32, windows-x64, windows-x86, macos-x64, macos-arm64, android-x64, android-arm64, wasm32, templeos-x86")
     return Target.LinuxX64
 }
 
@@ -70,6 +74,8 @@ target_to_str := func(target: Target) returns Str {
     case .WindowsX86:   return "windows-x86"
     case .MacosX64:     return "macos-x64"
     case .MacosArm64:   return "macos-arm64"
+    case .AndroidX64:   return "android-x64"
+    case .AndroidArm64: return "android-arm64"
     case .Wasm32:       return "wasm32"
     case .TempleosX86:  return "templeos-x86"
     }
@@ -91,6 +97,16 @@ is_windows_target := func(target: Target) returns Bool {
     return target.is(Target.WindowsX64).or(target.is(Target.WindowsX86))
 }
 
+is_android_target := func(target: Target) returns Bool {
+    return target.is(Target.AndroidX64).or(target.is(Target.AndroidArm64))
+}
+
+priv android_triple := func(target: Target) returns Str {
+    if target.is(Target.AndroidArm64) { return "aarch64-linux-android" }
+    if target.is(Target.AndroidX64) { return "x86_64-linux-android" }
+    panic("Android triple requested for ", target_to_str(target))
+}
+
 target_uptr_name := func(target: Target) returns Str {
     if target_is_32bit(target) { return "U32" }
     return "U64"
@@ -108,7 +124,8 @@ target_usize_name := func(target: Target) returns Str {
 
 target_simd_bits := func(target: Target) returns USize {
     switch target {
-    case .LinuxX64, .WindowsX64, .MacosX64, .LinuxArm64, .MacosArm64:
+    case .LinuxX64, .WindowsX64, .MacosX64, .LinuxArm64, .MacosArm64,
+         .AndroidX64, .AndroidArm64:
         return 128
     case .LinuxX86, .WindowsX86, .LinuxArm32, .LinuxRiscv32, .LinuxRiscv64,
          .Wasm32, .TempleosX86:
@@ -126,10 +143,10 @@ TargetCpu := struct {
 
 resolve_target_cpu := func(target: Target, name: Str) returns TargetCpu {
     mut selected := TargetCpu(name = name.clone(), simd_bits = target_simd_bits(target))
-    x64 := target.is(Target.LinuxX64).or(target.is(Target.WindowsX64)).or(target.is(Target.MacosX64))
+    x64 := target.is(Target.LinuxX64).or(target.is(Target.WindowsX64)).or(target.is(Target.MacosX64)).or(target.is(Target.AndroidX64))
     if name == "baseline" {
         if x64 { selected.c_flags = " -march=x86-64 -mtune=generic" }
-        else if target.is(Target.LinuxArm64).or(target.is(Target.MacosArm64)) {
+        else if target.is(Target.LinuxArm64).or(target.is(Target.MacosArm64)).or(target.is(Target.AndroidArm64)) {
             selected.c_flags = " -march=armv8-a -mtune=generic"
         }
     } else if name.eq("x86-64-v3").or(name.eq("x86-64-v4")) {
@@ -185,7 +202,7 @@ toolchain_command := proc(target: Target, lang: Lang) returns Str {
     case .WindowsX86:
         if host_os() == "windows" { return "gcc" }
         return "i686-w64-mingw32-gcc"
-    case .MacosX64, .MacosArm64: return "clang"
+    case .MacosX64, .MacosArm64, .AndroidX64, .AndroidArm64: return "clang"
     // emscripten (issue #424): every til program includes src/self/codegen/ext.c,
     // which needs a libc, and bare clang --target=wasm32 has none. emcc
     // brings emscripten's; the vendored emsdk's emcc goes in with --cc, as
@@ -205,6 +222,10 @@ priv target_prefix_args := func(target: Target) returns Str {
     case .LinuxX86:     return " -m32 -idirafter /usr/include/x86_64-linux-gnu"
     case .MacosArm64: return " -target arm64-apple-macos11"
     case .MacosX64:   return " -target x86_64-apple-macos10.12"
+    case .AndroidX64, .AndroidArm64:
+        triple := android_triple(target)
+        return format(" --target=", triple, "28 --sysroot=vendor/android/sysroot",
+            " -isystem vendor/android/sysroot/usr/include/", triple)
     case: return ""
     }
 }
@@ -232,6 +253,12 @@ priv macos_cross_args := proc(target: Target) returns Str {
 // arguments there, so the builder appends these only to command lines
 // that actually link.
 target_link_extra_args := proc(target: Target) returns Str {
+    if is_android_target(target) {
+        // Keep host clang's builtin headers, but supply the target's compiler-rt
+        // explicitly instead of the host driver's default libgcc/resource path.
+        return format(" -fuse-ld=lld -nodefaultlibs -Lvendor/android/sysroot/usr/lib/",
+            android_triple(target), "/28 -Wl,-z,max-page-size=16384")
+    }
     if macos_is_cross(target).not() { return "" }
     return " -fuse-ld=lld -Lvendor/macos"
 }
@@ -295,6 +322,10 @@ target_system_libs := func(target: Target) returns Str {
     case .LinuxX64, .LinuxArm64, .LinuxRiscv64, .LinuxX86,
          .LinuxArm32, .LinuxRiscv32: return "-ldl -lrt -lm -lpthread"
     case .WindowsX64, .WindowsX86: return "-lpsapi"
+    case .AndroidX64:
+        return "vendor/android/lib/libclang_rt.builtins-x86_64-android.a -lc -ldl -lm"
+    case .AndroidArm64:
+        return "vendor/android/lib/libclang_rt.builtins-aarch64-android.a -lc -ldl -lm"
     // On darwin, libm/libpthread are pure aliases of libSystem, which
     // clang's darwin driver always links implicitly -- and the vendored
     // cross toolchain (vendor/macos) ships ONLY libSystem.tbd, so the
@@ -341,6 +372,9 @@ detect_current_target := proc() returns Target {
     case "windows":
         if arch == "x86" { return Target.WindowsX86 }
         return Target.WindowsX64
+    case "android":
+        if arch == "arm64" { return Target.AndroidArm64 }
+        return Target.AndroidX64
     case "linux":
         switch arch {
         case "arm64":   return Target.LinuxArm64

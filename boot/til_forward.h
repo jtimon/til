@@ -380,6 +380,8 @@ enum {
     Target_TAG_WindowsX86,
     Target_TAG_MacosX64,
     Target_TAG_MacosArm64,
+    Target_TAG_AndroidX64,
+    Target_TAG_AndroidArm64,
     Target_TAG_Wasm32,
     Target_TAG_TempleosX86
 };
