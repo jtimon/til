@@ -13061,7 +13061,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool,
         }
     }
     ret_shallow := fd.sig.return_own_type.is(OwnType.Shallow)
-    mut cif : ffi_cif = malloc(ffi_cif.size())
+    cif : ffi_cif = malloc(ffi_cif.size())
 
     // Resolve the return descriptor before transferring the raw allocations.
     mut ret_type_o := Option(ref Str).None

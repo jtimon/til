@@ -3074,7 +3074,7 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
 // `quiet` suppresses that report for a TRIAL parse whose failure is not the
 // user's error -- the REPL's speculative expression wrap, which retries the
 // raw line and reports only if that fails too.
-parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32 = 0, quiet: Bool = false, mut diagnostics: Vec(SourceDiagnostic) = Vec(SourceDiagnostic).new()) returns Expr {
+parse := proc(tokens: Vec(Token), source: Str, path: Str, mut mode_out: Str, mut anon_type_counter: I64, mut symbols: SymbolPool, mut parse_errors: I32 = 0, quiet: Bool = false, mut diagnostics: Vec(SourceDiagnostic) = Vec(SourceDiagnostic).new()) returns Expr {
     mut p := Parser(tokens = tokens.clone(), pos = 0, path = path.clone(), source = source.substr(0, source.len()), anon_type_counter = anon_type_counter, symbols = symbols)
 
     // Parse optional mode declaration

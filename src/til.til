@@ -263,7 +263,7 @@ repl_ast_has_known_variadic_call := func(e: Expr, symbols: SymbolPool) returns B
 // accumulated source -- where every later full load re-parsed it, reprinting
 // the error once per echo-ladder attempt and running nothing new ever again.
 // One `undefined_thing` bricked the prompt.
-repl_delta_from_source := proc(path: Str, source: Str, mut anon_type_counter: I64, symbols: SymbolPool, mut parse_errors: I32 = 0) returns Expr {
+repl_delta_from_source := proc(path: Str, source: Str, mut anon_type_counter: I64, mut symbols: SymbolPool, mut parse_errors: I32 = 0) returns Expr {
     tokens := tokenize(source, path)
     mut mode_out := ""
     return parse(tokens, source, path, mode_out, anon_type_counter, symbols, parse_errors)
@@ -487,7 +487,7 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
         }
         mut peek_mode_out := ""
         mut peek_parse_errors : I32 = 0
-        peek_symbols := SymbolPool()
+        mut peek_symbols := SymbolPool()
         mut peek_ast := parse(peek_tokens, peek_source, "<repl>", peek_mode_out, repl_anon_type_counter, peek_symbols, peek_parse_errors, wrapped)
         // The wrap only makes sense for a line that IS a single expression.
         // Several statements on one line -- `v.get(5)? catch (err: T) { ... }`,

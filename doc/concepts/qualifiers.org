@@ -146,6 +146,15 @@ Complete mapping of til qualifiers to generated C, by context.
    ~switch~, and ~for mut x in coll~. Writable means ~mut~, or ~own~
    (the callee owns the value), or a global (the carve-out above).
 
+   A helper can also write through a ref field in a read-only carrier. Its
+   parameter-relative write effects follow field paths through aliases,
+   reference-returning getters and forwarding calls. At the call, the
+   referent's owner is checked and credited as written; the carrier itself
+   need not be ~mut~. For example, incrementing ~counter.value~ through a
+   ~CounterRef~ requires ~mut~ on the caller's scalar, even though the helper
+   accepts a plain ~counter: CounterRef~. A different read-only ref field in
+   that carrier does not become writable merely because one field is written.
+
    A ~case V(p):~ payload binding and the typer's own temps are not
    judged on a qualifier of their own -- there is no place to write
    one; a payload binding inherits the scrutinee's mutability (see

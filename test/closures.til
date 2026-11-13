@@ -218,6 +218,15 @@ test_funcptr_field_constfold := test() {
     assert_eq(I64, b.t(), 42)
 }
 
+UnusedCaptureArgs := func(I64, Str) returns I64
+make_unused_capture_args := func(value: I64) returns UnusedCaptureArgs {
+    return func(_argument: I64, _text: Str) returns I64 [own value] { return value }
+}
+test_deliberately_unused_captured_parameters := test() {
+    callback := make_unused_capture_args(42)
+    assert(callback(7, "unused") == 42)
+}
+
 // #223: a capturing closure returning a PRIMITIVE, passed as an arg to a
 // function whose RESULT is a UFCS method receiver, must not spuriously error
 // with "redundant 'shallow' on primitive return". The UFCS path re-infers its

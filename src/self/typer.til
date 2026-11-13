@@ -1938,6 +1938,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
         }
         // Record deposits after coercion: an interface box may introduce a
         // concrete borrow, or own a temporary and carry no such borrow.
+        check_indirect_call_writes(scope, e, fdef_data, ctx)
         check_global_escape_call(scope, e, fdef_data, ctx)
         if fdef_data.deposit_matrix != 0 {
             for dsink in 0..DEPOSIT_PARAMS {
@@ -9883,6 +9884,7 @@ eval_generator_condition := proc(mut condition: Expr, mut scope: TypeScope, mut 
     saved_throw_types := ctx.throw_type_registry.clone()
     saved_throws := ctx.throws_global.clone()
     saved_global_escapes := ctx.global_borrow_escapes.clone()
+    saved_parameter_effects := ctx.parameter_effects.clone()
     saved_global_names := ctx.global_escape_names.clone()
     saved_global_types := ctx.global_escape_types.clone()
     saved_owner := ctx.synth_owner.clone()
@@ -9957,6 +9959,7 @@ eval_generator_condition := proc(mut condition: Expr, mut scope: TypeScope, mut 
     // Prepared definitions are about to die. Do not retain address-keyed
     // effects for those temporary clones in the surrounding source analysis.
     ctx.global_borrow_escapes = saved_global_escapes
+    ctx.parameter_effects = saved_parameter_effects
     ctx.global_escape_names = saved_global_names
     ctx.global_escape_types = saved_global_types
     mut finished_preparation := Option(ComptimePreparation).None
@@ -13341,6 +13344,11 @@ expr_borrow_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool) return
                     case:
                         sub = expr_borrow_roots(scope, e.children[ai], symbols)
                     }
+                    if fld_is_ref.not() {
+                        // A value field copies its carrier; only its carried
+                        // owners, not the source carrier's storage, are shared.
+                        sub = carried_roots_of(scope, sub, "", symbols)
+                    }
                     for r : BorrowRoot in sub {
                         mut cr := r.clone()
                         cr.carried = true
@@ -13572,12 +13580,15 @@ priv root_carries_own_qualifier := func(b: TypeBinding, r: BorrowRoot) returns B
 // handing a raw pointer to a callee is a guess about what the callee does
 // with it, and a guess must not produce a rejection.
 priv check_write_roots_mut := proc(mut scope: TypeScope, site: Expr, obj: Expr, what: Str, mut ctx: Context) {
+    check_writable_root_set(scope, site, lvalue_write_roots(scope, obj, ctx.symbols), what, ctx)
+}
+
+priv check_writable_root_set := proc(mut scope: TypeScope, site: Expr, roots: Vec(BorrowRoot), what: Str, mut ctx: Context) {
     ref func_state : TyperFuncState = scope.typer_func_state()
     // Typer-emitted bodies (clone / delete / size / enum to_str / ...) have
     // signatures the user cannot edit, so a diagnostic on them is not
     // actionable -- the same carve-out check_unused_mut_params makes.
     if func_state.auto_gen_depth > 0 { return }
-    roots := lvalue_write_roots(scope, obj, ctx.symbols)
     mut reported := Vec(BorrowRoot).new()
     for r : BorrowRoot in roots {
         // #355: eq now separates same-site roots tagged with different
@@ -15242,12 +15253,273 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
 // they need their own descent; a FuncDef is never descended into, because
 // init_declarations_unit hoists nested definitions to file scope and
 // typer_lift_lambdas has already lifted the anonymous ones.
+priv place_add := func(mut places: Vec(ParameterPlace), place: ParameterPlace) returns Bool {
+    for prior: ParameterPlace in places { if prior == place { return false } }
+    places.push(own place.clone())
+    return true
+}
+
+priv place_field := func(place: ParameterPlace, field: Str) returns ParameterPlace {
+    mut path := place.field.clone()
+    // Recursive accessors may traverse an arbitrarily long pointer chain.
+    // Widen a repeated field to all reachable borrows instead of growing the
+    // interprocedural summary without bound.
+    for part: Str in path.split(".") {
+        if part == "*" { return place.clone() }
+        if part == field { return ParameterPlace(parameter = place.parameter, field = format(path, ".*")) }
+    }
+    if path.len() > 0 { path = format(path, ".", field) } else { path = field.clone() }
+    return ParameterPlace(parameter = place.parameter, field = path)
+}
+
+priv place_type := func(place: ParameterPlace, params: Vec(Declaration), scope: TypeScope, symbols: SymbolPool) returns Type {
+    mut type := declaration_resolved_type(params[place.parameter], scope, symbols)
+    for field: Str in place.field.split(".") {
+        if field.len() == 0 { continue }
+        definition := scope.get_struct(type_name_ref(type, symbols), symbols)
+        if definition.is_none() { return Type.Unknown }
+        if definition.unwrap().node_type.is(NodeType.StructDef).not() { return Type.Unknown }
+        ref sd: StructDef = structdef_of(definition.unwrap())
+        member := member_get(sd.fields_index, sd.fields, field)
+        if member.is_none() { return Type.Unknown }
+        type = declaration_resolved_type(member.unwrap(), scope, symbols)
+    }
+    return type
+}
+
+priv place_crosses_ref := func(place: ParameterPlace, params: Vec(Declaration), scope: TypeScope, symbols: SymbolPool) returns Bool {
+    mut type := declaration_resolved_type(params[place.parameter], scope, symbols)
+    for field: Str in place.field.split(".") {
+        if field == "*" { return type_carries_borrow_t(scope, type, symbols) }
+        if field.len() == 0 { continue }
+        definition := scope.get_struct(type_name_ref(type, symbols), symbols)
+        if definition.is_none() { return false }
+        if definition.unwrap().node_type.is(NodeType.StructDef).not() { return false }
+        ref sd: StructDef = structdef_of(definition.unwrap())
+        member := member_get(sd.fields_index, sd.fields, field)
+        if member.is_none() { return false }
+        if member.unwrap().own_type.is(OwnType.Ref) {
+            // Dynamic and byte-pointer labels are the explicit raw boundary;
+            // their pointed-to storage is not described by a typed field path.
+            return type_is_null_quarantine(declaration_resolved_type(member.unwrap(), scope, symbols)).not()
+        }
+        type = declaration_resolved_type(member.unwrap(), scope, symbols)
+    }
+    return false
+}
+
+priv ParameterPlaces := struct { values := Vec(ParameterPlace).new(); is_reference := false }
+
+priv place_callee := func(e: Expr, aliases: Map(Str, ParameterPlaces), params: Vec(Declaration), scope: TypeScope,
+    self_type: Str, ctx: Context) returns Option(ref Expr) {
+    direct := summary_effect_callee(e, scope, self_type, params, ctx.symbols, ctx)
+    if direct.is_some() { return direct }
+    if e.children.len() == 0 { return direct }
+    ref callee: Expr = e.children[0]
+    if callee.node_type.is(NodeType.FieldAccess).not().or(callee.children.len() == 0) { return direct }
+    for place: ParameterPlace in expression_places(callee.children[0], aliases, params, scope, self_type, ctx) {
+        type := place_type(place, params, scope, ctx.symbols)
+        definition := scope.get_struct(resolved_type_name(type, ctx.symbols), ctx.symbols)
+        if definition.is_some() {
+            return find_namespace_func(definition.unwrap(), fieldaccess_of(callee).field_access_name(ctx.symbols.names), scope, ctx.symbols)
+        }
+    }
+    return direct
+}
+
+priv map_places := func(e: Expr, fd: FunctionDef, places: Vec(ParameterPlace), aliases: Map(Str, ParameterPlaces),
+    params: Vec(Declaration), scope: TypeScope, self_type: Str, ctx: Context) returns Vec(ParameterPlace) {
+    mut result := Vec(ParameterPlace).new()
+    for place: ParameterPlace in places {
+        argument := summary_fcall_arg_for_param(e, fd, place.parameter, scope, ctx.symbols)
+        if argument.is_none() { continue }
+        for base: ParameterPlace in expression_places(argument.unwrap(), aliases, params, scope, self_type, ctx) {
+            mut mapped := base.clone()
+            for field: Str in place.field.split(".") { if field.len() > 0 { mapped = place_field(mapped, field) } }
+            _ := place_add(result, mapped)
+        }
+    }
+    return result
+}
+
+priv expression_places := func(e: Expr, aliases: Map(Str, ParameterPlaces), params: Vec(Declaration),
+    scope: TypeScope, self_type: Str, ctx: Context) returns Vec(ParameterPlace) {
+    mut result := Vec(ParameterPlace).new()
+    switch e.node_type {
+    case .Ident(id):
+        ref name: Str = id.ident_name(ctx.symbols.names)
+        if aliases.has(name) { return aliases[name].values.clone() }
+    case .FieldAccess(fa):
+        if e.children.len() == 0 || fa_is_ns(e, scope, ctx.symbols) { return result }
+        for base: ParameterPlace in expression_places(e.children[0], aliases, params, scope, self_type, ctx) {
+            _ := place_add(result, place_field(base, fa.field_access_name(ctx.symbols.names)))
+        }
+    case .FCall:
+        raw := raw_borrow_source(e, ctx.symbols)
+        if raw.is_some() { return expression_places(raw.unwrap(), aliases, params, scope, self_type, ctx) }
+        callee := place_callee(e, aliases, params, scope, self_type, ctx)
+        if callee.is_some() {
+            ref fd: FunctionDef = funcdef_of(callee.unwrap())
+            if fd.sig.return_own_type.is(OwnType.Ref).not() { return result }
+            key := word_bits(to_ptr(fd)).to_uptr()
+            if ctx.parameter_effects.has(key) {
+                return map_places(e, fd, ctx.parameter_effects[key].returned, aliases, params, scope, self_type, ctx)
+            }
+        }
+    case:
+    }
+    return result
+}
+
+priv parameter_effect_walk := func(e: Expr, mut aliases: Map(Str, ParameterPlaces), mut effects: ParameterEffects,
+    fd: FunctionDef, scope: TypeScope, self_type: Str, ctx: Context) {
+    switch e.node_type {
+    case .FuncDef, .BodyValue: return
+    case .Body:
+        mut local := aliases.clone()
+        mut shadows := Set(Str).new()
+        for child: Expr in e.children {
+            parameter_effect_walk(child, local, effects, fd, scope, self_type, ctx)
+            switch child.node_type {
+            case .Decl(d): shadows.add(own d.name.clone())
+            case:
+            }
+        }
+        for name: Str in aliases.keys {
+            if local.has(name).and(shadows.has(name).not()) {
+                ref mut outer: ParameterPlaces = aliases[name]
+                for place: ParameterPlace in local[name].values { _ := place_add(outer.values, place) }
+            }
+        }
+        return
+    case .Decl(d):
+        for child: Expr in e.children { parameter_effect_walk(child, aliases, effects, fd, scope, self_type, ctx) }
+        mut places := Vec(ParameterPlace).new()
+        if d.own_type.is(OwnType.Ref).and(e.children.len() > 0) {
+            places = expression_places(e.children[0], aliases, fd.sig.params, scope, self_type, ctx)
+        }
+        // Ordinary value copies do not alias the original carrier's storage.
+        aliases.set(d.name, own ParameterPlaces(values = places, is_reference = d.own_type.is(OwnType.Ref)))
+        return
+    case .Return:
+        if fd.sig.return_own_type.is(OwnType.Ref).and(e.children.len() > 0) {
+            for place: ParameterPlace in expression_places(e.children[0], aliases, fd.sig.params, scope, self_type, ctx) {
+                _ := place_add(effects.returned, place)
+            }
+        }
+    case .Assign(ad):
+        if aliases.has(ad.name).and(e.children.len() > 0) {
+            ref rhs: Expr = e.children[0]
+            mut rebinds := false
+            if aliases[ad.name].is_reference {
+                switch rhs.node_type {
+                case .Ident(id):
+                    ref name: Str = id.ident_name(ctx.symbols.names)
+                    if aliases.has(name) { rebinds = aliases[name].is_reference }
+                case .FieldAccess: rebinds = fa_is_ns(rhs, scope, ctx.symbols).not()
+                case .FCall:
+                    called := place_callee(rhs, aliases, fd.sig.params, scope, self_type, ctx)
+                    if called.is_some() { rebinds = funcdef_of(called.unwrap()).sig.return_own_type.is(OwnType.Ref) }
+                case:
+                }
+            }
+            if rebinds {
+                source := expression_places(rhs, aliases, fd.sig.params, scope, self_type, ctx)
+                ref mut prior: ParameterPlaces = aliases[ad.name]
+                for place: ParameterPlace in source { _ := place_add(prior.values, place) }
+            } else {
+                for place: ParameterPlace in aliases[ad.name].values {
+                    if place_crosses_ref(place, fd.sig.params, scope, ctx.symbols) { _ := place_add(effects.writes, place) }
+                }
+            }
+        }
+    case .FieldAssign:
+        // Replacing a ref field writes its carrier, not the old referent.
+        for place: ParameterPlace in expression_places(e.children[0], aliases, fd.sig.params, scope, self_type, ctx) {
+            if place_crosses_ref(place, fd.sig.params, scope, ctx.symbols) { _ := place_add(effects.writes, place) }
+        }
+    case .FCall:
+        callee := place_callee(e, aliases, fd.sig.params, scope, self_type, ctx)
+        if callee.is_some() {
+            ref called: FunctionDef = funcdef_of(callee.unwrap())
+            for pi in 0..called.sig.params.len() {
+                if called.sig.params[pi].is_mut.not() { continue }
+                argument := summary_fcall_arg_for_param(e, called, pi, scope, ctx.symbols)
+                if argument.is_none() { continue }
+                for place: ParameterPlace in expression_places(argument.unwrap(), aliases, fd.sig.params, scope, self_type, ctx) {
+                    if place_crosses_ref(place, fd.sig.params, scope, ctx.symbols) { _ := place_add(effects.writes, place) }
+                }
+            }
+            key := word_bits(to_ptr(called)).to_uptr()
+            if ctx.parameter_effects.has(key) {
+                for place: ParameterPlace in map_places(e, called, ctx.parameter_effects[key].writes, aliases, fd.sig.params, scope, self_type, ctx) {
+                    if place_crosses_ref(place, fd.sig.params, scope, ctx.symbols) { _ := place_add(effects.writes, place) }
+                }
+            }
+        }
+    case:
+    }
+    for child: Expr in e.children { parameter_effect_walk(child, aliases, effects, fd, scope, self_type, ctx) }
+}
+
+priv update_parameter_effects := func(e: Expr, scope: TypeScope, self_type: Str, mut ctx: Context) returns Bool {
+    ref fd: FunctionDef = funcdef_of(e)
+    if e.children.len() == 0 || fd.auto_generated || fd.sig.func_type.is_bodyless() { return false }
+    if init_func_is_generic(e, ctx.symbols) { return false }
+    mut interesting := fd.sig.return_own_type.is(OwnType.Ref)
+    for parameter: Declaration in fd.sig.params {
+        if type_carries_borrow(scope, decl_type_name(parameter, ctx.symbols), ctx.symbols) { interesting = true }
+    }
+    if interesting.not() { return false }
+    mut aliases := Map(Str, ParameterPlaces).new()
+    for pi in 0..fd.sig.params.len() { aliases.set(fd.sig.params[pi].name, own ParameterPlaces(values = vec(ParameterPlace, ParameterPlace(parameter = pi)))) }
+    mut effects := ParameterEffects()
+    parameter_effect_walk(e.children[0], aliases, effects, fd, scope, self_type, ctx)
+    key := word_bits(to_ptr(fd)).to_uptr()
+    if effects.writes.len() == 0 && effects.returned.len() == 0 { return false }
+    mut merged := ParameterEffects()
+    if ctx.parameter_effects.has(key) { merged = ctx.parameter_effects[key].clone() }
+    mut changed := false
+    for place: ParameterPlace in effects.writes { if place_add(merged.writes, place) { changed = true } }
+    for place: ParameterPlace in effects.returned { if place_add(merged.returned, place) { changed = true } }
+    if changed { ctx.parameter_effects.set(key, own merged) }
+    return changed
+}
+
+priv check_indirect_call_writes := proc(mut scope: TypeScope, call: Expr, fd: FunctionDef, mut ctx: Context) {
+    key := word_bits(to_ptr(fd)).to_uptr()
+    if ctx.parameter_effects.has(key).not() { return }
+    effects := ctx.parameter_effects[key].clone()
+    for place: ParameterPlace in effects.writes {
+        argument := summary_fcall_arg_for_param(call, fd, place.parameter, scope, ctx.symbols)
+        if argument.is_none() { continue }
+        mut target := argument.unwrap().clone()
+        mut recursive := false
+        for field: Str in place.field.split(".") {
+            if field == "*" { recursive = true; break }
+            type := target.til_type().clone()
+            ref definition: Expr = scope.get_struct(type_name_ref(type, ctx.symbols), ctx.symbols).unwrap()
+            ref sd: StructDef = structdef_of(definition)
+            ref member: Declaration = member_get(sd.fields_index, sd.fields, field).unwrap()
+            mut access := Expr.new(own field_access_node(ctx.symbols.intern(field)), call.line, call.col)
+            access.set_til_type(declaration_resolved_type(member, scope, ctx.symbols))
+            access.add_child(own target)
+            target = access
+        }
+        mut roots := lvalue_write_roots(scope, target, ctx.symbols)
+        if recursive { roots = carried_roots_of(scope, expr_borrow_roots(scope, target, ctx.symbols), "", ctx.symbols) }
+        mark_roots_written(scope, roots, ctx.symbols)
+        check_writable_root_set(scope, call, roots, format("write through borrowed field '", place.field, "' in this call"), ctx)
+    }
+}
+
 priv summarize_unit_walk := func(mut e: Expr, scope: TypeScope, self_type: Str, retained_pass: Bool, mut ctx: Context) returns Bool {
     mut changed := false
     switch e.node_type {
     case .FuncDef:
         if retained_pass { update_retained_params(e, scope, self_type, ctx); return false }
-        return update_ref_return_summary(e, scope, self_type, ctx)
+        changed = update_ref_return_summary(e, scope, self_type, ctx)
+        return update_parameter_effects(e, scope, self_type, ctx).or(changed)
     case .Decl(dd):
         // A type definition names the `self` its namespace methods take;
         // the name lives on the Decl, not on the def node.

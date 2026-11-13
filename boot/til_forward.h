@@ -284,6 +284,8 @@ typedef struct EvalHeap EvalHeap;
 typedef struct Vec__I64 Vec__I64;
 typedef struct Vec__U64 Vec__U64;
 typedef struct RootBits RootBits;
+typedef struct ParameterPlace ParameterPlace;
+typedef struct ParameterEffects ParameterEffects;
 typedef struct BorrowRoot BorrowRoot;
 typedef struct TypeBinding TypeBinding;
 typedef struct ScopeFind ScopeFind;
@@ -307,6 +309,7 @@ typedef struct EvalState EvalState;
 typedef struct Context Context;
 typedef struct priv___src_self_context_til__HostOwnPtrProbe priv___src_self_context_til__HostOwnPtrProbe;
 typedef struct Option__priv___src_self_context_til__HostOwnPtrProbe Option__priv___src_self_context_til__HostOwnPtrProbe;
+typedef struct Vec__ParameterPlace Vec__ParameterPlace;
 typedef struct Vec__BorrowRoot Vec__BorrowRoot;
 typedef struct SymMap__TypeBinding SymMap__TypeBinding;
 typedef struct SymMap__Dynamic SymMap__Dynamic;
@@ -335,6 +338,7 @@ typedef struct Map__Str_FuncType Map__Str_FuncType;
 typedef struct Option__Scope Option__Scope;
 typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
 typedef struct Map__UPtr_RootBits Map__UPtr_RootBits;
+typedef struct Map__UPtr_ParameterEffects Map__UPtr_ParameterEffects;
 typedef struct Map__Str_Type Map__Str_Type;
 typedef struct Map__Str_StructLayout Map__Str_StructLayout;
 typedef struct Set__U32 Set__U32;
@@ -357,6 +361,7 @@ typedef struct Vec__Mode Vec__Mode;
 typedef struct Vec__FuncType Vec__FuncType;
 typedef struct Vec__ImportUnit Vec__ImportUnit;
 typedef struct Vec__RootBits Vec__RootBits;
+typedef struct Vec__ParameterEffects Vec__ParameterEffects;
 typedef struct Vec__Type Vec__Type;
 typedef struct Vec__StructLayout Vec__StructLayout;
 typedef struct Option__ref_Mode Option__ref_Mode;
@@ -391,10 +396,13 @@ typedef struct priv___src_self_typer_til__CtorArg priv___src_self_typer_til__Cto
 typedef struct priv___src_self_typer_til__ReturnEscapeRoots priv___src_self_typer_til__ReturnEscapeRoots;
 typedef struct FactIndex FactIndex;
 typedef struct DepositAcc DepositAcc;
+typedef struct priv___src_self_typer_til__ParameterPlaces priv___src_self_typer_til__ParameterPlaces;
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
 typedef struct Vec__priv___src_self_typer_til__CtorArg Vec__priv___src_self_typer_til__CtorArg;
 typedef struct Map__Str_RootBits Map__Str_RootBits;
+typedef struct Map__Str_priv___src_self_typer_til__ParameterPlaces Map__Str_priv___src_self_typer_til__ParameterPlaces;
 typedef struct Vec__priv___src_self_typer_til__CoverageNode Vec__priv___src_self_typer_til__CoverageNode;
+typedef struct Vec__priv___src_self_typer_til__ParameterPlaces Vec__priv___src_self_typer_til__ParameterPlaces;
 typedef struct PendingRefBinding PendingRefBinding;
 typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds priv___src_self_desugarer_til__StmtDesugarNeeds;
 typedef struct Vec__I32 Vec__I32;
@@ -1005,6 +1013,12 @@ typedef struct RootBits {
 } RootBits;
 
 
+typedef struct ParameterPlace {
+    USize parameter;
+    Str field;
+} ParameterPlace;
+
+
 typedef struct BorrowRoot {
     Str name;
     Str path;
@@ -1065,6 +1079,13 @@ typedef struct priv___src_self_context_til__HostOwnPtrProbe {
 struct Option__priv___src_self_context_til__HostOwnPtrProbe {
     TIL_OWN_PTR(priv___src_self_context_til__HostOwnPtrProbe) data;
 };
+
+typedef struct Vec__ParameterPlace {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__ParameterPlace;
+
 
 typedef struct Vec__BorrowRoot {
     TIL_OWN_PTR(U8) data;
@@ -1277,6 +1298,13 @@ typedef struct Vec__RootBits {
 } Vec__RootBits;
 
 
+typedef struct Vec__ParameterEffects {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__ParameterEffects;
+
+
 typedef struct Vec__Type {
     TIL_OWN_PTR(U8) data;
     USize count;
@@ -1338,6 +1366,12 @@ typedef struct DepositAcc {
 } DepositAcc;
 
 
+typedef struct priv___src_self_typer_til__ParameterPlaces {
+    Vec__ParameterPlace values;
+    Bool is_reference;
+} priv___src_self_typer_til__ParameterPlaces;
+
+
 typedef struct Vec__priv___src_self_typer_til__CtorArg {
     TIL_OWN_PTR(U8) data;
     USize count;
@@ -1356,6 +1390,13 @@ typedef struct Vec__priv___src_self_typer_til__CoverageNode {
     USize count;
     USize cap;
 } Vec__priv___src_self_typer_til__CoverageNode;
+
+
+typedef struct Vec__priv___src_self_typer_til__ParameterPlaces {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__priv___src_self_typer_til__ParameterPlaces;
 
 
 typedef struct PendingRefBinding {
@@ -2328,6 +2369,12 @@ typedef struct priv___src_self_parser_til__Parser {
 } priv___src_self_parser_til__Parser;
 
 
+typedef struct ParameterEffects {
+    Vec__ParameterPlace writes;
+    Vec__ParameterPlace returned;
+} ParameterEffects;
+
+
 typedef struct TypeBinding {
     Str name;
     Type type;
@@ -2490,6 +2537,12 @@ typedef struct Map__UPtr_RootBits {
 } Map__UPtr_RootBits;
 
 
+typedef struct Map__UPtr_ParameterEffects {
+    Vec__UPtr keys;
+    Vec__ParameterEffects values;
+} Map__UPtr_ParameterEffects;
+
+
 typedef struct Map__Str_Type {
     Vec__Str keys;
     Vec__Type values;
@@ -2519,6 +2572,12 @@ typedef struct priv___src_self_typer_til__CoverageNode {
     Vec__Str sub_names;
     Vec__priv___src_self_typer_til__CoverageNode sub_nodes;
 } priv___src_self_typer_til__CoverageNode;
+
+
+typedef struct Map__Str_priv___src_self_typer_til__ParameterPlaces {
+    Vec__Str keys;
+    Vec__priv___src_self_typer_til__ParameterPlaces values;
+} Map__Str_priv___src_self_typer_til__ParameterPlaces;
 
 
 typedef struct priv___src_self_garbager_til__GcAssignVerdicts {
@@ -2826,6 +2885,7 @@ typedef struct Context {
     Set__Str type_gen_synths;
     Map__Str_Expr generic_funcs;
     Map__UPtr_RootBits global_borrow_escapes;
+    Map__UPtr_ParameterEffects parameter_effects;
     Set__Str global_escape_names;
     Map__Str_Type global_escape_types;
     Set__Str generic_func_synths;

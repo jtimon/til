@@ -5,6 +5,46 @@ mode test
 RefFieldSteps := struct { ref byte:I8;ref half:I16;ref word:I32;ref wide:I64;ref unsigned_value:U64;ref float_value:F32;ref raw:Dynamic=0 }
 RefFieldNumber := struct { ref value:I64 }
 RefFieldRaw := struct { ref value:Dynamic=0 }
+increment_ref_number := func(counter: RefFieldNumber) {
+    ref mut value: I64 = counter.value
+    value++
+}
+forward_ref_number := func(counter: RefFieldNumber) { increment_ref_number(counter) }
+assign_ref_number := func(counter: RefFieldNumber, number: I64) {
+    ref mut value: I64 = counter.value
+    value = number
+}
+ref_number_value := func(counter: RefFieldNumber) returns ref I64 { return counter.value }
+increment_ref_getter := func(counter: RefFieldNumber) {
+    ref mut value: I64 = ref_number_value(counter)
+    value++
+}
+RefFieldPair := struct { ref first: I64; ref second: I64 }
+increment_first_ref := func(pair: RefFieldPair) { pair.first.inc() }
+RefFieldNested := struct { counter: RefFieldNumber }
+increment_nested_ref := func(value: RefFieldNested) { forward_ref_number(value.counter) }
+
+test_indirect_scalar_write_effects := test() {
+    mut count: I64 = 0
+    counter := RefFieldNumber(value = count)
+    assert(count == 0)
+    increment_ref_number(counter)
+    assert(count == 1)
+    forward_ref_number(counter)
+    assert(count == 2)
+    increment_ref_getter(counter)
+    assert(count == 3)
+    untouched: I64 = 19
+    pair := RefFieldPair(first = count, second = untouched)
+    increment_first_ref(pair)
+    assert(count == 4 && untouched == 19)
+    nested := RefFieldNested(counter = counter.clone())
+    increment_nested_ref(nested)
+    assert(count == 5)
+    assign_ref_number(counter, 29)
+    assert(count == 29)
+}
+
 ref_field_counted := func(p:RefFieldNumber,mut calls:I64) returns ref I64 { calls++;return p.value }
 ref_field_retarget_raw := func(mut p:RefFieldRaw,value:Dynamic) { p.value=value }
 

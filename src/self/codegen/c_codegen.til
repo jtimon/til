@@ -3738,6 +3738,32 @@ priv emit_fcall_funcptr_args := proc(f: File, e: Expr, sig: Expr, depth: I32, mu
     }
 }
 
+// A captured scalar borrows its source storage when the source is a `ref`
+// local alias or a borrowed parameter that travels by pointer in C. In both
+// cases an `own` capture must allocate a private box; copying the source
+// address would let the closure's drop free the caller's stack slot.
+priv scalar_capture_borrows_storage := func(name: Str, ctx: Context) returns Bool {
+    sym := ctx.symbols.lookup(name).unwrap()
+    if ctx.builder_func.ref_locals.has(sym) { return true }
+    if ctx.builder_func.shadowed_params.has(sym) { return false }
+    switch ctx.builder_func.current_fdef {
+    case .Some(def):
+        switch def.node_type {
+        case .FuncDef(fd):
+            for i in 0..fd.sig.params.len() {
+                ref parameter: Declaration = fd.sig.params[i]
+                if parameter.name == name {
+                    return parameter.own_type.is(OwnType.Ref)
+                        .and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols).not())
+                }
+            }
+        case:
+        }
+    case .None:
+    }
+    return false
+}
+
 priv emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: Context) returns ref File {
     switch e.node_type {
     case .FuncDef(fd):
@@ -3747,10 +3773,11 @@ priv emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: C
             ctype := c_type_name(cap.til_type, type_name_ref(cap.til_type, _ctx.symbols), _ctx)
             mut cap_expr := Expr.new(own ident_node(_ctx.symbols.intern(cap.name)), e.line, e.col)
             cap_expr.set_til_type(cap.til_type.clone())
-            // An immutable scalar copy may have become a borrowed local alias.
-            // Its private capture owns a value cell, not the alias's pointee.
+            // An immutable scalar copy may have become a borrowed local alias
+            // or a borrowed parameter. Its private capture owns a value cell,
+            // not the alias's or caller's pointee.
             borrowed_scalar := cap.til_type.is(Type.Primitive)
-                .and(_ctx.builder_func.ref_locals.has(_ctx.symbols.intern(cap.name)))
+                .and(scalar_capture_borrows_storage(cap.name, _ctx))
             if cap.own_type.is(OwnType.Ref) {
                 f.write("til_env->").write(c_ident(cap.name)).write(" = ")
                 emit_as_ptr(f, cap_expr, _depth, false, _ctx)
@@ -3776,7 +3803,7 @@ priv emit_capturing_closure_value := proc(f: File, e: Expr, _depth: I32, _ctx: C
             mut cap_expr_b := Expr.new(own ident_node(_ctx.symbols.intern(cap_b.name)), e.line, e.col)
             cap_expr_b.set_til_type(cap_b.til_type.clone())
             borrowed_scalar_b := cap_b.til_type.is(Type.Primitive)
-                .and(_ctx.builder_func.ref_locals.has(_ctx.symbols.intern(cap_b.name)))
+                .and(scalar_capture_borrows_storage(cap_b.name, _ctx))
             if cap_b.own_type.is(OwnType.Ref) {
                 f.write("til_env->").write(c_ident(cap_b.name)).write(" = ")
                 emit_as_ptr(f, cap_expr_b, _depth, false, _ctx)

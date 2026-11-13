@@ -4,7 +4,7 @@ import("../src/self/lexer")
 import("../src/self/parser")
 
 // Helper: tokenize + parse
-parse_src := proc(src: Str, symbols: SymbolPool) returns Expr {
+parse_src := proc(src: Str, mut symbols: SymbolPool) returns Expr {
     tokens := tokenize(src, "test")
     mut mode_str := ""
     mut anon_counter : I64 = 0
@@ -68,14 +68,14 @@ test_symbol_pool_collision_wrap_and_growth := test() {
 }
 
 test_empty := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("", symbols)
     assert(root.node_type.is(NodeType.Body))
     assert_eq(USize, root.children.len(), 0)
 }
 
 test_declaration := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("x := 42", symbols)
     assert_eq(USize, root.children.len(), 1)
     ref decl : Expr = root.children[0]
@@ -93,7 +93,7 @@ test_declaration := test() {
 }
 
 test_typed_decl := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("x : I64 = 0", symbols)
     ref decl : Expr = root.children[0]
     switch decl.node_type {
@@ -106,7 +106,7 @@ test_typed_decl := test() {
 }
 
 test_assignment := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("x = 1", symbols)
     ref assign : Expr = root.children[0]
     assert_eq(Str, node_name(assign.node_type), "assign")
@@ -120,7 +120,7 @@ test_assignment := test() {
 }
 
 test_call := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("foo(1, 2)", symbols)
     ref call : Expr = root.children[0]
     assert_eq(Str, node_name(call.node_type), "fcall")
@@ -136,7 +136,7 @@ test_call := test() {
 }
 
 test_method_call := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("x.foo(1)", symbols)
     ref call : Expr = root.children[0]
     assert_eq(Str, node_name(call.node_type), "fcall")
@@ -152,7 +152,7 @@ test_method_call := test() {
 }
 
 test_method_call_on_subscript_receiver := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("e.children[0].set_til_type(t)", symbols)
     ref call : Expr = root.children[0]
     assert_eq(Str, node_name(call.node_type), "fcall")
@@ -169,7 +169,7 @@ test_method_call_on_subscript_receiver := test() {
 // Statement-level method chain on a call result: the statement parser
 // used to reject the '.' after 'foo()' ("expected statement, found '.'").
 test_stmt_chain_on_call := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("foo().bar(1)", symbols)
     ref call : Expr = root.children[0]
     assert_eq(Str, node_name(call.node_type), "fcall")
@@ -188,7 +188,7 @@ test_stmt_chain_on_call := test() {
 // Statement-level field assignment through a call result
 // (`HashMap(I64, I64).hasher = fnv1a` in examples/bench_hashmap.til).
 test_stmt_field_assign_on_call := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("box(1).field = 2", symbols)
     ref fa : Expr = root.children[0]
     assert_eq(Str, node_name(fa.node_type), "field_assign")
@@ -204,7 +204,7 @@ test_stmt_field_assign_on_call := test() {
 }
 
 test_if_else := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("if true { x = 1 } else { x = 2 }", symbols)
     ref node : Expr = root.children[0]
     assert_eq(Str, node_name(node.node_type), "if")
@@ -212,7 +212,7 @@ test_if_else := test() {
 }
 
 test_while := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("while true { x = 1 }", symbols)
     ref node : Expr = root.children[0]
     assert_eq(Str, node_name(node.node_type), "while")
@@ -220,7 +220,7 @@ test_while := test() {
 }
 
 test_func_def := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("f := func(x: I64) returns I64 { return x }", symbols)
     ref decl : Expr = root.children[0]
     assert_eq(Str, node_name(decl.node_type), "decl")
@@ -238,7 +238,7 @@ test_func_def := test() {
 }
 
 test_struct_def := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("P := struct { mut x := 0 }", symbols)
     ref decl : Expr = root.children[0]
     assert_eq(Str, node_name(decl.node_type), "decl")
@@ -253,7 +253,7 @@ test_struct_def := test() {
 }
 
 test_switch := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("switch x { case 1: y = 1 case 2: y = 2 case: y = 0 }", symbols)
     ref node : Expr = root.children[0]
     assert_eq(Str, node_name(node.node_type), "switch")
@@ -265,7 +265,7 @@ test_switch := test() {
 }
 
 test_for_in := test() {
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     root := parse_src("for i in 0..10 { x = i }", symbols)
     ref node : Expr = root.children[0]
     assert_eq(Str, node_name(node.node_type), "for_in")
@@ -281,7 +281,7 @@ test_for_in := test() {
 // #472 (moved from test/lexing.til, which then imports only the lexer).
 // Parsing the same source with fresh state twice interns the same names
 // in source order and synthesizes the same anonymous type names.
-parse_fresh := proc(src: Str, symbols: SymbolPool, mut counter: I64) returns Expr {
+parse_fresh := proc(src: Str, mut symbols: SymbolPool, mut counter: I64) returns Expr {
     tokens := tokenize(src, "p.til")
     mut mode_str := ""
     return parse(tokens, src, "p.til", mode_str, counter, symbols)
@@ -289,10 +289,10 @@ parse_fresh := proc(src: Str, symbols: SymbolPool, mut counter: I64) returns Exp
 
 test_repeat_parse := test() {
     src := "zeta := struct { b : I64 = 0 }\nalpha := func(x: zeta) returns I64 { return x.b }\npair := enum { One, Two }\np := struct { q : I64 = 1 }(q=2)\nc := enum { Red, Green }.Green\nd := struct { q : I64 = 1 }(q=3)\ne := alpha(zeta(b=1))\n"
-    symbols1 := SymbolPool()
+    mut symbols1 := SymbolPool()
     mut counter1 : I64 = 0
     ast1 := parse_fresh(src, symbols1, counter1)
-    symbols2 := SymbolPool()
+    mut symbols2 := SymbolPool()
     mut counter2 : I64 = 0
     // A separate buffer holding the same bytes.
     src_copy := src.clone()

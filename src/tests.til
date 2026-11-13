@@ -3068,12 +3068,14 @@ main := proc(args: ..Str) returns I64 {
         format(til_bin, " interpret test/reference_rebinding_escape_error.til"), ..global_escape_checks)
     add_counts(tests, "reference_rebinding_escape_build", "typer",
         format(til_bin, " build", asan_flag, " test/reference_rebinding_escape_error.til"), ..global_escape_checks)
-    add_count(tests, "reference_rebinding_readonly_interp", "typer",
-        "'source' is an immutable binding", 1,
-        format(til_bin, " interpret test/reference_rebinding_readonly_error.til"))
-    add_count(tests, "reference_rebinding_readonly_build", "typer",
-        "'source' is an immutable binding", 1,
-        format(til_bin, " build", asan_flag, " test/reference_rebinding_readonly_error.til"))
+    readonly_reference_checks := array(CountCheck,
+        CountCheck(needle = "'source' is an immutable binding", expected_count = 1),
+        CountCheck(needle = "'count' is an immutable binding", expected_count = 3),
+        CountCheck(needle = "4 type error(s) found", expected_count = 1))
+    add_counts(tests, "reference_rebinding_readonly_interp", "typer",
+        format(til_bin, " interpret test/reference_rebinding_readonly_error.til"), ..readonly_reference_checks)
+    add_counts(tests, "reference_rebinding_readonly_build", "typer",
+        format(til_bin, " build", asan_flag, " test/reference_rebinding_readonly_error.til"), ..readonly_reference_checks)
     add_count(tests, "qualifier_shallow_local_error_interp", "parser",
         "locals cannot use", 1,
         format(til_bin, " interpret test/qualifier_shallow_local_error.til"))

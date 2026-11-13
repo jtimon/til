@@ -99,6 +99,18 @@ namespace:
     is_zero := func(self: RootBits) returns Bool { return self.all().neq(0).or(self.global_storage).not() }
 }
 
+// Parameter-relative places retain field identity for indirect writes.
+ParameterPlace := struct {
+    parameter: USize = 0
+    field := ""
+namespace:
+    eq := func(a: ParameterPlace, b: ParameterPlace) returns Bool { return a.parameter == b.parameter && a.field == b.field }
+}
+ParameterEffects := struct {
+    writes := Vec(ParameterPlace).new()
+    returned := Vec(ParameterPlace).new()
+}
+
 // #344: one storage that a borrow reaches. A ref binding -- or a binding
 // whose value carries a borrowed payload -- records the bindings its value
 // aliases, so a write through the alias can be credited to them. Identity
@@ -1737,6 +1749,7 @@ Context := struct {
     // A missing entry means no known escape/global-ref-result effect. Populated by the
     // same monotone pass as return/deposit summaries; never read by evaluation.
     global_borrow_escapes := Map(UPtr, RootBits).new()
+    parameter_effects := Map(UPtr, ParameterEffects).new()
     // Source globals are not bound until their declarations are typed. The
     // pre-typing effect pass still needs their names and declared/constructor
     // types, without making forward value references visible to the language.

@@ -24,7 +24,7 @@ parse_failure := proc() returns Vec(SourceDiagnostic) {
     tokens := tokenize(source, "config.til", true, diagnostics)
     mut mode := ""
     mut counter : I64 = 0
-    symbols := SymbolPool()
+    mut symbols := SymbolPool()
     mut errors : I32 = 0
     ast := parse(tokens, source, "config.til", mode, counter, symbols, errors, true, diagnostics)
     assert(ast.line == 1)
