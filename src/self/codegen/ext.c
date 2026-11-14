@@ -169,6 +169,31 @@ static void stdio_capture_fail(const char *op) {
 #endif
 #endif
 
+#ifdef TIL_ANDROID_GUI
+// APK builds redirect InitWindow here, leaving the raylib archive unchanged.
+// Legacy Android Back events must reach NativeActivity's default handler:
+// raylib consumes them without requesting activity destruction.
+#undef InitWindow
+#include <android_native_app_glue.h>
+extern void InitWindow(int width, int height, const char *title);
+extern struct android_app *GetAndroidApp(void);
+
+static int32_t (*til_android_raylib_input)(struct android_app *, AInputEvent *);
+
+static int32_t til_android_input(struct android_app *app, AInputEvent *event) {
+    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY &&
+            AKeyEvent_getKeyCode(event) == AKEYCODE_BACK) return 0;
+    return til_android_raylib_input(app, event);
+}
+
+void til_android_init_window(int width, int height, const char *title) {
+    InitWindow(width, height, title);
+    struct android_app *app = GetAndroidApp();
+    til_android_raylib_input = app->onInputEvent;
+    app->onInputEvent = til_android_input;
+}
+#endif
+
 // nng's win_clock.c calls the C11 timespec_get(&ts, TIME_UTC), which mingw only
 // declares under the universal CRT (_UCRT). We deliberately build nng against
 // the default msvcrt instead (see make.til's NngTarget): a UCRT nng

@@ -9383,12 +9383,14 @@ priv jni_c_in := func(kind: Str, type_name: Str, a: Str) returns Str {
     return format("til_jni_str_in(env, ", a, ")")
 }
 
-priv jni_c_delete := func(kind: Str, type_name: Str, lvalue: Str, ctx: Context) returns Str {
-    if kind == "strvec" { return format("TIL_JNI_VECSTR_DELETE(&", lvalue, ", 0);") }
+priv jni_c_delete := func(kind: Str, type_name: Str, lvalue: Str, ctx: Context, call_free: Bool = false) returns Str {
+    mut release := "0"
+    if call_free { release = "1" }
+    if kind == "strvec" { return format("TIL_JNI_VECSTR_DELETE(&", lvalue, ", ", release, ");") }
     if kind.eq("vec").or(kind.eq("hvec")) {
-        return format(lib_c_resolved_name(format(type_name, "_delete"), ctx), "(&", lvalue, ", 0);")
+        return format(lib_c_resolved_name(format(type_name, "_delete"), ctx), "(&", lvalue, ", ", release, ");")
     }
-    return format("TIL_JNI_STR_DELETE(&", lvalue, ", 0);")
+    return format("TIL_JNI_STR_DELETE(&", lvalue, ", ", release, ");")
 }
 
 // C converting the JNI value `a` of a scalar or Str type to til's C value.
@@ -10540,8 +10542,9 @@ priv emit_jni_callback := proc(jf: File, cf: File, name: Str, sfd: FunctionDef, 
             c_args = format(c_args, "    ", slot, ".l = ", s, ";\n")
             c_post = format(c_post, "    (*env)->DeleteLocalRef(env, ", s, ");\n")
             // `own`: Java has its copy, so the til value is released.
-            if is_own { c_post = format(c_post, "    ", jni_c_delete(kind, tn, xv, ctx), "\n") }
-            if owns_box { c_post = format(c_post, "    free(", x, ");\n") }
+            // The destructor also owns the outer box: Str's CAP_LIT may
+            // denote a static literal wrapper, never a separately freeable box.
+            if is_own { c_post = format(c_post, "    ", jni_c_delete(kind, tn, xv, ctx, owns_box), "\n") }
         } else if kind == "handle" {
             iface_params = format(iface_params, jt, " ", a)
             adapter_params = format(adapter_params, ", ", nt, " ", a)
@@ -10949,12 +10952,14 @@ priv jni_is_funcsig := func(name: Str, ctx: Context) returns Bool {
 // for a bridge installed beside the library. The runtime ABI after the
 // target (layout, CPU profile, ASAN) is this build's, so every directory of
 // one jar comes from builds with one compiler revision and one set of
-// options.
+// options. Android loads the app-packaged jniLibs through System.loadLibrary;
+// extracting executable libraries to writable app storage is not supported.
 priv emit_jni_native_loader := proc(jf: File, lp: LoadedProgram, lib_name: Str, pkg: Str, cls: Str) {
     jf.write("    static { tilLoadNatives(); }\n\n")
     jf.write("    private static String tilTarget() {\n")
     jf.write("        String os = System.getProperty(\"os.name\", \"\");\n")
     jf.write("        String arch = System.getProperty(\"os.arch\", \"\");\n")
+    jf.write("        if (\"Dalvik\".equals(System.getProperty(\"java.vm.name\"))) os = \"android\";\n")
     jf.write("        String o = os.startsWith(\"Linux\") ? \"linux\" : os.startsWith(\"Mac\") ? \"macos\"\n")
     jf.write("            : os.startsWith(\"Windows\") ? \"windows\" : os.toLowerCase(java.util.Locale.ROOT);\n")
     jf.write("        String a;\n")
@@ -10974,6 +10979,10 @@ priv emit_jni_native_loader := proc(jf: File, lp: LoadedProgram, lib_name: Str, 
         .write(lp.runtime_abi_tail()).write("\";\n")
     jf.write("        String[] files = { \"libtilrt-\" + abi + ext, \"libtilcore-\" + abi + ext,\n")
     jf.write("            \"lib").write(lib_name).write("\" + ext, \"lib").write(lib_name).write("_jni\" + ext };\n")
+    jf.write("        if (target.startsWith(\"android-\")) {\n")
+    jf.write("            for (String f : files) System.loadLibrary(f.substring(3, f.length() - ext.length()));\n")
+    jf.write("            return;\n")
+    jf.write("        }\n")
     jf.write("        String dir = \"native/\" + target + \"/\";\n")
     jf.write("        if (").write(cls).write(".class.getResource(dir + files[3]) == null) {\n")
     jf.write("            try {\n")
@@ -11559,7 +11568,12 @@ priv emit_jni_callback_prelude := proc(cf: File, class_path: Str) {
     cf.write("TIL_JNI_HELPER JNIEnv *til_jni_cb_env(JavaVM *vm) {\n")
     cf.write("    JNIEnv *env = NULL;\n")
     cf.write("    if ((*vm)->GetEnv(vm, (void **)&env, JNI_VERSION_1_6) == JNI_OK) return env;\n")
+    // The NDK's C invocation interface takes JNIEnv**, not the JDK's void**.
+    cf.write("#ifdef __ANDROID__\n")
+    cf.write("    if ((*vm)->AttachCurrentThread(vm, &env, NULL) != JNI_OK) {\n")
+    cf.write("#else\n")
     cf.write("    if ((*vm)->AttachCurrentThread(vm, (void **)&env, NULL) != JNI_OK) {\n")
+    cf.write("#endif\n")
     cf.write("        fprintf(stderr, \"til jni: cannot attach a thread to the JVM for a callback\\n\");\n")
     cf.write("        abort();\n")
     cf.write("    }\n")

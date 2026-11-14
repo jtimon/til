@@ -1424,7 +1424,9 @@ priv compile_android_apk := proc(lp: LoadedProgram, paths: BuildPaths, target: T
     mut width := " -DTIL_USIZE32"
     if lp.ctx.target_usize_pname == "U64" { width = " -DTIL_USIZE64" }
     extra := format(toolchain_extra_args(target), c_build_flags(lp), width,
-        " -fPIC -fvisibility=hidden -ffunction-sections -fdata-sections -Werror")
+        " -fPIC -fvisibility=hidden -ffunction-sections -fdata-sections -Werror",
+        " -DTIL_ANDROID_GUI -DInitWindow=til_android_init_window -I",
+        mlir_shell_quote(format(root, "/vendor/android/native_app_glue")))
     ext_dir := lp.ext_c_path.substr(0, lp.ext_c_path.rfind("/").to_usize())
     mut objects := ""
     mut index : USize = 0
@@ -1473,9 +1475,10 @@ priv jni_jar_path := func(paths: BuildPaths) returns Str {
 }
 
 // Compiles gen/til/<name>_jni.c into lib<name>_jni beside lib<name> (which
-// it finds through its own rpath), then the Java binding into <name>.jar,
+// it finds through its own rpath on desktop), then the Java binding into <name>.jar,
 // at --release 8 so every JVM toolchain can use it. The classes are staged
-// under the caller's tmp/ and removed once jarred.
+// under the caller's tmp/ and removed once jarred. Android uses the sysroot's
+// JNI headers and the app's native-library namespace instead of JDK headers/rpath.
 priv build_jni := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_override: Str, asan: Bool) returns I32 {
     mut os_include := "linux"
     mut origin := "$ORIGIN"
@@ -1504,11 +1507,19 @@ priv build_jni := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_
     // the til runtime (allocator, cage) resolve at load time from the
     // libraries lib<name> brings in, as ELF does by default.
     if host_os() == "macos" { link_extra = " -Wl,-undefined,dynamic_lookup" }
+    mut includes := format(" -I", mlir_shell_quote(format(java_home, "/include")),
+        " -I", mlir_shell_quote(format(java_home, "/include/", os_include)))
+    mut rpath := format(" ", mlir_shell_quote(format("-Wl,-rpath,", origin)))
+    if is_android_target(target) {
+        includes = ""
+        rpath = ""
+        link_extra = format(target_link_extra_args(target), " -Wl,-z,defs,-soname,lib", paths.name, "_jni.so",
+            " -l:", lp.core_shared_basename(), " -l:", lp.runtime_shared_basename(), " ", target_system_libs(target))
+    }
     cmd := compiler.format(toolchain_extra_args(target), c_build_flags(lp), " -Werror", asan_flags, usize_flags,
-        " -shared -fPIC -I", mlir_shell_quote(format(java_home, "/include")),
-        " -I", mlir_shell_quote(format(java_home, "/include/", os_include)),
+        " -shared -fPIC", includes,
         " -I", h_dir, " -I", ext_dir, " ", paths.jni_c_path, " -Lgen/lib -l", paths.name,
-        " ", mlir_shell_quote(format("-Wl,-rpath,", origin)), link_extra, " -o ", jni_bridge_path(paths, target))
+        rpath, link_extra, " -o ", jni_bridge_path(paths, target))
     if system_cmd(cmd) != 0 {
         println("error: JNI bridge compilation failed")
         return 1

@@ -941,7 +941,7 @@ escaped as ~_x<hex>~; ~<Cls>~ is its alphanumeric runs capitalized
 ~<support>/lib/~, beside the ~.py~; with ~--jni~ it also installs the bridge
 and the jar in ~<prefix>/lib/~, beside the library.
 
-The jar is all a Java program needs. Beside the class, under
+On desktop, the jar is all a Java program needs. Beside the class, under
 ~til/<pkg>/native/<target>/~ (til's target names: ~linux-x64~,
 ~linux-arm64~, ~macos-x64~, ~macos-arm64~, ...), it carries the four
 natives: the bridge, ~lib<name>~, and the til runtime and core
@@ -960,9 +960,9 @@ java -cp gen/lib/<name>.jar:<classes> <Main>
 #+end_src
 
 *One jar for several platforms.* A build fills only its own target's
-directory, and ~--jni~ builds for the host, so a jar for every OS and CPU a
-deployment runs on is merged from one build on each, with the JDK's ~jar~
-tool:
+directory. Desktop ~--jni~ builds for the host; Android can also be
+cross-built. A desktop jar covering several OS/CPU targets is merged from
+one build on each, with the JDK's ~jar~ tool:
 
 #+begin_src sh
 # on each build host, the same til revision and the same options:
@@ -985,21 +985,44 @@ small library).
 
 ~--jni~ uses the JDK in ~$JAVA_HOME~, else (on macOS) the one
 ~/usr/libexec/java_home~ names, else the one the ~javac~ on ~PATH~ belongs
-to, and fails when there is none. It builds for the host only (no
-~--target~; Linux and macOS hosts), with the library's compiler and flags
+to, and fails when there is none. It builds on Linux and macOS hosts for
+the host target or either Android target, with the library's compiler and flags
 (~--cc~, ~--asan~, ~--usize~, ~--opt~, ~--cpu~), against ~ext.h~ from the
-compiler's support tree. The bridge finds ~lib<name>~ through its rpath
+compiler's support tree. On desktop, the bridge finds ~lib<name>~ through its rpath
 (~$ORIGIN~, ~@loader_path~ on macOS, where til libraries carry ~@rpath~
 install names, so no ~DYLD_*~ variable is needed). On macOS it also links
 with ~-Wl,-undefined,dynamic_lookup~: the bridge calls the til runtime's
 allocator directly, and Mach-O, unlike ELF, wants every symbol bound to a
 library at link time; the runtime is already loaded by ~lib<name>~.
 
-Still to do, so the binding reaches the places Java runs:
-  - Android (#462): build the library and its bridge with the NDK for each
-    ABI (~arm64-v8a~, ~armeabi-v7a~, ~x86_64~) and ship them under
-    ~jniLibs/<abi>/~ (or in an AAR) beside the Java class. Needs an Android
-    target in til; ~--jni~ is host-only today.
+*Android (#462).* Cross-build with the same interface:
+
+#+begin_src sh
+til build --jni --target=android-arm64 <name>.til
+# or --target=android-x64 for x86_64; both USize layouts are supported
+#+end_src
+
+Host clang/LLD and the vendored NDK sysroot build the library and bridge;
+the bridge uses Android's ~jni.h~, not the host JDK's headers. The JDK
+still compiles/packages the Java binding. Neither an installed NDK nor
+the Android SDK is needed for this library build.
+
+Add the Java class or jar to the Android app, and copy the four native
+libraries reported by the build (~lib<name>.so~, ~lib<name>_jni.so~,
+~libtilrt-*~ and ~libtilcore-*~) into the app's ~jniLibs/arm64-v8a/~ or
+~jniLibs/x86_64/~. They must have matching revision, target and layout.
+Copy each build's outputs before changing target/layout: ~gen/lib/~ keeps
+its existing shared output names. til does not generate an AAR or an
+additional ~jniLibs/~ tree.
+
+On ART, the class detects Android through ~java.vm.name~ (~Dalvik~),
+rather than mistaking ~os.name=Linux~ for glibc Linux. It loads the app's
+runtime, core, library and bridge with ~System.loadLibrary~, in that order.
+Android never extracts executable libraries from jar resources to writable
+temporary storage and does not depend on the desktop rpath loader. The
+Android app's build packages the native libraries normally.
+
+Remaining platform work:
   - Windows servers: ~--jni~ runs on Linux and macOS hosts only, so no
     jar carries ~windows-*~ natives yet; that waits on building til on a
     Windows host (#483).

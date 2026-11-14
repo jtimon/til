@@ -62,7 +62,7 @@ Both targets support the existing ~--usize=32~ and ~--usize=64~ layouts.
 The subset is optional: the default build and test suite do not need the
 Android SDK, NDK, ADB or emulator. Running the resulting executable needs
 an Android device/emulator; ~til run~ does not launch an emulator.
-Android JNI packaging remains separate #462 work.
+Android JNI builds are described below; the app's build packages their libraries.
 
 ** GUI APK builds
 
@@ -109,6 +109,35 @@ versionName 0.1. It uses the system NativeActivity and retains the demo's
 portrait/fullscreen configuration. Release versioning is tracked in #492.
 APK execution still requires installing/launching on Android; ~til run~
 does not select a device. APK --asan/--prof packaging is not implemented.
+
+The APK build redirects InitWindow through an Android-only runtime hook.
+It leaves Back key events to NativeActivity's normal OS handler and forwards
+other input to raylib, so legacy Back closes the activity rather than being
+consumed without action. This hook is in til's runtime, not a vendor patch.
+Back/relaunch and Home/resume were verified on API 28/4 KB and API 35/16 KB.
+
+** JNI libraries for Android apps
+
+#+begin_src sh
+bin/til build --jni --target=android-arm64 test/jni_lib.til
+#+end_src
+
+The existing outputs include ~gen/lib/libjni_lib.so~,
+~gen/lib/libjni_lib_jni.so~, the matching ~libtilrt-*~ / ~libtilcore-*~,
+and ~gen/lib/jni_lib.jar~. Host clang/LLD uses this sysroot's JNI headers;
+the JDK compiles the Java class. No installed NDK or SDK is needed to build
+these libraries. Both Android targets and both USize layouts are supported.
+
+The app packages the four libraries under its standard ~jniLibs/<abi>/~
+(~arm64-v8a~ or ~x86_64~) and uses the generated Java class or jar. Copy
+the outputs before building the next target/layout; no additional packaging
+tree or AAR is generated. On ART the binding loads these app-packaged
+libraries with System.loadLibrary, never by extracting jar natives to
+writable storage. See ~doc/ffi.org~ for the binding and ownership contract.
+
+The existing ~test/JniLibTest.java~ corpus passed inside installed Java
+apps on API 28/4 KB and API 35/16 KB at both USize layouts. ARM64 JNI
+libraries cross-compiled at both layouts; ARM execution remains unverified.
 
 ** Extraction and upgrades
 

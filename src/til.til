@@ -786,6 +786,7 @@ usage := proc() {
     println("              bridge (gen/lib/lib<name>_jni) and jar its Java binding")
     println("              (gen/lib/<name>.jar) with a JDK: $JAVA_HOME, else the one")
     println("              javac on PATH belongs to (/usr/libexec/java_home on macOS).")
+    println("              Supports the host target and Android targets.")
     println("")
     println("bindings audit -- the generated file is a starting point, not a finished")
     println("binding: C headers cannot express three til-side qualifier axes, so the")
@@ -1190,9 +1191,9 @@ main := proc(args: ..Str) {
     mut target := detect_current_target()
     if cli.target_str.len() > 0 { target = target_from_str(cli.target_str) }
     validate_target_flags(cli, target)
-    // The bridge compiles against the host JDK's jni.h and jni_md.h.
-    if cli.jni.and(target.is(detect_current_target()).not()) {
-        println(format("error: --jni builds the bridge with the host JDK and does not support --target=",
+    // Android's JNI headers come from the target sysroot, not the host JDK.
+    if cli.jni.and(target.is(detect_current_target()).or(is_android_target(target)).not()) {
+        println(format("error: --jni supports the host and Android targets, not --target=",
             target_to_str(target)))
         exit(1)
     }

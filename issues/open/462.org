@@ -57,8 +57,10 @@ the NDK.
      for each ABI and packaged as ~jniLibs/<abi>/lib<name>.so~ and
      ~lib<name>_jni.so~ (or an AAR) beside the generated Java class, which
      already compiles at the Java 8 source level Android takes.
-     ~til build --jni~ is host-only today; for an Android target it would
-     cross-compile the bridge with the NDK's clang.
+     Implemented below: ~til build --jni --target=android-{x64,arm64}~
+     uses host clang/LLD and the vendored NDK sysroot. The app packages
+     the existing library/bridge/runtime/core outputs; til adds no AAR
+     or separate generated ~jniLibs/~ tree.
   4. Calling Java-only SDK services from til through JNI, sharing the bridge
      work with #463.
 
@@ -208,8 +210,8 @@ would change.
   - [X] Repeat x86_64 CLI/library and Checkers smoke/lifecycle checks on
     API 28 / 4 KB and API 35 / 16 KB, with native page-size measurement
     and ELF/APK alignment checks. Exit paths tested are qualified below.
-  - [ ] Consistent Back-to-exit behavior on API 28 and API 35; raylib
-    consumes legacy Back input on these images.
+  - [X] Consistent Back-to-exit behavior on API 28 and API 35, including
+    repeated destruction/relaunch in the same process (follow-up below).
   - [X] Cross-build the arm64 APK with its NativeActivity entry point.
   - [ ] Run that APK on an ARM device; x86_64 execution is not ARM coverage.
 
@@ -277,6 +279,61 @@ Local verification:
 See ~vendor/android/README.org~ for build prerequisites, extraction and
 signing details. The virtual release selection, checksum companions and
 macro-produced global VERSION are tracked separately in [[./492.org][#492]].
+
+*** Back/exit and Android JNI follow-up (2026-11-14)
+
+Legacy Back now reaches NativeActivity's default handler. APK compilation
+redirects InitWindow through a til-owned runtime hook, which installs an
+input callback after raylib initializes. Back events are left unhandled
+for the OS; other input is forwarded to raylib's callback. This fixes the
+event-consumption cause without editing raylib or native-app glue. The
+existing lifecycle fixes still provide native/GL teardown; [[./488.org][#488]]
+continues to track their upstream replacement.
+
+Verified the generated Checkers APK on API 28/4096-byte pages and API
+35/16384-byte pages, measured by sysconf/getpagesize/auxv:
+
+  - 2P red/black moves and Restart passed with pixel checks of the board.
+  - Home/surface recreation/resume retained the same board in the same PID.
+  - Three Back/relaunch cycles per image rendered fresh games in the same
+    process; a fourth Back completed teardown. Each log contains four
+    ~Window closed successfully~ markers and no native/contextless-GL failure.
+  - Logs/screenshots: ~tmp/android_followup_api{28,35}.log~ and
+    ~tmp/android_followup_api{28,35}_{moves,resume,relaunch*,checkers}.*~.
+
+The existing ~build --jni~ interface now accepts Android targets. Native
+compilation uses Android's JNI header from the vendored sysroot, including
+its JNIEnv** AttachCurrentThread signature. The bridge has a SONAME,
+explicit runtime/core dependencies, undefined-symbol checking and 16 KB
+alignment. The host JDK still compiles the binding and writes the existing
+jar. ART detection distinguishes Android from Linux; it loads the four
+app-packaged libraries through System.loadLibrary rather than extracting
+jar resources into writable temporary storage.
+
+The app's build packages the existing gen/lib outputs in its standard
+jniLibs directory. No new til output tree, AAR, command or flag was added.
+Copy each target/layout's outputs before the next build, as their existing
+public library names share gen/lib. See ~doc/ffi.org~ for packaging details.
+
+Installed a temporary ordinary Java Activity that runs the unchanged
+~test/JniLibTest.java~ corpus on a worker thread and compares its captured
+stdout with ~test/JniLibTest.expected~. Both USize32 and USize64 passed on
+API 28/4 KB and API 35/16 KB, covering strings, scalars, handles, vectors,
+ownership, mutation, callbacks and exceptions in the real app sandbox.
+Evidence: ~tmp/android_followup_api{28,35}_jni{32,64}.log~ / ~.actual~.
+ARM64 JNI library/bridge/jar cross-builds passed at both layouts; no ARM
+execution result is claimed. All SDK-managed devices started for these
+checks were stopped afterward, and ADB reports no connected devices.
+
+USize64 uncovered an existing JNI ownership bug: callback cleanup deleted
+an owned Str's contents and then unconditionally freed its wrapper, even
+when CAP_LIT denoted a static literal wrapper. Android's Scudo aborted with
+~corrupted chunk header~; the same case on the host aborted with
+~free(): invalid pointer~. Cleanup now lets the type's destructor release
+both contents and any genuinely owned wrapper. ~test/jni.til~ runs the
+existing JVM corpus at native USize64 as a permanent regression; the
+compact cage alone had not exposed the invalid free. The default suite
+still needs no Android tools: ~make clean && make test~ passed 576/576.
 
 *** First installed demo: results and remaining checks
 
@@ -724,8 +781,8 @@ Hand-off checklist for the local session:
     needed by a default build or ~make test~.
   - The APK packaging route (the SDK's ~aapt2~ / ~zipalign~ / ~apksigner~
     directly, or Gradle) and where generated manifests and APKs live.
-  - For stage 3: whether ~--jni~ for an Android target produces an AAR, a
-    ~jniLibs/~ tree, or only the ~.so~ files for the app's own build.
+  - Stage 3 uses the existing generated Java/jar and ~.so~ outputs for
+    the app's own build, without a new AAR or ~jniLibs/~ output tree.
   - Whether an emulator-based check runs anywhere automated (CI only, or
     opt-in locally).
 
@@ -736,8 +793,8 @@ Hand-off checklist for the local session:
     sysroot runs on the x86_64 emulator with matching output/exit status,
     at both USize layouts.
   - [ ] ARM64 builds run on an ARM device (cross-compilation passed).
-  - [ ] Checkers meets the playable ~NativeActivity~ milestone above.
-  - [ ] A Java or Kotlin app on a device or emulator calls a til ~mode lib~
-    library through its generated JNI binding, built with the NDK.
+  - [X] Checkers meets the playable ~NativeActivity~ milestone above.
+  - [X] A Java or Kotlin app on a device or emulator calls a til ~mode lib~
+    library through its generated JNI binding, built with the vendored NDK sysroot.
   - [X] A default build and ~make test~ need neither the NDK nor the
     Android SDK.

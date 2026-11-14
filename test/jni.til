@@ -171,4 +171,14 @@ main := proc(args: ..Str) {
         if out_asan != expected { panic("JniLibTest output mismatch under ASAN:\n", out_asan) }
         println("jni jvm asan ok")
     }
+
+    // Native allocation exposes invalid frees of static Str literal wrappers
+    // in owned callbacks; the compact cage did not catch this (#462).
+    native_build := Cmd.new("bin/til", "build", "--jni", "--usize=64", "test/jni_lib.til")
+    native_build.capture()
+    if native_build.run() != 0 { panic("building native-layout JNI library failed:\n", native_build.out(), native_build.err()) }
+    jni_javac(java_home, "tmp/jni_classes64", JAR, "test/JniLibTest.java")
+    native_out := jni_run(java_home, "gen/lib/jni_lib.jar:tmp/jni_classes64", "JniLibTest")
+    if native_out != expected { panic("JniLibTest output mismatch at USize64:\n", native_out) }
+    println("jni jvm native64 ok")
 }
