@@ -1,0 +1,46 @@
+mode lib
+import("../context")
+
+// Queries on the prepared AST, independent of target syntax or value layout.
+codegen_field_owner_name := func(e: Expr, symbols: SymbolPool) returns Str {
+    if e.children.len() == 0 {
+        name := expr_type_name_ref(e, symbols)
+        if name.is_some() { return name.unwrap().clone() }
+        return ""
+    }
+    ref receiver : Expr = e.children[0]
+    name := expr_type_name_ref(receiver, symbols)
+    if name.is_some() { return name.unwrap().clone() }
+    switch receiver.node_type {
+    case .Ident(id): return id.ident_name(symbols.names).clone()
+    case: return ""
+    }
+}
+
+codegen_field_name := func(e: Expr, symbols: SymbolPool) returns ref Str {
+    switch e.node_type {
+    case .FieldAccess(field): return field.field_access_name(symbols.names)
+    case .FieldAssign(field): return field.name
+    case: UNREACHABLE("expected a field access or assignment")
+    }
+}
+
+codegen_enum_definition := func(shallow type: Type, ctx: Context) returns Option(ref Expr) {
+    if is_enum_type(type).not() { return Option(ref Expr).None }
+    return ctx.scope.get_struct(type_name_ref(type, ctx.symbols), ctx.symbols)
+}
+
+// Covers both a bare variant and a payload-binding constructor pattern, plus
+// the flattened identifiers used by prepared direct calls.
+codegen_enum_variant_index := func(e: Expr, name: Str, definition: Expr, symbols: SymbolPool) returns I32 {
+    switch e.node_type {
+    case .FCall: return codegen_enum_variant_index(e.children[0], name, definition, symbols)
+    case .FieldAccess(field): return enum_variant_index(definition, field.field_access_name(symbols.names))
+    case .Ident(id):
+        prefix := format(name, "_")
+        ref value : Str = id.ident_name(symbols.names)
+        if value.starts_with(prefix) { return enum_variant_index(definition, value.strip_prefix(prefix)) }
+    case:
+    }
+    return -1
+}

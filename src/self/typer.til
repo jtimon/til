@@ -13511,7 +13511,25 @@ priv lvalue_write_roots := func(scope: TypeScope, obj: Expr, symbols: SymbolPool
         // back to the whole VALUE's roots, which would credit every borrow
         // the value carries no matter which field the pointer came from.
         rso := raw_borrow_source(obj, symbols)
-        if rso.is_some() { return lvalue_write_roots(scope, rso.unwrap(), symbols) }
+        if rso.is_some() {
+            ref source : Expr = rso.unwrap()
+            if ident_of(obj.children[0]).ident_name(symbols.names).eq("get_payload").and(is_enum_type(source.til_type())) {
+                definition := scope.get_struct(type_name_ref(source.til_type(), symbols), symbols)
+                if definition.is_some() {
+                    ref def : Expr = definition.unwrap()
+                    if enum_is_niche(def) {
+                        if enum_variant_payload_ref(def, enum_niche_some_index(def)) {
+                            // Unwrapping a borrowed niche aliases what its
+                            // value carries, not the storage of its carrier.
+                            mut aliases := carried_roots_of(scope, expr_borrow_roots(scope, source, symbols), "", symbols)
+                            for mut root : BorrowRoot in aliases { root.deposited = false }
+                            return aliases
+                        }
+                    }
+                }
+            }
+            return lvalue_write_roots(scope, source, symbols)
+        }
         // A raw accessor that aliases parameter storage has the same write
         // roots as ptr_add: writing a buffer slot does not write the values
         // whose references are already stored elsewhere in the container.
@@ -16788,6 +16806,27 @@ priv infer_switch_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_idx: U
     mut switch_enum_def_o := Option(ref Expr).None
     if is_enum_type(sw_expr.til_type()) {
         switch_enum_def_o = scope.get_struct_by_sym(type_sym(sw_expr.til_type(), ctx.symbols))
+    }
+    if is_match.not().and(is_simple_lvalue_expr(sw_expr).not()).and(switch_enum_def_o.is_some()) {
+        ref definition : Expr = switch_enum_def_o.unwrap()
+        if enum_is_niche(definition) {
+            if enum_variant_payload_ref(definition, enum_niche_some_index(definition)) {
+                // This enum owns no payload: snapshotting its pointer is safe,
+                // unlike copying an owning enum. Every case and payload binding
+                // must inspect the same result of an effectful subject call.
+                name := format("hoisted__niche_subject_", synth_suffix(ctx, ctx.hoist_counter.to_str()))
+                ctx.hoist_counter++
+                mut declaration := Expr.new(own NodeType.Decl(Declaration(name = name.clone())), sw_line, sw_col)
+                declaration.add_child(own sw_expr.clone())
+                mut rewritten := stmt.clone()
+                rewritten.children[0] = Expr.new(own ident_node(ctx.symbols.intern(name)), sw_line, sw_col)
+                mut snapshot := Expr.new(own NodeType.Body, sw_line, sw_col)
+                snapshot.add_child(own declaration)
+                snapshot.add_child(own rewritten)
+                swap(Expr, stmt, snapshot)
+                return true
+            }
+        }
     }
     if switch_is_clike(stmt, sw_expr, is_match, switch_enum_def_o, ctx.symbols) {
         infer_clike_switch(scope, stmt, switch_enum_def_o, in_func, in_loop, returns_ref, ctx)

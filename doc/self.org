@@ -182,6 +182,25 @@
   hierarchy, generated-file reporting, MLIR bridge files and early rejection;
   native integration drivers exercise the actual toolchains and execution.
 
+** Shared codegen support
+
+  Emission support has two shared layers under ~src/self/codegen/~:
+
+  - ~common.til~ holds prepared-AST queries independent of syntax and layout:
+    field owner/member lookup, enum definition lookup, and variant recognition
+    for bare names, payload-binding patterns and flattened calls. C, HolyC and
+    FASM use these queries; other backends can use the same semantic facts.
+  - ~common_c.til~ holds C-family decisions used by C and HolyC: scalar operator
+    spelling, namespace-versus-instance member classification, and enum-switch
+    lookup/pointer-presence case values. The emitters supply receiver and
+    representation information and emit their own storage accesses and syntax.
+
+  Shared language rules and lowering stay in ~context.til~, ~typer.til~ and the
+  other frontend passes. For example, an effectful borrowed-niche switch subject
+  is snapshotted there once, with its carried borrow provenance retained; each
+  backend consumes the same lowered subject and payload bindings. These modules
+  are compiler source, built and installed with the existing source tree.
+
 ** USize defaults and source-level configuration direction
 
   ~USize~ describes counts, lengths, capacities and indices; ~UPtr~ describes

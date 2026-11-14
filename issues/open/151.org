@@ -867,9 +867,9 @@
 
   Keep ~bin/til translate --target=templeos -c tmp/til.HC src/til.til~ as a
   development pressure test, not a claim of a working TempleOS compiler.
-  The latest full attempt on ~22169738f~ plus the custom-payload changes, at
-  both USize widths, passes ~FFIEntryBox.clone~ and reaches
-  ~TypeScope_active_type_name: unsupported switch subject type 'Enum'~.
+  The latest full attempt on ~bee4625e6~ plus the shared-codegen/niche-switch
+  changes, at both USize widths, passes ~TypeScope_active_type_name~ and reaches
+  ~TypeScope_erase_binding: unsupported field base 'fcall'~.
   Dynamic Map values, nested ordered containers, scalar namespace storage and
   custom nested lifecycle hooks pass shared native regressions.
   General Dynamic-to-typed casts, the remaining
@@ -1742,6 +1742,41 @@
   width. Both compiler-to-HolyC pressure tests pass the former custom-hook
   rejection and reach ~TypeScope_active_type_name~'s unnamed Enum switch
   diagnostic.
+
+**** Shared codegen queries and borrowed-niche switches
+
+  ~src/self/codegen/common.til~ centralizes prepared-AST field owner/member,
+  enum-definition and variant-pattern queries. C, HolyC and FASM reuse them.
+  ~common_c.til~ adds C-family operator spelling, namespace/instance member
+  classification and enum switch/niche case queries, used by C and HolyC.
+  Backends provide their receiver/storage information and emit the syntax
+  appropriate to that representation. The support layers are described in
+  ~doc/self.org~; language-wide lowering remains in the shared frontend.
+
+  HolyC borrowed niches now switch on the stored pointer's presence and bind
+  the referent directly. The discriminator follows payload presence rather
+  than tag order: a payload variant declared first still matches a non-null
+  pointer. Their native value ABI has no outer wrapper or owned referent to
+  destroy; deletion evaluates both operands in order as statements (HolyC has
+  no comma expression). Size and constructor handling use the same native
+  pointer representation, including variant names other than Some/None.
+
+  The common namespace suite covers scalar alias writes, Some/None/default,
+  payload-first declaration order, effectful subjects, recursive borrowed Str
+  returns, nested/shadowed bindings, loop continue and deletion operand effects.
+  The effectful-subject check exposed a shared lowering bug: payload binding
+  re-evaluated the subject call. The frontend now snapshots non-lvalue borrowed
+  niche switch subjects once. Unwrapping those values follows their carried
+  referents and turns deposited provenance into an alias, retaining the existing
+  write-credit and immutable-referent rejection checks through the snapshot.
+
+  Verification on master ~bee4625e6~: ~make clean && make test_two_pass~ passes
+  575/575, clang-clean. The expanded namespace suite passes 17/17 interpreted,
+  C-compiled, through an ASAN compiler, at C/ASAN O0/O2 with USize32/64, and as
+  native FASM at both widths. All ten focused TempleOS allocation-ledger cases
+  pass, including those 17 cases at each width. Both full compiler-to-HolyC
+  translations pass the former niche-switch failure and reach the field-base
+  diagnostic in ~TypeScope_erase_binding~ recorded above.
 
 **** Manual GUI testing in one VM
 

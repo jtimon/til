@@ -1,5 +1,6 @@
 mode lib
 import("../loader")
+import("common")
 import("../../std/file")
 
 // Locals and temporaries have frame slots, so nested calls cannot clobber
@@ -253,25 +254,12 @@ priv fasm_type_size := func(shallow t: Type, lp: LoadedProgram) returns USize {
 }
 
 priv fasm_enum_def := func(shallow t: Type, lp: LoadedProgram) returns ref Expr {
-    return lp.ctx.scope.get_struct(type_name_ref(t, lp.ctx.symbols), lp.ctx.symbols).unwrap()
-}
-
-priv fasm_variant_index := func(e: Expr, name: Str, definition: Expr, lp: LoadedProgram) returns I32 {
-    switch e.node_type {
-    case .FCall: return fasm_variant_index(e.children[0], name, definition, lp)
-    case .FieldAccess(field): return enum_variant_index(definition, field.field_access_name(lp.ctx.symbols.names))
-    case .Ident(id):
-        prefix := format(name, "_")
-        ref value : Str = id.ident_name(lp.ctx.symbols.names)
-        if value.starts_with(prefix) { return enum_variant_index(definition, value.strip_prefix(prefix)) }
-    case:
-    }
-    return -1
+    return codegen_enum_definition(t, lp.ctx).unwrap()
 }
 
 priv fasm_enum_literal_index := func(e: Expr, lp: LoadedProgram) returns I32 {
     if is_enum_type(e.til_type()).not().or(fa_is_ns(e, lp.ctx.scope, lp.ctx.symbols).not()) { return -1 }
-    return fasm_variant_index(e, type_name_ref(e.til_type(), lp.ctx.symbols), fasm_enum_def(e.til_type(), lp), lp)
+    return codegen_enum_variant_index(e, type_name_ref(e.til_type(), lp.ctx.symbols), fasm_enum_def(e.til_type(), lp), lp.ctx.symbols)
 }
 
 // Tagged unions include the pointer-alignment member in the shared layout.
@@ -842,7 +830,7 @@ priv fasm_static_value := proc(e: Expr, shallow t: Type, mut state: FasmState, m
     if is_enum_type(t) {
         if rhs_is_clone_fcall(e, lp.ctx.symbols) { return fasm_static_value(e.children[1], t, state, lp) }
         ref definition : Expr = fasm_enum_def(t, lp)
-        mut variant := fasm_variant_index(e, type_name_ref(t, lp.ctx.symbols), definition, lp)
+        mut variant := codegen_enum_variant_index(e, type_name_ref(t, lp.ctx.symbols), definition, lp.ctx.symbols)
         switch e.node_type {
         case .Literal(Literal.Num(n)): variant = enum_variant_index_for_tag(definition, n.to_u64().to_i64())
         case:
@@ -2194,7 +2182,7 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
         return
     }
     if e.node_type.is(NodeType.FCall).and(is_enum_type(e.til_type())) {
-        variant := fasm_variant_index(e.children[0], type_name_ref(e.til_type(), lp.ctx.symbols), fasm_enum_def(e.til_type(), lp), lp)
+        variant := codegen_enum_variant_index(e.children[0], type_name_ref(e.til_type(), lp.ctx.symbols), fasm_enum_def(e.til_type(), lp), lp.ctx.symbols)
         if variant >= 0 { fasm_enum_constructor(e, e.til_type(), variant, state, lp); return }
     }
     global_name := fasm_namespace_name(e, lp, state)
@@ -2509,7 +2497,7 @@ priv fasm_switch := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram) {
             ref pattern : Expr = arm.children[pi]
             if is_enum {
                 ref definition : Expr = fasm_enum_def(t, lp)
-                variant := fasm_variant_index(pattern, type_name_ref(t, lp.ctx.symbols), definition, lp)
+                variant := codegen_enum_variant_index(pattern, type_name_ref(t, lp.ctx.symbols), definition, lp.ctx.symbols)
                 if variant < 0 { fasm_error(pattern, "unsupported enum case", lp); continue }
                 fasm_emit(state, format("mov rax, ", enum_variant_tag_at(definition, variant).to_str()))
             } else if is_range_new_call(pattern, lp.ctx.symbols) {

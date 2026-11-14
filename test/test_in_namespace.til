@@ -147,3 +147,116 @@ test_namespace_scalar_storage_is_shared := test() {
     assert_eq(I64, NamespaceShared.read_count(), 30)
     assert_eq(I64, NamespaceMode.limit, 31)
 }
+
+NicheSwitchLink := enum { Link: ref I64, Missing }
+
+test_borrowed_niche_switch_alias := test() {
+    mut value : I64 = 4294967301
+    mut option := NicheSwitchLink.Link(to_ptr(value))
+    switch option {
+    case .Link(item): item = item + 1
+    case .Missing: panic("expected a borrowed niche payload")
+    }
+    assert_eq(I64, value, 4294967302)
+    option = NicheSwitchLink.Missing
+    mut missing := false
+    switch option {
+    case .Link(_): panic("expected an empty borrowed niche")
+    case .Missing: missing = true
+    }
+    assert(missing)
+    // The payload variant is declared first: its tag is zero, but its
+    // pointer-presence discriminant is one in both C-family emitters.
+    assert_eq(USize, NicheSwitchLink.size(), UPtr.size())
+}
+
+priv niche_switch_pick := func(mut calls: I64, option: NicheSwitchLink) returns NicheSwitchLink {
+    calls++
+    return option
+}
+
+priv niche_delete_flag := func(mut calls: I64) returns Bool { calls++; return false }
+
+test_borrowed_niche_delete_preserves_operands := test() {
+    mut calls : I64 = 0
+    value : I64 = 23
+    option := NicheSwitchLink.Link(to_ptr(value))
+    NicheSwitchLink.delete(own niche_switch_pick(calls, option), niche_delete_flag(calls))
+    assert_eq(I64, calls, 2)
+    assert_eq(I64, value, 23)
+    switch option {
+    case .Link(item): assert_eq(I64, item, 23)
+    case .Missing: panic("deleting a copy changed the borrowed niche")
+    }
+}
+
+test_borrowed_niche_switch_evaluates_once := test() {
+    mut calls : I64 = 0
+    value : I64 = 19
+    option := NicheSwitchLink.Link(to_ptr(value))
+    switch niche_switch_pick(calls, option) {
+    case .Link(item): assert_eq(I64, item, 19)
+    case .Missing: panic("missing side-effecting switch payload")
+    }
+    assert_eq(I64, calls, 1)
+    switch niche_switch_pick(calls, NicheSwitchLink.Missing) {
+    case .Link(_): panic("unexpected side-effecting switch payload")
+    case: assert_eq(I64, calls, 2)
+    }
+    assert_eq(I64, calls, 2)
+}
+
+NicheSwitchScope := struct {
+    name : Str = ""
+    parent : Option(ref NicheSwitchScope) = Option(ref NicheSwitchScope).None
+namespace:
+    active_name := func(self: NicheSwitchScope) returns ref Str {
+        if self.name.len() > 0 { return self.name }
+        switch self.parent {
+        case .Some(parent): return parent.active_name()
+        case .None: return self.name
+        }
+    }
+}
+
+test_borrowed_niche_recursive_ref_return := test() {
+    mut root := NicheSwitchScope(name = Str.with_capacity(32))
+    root.name.push_str("root")
+    middle := NicheSwitchScope(parent = safe_ref(root))
+    leaf := NicheSwitchScope(parent = safe_ref(middle))
+    ref inherited : Str = leaf.active_name()
+    assert_eq(Str, inherited, "root")
+    root.name.push_str(" changed")
+    assert_eq(Str, inherited, "root changed")
+    assert_eq(Str, leaf.active_name(), "root changed")
+    empty := NicheSwitchScope()
+    assert_eq(Str, empty.active_name(), "")
+}
+
+test_borrowed_niche_nested_switch_and_continue := test() {
+    first : I64 = 7
+    second : I64 = 11
+    outer := NicheSwitchLink.Link(to_ptr(first))
+    inner := NicheSwitchLink.Link(to_ptr(second))
+    mut total : I64 = 0
+    switch outer {
+    case .Link(item):
+        switch inner {
+        case .Link(item): total = total + item
+        case .Missing: panic("missing inner niche payload")
+        }
+        total = total + item
+    case .Missing: panic("missing outer niche payload")
+    }
+    assert_eq(I64, total, 18)
+    mut calls : I64 = 0
+    for _ in 0..3 {
+        switch niche_switch_pick(calls, NicheSwitchLink.Missing) {
+        case .Link(_): panic("unexpected loop niche payload")
+        case .Missing: continue
+        }
+        total = total + 100
+    }
+    assert_eq(I64, total, 18)
+    assert_eq(I64, calls, 3)
+}

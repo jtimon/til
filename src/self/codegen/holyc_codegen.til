@@ -1,5 +1,7 @@
 mode lib
 import("../context")
+import("common")
+import("common_c")
 
 import("../loader")
 import("../typer")
@@ -189,10 +191,13 @@ priv holyc_param_is_pointer := func(param: Declaration, state: HolyCEmitState, s
             .or(state.niche_ref_types.has(type_name)).not())
 }
 
-priv holyc_payload_ref := func(e: Expr, ctx: Context, locals: HolyCLocalState,
+priv holyc_payload_ref := func(e: Expr, ctx: Context, mut state: HolyCEmitState, locals: HolyCLocalState,
     mut error: Str) returns Str {
     if e.children.len() != 2 { error = "invalid payload access"; return "" }
     ref enum_name : Str = type_name_ref(e.children[1].til_type(), ctx.symbols)
+    if state.niche_ref_types.has(enum_name) {
+        return holyc_expr(e.children[1], ctx, state, locals, error)
+    }
     ref def : Expr = ctx.scope.get_struct(enum_name, ctx.symbols).unwrap()
     ref ed : EnumDef = enumdef_of(def)
     value := holyc_struct_ref(e.children[1], ctx, locals, error)
@@ -214,16 +219,22 @@ priv holyc_enum_tag_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitStat
         // A binding pattern's callee is its variant; the remaining children
         // name bindings, not evaluated constructor arguments.
         return holyc_enum_tag_expr(e.children[0], ctx, state, locals, error)
-    case .FieldAccess(fa):
-        owner := holyc_field_owner_name(e, ctx.symbols)
-        if state.enum_types.has(owner) {
+    case .FieldAccess:
+        owner := codegen_field_owner_name(e, ctx.symbols)
+        if state.enum_types.has(owner).or(state.niche_ref_types.has(owner)) {
             ref def : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
-            ref member : Str = fa.field_access_name(ctx.symbols.names)
-            if enum_variant_index(def, member) >= 0 { return enum_variant_tag(def, member).to_str() }
+            variant := codegen_enum_variant_index(e, owner, def, ctx.symbols)
+            if variant >= 0 {
+                if state.niche_ref_types.has(owner) { return c_niche_case_value(def, variant).to_str() }
+                return enum_variant_tag_at(def, variant).to_str()
+            }
         }
     case:
     }
     ref type_name : Str = type_name_ref(e.til_type(), ctx.symbols)
+    if state.niche_ref_types.has(type_name) {
+        return format("(", holyc_expr(e, ctx, state, locals, error), " != NULL)")
+    }
     if state.payload_enum_names.has(type_name) {
         value := holyc_struct_ref(e, ctx, locals, error)
         return format("(", value, ")->tag")
@@ -325,7 +336,7 @@ priv holyc_pointer_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState
         return format("&", emitted_name)
     case .FieldAccess(fa):
         if holyc_fa_is_namespace(e, ctx) {
-            owner := holyc_field_owner_name(e, ctx.symbols)
+            owner := codegen_field_owner_name(e, ctx.symbols)
             ref definition : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
             ref declaration : Declaration = def_ns_get(definition, fa.field_access_name(ctx.symbols.names)).unwrap()
             mut is_variant := false
@@ -359,7 +370,7 @@ priv holyc_pointer_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState
         return format("&", path)
     case .FCall:
         if holyc_direct_call_name(e, ctx) == "get_payload" {
-            return holyc_payload_ref(e, ctx, locals, error)
+            return holyc_payload_ref(e, ctx, state, locals, error)
         }
         if type_is_callable_storage(e.til_type()) { return holyc_expr(e, ctx, state, locals, error) }
         if type_is_callable_storage(e.children[0].til_type()).and(fcall_is_direct(e).not()) {
@@ -372,7 +383,7 @@ priv holyc_pointer_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState
         }
         switch e.children[0].node_type {
         case .FieldAccess:
-            owner := holyc_field_owner_name(e.children[0], ctx.symbols)
+            owner := codegen_field_owner_name(e.children[0], ctx.symbols)
             if state.niche_ref_types.has(owner) { return holyc_expr(e, ctx, state, locals, error) }
             if state.collection_elements.has(owner).or(owner.eq("Array__Str")).or(owner.eq("Str"))
                 .or(state.map_keys.has(owner))
@@ -425,7 +436,7 @@ priv holyc_struct_ref := func(e: Expr, ctx: Context, locals: HolyCLocalState,
         if locals.struct_pointer_types.has(name) { return emitted_name }
         if locals.struct_types.has(name) { return format("&", emitted_name) }
     case .FieldAccess:
-        owner := holyc_field_owner_name(e, ctx.symbols)
+        owner := codegen_field_owner_name(e, ctx.symbols)
         def_o := ctx.scope.get_struct(owner, ctx.symbols)
         if def_o.is_some() {
             ref def : Expr = def_o.unwrap()
@@ -730,7 +741,7 @@ priv holyc_str_init := func(dest: Str, e: Expr, ctx: Context,
             return format(target, "(&", dest, args, ")")
         }
         method := holyc_field_call_name(e, ctx)
-        owner := holyc_storage_type_name(holyc_field_owner_name(e.children[0], ctx.symbols), state)
+        owner := holyc_storage_type_name(codegen_field_owner_name(e.children[0], ctx.symbols), state)
         if owner.eq("File").and(method.eq("readfile")) {
             if e.children.len() != 2 { error = "invalid File.readfile call"; return "" }
             path := holyc_str_ref(e.children[1], ctx, locals, error)
@@ -827,7 +838,7 @@ priv holyc_str_array_init := func(dest: Str, e: Expr, ctx: Context,
         return ""
     }
     method := holyc_field_call_name(e, ctx)
-    owner := holyc_storage_type_name(holyc_field_owner_name(e.children[0], ctx.symbols), state)
+    owner := holyc_storage_type_name(codegen_field_owner_name(e.children[0], ctx.symbols), state)
     direct_name := holyc_callable_name(e, ctx, state)
     if state.user_return_types.has(direct_name)
         .and(state.user_return_types[direct_name].eq("Array__Str")) {
@@ -920,7 +931,7 @@ priv holyc_pointer_field_value := func(e: Expr, path: Str, ctx: Context,
     state: HolyCEmitState) returns Str {
     switch e.node_type {
     case .FieldAccess(fa):
-        owner := holyc_storage_type_name(holyc_field_owner_name(e, ctx.symbols), state)
+        owner := holyc_storage_type_name(codegen_field_owner_name(e, ctx.symbols), state)
         if fa.field_access_name(ctx.symbols.names).eq("data")
             .and(state.collection_elements.has(owner).or(owner.eq("Array__Str"))
                 .or(state.set_elements.has(owner))) {
@@ -1064,7 +1075,7 @@ priv holyc_collection_init := func(type_name: Str, dest: Str, e: Expr,
     }
     if e.node_type.is(NodeType.FCall) {
         method := holyc_field_call_name(e, ctx)
-        owner := holyc_field_owner_name(e.children[0], ctx.symbols)
+        owner := codegen_field_owner_name(e.children[0], ctx.symbols)
         if owner == type_name {
             if method == "new" {
                 if state.vec_names.has(type_name) {
@@ -1151,7 +1162,7 @@ priv holyc_ordered_init := func(type_name: Str, dest: Str, e: Expr, depth: USize
     }
     if e.node_type.is(NodeType.FCall) {
         method := holyc_field_call_name(e, ctx)
-        owner := holyc_field_owner_name(e.children[0], ctx.symbols)
+        owner := codegen_field_owner_name(e.children[0], ctx.symbols)
         if owner == type_name {
             if method == "new" {
                 if e.children.len() != 1 { error = "invalid ordered collection new"; return "" }
@@ -1207,7 +1218,7 @@ priv holyc_struct_init := func(type_name: Str, dest: Str, e: Expr, depth: USize,
         return holyc_enum_init(type_name, dest, e, depth, ctx, state, locals, error)
     }
     if e.node_type.is(NodeType.FCall) {
-        owner := holyc_field_owner_name(e.children[0], ctx.symbols)
+        owner := codegen_field_owner_name(e.children[0], ctx.symbols)
         if state.vec_names.has(owner).and(state.collection_elements[owner].eq(type_name))
             .and(holyc_field_call_name(e, ctx).eq("pop")) {
             if e.children.len() != 2 { error = "invalid Vec.pop call"; return "" }
@@ -1233,7 +1244,7 @@ priv holyc_struct_init := func(type_name: Str, dest: Str, e: Expr, depth: USize,
     }
     if e.node_type.is(NodeType.FCall) {
         method := holyc_field_call_name(e, ctx)
-        owner := holyc_storage_type_name(holyc_field_owner_name(e.children[0], ctx.symbols), state)
+        owner := holyc_storage_type_name(codegen_field_owner_name(e.children[0], ctx.symbols), state)
         if owner.eq(type_name).and(method.eq("clone")) {
             if e.children.len() != 2 { error = format("invalid ", type_name, ".clone call"); return "" }
             src := holyc_struct_ref(e.children[1], ctx, locals, error)
@@ -1322,11 +1333,11 @@ priv holyc_enum_init := func(type_name: Str, dest: Str, e: Expr, depth: USize,
     mut variant_name := ""
     switch e.node_type {
     case .FieldAccess(fa):
-        if holyc_field_owner_name(e, ctx.symbols) == type_name {
+        if codegen_field_owner_name(e, ctx.symbols) == type_name {
             variant_name = fa.field_access_name(ctx.symbols.names).clone()
         }
     case .FCall:
-        if holyc_field_owner_name(e.children[0], ctx.symbols) == type_name {
+        if codegen_field_owner_name(e.children[0], ctx.symbols) == type_name {
             variant_name = holyc_field_call_name(e, ctx)
         }
     case:
@@ -1376,7 +1387,7 @@ priv holyc_enum_init := func(type_name: Str, dest: Str, e: Expr, depth: USize,
                 switch e.children[1].node_type {
                 case .FieldAccess(fa):
                     variant_index := enum_variant_index(def, fa.field_access_name(ctx.symbols.names))
-                    if variant_index.gte(0).and(holyc_field_owner_name(e.children[1], ctx.symbols).eq(type_name)) {
+                    if variant_index.gte(0).and(codegen_field_owner_name(e.children[1], ctx.symbols).eq(type_name)) {
                         return holyc_enum_init(type_name, dest, e.children[1], depth, ctx, state, locals, error)
                     }
                 case:
@@ -1409,26 +1420,6 @@ priv holyc_narrow_wrap := func(value: Str, owner: Str) returns Str {
     }
 }
 
-priv holyc_core_binop := func(op: Str) returns Str {
-    switch op {
-    case "add":  return "+"
-    case "sub":  return "-"
-    case "mul":  return "*"
-    case "eq":   return "=="
-    case "neq":  return "!="
-    case "lt":   return "<"
-    case "gt":   return ">"
-    case "lte":  return "<="
-    case "gte":  return ">="
-    case "band": return "&"
-    case "bor":  return "|"
-    case "bxor": return "^"
-    case "shl":  return "<<"
-    case "shr":  return ">>"
-    }
-    return ""
-}
-
 priv holyc_float_op := func(method: Str) returns I64 {
     switch method {
     case "add": return 0
@@ -1452,43 +1443,16 @@ priv holyc_float_cmp := func(method: Str) returns I64 {
     }
 }
 
-priv holyc_field_owner_name := func(e: Expr, symbols: SymbolPool) returns Str {
-    if e.children.len() == 0 {
-        name_o := expr_type_name_ref(e, symbols)
-        if name_o.is_some() { return name_o.unwrap().clone() }
-        return ""
-    }
-    ref obj : Expr = e.children[0]
-    name_o := expr_type_name_ref(obj, symbols)
-    if name_o.is_some() { return name_o.unwrap().clone() }
-    switch obj.node_type {
-    case .Ident(ident): return Str.clone(ident.ident_name(symbols.names))
-    case: return ""
-    }
-}
-
 priv holyc_fa_is_namespace := func(e: Expr, ctx: Context) returns Bool {
-    if fa_is_ns(e, ctx.scope, ctx.symbols).not() { return false }
-    owner := holyc_field_owner_name(e, ctx.symbols)
-    ref definition : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
-    mut member := ""
-    switch e.node_type {
-    case .FieldAccess(fa): member = fa.field_access_name(ctx.symbols.names).clone()
-    case .FieldAssign(fa): member = fa.name.clone()
-    case: UNREACHABLE("expected a field access or assignment")
-    }
-    switch definition.node_type {
-    case .StructDef(sd):
-        if sd.fields_index.has(member) {
-            // An instance's size field is not the type's generated size method.
-            switch e.children[0].node_type {
-            case .Ident(id): return id.ident_name(ctx.symbols.names) == owner
-            case: return false
-            }
+    owner := codegen_field_owner_name(e, ctx.symbols)
+    mut receiver_names_type := false
+    if e.children.len() > 0 {
+        switch e.children[0].node_type {
+        case .Ident(id): receiver_names_type = id.ident_name(ctx.symbols.names) == owner
+        case:
         }
-    case:
     }
-    return true
+    return c_field_is_namespace(owner, codegen_field_name(e, ctx.symbols), receiver_names_type, ctx)
 }
 
 priv holyc_namespace_field := func(owner: Str, member: Str, ctx: Context,
@@ -1814,7 +1778,7 @@ priv holyc_callable_sig_name := func(e: Expr, ctx: Context, state: HolyCEmitStat
     case .FuncDef(fd): return fd.closure_name.clone()
     case .BodyValue(bd): return bd.closure_name.clone()
     case .FieldAccess(fa):
-        owner := holyc_field_owner_name(e, ctx.symbols)
+        owner := codegen_field_owner_name(e, ctx.symbols)
         def_o := ctx.scope.get_struct(owner, ctx.symbols)
         if def_o.is_some() {
             ref def : Expr = def_o.unwrap()
@@ -2606,7 +2570,7 @@ priv holyc_callable_name := func(e: Expr, ctx: Context, state: HolyCEmitState) r
     name := holyc_direct_call_name(e, ctx)
     if name.len() > 0 { return name }
     if e.node_type.is(NodeType.FCall).and(e.children.len() > 0) {
-        owner := holyc_storage_type_name(holyc_field_owner_name(e.children[0], ctx.symbols), state)
+        owner := holyc_storage_type_name(codegen_field_owner_name(e.children[0], ctx.symbols), state)
         method := holyc_field_call_name(e, ctx)
         if state.needed_methods.has(owner).and(state.needed_methods[owner].has(method)) {
             return holyc_method_name(owner, method)
@@ -2651,7 +2615,7 @@ priv holyc_scan_method_calls := func(e: Expr, ctx: Context,
                 }
             }
         case .FieldAccess:
-            owner := holyc_storage_type_name(holyc_field_owner_name(e.children[0], ctx.symbols), state)
+            owner := holyc_storage_type_name(codegen_field_owner_name(e.children[0], ctx.symbols), state)
             method := holyc_field_call_name(e, ctx)
             if holyc_scalar_type_name(owner) {
                 holyc_register_method(owner, method, ctx, state, error)
@@ -2911,7 +2875,7 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
         return emitted_name
     case .FieldAccess(fa):
         if holyc_fa_is_namespace(e, ctx) {
-            owner := holyc_field_owner_name(e, ctx.symbols)
+            owner := codegen_field_owner_name(e, ctx.symbols)
             ref definition : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
             ref declaration : Declaration = def_ns_get(definition, fa.field_access_name(ctx.symbols.names)).unwrap()
             if declaration.is_mut {
@@ -2930,7 +2894,7 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 return holyc_namespace_field(owner, fa.field_access_name(ctx.symbols.names), ctx, state, error)
             }
         }
-        owner := holyc_storage_type_name(holyc_field_owner_name(e, ctx.symbols), state)
+        owner := holyc_storage_type_name(codegen_field_owner_name(e, ctx.symbols), state)
         if holyc_scalar_type_name(owner) {
             ref def : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
             ref sd : StructDef = structdef_of(def)
@@ -2996,7 +2960,7 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
         switch callee.node_type {
         case .FieldAccess(fa):
             ref method : Str = fa.field_access_name(ctx.symbols.names)
-            owner := holyc_storage_type_name(holyc_field_owner_name(callee, ctx.symbols), state)
+            owner := holyc_storage_type_name(codegen_field_owner_name(callee, ctx.symbols), state)
             if state.map_keys.has(owner).or(state.set_elements.has(owner)) {
                 is_map := state.map_keys.has(owner)
                 if e.children.len() < 2 {
@@ -3183,7 +3147,17 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 return ""
             }
             if state.niche_ref_types.has(owner) {
-                if method == "Some" {
+                if method == "size" {
+                    if e.children.len() != 1 { error = "invalid borrowed niche size call"; return "" }
+                    return format("sizeof(", holyc_value_ctype(owner, state), ")")
+                }
+                ref definition : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
+                variant := enum_variant_index(definition, method)
+                if variant >= 0 {
+                    if enum_variant_type(definition, variant).len() == 0 {
+                        if e.children.len() != 1 { error = "invalid empty borrowed niche constructor"; return "" }
+                        return "NULL"
+                    }
                     if e.children.len() != 2 { error = "invalid borrowed niche constructor"; return "" }
                     return holyc_pointer_expr(e.children[1], ctx, state, locals, error)
                 }
@@ -3519,7 +3493,7 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 if op >= 0 {
                     if owner == "F32" { return format("TilF32Math(", left, ", ", right, ", ", op.to_str(), ")") }
                     if method == "div" { return format("TilF64Div(", left, ", ", right, ")") }
-                    return format("(", left, " ", holyc_core_binop(method), " ", right, ")")
+                    return format("(", left, " ", c_binary_operator(method), " ", right, ")")
                 }
                 cmp := holyc_float_cmp(method)
                 if cmp >= 0 {
@@ -3616,7 +3590,7 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 if owner.starts_with("I") {shifted=format("(",shifted,")(I64)")}
                 return holyc_narrow_wrap(shifted,owner)
             }
-            op := holyc_core_binop(method)
+            op := c_binary_operator(method)
             if op.len() == 0 {
                 error = format("unsupported core call '", owner, ".", method, "'")
                 return ""
@@ -3871,8 +3845,8 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
             if name == "is_n" {
                 if e.children.len() != 4 { error = "invalid enum tag comparison"; return "" }
                 ref enum_name : Str = type_name_ref(e.children[1].til_type(), ctx.symbols)
-                if state.enum_types.has(enum_name).not() {
-                    error = "tag comparison requires a payload-free enum"
+                if state.enum_types.has(enum_name).or(state.niche_ref_types.has(enum_name)).not() {
+                    error = "tag comparison requires an enum"
                     return ""
                 }
                 left := holyc_enum_tag_expr(e.children[1], ctx, state, locals, error)
@@ -4079,7 +4053,7 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
             if decl_type.eq("Enum").and(stmt.children[0].node_type.is(NodeType.FCall)) {
                 ref call : Expr = stmt.children[0]
                 if call.children.len() > 0 {
-                    owner := holyc_field_owner_name(call.children[0], ctx.symbols)
+                    owner := codegen_field_owner_name(call.children[0], ctx.symbols)
                     if state.collection_elements.has(owner).and(state.enum_types.has(state.collection_elements[owner])) {
                         decl_type = state.collection_elements[owner].clone()
                     }
@@ -4095,7 +4069,7 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
                 decl_name = holyc_temp("ref_value", state)
             }
             if holyc_direct_call_name(stmt.children[0], ctx) == "get_payload" {
-                value := holyc_payload_ref(stmt.children[0], ctx, locals, error)
+                value := holyc_payload_ref(stmt.children[0], ctx, state, locals, error)
                 if error.len() > 0 { return "" }
                 ctype := holyc_value_ctype(decl_type, state)
                 emitted_name := holyc_temp("payload", state)
@@ -4286,7 +4260,7 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
                 return ""
             }
             if holyc_fa_is_namespace(stmt, ctx) {
-                owner := holyc_field_owner_name(stmt, ctx.symbols)
+                owner := codegen_field_owner_name(stmt, ctx.symbols)
                 target := holyc_namespace_field(owner, field_assign.name, ctx, state, error)
                 value := holyc_expr(stmt.children[1], ctx, state, locals, error)
                 if error.len() > 0 { return "" }
@@ -4426,6 +4400,21 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
                 return ""
             }
         case .FCall:
+            if holyc_field_call_name(stmt, ctx) == "delete" {
+                owner := codegen_field_owner_name(stmt.children[0], ctx.symbols)
+                if state.niche_ref_types.has(owner) {
+                    if stmt.children.len() != 3 { error = "invalid borrowed niche delete call"; return "" }
+                    // A value-ABI borrowed pointer owns no payload or wrapper.
+                    // HolyC has no comma expression; evaluate its operands as
+                    // ordered statements instead of freeing the referent.
+                    value := holyc_expr(stmt.children[1], ctx, state, locals, error)
+                    flag := holyc_expr(stmt.children[2], ctx, state, locals, error)
+                    if error.len() > 0 { return "" }
+                    out = format(out, prefix, value, ";\n", prefix, flag, ";\n")
+                    i++
+                    continue
+                }
+            }
             if holyc_direct_call_name(stmt, ctx) == "swap_bytes" {
                 if stmt.children.len() != 4 { error = "invalid aggregate swap"; return "" }
                 mut type_name := type_name_ref(stmt.children[1].til_type(), ctx.symbols).clone()
@@ -4490,12 +4479,19 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
         case .Switch:
             ref subject : Expr = stmt.children[0]
             ref enum_name : Str = type_name_ref(subject.til_type(), ctx.symbols)
-            is_enum := state.enum_types.has(enum_name)
+            enum_definition := c_switch_enum_definition(subject, ctx)
+            is_enum := enum_definition.is_some()
+            pointer_niche := state.niche_ref_types.has(enum_name)
             mut ctype := holyc_storage_type_name(til_type_name_c(subject.til_type(), ctx.symbols), state)
             mut value := ""
             if is_enum {
-                ctype = state.enum_types[enum_name].clone()
-                value = holyc_enum_tag_expr(subject, ctx, state, locals, error)
+                if pointer_niche {
+                    ctype = holyc_value_ctype(enum_name, state)
+                    value = holyc_expr(subject, ctx, state, locals, error)
+                } else {
+                    ctype = state.enum_types[enum_name].clone()
+                    value = holyc_enum_tag_expr(subject, ctx, state, locals, error)
+                }
             } else if holyc_scalar_type_name(ctype)
                 .and(ctype.starts_with("I").or(ctype.starts_with("U")).or(ctype.eq("Bool"))) {
                 value = holyc_expr(subject, ctx, state, locals, error)
@@ -4526,8 +4522,16 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
                     ref pattern : Expr = arm.children[pi]
                     mut pattern_test := ""
                     if is_enum {
-                        tag := holyc_enum_tag_expr(pattern, ctx, state, locals, error)
-                        pattern_test = format("(", switch_value, " == ", tag, ")")
+                        ref definition : Expr = enum_definition.unwrap()
+                        variant := codegen_enum_variant_index(pattern, enum_name, definition, ctx.symbols)
+                        if variant < 0 { error = "enum switch has an invalid variant pattern"; return "" }
+                        if pointer_niche {
+                            mut comparison := " == NULL)"
+                            if c_niche_case_value(definition, variant) != 0 { comparison = " != NULL)" }
+                            pattern_test = format("(", switch_value, comparison)
+                        } else {
+                            pattern_test = format("(", switch_value, " == ", enum_variant_tag_at(definition, variant).to_str(), ")")
+                        }
                     } else if is_range_new_call(pattern, ctx.symbols) {
                         lo := holyc_expr(pattern.children[1], ctx, state, locals, error)
                         hi := holyc_expr(pattern.children[2], ctx, state, locals, error)

@@ -1,0 +1,51 @@
+mode lib
+import("common")
+
+// C-family syntax. Arithmetic widths, exceptional operations, and storage
+// representations are selected by the caller, before choosing an operator.
+c_binary_operator := func(op: Str) returns Str {
+    switch op {
+    case "add": return "+"
+    case "sub": return "-"
+    case "mul": return "*"
+    case "eq": return "=="
+    case "neq": return "!="
+    case "lt": return "<"
+    case "gt": return ">"
+    case "lte": return "<="
+    case "gte": return ">="
+    case "band": return "&"
+    case "bor": return "|"
+    case "bxor": return "^"
+    case "shl": return "<<"
+    case "shr": return ">>"
+    }
+    return ""
+}
+
+// A namespace member and an instance field can have the same name (size and
+// size()). Each emitter supplies its receiver classification, not a new rule
+// for whether the definition contains these members.
+c_field_is_namespace := func(owner: Str, member: Str, receiver_names_type: Bool, ctx: Context) returns Bool {
+    definition := ctx.scope.get_struct(owner, ctx.symbols)
+    if definition.is_none() { return false }
+    ref def : Expr = definition.unwrap()
+    if def_ns_has(def, member).not() { return false }
+    switch def.node_type {
+    case .StructDef(sd):
+        if sd.fields_index.has(member) { return receiver_names_type }
+    case:
+    }
+    return true
+}
+
+c_switch_enum_definition := func(subject: Expr, ctx: Context) returns Option(ref Expr) {
+    return codegen_enum_definition(subject.til_type(), ctx)
+}
+
+// A pointer-represented niche switches on presence, independent of declaration
+// order or explicit tag values. The caller selects its actual representation.
+c_niche_case_value := func(definition: Expr, variant: I32) returns U64 {
+    if enum_variant_type(definition, variant).len() > 0 { return 1 }
+    return 0
+}

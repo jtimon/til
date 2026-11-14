@@ -1,5 +1,7 @@
 mode lib
 import("../context")
+import("common")
+import("common_c")
 
 import("../loader")
 import("../../std/file")
@@ -375,50 +377,6 @@ priv builder_callee_is_core := func(name: Str, ctx: Context) returns Bool {
     }
 }
 
-// The C operator a scalar core_func binary op lowers to. "" for an op that is
-// not a recognised inline binary primitive (the caller panics on "").
-priv core_binop_to_c := func(op: Str) returns Str {
-    switch op {
-    case "add":  return "+"
-    case "sub":  return "-"
-    case "mul":  return "*"
-    case "eq":   return "=="
-    case "neq":  return "!="
-    case "lt":   return "<"
-    case "gt":   return ">"
-    case "lte":  return "<="
-    case "gte":  return ">="
-    case "band": return "&"
-    case "bor":  return "|"
-    case "bxor": return "^"
-    case "shl":  return "<<"
-    case "shr":  return ">>"
-    }
-    return ""
-}
-
-priv fa_struct_name := func(e: Expr, symbols: SymbolPool) returns Str {
-    if e.children.len() == 0 {
-        e_sname_o := expr_type_name_ref(e, symbols)
-        if e_sname_o.is_some() {
-            ref e_sname : Str = e_sname_o.unwrap()
-            return e_sname.clone()
-        }
-        return ""
-    }
-    ref obj : Expr = e.children[0]
-    obj_sname_o := expr_type_name_ref(obj, symbols)
-    if obj_sname_o.is_some() {
-        ref obj_sname : Str = obj_sname_o.unwrap()
-        return obj_sname.clone()
-    }
-    switch obj.node_type {
-    case .Ident(ident): return Str.clone(ident.ident_name(symbols.names))
-    case:
-    }
-    return ""
-}
-
 priv builder_fa_is_ptr_with_fname := func(sname: Str, fname: Str, ctx: Context) returns Bool {
     fap_def_o := find_struct_def(sname, ctx)
     if fap_def_o.is_none() { return false }
@@ -494,7 +452,7 @@ priv niche_null_init := func(pointee: Str) returns Str {
 
 // Check if a FieldAccess/FieldAssign accesses an own/ref (pointer) field.
 priv builder_fa_is_ptr := func(e: Expr, ctx: Context) returns Bool {
-    sname := fa_struct_name(e, ctx.symbols)
+    sname := codegen_field_owner_name(e, ctx.symbols)
     switch e.node_type {
     case .FieldAccess(fname):
         return builder_fa_is_ptr_with_fname(sname, fname.field_access_name(ctx.symbols.names), ctx)
@@ -506,34 +464,23 @@ priv builder_fa_is_ptr := func(e: Expr, ctx: Context) returns Bool {
 }
 
 priv builder_fa_is_ns_with_fname := func(e: Expr, sname: Str, fname: Str, ctx: Context) returns Bool {
-    bfn_def_o := find_struct_def(sname, ctx)
-    if bfn_def_o.is_none() { return false }
-    ref bfn_def : Expr = bfn_def_o.unwrap()
-    mut has_inst := false
-    has_ns := def_ns_has(bfn_def, fname)
-    switch bfn_def.node_type {
-    case .StructDef(bfn_sdd):
-        has_inst = bfn_sdd.fields_index.has(fname)
-    case:
-    }
-    if has_ns.and(has_inst.not()) { return true }
-    if has_ns.not() { return false }
-    switch e.children[0].node_type {
-    case .Ident(ident):
-        if ident.ident_name(ctx.symbols.names) == sname { return true }
-        ref ident_text : Str = ident.ident_name(ctx.symbols.names)
-        if ident_text.len() > 0 {
-            if ident_text.get(0).gte('A').and(ident_text.get(0).lte('Z')) {
-                return true
+    mut receiver_names_type := false
+    if e.children.len() > 0 {
+        switch e.children[0].node_type {
+        case .Ident(ident):
+            ref text : Str = ident.ident_name(ctx.symbols.names)
+            receiver_names_type = text == sname
+            if text.len() > 0 {
+                receiver_names_type = receiver_names_type.or(text.get(0).gte('A').and(text.get(0).lte('Z')))
             }
+        case:
         }
-    case:
     }
-    return false
+    return c_field_is_namespace(sname, fname, receiver_names_type, ctx)
 }
 
 priv builder_fa_is_ns := func(e: Expr, ctx: Context) returns Bool {
-    sname := fa_struct_name(e, ctx.symbols)
+    sname := codegen_field_owner_name(e, ctx.symbols)
     switch e.node_type {
     case .FieldAccess(fname):
         return builder_fa_is_ns_with_fname(e, sname, fname.field_access_name(ctx.symbols.names), ctx)
@@ -861,7 +808,7 @@ priv c_str_arg_needs_nul_check := func(e: Expr, symbols: SymbolPool) returns Boo
         if fname.field_access_name(symbols.names).eq("c_str").not() { return false }
         if e.children.len() == 0 { return false }
         if e.children[0].node_type.is_literal_str() { return false }
-        return fa_struct_name(e, symbols).eq("Str")
+        return codegen_field_owner_name(e, symbols).eq("Str")
     case:
         return false
     }
@@ -2878,7 +2825,8 @@ priv builder_arm_leaves := func(body: Expr, ctx: Context) returns Bool {
 
 priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     ref scrut : Expr = e.children[0]
-    is_enum := is_enum_type(scrut.til_type())
+    enum_definition := c_switch_enum_definition(scrut, ctx)
+    is_enum := enum_definition.is_some()
     mut enum_name := ""
     if is_enum {
         enum_name_o := expr_type_name_ref(scrut, ctx.symbols)
@@ -2891,12 +2839,9 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
     mut sw_is_niche := false
     mut sw_pointee := ""
     if is_enum {
-        sw_def_o := find_struct_def(enum_name, ctx)
-        if sw_def_o.is_some() {
-            ref sw_def : Expr = sw_def_o.unwrap()
-            if sw_def.node_type.is(NodeType.EnumDef) { sw_is_niche = enum_is_niche(sw_def) }
-            if sw_is_niche { sw_pointee = niche_cptr_pointee(sw_def, ctx) }
-        }
+        ref sw_def : Expr = enum_definition.unwrap()
+        sw_is_niche = enum_is_niche(sw_def)
+        if sw_is_niche { sw_pointee = niche_cptr_pointee(sw_def, ctx) }
     }
     if is_enum {
         // Switch on the tag field. emit_deref yields the enum value, so
@@ -2954,22 +2899,14 @@ priv emit_stmt_switch := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                     // #276: a payload-binding case `Type.V(x)` is an FCall whose
                     // FieldAccess callee names the variant; a bare `Type.V` is the
                     // FieldAccess itself. The binding decl already rides the body.
-                    mut vn := ""
-                    switch pat.node_type {
-                    case .FieldAccess(fa): vn = Str.clone(fa.field_access_name(ctx.symbols.names))
-                    case .FCall:
-                        switch pat.children[0].node_type {
-                        case .FieldAccess(fa2): vn = Str.clone(fa2.field_access_name(ctx.symbols.names))
-                        case:
-                        }
-                    case:
-                    }
+                    ref definition : Expr = enum_definition.unwrap()
+                    variant := codegen_enum_variant_index(pat, enum_name, definition, ctx.symbols)
+                    if variant < 0 { panic("C enum switch has an invalid variant pattern") }
+                    ref vn : Str = enumdef_of(definition).variants[variant.to_usize()].name
                     if sw_is_niche {
                         // 1 = the payload (non-null) variant, 0 = the other.
                         // sw_is_niche was decided from this same def.
-                        ref lbl_def : Expr = find_struct_def(enum_name, ctx).unwrap()
-                        if enum_variant_type(lbl_def, enum_variant_index(lbl_def, vn)).len() > 0 { f.write("1") }
-                        else { f.write("0") }
+                        f.write(c_niche_case_value(definition, variant).to_str())
                     } else {
                         f.write(enum_name)
                         f.write("_TAG_")
@@ -3307,7 +3244,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
                 if obj_sname_o.is_some() { flat_old = obj_sname_o.unwrap().concat3("_", fname) }
                 f.write(builder_resolve_c_ident_name(flat_old, ctx))
             } else {
-                old_pointee := cptr_field_pointee(fa_struct_name(e, ctx.symbols), fname, ctx)
+                old_pointee := cptr_field_pointee(codegen_field_owner_name(e, ctx.symbols), fname, ctx)
                 emit_cptr_get_open(f, old_pointee)
                 emit_expr(f, obj, depth, ctx)
                 if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
@@ -3328,7 +3265,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             }
             f.write(builder_resolve_c_ident_name(flat_target, ctx)).write(" = ")
         } else {
-            set_pointee = cptr_field_pointee(fa_struct_name(e, ctx.symbols), fname, ctx)
+            set_pointee = cptr_field_pointee(codegen_field_owner_name(e, ctx.symbols), fname, ctx)
             if set_pointee.len() > 0 { f.write("TIL_OWN_SET((") }
             emit_expr(f, obj, depth, ctx)
             if use_dot_access(obj, ctx) { f.write(".") } else { f.write("->") }
@@ -4550,7 +4487,7 @@ priv emit_simd_core := proc(f: File, e: Expr, sname: Str, op: Str, flat: Str, de
     if value_vectors { f.write("\n#if defined(__clang__)\n") }
     if chunk_lanes == simd.simd_width {
         f.write("til_simd_v til_simd_x, til_simd_y; memcpy(&til_simd_x, &til_simd_a, sizeof(til_simd_x)); memcpy(&til_simd_y, &til_simd_b, sizeof(til_simd_y)); ")
-        f.write("__typeof__(til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y) til_simd_z = til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y; ")
+        f.write("__typeof__(til_simd_x ").write(c_binary_operator(op)).write(" til_simd_y) til_simd_z = til_simd_x ").write(c_binary_operator(op)).write(" til_simd_y; ")
         if comparison {
             for i in 0..simd.simd_width {
                 f.write("til_simd_result.lane").write(i.to_str()).write(" = til_simd_z[").write(i.to_str()).write("] != 0; ")
@@ -4561,7 +4498,7 @@ priv emit_simd_core := proc(f: File, e: Expr, sname: Str, op: Str, flat: Str, de
             first := chunk * chunk_lanes
             offset := format("sizeof(", lane_c, ") * ", first.to_str())
             f.write("{ til_simd_v til_simd_x, til_simd_y; memcpy(&til_simd_x, (const U8 *)&til_simd_a + ").write(offset).write(", sizeof(til_simd_x)); memcpy(&til_simd_y, (const U8 *)&til_simd_b + ").write(offset).write(", sizeof(til_simd_y)); ")
-            f.write("__typeof__(til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y) til_simd_z = til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y; ")
+            f.write("__typeof__(til_simd_x ").write(c_binary_operator(op)).write(" til_simd_y) til_simd_z = til_simd_x ").write(c_binary_operator(op)).write(" til_simd_y; ")
             if comparison {
                 for i in 0..chunk_lanes {
                     f.write("til_simd_result.lane").write((first + i).to_str()).write(" = til_simd_z[").write(i.to_str()).write("] != 0; ")
@@ -4584,7 +4521,7 @@ priv emit_simd_core := proc(f: File, e: Expr, sname: Str, op: Str, flat: Str, de
                 if i > 0 { f.write(", ") }
                 f.write("til_simd_b.lane").write((first + i).to_str())
             }
-            f.write("}; __typeof__(til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y) til_simd_z = til_simd_x ").write(core_binop_to_c(op)).write(" til_simd_y; ")
+            f.write("}; __typeof__(til_simd_x ").write(c_binary_operator(op)).write(" til_simd_y) til_simd_z = til_simd_x ").write(c_binary_operator(op)).write(" til_simd_y; ")
             for i in 0..chunk_lanes {
                 f.write("til_simd_result.lane").write((first + i).to_str()).write(" = ")
                 if comparison.not() {
@@ -4850,7 +4787,7 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                     }
                     emit_is_n_compare(f, e, core_ret_c, sname, is_op_niche, depth, ctx)
                 } else {
-                    core_c_op := core_binop_to_c(core_op)
+                    core_c_op := c_binary_operator(core_op)
                     if core_c_op.len() == 0 { panic(__LOC__, ": core_func backend lowering: unknown op '", core_op, "'") }
                     f.write("((")
                     f.write(core_ret_c)
@@ -5522,7 +5459,7 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
             }
             if obj_is_get_payload {
                 obj_sname_cast_o := expr_type_name_ref(obj, ctx.symbols)
-                gp_pointee := cptr_field_pointee(fa_struct_name(e, ctx.symbols), fname.field_access_name(ctx.symbols.names), ctx)
+                gp_pointee := cptr_field_pointee(codegen_field_owner_name(e, ctx.symbols), fname.field_access_name(ctx.symbols.names), ctx)
                 emit_cptr_get_open(f, gp_pointee)
                 if obj_sname_cast_o.is_some() {
                     ref obj_sname_cast : Str = obj_sname_cast_o.unwrap()
@@ -5547,7 +5484,7 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                     obj_is_str_lit = true
                 case:
                 }
-                fa_pointee := cptr_field_pointee(fa_struct_name(e, ctx.symbols), fname.field_access_name(ctx.symbols.names), ctx)
+                fa_pointee := cptr_field_pointee(codegen_field_owner_name(e, ctx.symbols), fname.field_access_name(ctx.symbols.names), ctx)
                 emit_cptr_get_open(f, fa_pointee)
                 if obj_is_str_lit {
                     switch obj.node_type {
@@ -7144,8 +7081,7 @@ priv emit_is_n_operand := proc(f: File, e: Expr, idx: USize, enum_c: Str, is_nic
         if vname.len() > 0 {
             // The niche branch above already resolved this enum's def.
             ref vdef : Expr = find_struct_def(enum_c, ctx).unwrap()
-            if enum_variant_type(vdef, enum_variant_index(vdef, vname)).len() > 0 { f.write("1") }
-            else { f.write("0") }
+            f.write(c_niche_case_value(vdef, enum_variant_index(vdef, vname)).to_str())
             return
         }
         is_n_pointee := niche_cptr_pointee(find_struct_def(enum_c, ctx).unwrap(), ctx)
