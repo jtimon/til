@@ -1849,7 +1849,14 @@ jobs:
     needs: doc-gate
     if: needs.doc-gate.outputs.code == 'true'
     name: macos (cross-compile on linux)
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not ubuntu-latest, on purpose (#472 level 3, the toolchain
+    # rule at the end of issues/open/472.org): the mac targets' toolchain is
+    # this release's clang, lld and llvm 18.1.3 with the repository's
+    # vendor/macos. The other producer of mac binaries, linux-arm64-native,
+    # runs on ubuntu-24.04-arm and gets the same packages, so the collect job
+    # can compare what the two hosts build. ubuntu-latest (26.04) has clang
+    # 21, and no clang package version is common to the two releases.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies

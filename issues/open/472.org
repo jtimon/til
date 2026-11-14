@@ -1984,3 +1984,27 @@ expected first result is NOT COMPARABLE for both targets; the next step is
 to give the mac targets ONE toolchain on both hosts (the same Ubuntu
 package version if both images carry one, else a pinned download, which
 needs Jorge's yes), and then read whether the bytes match.
+
+*** Progress: one toolchain for the mac targets (base master a9f8327)
+
+Chosen for macos-arm64 and macos-x64, the first targets under the
+toolchain rule: Ubuntu 24.04's clang, lld and llvm 18.1.3 with the
+repository's ~vendor/macos~. Why this one: it needs no download. The two
+Ubuntu releases the runners use share no clang package version (24.04:
+18.1.3, 19.1.1, 20.1.2; 26.04: 20.1.8 and 21.1.8 among others), so the
+same version on both hosts means the same release on both hosts. The
+~macos-cross-build~ job therefore runs on ~ubuntu-24.04~ instead of
+~ubuntu-latest~; ~linux-arm64-native~ already runs on ~ubuntu-24.04-arm~.
+18 is also the LLVM the MLIR backend uses.
+
+What this changes: the mac binaries the Mac jobs download and run
+("cross run" steps) are now built by clang 18.1.3, not 21.1.8. Checked
+here, where the container is 24.04 with that clang: the mac cross builds
+and ~test/reproducible_build.til~ for both mac targets pass.
+
+Still outside the comparison: ~macos-gui-cross~ (ubuntu-latest, clang
+21) and the Macs' native builds with Apple's toolchain; both are other
+toolchains for the same targets and are not producers of binary lists.
+If the two hosts' hashes match in the next run, that is the first
+cross-host binary equality; if not, the difference is traced by section
+(L3c).
