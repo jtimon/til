@@ -12,8 +12,9 @@ writable/fixed-reference field spelling needed by the compiler's own sources:
 CounterRef := struct { const ref mut value: I64 }
 #+end_src
 
-HEAD's ~bin/til_boot translate~ reports ~expected 'identifier', found 'ref'~
-at that field. Two-pass cannot repair a source tree that pass 1 cannot parse.
+Before that grammar preparation, ~bin/til_boot translate~ reported
+~expected 'identifier', found 'ref'~ at that field. Two-pass cannot repair a
+source tree that pass 1 cannot parse.
 
 - [X] A: Prepare the grammar and independent AST metadata. Declarations keep
   ~referent_mut~ separate from ~is_mut~, and ~ref_slot_explicit~ records an
@@ -28,7 +29,7 @@ at that field. Two-pass cannot repair a source tree that pass 1 cannot parse.
   migrating compiler containers. Preserve their distinct identities and
   permission bits through annotation lifting, generic substitution, nested
   forwarding, enum constructors, clones and AST observation.
-- [ ] Merge this type-argument preparation before compiler sources use the
+- [X] Merge this type-argument preparation before compiler sources use the
   spelling.
 - [ ] B: Migrate writable reference declarations in compiler/core/std and
   fixtures; enforce independent slot and referent permissions and the new
@@ -65,6 +66,33 @@ A fresh single-pass translation by ~bin/til_boot~ matched both regenerated
 permission cases exercise both generic spellings independently, explicit and
 forwarded type arguments, clones, borrowed enum payloads and typed AST metadata;
 ~test/parsing.til~ checks the cloned value-position and lifted annotation bits.
+
+*** Stored-reference metadata and bindings
+
+- [X] Prepare private scalar queries for ~Declaration.referent_mut~ and
+  ~VariantDef.payload_ref_mut~ in C/MLIR-bridge and HolyC emission, reflection
+  inventory and interpreter dispatch. They use the owning core module's
+  private identity, including installed SDK paths; no public query is added.
+- [X] Preserve field/global slot and referent permissions, enum-payload
+  permissions and writable reference type arguments/defaults in generated
+  Til-library bindings. Emit canonical leading slot qualifiers rather than
+  conflating a slot's ~is_mut~ with its referent's permission.
+- [ ] Use the queries in ~struct_def_of~ / ~enum_def_of~ and compare semantic
+  field/payload permissions in native/TilVm schemas. This is a separate
+  bootstrap use step, following ~doc/self.org~ and #491's reflection ladder.
+
+The new semantic schema flags do not change pointer layout or lifetime.
+~ref_slot_explicit~ describes source spelling, not an independent ABI
+permission, and is not a schema-comparison requirement. Binding regressions
+cover all four field combinations, payload const/ref-mut combinations,
+fixed/replaceable globals and ~Option(ref mut T)~ source/default recovery.
+Runtime reflection/schema consumption remains pending at this preparation
+checkpoint, as does complete source-path enforcement and library migration.
+
+Preparation verification: ~make clean && make test_two_pass~ passed 576/576,
+including native self-translation and the C/Python/JNI/Til library-consumer
+round-trip in ~test/library_namespace.til~. Its fixtures exercise canonical
+field/global spellings, enum payload flags and writable type/default recovery.
 
 *** Downstream acceptance input (Tiled/tilminal)
 

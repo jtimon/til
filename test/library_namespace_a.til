@@ -33,6 +33,18 @@ namespace:
 BindingRef := struct {
     ref borrowed : I64
 }
+BindingRefPermissions := struct {
+    ref read: I64
+    ref mut write: I64
+    const ref fixed_read: I64
+    const ref mut fixed_write: I64
+}
+BindingRefPayloadPermissions := enum {
+    Read: ref I64,
+    Write: ref mut I64,
+    const FixedRead: ref I64,
+    const FixedWrite: ref mut I64,
+}
 
 BindingTag := enum(U16) {
     Empty = 3,
@@ -74,6 +86,8 @@ i : USize = 29
 // til binding must spell it `ref ... = ext_global(...)` and the Python one
 // a POINTER view, both reading through the pointer.
 ref library_namespace_a_origin_ref : BindingPoint = library_namespace_a_origin
+mut ref library_permission_read: BindingPoint = library_namespace_a_point_state
+const ref mut library_permission_fixed_write: BindingPoint = library_namespace_a_point_state
 
 library_namespace_a_global_sum := func() returns I64 {
     return library_namespace_a_count + library_namespace_a_state
@@ -183,6 +197,9 @@ BindingWidths := struct {
     first : USize = 41
     second : USize = 73
     marker : U64 = 123456789
+}
+BindingPermissionTypes := struct {
+    writable := Option(ref mut BindingWidths).None
 }
 
 BindingNestedWidths := struct {

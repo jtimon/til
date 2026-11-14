@@ -9922,6 +9922,20 @@ priv h_struct_field_own_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, 
     return true
 }
 
+priv h_struct_field_referent_mut := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    name := eval_str_owned(s, e.children[1], ctx)
+    index := eval_index_arg(s, e, ctx)
+    def := interp_lookup_struct(s, e, name, "struct_field_referent_mut", ctx)
+    if def.is_none() { return true }
+    ref sd: StructDef = structdef_of(def.unwrap())
+    if index >= sd.fields.len() {
+        interp_reflect_index_out_of_range(e, "struct_field_referent_mut", name, index, ctx)
+        return true
+    }
+    if sd.field_at(index).referent_mut { write_i64(r, 1) } else { write_i64(r, 0) }
+    return true
+}
+
 priv h_enum_decl_tag_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     name := eval_str_owned(s, e.children[1], ctx)
     def := interp_lookup_enum(s, e, name, "enum_decl_tag_type", ctx)
@@ -9940,6 +9954,20 @@ priv h_enum_variant_payload_is_funcsig := proc(mut s: Scope, mut e: Expr, mut r:
         return true
     }
     if ed.variants[index].payload_funcsig { write_i64(r, 1) } else { write_i64(r, 0) }
+    return true
+}
+
+priv h_enum_variant_payload_ref_mut := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    name := eval_str_owned(s, e.children[1], ctx)
+    index := eval_index_arg(s, e, ctx)
+    def := interp_lookup_enum(s, e, name, "enum_variant_payload_ref_mut", ctx)
+    if def.is_none() { return true }
+    ref ed: EnumDef = enumdef_of(def.unwrap())
+    if index >= ed.variants.len() {
+        interp_reflect_index_out_of_range(e, "enum_variant_payload_ref_mut", name, index, ctx)
+        return true
+    }
+    if ed.variants[index].payload_ref_mut { write_i64(r, 1) } else { write_i64(r, 0) }
     return true
 }
 
@@ -11207,12 +11235,16 @@ priv dispatch_init := func(mut ctx: Context) {
     reg_dispatch("struct_field_is_mut", h_struct_field_is_mut, ctx)
     reg_dispatch(priv_c_name(ctx.scope.get_binding_name("struct_def_of", ctx.symbols).unwrap().path,
         "struct_field_own_type"), h_struct_field_own_type, ctx)
+    reg_dispatch(priv_c_name(ctx.scope.get_binding_name("struct_def_of", ctx.symbols).unwrap().path,
+        "struct_field_referent_mut"), h_struct_field_referent_mut, ctx)
     reg_dispatch("struct_field_type", h_struct_field_type, ctx)
     reg_dispatch("enum_variant_count", h_enum_variant_count, ctx)
     reg_dispatch(priv_c_name(ctx.scope.get_binding_name("enum_def_of", ctx.symbols).unwrap().path,
         "enum_decl_tag_type"), h_enum_decl_tag_type, ctx)
     reg_dispatch(priv_c_name(ctx.scope.get_binding_name("enum_def_of", ctx.symbols).unwrap().path,
         "enum_variant_payload_is_funcsig"), h_enum_variant_payload_is_funcsig, ctx)
+    reg_dispatch(priv_c_name(ctx.scope.get_binding_name("enum_def_of", ctx.symbols).unwrap().path,
+        "enum_variant_payload_ref_mut"), h_enum_variant_payload_ref_mut, ctx)
     reg_dispatch("enum_variant_name", h_enum_variant_name, ctx)
     reg_dispatch("enum_variant_has_payload", h_enum_variant_has_payload, ctx)
     reg_dispatch("enum_variant_payload_type", h_enum_variant_payload_type, ctx)

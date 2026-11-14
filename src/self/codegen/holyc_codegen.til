@@ -1833,18 +1833,31 @@ priv holyc_reflect_string := func(e: Expr) returns Str {
     return "*"
 }
 
-priv holyc_is_return_permission_query := func(name: Str, ctx: Context) returns Bool {
-    if name.ends_with("func_sig_return_ref_mut").not() { return false }
-    owner := ctx.scope.get_binding_name("func_sig_of", ctx.symbols)
-    if owner.is_none() { return false }
-    return name == priv_c_name(owner.unwrap().path, "func_sig_return_ref_mut")
+priv holyc_private_permission_query := func(name: Str, ctx: Context) returns Str {
+    mut query := ""
+    mut owner_name := ""
+    if name.ends_with("func_sig_return_ref_mut") {
+        query = "func_sig_return_ref_mut"
+        owner_name = "func_sig_of"
+    } else if name.ends_with("struct_field_referent_mut") {
+        query = "struct_field_referent_mut"
+        owner_name = "struct_def_of"
+    } else if name.ends_with("enum_variant_payload_ref_mut") {
+        query = "enum_variant_payload_ref_mut"
+        owner_name = "enum_def_of"
+    } else { return "" }
+    owner := ctx.scope.get_binding_name(owner_name, ctx.symbols)
+    if owner.is_none() { return "" }
+    if name == priv_c_name(owner.unwrap().path, query) { return query }
+    return ""
 }
 
 priv holyc_scan_reflection := func(e: Expr, ctx: Context, mut state: HolyCEmitState) {
     switch e.node_type {
     case .FCall:
         mut name := holyc_direct_call_name(e, ctx)
-        if holyc_is_return_permission_query(name, ctx) { name = "func_sig_return_ref_mut" }
+        query := holyc_private_permission_query(name, ctx)
+        if query.len() > 0 { name = query.clone() }
         if name.eq("dyn_fn").or(name.eq("dyn_has_method")).or(name.eq("dyn_size_of"))
             .or(name.eq("dyn_storage_kind")).or(name.eq("dyn_type_to_str"))
             .or(name.starts_with("struct_field_")).or(name.starts_with("enum_variant_"))
@@ -2289,6 +2302,9 @@ priv holyc_metadata_reflection := func(ctx: Context, state: HolyCEmitState) retu
                                     ref field : Declaration = sd.field_at(i)
                                     if who == "struct_field_name" { values.push(own sd.field_name_at(i).clone()) }
                                     else if who == "struct_field_type" { values.push(own decl_type_name_ref(field, ctx.symbols).clone()) }
+                                    else if who == "struct_field_referent_mut" {
+                                        if field.referent_mut { values.push(own "1") } else { values.push(own "0") }
+                                    }
                                     else if field.is_mut { values.push(own "1") } else { values.push(own "0") }
                                 }
                             }
@@ -2309,6 +2325,8 @@ priv holyc_metadata_reflection := func(ctx: Context, state: HolyCEmitState) retu
                                         if variant.payload_const { values.push(own "1") } else { values.push(own "0") }
                                     case "enum_variant_payload_is_ref":
                                         if variant.payload_ref { values.push(own "1") } else { values.push(own "0") }
+                                    case "enum_variant_payload_ref_mut":
+                                        if variant.payload_ref_mut { values.push(own "1") } else { values.push(own "0") }
                                     case:
                                     }
                                 }
@@ -3694,10 +3712,15 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 method := holyc_str_ref(e.children[2], ctx, state, locals, error)
                 return format("TilDynHasMethod(", type_name, ", ", method, ")")
             }
-            if holyc_is_return_permission_query(name, ctx) {
-                state.reflection_uses.add(own "func_sig_return_ref_mut")
+            permission_query := holyc_private_permission_query(name, ctx)
+            if permission_query.len() > 0 {
+                state.reflection_uses.add(own permission_query.clone())
                 type_name := holyc_str_ref(e.children[1], ctx, state, locals, error)
-                return format("TilReflect_func_sig_return_ref_mut(", type_name, ")")
+                mut suffix := ""
+                if holyc_reflection_indexed(permission_query) {
+                    suffix = format(", ", holyc_expr(e.children[2], ctx, state, locals, error))
+                }
+                return format("TilReflect_", permission_query, "(", type_name, suffix, ")")
             }
             if name.starts_with("struct_field_").or(name.starts_with("enum_variant_")).or(name.starts_with("func_sig_")) {
                 state.reflection_uses.add(own name.clone())

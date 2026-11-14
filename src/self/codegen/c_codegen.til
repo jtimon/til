@@ -5138,7 +5138,9 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
             emit_as_ptr(f, e.children[1], depth, false, ctx)
             f.write(")")
         } else if builder_is_private_reflect_query(name.ident_name(ctx.symbols.names), "struct_field_own_type", "struct_def_of", ctx.scope, ctx.symbols)
-            .or(builder_is_private_reflect_query(name.ident_name(ctx.symbols.names), "enum_variant_payload_is_funcsig", "enum_def_of", ctx.scope, ctx.symbols)) {
+            .or(builder_is_private_reflect_query(name.ident_name(ctx.symbols.names), "struct_field_referent_mut", "struct_def_of", ctx.scope, ctx.symbols))
+            .or(builder_is_private_reflect_query(name.ident_name(ctx.symbols.names), "enum_variant_payload_is_funcsig", "enum_def_of", ctx.scope, ctx.symbols))
+            .or(builder_is_private_reflect_query(name.ident_name(ctx.symbols.names), "enum_variant_payload_ref_mut", "enum_def_of", ctx.scope, ctx.symbols)) {
             f.write(name.ident_name(ctx.symbols.names)).write("(")
             emit_as_ptr(f, e.children[1], depth, false, ctx)
             f.write(", ")
@@ -8426,6 +8428,7 @@ priv binding_type_name := func(name: Str, ctx: Context) returns Str {
     for i in 1..source.children.len() {
         if i > 1 { out = format(out, ", ") }
         if get_ref_arg(source, i) { out = format(out, "ref ") }
+        if get_ref_arg(source, i, writable = true) { out = format(out, "mut ") }
         switch source.children[i].node_type {
         case .Ident(an):
             arg_name := Str.clone(an.ident_name(ctx.symbols.names))
@@ -8452,7 +8455,7 @@ priv emit_binding_expr := proc(f: File, e: Expr, ctx: Context, owner: Str = "") 
     case .Literal(Literal.Bool(b)):
         if b { f.write("true") } else { f.write("false") }
     case .Literal(Literal.Null): f.write("0")
-    case .Ident(id): f.write(id.ident_name(ctx.symbols.names))
+    case .Ident(id): f.write(binding_type_name(id.ident_name(ctx.symbols.names), ctx))
     case .FieldAccess(fa):
         if e.children.len() != 1 { panic("generated binding default has malformed field access") }
         emit_binding_expr(f, e.children[0], ctx, owner)
@@ -8501,6 +8504,7 @@ priv emit_binding_expr := proc(f: File, e: Expr, ctx: Context, owner: Str = "") 
                 }
                 if get_own_arg(e, i) { f.write("own ") }
                 if get_ref_arg(e, i) { f.write("ref ") }
+                if get_ref_arg(e, i, writable = true) { f.write("mut ") }
                 if get_splat_arg(e, i) { f.write("..") }
                 emit_binding_expr(f, arg, ctx, owner)
             }
@@ -8681,8 +8685,9 @@ priv emit_binding_global := proc(f: File, indent: Str, api_name: Str,
     if d.own_type.is(OwnType.Ref) {
         // A borrowed global is a C POINTER object; only the `ref` form of
         // ext_global reads through it.
+        if d.is_mut { f.write("mut ") } else { f.write("const ") }
         f.write("ref ")
-        if d.is_mut { f.write("mut ") }
+        if d.referent_mut { f.write("mut ") }
         f.write(api_name).write(" : ").write(type_name).write(" = ext_global(")
     } else {
         if d.is_mut { f.write("mut ") }
@@ -8854,11 +8859,15 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                 for fdd : Declaration in btb_sdd.fields {
                     f.write("    ")
                     if fdd.is_priv { f.write("priv ") }
-                    if fdd.own_type.is(OwnType.Own) { f.write("own ") }
-                    if fdd.own_type.is(OwnType.Ref) { f.write("ref ") }
-                    // #211: fields are mutable by default; emit `const` only
-                    // for immutable fields (never the redundant `mut`).
-                    if fdd.is_mut.not() { f.write("const ") }
+                    if fdd.own_type.is(OwnType.Ref) {
+                        if fdd.is_mut.not() { f.write("const ") }
+                        f.write("ref ")
+                        if fdd.referent_mut { f.write("mut ") }
+                    } else {
+                        if fdd.own_type.is(OwnType.Own) { f.write("own ") }
+                        // #211: ordinary value fields default mutable.
+                        if fdd.is_mut.not() { f.write("const ") }
+                    }
                     f.write(btb_sdd.field_name_at(btbr))
                     btbr = btbr + 1
                     if fdd.til_type.is(Type.Unknown).not() {
@@ -8885,6 +8894,7 @@ priv build_til_binding := proc(lp: LoadedProgram, til_path: Str, lib_name: Str) 
                     if bind_vd.payload_type.len() > 0 {
                         f.write(": ")
                         if bind_vd.payload_ref { f.write("ref ") }
+                        if bind_vd.payload_ref_mut { f.write("mut ") }
                         f.write(binding_type_name(bind_vd.payload_type, lp.ctx))
                     }
                     f.write(" = ").write(bind_vd.tag_value.to_str()).write(",\n")
@@ -12481,6 +12491,11 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
         f.write(builder_static_prefix(lp.ctx)).write("I64 ").write(priv_c_name(lp.ctx.scope.get_binding_name("struct_def_of", lp.ctx.symbols).unwrap().path, "struct_field_own_type"))
             .write("(Str *type_name, I64 *index);\n")
     }
+    if builder_needs_reflect("struct_field_referent_mut", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 ")
+            .write(priv_c_name(lp.ctx.scope.get_binding_name("struct_def_of", lp.ctx.symbols).unwrap().path, "struct_field_referent_mut"))
+            .write("(Str *type_name, I64 *index);\n")
+    }
     if builder_needs_reflect("struct_field_type", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("Str *struct_field_type(Str *type_name, I64 *index);\n")
     }
@@ -12490,6 +12505,11 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
     }
     if builder_needs_reflect("enum_variant_payload_is_funcsig", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 ").write(priv_c_name(lp.ctx.scope.get_binding_name("enum_def_of", lp.ctx.symbols).unwrap().path, "enum_variant_payload_is_funcsig"))
+            .write("(Str *type_name, I64 *index);\n")
+    }
+    if builder_needs_reflect("enum_variant_payload_ref_mut", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 ")
+            .write(priv_c_name(lp.ctx.scope.get_binding_name("enum_def_of", lp.ctx.symbols).unwrap().path, "enum_variant_payload_ref_mut"))
             .write("(Str *type_name, I64 *index);\n")
     }
     if builder_needs_reflect("enum_variant_count", lp.ctx) {
@@ -13159,7 +13179,7 @@ priv emit_reflect_not_found_tail := proc(f: File, who: Str) {
 
 // Issue #56/#58: emit one struct's branch for a struct_field_* function.
 // kind 0 = count (return field count), 1 = name, 2 = is_mut, 3 = type,
-// 4 = ownership (private query used by struct_def_of).
+// 4 = ownership, 5 = referent permission (private struct_def_of queries).
 priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, type_id: USize, shared_lookup: Bool, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len() == 0 { return }
@@ -13190,6 +13210,8 @@ priv emit_struct_field_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, t
                     if fd.is_mut { f.write("1") } else { f.write("0") }
                 } else if kind == 4 {
                     f.write(own_type_to_i64(fd.own_type).to_str())
+                } else if kind == 5 {
+                    if fd.referent_mut { f.write("1") } else { f.write("0") }
                 } else {
                     emit_str_lit_expr(f, decl_type_name_ref(fd, ctx.symbols), ctx)
                 }
@@ -13241,10 +13263,10 @@ priv emit_struct_field_branches := proc(f: File, kind: I32, shared_lookup: Bool,
 // primitives, mirroring rstil's emit_introspection_metadata. Multiple
 // queries share the type-name lookup; one query keeps its direct chain.
 // Each member is gated on ITS OWN name (see the prototype block): the
-// family key says the metadata is needed, not that all five bodies are.
+// family key says the metadata is needed, not that every query body is.
 priv emit_struct_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
     mut queries : USize = 0
-    for name : Str in array(Str, "struct_field_count", "struct_field_name", "struct_field_type", "struct_field_is_mut", "struct_field_own_type") {
+    for name : Str in array(Str, "struct_field_count", "struct_field_name", "struct_field_type", "struct_field_is_mut", "struct_field_own_type", "struct_field_referent_mut") {
         if builder_needs_reflect(name, lp.ctx) { queries = queries.add(1) }
     }
     shared_lookup := queries > 1
@@ -13255,6 +13277,13 @@ priv emit_struct_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
             .write("(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_struct_field_branches(f, 4, shared_lookup, lp)
         emit_reflect_index_tails(f, "struct_field_own_type")
+    }
+    if builder_needs_reflect("struct_field_referent_mut", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 ")
+            .write(priv_c_name(lp.ctx.scope.get_binding_name("struct_def_of", lp.ctx.symbols).unwrap().path, "struct_field_referent_mut"))
+            .write("(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
+        emit_struct_field_branches(f, 5, shared_lookup, lp)
+        emit_reflect_index_tails(f, "struct_field_referent_mut")
     }
     if builder_needs_reflect("struct_field_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 struct_field_count(Str *type_name) {\n")
@@ -13281,7 +13310,7 @@ priv emit_struct_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
 // Issue #57/#58: emit one enum's branch for an enum_variant_* function.
 // kind 0 = count, 1 = name, 2 = has_payload, 3 = payload_type,
 // 4 = tag_value, 5 = payload_is_const, 6 = payload_is_ref (#307),
-// 7 = tag_type, 8 = payload_is_funcsig (private checked-schema queries).
+// 7 = tag_type, 8 = payload_is_funcsig, 9 = payload_ref_mut (private queries).
 priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ctx: Context) {
     if stmt.node_type.is(NodeType.Decl).not() { return }
     if stmt.children.len() == 0 { return }
@@ -13319,6 +13348,8 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, m
                     if vd.payload_ref { f.write("1") } else { f.write("0") }
                 } else if kind == 8 {
                     if vd.payload_funcsig { f.write("1") } else { f.write("0") }
+                } else if kind == 9 {
+                    if vd.payload_ref_mut { f.write("1") } else { f.write("0") }
                 } else {
                     emit_str_lit_expr(f, vd.payload_type, ctx)
                 }
@@ -13353,6 +13384,13 @@ priv emit_enum_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
             .write("(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
         emit_enum_variant_branches(f, 8, lp)
         emit_reflect_index_tails(f, "enum_variant_payload_is_funcsig")
+    }
+    if builder_needs_reflect("enum_variant_payload_ref_mut", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 ")
+            .write(priv_c_name(lp.ctx.scope.get_binding_name("enum_def_of", lp.ctx.symbols).unwrap().path, "enum_variant_payload_ref_mut"))
+            .write("(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
+        emit_enum_variant_branches(f, 9, lp)
+        emit_reflect_index_tails(f, "enum_variant_payload_ref_mut")
     }
     if builder_needs_reflect("enum_variant_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 enum_variant_count(Str *type_name) {\n")
@@ -16279,12 +16317,18 @@ priv builder_collect_reflect_inventory := proc(e: Expr, mut inv: Set(Str), scope
         if builder_is_private_reflect_query(rid.ident_name(symbols.names), "struct_field_own_type", "struct_def_of", scope, symbols) {
             builder_record_reflect_name("struct_field_own_type", inv)
         }
+        if builder_is_private_reflect_query(rid.ident_name(symbols.names), "struct_field_referent_mut", "struct_def_of", scope, symbols) {
+            builder_record_reflect_name("struct_field_referent_mut", inv)
+        }
         if builder_is_private_reflect_query(rid.ident_name(symbols.names), "enum_decl_tag_type", "enum_def_of", scope, symbols) {
             builder_record_reflect_name("enum_decl_tag_type", inv)
             inv.add(own "enum_variant_")
         }
         if builder_is_private_reflect_query(rid.ident_name(symbols.names), "enum_variant_payload_is_funcsig", "enum_def_of", scope, symbols) {
             builder_record_reflect_name("enum_variant_payload_is_funcsig", inv)
+        }
+        if builder_is_private_reflect_query(rid.ident_name(symbols.names), "enum_variant_payload_ref_mut", "enum_def_of", scope, symbols) {
+            builder_record_reflect_name("enum_variant_payload_ref_mut", inv)
         }
         if builder_is_private_reflect_query(rid.ident_name(symbols.names), "func_sig_return_ref_mut", "func_sig_of", scope, symbols) {
             builder_record_reflect_name("func_sig_return_ref_mut", inv)

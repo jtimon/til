@@ -75,6 +75,17 @@ result contracts with the same borrow ABI. Inference/generic-generator paths
 and generated Til-library declarations, wrappers and FuncSigs preserve the
 reference-result permission.
 
+Generated Til-library bindings also preserve stored-reference permissions:
+field/global slot qualifiers, field and enum-payload referent qualifiers, and
+writable reference type arguments/default expressions. Canonical source uses
+~const ref mut~ for a fixed writable borrow and ~mut ref~ / ~mut ref mut~ for
+replaceable global reference slots.
+
+Private field/payload permission-query emission and interpreter dispatch are
+prepared for the next bootstrap use step. ~struct_def_of~ / ~enum_def_of~ and
+native schema comparison still need to consume those bits; the binding-emitter
+work alone does not make runtime reflection or access-path enforcement complete.
+
 ~func_sig_of~ now restores the reference-result permission through a private
 query in C/MLIR-bridge emission and the interpreter. HolyC has query-emission
 support prepared; its full AST-valued reflection path still requires support
