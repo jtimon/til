@@ -1615,6 +1615,56 @@ ReflectContract58 := func(own taken: Str, borrowed: Str, mut changed: Str,
     rest: ..I64, opts: ...) returns shallow FuncSigPayload58 throws FuncSigError58
 ReflectRefReturn58 := func(value: FuncSigPayload58) returns ref FuncSigPayload58
 ReflectProc58 := proc(mut value: Str)
+ReflectReadonly491 := func(mut Str) returns ref Str
+ReflectWritable491 := func(mut Str) returns ref mut Str
+reflected_read491 := func(mut text: Str) returns ref Str { text.push_str("r"); return text }
+reflected_write491 := func(mut text: Str) returns ref mut Str { text.push_str("w"); return text }
+ReflectInline491 := func(read: Fn(mut Str) returns ref Str,
+    write: Fn(mut Str) returns ref mut Str)
+use_reflected_inline491: ReflectInline491 = (read, write) {
+    mut text := Str.with_capacity(32)
+    text.push_str("inline")
+    ref first: Str = read(text)
+    ref second: Str = write(text)
+    assert(first == second)
+}
+
+// Force runtime reflection too: a proc call is not speculatively folded.
+reflect_return_permission491 := proc(name: Str) returns FuncSig {
+    noop_proc()
+    return func_sig_of(name)
+}
+
+// The scalar query is private to core/dyn, not a new public builtin name.
+func_sig_return_ref_mut := func() returns I64 { return 37 }
+
+test_reflected_return_permission := test() {
+    // Runtime-computed reflection names need the types used independently.
+    read: ReflectReadonly491 = reflected_read491
+    write: ReflectWritable491 = reflected_write491
+    mut text := Str.with_capacity(32)
+    text.push_str("reflect")
+    ref read_value: Str = read(text)
+    ref write_value: Str = write(text)
+    assert(read_value == "reflectrw" && write_value == read_value)
+    inline_value: ReflectInline491 = use_reflected_inline491
+    inline_value(reflected_read491, reflected_write491)
+    readonly := reflect_return_permission491("ReflectReadonly491")
+    mut writable := reflect_return_permission491("ReflectWritable491")
+    assert(readonly.return_own_type.is(OwnType.Ref) && readonly.return_ref_mut.not())
+    assert(writable.return_own_type.is(OwnType.Ref) && writable.return_ref_mut)
+    assert((readonly == writable).not())
+    copy := writable.clone()
+    assert(copy.return_ref_mut)
+    writable.return_ref_mut = false
+    assert(readonly == writable)
+    assert(func_sig_of("ReflectWritable491").return_ref_mut)
+    inline_holder := reflect_return_permission491("ReflectInline491")
+    read_inline := reflect_return_permission491(inline_holder.params[0].type_name())
+    write_inline := reflect_return_permission491(inline_holder.params[1].type_name())
+    assert(read_inline.return_ref_mut.not() && write_inline.return_ref_mut)
+    assert_eq(I64, func_sig_return_ref_mut(), 37)
+}
 
 ReflectVariadicDefaults := proc(mut prefix: Str, values: ..I64,
     mut suffix: Str = "end") returns Str throws FuncSigError58

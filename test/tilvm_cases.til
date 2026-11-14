@@ -524,6 +524,8 @@ HostKeywords := func(values: ...) returns I64
 HostThrow := struct {}
 HostThrowing := func(I64) returns I64 throws HostThrow
 HostBorrowed := func(Str) returns ref Str
+HostReadonlyBorrowed := func(mut Str) returns ref Str
+HostWritableBorrowed := func(mut Str) returns ref mut Str
 HostReader := func() returns Str
 HostTick := proc() returns I64
 HostReal := func(F64) returns F64
@@ -580,6 +582,8 @@ checked_lookup := proc(root: Str) {
         "keywords := func(values: ...) returns I64 { return values.len().to_i64() }\n",
         "HostThrow := struct {}\nthrowing := func(value: I64) returns I64 throws HostThrow { if value < 0 { throw HostThrow() }; return value }\n",
         "borrowed := func(value: Str) returns ref Str { return value }\n",
+        "readonly_borrow := func(mut value: Str) returns ref Str { value.push_str(\"!\"); return value }\n",
+        "writable_borrow := func(mut value: Str) returns ref mut Str { value.push_str(\"!\"); return value }\n",
         "view := func(value: Str) returns shallow Str { return value.substr(1, 3) }\n",
         "literal := func() returns Str { return \"guest literal\" }\n",
         "empty := func() returns Str { return \"\" }\n",
@@ -628,6 +632,12 @@ checked_lookup := proc(root: Str) {
     assert(interp_session_lookup_function(session, program, "keywords", lookup_contract(HostKeywords)).is_some())
     assert(interp_session_lookup_function(session, program, "throwing", lookup_contract(HostThrowing)).is_some())
     assert(interp_session_lookup_function(session, program, "borrowed", lookup_contract(HostBorrowed)).is_some())
+    readonly_borrow := lookup_contract(HostReadonlyBorrowed)
+    writable_borrow := lookup_contract(HostWritableBorrowed)
+    assert(readonly_borrow.return_ref_mut.not() && writable_borrow.return_ref_mut)
+    assert(interp_session_lookup_function(session, program, "readonly_borrow", readonly_borrow).is_some())
+    assert(interp_session_lookup_function(session, program, "writable_borrow", writable_borrow).is_some())
+    lookup_failure(session, program, "readonly_borrow", writable_borrow, "signature mismatch")
     reader := interp_session_lookup_function(session, program, "reader", lookup_contract(HostReader))
     assert(reader.is_some())
     reader_def := hb_func_def(reader.unwrap())
@@ -671,6 +681,14 @@ checked_lookup := proc(root: Str) {
     alias_sum := call_checked(session, program, "alias", HostBinary, numbers)
     ref alias_answer : I64 = alias_sum.get(0)
     assert(alias_answer == 42)
+    mut borrow_arguments := Tuple.new()
+    mut borrow_text := Str.with_capacity(32)
+    borrow_text.push_str("writable return")
+    borrow_arguments.push(Str, own borrow_text)
+    borrow_result := call_checked(session, program, "writable_borrow", HostWritableBorrowed, borrow_arguments)
+    ref borrowed_input: Str = borrow_arguments.get(0)
+    ref borrowed_result: Str = borrow_result.get(0)
+    assert(borrowed_input == "writable return!" && borrowed_result == borrowed_input)
     mut scalar_values := Tuple.new()
     scalar_values.push(Bool, own true)
     narrow : I32 = 17
@@ -1575,6 +1593,9 @@ NativeStateFactory := func() returns NativeStateChoice
 NativeVoidAction := proc() throws TransformError, TilVmError
 NativeVoidChoice := enum { None, Run: NativeVoidAction }
 NativeVoidFactory := func() returns NativeVoidChoice
+NativeBorrowAction := proc(mut Str) returns ref mut Str throws TilVmError
+NativeBorrowChoice := enum { None, Run: NativeBorrowAction }
+NativeBorrowFactory := func() returns NativeBorrowChoice
 EarlierAction := proc(mut Str) returns Str throws TransformError, TilVmError
 EarlierChoice := enum { None, Run: EarlierAction }
 EarlierInvoke := proc(EarlierChoice, mut Str) returns Str throws TransformError
@@ -1583,6 +1604,8 @@ callable_enum_callback_tests := proc(root: Str) {
     File.writefile("guest.til", format("mode lib\n",
         "TransformError := struct { code: I32 = 0; message := \"\" }\n",
         "NativeAction := proc(I64) returns I64 throws TransformError\n",
+        "NativeBorrowAction := proc(mut Str) returns ref mut Str\nNativeBorrowChoice := enum { None, Run: NativeBorrowAction }\n",
+        "make_borrow := func() returns NativeBorrowChoice { action: NativeBorrowAction = proc(mut text: Str) returns ref mut Str { noop_proc(); text.push_str(\"!\"); return text }; return NativeBorrowChoice.Run(action) }\n",
         "NativeActionEnum := enum { None, Run: NativeAction }\n",
         "NativeVoidAction := proc() throws TransformError\nNativeVoidChoice := enum { None, Run: NativeVoidAction }\nmut void_calls := 0\n",
         "make_void := func() returns NativeVoidChoice { action: NativeVoidAction = proc() throws TransformError { noop_proc(); void_calls++; if void_calls == 2 { throw TransformError(code = 26) }; if void_calls == 3 { panic(\"void callback panic\") } }; return NativeVoidChoice.Run(action) }\n",
@@ -1608,9 +1631,12 @@ callable_enum_callback_tests := proc(root: Str) {
     mut envelope_factory := vm.lookup("make_envelope", NativeEnvelopeFactory)!
     mut state_factory := vm.lookup("make_state", NativeStateFactory)!
     mut void_factory := vm.lookup("make_void", NativeVoidFactory)!
+    mut borrow_factory := vm.lookup("make_borrow", NativeBorrowFactory)!
     mut earlier := vm.lookup("invoke_earlier", EarlierInvoke)!
     mut host_text := format("host", " input")
     mut returned_text := ""
+    mut borrowed_text := Str.with_capacity(64)
+    borrowed_text.push_str("native borrow")
     mut envelope := NativeEnvelope(record = CallbackRecord(text = "host owned field"))
     mut invoke := vm.lookup("invoke", NativeActionInvoke)!
     mut borrow_invoke := vm.lookup("borrow_invoke", NativeActionBorrow)!
@@ -1771,7 +1797,17 @@ callable_enum_callback_tests := proc(root: Str) {
             }
         case: panic("void callback is absent")
         }
+        borrow_result := borrow_factory.call()!
+        ref borrow_choice: NativeBorrowChoice = borrow_result.get(0)
+        switch borrow_choice {
+        case .Run(borrow_action):
+            ref mut alias: Str = borrow_action(borrowed_text)!
+            assert(ptr_eq(alias, borrowed_text) && alias == "native borrow!")
+            alias.push_str(" updated")
+        case: panic("borrowed-result callback is absent")
+        }
     }
+    own borrow_factory.delete()
     own void_factory.delete()
     own state_factory.delete()
     own envelope_factory.delete()
@@ -1784,6 +1820,7 @@ callable_enum_callback_tests := proc(root: Str) {
     own vm.delete()
     assert(host_text == "guest borrowed" && returned_text == "borrowed")
     assert(envelope.record.text == "guest owned field")
+    assert(borrowed_text == "native borrow! updated")
     File.writefile("guest.til", format("mode lib\n",
         "TransformError := struct { code: I32 = 0; message := \"\" }\n",
         "NativeAction := proc(I64) returns I64 throws TransformError\n",
@@ -1792,6 +1829,15 @@ callable_enum_callback_tests := proc(root: Str) {
     mut mismatch := TilVm.new(root)
     mismatch.load_file("guest.til")!
     expect_lookup_failure(mismatch, "make", "result schema", signature = NativeSharedActionFactory)
+    // Same callback layout, parameter and error contract; only result write
+    // permission differs. Reject even an empty enum before native attachment.
+    File.writefile("guest.til", format("mode lib\n",
+        "NativeBorrowAction := proc(mut Str) returns ref Str\n",
+        "NativeBorrowChoice := enum { None, Run: NativeBorrowAction }\n",
+        "make := func() returns NativeBorrowChoice { return NativeBorrowChoice.None }\n"))
+    mut borrow_mismatch := TilVm.new(root)
+    borrow_mismatch.load_file("guest.til")!
+    expect_lookup_failure(borrow_mismatch, "make", "result schema", signature = NativeBorrowFactory)
 }
 
 CallbackEnum := enum(U8) { Empty = 5, Number: I64 = 7, Text: Str = 9, Record: CallbackRecord = 11 }

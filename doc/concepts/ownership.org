@@ -75,14 +75,19 @@ result contracts with the same borrow ABI. Inference/generic-generator paths
 and generated Til-library declarations, wrappers and FuncSigs preserve the
 reference-result permission.
 
-The C/MLIR bridge and HolyC emitters, plus the interpreter, now prepare a
-private query for the reflected reference-result permission. Switching
-~func_sig_of~ to restore that bit is the next bootstrap use step; reflection
-and host/guest contract comparison still lose it until that step lands.
+~func_sig_of~ now restores the reference-result permission through a private
+query in C/MLIR-bridge emission and the interpreter. HolyC has query-emission
+support prepared; its full AST-valued reflection path still requires support
+for recursive owned-niche schemas.
+Reflected read-only and writable signatures remain distinct, so the existing
+checked TilVm lookup and native callable-enum schema comparisons can reject
+read-only results where the host requires a writable contract. This does not
+change pointer layout, ownership, or referent lifetime.
 
 This is not yet full enforcement of the permission table: writable-return
 source paths, direct writable aliases of plain-ref call results, collection
-accessors, reflection/native schemas and C-header bindings still need work.
+accessors, other reference-permission reflection/native schema metadata and
+C-header bindings still need work.
 Legacy local ~ref mut~ and plain ref-field behavior remain during migration.
 See [[../../issues/open/490.org][#490]], [[../../issues/open/491.org][#491]] and
 qualifiers.org's "Independent borrow permissions" for exact spellings/status.

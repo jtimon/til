@@ -117,11 +117,40 @@ declaration and make ~func_sig_of~ restore the bit. The query resolves core's
 private identity from the owning module, including installed SDK paths. It
 adds no public reflection API. The use step must verify both matching writable
 contracts and rejection of read-only/writable mismatches at TilVm/native
-callable boundaries. Until then reflection still loses the permission bit.
+callable boundaries. At the preparation checkpoint reflection still loses
+the permission bit; the use step below restores it.
 
 Preparation verification: ~make clean && make test_two_pass~ passed 575/575,
 including native self-translation. The query use and boundary regressions
 belong to the following commit, once its bootstrap has this emit logic.
+
+The preparation is ~c4233b419~. The use step adds the private core query and
+restores ~FuncSig.return_ref_mut~ in ~func_sig_of~. Previously host reflection
+silently initialized this field to false: a matching writable guest signature
+was rejected, while a read-only guest result could pass a host contract that
+was supposed to require writable access. ~FuncSig.eq~ and the existing native
+schema checks already compare this field; restoring the lost metadata fixes
+those checks without adding layout-based exceptions or changing the ABI.
+
+Coverage includes named and inline FuncSig reflection (with runtime calls to
+avoid testing only constant folding), copied signatures, a user function with
+the raw query's unmangled name, checked installed-SDK lookup/calls, and matching
+writable native callable-enum results. A read-only callable result with the
+same pointer layout must fail schema validation before attachment, even when
+the enum's current value has no callable payload. HolyC's scalar query emitter
+is prepared, but exercising the full AST-valued ~func_sig_of~ there exposed
+~HolyC codegen: cyclic inline struct dependency~: Declaration's optional Expr
+default reaches the recursive compiler AST, whose owned-niche representation
+is not yet supported by that backend. This is distinct from the new scalar
+permission query and is not claimed as working runtime reflection here.
+
+Use-step verification: ~make clean && make test_two_pass~ passed 575/575,
+including native self-translation, ~first_class_codegen~ and the installed
+TilVm lookup/value families. ~test/first_class.til~ passed 149/149 interpreted
+and compiled tests, including a compiled ASAN run. The installed TilVm host
+also passed its complete case set under ASAN at USize 32 and 64, with an empty
+runtime PATH. The writable native callback returns the original argument's
+address; mutation through that alias reaches the host owner.
 
 **** Initial signature implementation
 
@@ -131,9 +160,10 @@ required, permit writable results to satisfy read-only result contracts with
 the same borrow ABI, preserve the result bit in inferred/typed functions and
 generic-generator twins, and emit it in Til-library bindings. This does not
 yet enforce all returned source paths or direct writable-alias creation from
-plain-ref call results, or migrate collection accessors. Runtime
-reflection/native schema coverage and the C-header translator changes above
-remain required; do not close the issue on signature work alone.
+plain-ref call results, or migrate collection accessors. Return-permission
+reflection and boundary coverage are implemented in the use step above;
+other reference-permission metadata and the C-header translator changes remain
+required. Do not close the issue on signature/reflection work alone.
 
 Initial verification: ~make clean && make test_two_pass~ passed 575/575,
 including native self-translation. ~return_signature_checks~ in

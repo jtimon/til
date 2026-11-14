@@ -60,13 +60,17 @@ return-side ~mut~.
   with the same borrow ABI. Typed/inferred functions, generic-generator
   twins, typed dynamic lookup and generated Til-library bindings preserve or
   check the reference-result permission.
-- Prepared: C/MLIR-bridge and HolyC emission and interpreter dispatch for a
-  private reflected reference-result permission query. ~func_sig_of~ does not
-  use it yet: that is the following bootstrap use step, so runtime reflection
-  and host/guest comparisons still lose this bit for now.
+- Implemented: ~func_sig_of~ restores ~return_ref_mut~ through a private query
+  in C/MLIR-bridge emission and interpreter dispatch. Reflected
+  read-only/writable results remain distinct; checked TilVm lookup and native
+  callable-enum schema comparison therefore preserve the return permission
+  rather than accepting equal pointer layouts as equal contracts.
+- Prepared: HolyC emission for that private query. Full AST-valued
+  ~func_sig_of~ still needs recursive owned-niche schema support in that backend.
 - Pending: complete source-path and writable-alias checks, the plain-ref
-  defaults migration, collection accessors, reflection/native schemas and
-  the C-header binding translator. Existing accepted local/ref-field programs
+  defaults migration, collection accessors, other reference-permission
+  reflection/native schema metadata and the C-header binding translator.
+  Existing accepted local/ref-field programs
   retain legacy permission behavior where these checks have not migrated.
 
 [[../../issues/open/490.org][#490]] and [[../../issues/open/491.org][#491]] track the migration and

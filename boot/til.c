@@ -8329,6 +8329,7 @@ static I64 func_sig_variadic_index(Str *type_name);
 static I64 func_sig_kwargs_index(Str *type_name);
 static I64 func_sig_return_own_type(Str *type_name);
 static I64 func_sig_return_shallow_explicit(Str *type_name);
+static I64 priv___src_core_dyn_til__func_sig_return_ref_mut(Str *type_name);
 static I64 func_sig_throw_count(Str *type_name);
 static Str *func_sig_throw_type(Str *type_name, I64 *index);
 
@@ -43590,10 +43591,14 @@ static FuncSig func_sig_of(Str * type_name) {
     I64 hoisted__I64_48 = 1;
     Bool hoisted__Bool_49 = ((Bool)(hoisted__I64_47 == hoisted__I64_48));
     sig.return_shallow_explicit = hoisted__Bool_49;
-    I64 hoisted__I64_50 = func_sig_return_count(type_name);
+    I64 hoisted__I64_50 = priv___src_core_dyn_til__func_sig_return_ref_mut(type_name);
     I64 hoisted__I64_51 = 1;
     Bool hoisted__Bool_52 = ((Bool)(hoisted__I64_50 == hoisted__I64_51));
-    if (hoisted__Bool_52) {
+    sig.return_ref_mut = hoisted__Bool_52;
+    I64 hoisted__I64_53 = func_sig_return_count(type_name);
+    I64 hoisted__I64_54 = 1;
+    Bool hoisted__Bool_55 = ((Bool)(hoisted__I64_53 == hoisted__I64_54));
+    if (hoisted__Bool_55) {
         I64 hoisted__I64_30 = 0;
         { Str _old = sig.return_type;
         sig.return_type = ({ Str *_hp = (Str *)func_sig_return_type(type_name, &hoisted__I64_30); Str _hv = *_hp; if (_hp->cap != TIL_CAP_LIT) { free(_hp); } if (_hv.cap == TIL_CAP_LIT) { _hv.cap = TIL_CAP_VIEW; } _hv; });
@@ -475947,8 +475952,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-ae1daf9eb", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("ae1daf9eb18d8846d35aba9b81b7bb45a69f5e57", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-26d866942", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("26d866942cb54701fcf0a9f37e2e99a91fbf56ef", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};
@@ -477581,6 +477586,21 @@ static I64 func_sig_throw_count(Str *type_name) {
         return 0LL;
     }
     fprintf(stderr, "func_sig_throw_count: type '%.*s' not found\n", (int)type_name->count, (char*)TIL_OWN_GET(I8, type_name->c_str));
+    fprintf(stderr, "  note: unknown type, or dropped as unused -- reflection keeps a type when its name is a literal here, or the type is used elsewhere\n");
+    exit(1);
+}
+
+static I64 priv___src_core_dyn_til__func_sig_return_ref_mut(Str *type_name) {
+    if (type_name->count == 6ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), "HashFn", 6ULL) == 0) {
+        return 0LL;
+    }
+    if (type_name->count == 49ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), "priv___src_self_interpreter_til__NativeFfiHandler", 49ULL) == 0) {
+        return 0LL;
+    }
+    if (type_name->count == 43ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), "priv___src_self_interpreter_til__DispatchFn", 43ULL) == 0) {
+        return 0LL;
+    }
+    fprintf(stderr, "func_sig_return_ref_mut: type '%.*s' not found\n", (int)type_name->count, (char*)TIL_OWN_GET(I8, type_name->c_str));
     fprintf(stderr, "  note: unknown type, or dropped as unused -- reflection keeps a type when its name is a literal here, or the type is used elsewhere\n");
     exit(1);
 }
