@@ -906,12 +906,14 @@ blocking there.
   ~--build-id~ and ~LC_UUID~ for content-only derivation. Gate: the same
   host builds the same program twice, at different times and from two
   checkout paths, with identical hashes.
-- L3b, one toolchain per target (#473 decision 4): clang and lld at one
-  pinned version, with the same headers and libraries, on every producer.
-  LLVM 18 is the proposed pin because the MLIR backend already ends in
-  ~clang-18~. Recorded here per target: version, where the headers and
-  libraries come from, and the flags til passes. GCC stays usable through
-  ~--cc~ but is outside every comparison.
+- L3b, one toolchain per target (#473 decision 4). CORRECTED 2026-11-14,
+  see "The toolchain rule" at the end of this file: each target has its
+  own toolchain (any compiler, not necessarily clang), and every producer
+  of that target uses it; targets need not share one. The text first
+  said "clang and lld at one pinned version on every producer, LLVM 18
+  proposed", which was stricter than the decision and is superseded.
+  Recorded here per target: version, where the headers and libraries
+  come from, and the flags til passes.
 - L3c, first target: macOS (~hello_script~ for ~macos-arm64~), because its
   headers are already in the repository (~vendor/macos~); producers Linux
   x64, Linux arm64 and the Macs. Then Windows, then Linux targets, in
@@ -1670,9 +1672,10 @@ those steps.
 
 **** What L3b still has to do
 
-Decision 4 of #473 fixes the direction: clang and lld at one pinned
-version for every target, LLVM 18 proposed. Per target that means a
-clang that every producer can install at that version, and one set of
+(Superseded: see "The toolchain rule" at the end of this file.) Decision
+4 of #473 was read here as clang and lld at one pinned version for every
+target, LLVM 18 proposed. Per target that means a toolchain that every
+producer of the target can install at that version, and one set of
 headers and libraries: ~vendor/macos~ already is that for the mac
 targets; the Windows and Linux targets need a pinned mingw-w64 and a
 pinned sysroot each, which is a download or a vendored tree to be named
@@ -1874,3 +1877,57 @@ So level 1 holds between the two Linux hosts on this corpus, and holds for
 Windows once this lands, as far as the next run shows. The Macs have not
 produced yet: their suites run after the cross build, and macos-x64 failed
 (#473).
+
+*** The toolchain rule (decided by Jorge, 2026-11-14)
+
+READ THIS before any binary comparison work (L3b onward, #473 C4/C7). It
+replaces every earlier "one clang / LLVM 18 for everything" in this file
+and in #473; those passages are marked as superseded where they stand.
+
+- Each TARGET has ONE toolchain: compiler, linker, archiver, headers and
+  libraries or sysroot, at one exact version, with the flags til passes.
+- Every producer that builds that target -- natively or cross, whatever
+  its host -- uses that target's toolchain. That is the whole
+  requirement: the producers of ONE target agree.
+- Different targets may use different toolchains, for every producer:
+  gcc for linux-x64 and clang for macos-arm64 is fine, as long as every
+  host that builds linux-x64 uses the same gcc and every host that builds
+  macos-arm64 the same clang. Nothing has to match ACROSS targets.
+- clang is not required. It is convenient where several hosts build a
+  target, because one clang binary builds for every target (one pinned
+  download per host), while gcc needs its own cross build per (host,
+  target) pair.
+- A target with a single producer is not compared ("not compared", never
+  "equal"). A comparison needs a second producer with the same toolchain.
+- The producer records its toolchain identity for each target next to
+  the hashes; one whose identity differs from the target's is reported as
+  a failure, not compared (#473 C7).
+- A host's own native build of its own target is one of that target's
+  producers and uses the target's toolchain too, so "the native suite
+  tests what is compared" holds (#473 decision 4).
+- C remains the main path (with LLVM through the MLIR backend) and a
+  translation target for good, for compatibility and testing (Jorge,
+  2026-11-14). Any compiler a user picks can build the generated C, at
+  their own risk; only the target's toolchain is inside the guarantees.
+
+Where each target stands today (versions from runs 3063 and 3076):
+
+| Target | Producers today | Toolchain each uses | Comparable now |
+|--------+-----------------+---------------------+----------------|
+| linux-x64 | ubuntu-latest | gcc 15.2 | one producer |
+| linux-arm64 | ubuntu-latest (cross), ubuntu-24.04-arm (native) | aarch64 gcc 15.2 / gcc 13.3 | no: versions differ |
+| linux-riscv64, linux-arm32, linux-x86 | ubuntu-latest | Ubuntu cross gcc 15.2 / gcc 15.2 -m32 | one producer |
+| linux-riscv32 | ubuntu-latest | Bootlin gcc 13.2 | one producer |
+| macos-arm64, macos-x64 | ubuntu-latest (cross), the Macs (native) | clang 21.1.8 + ~vendor/macos~ / Apple clang + Apple SDK | no: compiler and headers differ |
+| windows-x64, windows-x86 | ubuntu-latest (cross); windows-x64 also til.exe on the Windows runner | Ubuntu mingw gcc 13 / MinGW-Builds gcc 15.2 (UCRT) | no |
+| wasm32 | ubuntu-latest | vendored emsdk (emcc 6.0.0) | one producer |
+| android-x64, android-arm64 | ubuntu-latest | clang + vendored NDK sysroot | one producer |
+| templeos-x86 | the guest job | HolyC in the guest | one producer |
+
+What is open, per target: whether it gets a second producer, and how that
+host gets the target's toolchain at the same version (a distribution
+package at a common version, or a pinned download, or a vendored tree;
+each download lands in its own commit with the human's approval). The
+proposed first target is macos-arm64/macos-x64 (L3c), since its headers
+and libraries are already vendored and only the clang/lld version must
+match between its producers. Not decided yet.

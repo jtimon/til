@@ -367,12 +367,12 @@ No cell has a compare level yet.
      is that a cross-built binary has the SAME hash as the natively built
      one. til only writes the C (or MLIR); the bytes come from the C
      compiler and linker, and two different compilers never agree. So
-     clang is used everywhere: for each target, every producer uses the
-     same clang and lld at the same pinned version with the same headers
-     and libraries. The MLIR backend already ends in ~clang-18~
-     (~mlir-opt-18~ -> ~mlir-translate-18~ -> ~clang-18~, ~doc/self.org~),
-     so the same rule covers it; LLVM 18 is the proposed pin for that
-     reason.
+     for each target, every producer uses the same toolchain at the same
+     pinned version with the same headers and libraries. CORRECTED
+     2026-11-14 (Jorge): that toolchain is chosen PER TARGET and need not
+     be clang, nor be the same for different targets; see "The toolchain
+     rule" at the end of #472. The text here first said "clang is used
+     everywhere ... LLVM 18 is the proposed pin", which is superseded.
    - For the reasoning "the native tests cover the cross build" to hold,
      the binaries the native suite runs must come from that same clang.
      til's default C compiler therefore becomes clang on every host, one
@@ -437,8 +437,9 @@ makes it useless, the choice between the fail-fast cancel and a complete
 report goes back to the human with that evidence; the plan does not remove
 the cancel steps on its own.
 
-C4. One clang for every target (decision 4), one target per commit, each
-reported against C0. Anything that adds a download or a vendored tree is
+C4. One toolchain per target (decision 4; "clang for every target" is
+superseded, see "The toolchain rule" at the end of #472), one target per
+commit, each reported against C0. Anything that adds a download or a vendored tree is
 named in its own commit before it lands.
 - Record first (with C0): the clang and lld version on every runner, and
   where each target's headers and libraries come from today.
@@ -478,9 +479,9 @@ target per producer until its cost is known.
 
 C7. Binaries (needs #472 L3a-L3c and the C4 step for that target). The
 collector compares per (target, backend, width, stage, artifact) across
-every producer; with one pinned clang per target there is one group, and
-a producer whose recorded clang or lld version differs is reported as a
-failure, not compared. Tool versions, flags and header/library identities
+every producer; with one pinned toolchain per target there is one group
+per target, and a producer whose recorded toolchain differs from the
+target's is reported as a failure, not compared. Tool versions, flags and header/library identities
 go to the producer's log next to the hashes.
 
 C8. Collector validation, as suite tests over fixtures. Every row of the
@@ -837,3 +838,15 @@ rows, which need clang's ASAN headers and this container has none.
 For the groups: the two Linux producers agree on everything, so the
 frontend and source groups between them can become blocking. Not done in
 this commit: one green run with the Windows fix first.
+
+*** The toolchain rule (decided by Jorge, 2026-11-14)
+
+Decision 4 as corrected: each target has one toolchain, chosen per target
+(not necessarily clang, and not necessarily the same for two targets),
+and every producer of that target uses it, at the same version, with the
+same headers and libraries. The full rule, why clang is merely
+convenient, and the table of what each target's producers use today are
+in #472, "The toolchain rule". C4 therefore proceeds target by target:
+pick the target's toolchain, give each of its producers that toolchain,
+then compare. The Ubuntu packages, a pinned download or a vendored tree
+are all acceptable ways to supply it; each download is its own commit.

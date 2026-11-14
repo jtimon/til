@@ -1,0 +1,62 @@
+mode cli
+
+import("../src/std/sys")
+import("../src/std/file")
+
+// Every program under examples/ still translates with the compiler under
+// test. Only the Mac jobs build every example, about an hour into a CI run,
+// so a change that broke one (a core or compiler API an example calls)
+// used to surface there and nowhere else. Translating is enough to catch
+// that: it parses, types and checks ownership, without a C compiler.
+//
+// The custom modes (examples/custom_modes.til) are always given: the server
+// examples need them, and no other example is affected by them.
+//
+// Argument: the compiler under test.
+
+WORK := "tmp/examples_translate"
+// REM How many translations run at once.
+BATCH : USize = 4
+
+main := proc(args: ..Str) {
+    if args.len() != 1 { panic("usage: examples_translate <compiler under test>") }
+    compiler := args[0].clone()
+    File.remove_tree(WORK)
+    mkdir_p(WORK)
+
+    mut sources := Vec(Str).new()
+    for name : Str in Dir.list("examples") {
+        if name.ends_with(".til") { sources.push(own format("examples/", name)) }
+    }
+    // REM Fewer means the listing, not the examples, went wrong.
+    if sources.len() < 40 { panic("only ", sources.len().to_str(), " examples found under examples/") }
+
+    mut failed := Vec(Str).new()
+    mut next : USize = 0
+    while next < sources.len() {
+        mut end := next + BATCH
+        if end > sources.len() { end = sources.len() }
+        mut runs := Vec(Cmd).new()
+        for i in next..end {
+            slash := sources[i].rfind("/").to_usize()
+            stem := sources[i].substr(slash + 1, sources[i].len() - slash - 1).strip_suffix(".til")
+            command := Cmd.new(compiler, "translate", "--extra-modes=examples/custom_modes.til",
+                "-c", format(WORK, "/", stem, ".c"), sources[i])
+            command.stdout_to(format(WORK, "/", stem, ".log"))
+            command.stderr_to_stdout()
+            mut _ := command.start()
+            runs.push(own command)
+        }
+        for i in next..end {
+            if runs[i - next].wait() == 0 { continue }
+            slash := sources[i].rfind("/").to_usize()
+            stem := sources[i].substr(slash + 1, sources[i].len() - slash - 1).strip_suffix(".til")
+            failed.push(own format(sources[i], ":\n", File.readfile(format(WORK, "/", stem, ".log"))))
+        }
+        next = end
+    }
+    if failed.len() > 0 {
+        panic(failed.len().to_str(), " of ", sources.len().to_str(), " examples do not translate:\n", join(failed, "\n"))
+    }
+    println("examples translate passed: ", sources.len().to_str(), " examples")
+}

@@ -127,6 +127,31 @@
   cross targets, and anything a different C compiler or linker version
   would change.
 
+  Comparing binaries BETWEEN hosts rests on one rule, decided by Jorge
+  (#472 L3b, #473 decision 4): each TARGET has one toolchain, and every
+  host that builds that target uses it. "Toolchain" is everything that
+  turns til's C into the artifact: compiler, linker, archiver, the headers
+  and libraries or sysroot, at one exact version, with the flags til
+  passes. Different targets may use different toolchains -- gcc for the
+  Linux targets, mingw for Windows, clang for macOS, the vendored emsdk
+  for wasm32 -- and nothing has to match across targets. What must match
+  is the producers of ONE target: a linux-arm64 binary built natively on
+  an arm64 host and one cross-built on an x64 host are comparable only if
+  both used linux-arm64's toolchain at the same version. clang is not
+  required anywhere; it is convenient because one clang binary builds for
+  every target, so a host pins one download, while gcc needs a separate
+  cross build for each (host, target) pair. A target with one producer is
+  never compared, and a producer whose recorded toolchain differs from the
+  target's is a failure, not a comparison. Which toolchain each target
+  uses, and which hosts produce it, is chosen per target in #473 step C4;
+  each download or vendored tree it needs lands in its own commit.
+
+  The main path stays C (and LLVM through the MLIR backend), and C stays
+  a translation target for good, for compatibility and for testing: the
+  generated C can be built with whatever compiler a user picks, at their
+  own risk. Only a build with the target's toolchain is inside these
+  guarantees.
+
   What the compiler holds BEFORE any backend can be looked at directly
   (#472, level 1): ~til ast --phase=<phase> file.til~ stops the ordinary
   pipeline at a phase boundary and prints the state there, one record a

@@ -933,6 +933,12 @@ main := proc(args: ..Str) returns I64 {
     // compare.
     add_count(tests, "ci_collect", "build", "ci collect passed", 1,
         format(TIL, " run -o bin/c/ci_collect_test -c gen/c/ci_collect_test.c test/ci_collect.til ", til_bin))
+    // Every program under examples/ translates with the compiler under test
+    // (test/examples_translate.til). Only the Mac jobs build them all, an
+    // hour into a CI run; two examples broken by a parser API change were
+    // first seen there.
+    add_count(tests, "examples_translate", "build", "examples translate passed", 1,
+        format(TIL, " run -o bin/c/examples_translate -c gen/c/examples_translate.c test/examples_translate.til ", til_bin))
     // The native compiler's self-translate is the canonical self_ms/self_mem
     // benchmark. It also checks the default compiler's bootstrap fixed point.
     // Historical ASAN measurements remain archived in their original CSV
