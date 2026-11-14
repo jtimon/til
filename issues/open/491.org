@@ -1,6 +1,6 @@
 # priority: medium
 # category: features
-** OPEN #491 Enforce writable reference return contracts
+** WIP #491 Enforce writable reference return contracts
 
 *** Existing preparation
 
@@ -14,6 +14,13 @@ Existing accepted programs retain their old permission behavior until the
 enforcement migration. Parsed metadata is not proof of an enforced contract.
 
 *** Contract
+
+The working default follows #490: ordinary ~returns ref T~ is read-only and
+the less permissive contract needs no extra keyword; writable results require
+~returns ref mut T~. This is a reasonable starting expectation for reads and
+queries, not a measured claim about every workload. Revisit the default if
+observed use shows the opposite is more common; C's mutable-pointer default
+and Rust's explicit mutable-borrow spelling illustrate different precedents.
 
 The function grants access to the referent; the caller chooses whether its
 own reference slot can be rebound. The caller may restrict granted access
@@ -64,7 +71,55 @@ contract. No new public accessor/query API has been approved yet.
   query or permission inspection remains internal. A mutable container must
   never upgrade an element stored as read-only ~ref T~.
 
+*** C-to-Til draft binding generator impact
+
+Update the draft C-header translator (~til bindings~, ~src/self/binder.til~),
+not only Til-library bindings emitted by ~src/self/codegen/c_codegen.til~.
+Its return-type scan currently discards ~const~ and ~volatile~ tokens, and
+emits plain ~returns ref T~ for every single-level typed pointer result.
+Once plain ~ref~ is read-only, that would incorrectly restrict writable C
+results while still failing to record their actual const contract.
+
+- Map ~const T *~ results to ~returns ref T~ and ~T *~ results to
+  ~returns ref mut T~, following pointee constness through typedefs.
+- Top-level const on a by-value pointer result (~T *const~) does not fix the
+  caller's slot. Do not confuse it with a const pointee; the caller owns its
+  pointer copy and chooses whether that slot can be replaced.
+- Apply the same result permission rules to function-pointer/callback
+  signatures where represented. Audit ~void *~, multi-level pointers and
+  typedefs currently erased to ~Dynamic~; document/diagnose qualifier loss
+  instead of silently granting writable access.
+- Do not infer ownership, freeing responsibility, lifetime or til effects
+  from C mutability qualifiers. Retain the generator's separate audit needs.
+- Add C-header fixtures for const/non-const pointees and top-level pointer
+  const, then type-check and exercise the generated declarations at the native
+  boundary. Regenerate existing approved bindings with the new contracts.
+
+[[490.org][#490]] covers the corresponding stored-pointer slot/pointee distinction,
+including ~const ref mut~ fields. Both issues affect this generator.
+
 *** Implementation and acceptance
+
+Initial implementation work addresses callable contract compatibility and
+metadata loss: reject read-only results where a writable-return signature is
+required, permit writable results to satisfy read-only result contracts with
+the same borrow ABI, preserve the result bit in inferred/typed functions and
+generic-generator twins, and emit it in Til-library bindings. This does not
+yet enforce all returned source paths or direct writable-alias creation from
+plain-ref call results, or migrate collection accessors. Runtime
+reflection/native schema coverage and the C-header translator changes above
+remain required; do not close the issue on signature work alone.
+
+Initial verification: ~make clean && make test_two_pass~ passed 575/575,
+including native self-translation. ~return_signature_checks~ in
+~test/type_arg_qualifiers.til~ covers rejection at local/field/argument and
+typed/capturing-function boundaries, borrowed versus owned return ABI, typed
+~dyn_fn~ rejection in interpreted and compiled execution, accepted permission
+restriction, inferred signatures and generic-generator result metadata. Its
+~generics~ family also passed with compiled ASAN programs.
+~test/library_namespace.til~ checks writable results in generated ext
+declarations, wrappers and named FuncSig declarations, with the existing
+native library/consumer suite passing.
 
 - Check writable return sources and writable alias creation at call sites;
   preserve read-only paths through getters, forwarding and cloning.

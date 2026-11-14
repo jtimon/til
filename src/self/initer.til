@@ -1648,6 +1648,13 @@ register_function_def_for_stmt := func(mut ctx: Context, mut stmt: Expr, mut sco
                         " params but FuncSig '", sig_name, "' has ", sigdef.sig.params.len().to_str(),
                     )
                 }
+                if fdef.sig.return_type.len() > 0 {
+                    if fdef.sig.return_own_type.is(OwnType.Ref) != sigdef.sig.return_own_type.is(OwnType.Ref) {
+                        defer_generic_error(stmt.line, stmt.col, "function return differs in 'ref' from its declared signature", ctx)
+                    } else if sigdef.sig.return_ref_mut.and(fdef.sig.return_ref_mut.not()) {
+                        defer_generic_error(stmt.line, stmt.col, "function return differs in 'ref mut': a read-only reference cannot fill a writable-return signature", ctx)
+                    }
+                }
                 fdef.sig.func_type = sigdef.sig.func_type
                 for j in 0..sigdef.sig.params.len() {
                     ref mut dp : Declaration = fdef.sig.params[j]
@@ -1658,6 +1665,7 @@ register_function_def_for_stmt := func(mut ctx: Context, mut stmt: Expr, mut sco
                 }
                 fdef.sig.return_type = sigdef.sig.return_type
                 fdef.sig.return_own_type = sigdef.sig.return_own_type
+                fdef.sig.return_ref_mut = sigdef.sig.return_ref_mut
                 sdecl.til_type = Type.FuncPtrSigSym(ctx.symbols.intern(sig_name))
             }
         }

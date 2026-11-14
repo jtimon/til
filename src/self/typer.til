@@ -1485,6 +1485,14 @@ priv fdef_sig_mismatch := func(got: FunctionDef, want: FunctionDef, scope: TypeS
         if gr_show.is_empty() { gr_show = "nothing" }
         return format("returns ", gr_show, ", expected ", wr_show)
     }
+    if got.sig.return_own_type.is(OwnType.Ref) != want.sig.return_own_type.is(OwnType.Ref) {
+        return "return differs in 'ref'"
+    }
+    // Return permission is covariant: a caller may restrict a writable
+    // borrow, but a read-only result cannot satisfy a writable contract.
+    if want.sig.return_ref_mut.and(got.sig.return_ref_mut.not()) {
+        return "return differs in 'ref mut': read-only reference result"
+    }
     return ""
 }
 
@@ -4496,6 +4504,7 @@ priv make_direct_generic_twin := func(macro_fd: Expr, tmpl: Expr, symbols: Symbo
         twin.sig.func_type = tfd.sig.func_type
         twin.sig.return_type = tfd.sig.return_type.clone()
         twin.sig.return_own_type = tfd.sig.return_own_type
+        twin.sig.return_ref_mut = tfd.sig.return_ref_mut
         twin.noreturn = tfd.noreturn
         for t : Str in tfd.sig.throw_types { twin.sig.throw_types.push(own t.clone()) }
         switch macro_fd.node_type {
@@ -8125,6 +8134,13 @@ priv infer_decl_typed_value := proc(mut scope: TypeScope, mut stmt: Expr, mut ct
             switch val.node_type {
             case .FuncDef(vfd):
                 if vfd.captures.len() > 0 {
+                    expected_sig := scope.lookup_func_name(declared_name, ctx.symbols)
+                    if expected_sig.is_some() {
+                        mismatch := fdef_sig_mismatch(vfd, funcdef_of(expected_sig.unwrap()), scope, ctx.symbols)
+                        if mismatch.len() > 0 {
+                            stmt.type_error(format("capturing function does not match ", declared_name, " (", mismatch, ")"), ctx)
+                        }
+                    }
                     val.set_til_type(declared.clone())
                 } else {
                     stmt.type_error(format("'", sdecl.name, "' declared as ", type_to_name(declared, ctx.symbols), " but value is ", type_to_name(val.til_type(), ctx.symbols)), ctx)
@@ -8613,8 +8629,16 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
                                         dst_p.til_type = src_p.til_type.clone()
                                         if src_p.own_type.is(OwnType.Shallow).not() { dst_p.own_type = src_p.own_type }
                                     }
+                                    if rhs_fd.sig.return_type.len() > 0 {
+                                        if rhs_fd.sig.return_own_type.is(OwnType.Ref) != sig_fd.sig.return_own_type.is(OwnType.Ref) {
+                                            stmt.type_error("function return differs in 'ref' from its declared signature", ctx)
+                                        } else if sig_fd.sig.return_ref_mut.and(rhs_fd.sig.return_ref_mut.not()) {
+                                            stmt.type_error("function return differs in 'ref mut': a read-only reference cannot fill a writable-return signature", ctx)
+                                        }
+                                    }
                                     rhs_fd.sig.return_type = sig_fd.sig.return_type.clone()
                                     if sig_fd.sig.return_own_type.is(OwnType.Shallow).not() { rhs_fd.sig.return_own_type = sig_fd.sig.return_own_type }
+                                    rhs_fd.sig.return_ref_mut = sig_fd.sig.return_ref_mut
                                 }
                             case:
                             }

@@ -204,6 +204,34 @@ no-permission-upgrade guarantees.
 - Cover field/local/parameter defaults and migration diagnostics, plus
   interpreted, compiled, REPL and embedding behavior where applicable.
 
+*** C-to-Til draft binding generator impact
+
+The draft C-header translator (~til bindings~, ~src/self/binder.til~) must
+migrate with these defaults. This is separate from the Til-library binding
+emitter in ~src/self/codegen/c_codegen.til~; both must preserve permissions.
+
+For a stored, single-level C pointer field, translate the two const levels
+independently:
+
+- ~T *p~ -> ~ref mut p: T~ (replaceable slot, writable referent).
+- ~const T *p~ -> ~ref p: T~ (replaceable slot, read-only referent).
+- ~T *const p~ -> ~const ref mut p: T~ (fixed slot, writable referent).
+- ~const T *const p~ -> ~const ref p: T~ (fixed slot, read-only referent).
+
+~bind_emit_field~ currently skips const tokens, so merely changing the meaning
+of emitted plain ~ref~ would misdescribe writable C pointer fields. Preserve
+qualifier levels through typedefs and individual comma-separated declarators;
+do not collapse pointer constness into pointee constness. Audit pointer
+parameters too, preserving their existing pointee-const-driven ~mut~ mapping.
+Multi-level pointers and erased ~Dynamic~ forms need an explicit treatment
+of representable permissions/loss, not an implicit writable upgrade.
+
+Neither ~const~ nor its absence establishes ownership or lifetime. Preserve C
+layout/ABI, regenerate the existing approved bindings, and cover all four field
+combinations with C-header fixtures and generated-binding type checks. Returned
+pointers are tracked separately in [[491.org][#491]]: top-level const on a pointer
+returned by value does not fix the caller's reference slot.
+
 *** Current implementation references
 
 - ~src/self/parser.til~: field qualifier parsing defaults ~is_mut~ to true

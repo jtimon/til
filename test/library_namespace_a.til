@@ -215,7 +215,9 @@ BindingWidthHolder := struct {
 }
 library_widths_holder := BindingWidthHolder(value = library_widths)
 
-library_widths_ref := func() returns ref BindingWidths { return library_widths }
+BindingWidthGetter := func() returns ref mut BindingWidths
+library_widths_ref := func() returns ref mut BindingWidths { return library_widths }
+library_widths_ref_alias := library_widths_ref
 library_text_ref := func() returns ref Str { return library_borrowed_text }
 library_widths_identity := func(value: BindingWidths) returns ref BindingWidths { return value }
 library_inner_ref := func(value: BindingNestedWidths) returns ref BindingWidths { return value.inner }

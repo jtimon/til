@@ -574,6 +574,79 @@ reference_permission_checks := proc(compiler: Str, root: Str, asan: Bool) {
     }
 }
 
+return_signature_checks := proc(compiler: Str, root: Str, asan: Bool) {
+    prelude := format("mode cli\nReturnRecord491 := struct { n := 0 }\n",
+        "Read491 := func(mut value: ReturnRecord491) returns ref ReturnRecord491\n",
+        "Write491 := func(mut value: ReturnRecord491) returns ref mut ReturnRecord491\n",
+        "reader491 := func(mut value: ReturnRecord491) returns ref ReturnRecord491 { value.n++; return value }\n",
+        "writer491 := func(mut value: ReturnRecord491) returns ref mut ReturnRecord491 { value.n++; return value }\n")
+    lookup := format("ReturnOps491 := struct { namespace:\n",
+        "read := func(mut value: ReturnRecord491) returns ref ReturnRecord491 { value.n++; return value }\n",
+        "write := func(mut value: ReturnRecord491) returns ref mut ReturnRecord491 { value.n++; return value }\n}\n")
+    for body : Str in array(Str,
+        "main := proc() { mut value := ReturnRecord491(); bad: Write491 = reader491; ref result: ReturnRecord491 = bad(value); println(result.n.to_str()) }\n",
+        "Box491 := struct { callback: Write491 }\nmain := proc() { mut value := ReturnRecord491(); box := Box491(callback = reader491); ref result: ReturnRecord491 = box.callback(value); println(result.n.to_str()) }\n",
+        "invoke491 := func(callback: Write491, mut value: ReturnRecord491) returns I64 { ref result: ReturnRecord491 = callback(value); return result.n }\nmain := proc() { mut value := ReturnRecord491(); println(invoke491(reader491, value).to_str()) }\n",
+        "main := proc() { mut value := ReturnRecord491(); bad: Write491 = func(mut input: ReturnRecord491) returns ref ReturnRecord491 { input.n++; return input }; ref result: ReturnRecord491 = bad(value); println(result.n.to_str()) }\n",
+        "main := proc() { seed := 1; mut value := ReturnRecord491(); bad: Write491 = func(mut input: ReturnRecord491) returns ref ReturnRecord491 [seed] { input.n = input.n + seed; return input }; ref result: ReturnRecord491 = bad(value); println(result.n.to_str()) }\n") {
+        reject_generic(compiler, root, format(prelude, body), "return differs in 'ref mut'")
+    }
+    reject_generic(compiler, root, format(prelude,
+        "owned491 := func(mut value: ReturnRecord491) returns ReturnRecord491 { value.n++; return value.clone() }\n",
+        "main := proc() { mut value := ReturnRecord491(); bad: Read491 = owned491; ref result: ReturnRecord491 = bad(value); println(result.n.to_str()) }\n"),
+        "return differs in 'ref'")
+
+    lookup_path := format(root, "/return_lookup_mismatch.til")
+    File.writefile(lookup_path, format(prelude, lookup,
+        "main := proc() { mut value := ReturnRecord491(); bad: Write491 = dyn_fn(\"ReturnOps491\", \"read\"); ref result: ReturnRecord491 = bad(value); println(result.n.to_str()) }\n"))
+    for action : Str in array(Str, "interpret", "run") {
+        cmd := Cmd.new(compiler, action)
+        if action == "run" {
+            if asan { cmd.arg("--asan") }
+            cmd.args("-o", format(root, "/return_lookup_mismatch"), "-c", format(root, "/return_lookup_mismatch.c"))
+        }
+        cmd.arg(lookup_path)
+        cmd.capture()
+        status := cmd.run()
+        output := format(cmd.out(), cmd.err())
+        expect(status != 0, "accepted read-only dynamic lookup as a writable-return function: ", output)
+        expect(output.contains("dyn_fn: signature mismatch"), output)
+    }
+
+    File.writefile(format(root, "/return_signatures.til"), format(prelude, lookup,
+        "borrow491 := func<T>(mut value: T) returns ref mut T { value.n++; return value }\n",
+        "main := proc() {\nmut value := ReturnRecord491()\n",
+        "writable: Write491 = writer491\nref mut first: ReturnRecord491 = writable(value)\nfirst.n = 10\n",
+        // A writable implementation may satisfy a read-only result contract.
+        "readonly: Read491 = writer491\nref second: ReturnRecord491 = readonly(value)\nassert_eq(I64, second.n, 11)\n",
+        "inferred: Write491 = (input) { input.n++; return input }\n",
+        "ref third: ReturnRecord491 = inferred(value)\nassert_eq(I64, third.n, 12)\n",
+        "seed := 1\ncaptured: Write491 = func(mut input: ReturnRecord491) returns ref mut ReturnRecord491 [seed] { input.n = input.n + seed; return input }\n",
+        "ref fourth: ReturnRecord491 = captured(value)\nassert_eq(I64, fourth.n, 13)\n",
+        "ref fifth: ReturnRecord491 = borrow491(value)\nassert_eq(I64, fifth.n, 14)\n",
+        "dynamic: Write491 = dyn_fn(\"ReturnOps491\", \"write\")\n",
+        "ref sixth: ReturnRecord491 = dynamic(value)\nassert_eq(I64, sixth.n, 15)\n",
+        "println(\"return signatures passed\")\n}\n"))
+    check(Cmd.new(compiler, "interpret", format(root, "/return_signatures.til")), "return signatures passed\n")
+    check_run(compiler, root, "return_signatures", "return signatures passed\n", asan)
+    ast := Cmd.new(compiler, "ast", "--phase=typed", format(root, "/return_signatures.til"))
+    ast.capture()
+    status := ast.run()
+    output := format(ast.out(), ast.err())
+    expect(status == 0, output)
+    mut pending := false
+    mut saw_generic := false
+    for line : Str in output.split("\n") {
+        if pending {
+            expect(line.contains(" FuncDef ").and(line.contains("return_ref_mut=true")), line)
+            saw_generic = true
+            pending = false
+        }
+        if line.contains(" Decl ").and(line.contains("name=\"borrow491__ReturnRecord491\"")) { pending = true }
+    }
+    expect(saw_generic, "missing inferred writable-return generic instance")
+}
+
 main := proc(args: ..Str) {
     if args.len() > 3 { panic("expected compiler, optional family, and optional --asan") }
     ref compiler: Str = args[0]
@@ -603,6 +676,7 @@ main := proc(args: ..Str) {
         vector_borrow_checks(compiler, root)
         interface_argument_checks(compiler, root)
         generic_call_checks(compiler, root, asan)
+        return_signature_checks(compiler, root, asan)
     case "success":
         query_checks(compiler, root, asan)
         reference_permission_checks(compiler, root, asan)
@@ -614,6 +688,7 @@ main := proc(args: ..Str) {
         query_error_checks(compiler, root)
         interface_argument_checks(compiler, root)
         generic_call_checks(compiler, root, asan)
+        return_signature_checks(compiler, root, asan)
     }
     println("type argument qualifiers passed")
 }

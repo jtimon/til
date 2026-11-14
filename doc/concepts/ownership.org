@@ -1,10 +1,11 @@
 * Ownership and ASAP Destruction
 
-Companion to [[file:./qualifiers.org][doc/concepts/qualifiers.org]]. That file maps each
-qualifier to its generated C *shape*; this file describes each qualifier's
-*lifetime* -- who owns a value, and exactly when its destructor runs.
+Companion to [[file:./qualifiers.org][doc/concepts/qualifiers.org]]. That file covers
+qualifier syntax, write permissions and generated C *shape*; this file covers
+ownership and *lifetime* -- who owns a value, and when its destructor runs.
 
-The two are the same axis seen from two sides:
+The ownership-related qualifiers have both a representation and a lifetime
+meaning:
 
   - qualifiers.org: ~own arg: T~ -> ~T *arg~ (a pointer).
   - ownership.org:  ~own arg: T~ -> the callee now owns it and its ASAP
@@ -18,6 +19,69 @@ which walks typed bodies post-order in a separate post-typing phase. Its
 name is a cleanup metaphor; the scavenger is the distinct reachability /
 dead-code pass. See [[file:./garbager.org][Names and metaphors]] for the terminology
 and comparisons with Mojo, Roc and Odin.
+
+** Defaults and independent permissions
+
+Ownership answers who must destroy or transfer a value. Write permission
+answers what an access path may modify. Neither a pointer-shaped C ABI nor
+the word ~mut~ establishes ownership.
+
+| Context | Default ownership convention | Explicit alternative |
+|---------+------------------------------+----------------------|
+| ~arg: T~ | borrow from the caller | ~own arg: T~ transfers ownership; ~shallow arg: T~ passes a value copy |
+| ~returns T~ | result owned by the caller | ~returns ref T~ borrows; ~returns shallow T~ explicitly returns a value |
+| ~x := value~ | local owns its value | ~ref x: T = value~ borrows |
+| ~field: T~ | inline value owned as part of its holder | ~own field: T~ owns separate storage; ~ref field: T~ borrows |
+
+Ordinary functions/procedures auto-shallow primitive arguments and results
+where applicable: ~arg: I64~ and ~returns I64~ ordinarily pass/return scalar
+values without an explicit ~shallow~. Mutable/owned parameters and parameters
+of borrow-returning functions retain their required pointer/ownership
+conventions. Other eligible value-shaped types also use auto-shallow rules;
+see qualifiers.org's
+"Key rules". Fixed ext/core ABIs retain their explicit qualifier requirements.
+Auto-shallowing and C value returns do not turn a borrowed result into an owner
+or change who destroys an aggregate's owned contents.
+
+For borrows, distinguish the reference SLOT from its REFERENT. A fixed slot
+can point at writable data, and a replaceable slot can point at read-only data.
+The #490/#491 contract uses these independent meanings:
+
+| Spelling | Slot permission | Referent permission |
+|----------+-----------------+---------------------|
+| parameter ~arg: T~ | borrow binding, not a rebindable local reference slot | read-only |
+| parameter ~mut arg: T~ | same; assignment writes through to the caller's value | writable |
+| ~returns ref T~ | chosen by the caller for its receiving binding | read-only |
+| ~returns ref mut T~ | chosen by the caller for its receiving binding | writable |
+| local/field ~const ref mut value: T~ | fixed | writable |
+| local ~mut ref value: T~ / field ~ref value: T~ | replaceable | read-only |
+
+The callee grants a returned borrow's referent permission; the caller may
+restrict that grant but cannot increase it. An owned result (~returns T~)
+needs no separate return-side ~mut~: the caller chooses its binding's
+mutability. Neither form of mutability extends a referent's lifetime, acquires
+ownership, or retains a VM. Read-only access through one borrow does not imply
+that every other alias is read-only.
+
+*** Implementation status (#490 / #491)
+
+The ownership defaults above are established. Independent slot/referent
+permission enforcement is still being migrated. The parser/AST now represent
+explicit local/field slot qualifiers, writable reference results and enum
+payloads, and writable reference type arguments. Callable signature checks
+reject read-only results where a writable result is required and reject
+borrowed/value return ABI mismatches; writable results may satisfy read-only
+result contracts with the same borrow ABI. Inference/generic-generator paths
+and generated Til-library declarations, wrappers and FuncSigs preserve the
+reference-result permission.
+
+This is not yet full enforcement of the permission table: writable-return
+source paths, direct writable aliases of plain-ref call results, collection
+accessors, reflection/native schemas and C-header bindings still need work.
+Legacy local ~ref mut~ and plain ref-field behavior remain during migration.
+See [[../../issues/open/490.org][#490]], [[../../issues/open/491.org][#491]] and
+qualifiers.org's "Independent borrow permissions" for exact spellings/status.
+Keep both guides synchronized in the same commits as implementation changes.
 
 ** The model in one paragraph
 
@@ -48,9 +112,10 @@ The garbager only ever emits three things (see ~make_delete_call~ /
 | ~Type.delete(x, false)~     | inline / stack value             | run field destructors only; nothing to free   |
 | ~free(own x)~               | raw block (typed raw_alloc local), raw ~Dynamic~, or orphan wrapper | ~free~ the pointer, NO inner destructor |
 
-~call_free~ is the whole game for aggregates. A heap box (own local, own
-field, returned value) is freed with ~call_free=true~. An *inline* value (a
-~Shallow~ field living contiguously inside its parent, or a stack-allocated
+~call_free~ is the whole game for aggregates. A heap box (a typed heap
+allocation, own field, or external heap-outer transfer) is freed with
+~call_free=true~. An *inline* value (a ~Shallow~ field living contiguously
+inside its parent, or a stack-allocated
 local) uses ~call_free=false~: its sub-fields are reclaimed but the storage
 itself belongs to the parent / the stack and must not be freed. Getting this
 bit wrong is a free-of-stack-pointer crash one way and a leak the other.
@@ -162,6 +227,16 @@ callee inserts no destructor and the caller retains ownership.
 | ~returns T~            | owned by caller    | the CALLER's ASAP pass, at the caller's last use |
 | ~returns shallow T~    | owned value (stack)| caller owns the stack value; inner fields freed at its last use |
 | ~returns ref T~        | borrowed           | NOBODY frees it via the return -- it aliases data owned elsewhere; caller must NOT free |
+| ~returns ref mut T~    | borrowed, writable-result contract | same lifetime/destruction obligation as ~returns ref T~ |
+
+The default ~returns T~ result belongs to the caller. Primitive results are
+auto-shallow under ordinary function/procedure rules, so ~returns I64~ needs
+no extra qualifier and has nothing to destroy. A returned aggregate can be an
+owned C value rather than a heap box; ownership of its contents and the outer
+C storage representation are separate (qualifiers.org, "Return types").
+For both borrowed return spellings the caller chooses its slot mutability;
+the callee's referent permission is part of the callable contract. The
+implementation-status note above describes the remaining enforcement work.
 
 ~returns ref T~ is the return-side borrow and the most dangerous: the callee
 must guarantee the referent outlives the call (it cannot point at a local
@@ -174,22 +249,20 @@ a container and must never be passed to ~free~/~delete~.
 | til                       | ownership                  | destruction                                              |
 |---------------------------+----------------------------+----------------------------------------------------------|
 | ~x := expr~ (scalar)      | owned stack value          | none (scalar no-op)                                      |
-| ~x := expr~ (aggregate)   | owned, heap (promoted Own) | ~Type.delete(own x, true)~ at last use / scope end       |
+| ~x := expr~ (aggregate)   | owned value, ordinarily stack-backed | destroy owned contents at last use; free an outer box only for heap-backed storage |
 | ~mut x := expr~           | same as above              | same; plus the OLD value is freed before each reassignment|
 | ~ref x : T = expr~        | borrowed                   | none (~skip_scope_delete~); the SOURCE's lifetime is extended to cover x |
 | ~ref mut x : T = expr~    | mutable borrow             | same as ~ref~                                            |
 | ~buf : U8 = malloc(n)~    | owned raw block (raw_alloc)| ~free(own buf)~ inserted at last use / exit edges (#302) |
 | ~buf : Dynamic = malloc~  | rejected                   | type error: "raw allocation local must use a concrete type, not Dynamic" (#319). ~Dynamic~ is type-erased BORROWS -- ~to_ptr~ / ~ptr_add~ results, dyn features -- never an allocation owner |
 
-The aggregate-local promotion is the workhorse: a plain ~x := Foo()~ starts
-~Shallow~ but ~promote_own_transferred_locals~ flips owned aggregates to
-~Own~/heap so they get a real ~delete~. Three shapes are deliberately KEPT
-stack (~is_heap=false~, ~call_free=false~), because the builder emits them as
-stack values, so freeing them would touch a stack pointer:
-
-  1. a ~Str~-literal RHS (~s := "hi"~) -- stack compound literal,
-  2. an FCall whose callee ~returns shallow T~,
-  3. a POD-enum clone wrap (~c := Color.clone(Color.Red)~).
+Source ownership does not require a heap outer box. An ordinary owned
+aggregate local has stack-backed outer storage and destroys its owned contents
+with ~call_free=false~. Heap allocations and other pointer-shaped storage keep
+their separate outer-free obligation. ~Declaration.gc_storage~, rather than
+~OwnType~ alone, records that storage choice; see qualifiers.org's "Internal
+representation". A value returned by C value can still own heap-backed fields
+that its destructor must release.
 
 ~ref~ locals are the borrow case: they own nothing, so they are skipped --
 but the thing they borrow from must not die first. ~extend_ref_local_lifetimes~
@@ -461,8 +534,10 @@ cross-language terminology check is in [[file:./garbager.org][the garbager guide
   - Destructor signature. Mojo's ~__del__(deinit self)~ has no ~call_free~:
     Mojo values live in place (fields inline, locals on the stack; the
     compiler moves the bytes), so a destructor never frees its own box.
-    til heap-boxes owned aggregates, so ~delete(own self, call_free)~
-    threads the box-vs-inline bit down. The
+    til supports both ordinary stack-backed owned aggregate values and
+    separate heap-owned storage (own fields, allocations and external
+    boundaries), so ~delete(own self, call_free)~ threads the box-vs-inline
+    bit down. The
     ~if call_free { free(own self) }~ tail in every til destructor is this
     difference made visible -- correct where it is, with no Mojo analog.
   - Escape hatches. Mojo channels ALL raw memory through the typed

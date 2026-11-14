@@ -2,11 +2,81 @@
 
 Complete mapping of til qualifiers to generated C, by context.
 
+Ownership, reference-slot mutability and referent write permission are
+independent. Different source permissions can have the same C pointer shape;
+the shape alone is not a permission or lifetime contract. The lifetime and
+destruction side is documented in [[file:./ownership.org][ownership.org]].
+
+** Ownership defaults
+
+Arguments default to borrowing (~arg: T~); taking ownership requires ~own~.
+Returns default to a result owned by the caller (~returns T~); returning a
+borrow requires ~returns ref T~. Ordinary primitive arguments/results are
+auto-shallow where applicable, so ~arg: I64~ and ~returns I64~ ordinarily
+use scalar values without an explicit keyword. Small eligible value-shaped
+types have additional auto-shallow rules, and fixed ext/core ABIs keep their
+explicit conventions; see "Key rules" below.
+
+Locals own their values by default; fields default to inline values owned as
+part of the holder. These source ownership defaults do not say whether an
+outer slot is a C stack value or a heap allocation ("Internal representation").
+
+** Independent borrow permissions (#490 / #491)
+
+The intended reference contract is read-only referent access for plain ~ref~
+in every context; ~mut~ after ~ref~ grants write access. A leading ~const~ or
+~mut~ controls a stored reference slot independently:
+
+| Explicit local spelling | Field spelling | Reference slot | Referent |
+|-------------------------+----------------+----------------+----------|
+| ~const ref value: T~ | ~const ref value: T~ | fixed | read-only |
+| ~const ref mut value: T~ | ~const ref mut value: T~ | fixed | writable |
+| ~mut ref value: T~ | ~ref value: T~ | replaceable | read-only |
+| ~mut ref mut value: T~ | ~ref mut value: T~ | replaceable | writable |
+
+Fields already default to replaceable slots, so their shorter spellings are
+~ref value: T~ and ~ref mut value: T~. Locals default to fixed bindings in the
+new contract, but unprefixed local ~ref mut~ still has legacy mutable-slot
+behavior during migration. Use the explicit forms to discuss the two axes;
+do not assume their independent permissions are all enforced yet.
+
+Borrowed parameters use ~arg: T~ and ~mut arg: T~ for read-only/writable
+access. There is no ~const ref mut~ parameter spelling: a parameter is not a
+local pointer slot that the callee rebinds; assignment through it writes the
+caller's value. Returns use ~returns ref T~ or ~returns ref mut T~ to grant
+referent permission. The receiving caller chooses its slot's mutability;
+there is no ~returns const ref mut T~. Ordinary owned returns need no
+return-side ~mut~.
+
+*** Implemented and pending
+
+- Implemented: parsing/AST metadata for explicit local/field slot qualifiers,
+  ~returns ref mut T~ on named/inline signatures, writable enum payloads, and
+  ~Name(ref mut T)~ type arguments. Generic substitution/identity and AST
+  observation preserve these permissions.
+- Implemented: callable signature compatibility prevents read-only results
+  from filling writable-result contracts and rejects borrowed/value return
+  ABI mismatches. A writable result can satisfy a read-only result contract
+  with the same borrow ABI. Typed/inferred functions, generic-generator
+  twins, typed dynamic lookup and generated Til-library bindings preserve or
+  check the reference-result permission.
+- Pending: complete source-path and writable-alias checks, the plain-ref
+  defaults migration, collection accessors, reflection/native schemas and
+  the C-header binding translator. Existing accepted local/ref-field programs
+  retain legacy permission behavior where these checks have not migrated.
+
+[[../../issues/open/490.org][#490]] and [[../../issues/open/491.org][#491]] track the migration and
+remaining API decisions. Keep this guide and ownership.org synchronized in
+each implementation commit; parsing a qualifier is not evidence that every
+permission check is implemented.
+
 ** Mutability rule (~mut~ vs ~const~)
 
    til picks the most common mutability per context as the default,
    and the opposite keyword is rejected as redundant. The split is
-   symmetric:
+   symmetric for ordinary value declarations and the established
+   slot/binding rules below. Independent reference permissions are being
+   migrated as described above:
 
    | Context             | Default | Opt-out keyword | Redundant keyword (rejected) |
    |---------------------+---------+-----------------+------------------------------|
@@ -48,6 +118,10 @@ Complete mapping of til qualifiers to generated C, by context.
    function, which parameters its returned borrow can reach (a set:
    a ref function may return either of several parameters). A write
    through an alias credits every storage it reaches:
+
+   The following examples describe CURRENT legacy write tracking. They do not
+   establish the new rule that a read-only reference result can be upgraded:
+   migrating writable getters and their callers is still required by #491.
 
    #+begin_src til
    inner_of := func(o: Outer) returns ref Inner { return o.inner }
@@ -118,6 +192,11 @@ Complete mapping of til qualifiers to generated C, by context.
    which we have always left alone.
 
 ** Writing through a borrow
+
+   This section describes the existing actual-owner write checks. Full
+   path-specific referent permission checks are still pending under #490/#491;
+   satisfying an owner's ~mut~ requirement alone will not authorize upgrading
+   a read-only borrow in the new contract.
 
    The rule the Arguments table below states -- a plain parameter is
    a read-only borrow, a ~mut~ parameter is a writable one -- is
@@ -202,8 +281,9 @@ escape and clone behavior.
 | til                       | ordinary C return | bodyless ext/core C return | semantics                    |
 |---------------------------+-------------------+----------------------------+------------------------------|
 | ~returns Type~            | ~Type~            | ~Type *~                   | caller owns the result       |
-| ~returns shallow Type~    | ~Type~            | ~Type~                     | non-owning value copy        |
+| ~returns shallow Type~    | ~Type~            | ~Type~                     | caller owns the returned value/contents |
 | ~returns ref Type~        | ~Type *~          | ~Type *~                   | borrowed pointer; never free |
+| ~returns ref mut Type~    | ~Type *~          | ~Type *~                   | borrowed pointer with writable-result contract; never free |
 
 Ordinary til functions, FuncSig calls, and closure trampolines return every
 non-ref result by C value. Ownership still determines cleanup; it no longer
@@ -211,7 +291,30 @@ selects the C return representation. Bodyless ~ext_*~ and ~core_*~ declarations
 keep their fixed external ABI, and generated code adapts an owned pointer return
 to a value exactly once at that boundary.
 
+For ordinary primitive results, auto-shallowing means ~returns I64~ is a
+value result without an explicit ~shallow~. ~returns ref~ remains an explicit
+borrow, even for a primitive. The reference-result rows above share a C
+shape but carry different source permissions: read-only for plain ~ref~,
+writable for ~ref mut~. Callable compatibility now checks that distinction;
+the "Implemented and pending" section identifies remaining enforcement.
+Neither return fixes the caller's receiving slot or grants ownership.
+
+*** Binding generators
+
+The Til-library binding emitter (~src/self/codegen/c_codegen.til~) now preserves
+~returns ref mut~ in generated ext declarations, wrappers and named FuncSigs.
+The draft C-header translator (~til bindings~, ~src/self/binder.til~) still
+needs migration: it currently discards return-type constness and emits plain
+~returns ref~ for single-level typed pointer results. It must distinguish
+~const T *~ (read-only referent) from ~T *~ (writable referent), including
+typedefs/callbacks, without inferring ownership or lifetime from either.
+Top-level const on a pointer returned by value does not fix the caller's slot.
+
 ** Locals
+
+The two ~ref~ rows below describe the established legacy forms. Explicit
+leading slot qualifiers are also parsed ("Independent borrow permissions");
+their complete independent enforcement/defaults migration is pending.
 
 | til                       | C (scalar)       | C (compound)     | semantics                            |
 |---------------------------+------------------+------------------+--------------------------------------|
@@ -220,7 +323,8 @@ to a value exactly once at that boundary.
 | ~ref x : Type = expr~     | ~Type *x = ...~  | ~Type *x = ...~  | borrowed immutable local             |
 | ~ref mut x : Type = expr~ | ~Type *x = ...~  | ~Type *x = ...~  | borrowed mutable local               |
 
-Scalar types: I64, U8, I8, I16, I32, U32, U64, F32, Bool.
+Scalar types: I8/I16/I32/I64, U8/U16/U32/U64, F32/F64, Bool, and the
+target-resolved USize/UPtr aliases.
 Compound types: Str, user-defined structs, enums.
 
 An interface-typed local (~d : Drawable = c~) follows the same table for
@@ -236,8 +340,10 @@ locals" (#432).
 Unlike locals and parameters, struct instance fields are MUTABLE by
 default (#211): a struct is usually a bag of state updated over its
 lifetime, so the common case needs no annotation. ~const~ opts a field
-out (immutable after construction). An explicit ~mut~ on a field is
-redundant and rejected by the typer.
+out (immutable after construction). An explicit slot ~mut~ on an ordinary
+value field is redundant and rejected by the typer. ~ref mut field: T~ is
+now parsed as referent write permission and is not that redundant slot marker;
+its complete enforcement is part of the reference migration above.
 
 | til                          | C struct member  | semantics                            |
 |------------------------------+------------------+--------------------------------------|
@@ -248,6 +354,19 @@ redundant and rejected by the typer.
 | ~ref field : Type~           | ~Type *field~    | borrowed pointer (caller owns data)  |
 | ~ref const field : Type~     | ~Type *field~    | immutable borrowed pointer           |
 | ~field := Option(ref T).None~ | ~Option__ref_T field~ | optional borrow (see below)     |
+
+The ~ref const~ row is the legacy spelling. Prepared independent forms are
+~const ref field: T~ (fixed/read-only) and ~const ref mut field: T~
+(fixed/writable), with the four combinations listed above. Their borrow
+ownership is identical: the holder never destroys the referent. Existing
+plain ref fields retain their legacy behavior until #490's source migration.
+
+The C-header translator must preserve pointee constness AND pointer-slot
+constness on stored fields: ~T *p~ maps to ~ref mut p: T~, ~const T *p~ to
+~ref p: T~, ~T *const p~ to ~const ref mut p: T~, and ~const T *const p~ to
+~const ref p: T~. Its current field parser skips const tokens; those mappings
+are migration requirements, not implemented guarantees. Multi-level pointers
+and erased ~Dynamic~ forms need an explicit treatment of qualifier loss.
 
 *** Optional borrows (#320 / #321)
 
@@ -287,15 +406,17 @@ is_null: the quarantine rule".
 - Locals are owned by default, so explicit ~own~ on locals is redundant:
   ~own x := ...~, ~own mut x := ...~, ~own x : Type = ...~, and
   ~own mut x : Type = ...~ are all rejected
-- Struct fields are mutable by default, so explicit ~mut~ on a field is
-  redundant and rejected; use ~const~ to make a field immutable
+- Struct fields are mutable by default, so an explicit slot ~mut~ on an
+  ordinary value field is redundant and rejected; use ~const~ to make it immutable
   (namespace decls inside a struct keep the const-by-default rule and
-  still opt in with ~mut~)
-- Locals, parameters, and namespace declarations are immutable by
+  still opt in with ~mut~). This is distinct from the now-parsed ~ref mut~
+  referent qualifier
+- Ordinary locals, parameters, and namespace declarations are immutable by
   default; ~const~ is redundant in those positions and the parser
   rejects it ("redundant 'const' on local/parameter/namespace
-  declaration ... drop it"). ~const~ is meaningful only on struct
-  fields and on enum variant payloads
+  declaration ... drop it"). A leading ~const ref~ on a stored reference is
+  a separately parsed slot qualifier in the #490 migration, not redundant
+  ~const~ on an ordinary value local
 - Enum variant payloads are mutable by default (same rule as struct
   fields); the payload binding in a ~switch~ case inherits the matched
   value's mutability (~ref mut~ when the enum value is ~mut~, ~ref~
@@ -346,7 +467,8 @@ is_null: the quarantine rule".
   or another auto-shallow struct). Otherwise it stays pointer-passed. The
   transitive field check closes the hole where a size-8 struct embeds a
   deep struct inline. Ordinary returns are values regardless; this rule still
-  decides parameter ABI and ownership. (Enums are not auto-shallow yet.)
+  decides parameter ABI and ownership. Niche enums also use the auto-shallow
+  value representation; tagged enums remain pointer-passed as parameters
 - Issue #223 step 4: on a STRUCT (or enum), an explicit ~shallow~ is a
   force/override, NOT an error. Unlike a primitive (step 2, rejected as
   redundant), a struct ~shallow~ is always honored: it forces by-value
@@ -372,6 +494,15 @@ is_null: the quarantine rule".
 
 All qualifier contexts (args, returns, locals, fields) use the same
 ~OwnType~ enum: ~Own~, ~Ref~, ~Shallow~.
+
+~OwnType~ records ownership, not independent write permissions. The prepared
+metadata stores referent permission in ~Declaration.referent_mut~,
+~FuncSig.return_ref_mut~ and ~VariantDef.payload_ref_mut~. Declarations retain
+~is_mut~ for their slot/binding qualifier, with ~ref_slot_explicit~ recording
+a leading slot qualifier. ~FCallData.ref_mut_args~ distinguishes writable
+reference type arguments, and generic substitution preserves that permission.
+The migration status above applies: legacy write checks do not yet all use
+these independent fields.
 
 | Context | Default   | Meaning of Shallow       | Meaning of Own          | Meaning of Ref        |
 |---------+-----------+--------------------------+-------------------------+-----------------------|
