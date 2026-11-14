@@ -850,3 +850,18 @@ in #472, "The toolchain rule". C4 therefore proceeds target by target:
 pick the target's toolchain, give each of its producers that toolchain,
 then compare. The Ubuntu packages, a pinned download or a vendored tree
 are all acceptable ways to supply it; each download is its own commit.
+
+*** Progress: run 3085, green, five producers (master 0dc6535)
+
+All 27 jobs passed. Both Mac producers wrote their lists on the first try
+(~shasum~), the Windows one again, and ~collect~ compared five lists:
+1140 equal, 0 different, 0 missing. The JNI jar jobs and the two "macos
+host cross" jobs, which had not run since #482, passed too. The TempleOS
+guest job took 106 minutes of its 120 (see #151); it is what the run
+waits for.
+
+~collect~ drops ~report~ in this commit: a difference between producers,
+or an item one left out, now fails the job. C3, C5, C6 and C8 are done in
+that form. Open: C4 and C7 (binaries, per target, "The toolchain rule"),
+and whether the fail-fast cancel stays (it hid four failures behind one
+for two days; Jorge's call).

@@ -2086,10 +2086,11 @@ jobs:
   # whether their outputs agree. It runs whatever the producers' results
   # were, prints each one, and compares the hash lists they uploaded with
   # examples/ci_collect.til. A producer that did not succeed, or whose list
-  # is not there, fails this job. Differences between producers are printed
-  # but do not fail it yet (`report`): the groups become blocking one by one
-  # as #472 establishes that they hold. It still runs after another job
-  # cancelled the run (run 3067): the producers were cancelled, no list
+  # is not there, fails this job. So does any difference between producers,
+  # or an item one of them left out: run 3085 had all five producers agree on
+  # every item (870 frontend observations, 270 translated files), and #472
+  # holds levels 1 and 2 to that from here on. It still runs after another
+  # job cancelled the run (run 3067): the producers were cancelled, no list
   # arrived, and it failed saying so.
   collect:
     name: collect (compare the producers' hash lists)
@@ -2129,4 +2130,4 @@ jobs:
         if: always()
         run: |
           find hashes -type f | sort
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til collect hashes report
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til collect hashes

@@ -1890,3 +1890,69 @@ HC
   This runs the generated program directly on TempleOS in both local and
   CI testing. QEMU uses TCG in CI, legacy PC/IDE hardware, one CPU, and at
   least 512 MiB RAM; KVM is an optional local acceleration only.
+
+*** Determinism and CI notes for this target (from #472/#473)
+
+Written 2026-11-14 at master 0dc6535 by the #472/#473 session, at Jorge's
+request, so the TempleOS side can move without waiting for that session.
+Everything here is about target ~templeos-x86~ and the CI job ~templeos~
+("TempleOS guest (QEMU TCG, USize 32/64)", ~make test_templeos~).
+
+til does not run ON TempleOS, so this target is cross-only (Jorge): every
+host that has a til can translate for it, and none is its "native"
+producer. Any host can be one of its producers on equal terms.
+
+**** What is already true
+
+- The HolyC a translate writes for ~templeos-x86~ does not depend on the
+  host: in run 3076 the lists of Linux x64, Linux arm64 and the Windows
+  ~til.exe~ agree on every templeos item (5 per width; group ~source
+  templeos-x86 c 32~ and ~c 64~ in the ~collect~ job's log). Locally a
+  compact and a native-layout compiler agree too
+  (~test/translate_layouts.til~, which requires at least 8 templeos
+  translations to have been compared).
+- TempleOS has no C toolchain step: the guest compiles HolyC itself. So
+  for this target #472 ends at level 2 (generated source); there is no
+  binary to compare, and "The toolchain rule" (end of #472) does not apply.
+- The lists and the comparison are #473's: ~examples/ci_collect.til~ and
+  the ~collect~ job.
+
+**** What needs the guest, and has NOT been seen to pass
+
+1. The NaN text change (#489, master 83deb02). ~src/self/codegen/ext.HC~
+   now writes ~nan~ for a NaN whatever its sign bit (the float text
+   routine, at the ~MemCpy(text,"nan",3)~ line), and
+   ~test/templeos/script_str_runtime.expected~ line 105 changed from
+   ~float text:-nan/-nan:-nan/-nan~ to ~float text:nan/nan:nan/nan~. The
+   edit was made without a guest: no CI run since has let the guest job
+   finish (each was cancelled by another job first; the guest was still
+   running after 80 minutes in run 3081). CONFIRMED in run 3085 (master
+   0dc6535): the guest job passed with the new golden line.
+2. The job's duration. It is now the longest job of a run (106 minutes
+   in run 3085; budget ~timeout-minutes: 120~ in ~.github/workflows/tests.yml~),
+   so it decides when a run can turn green, and with the cancel-on-failure
+   steps it is usually the job that gets cancelled. Anything that shortens
+   it (fewer cases per push, both widths in parallel, a faster deliberate
+   timeout case than the 3-minute one) shortens every run. Its comment in
+   the workflow has the measured history.
+
+**** What could be added for this target (none of it started)
+
+- A wider corpus. The collector's ~source~ level uses five programs
+  (~examples/hello_script.til~, ~test/layout_corpus.til~,
+  ~test/float_fold.til~, ~test/option.til~, ~test/hashmaps.til~), and a
+  program HolyC refuses is listed as ~refused~, which producers must agree
+  on. Programs of ~test/templeos/~ could join for this target only: the
+  list is in ~examples/ci_collect.til~ (~produce~), and
+  ~test/translate_layouts.til~ has its own.
+- Guest OUTPUT across hosts. Today the guest runs on one host only. If a
+  second host ran it, the expected-output files already are the
+  comparison; no hash list is needed.
+
+**** Rules that apply
+
+- ~examples/ci_collect.til~ and the ~collect~ job only read hash lists; a
+  new producer is two workflow steps (write the list, upload
+  ~hashes-<name>~) plus its name in ~collect~'s ~needs~.
+- A difference is fixed where it is introduced, never by normalizing it
+  away in the comparison (#472, "Rules for every step").

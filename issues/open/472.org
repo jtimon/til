@@ -125,15 +125,15 @@ No GCC/Clang installation inside TempleOS is assumed.
 
 - [X] Inventory the existing frontend, checks and CI matrix; record a staged
   plan (below). This is source inspection, not cross-host verification.
-- [ ] Agree and implement the exact frontend comparison contract, including
+- [X] Agree and implement the exact frontend comparison contract, including
   complete semantic coverage and controlled compile-time inputs.
-- [ ] Lexing, parsing, typing, compile-time evaluation and shared lowering
+- [X] Lexing, parsing, typing, compile-time evaluation and shared lowering
   agree before codegen across fresh processes, compiler layouts and hosts
   for the same target/configuration. Localize failures to the earliest phase.
 - [ ] Establish the binary toolchain groups and complete artifact inventory.
-- [ ] Clean rebuilds at different times and in different checkout paths
+- [X] Clean rebuilds at different times and in different checkout paths
   produce identical hashes within the declared comparison groups.
-- [ ] Generated source and every companion file agree across reference hosts
+- [X] Generated source and every companion file agree across reference hosts
   for the same supported target/backend/configuration.
 - [ ] Native and cross-built binaries, including runtime/core libraries,
   match across reference hosts using the pinned target toolchain. CI rollout
@@ -1931,3 +1931,26 @@ each download lands in its own commit with the human's approval). The
 proposed first target is macos-arm64/macos-x64 (L3c), since its headers
 and libraries are already vendored and only the clang/lld version must
 match between its producers. Not decided yet.
+
+*** Progress: levels 1 and 2 hold across five hosts (run 3085, master 0dc6535)
+
+The first completely green run since #482, 27 jobs, and the first with all
+five producers: Linux x64, Linux arm64 native, macOS arm64, macOS x64 and
+the Windows ~til.exe~. #473's ~collect~: 1140 equal, 0 different, 0
+missing, 0 not compared.
+- Level 1: all 870 frontend observations (five phases, eight programs,
+  per source unit; target linux-x64, ~--usize=32~) are the same from the
+  five hosts. The Windows differences of run 3076 are gone with the CR LF
+  fix.
+- Level 2: all 270 translated files, fourteen targets at both widths, are
+  the same from the five hosts.
+
+~collect~ now FAILS on a difference or a missing item (it reported only,
+until a run showed the groups hold). Acceptance boxes ticked above for the
+contract, frontend agreement, clean rebuilds (L3a, on the toolchains
+measured) and generated source.
+
+What is left for this issue is level 3 between hosts: "The toolchain rule"
+above, a first target with two producers on one toolchain (L3c), and the
+closing documentation. The frontend corpus is eight programs and the
+translated one five; ~src/til.til~ is in neither, by cost.
