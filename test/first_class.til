@@ -1669,6 +1669,67 @@ test_reflected_return_permission := test() {
 ReflectVariadicDefaults := proc(mut prefix: Str, values: ..I64,
     mut suffix: Str = "end") returns Str throws FuncSigError58
 
+ReflectFields490 := struct {
+    ref read: I64
+    ref mut write: I64
+    const ref fixed_read: I64
+    const ref mut fixed_write: I64
+}
+ReflectPayloads490 := enum {
+    Empty,
+    Read: ref I64,
+    Write: ref mut I64,
+    const FixedRead: ref I64,
+    const FixedWrite: ref mut I64,
+}
+reflect_fields490 := proc(name: Str) returns StructDef {
+    noop_proc()
+    return struct_def_of(name)
+}
+reflect_payloads490 := proc(name: Str) returns EnumDef {
+    noop_proc()
+    return enum_def_of(name)
+}
+struct_field_referent_mut := func() returns I64 { return 41 }
+enum_variant_payload_ref_mut := func() returns I64 { return 43 }
+
+test_reflected_stored_permissions := test() {
+    mut number: I64 = 7
+    value := ReflectFields490(read = number, write = number,
+        fixed_read = number, fixed_write = number)
+    copy := value.clone()
+    payload := ReflectPayloads490.Write(copy.write)
+    payload_copy := payload.clone()
+    number++
+    ref borrowed: I64 = copy.write
+    assert(borrowed == 8)
+    switch payload_copy {
+    case .Write(data): assert(data == 8)
+    case: panic("lost borrowed payload")
+    }
+    fields := reflect_fields490("ReflectFields490")
+    cloned_fields := fields.clone()
+    assert(fields.fields.len() == 4)
+    for i in 0..fields.fields.len() {
+        assert(fields.fields[i].own_type.is(OwnType.Ref))
+        assert(fields.fields[i].is_mut == (i < 2))
+        assert(fields.fields[i].referent_mut == (i == 1 || i == 3))
+        assert(cloned_fields.fields[i].referent_mut == fields.fields[i].referent_mut)
+    }
+    variants := reflect_payloads490("ReflectPayloads490")
+    cloned_variants := variants.clone()
+    assert(variants.variants.len() == 5)
+    assert(variants.variants[0].payload_ref.or(variants.variants[0].payload_ref_mut).not())
+    for i in 1..variants.variants.len() {
+        assert(variants.variants[i].payload_ref)
+        assert(variants.variants[i].payload_const == (i > 2))
+        assert(variants.variants[i].payload_ref_mut == (i == 2 || i == 4))
+        assert(cloned_variants.variants[i].payload_ref_mut == variants.variants[i].payload_ref_mut)
+    }
+    assert_eq(I64, struct_field_referent_mut(), 41)
+    assert_eq(I64, enum_variant_payload_ref_mut(), 43)
+}
+
 test_reflect_variadic_defaults_after_error_slots := test() {
     sig := func_sig_of("ReflectVariadicDefaults")
     assert_eq(USize, sig.params.len(), 3)

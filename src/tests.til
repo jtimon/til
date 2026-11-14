@@ -1754,11 +1754,11 @@ main := proc(args: ..Str) returns I64 {
     // read and no cast survives. first_class.til retains the struct_field_*
     // and enum_variant_* stubs; #370 also reflects a runtime signature Type
     // argument, retaining the five indexed func_sig_* stubs alongside them.
-    // Schema validation also retains private field-ownership and enum
-    // callable-payload queries.
+    // Schema validation also retains private field-ownership, enum
+    // callable-payload and field/payload referent-permission queries.
     first_class_checks = first_class_checks.concat(array(CountCheck,
         CountCheck(needle = "(void)type_name", expected_count = 0),
-        CountCheck(needle = "index %lld out of range", expected_count = 16)))
+        CountCheck(needle = "index %lld out of range", expected_count = 18)))
     // Abstract methods now have typed dispatch definitions. The signature
     // survives to the backend rather than becoming an untyped dyn_call.
     interfaces_checks = interfaces_checks.concat(array(CountCheck, CountCheck(needle = "Drawable_draw(Drawable * self) {", expected_count = 1)))

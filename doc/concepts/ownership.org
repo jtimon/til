@@ -81,10 +81,13 @@ writable reference type arguments/default expressions. Canonical source uses
 ~const ref mut~ for a fixed writable borrow and ~mut ref~ / ~mut ref mut~ for
 replaceable global reference slots.
 
-Private field/payload permission-query emission and interpreter dispatch are
-prepared for the next bootstrap use step. ~struct_def_of~ / ~enum_def_of~ and
-native schema comparison still need to consume those bits; the binding-emitter
-work alone does not make runtime reflection or access-path enforcement complete.
+~struct_def_of~ and ~enum_def_of~ now restore field/payload referent permissions
+through private queries. Native/TilVm shared-schema validation compares those
+bits independently of field slot mutability, payload constness and ownership;
+matching pointer layouts do not make different permissions interchangeable.
+Source-prefix provenance (~ref_slot_explicit~) is not a semantic ABI flag.
+Cloning still copies borrows without acquiring their referents or extending
+their owners' lifetimes. Full source access-path enforcement remains pending.
 
 ~func_sig_of~ now restores the reference-result permission through a private
 query in C/MLIR-bridge emission and the interpreter. HolyC has query-emission
@@ -97,8 +100,8 @@ change pointer layout, ownership, or referent lifetime.
 
 This is not yet full enforcement of the permission table: writable-return
 source paths, direct writable aliases of plain-ref call results, collection
-accessors, other reference-permission reflection/native schema metadata and
-C-header bindings still need work.
+accessors, remaining reference-permission metadata and C-header bindings still
+need work.
 Legacy local ~ref mut~ and plain ref-field behavior remain during migration.
 See [[../../issues/open/490.org][#490]], [[../../issues/open/491.org][#491]] and
 qualifiers.org's "Independent borrow permissions" for exact spellings/status.

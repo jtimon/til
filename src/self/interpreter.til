@@ -7591,6 +7591,7 @@ priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut 
             if gv.name != hv.name || gv.tag_value != hv.tag_value || gv.payload_type != hv.payload_type { return false }
             if gv.payload_const != hv.payload_const { return false }
             if gv.payload_ref != hv.payload_ref { return false }
+            if gv.payload_ref_mut != hv.payload_ref_mut { return false }
             if gv.payload_funcsig.or(hv.payload_funcsig) {
                 if gv.payload_funcsig.and(hv.payload_funcsig).not() { return false }
                 if gv.payload_ref { return false }
@@ -7640,6 +7641,7 @@ priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut 
         if gn.len() == 0 { return false }
         if hf.name != gf.name || hf.type_name() != gn || hf.is_mut != gf.is_mut { return false }
         if hf.own_type != gf.own_type { return false }
+        if hf.referent_mut != gf.referent_mut { return false }
         // Raw owned byte pointers may describe buffers, not single values;
         // their length/ownership cannot be inferred from a field's type.
         if gf.own_type.is(OwnType.Own).and(gn.eq("U8").or(gn == "I8").or(gn == "Dynamic")) { return false }

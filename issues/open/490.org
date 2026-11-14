@@ -77,7 +77,7 @@ forwarded type arguments, clones, borrowed enum payloads and typed AST metadata;
   permissions and writable reference type arguments/defaults in generated
   Til-library bindings. Emit canonical leading slot qualifiers rather than
   conflating a slot's ~is_mut~ with its referent's permission.
-- [ ] Use the queries in ~struct_def_of~ / ~enum_def_of~ and compare semantic
+- [X] Use the queries in ~struct_def_of~ / ~enum_def_of~ and compare semantic
   field/payload permissions in native/TilVm schemas. This is a separate
   bootstrap use step, following ~doc/self.org~ and #491's reflection ladder.
 
@@ -86,13 +86,38 @@ The new semantic schema flags do not change pointer layout or lifetime.
 permission, and is not a schema-comparison requirement. Binding regressions
 cover all four field combinations, payload const/ref-mut combinations,
 fixed/replaceable globals and ~Option(ref mut T)~ source/default recovery.
-Runtime reflection/schema consumption remains pending at this preparation
-checkpoint, as does complete source-path enforcement and library migration.
+Runtime reflection/schema consumption remained pending at the preparation
+checkpoint. The following use step restores those flags and checks them;
+complete source-path enforcement and library migration remain pending.
 
 Preparation verification: ~make clean && make test_two_pass~ passed 576/576,
 including native self-translation and the C/Python/JNI/Til library-consumer
 round-trip in ~test/library_namespace.til~. Its fixtures exercise canonical
 field/global spellings, enum payload flags and writable type/default recovery.
+
+The preparation is ~6d9f417fa~. The use step adds two private core queries,
+restores ~Declaration.referent_mut~ / ~VariantDef.payload_ref_mut~ in runtime
+reflection, and compares them in native/TilVm shared schemas. It changes no
+pointer layout, ownership or lifetime policy. Matching canonical/legacy slot
+spellings remain compatible; a different referent permission does not, even
+when the nominal type, slot mutability, ownership and layout are unchanged.
+
+Regressions cover runtime field/payload reflection and clones, ordinary user
+functions with the unmangled query names, borrowed record/enum round-trips,
+and all four field and payload permission mismatches in both argument and
+result schemas. Result schemas are checked even when an enum returns Empty
+and never constructs the incompatible variant. Referents remain host-owned;
+returned aliases observe later host writes and preserve the original address.
+
+Use-step verification: ~make clean && make test_two_pass~ passed 576/576,
+including native self-translation, ~first_class_codegen~, library consumers
+and the installed TilVm value family. ~test/first_class.til~ passed 150/150
+interpreted and compiled tests, including compiled ASAN. The installed TilVm
+host passed its complete case set under ASAN at USize 32 and 64 with an empty
+runtime PATH. ~reference_permission_schema_tests~ checks matching round-trips
+and eight referent-only schema edits, each rejected for both input and result
+contracts. The generator checks now expect the two additional indexed-query
+error paths; those report type/index rather than suppressing unused parameters.
 
 *** Downstream acceptance input (Tiled/tilminal)
 

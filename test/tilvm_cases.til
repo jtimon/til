@@ -535,6 +535,91 @@ HostAccumulator := proc(I64) returns I64
 HostRecord := struct { value := 0 }
 HostRecordCall := func(HostRecord) returns I64
 
+ReferencePermissions490 := struct {
+    ref read: I64
+    ref mut write: I64
+    const ref fixed_read: I64
+    const ref mut fixed_write: I64
+}
+PayloadPermissions490 := enum(U8) {
+    Empty,
+    Read: ref I64,
+    Write: ref mut I64,
+    const FixedRead: ref I64,
+    const FixedWrite: ref mut I64,
+}
+ReferenceRoundtrip490 := func(ReferencePermissions490) returns ReferencePermissions490
+ReferenceRead490 := func() returns ReferencePermissions490
+PayloadRoundtrip490 := func(PayloadPermissions490) returns PayloadPermissions490
+PayloadRead490 := func() returns PayloadPermissions490
+
+reference_permission_schema_tests := proc(root: Str) {
+    record_schema := format("ReferencePermissions490 := struct {\n",
+        "ref read: I64\nref mut write: I64\nconst ref fixed_read: I64\nconst ref mut fixed_write: I64\n}\n")
+    enum_schema := format("PayloadPermissions490 := enum(U8) {\nEmpty,\nRead: ref I64,\nWrite: ref mut I64,\n",
+        "const FixedRead: ref I64,\nconst FixedWrite: ref mut I64\n}\n")
+    functions := format("mut source: I64 = 1\n",
+        "record_round := func(value: ReferencePermissions490) returns ReferencePermissions490 { return value.clone() }\n",
+        "read_record := func() returns ReferencePermissions490 { return ReferencePermissions490(read = source, write = source, fixed_read = source, fixed_write = source) }\n",
+        "payload_round := func(value: PayloadPermissions490) returns PayloadPermissions490 { return value.clone() }\n",
+        "read_payload := func() returns PayloadPermissions490 { return PayloadPermissions490.Empty }\n")
+    // Prefix spelling is not a semantic schema difference.
+    equivalent_record := record_schema.replace("const ref fixed_read: I64", "ref const fixed_read: I64")
+    File.writefile("guest.til", format("mode lib\n", equivalent_record, enum_schema, functions))
+    mut vm := TilVm.new(root)
+    vm.load_file("guest.til")!
+    mut record_round := vm.lookup("record_round", ReferenceRoundtrip490)!
+    mut payload_round := vm.lookup("payload_round", PayloadRoundtrip490)!
+    mut number: I64 = 5
+    {
+        mut record_arguments := Tuple.new()
+        record_arguments.push(ReferencePermissions490, own ReferencePermissions490(
+            read = number, write = number, fixed_read = number, fixed_write = number))
+        result := record_round.call(record_arguments)!
+        ref record: ReferencePermissions490 = result.get(0)
+        const ref mut record_alias: I64 = record.fixed_write
+        mut payload_arguments := Tuple.new()
+        payload_arguments.push(PayloadPermissions490, own PayloadPermissions490.FixedWrite(record_alias))
+        payload_result := payload_round.call(payload_arguments)!
+        ref payload: PayloadPermissions490 = payload_result.get(0)
+        number = 17
+        assert(record_alias == 17 && ptr_eq(record_alias, number))
+        switch payload {
+        case .FixedWrite(data): assert(data == 17 && ptr_eq(data, number))
+        case: panic("borrowed payload permission roundtrip lost its tag")
+        }
+    }
+    own payload_round.delete()
+    own record_round.delete()
+    own vm.delete()
+    // Each edit changes only referent permission: slot mutability, nominal
+    // type, layout and ownership remain identical. Validate inputs AND results.
+    for invalid : Str in array(Str,
+        record_schema.replace("ref read: I64", "ref mut read: I64"),
+        record_schema.replace("ref mut write: I64", "ref write: I64"),
+        record_schema.replace("const ref fixed_read: I64", "const ref mut fixed_read: I64"),
+        record_schema.replace("const ref mut fixed_write: I64", "const ref fixed_write: I64")) {
+        File.writefile("guest.til", format("mode lib\n", invalid, enum_schema, functions))
+        mut mismatch := TilVm.new(root)
+        mismatch.load_file("guest.til")!
+        expect_lookup_failure(mismatch, "record_round", "argument schema", signature = ReferenceRoundtrip490)
+        expect_lookup_failure(mismatch, "read_record", "result schema", signature = ReferenceRead490)
+    }
+    for invalid : Str in array(Str,
+        enum_schema.replace("\nRead: ref I64", "\nRead: ref mut I64"),
+        enum_schema.replace("\nWrite: ref mut I64", "\nWrite: ref I64"),
+        enum_schema.replace("const FixedRead: ref I64", "const FixedRead: ref mut I64"),
+        enum_schema.replace("const FixedWrite: ref mut I64", "const FixedWrite: ref I64")) {
+        File.writefile("guest.til", format("mode lib\n", record_schema, invalid, functions))
+        mut mismatch := TilVm.new(root)
+        mismatch.load_file("guest.til")!
+        expect_lookup_failure(mismatch, "payload_round", "argument schema", signature = PayloadRoundtrip490)
+        // The reader returns Empty, but every declared payload is checked,
+        // including unused variants with incompatible permission.
+        expect_lookup_failure(mismatch, "read_payload", "result schema", signature = PayloadRead490)
+    }
+}
+
 lookup_contract := func(signature: Type) returns FuncSig {
     return func_sig_of(til_type_name(signature))
 }
@@ -1854,6 +1939,7 @@ StateRoundtrip := func(CallbackState) returns CallbackState
 CallableRoundtrip := func(CallbackCallable) returns CallbackCallable
 
 enum_callback_tests := proc(root: Str) {
+    reference_permission_schema_tests(root)
     callable_enum_callback_tests(root)
     File.writefile("guest.til", format(
         "mode lib\nCallbackRecord := struct { number: I32 = 0; enabled := false; text := \"\" }\n",

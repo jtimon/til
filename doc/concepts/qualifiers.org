@@ -65,9 +65,13 @@ return-side ~mut~.
   arguments in types/default expressions. Fixed slots use canonical
   ~const ref~ / ~const ref mut~; replaceable global slots use ~mut ref~ /
   ~mut ref mut~.
-- Prepared: private scalar field/payload permission queries in C/MLIR-bridge
-  and HolyC emission and interpreter dispatch. ~struct_def_of~, ~enum_def_of~
-  and native schemas do not consume those bits until the bootstrap use step.
+- Implemented: ~struct_def_of~ / ~enum_def_of~ restore ~referent_mut~ /
+  ~payload_ref_mut~ through private C/MLIR-bridge queries and interpreter
+  dispatch. Native/TilVm schemas compare those permissions independently of
+  field slot mutability, payload constness and ownership. Source spelling
+  provenance (~ref_slot_explicit~) is not compared as an ABI permission.
+  HolyC scalar-query emission is prepared; full AST-valued reflection still
+  has the recursive owned-niche limitation below.
 - Implemented: ~func_sig_of~ restores ~return_ref_mut~ through a private query
   in C/MLIR-bridge emission and interpreter dispatch. Reflected
   read-only/writable results remain distinct; checked TilVm lookup and native
@@ -76,8 +80,8 @@ return-side ~mut~.
 - Prepared: HolyC emission for that private query. Full AST-valued
   ~func_sig_of~ still needs recursive owned-niche schema support in that backend.
 - Pending: complete source-path and writable-alias checks, the plain-ref
-  defaults migration, collection accessors, other reference-permission
-  reflection/native schema metadata and the C-header binding translator.
+  defaults migration, collection accessors, remaining reference-permission
+  metadata and the C-header binding translator.
   Existing accepted local/ref-field programs
   retain legacy permission behavior where these checks have not migrated.
 
