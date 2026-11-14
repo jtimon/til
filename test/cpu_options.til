@@ -120,6 +120,12 @@ main := proc(args: ..Str) {
     reject(Cmd.new(compiler, "build", "--cpu=native", "width.til"), "unknown CPU profile")
     reject(Cmd.new(compiler, "build", "--opt=1", "width.til"), "--opt expects 0, 2 or 3")
     reject(Cmd.new(compiler, "build", "--opt=", "width.til"), "--opt expects 0, 2 or 3")
+    File.writefile(format(WORK, "/android_gui.til"),
+        "mode gui\nmain := proc() { init_window(320, 240, \"APK options\"); CloseWindow() }\n")
+    for flag : Str in array(Str, "--asan", "--prof") {
+        reject(Cmd.new(compiler, "build", "--target=android-x64", flag, "android_gui.til"),
+            "Android APK packaging does not yet support --asan or --prof")
+    }
     reject(Cmd.new(compiler, "build", "--cpu", "width.til"), "requires an '=value'")
     reject(Cmd.new(compiler, "translate", "--cpu=baseline",
         realpath_str("editor/themes/til-dark-theme.til")), "not supported with mode theme")

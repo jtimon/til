@@ -1085,6 +1085,7 @@ GuiTarget := struct {
     mac_arch := ""
     // wasm32: raylib only, through emscripten (build_raylib_web).
     web := false
+    android := false
 }
 
 /// One target's raylib archive: the path src/modes/gui.til's link() line
@@ -1146,6 +1147,8 @@ gui_targets := proc(b: Build) returns Vec(GuiTarget) {
             raylib_cflags = x11_cflags()))
     }
     out.push(own GuiTarget(target = "wasm32", web = true))
+    out.push(own GuiTarget(target = "android-x64", android = true))
+    out.push(own GuiTarget(target = "android-arm64", android = true))
     return out
 }
 
@@ -1182,6 +1185,10 @@ require_gui_cc := proc(t: GuiTarget) {
 build_gui_raylib := proc(mut b: Build, target: Str) {
     t := gui_target(b, target)
     is_host := target == b.host.target_name()
+    if t.android {
+        build_android_raylib(b, target)
+        return
+    }
     if t.web {
         build_raylib_web(b)
         return
@@ -1225,12 +1232,69 @@ build_gui_raylib := proc(mut b: Build, target: Str) {
     copy(format(stage, "/libraylib.a"), output)
 }
 
+android_source_inputs := proc(mut inputs: Vec(Str), dir: Str) {
+    inputs.push(own dir.clone())
+    for name : Str in Dir.list(dir) {
+        path := format(dir, "/", name)
+        if File.is_dir(path) { android_source_inputs(inputs, path) }
+        else if path.ends_with(".c").or(path.ends_with(".h")) { inputs.push(own path.clone()) }
+    }
+}
+
+build_android_raylib := proc(mut b: Build, name: Str) {
+    if b.begin(format("raylib-", name)).not() { return }
+    output := raylib_lib(name)
+    mut inputs := vec(Str, "make.til")
+    android_source_inputs(inputs, "vendor/raylib/src")
+    android_source_inputs(inputs, "vendor/android/native_app_glue")
+    android_source_inputs(inputs, "vendor/android/sysroot/usr/include")
+    if needs_rebuild(output, inputs).not() { return }
+    target := target_from_str(name)
+    compiler := toolchain_command(target, Lang.C)
+    require_cross_cc(compiler, "", name)
+    stage := format("tmp/raylib-", name)
+    mkdir_p(stage)
+    mut objects := Vec(Str).new()
+    for source : Str in array(Str, "vendor/raylib/src/rcore.c", "vendor/raylib/src/rshapes.c",
+            "vendor/raylib/src/rtextures.c", "vendor/raylib/src/rtext.c",
+            "vendor/raylib/src/rmodels.c", "vendor/raylib/src/raudio.c",
+            "vendor/android/native_app_glue/android_native_app_glue.c") {
+        stem := source.strip_suffix(".c").replace("/", "_")
+        object := format(stage, "/", stem, ".o")
+        cmd := Cmd.new(compiler)
+        for flag : Str in toolchain_extra_args(target).split(" ") {
+            // Use raylib's -Wall policy; -Wextra is for our generated C.
+            if flag.len() > 0 && flag != "-Wextra" { cmd.arg(flag) }
+        }
+        for flag : Str in vec(Str, "-O1", "-std=c99", "-D_GNU_SOURCE", "-DPLATFORM_ANDROID",
+            "-DGRAPHICS_API_OPENGL_ES2", "-fPIC", "-fvisibility=hidden",
+            "-ffunction-sections", "-fdata-sections", "-fno-strict-aliasing",
+            "-Ivendor/raylib/src", "-Ivendor/android/native_app_glue", "-c", source, "-o", object) {
+            cmd.arg(flag)
+        }
+        cmd.run_checked()
+        objects.push(own object.clone())
+    }
+    mkdir_p(format(RAYLIB_DIR, "/build-", name))
+    temporary := format(output, ".tmp.", process_id().to_str())
+    File.remove(temporary)
+    mut archive := Cmd.new("ar", "rcsD", temporary)
+    if b.host.is_mac() {
+        archive = Cmd.new("ar", "rcs", temporary)
+        archive.env("ZERO_AR_DATE", "1")
+    }
+    for object : Str in objects { archive.arg(object) }
+    archive.run_checked()
+    File.rename(temporary, output)
+}
+
 /// tinyfiledialogs for one target: one .c file that only needs libc, so
 /// every toolchain builds it the same way. The host's is -fPIC, because
 /// build_ffi_twins relinks it into the interpreter's shared twin; this
 /// file is an input, so an archive built before a flag change is rebuilt.
 build_gui_tinyfd := proc(mut b: Build, target: Str) {
     t := gui_target(b, target)
+    if t.android { panic("tinyfiledialogs has no Android backend") }
     is_host := target == b.host.target_name()
     if t.web { panic("tinyfd has no wasm32 build: a browser page gets no native file dialogs") }
     if t.mac_arch.is_empty().not().and(is_host.not()) {
@@ -2190,6 +2254,8 @@ gui_windows_x64 := proc(mut b: Build) { build_gui_pair(b, "windows-x64") }
 gui_windows_x86 := proc(mut b: Build) { build_gui_pair(b, "windows-x86") }
 gui_macos_arm64 := proc(mut b: Build) { build_gui_pair(b, "macos-arm64") }
 gui_macos_x64 := proc(mut b: Build) { build_gui_pair(b, "macos-x64") }
+gui_android_x64 := proc(mut b: Build) { build_gui_raylib(b, "android-x64") }
+gui_android_arm64 := proc(mut b: Build) { build_gui_raylib(b, "android-arm64") }
 libffi_linux_x64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "linux-x64") }
 libffi_windows_x64 := proc(mut b: Build) { build_libffi_out_of_tree(b, "windows-x64") }
 libffi_windows_x86 := proc(mut b: Build) { build_libffi_out_of_tree(b, "windows-x86") }
@@ -2378,6 +2444,10 @@ commands := func() returns Vec(Command) {
     out.push(own Command(name = MAC_STUBS_STAMP, alias_of = "build_mac", is_path = true, go = build_mac_framework_stubs))
     out.push(own Command(name = raylib_lib("wasm32"), is_path = true, go = build_raylib_web,
         about = "wasm32 raylib (emcc, vendored emsdk), for mode gui"))
+    out.push(own Command(name = raylib_lib("android-x64"), is_path = true, go = gui_android_x64,
+        about = "android-x64 raylib and native-app glue, for APK builds"))
+    out.push(own Command(name = raylib_lib("android-arm64"), is_path = true, go = gui_android_arm64,
+        about = "android-arm64 raylib and native-app glue, for APK builds"))
     return out
 }
 

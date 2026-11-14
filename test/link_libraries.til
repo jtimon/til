@@ -96,6 +96,17 @@ main := proc(compiler: Str) {
     expect(named.out().contains("these linked libraries did not load"), named.out())
     expect(named.out().contains(format("liblink_probe_absent", extension)), named.out())
 
+    // A known compiler-vendor directory identifies a future build output
+    // even before that archive exists (Android raylib builds on demand).
+    future_source := format(dir, "/project/future_archive.til")
+    File.writefile(future_source,
+        "mode script\nlink(\"vendor/raylib/build-android-x64/link_path_probe_missing.a\")\nprintln(\"future\")\n")
+    future := Cmd.new(absolute_compiler, "build", "--cc=echo", future_source)
+    future.capture()
+    assert_eq(I64, future.run(), 0)
+    expect(future.out().contains(format(realpath_str("vendor/raylib"),
+        "/build-android-x64/link_path_probe_missing.a")), future.out(), future.err())
+
     for kind in vec(Str, "missing", "invalid") {
         bad_library := format(kind, extension)
         if kind == "missing" { File.remove(format(dir, "/", bad_library)) }

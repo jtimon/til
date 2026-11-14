@@ -1,0 +1,90 @@
+# priority: medium
+# category: features
+** OPEN #492 Virtual release target builds all available targets for a mode
+
+Allow one build invocation to produce the platform artifacts appropriate
+for a program's mode:
+
+#+begin_src sh
+til build --target=release examples/checkers.til
+#+end_src
+
+~release~ is a virtual build selection that expands into concrete targets,
+not an OS/CPU target or a runtime ABI. A GUI program would produce native
+desktop binaries, Android APKs, browser output, and other supported forms
+where their build path is available. Related Android packaging work is
+tracked in [[./462.org][#462]].
+
+The same mechanism must support library-like modes, including ~lib~,
+~liba~, ~pure~ and ~pura~. Their output includes the appropriate native
+libraries and the language bindings the ordinary concrete-target build
+generates. Do not lose bindings or associate one target's ABI-dependent
+binding with another target's library.
+
+*** Design requirements
+
+  - Resolve the mode and its target support before expanding the release
+    selection. Reuse concrete-target build logic instead of maintaining
+    a second compiler/packager implementation.
+  - Define "available" explicitly: supported by the mode, with an existing
+    backend/toolchain build path. Decide how installed-toolchain discovery
+    determines the set and how missing requirements are reported. A
+    release must list what it built and what it could not build; no silent
+    success after skipping intended artifacts.
+  - Give each target/layout its own output locations so executable,
+    library, intermediate and binding names do not overwrite each other.
+    Agree the public release output layout before implementing it.
+  - Reuse bindings only when they are genuinely target-independent.
+    Preserve target/layout-specific sizes, runtime/core dependencies and
+    native-loader identities. Any combined package must explicitly collect
+    the corresponding concrete-target artifacts.
+  - Keep compilation/packaging separate from execution: producing a
+    release must not try to execute each foreign binary or launch devices.
+  - Write a companion ~<artifact-name>.sha256~ file for every distributed
+    artifact, using SHA-256 over its final bytes after packaging, signing
+    and naming. Use the standard ~sha256sum -c~ compatible representation
+    (64 hexadecimal digest characters, two spaces, and the artifact's
+    relative filename). Verify the companions against the actual outputs.
+    Plain SHA-256 is currently implemented in ~src/std/crypto.til~;
+    libsecp256k1's public hash API exports the BIP-340 tagged hash, not
+    generic SHA-256. Depend on the project's plain SHA-256 interface so
+    its implementation can change independently of the release contract.
+  - Preserve the existing concrete ~--target~ build behavior. Do not add
+    a persistent release manifest, registry or second source of truth
+    without a separate explicit decision.
+
+*** Proposed source version requirement
+
+Consider requiring a global constant ~VERSION~ in the entry source for
+~--target=release~. Its evaluated value must be a string; it need not be
+a string literal. In particular, support a compile-time macro result,
+as ~src/til.til~ already does with ~VERSION := get_version()~ and the
+~get_version~ macro. This is a global constant, not a struct field.
+It would be the version's authority, without a separate version file or
+manifest. Settle whether it is mandatory for release builds before
+implementing that rule.
+
+For example, ~VERSION := "1.2.3"~ could produce
+~checkers-1.2.3-android-x64.apk~ and its ~.sha256~ companion. Include the
+concrete target in names or their enclosing release path so platforms do
+not collide. Validate filename-safe version text. An imported dependency's
+~VERSION~ must not silently supply the application's release version.
+
+Versioned naming must preserve native loader identities, SONAMEs and the
+paths bindings reference; renaming a library without updating its
+consumers is not a complete release. Ordinary concrete-target builds do
+not acquire a mandatory source-version requirement from this proposal.
+
+*** Acceptance
+
+  - [ ] The example command builds every target in the agreed available
+    set for the resolved GUI mode, including Android APK output.
+  - [ ] Library-like modes produce their native artifacts and bindings
+    for that set, with correct ABI/dependency associations.
+  - [ ] Multiple targets and layouts cannot clobber one another's outputs.
+  - [ ] The reported release contents and failures match the artifacts
+    actually produced; missing toolchains have explicit diagnostics.
+  - [ ] Every final distributed artifact has a matching, independently
+    verifiable SHA-256 companion, including signed APKs and packages.
+  - [ ] The agreed source ~VERSION~ rule produces correct release names
+    and diagnostics without breaking library/binding dependency names.

@@ -541,6 +541,7 @@ priv BuildPaths := struct {
     jni_c_path := ""
     java_path := ""
     theme_path := ""
+    android_dir := ""
     do_lib := false
 }
 
@@ -587,6 +588,7 @@ priv derive_build_paths := proc(lp: LoadedProgram, custom_bin: Str, custom_c: St
     if custom_c.len() > 0 { c_path = custom_c.clone() }
     mut ext := executable_extension(target)
     if target.is(Target.Wasm32).and(loads_gui_module(lp)) { ext = ".html" }
+    if is_android_target(target).and(loads_gui_module(lp)).and(lp.cur_mode.is_library.not()).and(lp.run_tests.not()) { ext = ".apk" }
     mut bin_path := format("bin/", stem, ext)
     if custom_bin.len() > 0 { bin_path = custom_bin.clone() }
 
@@ -599,6 +601,11 @@ priv derive_build_paths := proc(lp: LoadedProgram, custom_bin: Str, custom_c: St
     paths.jni_c_path = format("gen/til/", name, "_jni.c")
     paths.java_path = format("gen/til/java/til/", jni_package_name(name), "/", jni_class_name(name), ".java")
     paths.do_lib = lp.cur_mode.is_library
+    if ext == ".apk" {
+        mut layout := "U32"
+        if lp.usize_override_bits == 64 { layout = "U64" }
+        paths.android_dir = format(c_path.strip_suffix(".c"), "_android/", target_to_str(target), "/", layout)
+    }
     switch backend {
     case "mlir":
         paths.runtime_c_path = paths.c_path.clone()
@@ -993,6 +1000,9 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
     build_flags := c_build_flags(lp)
     link_flags := format(lp.link_flags_for_target(), macos_framework_flags(lp))
     include_flags := lp.include_flags_for_target()
+    if paths.android_dir.len() > 0 {
+        return compile_android_apk(lp, paths, target, cc_override, asan, prof)
+    }
     if report_missing_target_archives(lp) != 0 { return 1 }
     if paths.do_lib {
         return compile_lib(paths.c_path, paths.name, lp.ext_c_path,
@@ -1266,6 +1276,192 @@ priv jni_java_home := proc() returns Str {
     javac := which.out().trim().clone()
     if javac.ends_with("/bin/javac").not() { return "" }
     return javac.strip_suffix("/bin/javac").clone()
+}
+
+priv android_property := func(properties: Str, key: Str) returns Str {
+    prefix := format(key, "=")
+    for line : Str in properties.split("\n") {
+        if line.starts_with(prefix) { return line.strip_prefix(prefix).trim().clone() }
+    }
+    // SDK property files omit optional properties, including release codenames.
+    return ""
+}
+
+priv android_version_rank := func(name: Str) returns I64 {
+    parts := name.split(".")
+    if parts.len() != 3 { return -1 }
+    for part : Str in parts {
+        if part.len() == 0 { return -1 }
+        for ch : I8 in part {
+            if ch < '0' || ch > '9' { return -1 }
+        }
+    }
+    return parts[0].to_i64() * 1000000 + parts[1].to_i64() * 1000 + parts[2].to_i64()
+}
+
+priv android_sdk_root := proc() returns Str {
+    mut root := get_env("ANDROID_HOME")
+    if root.len() == 0 {
+        home := get_env("HOME")
+        if home.len() == 0 { panic("Android APK builds need ANDROID_HOME or HOME") }
+        if host_os() == "macos" { root = format(home, "/Library/Android/sdk") }
+        else { root = format(home, "/Android/Sdk") }
+    }
+    if File.is_dir(root).not() { panic("Android SDK not found at ", root, "; set ANDROID_HOME") }
+    return root
+}
+
+priv android_build_tools := proc(sdk: Str) returns Str {
+    dir := format(sdk, "/build-tools")
+    if File.is_dir(dir).not() { panic("install Android SDK Build-Tools 35 or newer") }
+    mut selected := ""
+    mut rank : I64 = -1
+    for name : Str in Dir.list(dir) {
+        candidate := android_version_rank(name)
+        if candidate > rank {
+            rank = candidate
+            selected = format(dir, "/", name)
+        }
+    }
+    if rank < 35000000 { panic("Android APK builds need stable SDK Build-Tools 35 or newer") }
+    return selected
+}
+
+priv android_platform_jar := proc(sdk: Str) returns Str {
+    dir := format(sdk, "/platforms")
+    if File.is_dir(dir).not() { panic("install Android SDK Platform 37") }
+    mut selected := ""
+    for name : Str in Dir.list(dir) {
+        if name.starts_with("android-").not() { continue }
+        properties := format(dir, "/", name, "/source.properties")
+        // An incomplete SDK package is not an installed candidate.
+        if File.is_file(properties).not() { continue }
+        contents := File.readfile(properties)
+        api := android_property(contents, "AndroidVersion.ApiLevel")
+        if api.neq("37").and(api.starts_with("37.").not()) { continue }
+        if android_property(contents, "AndroidVersion.CodeName").len() > 0 { continue }
+        candidate := format(dir, "/", name, "/android.jar")
+        if File.is_file(candidate).not() { panic("SDK Platform 37 is incomplete: ", candidate) }
+        if selected.len() == 0 || candidate > selected { selected = candidate.clone() }
+    }
+    if selected.len() == 0 { panic("install stable Android SDK Platform 37") }
+    return selected
+}
+
+priv android_debug_key := proc(java_home: Str) returns Str {
+    home := get_env("HOME")
+    if home.len() == 0 { panic("Android debug signing needs HOME") }
+    dir := format(home, "/.android")
+    if mkdir_p(dir) != 0 { panic("cannot create Android signing directory: ", dir) }
+    key := format(dir, "/debug.keystore")
+    if File.exists(key).not() {
+        cmd := Cmd.new(format(java_home, "/bin/keytool"), "-genkeypair", "-keystore", key,
+            "-storepass", "android", "-keypass", "android", "-alias", "androiddebugkey",
+            "-keyalg", "RSA", "-keysize", "2048", "-validity", "10000", "-dname", "CN=Android Debug,O=Android,C=US")
+        cmd.run_checked()
+        Cmd.new("chmod", "600", key).run_checked()
+    }
+    return key
+}
+
+priv android_xml := func(value: Str) returns Str {
+    return value.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;").replace(">", "&gt;")
+}
+
+priv compile_android_apk := proc(lp: LoadedProgram, paths: BuildPaths, target: Target,
+        cc_override: Str, asan: Bool, prof: Bool) returns I32 {
+    if asan || prof {
+        println("error: Android APK packaging does not yet support --asan or --prof")
+        return 1
+    }
+    if host_os().eq("linux").or(host_os().eq("macos")).not() {
+        println("error: Android APK packaging currently needs a Linux or macOS host")
+        return 1
+    }
+    sdk := android_sdk_root()
+    tools := android_build_tools(sdk)
+    platform := android_platform_jar(sdk)
+    java_home := jni_java_home()
+    if java_home.len() == 0 { panic("Android APK packaging needs JDK 17 or newer (JAVA_HOME or javac on PATH)") }
+    jar := format(java_home, "/bin/jar")
+    jar_help := Cmd.new(jar, "--help")
+    jar_help.capture()
+    if jar_help.run() != 0 || jar_help.out().contains("--date").not() { panic("Android APK packaging needs JDK 17 or newer") }
+    key := android_debug_key(java_home)
+    root := builder_compiler_root(lp)
+    archive := format("vendor/raylib/build-", target_to_str(target), "/libraylib.a")
+    build_vendor := Cmd.new("make", archive)
+    build_vendor.cwd(root)
+    if build_vendor.run() != 0 { println("error: Android raylib build failed"); return 1 }
+    if report_missing_target_archives(lp) != 0 { return 1 }
+
+    stage := paths.android_dir
+    mut abi := "x86_64"
+    if target.is(Target.AndroidArm64) { abi = "arm64-v8a" }
+    lib_dir := format(stage, "/lib/", abi)
+    if mkdir_p(lib_dir) != 0 { panic("cannot create Android native library directory: ", lib_dir) }
+    mut segment := jni_package_name(paths.name)
+    if segment.len() == 0 { panic("Android APK source must have a nonempty name") }
+    ref first : I8 = segment.get(0)
+    if (first >= 'a' && first <= 'z' || first >= 'A' && first <= 'Z').not() { segment = format("app", segment) }
+    lib_name := format("lib", segment, ".so")
+    shared := format(lib_dir, "/", lib_name)
+    manifest := format(stage, "/AndroidManifest.xml")
+    File.writefile(manifest, format(
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n",
+        "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"org.til.", segment,
+        "\" android:versionCode=\"1\" android:versionName=\"0.1\">\n",
+        "<uses-sdk android:minSdkVersion=\"28\" android:targetSdkVersion=\"37\"/>\n",
+        "<uses-feature android:glEsVersion=\"0x00020000\" android:required=\"true\"/>\n",
+        "<application android:label=\"til ", android_xml(jni_class_name(paths.name)),
+        "\" android:hasCode=\"false\" android:extractNativeLibs=\"false\" android:theme=\"@android:style/Theme.NoTitleBar.Fullscreen\">\n",
+        "<activity android:name=\"android.app.NativeActivity\" android:exported=\"true\" android:screenOrientation=\"portrait\" android:configChanges=\"orientation|keyboardHidden|screenSize\">\n",
+        "<meta-data android:name=\"android.app.lib_name\" android:value=\"", segment, "\"/>\n",
+        "<intent-filter><action android:name=\"android.intent.action.MAIN\"/><category android:name=\"android.intent.category.LAUNCHER\"/></intent-filter>\n",
+        "</activity></application></manifest>\n"))
+    mut compiler := cc_override.clone()
+    if compiler.len() == 0 { compiler = toolchain_command(target, Lang.C) }
+    mut width := " -DTIL_USIZE32"
+    if lp.ctx.target_usize_pname == "U64" { width = " -DTIL_USIZE64" }
+    extra := format(toolchain_extra_args(target), c_build_flags(lp), width,
+        " -fPIC -fvisibility=hidden -ffunction-sections -fdata-sections -Werror")
+    ext_dir := lp.ext_c_path.substr(0, lp.ext_c_path.rfind("/").to_usize())
+    mut objects := ""
+    mut index : USize = 0
+    for source : Str in lp.link_c_paths.split(" ") {
+        if source.len() == 0 { continue }
+        object := format(stage, "/user_", index.to_str(), ".o")
+        cmd := format(compiler, extra, " -I", mlir_shell_quote(ext_dir), lp.include_flags_for_target(),
+            " -include ", mlir_shell_quote(paths.fwd_path), " -c ", mlir_shell_quote(source), " -o ", mlir_shell_quote(object))
+        if system_cmd(cmd) != 0 { println("error: Android link_c compilation failed"); return 1 }
+        objects = format(objects, " ", mlir_shell_quote(object))
+        index++
+    }
+    mut links := ""
+    for token : Str in resolve_target_archives(lp.link_flags_for_target(), root).split(" ") {
+        if token.len() == 0 { continue }
+        if token.eq("-lrt").or(token.eq("-lpthread")) { continue }
+        links = format(links, " ", token)
+    }
+    cmd := format(compiler, extra, " -g -I", mlir_shell_quote(ext_dir),
+        " -shared -Wl,--gc-sections,-z,defs -Wl,-u,ANativeActivity_onCreate -Wl,-soname,", lib_name,
+        target_link_extra_args(target), " -o ", mlir_shell_quote(shared), " ", mlir_shell_quote(paths.c_path),
+        " ", mlir_shell_quote(lp.ext_c_path), objects, links, " ", target_system_libs(target))
+    if system_cmd(cmd) != 0 { println("error: Android native application link failed"); return 1 }
+    unsigned := format(stage, "/unsigned.apk")
+    aligned := format(stage, "/aligned.apk")
+    signed := format(stage, "/signed.apk")
+    if Cmd.new(format(tools, "/aapt2"), "link", "--manifest", manifest, "-I", platform, "-o", unsigned).run() != 0 { return 1 }
+    if Cmd.new(jar, "-J-Duser.timezone=UTC", "--update", "--no-manifest", "--no-compress",
+            "--date=1980-01-01T00:00:02Z", format("--file=", unsigned), "-C", stage, format("lib/", abi, "/", lib_name)).run() != 0 { return 1 }
+    if Cmd.new(format(tools, "/zipalign"), "-P", "16", "-f", "4", unsigned, aligned).run() != 0 { return 1 }
+    if Cmd.new(format(tools, "/apksigner"), "sign", "--ks", key, "--ks-pass", "pass:android",
+            "--key-pass", "pass:android", "--v4-signing-enabled", "false", "--out", signed, aligned).run() != 0 { return 1 }
+    if Cmd.new(format(tools, "/apksigner"), "verify", signed).run() != 0 { return 1 }
+    if Cmd.new(format(tools, "/zipalign"), "-c", "-P", "16", "4", signed).run() != 0 { return 1 }
+    File.rename(signed, paths.bin_path)
+    println("Generated: ", paths.bin_path)
+    return 0
 }
 
 priv jni_bridge_path := func(paths: BuildPaths, target: Target) returns Str {
@@ -1778,6 +1974,9 @@ translation_is_current := proc(lp: LoadedProgram, command: Str, custom_bin: Str,
 }
 
 priv executable_is_current := proc(lp: LoadedProgram, paths: BuildPaths) returns Bool {
+    // APK signing and SDK tools have their own inputs. Regenerate packaging
+    // from the reusable C rather than treating a ZIP as an ELF executable.
+    if paths.android_dir.len() > 0 { return false }
     if output_outranks_inputs(paths.bin_path, executable_inputs(lp, paths)).not() { return false }
     return File.readfile(paths.bin_path).contains(executable_stamp_marker(lp.executable_stamp))
 }
@@ -1944,6 +2143,10 @@ priv asan_child_options := proc() returns Str {
 // is a child environment entry rather than a `NAME=value ` shell prefix.
 priv run_artifact := proc(paths: BuildPaths, user_argv: Vec(Str),
     target: Target, asan: Bool) returns I32 {
+        if paths.android_dir.len() > 0 {
+            println("error: run this APK on an Android device: adb install -r ", paths.bin_path)
+            return 1
+        }
         command := Cmd.new()
         if target.is(Target.Wasm32).and(paths.bin_path.ends_with(".js")) {
             // A non-gui wasm32 program is a node script (issue #424). (A

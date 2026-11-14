@@ -76,6 +76,14 @@ resolve_link_path := proc(base_dir: Str, root_dir: Str, path: Str) returns Str {
         if realpath_str(root_candidate).len() > 0 {
             return root_candidate
         }
+        // A compiler-vendored archive can be built after loading (Android GUI).
+        // Keep its declared compiler-root identity even while the file is absent.
+        if path.starts_with("vendor/") {
+            parts := path.split("/")
+            if parts.len() > 1 && File.is_dir(format(root_dir, "/vendor/", parts[1])) {
+                return root_candidate
+            }
+        }
     }
     return rel_candidate
 }

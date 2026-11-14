@@ -13,13 +13,17 @@ build a til program against it.
     including the ~aarch64-linux-android/~ and ~x86_64-linux-android/~
     architecture headers. Excludes libc++ headers and other architectures.
   - ~sysroot/usr/lib/<triple>/28/~: the upstream ~libc.so~, ~libm.so~,
-    ~libdl.so~ and ~liblog.so~ linker stubs, plus ~crtbegin_dynamic.o~,
+    ~libdl.so~, ~liblog.so~, ~libandroid.so~, ~libEGL.so~, ~libGLESv2.so~
+    and ~libOpenSLES.so~ linker stubs, plus ~crtbegin_dynamic.o~,
     ~crtbegin_so.o~, ~crtend_android.o~ and ~crtend_so.o~. The stubs describe
     the minimum API 28 interface; Android supplies the real libraries at
     runtime. Do not package these stubs into an APK or copy them to a device.
   - ~lib/~: upstream ~libclang_rt.builtins-aarch64-android.a~ and
     ~libclang_rt.builtins-x86_64-android.a~, from
     ~lib/clang/21/lib/linux/~ in that toolchain.
+  - ~native_app_glue/~: unmodified ~android_native_app_glue.c~ / ~.h~ from
+    the NDK's ~sources/android/native_app_glue/~. Android raylib archives
+    compile these alongside the upstream raylib sources.
   - ~NOTICE~ and ~NOTICE.toolchain~: upstream aggregate notices, copied
     verbatim. Headers retain their per-file notices. These cover bionic
     and Linux UAPI licensing and compiler-rt's Apache-2.0 with LLVM
@@ -28,6 +32,8 @@ build a til program against it.
 The initial subset has about 13.3 MB apparent size (17 MiB allocated on
 the extraction filesystem), including notices. The full NDK C/C++ include
 tree alone occupied 32 MiB; excluded C++ headers accounted for 17 MiB.
+Including APK support's stubs and glue, the current apparent size is
+about 13.6 MB.
 No libc++, libffi, sanitizer runtime, unwinder or host compiler binary is
 included. C programs tested here do not require a separate unwinder.
 
@@ -56,7 +62,53 @@ Both targets support the existing ~--usize=32~ and ~--usize=64~ layouts.
 The subset is optional: the default build and test suite do not need the
 Android SDK, NDK, ADB or emulator. Running the resulting executable needs
 an Android device/emulator; ~til run~ does not launch an emulator.
-NativeActivity/APK and Android JNI packaging remain separate #462 work.
+Android JNI packaging remains separate #462 work.
+
+** GUI APK builds
+
+#+begin_src sh
+bin/til build --target=android-x64 examples/checkers.til
+bin/til build --target=android-arm64 -o tmp/checkers-arm64.apk examples/checkers.til
+#+end_src
+
+The first command produces ~bin/examples/checkers.apk~. Programs loading
+the GUI module produce an APK; CLI programs and mode-lib builds retain
+their executable/library artifact kinds. ~-o~ and ~-c~ keep their normal
+override meanings. Both USize layouts are supported; APKs contain the
+one ABI selected by the concrete target.
+
+Packaging needs stable Android SDK Build-Tools 35+, SDK Platform 37 and
+JDK 17+ (jar/keytool), in addition to the native clang/LLD toolchain.
+~ANDROID_HOME~ selects the SDK; without it the Linux default is
+~$HOME/Android/Sdk~ and the macOS default is ~$HOME/Library/Android/sdk~.
+JDK discovery uses ~JAVA_HOME~ or the existing javac-on-PATH discovery.
+The implemented host paths are Linux and macOS; local validation used Linux.
+
+The existing make.til artifact goals build
+~vendor/raylib/build-android-{x64,arm64}/libraylib.a~ on demand, with host
+clang and this vendored subset. Neither native-app glue nor raylib is
+patched during the build. No installed NDK is needed for APK generation.
+
+The builder writes the manifest, native shared library and unsigned,
+aligned and signed intermediate APKs under the C source stem's
+~_android/<target>/<layout>/~ directory (normally
+~gen/til/examples/checkers_android/android-x64/U32/~). SDK tools package,
+align and sign them, then the verified signed APK is published to ~-o~
+or its default path. C translation and native archives can be reused;
+packaging/signing regenerate on each build. ZIP entry dates are fixed.
+
+Debug signing uses the persistent standard ~$HOME/.android/debug.keystore~,
+created with keytool only if absent. The password and alias are the normal
+Android debug values. The original local Checkers key was moved there
+from ~tmp/checkers-debug.keystore~, preserving updates to the installed
+demo. Keys are not generated under gen/ or committed.
+
+The generated package ID is ~org.til.<escaped-source-name>~, label
+~til <SourceName>~, minimum API 28, target API 37, versionCode 1 and
+versionName 0.1. It uses the system NativeActivity and retains the demo's
+portrait/fullscreen configuration. Release versioning is tracked in #492.
+APK execution still requires installing/launching on Android; ~til run~
+does not select a device. APK --asan/--prof packaging is not implemented.
 
 ** Extraction and upgrades
 
@@ -70,14 +122,14 @@ device checks described in #462 before committing an upgrade.
 #+begin_src sh
 NDK="$HOME/Android/Sdk/ndk/30.0.16248370"
 TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64"
-mkdir -p vendor/android/sysroot/usr/include vendor/android/lib
+mkdir -p vendor/android/sysroot/usr/include vendor/android/lib vendor/android/native_app_glue
 tar -C "$TOOLCHAIN/sysroot/usr/include" \
     --exclude=./c++ --exclude=./arm-linux-androideabi \
     --exclude=./i686-linux-android --exclude=./riscv64-linux-android \
     -cf - . | tar -C vendor/android/sysroot/usr/include -xf -
 for triple in aarch64-linux-android x86_64-linux-android; do
     mkdir -p "vendor/android/sysroot/usr/lib/$triple/28"
-    for file in libc.so libm.so libdl.so liblog.so crtbegin_dynamic.o crtbegin_so.o crtend_android.o crtend_so.o; do
+    for file in libc.so libm.so libdl.so liblog.so libandroid.so libEGL.so libGLESv2.so libOpenSLES.so crtbegin_dynamic.o crtbegin_so.o crtend_android.o crtend_so.o; do
         cp -a "$TOOLCHAIN/sysroot/usr/lib/$triple/28/$file" \
             "vendor/android/sysroot/usr/lib/$triple/28/"
     done
@@ -85,4 +137,6 @@ done
 cp -a "$TOOLCHAIN/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a" \
     "$TOOLCHAIN/lib/clang/21/lib/linux/libclang_rt.builtins-x86_64-android.a" vendor/android/lib/
 cp -a "$NDK/NOTICE" "$NDK/NOTICE.toolchain" vendor/android/
+cp -a "$NDK/sources/android/native_app_glue/android_native_app_glue.c" \
+    "$NDK/sources/android/native_app_glue/android_native_app_glue.h" vendor/android/native_app_glue/
 #+end_src

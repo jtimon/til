@@ -162,11 +162,13 @@ and app path separately from til. Record NDK ~source.properties~, compiler
 version, build-tools version and system-image revision here when verified.
 Keep command logs and scratch outputs under the worktree's existing ~tmp/~.
 
-The human opens the emulator through Device Manager (or a foreground
-terminal); the agent does not start background emulator jobs. With that
-emulator running, the local session can install, launch and drive the app
-through ~adb~. A requested demo means showing the real app in the visible
-emulator on this desktop, with screenshots as supporting evidence.
+The human initially opened the emulators. Subsequently APPROVED: the
+agent may use SDK-managed emulator start/stop as a narrow lifecycle
+exception, with foreground SDK calls and no detached build/test jobs.
+Start waits for boot readiness; automated checks stop only devices the
+agent started and wait for termination. A requested manual demo can keep
+the visible device open. A demo means the real app on this desktop, with
+screenshots as supporting evidence.
 
 After the first working setup, add the minimum API 28 AVD and an available
 16 KB page-size image, plus the newest stable API if different from the
@@ -208,8 +210,8 @@ would change.
     and ELF/APK alignment checks. Exit paths tested are qualified below.
   - [ ] Consistent Back-to-exit behavior on API 28 and API 35; raylib
     consumes legacy Back input on these images.
-  - [ ] Cross-build the arm64 APK and run it on an ARM device; x86_64
-    execution and ARM64 CLI/library cross-builds do not establish this.
+  - [X] Cross-build the arm64 APK with its NativeActivity entry point.
+  - [ ] Run that APK on an ARM device; x86_64 execution is not ARM coverage.
 
 APPROVED and exercised locally: package the demo directly with SDK
 ~aapt2~, ~zipalign~ and ~apksigner~. The disposable outputs are
@@ -220,7 +222,61 @@ the manifest and staged library; ~adb~ consumes the signed APK. These
 metadata/signing steps are needed in addition to the C/ELF output. The
 key is local debug material, never committed; regenerating it requires
 reinstalling the app. This approval adds no til command/flag or permanent
-output layout. A production packaging/build interface still needs approval.
+output layout. The subsequently approved first-class build contract is below.
+
+*** First-class Android GUI APK builds
+
+APPROVED and implemented through the existing C build pipeline:
+
+#+begin_src sh
+bin/til build --target=android-x64 examples/checkers.til
+bin/til build --target=android-arm64 -o tmp/checkers-arm64.apk examples/checkers.til
+#+end_src
+
+The default GUI output is ~bin/examples/checkers.apk~; CLI and library
+targets retain ELF/library output. Existing ~-o~, ~-c~, CPU/optimization
+selection and both USize layouts apply. Intermediate manifest, objects,
+native library and APKs live below the C source stem's
+~_android/<target>/<layout>/~ directory. SDK tools package, align, sign and
+verify the final APK before it is published. The manifest uses the
+existing system NativeActivity, source-derived package/label, minimum
+API 28 and target API 37. APK device selection/execution and --asan/--prof
+packaging remain outside this build interface and fail explicitly.
+
+SDK discovery uses ~ANDROID_HOME~ or the host's standard home location.
+Packaging requires stable Build-Tools 35+, Platform 37 and JDK 17+.
+Native compilation uses host clang/LLD and the vendored subset, expanded
+with unmodified NDK graphics stubs and native-app glue. make.til builds
+the target's raylib archive on demand; no additional raylib patch was made.
+Missing compiler-vendor archives retain their declared compiler-root path
+while absent, so loading before this automatic build cannot freeze an
+incorrect module-relative link path.
+
+Debug signing uses ~$HOME/.android/debug.keystore~. The local scratch key
+was moved there with approval, preserving certificate identity and updates
+to the installed Checkers demo. keytool creates a key only when absent;
+apksigner reads the persistent key. A separate isolated-HOME test verified
+first-build key generation and mode 600, without replacing the user's key.
+
+Local verification:
+
+  - The exact first command produced a signed x86_64 APK, including when
+    the raylib archive was initially absent. Repeated builds were byte-identical.
+  - ARM64 APK cross-build and x86_64 ~--usize=64~ / ~-o~ builds succeeded;
+    manifest/ABI, signature and 16 KB zip-alignment checks passed.
+  - SDK-managed foreground start/stop drove headless API 28 / 4 KB and
+    API 35 / 16 KB devices. Generated USize32 APKs rendered and accepted
+    2P moves; USize64 APKs installed, rendered and resumed after Home.
+    Screenshots are ~tmp/apk_api28_{moves,u64}.png~ and
+    ~tmp/apk_16k_{moves,u64}.png~. Both owned devices were stopped afterward.
+  - SDK-free regressions in existing ~test/link_libraries.til~ and
+    ~test/cpu_options.til~ cover missing-vendor path identity and explicit
+    unsupported APK instrumentation diagnostics.
+  - ~make clean && make test~ passed all 575 tests after implementation.
+
+See ~vendor/android/README.org~ for build prerequisites, extraction and
+signing details. The virtual release selection, checksum companions and
+macro-produced global VERSION are tracked separately in [[./492.org][#492]].
 
 *** First installed demo: results and remaining checks
 

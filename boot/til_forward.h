@@ -2127,6 +2127,7 @@ typedef struct priv___src_self_builder_til__BuildPaths {
     Str jni_c_path;
     Str java_path;
     Str theme_path;
+    Str android_dir;
     Bool do_lib;
 } priv___src_self_builder_til__BuildPaths;
 
