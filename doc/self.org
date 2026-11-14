@@ -216,8 +216,9 @@
     for bare names, payload-binding patterns and flattened calls. C, HolyC and
     FASM use these queries; other backends can use the same semantic facts.
   - ~common_c.til~ holds C-family decisions used by C and HolyC: scalar operator
-    spelling, namespace-versus-instance member classification, and enum-switch
-    lookup/pointer-presence case values. The emitters supply receiver and
+    spelling, namespace-versus-instance member classification, reference-returning
+    call signatures, call-based field receivers, and enum-switch lookup/pointer-
+    presence case values. The emitters supply receiver and
     representation information and emit their own storage accesses and syntax.
 
   Shared language rules and lowering stay in ~context.til~, ~typer.til~ and the

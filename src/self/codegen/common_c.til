@@ -39,6 +39,34 @@ c_field_is_namespace := func(owner: Str, member: Str, receiver_names_type: Bool,
     return true
 }
 
+// The signature, not the expression's possibly narrowed stamp, determines
+// whether a call result borrows storage. Emitter-local anonymous signatures
+// can supplement a miss; they must not resolve through a same-name global.
+c_call_reference_type := func(call: Expr, ctx: Context) returns Option(ref Str) {
+    if call.node_type.is(NodeType.FCall).not() { return Option(ref Str).None }
+    mut definition := resolve_direct_fcall(call, ctx.scope, ctx.symbols)
+    if definition.is_none() {
+        ref callee : Expr = call.children[0]
+        if is_funcptr_sig(callee.til_type()) {
+            definition = ctx.scope.lookup_func_name(type_name_ref(callee.til_type(), ctx.symbols), ctx.symbols)
+        }
+    }
+    if definition.is_none() { return Option(ref Str).None }
+    ref function : FunctionDef = funcdef_of(definition.unwrap())
+    if function.sig.return_own_type.is(OwnType.Ref).not() { return Option(ref Str).None }
+    return safe_ref(function.sig.return_type)
+}
+
+// Managed assignment may read, replace and destroy one field. Stabilize a
+// call-based receiver before those operations so they all name one place.
+c_field_receiver_has_call := func(receiver: Expr) returns Bool {
+    switch receiver.node_type {
+    case .FCall: return true
+    case .FieldAccess: return c_field_receiver_has_call(receiver.children[0])
+    case: return false
+    }
+}
+
 c_switch_enum_definition := func(subject: Expr, ctx: Context) returns Option(ref Expr) {
     return codegen_enum_definition(subject.til_type(), ctx)
 }

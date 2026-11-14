@@ -11455,7 +11455,7 @@ I64 TilMain()
     I64 _va_Array_g104_ek_694 = 0;
     U64 hoisted__U64_g463_695 = 0;
     TilStr hoisted__Str_g464_696;
-    TilStrFromI64(&hoisted__Str_g464_696, (borrowed_point(&holder_690))->x);
+    TilStrFromI64(&hoisted__Str_g464_696, ((TilCheckPtr(borrowed_point(&holder_690)))(StructPoint *))->x);
     TilStrArraySet(&_va_Array_g104_693, hoisted__U64_g463_695, &hoisted__Str_g464_696);
     U64 hoisted__U64_g465_697 = 1;
     TilStr hoisted__Str_g466_698;

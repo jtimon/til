@@ -144,7 +144,10 @@ priv use_dot_access := func(obj: Expr, ctx: Context) returns Bool {
     if obj.node_type.is(NodeType.FieldAccess) {
         if builder_fa_is_ptr(obj, ctx).not() { return true }
     }
-    if obj.node_type.is(NodeType.FCall).and(fcall_returns_c_value(obj, ctx)) { return true }
+    if obj.node_type.is(NodeType.FCall) {
+        if c_call_reference_type(obj, ctx).is_some() { return false }
+        if fcall_returns_c_value(obj, ctx) { return true }
+    }
     switch obj.node_type {
     case .Ident(ident):
         // Captures are emitted as *env->field, an aggregate value even
@@ -1277,6 +1280,7 @@ priv fcall_returns_c_value := func(fcall: Expr, ctx: Context) returns Bool {
 
 priv fcall_returns_ref := func(fcall: Expr, ctx: Context) returns Bool {
     if fcall.node_type.is(NodeType.FCall).not() { return false }
+    if c_call_reference_type(fcall, ctx).is_some() { return true }
     callee := resolve_callee_name(fcall, ctx.symbols)
     if callee.len() > 0 {
         fdef_o := find_callee_fdef(callee, ctx)
@@ -3215,6 +3219,26 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
             f.write(";\n")
         }
     case .FieldAssign(fad):
+        if c_field_receiver_has_call(e.children[0]).and(builder_fa_is_ns(e, ctx).not()) {
+            name := format("_t_field_receiver_", ctx.builder_func.ctor_seq.to_str())
+            ctx.builder_func.ctor_seq++
+            symbol := ctx.symbols.intern(name)
+            receiver_type := type_name_to_c_value(type_name_ref(e.children[0].til_type(), ctx.symbols), ctx)
+            f.write("{ ").write(receiver_type).write(" *").write(name).write(" = ")
+            emit_as_ptr(f, e.children[0], depth, false, ctx)
+            f.write(";\n")
+            mut bound := e.clone()
+            mut receiver := Expr.new(own ident_node(symbol), e.line, e.col)
+            receiver.set_til_type(e.children[0].til_type().clone())
+            bound.children[0] = receiver
+            ctx.builder_func.ref_locals.add(own symbol.clone())
+            emit_indent(f, depth + 1)
+            emit_stmt(f, bound, depth + 1, ctx)
+            ctx.builder_func.ref_locals.remove(symbol)
+            emit_indent(f, depth)
+            f.write("}\n")
+            return
+        }
         fname := fad.name
         ref obj : Expr = e.children[0]
         ref mut rhs_fa : Expr = e.children[1]

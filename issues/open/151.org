@@ -867,9 +867,9 @@
 
   Keep ~bin/til translate --target=templeos -c tmp/til.HC src/til.til~ as a
   development pressure test, not a claim of a working TempleOS compiler.
-  The latest full attempt on ~bee4625e6~ plus the shared-codegen/niche-switch
-  changes, at both USize widths, passes ~TypeScope_active_type_name~ and reaches
-  ~TypeScope_erase_binding: unsupported field base 'fcall'~.
+  The latest full attempt on ~ae1daf9eb~ plus the reference-call field changes,
+  at both USize widths, passes ~TypeScope_erase_binding~ and reaches
+  ~cyclic inline struct dependency~ during HolyC type definition ordering.
   Dynamic Map values, nested ordered containers, scalar namespace storage and
   custom nested lifecycle hooks pass shared native regressions.
   General Dynamic-to-typed casts, the remaining
@@ -1775,8 +1775,40 @@
   C-compiled, through an ASAN compiler, at C/ASAN O0/O2 with USize32/64, and as
   native FASM at both widths. All ten focused TempleOS allocation-ledger cases
   pass, including those 17 cases at each width. Both full compiler-to-HolyC
-  translations pass the former niche-switch failure and reach the field-base
-  diagnostic in ~TypeScope_erase_binding~ recorded above.
+  translations passed the former niche-switch failure and reached the field-base
+  diagnostic in ~TypeScope_erase_binding~, addressed in the next slice.
+
+**** Fields through reference-returning calls
+
+  C and HolyC share signature-based reference-return classification in
+  ~common_c.til~, retaining emitter-local callable signature lookup where needed.
+  HolyC's common field path now accepts direct and indirect borrowed results,
+  including collection element getters, nested fields, Str borrows and managed
+  field arguments. It uses checked pointer-member access: HolyC rejects the
+  C-style parenthesized aggregate dereference followed by a dot as a value
+  rather than an addressable aggregate.
+
+  Call-based assignment receivers are evaluated once into a native pointer
+  before reading, replacing and deleting their fields. The receiver-shape query
+  is shared; each emitter retains its storage and temporary-binding mechanics.
+  The exact-call-count regression also caught C evaluating a Str replacement's
+  receiver twice, once for the saved old value and again for the store. Both
+  emitters now preserve one place and retain the existing ownership cleanup.
+
+  Three common namespace tests cover scalar and nested managed reads, returned
+  Str aliases that observe original-storage mutation, field writes, Vec field
+  mutation, managed replacement, exact getter counts and named indirect getters
+  passed through locals and parameters. The index parameter explicitly uses
+  its value ABI; the item result and mutation counter retain reference ABI.
+
+  Verification on master ~ae1daf9eb~: ~make clean && make test_two_pass~ passes
+  575/575, clang-clean. The namespace suite passes 20/20 interpreted and compiled,
+  at C/ASAN O0/O2 with USize32/64, and through an ASAN compiler for both C test
+  execution and HolyC translation. All ten focused TempleOS allocation-ledger
+  cases pass, including those 20 namespace cases at each width. The existing
+  aggregate translation golden changes only its ref-call field access to the
+  checked pointer form. Full compiler translation passes the former field-base
+  rejection and reaches ~cyclic inline struct dependency~ at both widths.
 
 **** Manual GUI testing in one VM
 

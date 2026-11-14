@@ -260,3 +260,72 @@ test_borrowed_niche_nested_switch_and_continue := test() {
     assert_eq(I64, total, 18)
     assert_eq(I64, calls, 3)
 }
+
+CallFieldInner := struct { number: I64 = 0; text: Str = "" }
+CallFieldItem := struct {
+    name: Str = ""
+    inner: CallFieldInner = CallFieldInner()
+    words: Vec(Str) = Vec(Str).new()
+}
+
+priv call_field_pick := func(items: Vec(CallFieldItem), shallow index: USize, mut calls: I64) returns ref CallFieldItem {
+    calls++
+    return items.unsafe_get(index)
+}
+
+priv call_field_name := func(items: Vec(CallFieldItem), mut calls: I64) returns ref Str {
+    return call_field_pick(items, 0, calls).name
+}
+
+test_ref_call_field_reads_and_borrows := test() {
+    mut items := Vec(CallFieldItem).new()
+    items.push(own CallFieldItem(name = Str.with_capacity(32), inner = CallFieldInner(number = 7, text = Str.clone("nested"))))
+    Str.push_str(items.unsafe_get(0).name, "first")
+    mut calls : I64 = 0
+    assert_eq(Str, call_field_pick(items, 0, calls).name, "first")
+    assert_eq(I64, calls, 1)
+    assert_eq(I64, call_field_pick(items, 0, calls).inner.number, 7)
+    assert_eq(I64, calls, 2)
+    assert_eq(Str, call_field_pick(items, 0, calls).inner.text, "nested")
+    assert_eq(I64, calls, 3)
+    ref borrowed : Str = call_field_name(items, calls)
+    assert_eq(I64, calls, 4)
+    Str.push_str(items.unsafe_get(0).name, " changed")
+    assert_eq(Str, borrowed, "first changed")
+}
+
+test_ref_call_field_writes := test() {
+    mut items := Vec(CallFieldItem).new()
+    items.push(own CallFieldItem(name = Str.with_capacity(32), inner = CallFieldInner(number = 7)))
+    Str.push_str(items.unsafe_get(0).name, "old")
+    mut calls : I64 = 0
+    call_field_pick(items, 0, calls).inner.number = 41
+    assert_eq(I64, calls, 1)
+    assert_eq(I64, items.unsafe_get(0).inner.number, 41)
+    Str.push_str(call_field_pick(items, 0, calls).name, " value")
+    assert_eq(I64, calls, 2)
+    assert_eq(Str, items.unsafe_get(0).name, "old value")
+    Vec(Str).push(call_field_pick(items, 0, calls).words, own Str.clone("stored"))
+    assert_eq(I64, calls, 3)
+    assert_eq(Str, items.unsafe_get(0).words.unsafe_get(0), "stored")
+    call_field_pick(items, 0, calls).name = Str.clone("replacement")
+    assert_eq(I64, calls, 4)
+    assert_eq(Str, items.unsafe_get(0).name, "replacement")
+}
+
+CallFieldGetter := func(Vec(CallFieldItem), shallow USize, mut I64) returns ref CallFieldItem
+
+priv call_field_indirect := func(getter: CallFieldGetter, items: Vec(CallFieldItem), mut calls: I64) returns I64 {
+    return getter(items, 0, calls).inner.number
+}
+
+test_ref_call_field_indirect := test() {
+    mut items := Vec(CallFieldItem).new()
+    items.push(own CallFieldItem(inner = CallFieldInner(number = 4294967301)))
+    mut calls : I64 = 0
+    getter : CallFieldGetter = call_field_pick
+    assert_eq(I64, call_field_indirect(getter, items, calls), 4294967301)
+    assert_eq(I64, calls, 1)
+    assert_eq(I64, getter(items, 0, calls).inner.number, 4294967301)
+    assert_eq(I64, calls, 2)
+}
