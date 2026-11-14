@@ -241,6 +241,25 @@ jobs:
           name: hashes-linux-arm64
           path: tmp/hashes/linux-arm64.txt
           if-no-files-found: error
+      # Issue #472 (level 3) / #473 (C7): what this host builds for the two
+      # mac targets, with the identity of the clang, lld, llvm-ar and
+      # dsymutil that built it. The collect job compares these binaries
+      # between producers only where the toolchains are the same (the
+      # toolchain rule, end of issues/open/472.org) and says so where they
+      # are not. The mac headers and libraries are the repository's
+      # vendor/macos on every host.
+      - name: Install the mac cross toolchain
+        run: sudo apt-get install -y clang lld llvm
+      - name: Write the binary hash lists for the collector
+        run: |
+          mkdir -p tmp/hashes-binary
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til macos-arm64 macos-x64
+      - name: Upload the binary hash lists
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-linux-arm64
+          path: tmp/hashes-binary/linux-arm64.txt
+          if-no-files-found: error
       - name: Cancel the rest of this run
         if: failure()
         shell: bash
@@ -1941,6 +1960,23 @@ jobs:
             fi
           done
           exit $status
+      # Issue #472 (level 3) / #473 (C7): what this host builds for the two
+      # mac targets, with the identity of the clang, lld, llvm-ar and
+      # dsymutil that built it. The collect job compares these binaries
+      # between producers only where the toolchains are the same (the
+      # toolchain rule, end of issues/open/472.org) and says so where they
+      # are not. The mac headers and libraries are the repository's
+      # vendor/macos on every host.
+      - name: Write the binary hash lists for the collector
+        run: |
+          mkdir -p tmp/hashes-binary
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til macos-arm64 macos-x64
+      - name: Upload the binary hash lists
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-linux-x64
+          path: tmp/hashes-binary/linux-x64.txt
+          if-no-files-found: error
       - name: Upload mac artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -2094,7 +2130,7 @@ jobs:
   # arrived, and it failed saying so.
   collect:
     name: collect (compare the producers' hash lists)
-    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-host-run, macos-arm64, macos-x64]
+    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-host-run, macos-arm64, macos-x64, macos-cross-build]
     if: always() && needs.doc-gate.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -2106,10 +2142,12 @@ jobs:
           WINDOWS_X64: ${{ needs.windows-x64-host-run.result }}
           MACOS_ARM64: ${{ needs.macos-arm64.result }}
           MACOS_X64: ${{ needs.macos-x64.result }}
+          MACOS_CROSS: ${{ needs.macos-cross-build.result }}
         run: |
           status=0
           for pair in "linux-x64=$LINUX_X64" "linux-arm64-native=$LINUX_ARM64" \
-            "windows-x64-host-run=$WINDOWS_X64" "macos-arm64=$MACOS_ARM64" "macos-x64=$MACOS_X64"; do
+            "windows-x64-host-run=$WINDOWS_X64" "macos-arm64=$MACOS_ARM64" "macos-x64=$MACOS_X64" \
+            "macos-cross-build=$MACOS_CROSS"; do
             echo "$pair"
             if [ "${pair#*=}" != success ]; then status=1; fi
           done

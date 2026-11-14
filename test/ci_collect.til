@@ -129,6 +129,34 @@ main := proc(args: ..Str) {
     list(both_refused, "two", "refused source templeos-x86 c 32 option.til -")
     collect(collector, both_refused, "", 0, "1 equal, 0 different, 0 missing")
 
+    // Binaries (#472 level 3) are compared only between producers that
+    // recorded the same toolchain for the target.
+    tools_a := format(HASH_A, " binary macos-arm64 c 32 - toolchain")
+    tools_b := format(HASH_B, " binary macos-arm64 c 32 - toolchain")
+    hello_a := format(HASH_A, " binary macos-arm64 c 32 hello.til hello")
+    hello_c := format(HASH_C, " binary macos-arm64 c 32 hello.til hello")
+    same_tools := fixture("same_tools")
+    list(same_tools, "one", tools_a, hello_a)
+    list(same_tools, "two", tools_a, hello_a)
+    collect(collector, same_tools, "", 0, "2 equal, 0 different, 0 missing, 0 not compared", "!NOT COMPARABLE")
+    // The same toolchain and another binary is a difference.
+    same_tools_different := fixture("same_tools_different")
+    list(same_tools_different, "one", tools_a, hello_a)
+    list(same_tools_different, "two", tools_a, hello_c)
+    collect(collector, same_tools_different, "", 1, "DIFFERENT binary macos-arm64 c 32: hello.til hello", "1 equal, 1 different")
+    // Different toolchains: nothing is compared, nothing fails, nothing is
+    // called equal -- not even binaries that happen to match.
+    other_tools := fixture("other_tools")
+    list(other_tools, "one", tools_a, hello_a)
+    list(other_tools, "two", tools_b, hello_a)
+    collect(collector, other_tools, "", 0, "NOT COMPARABLE binary macos-arm64 c 32: the producers' toolchains differ",
+        format("one ", HASH_A), "0 equal, 0 different, 0 missing, 2 not compared", "!DIFFERENT")
+    // A binary list without its toolchain cannot be judged.
+    no_tools := fixture("no_tools")
+    list(no_tools, "one", hello_a)
+    list(no_tools, "two", hello_a)
+    collect(collector, no_tools, "", 1, "no producer recorded its toolchain")
+
     // A line that is not a hash-list line stops the collector.
     malformed := fixture("malformed")
     list(malformed, "one", first, "frontend linux-x64 c 32 hello.til parsed:./a.til")

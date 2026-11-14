@@ -1954,3 +1954,33 @@ What is left for this issue is level 3 between hosts: "The toolchain rule"
 above, a first target with two producers on one toolchain (L3c), and the
 closing documentation. The frontend corpus is eight programs and the
 translated one five; ~src/til.til~ is in neither, by cost.
+
+*** Progress: level 3 between hosts, the mechanism (base master 439a4b9)
+
+The collector has a third level, ~binary~ (#473 C7), built on the
+toolchain rule above:
+- ~ci_collect produce-binary <producer> <list> <compiler> <target>...~
+  builds ~examples/hello_script.til~ for each target and lists the
+  executable's hash, plus one ~toolchain~ item per target: the hash of the
+  first ~--version~ line of ~clang~, ~ld.lld~, ~llvm-ar~ and ~dsymutil~
+  (printed to the log too). Only the mac targets so far: their headers and
+  libraries are ~vendor/macos~ on every host, so the tools are all that
+  can differ.
+- ~collect~ compares a binary group only if every producer in it recorded
+  the same toolchain. Otherwise it prints ~NOT COMPARABLE~ with the
+  hashes, counts the items as not compared, and does not fail: different
+  toolchains are not expected to agree, and equal bytes from them are not
+  called equal either. With the same toolchain a different binary fails
+  the job like any other difference. A binary list without its toolchain
+  item stops the collector.
+- Producers: the ~macos-cross-build~ job (Linux x64) and
+  ~linux-arm64-native~, which installs ~clang lld llvm~ from Ubuntu's
+  archive for it. No download is added.
+
+Locally (clang 18.1.3, one host): two productions two seconds apart give
+the same four hashes, so the build is repeatable here (L3a already said
+so). In CI the two hosts have clang 21.1.8 and 18.1.3 today, so the
+expected first result is NOT COMPARABLE for both targets; the next step is
+to give the mac targets ONE toolchain on both hosts (the same Ubuntu
+package version if both images carry one, else a pinned download, which
+needs Jorge's yes), and then read whether the bytes match.

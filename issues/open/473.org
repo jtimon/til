@@ -865,3 +865,13 @@ or an item one left out, now fails the job. C3, C5, C6 and C8 are done in
 that form. Open: C4 and C7 (binaries, per target, "The toolchain rule"),
 and whether the fail-fast cancel stays (it hid four failures behind one
 for two days; Jorge's call).
+
+*** Progress: C7, first form (base master 439a4b9)
+
+~examples/ci_collect.til~ gets ~produce-binary~ and the ~binary~ level;
+details and the rule in #472. Workflow: ~macos-cross-build~ and
+~linux-arm64-native~ each write and upload ~hashes-binary-<host>~ for
+macos-arm64 and macos-x64, and ~collect~ also needs ~macos-cross-build~.
+Fixtures in ~test/ci_collect.til~: same toolchain and same binary (equal),
+same toolchain and another binary (fails), different toolchains (NOT
+COMPARABLE, nothing equal, no failure), no toolchain item (stops).

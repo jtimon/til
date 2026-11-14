@@ -20,12 +20,22 @@ import("../src/self/targets")
 //       binary). A program a target refuses is listed as "refused", so
 //       producers have to refuse alike.
 //
+//   ci_collect produce-binary <producer> <list file> <compiler> <target>...
+//       Level "binary" (#472 level 3): build a program for each target and
+//       list the executable's hash, plus one "toolchain" item per target:
+//       the hash of the version lines of the compiler, linker, archiver
+//       and debug-symbol tool that built it. Binaries are only comparable
+//       between producers that used the SAME toolchain for the target (the
+//       toolchain rule, end of issues/open/472.org).
+//
 //   ci_collect collect <directory> [report]
 //       Read every *.txt hash list under the directory; the file's name is
 //       the producer's. Items are compared between the producers that
 //       took part in the same level, target, backend and width. Prints
 //       what differs, what a producer left out, and what only one producer
-//       has (which is not compared, never "equal"). Exits 1 on a
+//       has (which is not compared, never "equal"). A binary group whose
+//       producers recorded different toolchains is NOT COMPARABLE: its
+//       hashes are printed, counted as not compared, and never fail. Exits 1 on a
 //       difference, a missing item or a line it cannot read; with `report`
 //       a difference or a missing item is printed but does not fail.
 //
@@ -147,6 +157,53 @@ produce_source := proc(compiler: Str, source: Str, target: Str, width: Str, mut 
     for i, hash in hashes { lines.push(own format(hash, key, names[i])) }
 }
 
+// The first line of what `tool` prints for --version, or of `--help` style
+// failure: the tool's identity, without the install directory the later
+// lines of clang's output name.
+version_line := proc(tool: Str) returns Str {
+    command := Cmd.new(tool, "--version")
+    command.capture()
+    if command.run() != 0 { fail(format("cannot run ", tool, " --version: ", command.err())) }
+    output := command.out()
+    end := output.find("\n")
+    if end < 0 { return output.clone() }
+    return output.substr(0, end.to_usize()).clone()
+}
+
+// REM The tools til runs for a mac target off a Mac (builder.til,
+// compile_c_named_objects; targets.til, toolchain_command). Only the mac
+// targets are produced so far: their headers and libraries are the
+// repository's vendor/macos on every producer, so the tools are all that
+// can differ.
+produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str)) {
+    File.remove_tree(WORK)
+    mkdir_p(WORK)
+    mut lines := Vec(Str).new()
+    for target : Str in targets {
+        if target.starts_with("macos-").not() { fail(format("produce-binary knows the toolchain of the mac targets only, not ", target)) }
+        identity := format(version_line("clang"), "\n", version_line("ld.lld"), "\n", version_line("llvm-ar"), "\n", version_line("dsymutil"), "\n")
+        println("toolchain for ", target, ":\n", identity)
+        identity_path := format(WORK, "/toolchain_", target)
+        File.writefile(identity_path, identity)
+        directory := format(WORK, "/binary_", target)
+        mkdir_p(directory)
+        source := "examples/hello_script.til"
+        binary := format(directory, "/hello_script")
+        build := Cmd.new(compiler, "build", "--force-rebuild", format("--target=", target), "-o", binary,
+            "-c", format(directory, "/hello_script.c"), source)
+        build.capture()
+        if build.run() != 0 { fail(format(build.render(), " failed:\n", build.out(), build.err())) }
+        mut paths := Vec(Str).new()
+        paths.push(own identity_path)
+        paths.push(own binary)
+        hashes := sha256_of(paths)
+        lines.push(own format(hashes[0], " binary ", target, " c 32 - toolchain"))
+        lines.push(own format(hashes[1], " binary ", target, " c 32 ", source, " hello_script"))
+    }
+    File.writefile(list, format(join(lines, "\n"), "\n"))
+    println("ci_collect: ", producer, " wrote ", lines.len().to_str(), " lines to ", list)
+}
+
 produce := proc(producer: Str, list: Str, compiler: Str) {
     File.remove_tree(WORK)
     mkdir_p(WORK)
@@ -233,6 +290,21 @@ collect := proc(directory: Str, report_only: Bool) {
         mut group_equal : USize = 0
         mut group_alone : USize = 0
         prefix := format(group, " ")
+        // A binary group is comparable only if every producer in it built
+        // with the same toolchain: one "toolchain" hash.
+        mut comparable := true
+        toolchain_key := format(prefix, "- toolchain")
+        if group.starts_with("binary ") {
+            if item_hashes.has(toolchain_key).not() { fail(format(group, ": no producer recorded its toolchain")) }
+            ref toolchains : Map(Str, Str) = item_hashes[toolchain_key]
+            mut first_toolchain := ""
+            for producer : Str in producers {
+                if toolchains.has(producer).not() { fail(format(group, ": ", producer, " recorded no toolchain")) }
+                if first_toolchain.len() == 0 { first_toolchain = toolchains[producer].clone() }
+                else if toolchains[producer] != first_toolchain { comparable = false }
+            }
+            if comparable.not() { println("NOT COMPARABLE ", group, ": the producers' toolchains differ") }
+        }
         for key, by_producer in item_hashes {
             if key.starts_with(prefix).not() { continue }
             item := key.substr(prefix.len(), key.len() - prefix.len())
@@ -244,6 +316,12 @@ collect := proc(directory: Str, report_only: Bool) {
             }
             if by_producer.len() == 1 {
                 group_alone++
+                continue
+            }
+            if comparable.not() {
+                group_alone++
+                println("    ", item)
+                for producer, hash in by_producer { println("        ", producer, " ", hash) }
                 continue
             }
             mut first := ""
@@ -280,6 +358,12 @@ main := proc(args: ..Str) {
         produce(args[1], args[2], args[3])
         return
     }
+    if args.len() >= 5 && args[0] == "produce-binary" {
+        mut targets := Vec(Str).new()
+        for i in 4..args.len() { targets.push(own args[i].clone()) }
+        produce_binary(args[1], args[2], args[3], targets)
+        return
+    }
     if args.len() == 2 && args[0] == "collect" {
         collect(args[1], false)
         return
@@ -288,5 +372,5 @@ main := proc(args: ..Str) {
         collect(args[1], true)
         return
     }
-    fail("usage: ci_collect produce <producer> <list file> <compiler> | ci_collect collect <directory> [report]")
+    fail("usage: ci_collect produce <producer> <list file> <compiler> | ci_collect produce-binary <producer> <list file> <compiler> <target>... | ci_collect collect <directory> [report]")
 }
