@@ -1822,10 +1822,18 @@ priv holyc_reflect_string := func(e: Expr) returns Str {
     return "*"
 }
 
+priv holyc_is_return_permission_query := func(name: Str, ctx: Context) returns Bool {
+    if name.ends_with("func_sig_return_ref_mut").not() { return false }
+    owner := ctx.scope.get_binding_name("func_sig_of", ctx.symbols)
+    if owner.is_none() { return false }
+    return name == priv_c_name(owner.unwrap().path, "func_sig_return_ref_mut")
+}
+
 priv holyc_scan_reflection := func(e: Expr, ctx: Context, mut state: HolyCEmitState) {
     switch e.node_type {
     case .FCall:
-        name := holyc_direct_call_name(e, ctx)
+        mut name := holyc_direct_call_name(e, ctx)
+        if holyc_is_return_permission_query(name, ctx) { name = "func_sig_return_ref_mut" }
         if name.eq("dyn_fn").or(name.eq("dyn_has_method")).or(name.eq("dyn_size_of"))
             .or(name.eq("dyn_storage_kind")).or(name.eq("dyn_type_to_str"))
             .or(name.starts_with("struct_field_")).or(name.starts_with("enum_variant_"))
@@ -2238,6 +2246,8 @@ priv holyc_metadata_reflection := func(ctx: Context, state: HolyCEmitState) retu
                     case "func_sig_return_own_type": values.push(own own_type_to_i64(sig.return_own_type).to_str())
                     case "func_sig_return_shallow_explicit":
                         if sig.return_shallow_explicit { values.push(own "1") } else { values.push(own "0") }
+                    case "func_sig_return_ref_mut":
+                        if sig.return_ref_mut { values.push(own "1") } else { values.push(own "0") }
                     case "func_sig_throw_count": values.push(own sig.throw_types.len().to_str())
                     case "func_sig_throw_type":
                         for type : Str in sig.throw_types { values.push(own type.clone()) }
@@ -3685,6 +3695,11 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 }
                 method := holyc_str_ref(e.children[2], ctx, locals, error)
                 return format("TilDynHasMethod(", type_name, ", ", method, ")")
+            }
+            if holyc_is_return_permission_query(name, ctx) {
+                state.reflection_uses.add(own "func_sig_return_ref_mut")
+                type_name := holyc_str_ref(e.children[1], ctx, locals, error)
+                return format("TilReflect_func_sig_return_ref_mut(", type_name, ")")
             }
             if name.starts_with("struct_field_").or(name.starts_with("enum_variant_")).or(name.starts_with("func_sig_")) {
                 state.reflection_uses.add(own name.clone())

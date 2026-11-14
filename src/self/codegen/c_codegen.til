@@ -5108,7 +5108,8 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
             f.write("struct_field_count(")
             emit_as_ptr(f, e.children[1], depth, false, ctx)
             f.write(")")
-        } else if builder_is_private_reflect_query(name.ident_name(ctx.symbols.names), "enum_decl_tag_type", "enum_def_of", ctx.scope, ctx.symbols) {
+        } else if builder_is_private_reflect_query(name.ident_name(ctx.symbols.names), "enum_decl_tag_type", "enum_def_of", ctx.scope, ctx.symbols)
+            .or(builder_is_private_reflect_query(name.ident_name(ctx.symbols.names), "func_sig_return_ref_mut", "func_sig_of", ctx.scope, ctx.symbols)) {
             f.write(name.ident_name(ctx.symbols.names)).write("(")
             emit_as_ptr(f, e.children[1], depth, false, ctx)
             f.write(")")
@@ -12521,6 +12522,11 @@ priv emit_all_forward_declarations := proc(f: File, mode: Mode, mut lp: LoadedPr
     if builder_needs_reflect("func_sig_return_shallow_explicit", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_return_shallow_explicit(Str *type_name);\n")
     }
+    if builder_needs_reflect("func_sig_return_ref_mut", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 ")
+            .write(priv_c_name(lp.ctx.scope.get_binding_name("func_sig_of", lp.ctx.symbols).unwrap().path, "func_sig_return_ref_mut"))
+            .write("(Str *type_name);\n")
+    }
     if builder_needs_reflect("func_sig_throw_count", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_throw_count(Str *type_name);\n")
     }
@@ -13366,7 +13372,7 @@ priv emit_enum_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
 // 1 = param_type, 2 = return_count, 3 = return_type, 4 = throw_count,
 // 5 = throw_type, 6 = func_type, 7 = param_own_type, 8 = param_is_mut,
 // 9 = variadic_index, 10 = kwargs_index, 11 = return_own_type,
-// 12 = return_shallow_explicit.
+// 12 = return_shallow_explicit, 13 = return_ref_mut.
 priv funcsig_reflect_param_count := func(fd: FunctionDef) returns USize {
     mut count : USize = 0
     for param : Declaration in fd.sig.params {
@@ -13405,6 +13411,8 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ct
             f.write("        return ").write(own_type_to_i64(fd.sig.return_own_type).to_str()).write("LL;\n")
         } else if kind == 12 {
             if fd.sig.return_shallow_explicit { f.write("        return 1LL;\n") } else { f.write("        return 0LL;\n") }
+        } else if kind == 13 {
+            if fd.sig.return_ref_mut { f.write("        return 1LL;\n") } else { f.write("        return 0LL;\n") }
         } else if kind == 1 {
             emit_reflect_found_mark(f)
             mut i : USize = 0
@@ -13523,6 +13531,13 @@ priv emit_funcsig_introspection_bodies := proc(f: File, mut lp: LoadedProgram) {
         f.write(builder_static_prefix(lp.ctx)).write("I64 func_sig_throw_count(Str *type_name) {\n")
         emit_funcsig_branches(f, 4, lp)
         emit_reflect_not_found_tail(f, "func_sig_throw_count")
+    }
+    if builder_needs_reflect("func_sig_return_ref_mut", lp.ctx) {
+        f.write(builder_static_prefix(lp.ctx)).write("I64 ")
+            .write(priv_c_name(lp.ctx.scope.get_binding_name("func_sig_of", lp.ctx.symbols).unwrap().path, "func_sig_return_ref_mut"))
+            .write("(Str *type_name) {\n")
+        emit_funcsig_branches(f, 13, lp)
+        emit_reflect_not_found_tail(f, "func_sig_return_ref_mut")
     }
     if builder_needs_reflect("func_sig_throw_type", lp.ctx) {
         f.write(builder_static_prefix(lp.ctx)).write("Str *func_sig_throw_type(Str *type_name, I64 *index) {\n").write(REFLECT_FOUND_DECL)
@@ -16246,6 +16261,9 @@ priv builder_collect_reflect_inventory := proc(e: Expr, mut inv: Set(Str), scope
         }
         if builder_is_private_reflect_query(rid.ident_name(symbols.names), "enum_variant_payload_is_funcsig", "enum_def_of", scope, symbols) {
             builder_record_reflect_name("enum_variant_payload_is_funcsig", inv)
+        }
+        if builder_is_private_reflect_query(rid.ident_name(symbols.names), "func_sig_return_ref_mut", "func_sig_of", scope, symbols) {
+            builder_record_reflect_name("func_sig_return_ref_mut", inv)
         }
         if builder_is_reflect_builtin_name(rid.ident_name(symbols.names)) {
             builder_record_reflect_name(rid.ident_name(symbols.names), inv)

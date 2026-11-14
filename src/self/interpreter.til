@@ -10229,6 +10229,15 @@ priv h_func_sig_return_shallow_explicit := proc(mut s: Scope, mut e: Expr, mut r
     return true
 }
 
+priv h_func_sig_return_ref_mut := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_return_ref_mut", ctx)
+    if node_o.is_none() { return true }
+    ref fd: FunctionDef = funcdef_of(node_o.unwrap())
+    if fd.sig.return_ref_mut { write_i64(r, 1) } else { write_i64(r, 0) }
+    return true
+}
+
 priv h_func_sig_throw_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_throw_count", ctx)
@@ -11221,6 +11230,8 @@ priv dispatch_init := func(mut ctx: Context) {
     reg_dispatch("func_sig_kwargs_index", h_func_sig_kwargs_index, ctx)
     reg_dispatch("func_sig_return_own_type", h_func_sig_return_own_type, ctx)
     reg_dispatch("func_sig_return_shallow_explicit", h_func_sig_return_shallow_explicit, ctx)
+    reg_dispatch(priv_c_name(ctx.scope.get_binding_name("func_sig_of", ctx.symbols).unwrap().path,
+        "func_sig_return_ref_mut"), h_func_sig_return_ref_mut, ctx)
     reg_dispatch("func_sig_throw_count", h_func_sig_throw_count, ctx)
     reg_dispatch("func_sig_throw_type", h_func_sig_throw_type, ctx)
     reg_dispatch("dyn_type_to_str", h_dyn_type_to_str, ctx)

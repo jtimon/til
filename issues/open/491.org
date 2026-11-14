@@ -100,6 +100,31 @@ including ~const ref mut~ fields. Both issues affect this generator.
 
 *** Implementation and acceptance
 
+**** Reflection bootstrap sequence
+
+Restoring ~FuncSig.return_ref_mut~ in ~func_sig_of~ requires a private scalar
+query in core/dyn. On base ~ae1daf9eb~, introducing its use alongside its
+emitter fails pass 1 while building ~bin/til~:
+
+#+begin_example
+gen/til/til.c:43593:27: error: implicit declaration of function 'priv___src_core_dyn_til__func_sig_return_ref_mut'
+#+end_example
+
+Apply ~doc/self.org~ "When a preparation commit is needed" / "Staged migration
+across master merges": prepare C/MLIR-bridge and HolyC emission, reflection
+inventory and interpreter dispatch first; then introduce the private core
+declaration and make ~func_sig_of~ restore the bit. The query resolves core's
+private identity from the owning module, including installed SDK paths. It
+adds no public reflection API. The use step must verify both matching writable
+contracts and rejection of read-only/writable mismatches at TilVm/native
+callable boundaries. Until then reflection still loses the permission bit.
+
+Preparation verification: ~make clean && make test_two_pass~ passed 575/575,
+including native self-translation. The query use and boundary regressions
+belong to the following commit, once its bootstrap has this emit logic.
+
+**** Initial signature implementation
+
 Initial implementation work addresses callable contract compatibility and
 metadata loss: reject read-only results where a writable-return signature is
 required, permit writable results to satisfy read-only result contracts with

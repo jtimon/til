@@ -60,6 +60,10 @@ return-side ~mut~.
   with the same borrow ABI. Typed/inferred functions, generic-generator
   twins, typed dynamic lookup and generated Til-library bindings preserve or
   check the reference-result permission.
+- Prepared: C/MLIR-bridge and HolyC emission and interpreter dispatch for a
+  private reflected reference-result permission query. ~func_sig_of~ does not
+  use it yet: that is the following bootstrap use step, so runtime reflection
+  and host/guest comparisons still lose this bit for now.
 - Pending: complete source-path and writable-alias checks, the plain-ref
   defaults migration, collection accessors, reflection/native schemas and
   the C-header binding translator. Existing accepted local/ref-field programs

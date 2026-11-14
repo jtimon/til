@@ -75,6 +75,11 @@ result contracts with the same borrow ABI. Inference/generic-generator paths
 and generated Til-library declarations, wrappers and FuncSigs preserve the
 reference-result permission.
 
+The C/MLIR bridge and HolyC emitters, plus the interpreter, now prepare a
+private query for the reflected reference-result permission. Switching
+~func_sig_of~ to restore that bit is the next bootstrap use step; reflection
+and host/guest contract comparison still lose it until that step lands.
+
 This is not yet full enforcement of the permission table: writable-return
 source paths, direct writable aliases of plain-ref call results, collection
 accessors, reflection/native schemas and C-header bindings still need work.
