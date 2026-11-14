@@ -839,19 +839,24 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   widths, and C ASAN/UBSAN checks passed at USize32/O0 and USize64/O2 without
   diagnostics. Emitted native assembly itself is not ASAN-instrumented.
 
-  Differential testing against C and interpretation is a primary motivation.
-  Selective future JIT execution could amortize compilation for expensive or
-  repeated work. In-process code allocation, relocation, lifetime management
-  and interpreter/native value boundaries are separate future work; JIT is
-  not required to complete this initial backend, nor a wholesale interpreter
-  replacement.
+  Independent execution remains a differential reference and groundwork for
+  [[./474.org][#474]]'s eventual replacement of AST execution. Current FASM output is
+  still a standalone Linux x86-64 ELF executable, not callable code loaded into
+  the host process. Native code loading, relocation, host ABI adapters and code
+  lifetime are the next execution-engine boundary; completing all SIMD families
+  is not a prerequisite for the first scalar-I64 JIT proof.
 
-   Subsequent direction is tracked separately in [[./474.org][#474]]: FASM is a base
-   for native JIT work, with eventual replacement of AST interpretation rather
-   than only selective acceleration. TempleOS uses its HolyC compiler for the
-   native JIT. Our own reduced MLIR-style JIT and eventual retirement of the
-   required GCC/Clang toolchain are later milestones; the standalone FASM
-   backend need not wait for that full migration.
+  TempleOS's native HolyC compiler supplies the planned TempleOS JIT route.
+  Its x86-64 JIT/AOT source was inspected for the documentation recap at master
+  ~bee4625e6~, rechecked against ~ae1daf9eb~. FASM now reuses ~common.til~'s
+  enum-definition/variant queries; shared frontend lowering also snapshots an
+  effectful borrowed-niche switch subject once while retaining provenance.
+  The recap distinguishes #490/#491's implemented metadata/signature checks
+  from their pending permission migration, and native FASM layouts from the
+  compact C host layout. Source pins, architecture distinctions and concrete
+  JIT lessons are in #474 and ~doc/self.org~. A reduced MLIR-style engine and
+  eventual removal of the required GCC/Clang toolchain remain later, separate
+  milestones.
 
 *** Related
 

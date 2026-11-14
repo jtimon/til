@@ -1771,11 +1771,74 @@
   verifies that a failed realloc preserves the old allocation. ASAN runs cover the compiler
   and test driver, not the generated syscall-only executable.
 
-  Independent execution is useful for differential testing. This backend
-  also supplies groundwork for selective future JIT execution of expensive
-  functions, not a replacement for all interpretation. In-process executable
-  memory, relocations, interpreter/native calls and code lifetimes remain
-  separate future work, outside the initial backend's completion criteria.
+*** Status recap and native JIT direction (2026-11-14)
+
+  Source-reviewed at master ~ae1daf9eb~. FASM currently provides a substantial
+  standalone Linux x86-64 backend, not an implemented in-process JIT:
+
+  | Area | Current coverage |
+  |------+------------------|
+  | Language/value model | Scalar integers/Bool, structs/enums/niches, references/mutation, globals/namespaces, direct/indirect calls, closures/captures, interfaces and lowered throws |
+  | Floating point | F32/F64 arithmetic/comparisons/casts, exact baseline FMA, formatting/parsing and repr round trips |
+  | SIMD | F32/F64 and I8/U8/I16/U16/I32/U32, Bool masks, natural-width and wider SSE2 chunks through the shared 1024-lane limit, checked lanes/memory and reductions |
+  | Execution/runtime | CLI/script/test entry, core strings/arrays, raw allocation/memory and supported File operations; differential and allocation probes at both USize widths |
+
+  SIMD I64/U64, sub-register numeric vectors, vector casts, general runtime
+  reflection and further external services remain gaps. Those are not blockers
+  for the first scalar-I64 JIT milestone: scalar I64 execution already works.
+
+  ~fasm_codegen_translate~ still writes an ELF executable with startup,
+  initializers and ~rt_exit~; ~compile_fasm~ assembles it and ~run~ starts a
+  child process. A JIT must instead produce callable code, load/fix it up and
+  invoke it inside the existing process through an explicit host ABI adapter.
+  The private argument/address conventions, closure R10 environment and hidden
+  aggregate result storage are not automatically a C calling convention.
+
+  Ownership, reference-slot mutability and referent permission remain separate
+  from that machine ABI; see [[file:./concepts/ownership.org][ownership.org]] and [[file:./concepts/qualifiers.org][qualifiers.org]]. Ordinary
+  arguments borrow by default, with eligible primitives auto-shallowed; ordinary
+  results belong to the caller unless explicitly borrowed. Owned aggregate
+  contents do not require a heap outer. #490/#491 have prepared independent
+  permissions and implemented callable-result compatibility, but full path,
+  accessor and native-schema enforcement remains pending. A JIT adapter must
+  preserve these contracts even when read-only/writable borrows have identical
+  pointer shapes; it must not invent ownership or grant additional permission.
+
+  Reuse ~common.til~'s prepared-AST queries and shared frontend lowering for JIT
+  emission too. ~common_c.til~ remains C/HolyC-specific support. The new shared
+  borrowed-niche subject snapshot preserves single evaluation and provenance;
+  neither a JIT wrapper nor a backend should reimplement that language rule.
+
+  Architecture has three separate parts: the assembler's own host, the ISA of
+  its output, and the OS/runtime ABI of that output. Vendored FASM 1 encodes
+  x86-family instructions; this til emitter specifically emits x86-64 and its
+  current runtime uses Linux x86-64 syscalls. ~--usize=32~ changes container
+  widths, not the CPU target: this backend still uses 64-bit native pointers
+  and produces ELF64. An initial JIT reusing it is therefore Linux x64 too.
+  Matching USize alone does not make its aggregates compatible with a compact
+  C host: FASM's native own pointers differ from C's compressed own fields.
+  The first scalar-I64 entry avoids that boundary; later bridges must resolve
+  the actual representation and allocator/ownership contract explicitly.
+  Other x64 OSes need host/runtime adapters; ARM64/RISC-V need their own native
+  instruction lowering/encoding and ABI support, not just another file format.
+
+  JIT execution itself is not x86-only. Even in the FASM family, the separate
+  [[https://github.com/tgrysztar/fasmg][fasmg]] engine supports instruction sets defined by macros and ships an
+  AArch64 package. That is not the vendored FASM 1, proof of an ARM-native host
+  executable, or a drop-in port of til's x86 emitter/runtime.
+
+  The long-term goal in [[file:../issues/open/474.org][#474]] is replacement of AST execution,
+  including REPL/TilVm and staged compile-time evaluation, not a permanent
+  optional accelerator. The first milestone is deliberately smaller: call a
+  source-compiled scalar function repeatedly in the host process, verify its
+  ABI/results and release its code correctly. Completing SIMD first is not a
+  prerequisite. GCC/Clang retirement is a separate, later milestone.
+
+  TempleOS's native HolyC compiler is a useful x86-64 JIT/AOT reference. Its
+  command loop compiles statements to a task code heap and directly calls them;
+  defined functions retain executable addresses in the task's symbol tables.
+  The pinned source findings and lessons for til's module/lifetime/relocation
+  design are recorded in #474.
 
 ** Single-pass build
 

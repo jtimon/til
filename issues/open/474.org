@@ -15,7 +15,7 @@ JIT replacement and eliminating the C toolchain are separate milestones.
 
 *** Scope and existing dependencies
 
-Source inspection at master ~e5cc848e9~:
+Source inspection updated at master ~ae1daf9eb~:
 
 - ~src/self/interpreter.til~ supplies ordinary interpretation, persistent
   sessions, native-call dispatch and embedded execution. ~src/std/tilvm.til~
@@ -32,8 +32,127 @@ Source inspection at master ~e5cc848e9~:
   callable support is useful groundwork, but it is not an in-process JIT.
   The TempleOS native compiler/FASM host bootstrap is tracked in [[./151.org][#151]].
 - [[./317.org][#317]] is the current MLIR backend. Its build path invokes LLVM 18
-  command-line tools and Clang, and compiles C runtime code. It does not
-  already provide the reduced, self-contained JIT proposed here.
+  command-line tools and Clang, and compiles C runtime code. Fully direct
+  programs now omit C-core compilation/linking; remaining emitted bridge
+  references still pull in C-core. This is progress toward direct core emission,
+  not an in-process or self-contained JIT, nor removal of the C toolchain.
+- [[./490.org][#490]] and [[./491.org][#491]] separate ownership, reference-slot mutability and
+  referent permission. The current guides are [[file:../../doc/concepts/ownership.org][ownership.org]] and
+  [[file:../../doc/concepts/qualifiers.org][qualifiers.org]]. Native execution must preserve their source contracts and
+  migration status, not infer them from a pointer-shaped ABI.
+
+*** FASM architecture and TempleOS source research (2026-11-14)
+
+Original research baseline: til master ~bee4625e6~, updated against
+~ae1daf9eb~. The current capability recap is in
+[[file:../../doc/self.org::*Status recap and native JIT direction (2026-11-14)][doc/self.org]]; detailed implementation/test history remains in [[./453.org][#453]].
+This is source/document inspection, not a guest execution test, new JIT
+implementation or performance measurement.
+
+**** What is actually x86-only?
+
+- JIT describes when/where native code is compiled and executed, not an ISA.
+  An ARM64 or RISC-V host can have a native JIT with its own code generator,
+  calling convention and code-memory implementation.
+- Vendored FASM 1 encodes x86/x86-64 instructions, including 16-/32-/64-bit
+  code and binary/PE/COFF/ELF formats; see ~vendor/fasm/FASM.TXT~. Multiple
+  formats/host frontends do not make its instruction encoder cross-ISA.
+- til currently emits Linux x86-64 ELF executables, with a private internal
+  ABI and Linux syscall runtime. ~--usize=32~ changes til's scalar/container
+  layout but leaves 64-bit native pointers and x86-64 instructions. It is not
+  a 32-bit x86 execution mode. Reusing this emitter initially gives a Linux
+  x64 JIT; neither Windows x64 nor ARM64 is already supported by that fact.
+  FASM native own-pointer fields and a compact C host's compressed own fields
+  differ even at the same USize. Passing aggregate buffers between them needs
+  an explicit layout/allocator contract; the first scalar entry avoids this.
+- The separate [[https://github.com/tgrysztar/fasmg/tree/e888130a6a3d5b4c38fb965e6b94ebbc01dd703d][fasmg reference]] defines instruction sets with macros, rather
+  than built-in CPU opcodes. Its [[https://github.com/tgrysztar/fasmg/blob/e888130a6a3d5b4c38fb965e6b94ebbc01dd703d/core/docs/fasmg.txt][overview]] describes this distinction; its
+  [[https://github.com/tgrysztar/fasmg/blob/e888130a6a3d5b4c38fb965e6b94ebbc01dd703d/packages/aarch64/hello_linux.asm][AArch64 Linux example]] emits ~EM_AARCH64~ ELF with an AArch64 instruction
+  package. Those target encoders do not prove an ARM-native assembler host:
+  the [[https://github.com/tgrysztar/fasmg/blob/e888130a6a3d5b4c38fb965e6b94ebbc01dd703d/core/readme.txt][distributed core frontends]] are x86. Switching assemblers alone would
+  not port til's x86 instructions, private ABI, syscalls or host bridge.
+- Stock TempleOS and its native HolyC compiler target x86-64. HolyC's JIT and
+  AOT share native compilation machinery; this is not an AST interpreter or
+  evidence of tracing/tiered compilation. Its [[https://github.com/cia-foundation/TempleOS/blob/c26482bb6ad3f80106d28504ec5db3c6a360732c/Doc/HolyC.DD][HolyC documentation]] specifies F64
+  but no F32; til's HolyC backend must preserve til's separate F32 contract
+  itself.
+
+**** Reference checkout and reading map
+
+Cloned ~https://github.com/cia-foundation/TempleOS.git~ under the existing
+task worktree's ~.inspirations/TempleOS/~, locally ignored rather than vendored
+or made a dependency. Inspected revision
+~c26482bb6ad3f80106d28504ec5db3c6a360732c~. The links below are pinned to it;
+the local checkout is only a reading aid and is not needed to build til.
+
+- [[https://github.com/cia-foundation/TempleOS/blob/c26482bb6ad3f80106d28504ec5db3c6a360732c/Doc/Features.DD][Doc/Features.DD]]: x86-64, ring-0, identity-mapped environment; native
+  compiler/assembler supports both JIT and AOT, with no object/executable file
+  required for ordinary JIT execution.
+- [[https://github.com/cia-foundation/TempleOS/blob/c26482bb6ad3f80106d28504ec5db3c6a360732c/Kernel/KTask.HC#L302-L365][Kernel/KTask.HC::ExeCmdLine]] calls ~LexStmt2Bin~, invokes ~Call(machine_code)~,
+  records the answer/type/time and frees temporary code unless misc-data flags
+  require retention. ~CCF_JUST_LOAD~ suppresses invocation. It is a synchronous
+  compile/call loop, not a subprocess per command.
+- [[https://github.com/cia-foundation/TempleOS/blob/c26482bb6ad3f80106d28504ec5db3c6a360732c/Compiler/CMain.HC#L1-L33][Compiler/CMain.HC::LexStmt2Bin]] parses a statement, adds result/return
+  operations and calls ~COCCompile~. Its AOT branch stores compiled bytes
+  instead. ~ExePutS~ later in this file builds a compiler context around source
+  text and enters ~ExeCmdLine~; ~Cmp~/~CmpJoin~ provide the separate AOT route.
+- [[https://github.com/cia-foundation/TempleOS/blob/c26482bb6ad3f80106d28504ec5db3c6a360732c/Compiler/PrsLib.HC#L249-L323][Compiler/PrsLib.HC::COCCompile]] runs optimization/register/backend passes,
+  iterates code sizing until stable, allocates final storage from the task's
+  code heap for JIT, then emits into it with debug metadata. AOT uses ordinary
+  storage. This source demonstrates a real native compiler behind the loop.
+- [[https://github.com/cia-foundation/TempleOS/blob/c26482bb6ad3f80106d28504ec5db3c6a360732c/Compiler/PrsStmt.HC#L140-L190][Compiler/PrsStmt.HC::PrsFun]] compiles a definition, stores its code address
+  in ~CHashFun.exe_addr~ and resolves pending symbol imports. Function code is
+  distinct from a temporary command's code buffer.
+- [[https://github.com/cia-foundation/TempleOS/blob/c26482bb6ad3f80106d28504ec5db3c6a360732c/Kernel/KTask.HC#L245-L283][Kernel/KTask.HC::Spawn]] creates task heaps and chains the child's symbol
+  table to its parent's. [[https://github.com/cia-foundation/TempleOS/blob/c26482bb6ad3f80106d28504ec5db3c6a360732c/Doc/MemOverview.DD][Doc/MemOverview.DD]] describes task-death reclamation,
+  the long-lived Adam task and code placement in the low 2 GiB for rel32 reach.
+- [[https://github.com/cia-foundation/TempleOS/blob/c26482bb6ad3f80106d28504ec5db3c6a360732c/Compiler/PrsStmt.HC#L805-L839][Compiler/PrsStmt.HC::PrsStreamBlk]] temporarily switches into executable
+  compile-time blocks and invokes the same command loop. With
+  [[https://github.com/cia-foundation/TempleOS/blob/c26482bb6ad3f80106d28504ec5db3c6a360732c/Compiler/CMisc.HC#L68-L80][Compiler/CMisc.HC::StreamPrint]], generated text can reenter the compiler
+  stream. This is a useful staged-evaluation reference, not a substitute for
+  til's macro/generator typing and bootstrap rules.
+- [[https://github.com/cia-foundation/TempleOS/blob/c26482bb6ad3f80106d28504ec5db3c6a360732c/Compiler/CMain.HC#L174][Compiler/CMain.HC::CmpFixUpJITAsm]] handles absolute adjustments and
+  import/export records for assembled JIT code. Direct allocation/emission
+  does not eliminate the symbol/fixup problem.
+
+**** Lessons to carry into til
+
+- Treat a session as compiler state plus symbols, globals, owned code and
+  callbacks. Distinguish short-lived command code from persistent definitions
+  and from captured/returned code references. A command's successful return is
+  not sufficient permission to unload everything compiled for it.
+- Publish callable addresses only after emission, fixups and host code-memory
+  finalization succeed. Preserve debug/source associations. Define redefinition,
+  initialization and failure recovery rather than silently leaving partial
+  session state. TempleOS's code is a reference, not proof of those til rules.
+- Plan branch/address reach explicitly. TempleOS puts code in the low 2 GiB
+  within one shared address map; hosted Linux libraries, ASLR and separately
+  mapped modules need not lie within rel32 reach. A bounded loader must check
+  displacement ranges or use an agreed indirection strategy.
+- Do not copy TempleOS's ring-0/executable-heap assumptions into hosted til.
+  Hosted code needs an OS-owned mapping/protection/release boundary, writable
+  relocation before executable publication, and any target-required instruction
+  cache synchronization. Keep mutable data and immutable executable code apart.
+- HolyC callable addresses are not til callable descriptors. til's private
+  aggregate/address/capture ABI needs an explicit host adapter; task-level
+  cleanup does not replace til's ownership or retained-callback contracts.
+- The four-word FASM callable descriptor and its owned capture block do not
+  acquire ownership of the module containing their code. A later retained
+  callable must keep a valid code/session borrow, as TilVmCallback does for its
+  VM; cloning captures must not silently retain or outlive that separate owner.
+  Preserve the existing lifetime policy rather than adding reference counting.
+- Reuse lowering and semantic tests, not just an emitter's text output.
+  Standalone startup/~rt_exit~ and fatal runtime services cannot be imported
+  blindly into a recoverable REPL/embedding process. Staged native compile-time
+  execution must also preserve #472's host-versus-target distinction.
+
+The first scalar-I64 milestone below is already supported by the standalone
+emitter's language subset. Completing I64/U64 SIMD, vector casts or every
+runtime service first would not establish the missing load/call/lifetime
+boundary. Keep that first proof bounded, then extend runtime/ownership/session
+coverage using measured costs. The proposed artifact/bridge contract below
+still requires its explicit implementation approval; this research does not
+select a new assembler dependency or implement a loader.
 
 *** Execution-engine direction
 
@@ -47,6 +166,9 @@ Source inspection at master ~e5cc848e9~:
   throwing calls, globals and native services before exposing entry points.
   Code must remain alive while callbacks/closures or executing frames use it;
   session teardown/redefinition must not invalidate live code or captured data.
+- Preserve independent reference permissions in prepared signatures, adapters
+  and future native/TilVm schemas, as specified below. A matching register or
+  pointer layout is not sufficient evidence of a compatible callable contract.
 - FASM 1 is an x86 assembler, not a portable machine-code backend. Initial
   work can target Linux x64, but other host architectures need their own
   native code-generation strategy before their interpreter can be retired.
@@ -95,7 +217,9 @@ Source inspection at master ~e5cc848e9~:
   runtime services and frontend execution with #151.
 - [ ] Cover incremental loading/redefinition, globals and initialization,
   ownership/destruction, exceptions, callback ABI and session teardown.
-  Preserve existing public behavior unless a specific change is approved.
+  Preserve existing public behavior unless a specific change is approved;
+  integrate #490/#491's permission contracts without claiming their remaining
+  accessor/path/schema migration is already complete.
 - [ ] Move compile-time evaluation to the new engine while keeping the
   bootstrap viable. A JIT needing the fully prepared whole program cannot
   be the only mechanism used to prepare that same program: support the
@@ -129,7 +253,7 @@ design approval before implementation.
 
 *** First JIT milestone: implementation handoff
 
-Planning baseline: master ~5c5675e91~. This is a source-reviewed proposal,
+Planning baseline updated to master ~ae1daf9eb~. This is a source-reviewed proposal,
 not an implemented JIT or measured speedup. Recheck the implementation on the
 next session's actual base. The deliverable is one function compiled from
 til source and called repeatedly IN the test process on Linux x64, followed
@@ -147,12 +271,19 @@ TempleOS port or new default backend.
   index already provide function lowering and reachable direct-call discovery.
   Reuse them behind a suitable module wrapper; do not copy the expression
   emitter or implement a second scalar language in the test driver.
+- ~src/self/codegen/common.til~ supplies syntax/layout-independent prepared-AST
+  queries already used by C, HolyC and FASM. ~common_c.til~ supplies C/HolyC
+  syntax/representation support, not x86 instruction emission. Reuse the former
+  where needed; keep language rules in the frontend. In particular, the shared
+  borrowed-niche subject snapshot already preserves single evaluation and
+  carried borrow provenance. A separate JIT lowering must not discard it.
 - ~fasm_call_argument~ and ~fasm_function~ consult the shared parameter ABI
   analysis. Some arguments travel by address rather than scalar value.
   Capturing callables additionally carry their environment in R10. Therefore
   "uses SysV registers" does NOT make every emitted function a C-ABI function.
-- ~builder.til::compile_fasm~ / ~fasm_build.til~ run the vendored assembler as
-  a process, produce an executable and chmod it. Keep that AOT path intact.
+- ~src/self/builder.til::fasm_prepare~ / ~compile_fasm~ manage and run the
+  vendored assembler as a process, produce an executable and chmod it. There
+  is no separate ~fasm_build.til~ module. Keep that AOT path intact.
   Using the assembler process to create code, then executing that code inside
   the caller, is an adequate initial JIT; embedding the assembler itself is
   a later startup-cost optimization.
@@ -188,6 +319,53 @@ reduced to a precomputed result. Select and retain this function as an explicit
 compilation root before scavenging; do not depend on an uncalled function
 surviving an executable's main-root reachability pass.
 
+**** Ownership and reference permissions at the native boundary
+
+Follow the current ownership/qualifier guides linked above; the machine ABI
+does not replace their contracts:
+
+- ~arg: T~ borrows by default; ~own arg: T~ consumes ownership. Eligible
+  primitive arguments/results auto-shallow in ordinary functions, so the first
+  two-I64/value-result function needs no explicit ~shallow~. Mut/own parameters,
+  borrowed-result functions and fixed ext/core boundaries retain their own
+  pointer/value conventions; use shared ABI analysis rather than this shorthand.
+- ~returns T~ produces a result owned by the caller, while ~returns ref T~
+  and ~returns ref mut T~ borrow. A non-ref aggregate result may use caller
+  frame storage and still own heap-backed contents. Preserve its cleanup and
+  outer-storage metadata: ownership alone does not imply a heap box/free.
+- Stored-reference slot permission and referent permission are independent.
+  ~const ref mut value : T~ has a fixed slot and writable referent;
+  ~mut ref value : T~ has a replaceable slot and read-only referent. For fields
+  the replaceable-slot form is simply ~ref value : T~. Borrowed parameters use
+  ~arg : T~/~mut arg : T~, not a stored-local slot qualifier.
+- Under the #490/#491 contract, ~returns ref T~ grants read-only access and
+  ~returns ref mut T~ grants writable access; the caller chooses its receiving
+  slot's mutability. A caller may restrict a writable result to read-only with
+  the same borrow ABI, but cannot upgrade a read-only result. No owned-return
+  ~mut~ qualifier or new getter API is selected by this JIT plan.
+- Current parsing/AST, generic identities/substitution, callable-result
+  compatibility, typed dynamic lookup and Til-library bindings preserve/check
+  the new permissions. Full source-path/writable-alias enforcement, plain-ref
+  defaults migration, collection accessors, reflection/native schemas and the
+  C-header translator are still pending. Existing accepted legacy programs
+  do not prove those future checks. Preserve current checks now and integrate
+  each approved migration; do not enforce a different JIT-only language.
+- Identical pointer shapes do not make read-only/writable or borrowed/owned
+  callable contracts interchangeable. Retain the prepared signature metadata
+  through direct/indirect calls and adapters; diagnose unsupported native
+  callable transfers instead of executing an incompatible descriptor. #370's
+  reported interpreted-native-host dispatch crash remains separate from its
+  validated compiled-host/guest paths and from the permission migration.
+- Slot/referent mutability neither transfers ownership nor retains a VM or
+  code module. Owning/cloning a carrier or capture does not acquire the owners
+  of its borrowed fields. Keep borrowed owners/code alive through every use,
+  and preserve callback-before-VM destruction and active-call retirement rules.
+
+These are integration requirements as the JIT grows beyond the initial scalar
+entry, not a requirement to finish the entire #490/#491 migration before
+proving in-process scalar execution. The first entry has no borrowed result,
+capture, retained callback or cross-layout aggregate.
+
 **** Entry ABI and module lifetime
 
 - Export one internal entry symbol (proposed ~til_jit_entry~) whose external
@@ -202,9 +380,11 @@ surviving an executable's main-root reachability pass.
   function itself must be assembled by FASM. This is not GCC/Clang retirement.
 - Let one owner hold the mapped region, symbol/entry metadata and any memory
   needed through invocation. Calls borrow the owner synchronously; no callback
-  or executable pointer escapes it in this slice. Release the mapping after
-  the final call, including failure cleanup. Do not deliberately call freed
-  code as a lifetime test.
+  or executable pointer escapes it in this slice. Its destructor releases the
+  mapping after the final use, including failure cleanup. A private teardown
+  helper follows the File/TilVm pattern; ordinary callers need no manual free
+  or new public close API. Do not deliberately call freed code as a lifetime
+  test.
 - Code allocation uses native addresses, not compressed til-own-pointer slots.
   Write/relocate while writable, make code executable before publishing the
   entry, then keep it immutable during calls. Propagate mapping/protection/
