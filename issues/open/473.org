@@ -812,3 +812,28 @@ Windows would change the output of every program and was not done.
 
 ~make test_asan~ here: everything passes except the eleven ~install_tilvm~
 rows, which need clang's ASAN headers and this container has none.
+
+*** Progress: run 3076, the first comparison (base master bee4625)
+
+- Every Linux suite passed (x64, x64 native layout, arm64 native), and the
+  Windows host job again. ~collect~ compared three lists. Its download of
+  ~pattern: hashes-*~ puts each artifact in a directory of its own
+  (~hashes/hashes-linux-x64/linux-x64.txt~), which the collector's
+  recursive search already handles. Results are in #472: level 2 equal on
+  all 270 files across the three hosts; level 1 equal between the two Linux
+  hosts, and the Windows differences traced to CR LF checkouts and fixed in
+  the lexer.
+- macos-x64 failed its suite on one row, ~link_objects~ interpreted:
+  ~ld: library 'atomic' not found~. The interpreter linked the bridge with
+  the program's link flags unfiltered, while a build drops ~-latomic~ (and
+  ~-ldl -lrt -lpthread -lm~) for macOS, Windows, wasm and Android targets.
+  That filter is now one function, ~targets.til::target_link_flags~, used
+  by ~builder.til~ for a build and by ~ffi_init_user_so~ for the host's
+  bridge. Not run on a Mac yet. macos-arm64 was cancelled by it, so neither
+  Mac list has been produced.
+- The TempleOS guest job had not finished after seventy minutes when the
+  run was cancelled; no result.
+
+For the groups: the two Linux producers agree on everything, so the
+frontend and source groups between them can become blocking. Not done in
+this commit: one green run with the Windows fix first.

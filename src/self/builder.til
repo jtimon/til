@@ -434,35 +434,9 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     if is_windows_target(target) { dyn_flag = " -Wl,--export-all-symbols" }
     if target.is(Target.Wasm32) { dyn_flag = "" }
 
-    // For Windows/wasm and macOS targets, drop the -l flags a program's
-    // untargeted link()s carry for linux: mingw doesn't ship -ldl/-lrt,
-    // emcc has no use for them, and every one the tree uses is a
-    // libSystem alias on darwin (m, pthread, dl) or does not exist there
-    // (rt, atomic). The linux targets get them back from
-    // target_system_libs. Each library's archives are not touched here:
-    // their link()s name each target's own (issue #422).
-    //
-    // The rewrite is TOKEN-level, never substring replace: matching whole
-    // tokens keeps a path that merely contains one of these strings
-    // intact. Anything unrecognized is kept and fails loudly at link with
-    // its real name.
-    if is_windows_target(target).or(target.is(Target.Wasm32))
-        .or(target.is(Target.MacosX64)).or(target.is(Target.MacosArm64)).or(is_android_target(target)) {
-        // -latomic must go on macos (no such lib on darwin) and windows
-        // (nng's linux-only dep, which the mingw nng build does not need);
-        // on wasm it stays.
-        is_macos := target.is(Target.MacosX64).or(target.is(Target.MacosArm64))
-        is_win := is_windows_target(target)
-        tokens := lf.split(" ")
-        mut new_lf := ""
-        for t : Str in tokens {
-            if t.len() == 0 { continue }
-            if t.eq("-ldl").or(t.eq("-lrt")).or(t.eq("-lpthread")).or(t.eq("-lm")) { continue }
-            if is_macos.or(is_win).and(t.eq("-latomic")) { continue }
-            new_lf = new_lf.format(" ", t)
-        }
-        lf = new_lf
-    }
+    // The -l flags a program's untargeted link()s carry for linux, as the
+    // target takes them (targets.til, target_link_flags).
+    lf = target_link_flags(lf, target)
 
     // Per-target system link flags. Table in src/self/targets.til.
     sys_libs := target_system_libs(target)

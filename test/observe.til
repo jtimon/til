@@ -107,6 +107,27 @@ sensitivity := proc(compiler: Str) {
     expect(records_with(folded, "LiteralNum", "text=\"6\"") >= 1, "not sensitive to a folded call's value")
 }
 
+// A file's records do not depend on its line ends (#472). A Windows
+// checkout converts LF to CR LF, and the observation of the same source
+// differed there: a /// doc comment's text kept the CR. Every phase, with
+// doc comments of both kinds, a string and a multi-line expression.
+line_ends := proc(compiler: Str) {
+    lf := "mode script\n/// A documented function.\n/// Two lines of it.\ntwice := func(n: I64) returns I64 {\n    return n +\n        n\n}\n/** A block\n * of documentation.\n */\nlabel := \"twice\"\nprintln(label, \" \", twice(21).to_str())\n"
+    crlf := lf.replace("\n", "\r\n")
+    for phase : Str in array(Str, "tokens", "parsed", "typed", "owned", "prepared") {
+        with_lf := observe_text(compiler, phase, "line_ends_lf", lf)
+        with_crlf := observe_text(compiler, phase, "line_ends_crlf", crlf)
+        // REM Each starts with its own unit line, which names the file.
+        first_lf := with_lf.find("\n")
+        first_crlf := with_crlf.find("\n")
+        body_lf := with_lf.substr(first_lf.to_usize(), with_lf.len() - first_lf.to_usize())
+        body_crlf := with_crlf.substr(first_crlf.to_usize(), with_crlf.len() - first_crlf.to_usize())
+        if body_lf != body_crlf { panic("at ", phase, ": the records of one source differ between LF and CR LF line ends") }
+    }
+    documented := observe_text(compiler, "parsed", "line_ends_crlf", crlf)
+    expect(records_with(documented, "A documented function.") >= 1, "the doc comment is not in the records")
+}
+
 main := proc(args: ..Str) {
     if args.len() < 1 || args.len() > 2 { panic("usage: observe <compiler under test> [second compiler]") }
     compiler := args[0].clone()
@@ -116,6 +137,7 @@ main := proc(args: ..Str) {
     mkdir_p(WORK)
 
     sensitivity(compiler)
+    line_ends(compiler)
 
     phases := array(Str, "tokens", "parsed", "typed", "owned", "prepared")
     // Control flow; a diamond of imports; generics; closures; ownership

@@ -453,7 +453,14 @@ tokenize := proc(src: Str, path: Str, quiet: Bool = false, mut diagnostics: Vec(
                             text_start++
                         }
                         text_end := scan_to_eol(src, text_start, src_len)
-                        push_tok(tokens, TokenType.DocComment, text_start, text_end - text_start, line, col)
+                        // A CR LF line end is a line end: the CR is not
+                        // text, as a /** */ line strips it (is_doc_ws). A
+                        // Windows checkout converts LF to CR LF, and the
+                        // same file then documented every line with a
+                        // trailing CR (#472).
+                        mut text_stop := text_end
+                        if text_stop.gt(text_start).and(src.unsafe_get(text_stop - 1).eq('\r')) { text_stop = text_stop - 1 }
+                        push_tok(tokens, TokenType.DocComment, text_start, text_stop - text_start, line, col)
                         pos = text_end
                         continue
                     }

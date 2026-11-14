@@ -359,6 +359,36 @@ target_list_has := func(list: Str, target: Target) returns Bool {
     return found
 }
 
+// The link flags a program's link()s give, as `target` takes them. For
+// Windows, wasm, macOS and Android, drop the -l flags its untargeted
+// link()s carry for linux: mingw doesn't ship -ldl/-lrt, emcc has no use
+// for them, and every one the tree uses is a libSystem alias on darwin (m,
+// pthread, dl) or does not exist there (rt, atomic). The linux targets get
+// them back from target_system_libs. Each library's archives are not
+// touched here: their link()s name each target's own (issue #422).
+// -latomic goes on macos (no such lib on darwin) and windows (nng's
+// linux-only dep, which the mingw nng build does not need); on wasm it
+// stays.
+//
+// The rewrite is TOKEN-level, never substring replace: matching whole
+// tokens keeps a path that merely contains one of these strings intact.
+// Anything unrecognized is kept and fails loudly at link with its real
+// name. Used for a build (builder.til, compile_c) and for the bridge the
+// interpreter links for the host (interpreter.til, ffi_init_user_so).
+target_link_flags := func(flags: Str, target: Target) returns Str {
+    is_macos := target.is(Target.MacosX64).or(target.is(Target.MacosArm64))
+    is_win := is_windows_target(target)
+    if is_win.or(is_macos).or(target.is(Target.Wasm32)).or(is_android_target(target)).not() { return flags.clone() }
+    mut kept := ""
+    for token : Str in flags.split(" ") {
+        if token.len() == 0 { continue }
+        if token.eq("-ldl").or(token.eq("-lrt")).or(token.eq("-lpthread")).or(token.eq("-lm")) { continue }
+        if is_macos.or(is_win).and(token.eq("-latomic")) { continue }
+        kept = format(kept, " ", token)
+    }
+    return kept
+}
+
 // ---------- Detect current platform
 
 // The default build/run target: the platform this binary itself was

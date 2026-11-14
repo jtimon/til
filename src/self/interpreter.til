@@ -9099,8 +9099,10 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     // state: nng's setter resolved here but its separately archived socket
     // constructor resolved from the global twin, so a fresh socket was closed.
     // Compiled programs still link their original archives in the builder.
+    // The host is the bridge's target: its link flags are filtered as a
+    // build for it filters them (a macOS host has no -latomic).
     mut lf := ""
-    for flag : Str in link_flags.split(" ") {
+    for flag : Str in target_link_flags(link_flags, detect_current_target()).split(" ") {
         if flag.len() == 0 { continue }
         if flag.ends_with(".a") { lf = format(lf, " ", ffi_archive_twin_path(flag)) }
         else { lf = format(lf, " ", flag) }

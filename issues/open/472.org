@@ -1838,3 +1838,39 @@ which the collector now reads as text. Details and the workflow's new
 Windows and Mac producers are in #473. CI has still not completed a run
 with any producer; the Windows host step that kept cancelling it has a
 second fix (a C-runtime mismatch at link time, also in #473).
+
+*** Progress: the first cross-host comparison in CI (run 3076, master bee4625)
+
+Three producers finished: Linux x64 (~ubuntu-latest~), Linux arm64 native
+(~ubuntu-24.04-arm~) and the Windows ~til.exe~. #473's ~collect~ compared
+their lists, 1140 items each:
+- Level 2: all 270 translated files are equal across the three hosts, for
+  every one of the fourteen targets at both widths.
+- Level 1: Linux x64 and Linux arm64 are equal on every one of the 870
+  frontend items. The Windows ~til.exe~ differed on 552.
+
+The Windows differences all start at ~tokens~ and are one thing: the
+runner's checkout converts LF to CR LF (Git for Windows), and the lexer
+kept the CR at the end of every ~///~ doc comment's text. Reproduced here
+by observing from a copy of ~src/~ and the corpus converted to CR LF: at
+every phase the only records that change are doc comment text, and the
+translated C is the same. (Under wine the sources were this checkout's,
+LF, which is why wine agreed.) A ~/** */~ doc block already dropped the CR,
+since its whitespace set includes it.
+
+Fixed in ~lexer.til~: a ~///~ doc comment's text ends before the CR of a
+CR LF line end. Since this affected the text the generated API docs show,
+docs built from a CR LF checkout had a CR at the end of every line. With
+the fix the CR LF copy and the checkout give identical records at every
+phase. Regression: ~test/observe.til~ ~line_ends~, the same source with LF
+and with CR LF line ends, every phase; it fails without the fix.
+
+Not changed, noted: a string literal that spans lines in a CR LF file
+still contains the CR. No file of the corpus has one. Whether a multi-line
+literal's line ends should be the file's or always LF (Rust normalizes
+CR LF when it loads a source file) is a language question, not done here.
+
+So level 1 holds between the two Linux hosts on this corpus, and holds for
+Windows once this lands, as far as the next run shows. The Macs have not
+produced yet: their suites run after the cross build, and macos-x64 failed
+(#473).
