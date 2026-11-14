@@ -2995,6 +2995,7 @@ typedef struct LoadedProgram {
     Bool asan_build;
     Bool jni_build;
     Bool mlir_runtime;
+    Bool mlir_needs_core;
     Bool run_tests;
     I32 load_errors;
     I64 usize_override_bits;

@@ -1453,6 +1453,30 @@ priv mlir_pointer_result := proc(pointer: Str, e: Expr, borrow: Bool, mut state:
     return mlir_convert(value,t,mlir_type(e.til_type(),lp),signed_value,e,state,lp)
 }
 
+priv mlir_print_call := proc(e : Expr, name : Str, mut state : MlirState, mut lp : LoadedProgram) returns Str {
+    if name == "print_flush" {
+        state.externals.set("putchar", own "  llvm.func @putchar(i32) -> i32\n")
+        newline := mlir_value(state, "arith.constant 10 : i32")
+        mlir_value(state, format("llvm.call @putchar(", newline, ") : (i32) -> i32"))
+        return ""
+    }
+    descriptor := mlir_expr(e.children[1], state, lp, true)
+    str_type := mlir_type(type_from_name_init_name("Str", lp.ctx.scope, lp.ctx.symbols), lp)
+    data_slot := mlir_value(state, format("llvm.getelementptr ", descriptor, "[0, 0] : (!llvm.ptr) -> !llvm.ptr, ", str_type))
+    data := mlir_load(data_slot, "!llvm.ptr", state, "1")
+    count_slot := mlir_value(state, format("llvm.getelementptr ", descriptor, "[0, 1] : (!llvm.ptr) -> !llvm.ptr, ", str_type))
+    count_type := mlir_count_type(lp)
+    count := mlir_load(count_slot, count_type, state, "1")
+    size := mlir_convert(count, count_type, "i64", false, e, state, lp)
+    state.externals.set("stdout", own "  llvm.mlir.global external @stdout() : !llvm.ptr\n")
+    state.externals.set("fwrite", own "  llvm.func @fwrite(!llvm.ptr, i64, i64, !llvm.ptr) -> i64\n")
+    stream_slot := mlir_value(state, "llvm.mlir.addressof @stdout : !llvm.ptr")
+    stream := mlir_load(stream_slot, "!llvm.ptr", state)
+    one := mlir_value(state, "arith.constant 1 : i64")
+    mlir_value(state, format("llvm.call @fwrite(", data, ", ", one, ", ", size, ", ", stream, ") : (!llvm.ptr, i64, i64, !llvm.ptr) -> i64"))
+    return ""
+}
+
 priv mlir_memory_call := proc(e: Expr, name: Str, borrow: Bool, mut state: MlirState, mut lp: LoadedProgram) returns Str {
     if name=="exit" {
         // Core spells the status I64; libc's boundary is int, as in C output.
@@ -2103,6 +2127,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
             ref name : Str = id.ident_name(lp.ctx.symbols.names)
             if name == "cast" && e.children.len() == 3 { return mlir_cast(e, state, lp) }
             if target.is_some() && funcdef_of(target.unwrap()).sig.func_type.is_bodyless() {
+                if name == "print_single" || name == "print_flush" { return mlir_print_call(e, name, state, lp) }
                 if mlir_memory_primitive(name) { return mlir_memory_call(e,name,borrow,state,lp) }
             }
             primitive := mlir_resolve_call(e,state,lp)
@@ -2581,6 +2606,7 @@ priv mlir_function := proc(callable: MlirCallable, functions: Map(UPtr,MlirCalla
 }
 
 mlir_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_functions: Set(Str)) returns I32 {
+    lp.mlir_needs_core = false
     mut text := "module attributes {llvm.target_triple = \"x86_64-pc-linux-gnu\"} {\n"
     root_path := lp.units[lp.units.len()-1].path.clone()
     context_enter_file(lp.ctx, root_path)
@@ -2660,7 +2686,10 @@ mlir_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_function
         if has_main.not() { println("error: MLIR backend requires a no-argument main"); return 1 }
         text = format(text, "  llvm.func @main() -> i32 {\n    llvm.call @\"til.mlir.main\"() : () -> ()\n    %zero = llvm.mlir.constant(0 : i32) : i32\n    llvm.return %zero : i32\n  }\n")
     }
-    for symbol : Str in externals.keys { text = format(text, externals[symbol]) }
+    for symbol : Str in externals.keys {
+        text = format(text, externals[symbol])
+        if symbol.starts_with(lp.ctx.builder_core_c_prefix) { lp.mlir_needs_core = true }
+    }
     if lp.ctx.errors > 0 { return 1 }
     File.writefile(path, format(text, "}\n"))
     return 0

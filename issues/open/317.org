@@ -159,6 +159,38 @@ a dependency of #318 nor a promise that a vector op will be one instruction.
      masked memory ops must not access memory. Do not gate source-language
      SIMD semantics on this emitter merely because C lacks one intrinsic.
 
+*** Direct libc printing and conditional C-core linking (base bee4625e6)
+
+print_single now lowers to fwrite(data, 1, count, stdout), loading libc's stdout
+FILE pointer as an external LLVM global. print_flush lowers to putchar('\n').
+Counted bytes, embedded NULs, newline behavior and stdio buffering match the
+existing C primitives. eprint_single and native numeric formatting remain at
+their existing runtime boundary; no native entrypoint or artifact path is added.
+
+LoadedProgram.mlir_needs_core is derived from the emitted external-reference
+table and resets for each translation. It is neither a config option nor a
+persistent dependency cache. The builder compiles the TIL_CORE_ONLY object and
+adds it to executable/shared/archive links only when an emitted bridge symbol
+uses the core namespace. Fully direct builds use their MLIR object, runtime and
+libc/libm. Existing C support source/header generation still supplies runtime ABI
+declarations and the optional fallback; this increment does not remove those
+approved source artifacts. The decision precedes LLVM dead-code elimination.
+
+test/mlir.til check_core_dependency repeatedly changes one library from a Bool
+to_str bridge body to an equivalent fully direct body and back. It verifies
+ar membership, shared/executable symbols, skipped core compilation (the previous
+temporary core object is removed and must stay absent), functioning ASAN/UBSAN
+static/shared clients, and bridge-positive links. Existing diagnostic/ownership
+object audits now require zero C-core references. The full optional suite tests
+the direct path's output, panic locations, exit statuses, ownership and ABI at
+O0/O2/O3. Options tests check fwrite/putchar/stdout lowering without LLVM tools.
+
+Verification: make clean && make test passes 575/575. The ASAN compiler and
+ASAN driver pass the full optional MLIR integration, including core-positive/
+coreless transitions, executable/shared/archive output and native ASAN/UBSAN
+clients. A post-run nm/ar audit of 26 direct fixture objects, shared libraries
+and archives finds no C-core symbol references/definitions or core members.
+
 *** Raw swap, integer formatting and saved-value cleanup (base 22169738f)
 
 swap_bytes and all I8/U8 through I64/U64 to_str methods now use their prepared

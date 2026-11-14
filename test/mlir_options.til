@@ -311,7 +311,8 @@ main := proc(compiler_arg: Str) {
             expect(diagnostics_ir.contains(format("llvm.func internal @\"til.mlir.core.",helper,"\"")),diagnostics_ir)
             expect(diagnostics_ir.contains(format("__",helper,"\"")).not(),diagnostics_ir)
         }
-        expect(diagnostics_ir.contains("llvm.call @exit(") && diagnostics_ir.contains("llvm.unreachable") && diagnostics_ir.contains("__print_single\"") && diagnostics_ir.contains("__print_flush\""),diagnostics_ir)
+        expect(diagnostics_ir.contains("llvm.call @exit(") && diagnostics_ir.contains("llvm.unreachable") && diagnostics_ir.contains("llvm.call @fwrite(") && diagnostics_ir.contains("llvm.call @putchar("),diagnostics_ir)
+        expect(diagnostics_ir.contains("llvm.mlir.global external @stdout() : !llvm.ptr") && diagnostics_ir.contains("til_tilcore").not(), diagnostics_ir)
         File.writefile(format(work, "/bad.til"), "mode pure\nbad := func(a: I32) returns U64 { return I32.distance(to_ptr(a),to_ptr(a)) }\n")
         bad := Cmd.new(compiler, "translate", "--backend=mlir", "bad.til")
         bad.cwd(work).capture()

@@ -373,6 +373,9 @@ LoadedProgram := struct {
     jni_build := false
     // Temporary MLIR-to-C core bridge; not a source-language mode or cache.
     mlir_runtime := false
+    // Derived from this translation's emitted external references, not from
+    // the broader prepared C support inventory or a persistent dependency file.
+    mlir_needs_core := false
     run_tests := false
     // Non-zero when load_program gave up on a user import (missing file, or a
     // syntax error inside one). The program is unusable; the caller decides

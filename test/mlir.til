@@ -328,9 +328,7 @@ priv check_diagnostics := proc(compiler:Str,work:Str) {
         checked(build,work)
         audit:=Cmd.new("nm","-u","gen/lib/diagnostic_helpers.o")
         checked(audit,work)
-        for line:Str in audit.out().split("\n") {
-            if line.contains("til_tilcore") {expect(line.ends_with("__print_single").or(line.ends_with("__print_flush")),line)}
-        }
+        expect(audit.out().contains("til_tilcore").not(), audit.out())
         cc:=Cmd.new("clang-18","-O2","-Wall","-Wextra","-Werror","-fsanitize=address,undefined","diagnostic_caller.c","gen/lib/libdiagnostic_helpers.a","-lm","-o","diagnostic_caller")
         checked(cc,work)
         native:=Cmd.new("./diagnostic_caller")
@@ -395,9 +393,7 @@ priv check_swap_format_cleanup := proc(compiler:Str,work:Str) {
         checked(build,work)
         audit:=Cmd.new("nm","-u","gen/lib/swap_format_cleanup.o")
         checked(audit,work)
-        for line:Str in audit.out().split("\n") {
-            if line.contains("til_tilcore") {expect(line.ends_with("__print_single").or(line.ends_with("__print_flush")),line)}
-        }
+        expect(audit.out().contains("til_tilcore").not(), audit.out())
         expect(audit.out().contains("__U64_to_str_ext"),audit.out())
         cc:=Cmd.new("clang-18","-O2","-Wall","-Wextra","-Werror","-fsanitize=address,undefined","swap_format_cleanup_caller.c","gen/lib/libswap_format_cleanup.a","-lm","-o","swap_format_cleanup_caller")
         checked(cc,work)
@@ -405,6 +401,65 @@ priv check_swap_format_cleanup := proc(compiler:Str,work:Str) {
         checked(native,work)
         consumer:=Cmd.new(compiler,"run","--usize=64","--asan",format("--opt=",level),"swap_format_cleanup_consumer.til")
         checked(consumer,work)
+    }
+}
+
+priv check_core_dependency := proc(compiler : Str, work : Str) {
+    directory := format(work, "/core_dependency")
+    mkdir_p(directory)
+    File.writefile(format(directory, "/caller.c"), format(
+        "#include <assert.h>\n#include <stdbool.h>\n#include <stdint.h>\n#include <string.h>\n",
+        "typedef struct {char *data;uint64_t count,cap;} Text;extern Text render(bool);\n",
+        "int main(void){Text a=render(true),b=render(false);assert(a.count==4 && b.count==5 && a.cap==UINT64_MAX-1 && b.cap==UINT64_MAX-1);assert(!memcmp(a.data,\"true\",4) && !memcmp(b.data,\"false\",5));return 0;}\n"))
+    mut core_member := ""
+    for need_core in array(Bool, true, false, true, false) {
+        mut body := "if value { return \"true\" }; return \"false\""
+        if need_core { body = "return value.to_str()" }
+        File.writefile(format(directory, "/candidate.til"), format("mode lib\nrender := func(value : Bool) returns Str { ", body, " }\n"))
+        if need_core.not() {
+            File.remove(format(directory, "/gen/lib/", core_member))
+            expect(File.is_file(format(directory, "/gen/lib/", core_member)).not(), core_member)
+        }
+        build := Cmd.new(compiler, "build", "--backend=mlir", "--opt=2", "candidate.til")
+        checked(build, directory)
+        members := Cmd.new("ar", "t", "gen/lib/libcandidate.a")
+        checked(members, directory)
+        mut archived_core := false
+        for member : Str in members.out().split("\n") {
+            if member.starts_with("tilcore-") {
+                archived_core = true
+                core_member = member.clone()
+            }
+        }
+        assert_eq(Bool, archived_core, need_core)
+        assert_eq(Bool, File.is_file(format(directory, "/gen/lib/", core_member)), need_core)
+        shared_symbols := Cmd.new("nm", "-a", "gen/lib/libcandidate.so")
+        checked(shared_symbols, directory)
+        assert_eq(Bool, shared_symbols.out().contains("til_tilcore"), need_core)
+        static_build := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "-fsanitize=address,undefined", "caller.c", "gen/lib/libcandidate.a", "-lm", "-o", "caller_static")
+        checked(static_build, directory)
+        static_run := Cmd.new("./caller_static")
+        checked(static_run, directory)
+        shared_build := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "-fsanitize=address,undefined", "caller.c", "gen/lib/libcandidate.so", "-Wl,-rpath,$ORIGIN/gen/lib", "-lm", "-o", "caller_shared")
+        checked(shared_build, directory)
+        shared_run := Cmd.new("./caller_shared")
+        checked(shared_run, directory)
+    }
+    for need_core in array(Bool, true, false) {
+        mut body := "if value { println(\"true\") } else { println(\"false\") }"
+        if need_core { body = "println(value.to_str())" }
+        File.writefile(format(directory, "/candidate_exe.til"), format("mode cli\nmain := proc() { mut n : I64 = 0; n++; value := n > 0; ", body, " }\n"))
+        if need_core.not() { File.remove(format(directory, "/gen/lib/", core_member)) }
+        build := Cmd.new(compiler, "build", "--backend=mlir", "--opt=2", "-o", "candidate_exe", "candidate_exe.til")
+        checked(build, directory)
+        assert_eq(Bool, File.is_file(format(directory, "/gen/lib/", core_member)), need_core)
+        symbols := Cmd.new("nm", "-a", "candidate_exe")
+        checked(symbols, directory)
+        assert_eq(Bool, symbols.out().contains("til_tilcore"), need_core)
+        run := Cmd.new("./candidate_exe")
+        checked(run, directory)
+        assert_eq(Str, run.out(), "true\n")
+        assert_eq(Str, run.err(), "")
     }
 }
 
@@ -1731,6 +1786,7 @@ main := proc(compiler_arg: Str) {
     compiler := realpath_str(compiler_arg)
     work := "tmp/mlir_integration"
     mkdir_p(work)
+    check_core_dependency(compiler, work)
     check_swap_format_cleanup(compiler,work)
     check_diagnostics(compiler,work)
     check_str_composition(compiler,work)
