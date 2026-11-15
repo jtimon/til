@@ -12689,12 +12689,13 @@ priv scalar_read_arg := proc(mut scope: Scope, mut arg: Expr, shallow target_typ
     return raw_coerce_value(raw, raw_result_source_type(info), target_type, ctx)
 }
 
-// Step scalar storage in place by delta (+1 for inc, -1 for dec) -- the
-// interp side of the inc/dec core_funcs. Resolve the receiver once, read its
-// current scalar, and write back to that same storage. raw_to_i64 reads
-// integer bytes bit-exactly; two's-complement add gives the correct wrap for
-// both signednesses, and scalar_write_raw narrows to the receiver's type.
-priv scalar_step_cell := proc(mut scope: Scope, mut e: Expr, type_str: Str, delta: I64, mut ctx: Context) {
+// Step scalar storage in place by the call's step argument (#384: added for
+// inc, subtracted for dec) -- the interp side of the inc/dec core_funcs.
+// Resolve the receiver once, evaluate the step, read the receiver's current
+// scalar, and write back to that same storage. raw_to_i64 reads integer bytes
+// bit-exactly; two's-complement add/sub gives the correct wrap for both
+// signednesses, and scalar_write_raw narrows to the receiver's type.
+priv scalar_step_cell := proc(mut scope: Scope, mut e: Expr, type_str: Str, is_inc: Bool, mut ctx: Context) {
     ref mut arg : Expr = e.children[1]
     scalar_type := type_from_name_init_name(type_str, ctx.scope, ctx.symbols)
     mut storage : Dynamic = 0
@@ -12712,8 +12713,17 @@ priv scalar_step_cell := proc(mut scope: Scope, mut e: Expr, type_str: Str, delt
     case:
         panic(__LOC__, ": inc/dec receiver has no mutable storage")
     }
+    // #384 transitional: a call without the step child steps by one until
+    // the core inc/dec declare their step parameter.
+    mut step_value : I64 = 1
+    if e.children.len() > 2 {
+        ref mut step_arg : Expr = e.children[2]
+        step : Dynamic = scalar_read_arg(scope, step_arg, scalar_type, ctx)
+        step_value = raw_to_i64(scalar_type, step, ctx)
+    }
     cur : Dynamic = scalar_word_load(scalar_type, storage, ctx)
-    nv := raw_to_i64(scalar_type, cur, ctx).add(delta)
+    mut nv := raw_to_i64(scalar_type, cur, ctx)
+    if is_inc { nv = nv.add(step_value) } else { nv = nv.sub(step_value) }
     scalar_write_raw(type_str, storage, nv)
 }
 
@@ -12794,10 +12804,10 @@ priv scalar_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut r
         return true
     }
 
-    // inc/dec: the sole self-mutating core ops, one arm each (delta +1/-1);
-    // scalar_step_cell holds the shared read-compute-writeback.
-    if op_str == "inc" { scalar_step_cell(scope, e, type_str, 1, ctx); return true }
-    if op_str == "dec" { scalar_step_cell(scope, e, type_str, -1, ctx); return true }
+    // inc/dec: the sole self-mutating core ops, one arm each (add/sub the
+    // step argument); scalar_step_cell holds the shared read-compute-writeback.
+    if op_str == "inc" { scalar_step_cell(scope, e, type_str, true, ctx); return true }
+    if op_str == "dec" { scalar_step_cell(scope, e, type_str, false, ctx); return true }
 
     if op_str.eq("to_uptr").or(op_str.eq("to_usize")) {
         ref mut arg : Expr = e.children[1]

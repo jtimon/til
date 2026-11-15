@@ -5748,6 +5748,7 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
     mut is_tag_check := false
     mut is_raw_alloc := false
     mut is_delete_call := false
+    mut is_core_step := false
     if expr.children.len() > 0 {
         ref callee : Expr = expr.children[0]
         switch callee.node_type {
@@ -5770,7 +5771,9 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
             case:
             }
         case .FieldAccess(hoist_fan):
-            if hoist_fan.field_access_name(ctx.symbols.names).eq("delete") { is_delete_call = true }
+            ref hoist_method : Str = hoist_fan.field_access_name(ctx.symbols.names)
+            if hoist_method.eq("delete") { is_delete_call = true }
+            if core_def.is_some().and(hoist_method.eq("inc").or(hoist_method.eq("dec"))) { is_core_step = true }
         case:
         }
     }
@@ -5808,6 +5811,12 @@ priv hoist_expr := proc(mut ctx: Context, mut expr: Expr, mut hoisted: Vec(Expr)
         // output, previously papered over by the `(void)hoisted__` cast.
         if is_tag_check {
             if i == 3 { continue }
+        }
+        // #384: the numeric inc/dec core_funcs' step is read by value; a
+        // literal step (the `= 1` default above all) stays inline so the
+        // back ends keep their ++/-- spelling instead of reading a temp.
+        if is_core_step.and(i == 2) {
+            if expr.children[i].node_type.is_literal_num() { continue }
         }
         // #326: malloc/calloc take pure by-value byte counts -- no
         // ownership, no address taken -- so a temp buys nothing, and the

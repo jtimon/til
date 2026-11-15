@@ -1924,7 +1924,7 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     if op == "set" && e.children.len() == 5 { return mlir_checked_memory(e, false, true, scalar, state, lp) }
                     return mlir_error(e, format("unsupported borrowed-buffer operation '", op, "'"), lp)
                 }
-                if op.eq("inc").or(op.eq("dec")) && e.children.len() == 2 && mlir_integer_type(owner_type) {
+                if op.eq("inc").or(op.eq("dec")) && e.children.len().eq(2).or(e.children.len().eq(3)) && mlir_integer_type(owner_type) {
                     mut known_slot:=false
                     switch e.children[1].node_type {
                     case .Ident(id):
@@ -1940,11 +1940,21 @@ priv mlir_expr := proc(e: Expr, mut state: MlirState, mut lp: LoadedProgram, bor
                     }
                     address:=mlir_expr(e.children[1],state,lp,true)
                     if known_slot.not() {mlir_check_pointer(address,state,lp)}
+                    // #384: children[2] is the step (the literal 1 default
+                    // or an explicit amount), evaluated before the load.
+                    // Transitional: a call without it steps by one until the
+                    // core inc/dec declare their step parameter.
+                    mut step := ""
+                    if e.children.len() == 3 {
+                        raw_step:=mlir_expr(e.children[2],state,lp)
+                        step=mlir_coerce(raw_step,e.children[2],t,state,lp)
+                    } else {
+                        step = mlir_value(state, format("arith.constant 1 : ", t))
+                    }
                     value:=mlir_load(address,t,state,"1")
-                    one := mlir_value(state, format("arith.constant 1 : ", t))
                     mut operation := "addi"
                     if op == "dec" { operation = "subi" }
-                    result := mlir_value(state, format("arith.", operation, " ", value, ", ", one, " : ", t))
+                    result := mlir_value(state, format("arith.", operation, " ", value, ", ", step, " : ", t))
                     mlir_store(address,result,t,state,"1")
                     return ""
                 }

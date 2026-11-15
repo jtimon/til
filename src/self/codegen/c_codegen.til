@@ -4734,6 +4734,13 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                 } else if core_op.eq("inc").or(core_op.eq("dec")) {
                     step_name := callee_param_type_name(flat, 0, ctx)
                     step_type := til_type_name_c(type_from_name_init_name(step_name, ctx.scope, ctx.symbols), ctx.symbols)
+                    // #384: children[2] is the step. The literal 1 default
+                    // keeps the ++/-- spelling; any other step is added or
+                    // subtracted with the same wrapping rules.
+                    // #384 transitional: a call without the step child is
+                    // a unit step until the core inc/dec declare the param.
+                    mut unit_step := e.children.len() == 2
+                    if unit_step.not() { unit_step = c_step_is_unit_literal(e.children[2]) }
                     mut pointer_step:=false
                     switch e.children[1].node_type {
                     case .FieldAccess: pointer_step=builder_fa_is_ptr(e.children[1],ctx)
@@ -4751,10 +4758,18 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                             mut unsigned_type:="U32";if step_type=="I64" {unsigned_type="U64"}
                             f.write("DEREF(_t_step_pointer) = (").write(step_type).write(")((").write(unsigned_type).write(")DEREF(_t_step_pointer) ")
                             if core_op=="inc" {f.write("+")}else{f.write("-")}
-                            f.write(" 1U); })")
-                        } else {
+                            f.write(" ")
+                            if unit_step { f.write("1U") } else { emit_c_step_operand(f, e.children[2], unsigned_type, depth, ctx) }
+                            f.write("); })")
+                        } else if unit_step {
                             if core_op=="inc" {f.write("++")}else{f.write("--")}
                             f.write("DEREF(_t_step_pointer); })")
+                        } else {
+                            f.write("DEREF(_t_step_pointer) ")
+                            if core_op=="inc" {f.write("+=")}else{f.write("-=")}
+                            f.write(" (")
+                            emit_deref(f, e.children[2], depth, ctx)
+                            f.write("); })")
                         }
                         return f
                     }
@@ -4762,8 +4777,15 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                     // where the addition/subtraction cannot overflow either.
                     if step_type.eq("I32").or(step_type.eq("I64")).not() {
                         f.write("(")
-                        if core_op == "inc" { f.write("++") } else { f.write("--") }
-                        emit_deref(f, e.children[1], depth, ctx)
+                        if unit_step {
+                            if core_op == "inc" { f.write("++") } else { f.write("--") }
+                            emit_deref(f, e.children[1], depth, ctx)
+                        } else {
+                            emit_deref(f, e.children[1], depth, ctx)
+                            if core_op == "inc" { f.write(" += (") } else { f.write(" -= (") }
+                            emit_deref(f, e.children[2], depth, ctx)
+                            f.write(")")
+                        }
                         f.write(")")
                     } else {
                         mut unsigned_type := "U32"
@@ -4785,7 +4807,9 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                             f.write("); *til_step_target = (__typeof__(*til_step_target))((").write(unsigned_type).write(")*til_step_target ")
                         }
                         if core_op == "inc" { f.write("+") } else { f.write("-") }
-                        if simple_receiver { f.write(" 1U))") } else { f.write(" 1U); })") }
+                        f.write(" ")
+                        if unit_step { f.write("1U") } else { emit_c_step_operand(f, e.children[2], unsigned_type, depth, ctx) }
+                        if simple_receiver { f.write("))") } else { f.write("); })") }
                     }
                 } else if core_op == "is" {
                     // The auto-generated enum `is` core_func: the typed
@@ -5769,6 +5793,23 @@ priv emit_fcall_owned_value := proc(f: File, e: Expr, depth: I32, mut ctx: Conte
         f.write("free(_hp); ")
     }
     f.write("_hv; })")
+}
+
+// #384: the numeric inc/dec core_funcs default their step to the literal 1;
+// that spelling keeps the ++/-- / `+ 1U` emission.
+priv c_step_is_unit_literal := func(step: Expr) returns Bool {
+    switch step.node_type {
+    case .Literal(Literal.Num(num)): return num.literal_num_text() == "1"
+    case: return false
+    }
+}
+
+// The I32/I64 inc/dec step operand, in the unsigned type the wrapping
+// add/sub is computed in.
+priv emit_c_step_operand := proc(f: File, step: Expr, unsigned_type: Str, depth: I32, mut ctx: Context) {
+    f.write("(").write(unsigned_type).write(")(")
+    emit_deref(f, step, depth, ctx)
+    f.write(")")
 }
 
 priv emit_deref := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Context) returns ref File {
