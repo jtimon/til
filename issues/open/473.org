@@ -885,16 +885,17 @@ whose head commit is "Doc: " is in a group of its own, so the run that
 skips everything does not cancel the code run before it. Cost: an
 intermediate commit gets no result of its own.
 
-*** State after #472 closed (master 5ad2474, run 3094)
+*** State at run 3094 (master 5ad2474); #472 was closed here and REOPENED
 
-#472 is fixed. Runs 3093 and 3094: the mac binaries built by the Linux
+#472 was closed at this point and reopened on 2026-11-15: the compiler
+binary itself had not been compared (its plan is at the end of #472). Runs 3093 and 3094: the mac binaries built by the Linux
 x64 and Linux arm64 hosts with the same toolchain are identical, twelve
 items; ~collect~ in all: 1152 equal, 0 different, 0 not compared.
 
 What is left in THIS issue:
 - C4/C7 for the other targets: each has one producer. A second one needs
   that target's toolchain on another host ("The toolchain rule", end of
-  ~issues/fixed/472.org~); every download or sysroot is Jorge's yes, per
+  ~issues/open/472.org~); every download or sysroot is Jorge's yes, per
   target. Natural next: linux-arm64 (native on arm64, cross on x64).
 - The compiler binary and vendored libraries in the binary lists.
 - Windows as a native producer of binaries: #483.

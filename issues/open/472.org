@@ -1,8 +1,28 @@
 # priority: medium
 # category: backends
-** FIXED #472 Deterministic builds independent of build host
+** WIP #472 Deterministic builds independent of build host
 
-*** Post-mortem
+*** Reopened 2026-11-15 (Jorge): closed too early
+
+This issue was closed at master 52e9399 on the strength of small test
+programs. That was wrong: the binary this issue is about is ~til~ itself,
+and no run had compared the compiler binary between two hosts, nor a
+natively built binary with a cross-built one. The goal, as first
+discussed: a ~til~ cross-built for a target on one host is byte for byte
+the ~til~ built natively on that target's host, CI proves it on every
+push, and CI then stops needing "build here, run there" jobs, because the
+native suite already tests the same bytes.
+
+Not done at the reopening:
+- ~til~ itself in the binary comparison, for any target.
+- A native-versus-cross pair for any target.
+- Vendored libraries ~til~ links (libffi, nng) built the same on two hosts.
+- Using the equality to simplify CI.
+
+The summary written at the premature close follows, as the record of what
+DOES hold. Its acceptance claim for binaries covered small programs only.
+
+*** State at the premature close (master 52e9399)
 
 What was wrong: the same til source did not give the same output on every
 build host. The causes, each fixed where it was introduced and each with a
@@ -180,8 +200,7 @@ No GCC/Clang installation inside TempleOS is assumed.
   produce identical hashes within the declared comparison groups.
 - [X] Generated source and every companion file agree across reference hosts
   for the same supported target/backend/configuration.
-- [X] (for the mac targets from two Linux hosts; other targets: #473)
-  Native and cross-built binaries, including runtime/core libraries,
+- [ ] Native and cross-built binaries, including runtime/core libraries,
   match across reference hosts using the pinned target toolchain. CI rollout
   and failure propagation are tracked in #473.
 - [X] Trace discrepancies to their source and add regression coverage for
@@ -2068,3 +2087,120 @@ Run 3090, the first with binary lists: NOT COMPARABLE for both targets, as
 expected (clang 21.1.8 against 18.1.3); it also lost its macos-x64 job to
 a runner network outage. Run 3093 is the first where both hosts have clang
 18.1.3 for the mac targets; not read yet.
+
+*** Plan to finish: the compiler binary, native equals cross (written 2026-11-15, master 52e9399)
+
+The goal in one sentence: for each target, ~til~ built for it on any host
+that can build it is the same bytes, including the host where that target
+is native; CI proves it on every push; and CI then drops the jobs that
+exist only to run a cross-built binary somewhere else.
+
+Read "The toolchain rule" above first. A PRODUCER of a target is any
+environment that builds that target, natively or cross. Two hashes are
+comparable only for the same target and the same toolchain.
+
+**** Measured before writing this (this container, Ubuntu 24.04 x64)
+
+- ~bin/til build --target=T -o X -c X.c src/til.til~ works here for
+  linux-x64, linux-arm64 (Ubuntu's ~aarch64-linux-gnu-gcc~ 13.3.0, after
+  ~make~ of that target's libffi and nng), macos-arm64 and macos-x64
+  (clang 18.1.3, ~vendor/macos~).
+- Two builds a second apart at the SAME paths are byte-identical for all
+  four (20.3 MB, 11.3 MB, 11.9 MB, 21.1 MB).
+- Two builds at DIFFERENT ~-o~/~-c~ paths differ: the generated C's path
+  is in the debug info, relative to the checkout. So every producer has
+  to build at one agreed relative path; that is part of the contract.
+- No absolute path is left in ~til~ for linux-arm64 or in that target's
+  ~libnng.a~ (~strings~ finds no ~/home/user~).
+- Not measurable here: anything on a second host. There is one host.
+
+**** What ~til~ is made of, and so what has to match
+
+~til~ = the generated C (already identical from five hosts, level 2) +
+~ext.c~ + the target's ~libffi.a~ and ~libnng.a~ (built from ~vendor/~
+by ~make~, with cmake and configure) + the target's C library start
+files and static pieces + the linker. So two producers agree on ~til~
+only if they agree on (1) the vendored archives, (2) the C library
+pieces, (3) compiler and linker output. Each is its own step below,
+because a difference has to be traced to one of them.
+
+**** Steps
+
+S1. Trial level in the collector. New artifacts start as ~binary-trial~:
+compared and printed exactly like ~binary~, but a difference does not
+fail the job. An artifact moves to ~binary~ (failing) in the commit after
+a run showed it equal. Without this, every first attempt reddens master.
+The toolchain item becomes per target and version-level (compiler
+~-dumpfullversion~ and ~-dumpmachine~, linker and archiver version, C
+library version), not the distribution's package string: a native and a
+cross compiler of one version are the same toolchain under the rule, and
+whether their bytes agree is exactly what is being measured.
+
+S2. The vendored archives, per target: ~libffi.a~ and ~libnng.a~ go into
+the lists on their own (trial). If two producers differ here, ~til~
+cannot match and the cause is in the archive's build (cmake or configure
+recording the host, flags that differ natively and cross), to be fixed in
+~make.til~.
+
+S3. ~til~ for the mac targets from the two Linux hosts (cross against
+cross, same clang 18.1.3 already). Built at ~tmp/ci_collect/...~, the
+same relative path on both. This is the cheapest first ~til~ equality and
+needs no new package.
+
+S4. linux-arm64, native against cross: the pair this issue is about.
+Native: ~linux-arm64-native~ (ubuntu-24.04-arm, gcc 13.3.0, glibc 2.39).
+Cross: the job that already runs on ~ubuntu-24.04~ installs
+~gcc-aarch64-linux-gnu~ (13.3.0) and builds this target's libffi and nng.
+Same versions on both; no download. Both list ~til~, the archives, and
+the small programs. Expected trouble, in the order to check it: the
+archives (S2); glibc start files, if the cross package lags the native
+one's security updates (then the C library item says so and the pair is
+not comparable until both are at one version); the compiler itself.
+
+S5. linux-x64, native against cross, the mirror: native on an x64 host
+of Ubuntu 24.04, cross from ubuntu-24.04-arm with
+~gcc-x86-64-linux-gnu~. Only if S4 works; it shows the result is not
+particular to one direction.
+
+S6. Tracing a difference (for any step): the producers upload the
+differing artifact itself (only for trial items, only when ~collect~
+names it), and the comparison is by section (~readelf~/~objdump~, or
+~llvm-objdump~ for Mach-O) before any fix. Fixes go where the difference
+is introduced; nothing is stripped or normalized to make hashes agree.
+
+S7. Promote and use. For each target where ~til~ is equal from native
+and cross: move its items to ~binary~, and remove the CI jobs or steps
+whose only purpose is to run that target's cross-built binaries on its
+native host, since the native suite then tests the same bytes. For
+linux-arm64 that is the ~linux-arm64~ qemu job's run steps; listed and
+decided per target with Jorge before removing anything.
+
+S8. Mac native and Windows. A Mac's native build equals the cross build
+only if the Mac builds with the same open-source clang and
+~vendor/macos~ instead of Apple's toolchain. That needs clang 18.1.3 on
+the Mac runners: a pinned LLVM download (Homebrew's 18 is another point
+release). Needs Jorge's yes; until then the mac targets stay cross
+against cross. Windows native is #483.
+
+S9. Close: the post-mortem, the acceptance box for binaries, and
+~doc/self.org~ updated to say what holds for ~til~ itself.
+
+**** How this is verified, and the cost of each try
+
+Every step from S2 on can only be seen on GitHub's runners (two hosts).
+A CI run takes about two hours and today needs a merge to master to
+start. To avoid one merge per try, CI could run on this branch instead:
+the workflow already runs for pull requests, so one open draft PR from
+the work branch would give a run per push without touching master. That
+needs Jorge's explicit yes (no PR is opened without it). Otherwise the
+work lands in a few larger commits, each carrying several trial items so
+that one run answers several questions at once.
+
+**** Commits, not tiny
+
+0. The reopening and this plan (for review before any code).
+1. S1, S2 and S3 together (trial items: the archives and ~til~ for the
+   mac targets).
+2. S4 (and S5 if S4 is clean), after reading run 1.
+3. Fixes found by 1 and 2, with S6's uploads if needed.
+4. S7 per target, S9.

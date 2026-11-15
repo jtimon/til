@@ -28,7 +28,7 @@ import("../src/self/targets")
 //       the hash of the version lines of the compiler, linker, archiver
 //       and debug-symbol tool that built it. Binaries are only comparable
 //       between producers that used the SAME toolchain for the target (the
-//       toolchain rule, end of issues/fixed/472.org).
+//       toolchain rule, end of issues/open/472.org).
 //
 //   ci_collect collect <directory> [report]
 //       Read every *.txt hash list under the directory; the file's name is

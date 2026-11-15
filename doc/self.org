@@ -199,11 +199,12 @@
   CPU, its C library, the checkout's location, the time, the compiler's
   own layout. Held on every push: the compiler's state before a backend
   and the generated source, from five hosts; binaries from two checkout
-  roots and times; and, for the mac targets, binaries from two Linux hosts.
-  Not yet held: binaries between hosts for the other targets (each has one
-  producer so far; #473), the compiler binary itself, and vendored
-  libraries. Generated C built with another compiler than the target's is
-  outside all of this.
+  roots and times; and, for the mac targets, small programs and a library
+  from two Linux hosts. NOT yet held, and what #472 is still open for:
+  the compiler binary itself from two hosts, a natively built binary
+  against a cross-built one, the vendored libraries ~til~ links, and the
+  other targets. Generated C built with another compiler than the
+  target's is outside all of this.
 
 ** Shared program builder
 
