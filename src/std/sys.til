@@ -107,7 +107,7 @@ ccmd_free := ext_func(handle: Dynamic) {}
 Cmd := struct {
     // Same shape as File: the handle is a live C-side command, and
     // ccmd_new exits rather than answering without one.
-    ref handle : U8
+    ref handle : Dynamic
 
 namespace:
     /// A command from its program name and arguments. The program is

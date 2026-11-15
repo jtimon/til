@@ -54,7 +54,7 @@ crename_path := ext_proc(src: Str, dst: Str) returns shallow I32 {}
 File := struct {
     // No default: a File without a live handle is not a state (#321);
     // cfile_open exit(1)s on failure, so every constructor site has one.
-    ref handle : U8
+    ref handle : Dynamic
     is_write := false
     // Opened for in-place update ("r+b"): both reads and writes are
     // allowed and the cursor can be moved with `seek`.
@@ -265,7 +265,7 @@ Dir := struct {
     // Same shape as File: the handle is a live C-side iterator (a DIR*
     // on POSIX, a find handle on Windows), so a Dir without one is not
     // a state -- cdir_open exits when the directory cannot be read.
-    ref handle : U8
+    ref handle : Dynamic
 
 namespace:
     /// Start reading the directory at ~path~. Exits with an error if it

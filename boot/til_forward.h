@@ -879,19 +879,19 @@ typedef struct Range {
 
 
 typedef struct File {
-    U8 *handle;
+    void * *handle;
     Bool is_write;
     Bool is_update;
 } File;
 
 
 typedef struct Dir {
-    U8 *handle;
+    void * *handle;
 } Dir;
 
 
 typedef struct Cmd {
-    U8 *handle;
+    void * *handle;
 } Cmd;
 
 
