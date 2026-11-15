@@ -9,7 +9,6 @@
 ** Low
 *** [[./open/427.org][#427]] func<G> fails when G appears inside another type in its signature
 *** [[./open/428.org][#428]] Errors inside an instantiated template point at the user's file and cascade
-*** [[./open/494.org][#494]] A nested type application in a type annotation does not parse
 * Cleanups
 ** High
 *** [[./open/272.org][#272]] Garbager system: single ownership authority, no manual memory outside core

@@ -49,6 +49,28 @@ TIL := format("bin/til", EXE)
 ASAN := format("bin/til_asan", EXE)
 DEBUG := format("bin/til_debug", EXE)
 USIZE64 := format("bin/til_usize64", EXE)
+
+/// GNU make, the host C compiler, and the prefix of the MinGW tools that
+/// build for windows-x64, as a host names them. On Windows (issue #483)
+/// a bare `make` would be this program: CreateProcess searches the
+/// running program's directory before PATH, and bin/make.exe is here, so
+/// GNU make goes by MinGW's own name for it; the C compiler is MinGW's
+/// gcc, and the windows-x64 tools are the host's own, unprefixed.
+gnu_make_for := func(os: Str) returns Str {
+    if os == "windows" { return "mingw32-make" }
+    return "make"
+}
+host_cc_for := func(os: Str) returns Str {
+    if os == "windows" { return "gcc" }
+    return "cc"
+}
+mingw64_prefix_for := func(os: Str) returns Str {
+    if os == "windows" { return "" }
+    return "x86_64-w64-mingw32-"
+}
+GNU_MAKE := gnu_make_for(host_os())
+HOST_CC := host_cc_for(host_os())
+MINGW64 := mingw64_prefix_for(host_os())
 SELF_SRC := "make.til"
 
 // raylib and tinyfd are built per --target into
@@ -426,6 +448,20 @@ build_ffi_twins := proc(mut b: Build) {
     build_nng(b)
     build_secp256k1(b)
 
+    // A Windows host's twins are DLLs beside the windows-x64 archives
+    // (issue #483), made exactly as build_win_host makes them for a
+    // cross-built til.exe, here with the host's own MinGW tools.
+    if b.host.os == "windows" {
+        build_win_twin(raylib_lib("windows-x64"), RAYLIB_WIN64_DLL, "-lgdi32 -lopengl32 -lwinmm")
+        build_win_twin(tinyfd_lib("windows-x64"), TINYFD_WIN64_DLL, "-lole32 -lcomdlg32 -luuid")
+        build_win_twin(nng_lib("windows-x64"), NNG_WIN64_DLL, "-lws2_32 -lmswsock -ladvapi32", "timespec_get")
+        build_win_twin(secp256k1_lib("windows-x64"), SECP256K1_WIN64_DLL, "")
+        require_libffi(b)
+        host_ffi := libffi_lib("windows-x64")
+        build_win_twin(host_ffi, format(host_ffi.strip_suffix(".a"), ".dll"), "")
+        return
+    }
+
     // The host's raylib and tinyfd: the twins beside the archives
     // src/modes/gui.til's link()s name for the host target.
     raylib_host_lib := raylib_lib(b.host.target_name())
@@ -434,7 +470,7 @@ build_ffi_twins := proc(mut b: Build) {
     raylib_inputs.push(own raylib_host_lib.clone())
     if needs_rebuild(raylib_so, raylib_inputs) {
         mut argv := Vec(Str).new()
-        argv.push(own "cc")
+        argv.push(own HOST_CC.clone())
         argv.push(own "-shared")
         argv.push(own "-fPIC")
         argv.push(own "-o")
@@ -452,7 +488,7 @@ build_ffi_twins := proc(mut b: Build) {
     tinyfd_inputs.push(own tinyfd_host_lib.clone())
     if needs_rebuild(tinyfd_so, tinyfd_inputs) {
         mut argv := Vec(Str).new()
-        argv.push(own "cc")
+        argv.push(own HOST_CC.clone())
         argv.push(own "-shared")
         argv.push(own "-fPIC")
         argv.push(own "-o")
@@ -469,7 +505,7 @@ build_ffi_twins := proc(mut b: Build) {
     nng_inputs.push(own nng_host_lib.clone())
     if needs_rebuild(nng_so, nng_inputs) {
         mut argv := Vec(Str).new()
-        argv.push(own "cc")
+        argv.push(own HOST_CC.clone())
         argv.push(own "-shared")
         argv.push(own "-fPIC")
         argv.push(own "-o")
@@ -488,7 +524,7 @@ build_ffi_twins := proc(mut b: Build) {
     secp_inputs.push(own secp_host_lib.clone())
     if needs_rebuild(secp_so, secp_inputs) {
         mut argv := Vec(Str).new()
-        argv.push(own "cc")
+        argv.push(own HOST_CC.clone())
         argv.push(own "-shared")
         argv.push(own "-fPIC")
         argv.push(own "-o")
@@ -507,7 +543,7 @@ build_ffi_twins := proc(mut b: Build) {
     ffi_inputs.push(own ffi_host_lib.clone())
     if needs_rebuild(ffi_so, ffi_inputs) {
         mut argv := Vec(Str).new()
-        argv.push(own "cc")
+        argv.push(own HOST_CC.clone())
         argv.push(own "-shared")
         argv.push(own "-fPIC")
         argv.push(own "-o")
@@ -515,6 +551,20 @@ build_ffi_twins := proc(mut b: Build) {
         argv.append(own force_load_args(b.host, ffi_host_lib))
         run_argv(argv)
     }
+}
+
+/// The cmake generator for a host build. On Windows (issue #483) cmake
+/// would pick Visual Studio when it is installed, and MSVC libraries are
+/// not what MinGW links; "MinGW Makefiles" refuses to run with sh on
+/// PATH, as it is in the MSYS2 shell this build runs in, so "MSYS
+/// Makefiles". Elsewhere cmake's default.
+host_cmake_generator := func(host: Host) returns Vec(Str) {
+    mut out := Vec(Str).new()
+    if host.os == "windows" {
+        out.push(own "-G")
+        out.push(own "MSYS Makefiles")
+    }
+    return out
 }
 
 /// The host's own nng, what bin/til and the interpreter's twin link.
@@ -658,7 +708,7 @@ build_debug := proc(mut b: Build) {
     if needs_rebuild(DEBUG, inputs).not() { return }
 
     mut argv := Vec(Str).new()
-    argv.push(own "cc")
+    argv.push(own HOST_CC.clone())
     argv.push(own "-g")
     argv.push(own "-O0")
     argv.push(own "-Wall")
@@ -1218,12 +1268,18 @@ build_gui_raylib := proc(mut b: Build, target: Str) {
     if copy_tree("vendor/raylib/src", stage) != 0 {
         panic("could not stage raylib sources in ", stage)
     }
-    run("make", "-C", stage, "clean")
+    // On a Windows host raylib's Makefile assumes cmd.exe for its own
+    // recipes (`del ... /s`); the MSYS2 shell this build runs in is sh.
+    mut shell := "PLATFORM_SHELL=sh"
+    if b.host.os != "windows" { shell = "" }
+    if shell.is_empty() { run(GNU_MAKE, "-C", stage, "clean") }
+    else { run(GNU_MAKE, "-C", stage, shell, "clean") }
 
     mut argv := Vec(Str).new()
-    argv.push(own "make")
+    argv.push(own GNU_MAKE.clone())
     argv.push(own "-C")
     argv.push(own stage.clone())
+    if shell.is_empty().not() { argv.push(own shell.clone()) }
     argv.push(own "PLATFORM=PLATFORM_DESKTOP")
     if t.platform_os.is_empty().not() {
         argv.push(own format("PLATFORM_OS=", t.platform_os))
@@ -1321,7 +1377,7 @@ build_gui_tinyfd := proc(mut b: Build, target: Str) {
     mkdir_p("tmp")
     obj := format("tmp/tinyfiledialogs-", target, ".o")
 
-    mut cc := "cc"
+    mut cc := HOST_CC.clone()
     mut ar := "ar"
     if is_host.not() {
         cc = t.cc.clone()
@@ -1477,7 +1533,7 @@ build_libffi_out_of_tree := proc(mut b: Build, name: Str) {
     if t.ldflags.is_empty().not() { configure.arg(format("LDFLAGS=", t.ldflags)) }
     configure.cwd(t.dir())
     configure.run_checked()
-    run("make", "-C", t.dir())
+    run(GNU_MAKE, "-C", t.dir())
 }
 
 /// nng, one archive per --target (issue #422): vendor/nng/build-<target>/
@@ -1594,6 +1650,7 @@ build_nng_target := proc(mut b: Build, target: Str) {
     argv.push(own "-DNNG_ENABLE_NNGCAT=OFF")
     argv.push(own "-DNNG_ENABLE_TLS=OFF")
     argv.push(own "-DCMAKE_POSITION_INDEPENDENT_CODE=ON")
+    if is_host { argv.append(own host_cmake_generator(b.host)) }
     mut cflags := t.cflags.clone()
     if is_host.not() {
         argv.push(own format("-DCMAKE_SYSTEM_NAME=", t.system))
@@ -1750,6 +1807,7 @@ build_secp256k1_target := proc(mut b: Build, target: Str) {
     mut argv := secp256k1_cmake_configure(t.dir())
     if is_host {
         argv.push(own "-DCMAKE_POSITION_INDEPENDENT_CODE=ON")
+        argv.append(own host_cmake_generator(b.host))
     } else if t.emscripten {
         if b.emcc.ends_with("/emcc").not() {
             panic("cannot find emscripten's cmake toolchain next to EMCC=", b.emcc)
@@ -1843,10 +1901,10 @@ build_win_twin := proc(archive: Str, dll: Str, sys_libs: Str, runtime_names: Str
         }
         mkdir_p("tmp")
         File.writefile(definitions, text)
-        run("x86_64-w64-mingw32-dlltool", "-d", definitions, "-l", runtime_imports)
+        run(format(MINGW64, "dlltool"), "-d", definitions, "-l", runtime_imports)
     }
     mut argv := Vec(Str).new()
-    argv.push(own "x86_64-w64-mingw32-gcc")
+    argv.push(own format(MINGW64, "gcc"))
     argv.push(own "-shared")
     argv.push(own "-o")
     argv.push(own dll.clone())
@@ -2202,8 +2260,8 @@ build_raylib_web := proc(mut b: Build) {
     if copy_tree("vendor/raylib/src", stage) != 0 {
         panic("could not stage raylib sources in ", stage)
     }
-    run("make", "-C", stage, "clean")
-    run("make", "-C", stage, "PLATFORM=PLATFORM_WEB", format("CC=", b.emcc),
+    run(GNU_MAKE, "-C", stage, "clean")
+    run(GNU_MAKE, "-C", stage, "PLATFORM=PLATFORM_WEB", format("CC=", b.emcc),
         format("AR=", b.emar), format("RANLIB=", b.emranlib),
         "RAYLIB_LIB_NAME=raylib-web", "RAYLIB_RELEASE_PATH=.")
     mkdir_p(format(RAYLIB_DIR, "/build-wasm32"))

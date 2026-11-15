@@ -1,0 +1,53 @@
+mode script
+
+// Issue #494: a nested type application in a type ANNOTATION parses. The
+// annotation parser took only identifiers as type arguments, so
+// `v : Vec(Vec(Str))` failed at the inner '(' while the value form and an
+// alias (`Vec(VS)`) worked. Each nested application is now an annotation
+// itself, and the outer one names the inner instance as the value form
+// does since #485, so all spellings are one type.
+
+VS := Vec(Str)
+
+mut nested : Vec(Vec(Str)) = Vec(Vec(Str)).new()
+mut inner : Vec(Str) = Vec(Str).new()
+inner.push(own "a")
+nested.push(own inner)
+
+// An alias-typed parameter takes the annotated value: the same type.
+count_inner := func(v: Vec(VS)) returns USize {
+    mut total : USize = 0
+    for i : VS in v { total = total + i.len() }
+    return total
+}
+assert_eq(USize, count_inner(nested), 1)
+
+// And the other way: a nested annotation on a parameter, a return type,
+// three levels, and a nested application beside another argument.
+first_len := func(v: Vec(Vec(Str))) returns USize { return v[0].len() }
+assert_eq(USize, first_len(nested), 1)
+
+// A for loop's element type is an annotation too.
+mut seen : USize = 0
+for row : Vec(Str) in nested { seen = seen + row.len() }
+assert_eq(USize, seen, 1)
+
+make_deep := func() returns Vec(Vec(Vec(I64))) {
+    mut d : Vec(Vec(Vec(I64))) = Vec(Vec(Vec(I64))).new()
+    mut mid : Vec(Vec(I64)) = Vec(Vec(I64)).new()
+    mut leaf : Vec(I64) = Vec(I64).new()
+    leaf.push(own 7)
+    mid.push(own leaf)
+    d.push(own mid)
+    return d
+}
+deep : Vec(Vec(Vec(I64))) = make_deep()
+assert_eq(I64, deep[0][0][0], 7)
+
+mut by_key : Map(Str, Vec(Str)) = Map(Str, Vec(Str)).new()
+mut vals : Vec(Str) = Vec(Str).new()
+vals.push(own "v")
+by_key.set("k", own vals)
+assert_eq(USize, by_key["k"].len(), 1)
+
+println("bug494 ok")

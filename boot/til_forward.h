@@ -2362,6 +2362,7 @@ typedef struct priv___src_self_parser_til__Parser {
     Vec__Expr type_gen_decls;
     Set__Str type_gen_seen;
     Vec__Str active_type_params;
+    Vec__Str generic_fn_params;
     Vec__Expr anon_decls;
     Map__Str_Str anon_cache;
     I64 anon_type_counter;

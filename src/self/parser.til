@@ -114,6 +114,11 @@ priv Parser := struct {
     type_gen_decls := Vec(Expr).new()
     type_gen_seen := Set(Str).new()
     active_type_params := Vec(Str).new()
+    // The `<T>` params of the func<T> being parsed. Unlike
+    // active_type_params they do not stop a lift (`Vec(T)` is lifted and
+    // the typer decodes it from its name); they only let a nested
+    // application over one be rejected (#494, parse_type_app).
+    generic_fn_params := Vec(Str).new()
     // Issue #56/#57: top-level decls synthesised for anonymous struct/enum
     // literals (`struct { ... }(args)`, `enum { ... }.V`, and inline defs in
     // type positions). anon_cache maps a literal's structural key (anon_def_key)
@@ -507,6 +512,13 @@ priv type_gen_lift := func(mut p: Parser, name: Str, args: Vec(Str), arg_refs: V
     p.type_gen_seen.add(own seen_key)
 }
 
+priv parser_has_generic_fn_param := func(p: Parser, name: Str) returns Bool {
+    for tp : Str in p.generic_fn_params {
+        if tp == name { return true }
+    }
+    return false
+}
+
 priv parser_has_active_type_param := func(p: Parser, name: Str) returns Bool {
     for tp : Str in p.active_type_params {
         if tp == name { return true }
@@ -535,6 +547,15 @@ priv parse_type_ref := proc(mut p: Parser) returns Str {
 // Ident was a type -- not the param's name -- when no ':' follows, so it
 // continues here instead of re-parsing.
 priv parse_type_ref_after_name := proc(mut p: Parser, name: Str, tr_line: U32, tr_col: U32) returns Str {
+    mut uses_type_param := false
+    return parse_type_app(p, name, tr_line, tr_col, uses_type_param)
+}
+
+// `uses_type_param` reports whether the application names a type
+// parameter -- a type generator's (active_type_params) or a func<T>'s
+// (generic_fn_params) -- so a nested application over one
+// (`Vec(Vec(T))`) can be rejected (#494).
+priv parse_type_app := proc(mut p: Parser, name: Str, tr_line: U32, tr_col: U32, mut uses_type_param: Bool) returns Str {
     // Issue #267 (type-annotation position): a parametric type `Name(A, B)`
     // is a type-gen macro instantiation used where a type is expected
     // (`mut v : TemplVec(Bool) = ...`, `func(x: TemplVec(I64))`, `returns
@@ -572,6 +593,8 @@ priv parse_type_ref_after_name := proc(mut p: Parser, name: Str, tr_line: U32, t
     mut arg_ref_muts := Vec(Bool).new()
     mut arg_owns := Vec(Bool).new()
     mut argi := 0
+    mut has_active_type_param := false
+    mut names_type_param := false
     while check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
         if argi > 0 { mangled = format(mangled, "_") }
         // #320: `Name(ref X)` -- a ref-qualified type argument. Mangles as
@@ -594,7 +617,32 @@ priv parse_type_ref_after_name := proc(mut p: Parser, name: Str, tr_line: U32, t
             advance(p)
             arg_is_own = true
         }
-        argname := expect_text(p, TokenType.Ident)
+        arg_line := peek_line(p)
+        arg_col := peek_col(p)
+        written := expect_text(p, TokenType.Ident)
+        mut argname := written.clone()
+        mut arg_active := parser_has_active_type_param(p, written)
+        mut arg_names_param := arg_active.or(parser_has_generic_fn_param(p, written))
+        if check(p, TokenType.LParen) {
+            // #494: a nested application, `Vec(Vec(Str))`. The inner one is
+            // an annotation like any other (lifted as `Vec__Str`), and the
+            // outer names it by that instance name, so the whole type is
+            // `Vec__Vec__Str`, as the value form spells it since #485.
+            mut inner_names_param := false
+            argname = parse_type_app(p, written, arg_line, arg_col, inner_names_param)
+            if inner_names_param {
+                // Generic instantiation reads a type parameter back out of a
+                // one-level instance name (typer.til generic_decompose_nested:
+                // `Vec__T` against `Vec__I64`); `Vec__Vec__T` does not
+                // decompose, so say so here instead of failing later.
+                parse_fail(p, arg_line, arg_col, format("a nested type application over a type parameter ('",
+                    name, "(", written, "(...))') is not supported yet; only concrete nested types are"))
+            }
+            arg_active = false
+            arg_names_param = inner_names_param
+        }
+        if arg_active { has_active_type_param = true }
+        if arg_names_param { names_type_param = true }
         mangled = format(mangled, argname)
         args.push(own argname.clone())
         arg_refs.push(own arg_is_ref.clone())
@@ -604,12 +652,7 @@ priv parse_type_ref_after_name := proc(mut p: Parser, name: Str, tr_line: U32, t
         if check(p, TokenType.Comma) { advance(p) }
     }
     expect_token(p, TokenType.RParen)
-    mut has_active_type_param := false
-    for arg : Str in args {
-        if parser_has_active_type_param(p, arg) {
-            has_active_type_param = true
-        }
-    }
+    uses_type_param = names_type_param
     if has_active_type_param.not() {
         type_gen_lift(p, name, args, arg_refs, arg_ref_muts, arg_owns, mangled, tr_line, tr_col)
     }
@@ -848,8 +891,10 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
     mut fd := FunctionDef()
     fd.sig.func_type = ft
     mut gparams := Vec(Declaration).new()
+    generic_fn_params_start := p.generic_fn_params.len()
     if check(p, TokenType.Lt) {
         gparams = parse_generic_params(p)
+        for gfp : Declaration in gparams { p.generic_fn_params.push(own gfp.name.clone()) }
     }
 
     expect_token(p, TokenType.LParen)
@@ -1077,6 +1122,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
     }
 
     p.active_type_params.truncate(active_type_params_start)
+    p.generic_fn_params.truncate(generic_fn_params_start)
 
     // Issue #58: angle-bracket generic params wrap the def into a type-gen
     // macro now that the inner FuncDef is fully parsed. Mirrors the wrap
@@ -3041,7 +3087,8 @@ priv parse_statement_body := proc(mut p: Parser) returns Expr {
         mut declared_type := Type.Unknown
         if check(p, TokenType.Colon) {
             advance(p)
-            declared_type = Type.CustomSym(p.symbols.intern(expect_text(p, TokenType.Ident)))
+            // #494: any type annotation, a (nested) application included.
+            declared_type = Type.CustomSym(p.symbols.intern(parse_type_ref(p)))
             has_declared_type = true
         }
         // Two-variable key/value form: `for [mut] k, [mut] v in map`.

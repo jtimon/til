@@ -1,0 +1,9 @@
+mode script
+
+// Issue #494: a nested type application over a type parameter is rejected
+// where it is written. Generic instantiation reads a parameter back out of
+// a one-level instance name (Vec__T against Vec__I64), which Vec__Vec__T
+// is not, so this used to parse (once nested annotations did) and fail
+// later in a cascade of unrelated errors.
+
+nested_len := func<T>(v: Vec(Vec(T))) returns USize { return v.len() }

@@ -1408,7 +1408,9 @@ jobs:
   # Issue #483: make and make install natively on Windows, from the
   # repository alone -- no compiler or library imported from another host.
   # The runner's MSYS2 (C:\msys64) supplies make, sh, coreutils and, from
-  # pacman, the MinGW gcc and cmake; MSYSTEM=MINGW64 selects that
+  # pacman, the MinGW gcc, cmake and GNU make (mingw32-make, the name
+  # make.til uses on Windows, where a bare `make` would find bin/make.exe
+  # itself); MSYSTEM=MINGW64 selects that
   # toolchain and CHERE_INVOKING keeps the checkout as the directory. The
   # runner's user is an administrator, so the default prefix
   # (C:/Program Files/til) is writable. BRING-UP: continue-on-error, and
@@ -1430,7 +1432,7 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install the MinGW toolchain into MSYS2
         shell: cmd
-        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed make mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake && uname -s && gcc --version"
+        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed make mingw-w64-x86_64-make mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake && uname -s && gcc --version"
       - name: make
         shell: cmd
         run: C:\msys64\usr\bin\bash.exe -lc "make"

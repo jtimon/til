@@ -2407,6 +2407,7 @@ main := proc(args: ..Str) returns I64 {
     add_both(tests, "test/bug467.til", flags)
     add_both(tests, "test/bug485.til", flags)
     add_both(tests, "test/bug493.til", flags)
+    add_both(tests, "test/bug494.til", flags)
     add_both(tests, "test/bug468.til", flags)
     add_both(tests, "test/bug469.til", flags)
     add_both(tests, "test/bug471.til", flags)
@@ -2843,6 +2844,10 @@ main := proc(args: ..Str) returns I64 {
     // output is pinned as a golden instead.
     add_cli_pair(tests, "tuple_typed_read", "test/tuple_typed_read_error.til",
         "", 1, "test/tuple_typed_read_error.expected", til_bin, asan_flag)
+    // #494: a nested type application over a type parameter is one parse
+    // error where it is written, not a cascade.
+    add_cli_pair(tests, "bug494_generic", "test/bug494_generic_error.til",
+        "", 1, "test/bug494_generic_error.expected", til_bin, asan_flag)
     add_count(tests, "capture_block_error_interp", "typer",
         "is not captured", 2,
         format(til_bin, " interpret test/capture_block_error.til"))

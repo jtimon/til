@@ -79,10 +79,21 @@ native build gets, and the next commit fixes that.
     ~make install~ into ~C:/Program Files/til~, then the installed til
     interprets and runs a program from outside the checkout. In bring-up:
     ~continue-on-error~ and no cancel step until it passes once.
-  - [ ] Fix what the first runs report (expected: make.til's vendored
-    library builds, which pick cross-compiler names for windows-x64, and
-    the install's support tree), until the job passes; then make it
-    blocking like the others.
+  - [X] First run (3105): the Makefile bootstrap worked on Windows --
+    libffi configured and built, bin/til_boot.exe linked, bin/make.exe
+    built and started ~all~ -- and stopped at ~make -C tmp/raylib-... clean~,
+    which ran bin/make.exe itself: CreateProcess searches the running
+    program's directory before PATH.
+  - [X] Second round: make.til names GNU make ~mingw32-make~ on a Windows
+    host (pacman ~mingw-w64-x86_64-make~) and passes raylib
+    ~PLATFORM_SHELL=sh~; the host C compiler is ~gcc~; the windows-x64
+    MinGW tools lose their cross prefix on that host; its interpreter
+    twins are DLLs made by ~build_win_twin~ (libffi's too); host cmake
+    builds use the "MSYS Makefiles" generator, since cmake would pick
+    Visual Studio and "MinGW Makefiles" refuses sh on PATH.
+  - [ ] Fix what the next runs report (the install's support tree
+    included), until the job passes; then make it blocking like the
+    others.
 
 *** Acceptance
 

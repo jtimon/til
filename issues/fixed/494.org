@@ -1,0 +1,48 @@
+# priority: low
+# category: bugs
+** FIXED #494 A nested type application in a type annotation does not parse
+
+*** Post-mortem
+
+Root cause: the annotation parser (parser.til, the type-argument loop of
+what is now ~parse_type_app~) read every type argument with
+~expect_text(Ident)~, so ~Vec(Vec(Str))~ failed at the inner ~(~; and a for
+loop's element type (~for x : T in ...~) took a bare identifier only.
+
+Fix: a type argument followed by ~(~ is parsed by ~parse_type_app~ itself.
+The inner application is lifted like any annotation (~Vec__Str~), and the
+outer one mangles that instance name, giving ~Vec__Vec__Str~, the name the
+value form and an alias give the same type since #485. A for loop's
+element type goes through ~parse_type_ref~ like every other annotation.
+
+A nested application over a type parameter (~func<T>(v: Vec(Vec(T)))~,
+or a type generator's ~T~) is a parse error where it is written: generic
+instantiation decodes a parameter from a one-level instance name
+(typer.til ~generic_decompose_nested~, ~Vec__T~ against ~Vec__I64~),
+which ~Vec__Vec__T~ is not, and letting it parse produced a cascade of
+unrelated errors. The parser tracks a func<T>'s own parameters
+(~generic_fn_params~) for this check only; they still do not stop a lift.
+
+Separately, inferring ~T~ from a nested instance (~sum_lens<T>(v:
+Vec(T))~ called with a ~Vec(Vec(I64))~) is refused as before ("appears
+only inside another type"); unchanged by this fix.
+
+Regression: test/bug494.til (annotations on locals, a parameter, a return
+type, three levels, ~Map(Str, Vec(Str))~ and a for loop, interpreted and
+compiled, and the alias spelling as the same type);
+test/bug494_generic_error.til with its golden for the rejection.
+
+
+Found while fixing [[../fixed/485.org][#485]]; reproduced at master abea3cd.
+
+#+begin_src til
+mode script
+mut v : Vec(Vec(Str)) = Vec(Vec(Str)).new()
+#+end_src
+
+reports ~2:16: error: expected 'identifier', found '('~ (the inner ~(~). The
+same type works in expression position, and through an alias
+(~VS := Vec(Str)~; ~v : Vec(VS)~). The annotation parser mangles
+~Name(Arg)~ to ~Name__Arg~ but accepts only identifiers as arguments. Since
+#485 the expression form names this instance ~Vec__Vec__Str~, so the
+annotation should mangle a nested application to that same name.

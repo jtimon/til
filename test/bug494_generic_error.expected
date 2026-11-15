@@ -1,0 +1,1 @@
+test/bug494_generic_error.til:9:30: error: a nested type application over a type parameter ('Vec(Vec(...))') is not supported yet; only concrete nested types are
