@@ -2204,3 +2204,44 @@ that one run answers several questions at once.
 2. S4 (and S5 if S4 is clean), after reading run 1.
 3. Fixes found by 1 and 2, with S6's uploads if needed.
 4. S7 per target, S9.
+
+*** Progress: plan steps S1 to S4 and S6, first form (base master b74f4cf)
+
+One commit, so that one CI run answers several questions.
+
+- S1: level ~binary-trial~ in ~examples/ci_collect.til~. Same comparison
+  and same toolchain check as ~binary~; a difference prints "DIFFERENT
+  (trial, does not fail)" and is counted apart. The toolchain item is per
+  target: the mac targets keep their four version lines; linux-arm64 is
+  ~aarch64-linux-gnu-gcc~'s ~-dumpfullversion~ and ~-dumpmachine~, the
+  first version line of its ~ld~ and ~ar~, and the glibc version its
+  headers declare. Here: "13.3.0 aarch64-linux-gnu", Binutils 2.42, glibc
+  2 39.
+- S2: the target's ~libffi.a~ and ~libnng.a~ are listed (trial).
+- S3 and S4: ~til~ itself is built for each target at
+  ~tmp/ci_collect/binary_<target>/til~ and listed (trial), for
+  macos-arm64, macos-x64 and linux-arm64. For linux-arm64 the two small
+  programs and the library are listed on trial too. Producers: the
+  ubuntu-24.04 x64 job (cross for all three; it installs
+  ~gcc-aarch64-linux-gnu~ and builds that target's archives) and
+  ~linux-arm64-native~ (native for linux-arm64, cross for the mac
+  targets; it builds the mac archives). The arm64 host's three steps are
+  ~continue-on-error~ while on trial.
+- S6, without downloads: ~til~ is also listed BY SECTION (~objcopy
+  --dump-section~; seventeen ELF sections, eight Mach-O ones, "refused"
+  where the binary has none), so a difference between hosts names the
+  part of the binary it is in. Artifacts cannot be fetched from this
+  session, so the localization has to be in the lists.
+
+Local result (one host, two productions): 63 lines, all equal, for the
+three targets. What the next CI run answers: are the vendored archives
+the same from two hosts; is ~til~ for the mac targets; and is ~til~ for
+linux-arm64 the same natively and cross, and if not, in which sections.
+
+Also in this commit: the "newer push cancels the older run" rule is
+removed again (Jorge: with frequent merges no run would ever finish).
+
+Seen on the way, not fixed, not filed: a ~mut~ Vec local assigned a new
+~vec(...)~ in an ~if~ and then iterated with ~for x : Str in~ crashed the
+built program in ~Str_clone~ of the loop variable (the first version of
+the section list). Returning the Vec from a function avoids it.

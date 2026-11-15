@@ -19,17 +19,6 @@ permissions:
   contents: read
   actions: write
 
-# A newer push to the same branch cancels the run of the older one (Jorge,
-# #473): a full run holds the two Mac runners for about an hour and the
-# TempleOS guest for nearly two, and pushes used to queue behind each other
-# for hours. The older commit then gets no result of its own; the newest
-# one answers for the branch. A push whose head commit is "Doc: " gets a
-# group of its own: its run skips every job (doc-gate), and must not cancel
-# the run of the code commit before it.
-concurrency:
-  group: "tests-${{ github.ref }}-${{ startsWith(github.event.head_commit.message, 'Doc: ') && github.sha || 'code' }}"
-  cancel-in-progress: true
-
 jobs:
   # A push whose commits are all documentation-only ("Doc: " subject,
   # CLAUDE.md "Commits") runs nothing else: every other root job needs
@@ -259,13 +248,27 @@ jobs:
       # toolchain rule, end of issues/open/472.org) and says so where they
       # are not. The mac headers and libraries are the repository's
       # vendor/macos on every host.
-      - name: Install the mac cross toolchain
-        run: sudo apt-get install -y clang lld llvm
+      # til links libffi and nng, so til for a mac target needs that target's
+      # archives; bin/make builds them with the toolchain installed here.
+      # This host's own (linux-arm64) were built for bin/til.
+      # continue-on-error on these three steps while the artifacts are on
+      # trial (#472 plan, S1): building the mac archives on an arm64 host has
+      # not run anywhere yet, and a trial must not redden a run. Without this
+      # host's list the collect job reports the binary groups as "from one
+      # producer only (not compared)".
+      - name: Install the mac cross toolchain and build the mac archives
+        continue-on-error: true
+        run: |
+          sudo apt-get install -y clang lld llvm cmake
+          make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
+          make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
       - name: Write the binary hash lists for the collector
+        continue-on-error: true
         run: |
           mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til macos-arm64 macos-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til macos-arm64 macos-x64 linux-arm64
       - name: Upload the binary hash lists
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-linux-arm64
@@ -1985,10 +1988,15 @@ jobs:
       # toolchain rule, end of issues/open/472.org) and says so where they
       # are not. The mac headers and libraries are the repository's
       # vendor/macos on every host.
+      # linux-arm64 from this x64 host is the CROSS half of the pair #472 is
+      # about; linux-arm64-native builds the same things natively. Ubuntu
+      # 24.04 has gcc 13.3.0 and glibc 2.39 both ways.
       - name: Write the binary hash lists for the collector
         run: |
+          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+          make vendor/libffi/build-linux-arm64/.libs/libffi.a vendor/nng/build-linux-arm64/libnng.a
           mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til macos-arm64 macos-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til macos-arm64 macos-x64 linux-arm64
       - name: Upload the binary hash lists
         uses: actions/upload-artifact@v4
         with:

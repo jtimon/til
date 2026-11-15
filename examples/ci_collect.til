@@ -28,7 +28,9 @@ import("../src/self/targets")
 //       the hash of the version lines of the compiler, linker, archiver
 //       and debug-symbol tool that built it. Binaries are only comparable
 //       between producers that used the SAME toolchain for the target (the
-//       toolchain rule, end of issues/open/472.org).
+//       toolchain rule, end of issues/open/472.org). It also lists, at
+//       level "binary-trial", the vendored archives til links and til
+//       itself, and for a target not yet shown equal, everything.
 //
 //   ci_collect collect <directory> [report]
 //       Read every *.txt hash list under the directory; the file's name is
@@ -37,7 +39,9 @@ import("../src/self/targets")
 //       what differs, what a producer left out, and what only one producer
 //       has (which is not compared, never "equal"). A binary group whose
 //       producers recorded different toolchains is NOT COMPARABLE: its
-//       hashes are printed, counted as not compared, and never fail. Exits 1 on a
+//       hashes are printed, counted as not compared, and never fail. A
+//       difference at level "binary-trial" is printed and does not fail
+//       either: that level is for artifacts not yet shown equal. Exits 1 on a
 //       difference, a missing item or a line it cannot read; with `report`
 //       a difference or a missing item is printed but does not fail.
 //
@@ -172,27 +176,84 @@ version_line := proc(tool: Str) returns Str {
     return output.substr(0, end.to_usize()).clone()
 }
 
-// REM The tools til runs for a mac target off a Mac (builder.til,
-// compile_c_named_objects; targets.til, toolchain_command). Only the mac
-// targets are produced so far: their headers and libraries are the
-// repository's vendor/macos on every producer, so the tools are all that
-// can differ.
+// What `tool` prints for one argument, trimmed.
+tool_output := proc(tool: Str, argument: Str) returns Str {
+    command := Cmd.new(tool, argument)
+    command.capture()
+    if command.run() != 0 { fail(format("cannot run ", tool, " ", argument, ": ", command.err())) }
+    return command.out().trim().clone()
+}
+
+// The identity of the toolchain this host uses for `target`: what has to be
+// the same on two producers for their binaries to be comparable (the
+// toolchain rule, end of issues/open/472.org). Version level, not the
+// distribution's package string: a native and a cross compiler of one
+// version are one toolchain, and whether their bytes agree is what the
+// comparison measures.
+// REM The tools are the ones til runs for the target (targets.til,
+// toolchain_command; builder.til, compile_c).
+toolchain_identity := proc(target: Str) returns Str {
+    if target.starts_with("macos-") {
+        // Headers and libraries are the repository's vendor/macos.
+        return format(version_line("clang"), "\n", version_line("ld.lld"), "\n", version_line("llvm-ar"), "\n", version_line("dsymutil"), "\n")
+    }
+    if target == "linux-arm64" {
+        compiler := "aarch64-linux-gnu-gcc"
+        // The C library version the compiler's headers declare.
+        probe := format(WORK, "/libc_version.c")
+        File.writefile(probe, "#include <features.h>\nglibc __GLIBC__ __GLIBC_MINOR__\n")
+        preprocess := Cmd.new(compiler, "-E", "-P", probe)
+        preprocess.capture()
+        if preprocess.run() != 0 { fail(format("cannot read the C library version: ", preprocess.err())) }
+        libc_version := preprocess.out()
+        return format(compiler, " ", tool_output(compiler, "-dumpfullversion"), " ", tool_output(compiler, "-dumpmachine"), "\n",
+            version_line("aarch64-linux-gnu-ld"), "\n", version_line("aarch64-linux-gnu-ar"), "\n",
+            libc_version.trim(), "\n")
+    }
+    fail(format("produce-binary does not know the toolchain of ", target))
+    return ""
+}
+
+// The sections of a target's executable worth telling apart.
+binary_sections := func(target: Str) returns Vec(Str) {
+    if target.starts_with("macos-") {
+        return vec(Str, "__TEXT,__text", "__TEXT,__const", "__TEXT,__cstring", "__TEXT,__unwind_info",
+            "__DATA,__data", "__DATA,__const", "__DATA_CONST,__const", "__DATA_CONST,__got")
+    }
+    return vec(Str, ".interp", ".note.gnu.build-id", ".dynsym", ".dynstr", ".rela.dyn", ".text", ".rodata",
+        ".eh_frame", ".init_array", ".data.rel.ro", ".data", ".comment", ".debug_info", ".debug_abbrev",
+        ".debug_line", ".debug_str", ".debug_line_str")
+}
+
+// Level "binary": artifacts a run has shown equal between producers; a
+// difference fails the collect job. Level "binary-trial": artifacts being
+// tried; compared and printed the same way, never failing. An artifact
+// moves from trial to binary in the commit after a run showed it equal.
 produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str)) {
     File.remove_tree(WORK)
     mkdir_p(WORK)
     mut lines := Vec(Str).new()
     for target : Str in targets {
-        if target.starts_with("macos-").not() { fail(format("produce-binary knows the toolchain of the mac targets only, not ", target)) }
-        identity := format(version_line("clang"), "\n", version_line("ld.lld"), "\n", version_line("llvm-ar"), "\n", version_line("dsymutil"), "\n")
+        identity := toolchain_identity(target)
         println("toolchain for ", target, ":\n", identity)
         identity_path := format(WORK, "/toolchain_", target)
         File.writefile(identity_path, identity)
+        // REM Every producer builds at these paths: the generated C's path,
+        // relative to the checkout, is in the binary's debug info.
         directory := format(WORK, "/binary_", target)
         mkdir_p(directory)
+        // The mac targets' small artifacts are equal between the two Linux
+        // hosts since CI run 3094; everything else is on trial.
+        mut small_level := "binary-trial"
+        if target.starts_with("macos-") { small_level = "binary" }
+        mut levels := Vec(Str).new()
         mut items := Vec(Str).new()
         mut paths := Vec(Str).new()
-        items.push(own "- toolchain")
-        paths.push(own identity_path)
+        for level : Str in array(Str, "binary", "binary-trial") {
+            levels.push(own level.clone())
+            items.push(own "- toolchain")
+            paths.push(own identity_path.clone())
+        }
         // Two programs: the smallest one, and one with every kind of type
         // layout in it.
         for source : Str in array(Str, "examples/hello_script.til", "test/layout_corpus.til") {
@@ -202,6 +263,7 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
                 "-c", format(directory, "/", stem, ".c"), source)
             build.capture()
             if build.run() != 0 { fail(format(build.render(), " failed:\n", build.out(), build.err())) }
+            levels.push(own small_level.clone())
             items.push(own format(source, " ", stem))
             paths.push(own binary)
         }
@@ -213,17 +275,62 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         build := Cmd.new(compiler, "build", "--force-rebuild", format("--target=", target), library)
         build.capture()
         if build.run() != 0 { fail(format(build.render(), " failed:\n", build.out(), build.err())) }
-        for file : Str in array(Str, "libci_binary_lib.a", "ci_binary_lib.o", "libci_binary_lib.dylib") {
+        mut shared := "libci_binary_lib.so"
+        if target.starts_with("macos-") { shared = "libci_binary_lib.dylib" }
+        for file : Str in array(Str, "libci_binary_lib.a", "ci_binary_lib.o", shared) {
             built := format("gen/lib/", file)
             if File.is_file(built).not() { fail(format("the library build for ", target, " wrote no ", built)) }
             // REM The next target's build writes the same names.
             kept := format(directory, "/", file)
             if copy_file(built, kept) != 0 { fail(format("cannot copy ", built)) }
+            levels.push(own small_level.clone())
             items.push(own format("ci_binary_lib.til ", file))
             paths.push(own kept)
         }
+        // The vendored archives til links, as bin/make built them for the
+        // target, and then til itself (#472: the binary that matters).
+        // If an archive differs between producers, til cannot match.
+        for archive : Str in array(Str, format("vendor/libffi/build-", target, "/.libs/libffi.a"),
+            format("vendor/nng/build-", target, "/libnng.a")) {
+            if File.is_file(archive).not() { fail(format(archive, " is not built; run bin/make ", archive, " first")) }
+            levels.push(own "binary-trial")
+            items.push(own format("vendor ", file_stem(format(archive, ".til"))))
+            paths.push(own archive.clone())
+        }
+        til_binary := format(directory, "/til")
+        til_build := Cmd.new(compiler, "build", "--force-rebuild", format("--target=", target), "-o", til_binary,
+            "-c", format(directory, "/til.c"), "src/til.til")
+        til_build.capture()
+        if til_build.run() != 0 { fail(format(til_build.render(), " failed:\n", til_build.out(), til_build.err())) }
+        levels.push(own "binary-trial")
+        items.push(own "src/til.til til")
+        paths.push(own til_binary.clone())
+
         hashes := sha256_of(paths)
-        for i, hash in hashes { lines.push(own format(hash, " binary ", target, " c 32 ", items[i])) }
+        for i, hash in hashes { lines.push(own format(hash, " ", levels[i], " ", target, " c 32 ", items[i])) }
+
+        // til by section, so that a difference between producers names the
+        // part of the binary it is in: code, constants, data, debug info,
+        // the dynamic tables, the build id. A section the binary does not
+        // have is listed as such.
+        mut objcopy := "aarch64-linux-gnu-objcopy"
+        if target.starts_with("macos-") { objcopy = "llvm-objcopy" }
+        sections := binary_sections(target)
+        mut section_names := Vec(Str).new()
+        mut section_paths := Vec(Str).new()
+        for section : Str in sections {
+            dumped := format(directory, "/til_section_", section_names.len().to_str())
+            dump := Cmd.new(objcopy, format("--dump-section=", section, "=", dumped), til_binary, format(directory, "/til_copy"))
+            dump.capture()
+            if dump.run() != 0 || File.is_file(dumped).not() {
+                lines.push(own format("refused binary-trial ", target, " c 32 src/til.til til:", section))
+                continue
+            }
+            section_names.push(own section.clone())
+            section_paths.push(own dumped)
+        }
+        section_hashes := sha256_of(section_paths)
+        for i, hash in section_hashes { lines.push(own format(hash, " binary-trial ", target, " c 32 src/til.til til:", section_names[i])) }
     }
     File.writefile(list, format(join(lines, "\n"), "\n"))
     println("ci_collect: ", producer, " wrote ", lines.len().to_str(), " lines to ", list)
@@ -311,6 +418,7 @@ collect := proc(directory: Str, report_only: Bool) {
     mut different : USize = 0
     mut missing : USize = 0
     mut alone : USize = 0
+    mut trial_different : USize = 0
     for group, producers in group_producers {
         mut group_equal : USize = 0
         mut group_alone : USize = 0
@@ -319,7 +427,7 @@ collect := proc(directory: Str, report_only: Bool) {
         // with the same toolchain: one "toolchain" hash.
         mut comparable := true
         toolchain_key := format(prefix, "- toolchain")
-        if group.starts_with("binary ") {
+        if group.starts_with("binary") {
             if item_hashes.has(toolchain_key).not() { fail(format(group, ": no producer recorded its toolchain")) }
             ref toolchains : Map(Str, Str) = item_hashes[toolchain_key]
             mut first_toolchain := ""
@@ -359,8 +467,13 @@ collect := proc(directory: Str, report_only: Bool) {
                 group_equal++
                 continue
             }
-            different++
-            println("DIFFERENT ", group, ": ", item)
+            if group.starts_with("binary-trial ") {
+                trial_different++
+                println("DIFFERENT (trial, does not fail) ", group, ": ", item)
+            } else {
+                different++
+                println("DIFFERENT ", group, ": ", item)
+            }
             for producer, hash in by_producer { println("    ", producer, " ", hash) }
         }
         equal = equal + group_equal
@@ -374,7 +487,7 @@ collect := proc(directory: Str, report_only: Bool) {
             group_equal.to_str(), " items equal, ", group_alone.to_str(), " from one producer only (not compared)")
     }
     println("ci_collect: ", equal.to_str(), " equal, ", different.to_str(), " different, ", missing.to_str(),
-        " missing, ", alone.to_str(), " not compared")
+        " missing, ", alone.to_str(), " not compared, ", trial_different.to_str(), " different on trial")
     if different + missing > 0 && report_only.not() { exit(1) }
 }
 

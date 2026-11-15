@@ -901,3 +901,9 @@ What is left in THIS issue:
 - Windows as a native producer of binaries: #483.
 - Open choice: whether one failing job keeps cancelling the rest of a run.
 Done: C0-C3, C5, C6, C8, superseded-run cancelling, and C7's mechanism.
+
+*** Superseded-run cancelling removed again (base master b74f4cf)
+
+Jorge: it was meant as a one-off, not a rule; with merges every hour no
+run would ever finish. The ~concurrency~ block is gone and every push
+gets its full run again.

@@ -157,6 +157,22 @@ main := proc(args: ..Str) {
     list(no_tools, "two", hello_a)
     collect(collector, no_tools, "", 1, "no producer recorded its toolchain")
 
+    // An artifact on trial: a difference is printed and does not fail.
+    trial_tools := format(HASH_A, " binary-trial linux-arm64 c 32 - toolchain")
+    trial := fixture("trial")
+    list(trial, "one", trial_tools, format(HASH_A, " binary-trial linux-arm64 c 32 src/til.til til"),
+        format(HASH_A, " binary-trial linux-arm64 c 32 src/til.til til:.text"))
+    list(trial, "two", trial_tools, format(HASH_C, " binary-trial linux-arm64 c 32 src/til.til til"),
+        format(HASH_A, " binary-trial linux-arm64 c 32 src/til.til til:.text"))
+    collect(collector, trial, "", 0, "DIFFERENT (trial, does not fail) binary-trial linux-arm64 c 32: src/til.til til",
+        "2 equal, 0 different, 0 missing, 0 not compared, 1 different on trial")
+    // On trial with different toolchains: not comparable, as for binary.
+    trial_tools_differ := fixture("trial_tools_differ")
+    list(trial_tools_differ, "one", trial_tools, format(HASH_A, " binary-trial linux-arm64 c 32 src/til.til til"))
+    list(trial_tools_differ, "two", format(HASH_B, " binary-trial linux-arm64 c 32 - toolchain"),
+        format(HASH_A, " binary-trial linux-arm64 c 32 src/til.til til"))
+    collect(collector, trial_tools_differ, "", 0, "NOT COMPARABLE binary-trial linux-arm64 c 32", "0 equal", "0 different on trial")
+
     // A line that is not a hash-list line stops the collector.
     malformed := fixture("malformed")
     list(malformed, "one", first, "frontend linux-x64 c 32 hello.til parsed:./a.til")
