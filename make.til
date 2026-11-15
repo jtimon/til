@@ -454,7 +454,10 @@ build_ffi_twins := proc(mut b: Build) {
     if b.host.os == "windows" {
         build_win_twin(raylib_lib("windows-x64"), RAYLIB_WIN64_DLL, "-lgdi32 -lopengl32 -lwinmm")
         build_win_twin(tinyfd_lib("windows-x64"), TINYFD_WIN64_DLL, "-lole32 -lcomdlg32 -luuid")
-        build_win_twin(nng_lib("windows-x64"), NNG_WIN64_DLL, "-lws2_32 -lmswsock -ladvapi32", "timespec_get")
+        // No runtime import here: this host builds against the universal
+        // C runtime, which has timespec_get; only a cross build's msvcrt
+        // archive takes it from til.exe (ext.c's shim, off under _UCRT).
+        build_win_twin(nng_lib("windows-x64"), NNG_WIN64_DLL, "-lws2_32 -lmswsock -ladvapi32")
         build_win_twin(secp256k1_lib("windows-x64"), SECP256K1_WIN64_DLL, "")
         require_libffi(b)
         host_ffi := libffi_lib("windows-x64")

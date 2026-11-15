@@ -48,12 +48,18 @@ ifeq ($(UNAME_S),Linux)
 HOST_OS := linux
 else ifeq ($(UNAME_S),Darwin)
 HOST_OS := macos
-else ifneq ($(filter MINGW% MSYS%,$(UNAME_S)),)
-# Windows, from an MSYS2 MinGW shell (issue #483): its make, sh and
-# coreutils run this file, and its gcc builds til.
+else ifneq ($(filter UCRT64%,$(UNAME_S)),)
+# Windows, from an MSYS2 UCRT64 shell (issue #483): its make, sh and
+# coreutils run this file, and its gcc builds til against the universal
+# C runtime.
 HOST_OS := windows
+else ifneq ($(filter MINGW% MSYS%,$(UNAME_S)),)
+# nng requires the universal C runtime (its CMakeLists rejects "the
+# legacy MinGW environments": timespec_get), which MINGW64's gcc does not
+# link, and the MSYS environment builds POSIX programs, not Windows ones.
+$(error unsupported build shell '$(UNAME_S)': on Windows, build til from an MSYS2 UCRT64 shell)
 else
-$(error unsupported build host '$(UNAME_S)': til builds on Linux, macOS and Windows (an MSYS2 MinGW shell))
+$(error unsupported build host '$(UNAME_S)': til builds on Linux, macOS and Windows (an MSYS2 UCRT64 shell))
 endif
 ifneq ($(filter x86_64 amd64,$(UNAME_M)),)
 HOST_ARCH := x64

@@ -91,9 +91,23 @@ native build gets, and the next commit fixes that.
     twins are DLLs made by ~build_win_twin~ (libffi's too); host cmake
     builds use the "MSYS Makefiles" generator, since cmake would pick
     Visual Studio and "MinGW Makefiles" refuses sh on PATH.
-  - [ ] Fix what the next runs report (the install's support tree
-    included), until the job passes; then make it blocking like the
-    others.
+  - [X] Checked under wine, without Windows' gcc: the compiler support
+    install (~install_compiler_support~, its Win32 copies) fills
+    ~<prefix>/lib/til~ with every windows-x64 archive and DLL twin, and the
+    installed til.exe, run from outside the checkout, finds that tree and
+    interprets a program.
+  - [X] Run 3108: raylib (mingw32-make) and tinyfd built; nng stopped on
+    ~implicit declaration of function 'timespec_get'~ -- an error since
+    gcc 14, a warning in the cross gcc. nng requires the universal C
+    runtime (its CMakeLists rejects "the legacy MinGW environments"), and
+    MINGW64's gcc links msvcrt. Decided: the Windows build shell is MSYS2
+    UCRT64 (~uname -s~ ~UCRT64_NT~, pacman's ~mingw-w64-ucrt-x86_64-~ gcc,
+    make and cmake); the Makefile rejects MINGW64 and MSYS shells saying
+    so. A UCRT host's nng twin does not import timespec_get from til.exe,
+    which defines it only for msvcrt.
+  - [ ] Fix what the next runs report, until the job passes; then make it
+    blocking like the others and document the Windows build (MSYS2
+    UCRT64, the three pacman packages) beside the Linux and macOS ones.
 
 *** Acceptance
 
