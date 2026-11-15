@@ -5441,7 +5441,11 @@ priv guard_hoisted_statement := proc(mut ctx: Context, mut stmt: Expr, mut hoist
             infer_expr(scope, value, 1, ctx)
             initial.children[0] = value
             new_ch.push(own initial)
-            mut assign := Expr.new(own NodeType.Assign(AssignData(name = dd.name.clone(), save_old_delete = true)), stmt.line, stmt.col)
+            // The placeholder owns contents only for managed values. Scalar
+            // lazy-condition temporaries need no destructor (and scavenging
+            // correctly does not retain a primitive's no-op delete).
+            managed := is_aggregate(dd.til_type).or(type_is_callable_storage(dd.til_type))
+            mut assign := Expr.new(own NodeType.Assign(AssignData(name = dd.name.clone(), save_old_delete = managed)), stmt.line, stmt.col)
             assign.add_child(own stmt.children[0].clone())
             stmt = assign
         }

@@ -840,11 +840,14 @@ CI cells, whose functional checks need not wait for reproducible bytes.
   diagnostics. Emitted native assembly itself is not ASAN-instrumented.
 
   Independent execution remains a differential reference and groundwork for
-  [[./474.org][#474]]'s eventual replacement of AST execution. Current FASM output is
-  still a standalone Linux x86-64 ELF executable, not callable code loaded into
-  the host process. Native code loading, relocation, host ABI adapters and code
-  lifetime are the next execution-engine boundary; completing all SIMD families
-  is not a prerequisite for the first scalar-I64 JIT proof.
+  [[./474.org][#474]]'s eventual replacement of AST execution. Ordinary FASM CLI output
+  remains a standalone Linux x86-64 ELF executable. The separate internal
+  ~fasm_codegen_callable~ entry now reuses the function emitter for the first
+  in-process scalar-I64 proof in ~test/fasm_jit.til~: typed entry adaptation,
+  bounded ELF object loading, RW-to-RX publication and owned code teardown.
+  Its same-section calls need no relocation; runtime imports and general
+  relocation/lifetime integration remain subsequent work. SIMD completion
+  was not needed to establish this first execution-engine boundary.
 
   TempleOS's native HolyC compiler supplies the planned TempleOS JIT route.
   Its x86-64 JIT/AOT source was inspected for the documentation recap at master

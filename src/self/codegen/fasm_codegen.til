@@ -2783,7 +2783,7 @@ priv fasm_function := proc(name: Str, mut program: FasmProgram, mut lp: LoadedPr
         fasm_error(expr, "unsupported return type", lp)
         return ""
     }
-    if name == "main" && (fd.sig.params.len() > 0 || fd.sig.return_type.len() > 0) {
+    if name == "main" && lp.cur_mode.is_library.not() && (fd.sig.params.len() > 0 || fd.sig.return_type.len() > 0) {
         fasm_error(expr, "main must take no arguments and return no value", lp)
         return ""
     }
@@ -2936,6 +2936,82 @@ priv fasm_test_entry := proc(mut program: FasmProgram, mut lp: LoadedProgram) re
     bytes:=((state.slots*8+15)/16)*16
     return format(state.prefix,":\n    push rbp\n    mov rbp, rsp\n    sub rsp, ",bytes.to_str(),"\n",
         state.text,"    leave\n    ret\n",state.data)
+}
+
+// The first callable module deliberately has no runtime, globals, captures or
+// aggregate ABI. Reuse ordinary function lowering and its dependency queue;
+// the loader accepts only self-contained executable text, not an ELF process.
+priv fasm_callable_signature := func(e : Expr, fd : FunctionDef, lp : LoadedProgram) returns Bool {
+    if fd.sig.func_type.is_bodyless().or(fd.sig.func_type.is(FuncType.Macro)) || e.children.len() == 0 { return false }
+    if fd.captures.len() > 0 || fd.sig.throw_types.len() > 0 || fd.sig.variadic_index >= 0 || fd.sig.kwargs_index >= 0 { return false }
+    if fd.sig.return_own_type.is(OwnType.Ref) || fd.sig.params.len() > 6 { return false }
+    if type_from_name_init_name(fd.sig.return_type, lp.ctx.scope, lp.ctx.symbols) != Type.Primitive(Primitive.I64) { return false }
+    for i in 0..fd.sig.params.len() {
+        if fasm_parameter_type(fd, i, lp) != Type.Primitive(Primitive.I64) { return false }
+    }
+    return true
+}
+
+fasm_codegen_callable := proc(mut lp : LoadedProgram, root : Str, path : Str) returns I32 {
+    if lp.target.is(Target.LinuxX64).not().or(lp.cur_mode.is_library.not()) {
+        println("error: FASM callable modules require Linux x64 and library-mode source")
+        return 1
+    }
+    context_enter_file(lp.ctx, lp.units[lp.units.len() - 1].path)
+    mut program := FasmProgram()
+    program.source_names = fasm_source_declarations(lp)
+    for unit : ProgramUnit in lp.core_units { fasm_collect(lp.ctx.imported[unit.path].ast, unit.path, program) }
+    for unit : ProgramUnit in lp.units {
+        ref mut body : Expr = lp.ctx.imported[unit.path].ast
+        for stmt : Expr in body.children {
+            if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len() != 1) {
+                fasm_error(stmt, "callable modules do not support module initialization", lp)
+                return 1
+            }
+            ref value : Expr = stmt.children[0]
+            if value.node_type.is(NodeType.FuncDef).or(value.node_type.is(NodeType.StructDef)).or(value.node_type.is(NodeType.EnumDef)).not() {
+                fasm_error(stmt, "callable modules do not support globals", lp)
+                return 1
+            }
+        }
+        fasm_collect(body, unit.path, program)
+    }
+    if program.definitions.has(root).not() {
+        println("error: FASM callable root not retained: ", root)
+        return 1
+    }
+    ref entry : Expr = fasm_definition(root, program, lp)
+    fd := fasm_callable_fd(entry)
+    if fasm_callable_signature(entry, fd, lp).not().or(fd.sig.params.len() != 2) {
+        fasm_error(entry, "callable entry requires two I64 parameters and an I64 value result", lp)
+        return 1
+    }
+    label := fasm_request(root, program)
+    mut text := format("format ELF64\nsection '.text' executable\npublic til_jit_entry\n",
+        "til_jit_entry:\n    push rbp\n    mov rbp, rsp\n    sub rsp, 16\n",
+        "    mov [rbp-8], rdi\n    mov [rbp-16], rsi\n")
+    for i in 0..2 {
+        if func_param_passes_c_value(fd, i.to_usize(), lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols).not() {
+            text = format(text, "    lea ", fasm_register(i.to_usize()), ", [rbp-", ((i + 1) * 8).to_str(), "]\n")
+        }
+    }
+    text = format(text, "    call ", label, "\n    leave\n    ret\n")
+    mut next : USize = 0
+    while next < program.pending.len() {
+        name := program.pending[next].clone()
+        ref implementation : Expr = fasm_definition(name, program, lp)
+        if fasm_callable_signature(implementation, fasm_callable_fd(implementation), lp).not() {
+            fasm_error(implementation, "callable module dependency requires a noncapturing I64 signature", lp)
+            return 1
+        }
+        text = format(text, fasm_function(name, program, lp))
+        next++
+    }
+    if lp.ctx.errors > 0 { return 1 }
+    // Non-scalar data/runtime references remain assembler errors, not a
+    // silent inclusion of process startup, rt_exit or a syscall runtime.
+    File.writefile(path, text)
+    return 0
 }
 
 fasm_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_names: Set(Str)) returns I32 {

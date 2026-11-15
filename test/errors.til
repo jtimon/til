@@ -341,6 +341,28 @@ ErrorWithMessage := struct {
     msg: Str = "default error message"
 }
 
+guarded_lazy_value := func(mut calls : I64, value : I64) returns I64 throws ErrorWithMessage {
+    calls++
+    if value < 0 { throw ErrorWithMessage(msg = "guarded scalar") }
+    return value
+}
+
+guarded_lazy_condition := func(mut calls : I64, first : I64, second : I64) returns Bool throws ErrorWithMessage {
+    return guarded_lazy_value(calls, first)? == 1 && guarded_lazy_value(calls, second)? == 2
+}
+
+test_guarded_lazy_scalar_placeholder := test() {
+    mut calls := 0
+    assert(guarded_lazy_condition(calls, 1, 2)!)
+    assert(calls == 2)
+    assert(guarded_lazy_condition(calls, 0, -1)!.not())
+    assert(calls == 3)
+    mut caught := false
+    guarded_lazy_condition(calls, -1, 2)?
+    catch (err : ErrorWithMessage) { caught = err.msg == "guarded scalar" }
+    assert(caught && calls == 4)
+}
+
 mixed_throw := func(empty: Bool) throws AAAError, ErrorWithMessage {
     if empty { throw AAAError() }
     throw ErrorWithMessage(msg = "rich error")

@@ -316,6 +316,12 @@ void sleep_ms(I64 ms);
 // constfolder to treat the surrounding function as impure (procs are never
 // folded). The call has no runtime effect; only purpose is the tag.
 void noop_proc(void);
+// Internal Linux-x64 callable-code boundary (#474). Mapping returns writable,
+// non-cage memory; seal changes it to RX. Status is 0 or the native errno.
+I32 fasm_jit_map(UPtr bytes, UPtr *address);
+I32 fasm_jit_seal(const void *address, UPtr bytes);
+I32 fasm_jit_unmap(const void *address, UPtr bytes);
+I64 fasm_jit_call_i64_2(const void *address, I64 a, I64 b);
 I64 file_mtime(const Str *path);
 I64 clock_ms(void);
 I64 get_thread_count(void);

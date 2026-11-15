@@ -1,0 +1,512 @@
+mode cli
+import("../src/self/builder")
+import("../src/std/sys")
+
+// Optional Linux-x64 integration, using the existing vendored assembler:
+// bin/til run test/fasm_jit.til bin/til
+// Compile/run the driver at both USize widths; emitted code always uses x64.
+fasm_jit_map := ext_proc(shallow bytes : UPtr, mut address : UPtr) returns shallow I32 {}
+fasm_jit_seal := ext_proc(address : Dynamic, shallow bytes : UPtr) returns shallow I32 {}
+// Like cfile_close, teardown must also be callable from a destructor func.
+fasm_jit_unmap := ext_func(address : Dynamic, shallow bytes : UPtr) returns shallow I32 {}
+fasm_jit_call_i64_2 := ext_proc(address : Dynamic, shallow a : I64, shallow b : I64) returns shallow I64 {}
+realpath_str := ext_proc(path : Str) returns Str {}
+
+JitError := struct { message := "" }
+
+priv jit_require := func(condition : Bool, message : Str) throws JitError {
+    if condition.not() { throw JitError(message = message.clone()) }
+}
+
+priv jit_range := func(image : Str, offset : U64, size : U64) throws JitError {
+    jit_require(offset <= image.len().to_u64(), "ELF offset outside object")?
+    jit_require(size <= image.len().to_u64() - offset, "ELF range outside object")?
+}
+
+priv elf_word := func(image : Str, offset : U64, bytes : U64) returns U64 throws JitError {
+    jit_range(image, offset, bytes)?
+    mut result : U64 = 0
+    mut i : U64 = 0
+    while i < bytes {
+        result = result.bor(image.get((offset + i).to_usize()).to_u64().band(255).shl(i * 8))
+        i++
+    }
+    return result
+}
+
+priv elf_string := func(image : Str, offset : U64, size : U64, index : U64) returns Str throws JitError {
+    jit_range(image, offset, size)?
+    jit_require(index < size, "ELF string index outside table")?
+    mut end := index
+    while end < size {
+        if image.get((offset + end).to_usize()) == 0 {
+            return image.substr((offset + index).to_usize(), (end - index).to_usize()).clone()
+        }
+        end++
+    }
+    throw JitError(message = "ELF string is not terminated")
+}
+
+// This owns an OS mapping, not a malloc allocation or compressed own pointer.
+// The raw address stays private to this test-only owner and its borrowed calls.
+priv JitModule := struct {
+    // Zero is the lowered throwing-return placeholder, never a loaded module.
+    address : UPtr = 0
+    bytes : UPtr = 0
+    entry_offset : UPtr = 0
+namespace:
+    call := proc(self : JitModule, a : I64, b : I64) returns I64 {
+        return fasm_jit_call_i64_2(ptr_add(bits_word(self.address.to_u64()), self.entry_offset), a, b)
+    }
+    priv close := func(self : JitModule) {
+        // REM A failed throwing load has no mapping to release.
+        if self.address != 0 {
+            status := fasm_jit_unmap(bits_word(self.address.to_u64()), self.bytes)
+            expect(status == 0, "FASM JIT munmap errno", status)
+        }
+    }
+    delete := func(own self : JitModule, call_free : Bool = true) {
+        JitModule.close(self)
+        if call_free { free(own self) }
+    }
+    clone := func(self : JitModule) returns JitModule {
+        panic("FASM JIT module cannot be cloned: ", self.bytes.to_str())
+    }
+}
+
+// Bounded ELF64 ET_REL loader: one nonempty allocatable .text, no relocations
+// or undefined symbols, one global til_jit_entry. Metadata is read by count,
+// never by casting unaligned file bytes to native/C structs. Validate before
+// allocating, then copy RW, seal RX and publish through the owning return.
+priv load_module := proc(image : Str) returns JitModule throws JitError {
+    jit_require(image.len() >= 64, "truncated ELF header")?
+    jit_require(image.substr(0, 7) == "\x7fELF\x02\x01\x01", "expected little-endian ELF64")?
+    osabi := elf_word(image, 7, 1)?
+    jit_require((osabi == 0 || osabi == 3) && elf_word(image, 8, 1)? == 0, "unsupported ELF OS ABI")?
+    jit_require(elf_word(image, 16, 2)? == 1, "expected ELF relocatable object")?
+    jit_require(elf_word(image, 18, 2)? == 62, "expected x86-64 ELF machine")?
+    jit_require(elf_word(image, 20, 4)? == 1, "unsupported ELF version")?
+    jit_require(elf_word(image, 24, 8)? == 0 && elf_word(image, 32, 8)? == 0 && elf_word(image, 56, 2)? == 0,
+        "ELF process entry/program headers are unsupported")?
+    jit_require(elf_word(image, 52, 2)? == 64 && elf_word(image, 58, 2)? == 64, "unsupported ELF header sizes")?
+    sections := elf_word(image, 40, 8)?
+    count := elf_word(image, 60, 2)?
+    names := elf_word(image, 62, 2)?
+    jit_require(count > 1 && names > 0 && names < count, "invalid ELF section table")?
+    jit_range(image, sections, count * 64)?
+    names_header := sections + names * 64
+    jit_require(elf_word(image, names_header + 4, 4)? == 3, "ELF section names require a string table")?
+    names_offset := elf_word(image, names_header + 24, 8)?
+    names_size := elf_word(image, names_header + 32, 8)?
+    jit_range(image, names_offset, names_size)?
+    mut text : U64 = 0
+    mut symbols : U64 = 0
+    mut i : U64 = 1
+    while i < count {
+        header := sections + i * 64
+        kind := elf_word(image, header + 4, 4)?
+        flags := elf_word(image, header + 8, 8)?
+        offset := elf_word(image, header + 24, 8)?
+        size := elf_word(image, header + 32, 8)?
+        name := elf_string(image, names_offset, names_size, elf_word(image, header, 4)?)?
+        if kind != 8 { jit_range(image, offset, size)? }
+        if kind == 4 || kind == 9 { jit_require(size == 0, "unsupported ELF relocation section")? }
+        if flags.band(2) != 0 {
+            jit_require(text == 0 && kind == 1 && flags == 6 && name == ".text" && size > 0,
+                "unsupported ELF allocatable section")?
+            alignment := elf_word(image, header + 48, 8)?
+            jit_require(alignment <= 16 && (alignment == 0 || alignment.band(alignment - 1) == 0),
+                "unsupported ELF text alignment")?
+            text = i
+        }
+        if kind == 2 {
+            jit_require(symbols == 0, "multiple ELF symbol tables")?
+            symbols = i
+        }
+        i++
+    }
+    jit_require(text > 0 && symbols > 0, "ELF text or symbol table missing")?
+    text_header := sections + text * 64
+    text_offset := elf_word(image, text_header + 24, 8)?
+    text_size := elf_word(image, text_header + 32, 8)?
+    symbol_header := sections + symbols * 64
+    symbol_offset := elf_word(image, symbol_header + 24, 8)?
+    symbol_size := elf_word(image, symbol_header + 32, 8)?
+    jit_require(elf_word(image, symbol_header + 56, 8)? == 24 && symbol_size.mod(24) == 0,
+        "invalid ELF symbol entry size")?
+    strings := elf_word(image, symbol_header + 40, 4)?
+    jit_require(strings > 0 && strings < count, "invalid ELF symbol string table link")?
+    strings_header := sections + strings * 64
+    jit_require(elf_word(image, strings_header + 4, 4)? == 3, "ELF symbols require a string table")?
+    strings_offset := elf_word(image, strings_header + 24, 8)?
+    strings_size := elf_word(image, strings_header + 32, 8)?
+    jit_range(image, strings_offset, strings_size)?
+    mut found := false
+    mut entry_offset : U64 = 0
+    i = 1
+    while i < symbol_size / 24 {
+        symbol := symbol_offset + i * 24
+        name := elf_string(image, strings_offset, strings_size, elf_word(image, symbol, 4)?)?
+        section := elf_word(image, symbol + 6, 2)?
+        jit_require(section != 0, format("unresolved ELF symbol: ", name))?
+        if name == "til_jit_entry" {
+            info := elf_word(image, symbol + 4, 1)?
+            jit_require(found.not() && section == text && info / 16 == 1 && (info.mod(16) == 0 || info.mod(16) == 2),
+                "invalid ELF entry symbol")?
+            jit_require(elf_word(image, symbol + 5, 1)? == 0, "unsupported ELF entry visibility")?
+            entry_offset = elf_word(image, symbol + 8, 8)?
+            jit_require(entry_offset < text_size, "ELF entry outside text")?
+            jit_require(elf_word(image, symbol + 16, 8)? <= text_size - entry_offset, "ELF entry size outside text")?
+            found = true
+        }
+        i++
+    }
+    jit_require(found, "ELF til_jit_entry missing")?
+    mut address : UPtr = 0
+    mapped := fasm_jit_map(text_size.to_uptr(), address)
+    jit_require(mapped == 0, format("FASM JIT mmap errno ", mapped.to_str()))?
+    module := JitModule(address = address, bytes = text_size.to_uptr(), entry_offset = entry_offset.to_uptr())
+    memcpy(bits_word(module.address.to_u64()), ptr_add(image.c_str, text_offset.to_uptr()), text_size.to_uptr())
+    sealed := fasm_jit_seal(bits_word(module.address.to_u64()), module.bytes)
+    jit_require(sealed == 0, format("FASM JIT mprotect errno ", sealed.to_str()))?
+    return module
+}
+
+priv assemble := proc(source : Str, object : Str) returns Str throws JitError {
+    command := Cmd.new("vendor/fasm/fasm", "-m", "32768", source, object)
+    command.capture()
+    status := command.run()
+    jit_require(status == 0, format("FASM assembly failed: ", command.out(), command.err()))?
+    return File.readfile(object)
+}
+
+priv JitEmission := struct { prepare_ms : I64 = 0; emit_ms : I64 = 0 }
+
+priv prepare_source := proc(source : Str, width : I32) returns LoadedProgram {
+    mut program := load_program(source, realpath_str("."), realpath_str("."), Vec(Str).new())
+    expect(program.load_errors == 0, "JIT source load failed")
+    program.target = Target.LinuxX64
+    program.usize_override_bits = width
+    program.cptr32 = false
+    program.ctx.target_cptr32 = false
+    program.ctx.compile_mode = true
+    // Library exports retain the selected public root BEFORE scavenging;
+    // its private helper is then retained by the ordinary dependency graph.
+    prepare_program(program, false)
+    return program
+}
+
+priv emit_module := proc(source : Str, root : Str, width : I32, assembly : Str) returns JitEmission {
+    start := clock_ms()
+    mut program := prepare_source(source, width)
+    prepared := clock_ms()
+    expect(fasm_codegen_callable(program, root, assembly) == 0, "JIT callable emission failed")
+    emitted := clock_ms()
+    ffi_cleanup(program.ctx)
+    return JitEmission(prepare_ms = prepared - start, emit_ms = emitted - prepared)
+}
+
+priv reject_source := proc(source : Str, root : Str) {
+    path := "tmp/fasm_jit/unsupported.til"
+    assembly := "tmp/fasm_jit/unsupported.fasm"
+    File.writefile(path, source)
+    File.remove(assembly)
+    mut program := prepare_source(path, 32)
+    expect(fasm_codegen_callable(program, root, assembly) != 0, "unsupported callable source was emitted")
+    expect(File.exists(assembly).not(), "failed callable emission published a module")
+    ffi_cleanup(program.ctx)
+}
+
+priv native_output := proc(first : JitModule, second : JitModule) returns Str {
+    mut output := ""
+    for a : I64 in array(I64, I64.MIN, -4294967297, -257, -1, 0, 1, 255, 4294967297, I64.MAX) {
+        for b : I64 in array(I64, I64.MIN, -4294967297, -257, -1, 0, 1, 255, 4294967297, I64.MAX) {
+            output = format(output, first.call(a, b).to_str(), "\n", second.call(a, b).to_str(), "\n")
+        }
+    }
+    mut checksum : I64 = 0
+    mut i : I64 = 0
+    start := clock_ms()
+    while i < 100000 { checksum = checksum + first.call(i, 50000 - i); i++ }
+    elapsed := clock_ms() - start
+    println("  warm 100000 calls: ", elapsed, " ms, checksum ", checksum)
+    return format(output, checksum.to_str(), "\n")
+}
+
+priv reference_output := proc(compiler : Str, width : Str, wrapper : Str) returns Str {
+    timed_wrapper := "tmp/fasm_jit/timed-reference.til"
+    timed := File.readfile(wrapper).replace("mode cli\n", "mode cli\nimport(\"../../src/std/sys\")\n")
+        .replace("mut checksum : I64", "warm_start := clock_ms(); mut checksum : I64")
+        .replace("println(checksum)", "eprint_single(format(\"warm 100000 calls: \", (clock_ms() - warm_start).to_str(), \" ms\\n\")); println(checksum)")
+    File.writefile(timed_wrapper, timed)
+    start := clock_ms()
+    interpreted := Cmd.new("timeout", "120s", compiler, "interpret", format("--usize=", width), timed_wrapper)
+    interpreted.capture()
+    interpreted_status := interpreted.run()
+    expect(interpreted_status == 0, "interpreter reference", interpreted.out(), interpreted.err())
+    interpreter_timing := interpreted.err()
+    println("  interpreter cold prepare/run: ", clock_ms() - start, " ms; ", interpreter_timing.trim())
+    for backend in array(Str, "c", "fasm") {
+        binary := format("tmp/fasm_jit/reference-", backend, "-", width)
+        mut input := wrapper.clone()
+        if backend == "c" { input = timed_wrapper.clone() }
+        build := Cmd.new(compiler, "build", format("--backend=", backend), format("--usize=", width), "-o", binary, input)
+        build.capture()
+        before_build := clock_ms()
+        build_status := build.run()
+        expect(build_status == 0, "reference build", backend, build.out(), build.err())
+        built := clock_ms()
+        run := Cmd.new("timeout", "30s", format("./", binary))
+        run.capture()
+        run_status := run.run()
+        expect(run_status == 0, "reference execution", backend, run.out(), run.err())
+        println("  ", backend, " AOT build: ", built - before_build, " ms; run: ", clock_ms() - built, " ms")
+        if backend == "c" {
+            timing := run.err()
+            println("    ", timing.trim())
+        }
+        expect(run.out() == interpreted.out(), "reference output differs", backend, run.out(), interpreted.out())
+    }
+    return interpreted.out()
+}
+
+priv mapping_permissions := proc(address : UPtr) returns Str {
+    maps := File.readfile("/proc/self/maps")
+    for line : Str in maps.split("\n") {
+        if line.is_empty() { continue } // final line separator
+        dash := line.find("-").to_usize()
+        space := line.find(" ").to_usize()
+        begin := format("0x", line.substr(0, dash)).to_u64()
+        end := format("0x", line.substr(dash + 1, space - dash - 1)).to_u64()
+        if begin <= address.to_u64() && address.to_u64() < end { return line.substr(space + 1, 4).clone() }
+    }
+    return "" // expected lookup miss after the owner has unmapped its code
+}
+
+priv independent_modules := proc(image : Str, other : Str) {
+    first := load_module(image)!
+    second := load_module(other)!
+    expect(first.address != second.address, "simultaneous mappings share storage")
+    expect(first.call(2, 9) == 16 && second.call(2, 9) == 101, "independent module results")
+    expect(mapping_permissions(first.address) == "r-xp", "published code is not immutable RX")
+    address := first.address
+    start := clock_ms()
+    own first.delete()
+    released := clock_ms() - start
+    expect(mapping_permissions(address).is_empty(), "deleted module remains mapped")
+    expect(second.call(2, 9) == 101, "deleting one module invalidated another")
+    println("  single-module teardown: ", released, " ms")
+}
+
+priv mapping_contract := proc() {
+    mut address : UPtr = 0
+    expect(fasm_jit_map(16, address) == 0, "native code allocation failed")
+    module := JitModule(address = address, bytes = 16, entry_offset = 0)
+    expect(mapping_permissions(module.address) == "rw-p", "new code mapping is not non-executable RW")
+    // xor eax,eax; ret -- the loader's ordinary copy/seal path is tested
+    // separately with functions actually compiled from til source.
+    write_u8(bits_word(module.address.to_u64()), 49)
+    write_u8(ptr_add(bits_word(module.address.to_u64()), 1), 192)
+    write_u8(ptr_add(bits_word(module.address.to_u64()), 2), 195)
+    expect(fasm_jit_seal(bits_word(module.address.to_u64()), module.bytes) == 0, "native code publication failed")
+    expect(mapping_permissions(module.address) == "r-xp", "published mapping retained write permission")
+    expect(module.call(0, 0) == 0, "sealed native code did not execute")
+}
+
+priv load_and_call := proc(image : Str) returns I64 {
+    module := load_module(image)!
+    return module.call(2, 9) // ASAP must unmap AFTER the native call
+}
+
+priv load_and_throw := proc(image : Str) returns JitModule throws JitError {
+    module := load_module(image)?
+    jit_require(module.bytes == 0, "failure after native mapping")?
+    return module
+}
+
+priv reject_object := proc(image : Str, diagnostic : Str) {
+    mut caught := false
+    module := load_module(image)?
+    panic("invalid ELF accepted: ", diagnostic, " bytes=", module.bytes.to_str())
+    catch (err : JitError) {
+        expect(err.message.contains(diagnostic), "wrong ELF diagnostic", diagnostic, err.message)
+        caught = true
+    }
+    expect(caught, "ELF load did not reject input", diagnostic)
+}
+
+priv patch_word := func(mut image : Str, offset : U64, value : U64, bytes : U64) {
+    jit_range(image, offset, bytes)!
+    mut i : U64 = 0
+    while i < bytes {
+        write_u8(ptr_add(image.c_str, (offset + i).to_uptr()), value.shr(i * 8).band(255).to_i64().to_u8())
+        i++
+    }
+}
+
+priv rejection_checks := proc(image : Str, assembly : Str, object : Str) {
+    reject_object("", "truncated ELF header")
+    reject_object(image.substr(0, 63), "truncated ELF header")
+    reject_object(image.substr(0, image.len() - 1), "outside object")
+    offsets := array(U64, 4, 5, 16, 18, 24, 40, 58, 62)
+    values := array(U64, 1, 2, 2, 183, 1, U64.MAX, 63, 65535)
+    sizes := array(U64, 1, 1, 2, 2, 8, 8, 2, 2)
+    messages := array(Str, "little-endian ELF64", "little-endian ELF64", "relocatable object", "x86-64 ELF machine",
+        "process entry", "outside object", "header sizes", "section table")
+    for i in 0..offsets.len() {
+        mut changed := image.clone()
+        patch_word(changed, offsets[i], values[i], sizes[i])
+        reject_object(changed, messages[i])
+    }
+    sections := elf_word(image, 40, 8)!
+    text := sections + 64
+    symtab := sections + 128
+    symbols := elf_word(image, symtab + 24, 8)!
+    entry := symbols + 48 // inspected FASM object: null, local section, global entry
+    more_offsets := array(U64, text + 24, text + 32, text + 8, text + 48, symtab + 56, symtab + 40, entry + 6, entry + 8)
+    more_values := array(U64, U64.MAX, U64.MAX, 7, 8192, 8, 65535, 0, U64.MAX)
+    more_sizes := array(U64, 8, 8, 8, 8, 8, 4, 2, 8)
+    more_messages := array(Str, "outside object", "outside object", "allocatable section", "text alignment", "symbol entry size",
+        "string table link", "unresolved ELF symbol", "entry outside text")
+    for i in 0..more_offsets.len() {
+        mut changed := image.clone()
+        patch_word(changed, more_offsets[i], more_values[i], more_sizes[i])
+        reject_object(changed, more_messages[i])
+    }
+    mut renamed := image.clone()
+    strings_index := elf_word(image, symtab + 40, 4)!
+    strings := elf_word(image, sections + strings_index * 64 + 24, 8)!
+    name := elf_word(image, entry, 4)!
+    patch_word(renamed, strings + name, 88, 1)
+    reject_object(renamed, "til_jit_entry missing")
+
+    File.writefile(assembly, "format ELF64\nsection '.text' executable\npublic til_jit_entry\nextrn missing_runtime\ntil_jit_entry:\n call missing_runtime\n ret\n")
+    relocated := assemble(assembly, object)!
+    reject_object(relocated, "unsupported ELF relocation")
+    File.writefile(assembly, "format ELF64\nsection '.text' executable\npublic til_jit_entry\ntil_jit_entry:\n xor eax,eax\n ret\nsection '.data' writeable\n dq 1\n")
+    with_data := assemble(assembly, object)!
+    reject_object(with_data, "unsupported ELF allocatable section")
+
+    File.writefile(assembly, "invalid_fasm_instruction\n")
+    mut caught := false
+    assemble(assembly, object)?
+    catch (err : JitError) { caught = err.message.contains("FASM assembly failed") && err.message.contains("invalid_fasm_instruction") }
+    expect(caught, "assembler failure was not propagated")
+}
+
+priv lifetime_checks := proc(image : Str) {
+    for _ in 0..16 { expect(load_and_call(image) == 16, "warm-up native call") }
+    before := File.readfile("/proc/self/statm")
+    pages := before.split(" ")[0].to_u64()
+    start := clock_ms()
+    for _ in 0..256 {
+        expect(load_and_call(image) == 16, "repeated load/call/release")
+        mut caught := false
+        load_and_throw(image)?
+        catch (err : JitError) { caught = err.message == "failure after native mapping" }
+        expect(caught, "throwing owner did not propagate its error")
+    }
+    after := File.readfile("/proc/self/statm")
+    expect(after.split(" ")[0].to_u64() == pages, "native code mappings leaked", before, after)
+    println("  256 load/call/release + throw/cleanup cycles: ", clock_ms() - start, " ms; virtual pages unchanged")
+
+    module := load_module(image)!
+    bad_seal := fasm_jit_seal(ptr_add(bits_word(module.address.to_u64()), 1), module.bytes)
+    expect(bad_seal != 0, "unaligned mprotect unexpectedly succeeded")
+    bad_unmap := fasm_jit_unmap(ptr_add(bits_word(module.address.to_u64()), 1), module.bytes)
+    expect(bad_unmap != 0, "unaligned munmap unexpectedly succeeded")
+    expect(module.call(2, 9) == 16, "failed native operation damaged owned mapping")
+    mut address : UPtr = 123
+    expect(fasm_jit_map(0, address) != 0 && address == 123, "mmap failure changed output address")
+}
+
+priv abi_checks := proc(assembly : Str, object : Str) {
+    File.writefile(assembly, "format ELF64\nsection '.text' executable\npublic til_jit_entry\ntil_jit_entry:\n mov rax,rsp\n and eax,15\n ret\n")
+    aligned := load_module(assemble(assembly, object)!)!
+    expect(aligned.call(0, 0) == 8, "SysV entry stack is not aligned")
+    // Corrupt each preserved register in a child, so a broken ABI cannot
+    // corrupt the test runner. The bridge must identify the actual failure.
+    for reg in array(Str, "rbp", "rbx", "r12", "r13", "r14", "r15") {
+        File.writefile(assembly, format("format ELF64\nsection '.text' executable\npublic til_jit_entry\ntil_jit_entry:\n xor ", reg, ",", reg, "\n xor eax,eax\n ret\n"))
+        assemble(assembly, object)!
+        child := Cmd.new("timeout", "10s", get_exe_path(), object)
+        child.capture()
+        status := child.run()
+        expect(status != 0 && child.err().contains("callee-saved register corrupted"), "ABI violation missed", reg, status, child.err())
+    }
+}
+
+main := proc(compiler_arg : Str) {
+    expect(detect_current_target().is(Target.LinuxX64), "FASM JIT integration requires Linux x64")
+    if compiler_arg.ends_with(".o") {
+        // Internal child case for the ABI probes above; no compiler CLI flag.
+        module := load_module(File.readfile(compiler_arg))!
+        module.call(0, 0)
+        panic("bad native ABI returned without a diagnostic")
+    }
+    compiler := realpath_str(compiler_arg)
+    expect(fasm_prepare(realpath_str("."), true) == 0, "FASM bootstrap required")
+    expect(mkdir_p("tmp/fasm_jit") == 0, "cannot create JIT scratch directory")
+    mapping_contract()
+    source := "tmp/fasm_jit/source.til"
+    assembly := "tmp/fasm_jit/module.fasm"
+    object := "tmp/fasm_jit/module.o"
+    File.writefile(source, format("mode pure\n",
+        "priv helper := func(a : I64, b : I64) returns I64 { return a * 17 + b }\n",
+        "calculate := func(a : I64, b : I64) returns I64 { if a < b { return helper(a, b) - b * 3 }; return helper(b, a) + a }\n",
+        "mutating := func(mut a : I64, b : I64) returns I64 { a = a + 5; return calculate(a, b) }\n"))
+    wrapper := "tmp/fasm_jit/reference.til"
+    File.writefile(wrapper, format("mode cli\nimport(\"./source\")\n",
+        "runtime := proc(value : I64) returns I64 { noop_proc(); return value }\n",
+        "main := proc() { for a : I64 in array(I64, I64.MIN, -4294967297, -257, -1, 0, 1, 255, 4294967297, I64.MAX) {\n",
+        "for b : I64 in array(I64, I64.MIN, -4294967297, -257, -1, 0, 1, 255, 4294967297, I64.MAX) {\n",
+        "mut input := runtime(a); println(calculate(input, runtime(b))); println(mutating(input, runtime(b))) } };\n",
+        "mut checksum : I64 = 0; mut i : I64 = 0; while i < 100000 { checksum = checksum + calculate(i, 50000 - i); i++ }; println(checksum) }\n"))
+    for width in array(Str, "32", "64") {
+        println("JIT target USize", width, " (host USize", USize.size() * 8, ")")
+        cold_start := clock_ms()
+        emission := emit_module(source, "calculate", width.to_i32(), assembly)
+        start := clock_ms()
+        image := assemble(assembly, object)!
+        assembled := clock_ms()
+        module := load_module(image)!
+        loaded := clock_ms()
+        expect(module.call(2, 9) == 16, "native JIT result mismatch")
+        called := clock_ms()
+        println("  prepare: ", emission.prepare_ms, " ms; emit: ", emission.emit_ms, " ms; assemble: ", assembled - start,
+            " ms; load: ", loaded - assembled, " ms; first call: ", called - loaded, " ms; cold total: ", called - cold_start,
+            " ms; code bytes: ", module.bytes)
+        other_assembly := "tmp/fasm_jit/mutating.fasm"
+        other_object := "tmp/fasm_jit/mutating.o"
+        emit_module(source, "mutating", width.to_i32(), other_assembly)
+        other := assemble(other_assembly, other_object)!
+        second := load_module(other)!
+        expect(File.readfile(other_assembly).contains("lea rdi, [rbp-8]"), "borrowed parameter adapter was not exercised")
+        actual := native_output(module, second)
+        expected := reference_output(compiler, width, wrapper)
+        expect(actual == expected, "full-width JIT/reference result mismatch", actual, expected)
+        independent_modules(image, other)
+        lifetime_checks(image)
+        rejection_checks(image, "tmp/fasm_jit/reject.fasm", "tmp/fasm_jit/reject.o")
+        // Probe every generated function entry, including nested direct calls.
+        original := File.readfile(assembly)
+        checked := original.replace(":\n    push rbp", ":\n    mov rax,rsp\n    and eax,15\n    cmp eax,8\n    je .stack_ok\n    ud2\n.stack_ok:\n    push rbp")
+        File.writefile("tmp/fasm_jit/aligned.fasm", checked)
+        checked_module := load_module(assemble("tmp/fasm_jit/aligned.fasm", "tmp/fasm_jit/aligned.o")!)!
+        expect(checked_module.call(2, 9) == 16, "generated call stack alignment")
+    }
+    // A library function called main is not a process entrypoint.
+    File.writefile("tmp/fasm_jit/main-root.til", "mode pure\nmain := func(a : I64, b : I64) returns I64 { return a * 17 - b * 2 }\n")
+    emit_module("tmp/fasm_jit/main-root.til", "main", 32, "tmp/fasm_jit/main-root.fasm")
+    main_module := load_module(assemble("tmp/fasm_jit/main-root.fasm", "tmp/fasm_jit/main-root.o")!)!
+    expect(main_module.call(2, 9) == 16, "library main was treated as process startup")
+    println("Expected unsupported-source diagnostics:")
+    reject_source("mode pure\ncalculate := func(a : I64, b : I64) returns I64 { return a + b }\n", "absent")
+    reject_source("mode pure\ncalculate := func(a : I64) returns I64 { return a }\n", "calculate")
+    reject_source("mode pure\ncalculate := func(a : I64, b : I64) returns ref I64 { if b < 0 { return b }; return a }\n", "calculate")
+    reject_source("mode lib\nmut shared : I64 = 1\ncalculate := func(a : I64, b : I64) returns I64 { return a + b + shared }\n", "calculate")
+    reject_source("mode lib\nhelper := proc() { noop_proc() }\ncalculate := proc(a : I64, b : I64) returns I64 { helper(); return a + b }\n", "calculate")
+    abi_checks("tmp/fasm_jit/abi.fasm", "tmp/fasm_jit/abi.o")
+    lexer_cleanup()
+    println("fasm_jit PASS (millisecond timing resolution; no generated-code ASAN instrumentation)")
+}

@@ -1774,8 +1774,9 @@
 
 *** Status recap and native JIT direction (2026-11-14)
 
-  Source-reviewed at master ~ae1daf9eb~. FASM currently provides a substantial
-  standalone Linux x86-64 backend, not an implemented in-process JIT:
+  Source-reviewed at master ~ae1daf9eb~, with the scalar JIT proof below added
+  on ~16bd8dade~. The normal CLI provides a substantial standalone Linux
+  x86-64 backend; the first test-only in-process scalar path now exists too:
 
   | Area | Current coverage |
   |------+------------------|
@@ -1790,8 +1791,8 @@
 
   ~fasm_codegen_translate~ still writes an ELF executable with startup,
   initializers and ~rt_exit~; ~compile_fasm~ assembles it and ~run~ starts a
-  child process. A JIT must instead produce callable code, load/fix it up and
-  invoke it inside the existing process through an explicit host ABI adapter.
+  child process. ~fasm_codegen_callable~ separately emits a callable ELF64
+  object, invoked in-process by the bounded proof below through a host adapter.
   The private argument/address conventions, closure R10 environment and hidden
   aggregate result storage are not automatically a C calling convention.
 
@@ -1840,6 +1841,49 @@
   defined functions retain executable addresses in the task's symbol tables.
   The pinned source findings and lessons for til's module/lifetime/relocation
   design are recorded in #474.
+
+*** In-process scalar FASM proof (#474)
+
+  ~test/fasm_jit.til~ is the optional Linux-x64 integration driver:
+  ~bin/til run test/fasm_jit.til bin/til~. It prepares library-mode til source,
+  whose public selected root is retained before scavenging, and reuses the
+  ordinary FASM function emitter/dependency queue. The entry takes two logical
+  I64 values and returns I64; reachable helpers have noncapturing I64 signatures.
+  A generated SysV adapter supplies address slots where shared parameter ABI
+  analysis requires them (tested with a mutable I64 parameter).
+
+  The assembler writes ~tmp/fasm_jit/module.o~ from ~module.fasm~ in that
+  directory. This is ET_REL, with no process startup, initializers, ~rt_exit~
+  or included syscall runtime. The test-only loader accepts one allocatable
+  executable ~.text~, a defined global ~til_jit_entry~ and bounded ELF64 metadata.
+  Same-section calls are already resolved by FASM: no relocation is needed by
+  this corpus. Nonempty relocation sections, undefined symbols and extra
+  allocatable sections are rejected, not silently ignored or resolved from
+  process exports. This is deliberately not a general ELF linker.
+
+  ~ext.c~/~ext.h~ supply the native memory/call boundary. ~fasm_jit_map~ takes
+  a native byte length and an output UPtr address slot; map/seal/unmap return
+  zero or native errno. The slot is typed because ~mut Dynamic~ denotes a raw
+  pointee, not an output pointer slot. Memory is mapped RW outside the cage,
+  copied, changed to RX and only then published through an owned JitModule.
+  Its private close/destructor unmaps it after the last call or on a throwing
+  exit; the zero-valued throwing-return placeholder owns no mapping. Cloning
+  a module is an error. No code pointer or retained callback escapes this slice.
+  The typed call bridge checks all six SysV callee-saved registers; its assembly
+  symbols also follow the existing per-library runtime namespacing.
+
+  Tests compare full I64 results with interpreter/C/standalone FASM at both
+  target widths, exercise independent modules, RW-to-RX permissions, bounded
+  malformed inputs, assembler/native-operation failures and repeated normal/
+  throwing teardown. Stack-alignment probes cover generated nested calls;
+  isolated bad callees verify every preserved-register check. Host/driver ASAN
+  covers preparation, parsing and ownership, not the emitted instructions.
+  Costs and exact verification commands are recorded in [[file:../issues/open/474.org][#474]].
+
+  Runtime imports/relocations, aggregate/borrowed results, captures, persistent
+  globals, REPL/TilVm integration and compile-time evaluator replacement remain
+  subsequent work. No compiler CLI flag, installed object/cache or alternate
+  source of truth is introduced by this proof.
 
 ** Single-pass build
 

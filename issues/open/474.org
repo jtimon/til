@@ -1,6 +1,6 @@
 # priority: medium
 # category: backends
-** OPEN #474 Replace AST interpretation with native JIT execution
+** WIP #474 Replace AST interpretation with native JIT execution
 
 Long-term direction: replace the tree-walking interpreter with native JIT
 execution, rather than retaining interpretation as the permanent execution
@@ -29,7 +29,9 @@ Source inspection updated at master ~ae1daf9eb~:
   diagnostics and recoverable errors. Shared ownership/throwing semantics,
   retained callables and foreign callbacks must work in the same process.
 - [[./453.org][#453]] currently emits standalone Linux-x64 FASM executables. Its
-  callable support is useful groundwork, but it is not an in-process JIT.
+  normal CLI path remains standalone. The first test-only in-process scalar
+  proof now exists separately, as recorded below; it does not replace the
+  interpreter or provide general runtime/callback integration yet.
   The TempleOS native compiler/FASM host bootstrap is tracked in [[./151.org][#151]].
 - [[./317.org][#317]] is the current MLIR backend. Its build path invokes LLVM 18
   command-line tools and Clang, and compiles C runtime code. Fully direct
@@ -150,9 +152,9 @@ The first scalar-I64 milestone below is already supported by the standalone
 emitter's language subset. Completing I64/U64 SIMD, vector casts or every
 runtime service first would not establish the missing load/call/lifetime
 boundary. Keep that first proof bounded, then extend runtime/ownership/session
-coverage using measured costs. The proposed artifact/bridge contract below
-still requires its explicit implementation approval; this research does not
-select a new assembler dependency or implement a loader.
+coverage using measured costs. The artifact/bridge contract below was approved
+for the first scalar proof. The TempleOS research itself selected no new
+assembler dependency; the separate implemented proof is described below.
 
 *** Execution-engine direction
 
@@ -208,7 +210,7 @@ select a new assembler dependency or implement a loader.
 - [ ] Inventory interpreter consumers: CLI, REPL, TilVm, macros/generators,
   constant evaluation, reflection, foreign calls and retained callbacks.
   Define the first callable-code/ABI/lifetime slice before implementing it.
-- [ ] Establish a small FASM-backed native JIT using shared-source tests and
+- [X] Establish a small FASM-backed native JIT using shared-source tests and
   the current interpreter/C backend as differential references. Unsupported
   operations must be identified explicitly during the transition, not hidden
   behind a permanent silent interpreter fallback.
@@ -251,12 +253,12 @@ CI improvements can proceed independently. New APIs, generated artifacts,
 dependencies, install surfaces or persistent caches require their concrete
 design approval before implementation.
 
-*** First JIT milestone: implementation handoff
+*** First JIT milestone: bounded scalar proof
 
-Planning baseline updated to master ~ae1daf9eb~. This is a source-reviewed proposal,
-not an implemented JIT or measured speedup. Recheck the implementation on the
-next session's actual base. The deliverable is one function compiled from
-til source and called repeatedly IN the test process on Linux x64, followed
+Planning baseline was master ~ae1daf9eb~; implementation is based on
+~16bd8dade~. The approved first slice is implemented in ~test/fasm_jit.til~,
+~fasm_codegen_callable~ and the existing native boundary. It compiles a selected
+function from til source and calls it repeatedly IN the test process on Linux x64, followed
 by correct release of its code. It is not yet a REPL, interpreter replacement,
 TempleOS port or new default backend.
 
@@ -292,10 +294,10 @@ TempleOS port or new default backend.
   widths. Reuse that style. These process-execution tests do not already
   validate in-process entry, register preservation or code lifetime.
 
-**** Proposed first output/entry contract -- approve before implementing
+**** First output/entry contract
 
 Use FASM's existing ELF64 relocatable-object support, rather than inventing a
-raw-code container. Proposed test artifacts are
+raw-code container. Test artifacts are
 ~tmp/fasm_jit/module.fasm~ and ~tmp/fasm_jit/module.o~: the til emitter writes
 the former, the existing assembler writes the latter, and a test-only loader
 reads the object and maps its callable code. Each run regenerates them; they
@@ -303,13 +305,13 @@ are not installed, cached or loaded as compiler source state. The existing
 AOT ELF executable includes startup/exit machinery and has no suitable
 callable-module contract, which is why it is insufficient.
 
-Propose ~test/fasm_jit.til~ as the driver, an internal callable-emission entry
-reusing the current emitter, and a narrow host bridge for code memory and
-typed calls in the existing runtime boundary. No public JIT CLI flag or TilVm
-API is selected by this plan. Before implementation, agree the exact helper
-signatures, ownership and artifact contract in plain chat. Standard ELF avoids
-a proprietary format, but a bounded object loader/relocator is real new code
-to maintain; this proposal does not assume a new libelf/LLVM dependency.
+~test/fasm_jit.til~ is the driver; ~fasm_codegen_callable~ is the internal
+callable-emission entry reusing the current emitter. The narrow memory/call
+bridge is in ~ext.c~/~ext.h~. No public JIT CLI flag or TilVm API is added.
+Standard ELF avoids a proprietary format, but a bounded loader is still code
+to maintain; this slice adds no libelf/LLVM dependency. The actual objects
+have resolved same-section calls and no relocations. Relocation support is
+explicitly rejected rather than claiming a general relocator.
 
 Initial logical function contract: two I64 inputs and an I64 result, no
 captures, global initialization, allocation, external calls, exceptions or
@@ -368,7 +370,7 @@ capture, retained callback or cross-layout aggregate.
 
 **** Entry ABI and module lifetime
 
-- Export one internal entry symbol (proposed ~til_jit_entry~) whose external
+- Export one internal entry symbol (~til_jit_entry~) whose external
   convention is exactly SysV ~I64(I64, I64)~: RDI/RSI inputs, RAX result,
   normal stack alignment and preservation of callee-saved registers. Generate
   an adapter to the actual prepared til function ABI, including address slots
@@ -463,8 +465,103 @@ evaluation. TempleOS uses the HolyC engine outlined above; the reduced
 MLIR-style engine and GCC/Clang retirement remain later milestones. Do not
 close #474 on completion of this first slice.
 
-The implementation handoff should report approved interfaces/artifacts,
-supported ABI and relocations, commands and actual differential/lifetime
-results, separately measured costs, bootstrap requirements and remaining
-limitations. Current code supports planning this milestone; it does not yet
-provide the callable object emitter or loader described here.
+**** Implementation details and follow-up boundary
+
+~fasm_codegen_callable(mut lp, root, path)~ accepts a prepared Linux-x64
+library program and emits the selected two-I64/value-result entry plus its
+reachable I64 helpers. The public library root is retained before scavenging;
+private transitive helpers survive by the ordinary call graph. Root/signature,
+global/initializer and dependency failures return diagnostics without publishing
+a module. Runtime/data references outside the slice remain assembler errors;
+there is no implicit inclusion of the standalone runtime.
+
+The native bridge is ~fasm_jit_map(UPtr bytes, UPtr *address)~,
+~fasm_jit_seal(address, bytes)~, ~fasm_jit_unmap(address, bytes)~ and
+~fasm_jit_call_i64_2(address, I64, I64)~. Status operations return native errno,
+and successful map leaves a native address in the typed output slot. A
+~mut Dynamic~ argument is a raw pointee, not a pointer-slot output; UPtr avoids
+that ambiguity and cage compression. Linux-x64 code memory is RW while copied,
+RX before publication, and unmapped by the sole owner's destructor. Other host
+memory operations report ENOSYS; native calls require Linux x64 explicitly.
+
+The driver owns ELF decoding and the first module owner; neither is an
+installed/general loader API. It validates file/section/string/symbol ranges,
+entry binding/offset/size, class/machine/ABI and the one-text/no-relocation
+contract before mapping. The input object and compiler AST/context can die
+after loading: these scalar functions retain only their copied code and
+resolved same-section calls. Two live modules may have the same export name
+without sharing storage or resolving against each other.
+
+The native call bridge supplies/checks all six callee-saved register sentinels;
+isolated corrupting callees verify each check. Generated-entry probes check
+stack alignment through nested calls. Repeated load/call/release and throwing
+cleanup leave virtual page counts unchanged; direct permission queries verify
+non-executable RW allocation and immutable RX publication. Tests also cover
+missing entry, unresolved symbol, malformed/range/ABI errors, unsupported
+relocations/data, assembler failure and failed map/protect/unmap operations.
+
+The loader's guarded scalar comparisons exposed a shared lowering bug:
+~guard_hoisted_statement~ marked every throwing initializer's placeholder
+replacement ~save_old_delete~, including Bool. Emission then called a no-op
+~Bool_delete~ that scavenging correctly had not retained. Replacement now
+requests old-value destruction only for managed aggregate/callable contents.
+~test/errors.til::test_guarded_lazy_scalar_placeholder~ checks successful,
+short-circuited and propagated-error paths; owning placeholders retain cleanup.
+The self-applied lowering change uses the two-pass verification workflow.
+
+The next execution-engine slice is one explicit typed runtime callback/import
+with a tested relocation/indirection strategy, followed by owned values,
+closures and persistent sessions. The first scalar proof neither completes
+those gates nor changes #490/#491's remaining permission migration.
+
+**** Verification and initial cost observations
+
+On master base ~16bd8dade~:
+
+- ~make clean && make test_two_pass~ passes 576/576, including self-translation,
+  layout translation and the guarded scalar regression; generated C is
+  clang-clean. A shared-runtime symbol audit confirms that all four bridge
+  entry points use the existing revision/target/layout namespace.
+- ~bin/til run -o tmp/fasm_jit_driver -c tmp/fasm_jit_driver.c test/fasm_jit.til bin/til~
+  passes both target layouts. Each checks 81 boundary input pairs against two
+  entries (162 full-width results), plus a 100000-call varying-input checksum.
+  Both entries reuse the same source as interpreter/C/FASM references; the
+  mutable-parameter entry exercises address-slot adaptation.
+- ASAN drivers built with ~--usize=32~ and ~--usize=64~ pass both target
+  layouts. ~bin/make asan~ builds the ASAN compiler, then
+  ~bin/til_asan run --asan --usize=32 -o tmp/fasm_jit_driver_asan -c tmp/fasm_jit_driver_asan.c test/fasm_jit.til bin/til_asan~
+  and the corresponding ~--usize=64~ run with ~tmp/fasm_jit_driver64~ pass too.
+  This checks ASAN-instrumented compiler/loader/host preparation and ownership;
+  emitted native instructions themselves are not ASAN-instrumented.
+- Each target layout performs 256 normal load/call/release cycles and 256
+  load/throw/cleanup cycles with unchanged virtual page counts. Permission,
+  independent-owner, malformed-object, failed-operation and all six isolated
+  bad-register probes pass. No dangling code is invoked as a lifetime test.
+
+One ordinary GCC 13/O0, USize32-host observation (milliseconds):
+
+| Stage | Target USize32 | Target USize64 |
+|-------+----------------+----------------|
+| Source load/preparation | 231 | 238 |
+| Assembly emission | <1 | <1 |
+| Assembler process | <1 | <1 |
+| Object validation/copy/protection | <1 | <1 |
+| First native call | <1 | <1 |
+| Cold JIT through first result, including compiler-context cleanup | 232 | 239 |
+| 100000 warm native calls | 1 | 1 |
+| Interpreter cold prepare/run of the comparison wrapper | 2943 | 2902 |
+| Interpreter's 100000-call loop alone | 2605 | 2571 |
+| C AOT build / whole program run | 500 / 1 | 476 / 1 |
+| C AOT 100000-call loop alone | <1 | <1 |
+| FASM AOT build / whole program run | 248 / 1 | 249 / 1 |
+| One module's teardown | <1 | <1 |
+| 256 normal plus 256 throwing lifetime cycles | 3 | 2 |
+
+The primary callable text is 352 bytes with no relocation. The checksum is
+~-3124675000~ in every execution path. These are single observations at 1 ms
+resolution, not precise sub-millisecond timings or a general compiler/REPL
+speedup. Cold JIT and interpreter wrapper totals perform different amounts
+of work: the latter also runs the boundary matrix and repeated-call loop.
+The isolated warm-loop measurements expose that distinction; ordinary AOT
+already has native execution speed. The driver prints fresh phase costs on
+every run, without a timing threshold, cache or silent fallback.

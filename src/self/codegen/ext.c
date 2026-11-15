@@ -16,6 +16,7 @@
 #if defined(__linux__)
 #include <linux/kcmp.h>
 #include <sys/syscall.h>
+#include <sys/mman.h>
 #endif
 
 /* A shared runtime cannot retain relocations to one generated library's
@@ -80,6 +81,89 @@ static int stdio_capture_stdout_fd = -1;
 static int stdio_capture_stderr_fd = -1;
 static char *stdio_capture_path = NULL;
 static int stdio_capture_atexit_armed = 0;
+
+// #474: code mappings are native OS resources, never cage allocations. The
+// til-side module owner pairs every successful map with one checked unmap.
+I32 fasm_jit_map(UPtr bytes, UPtr *address) {
+#if defined(__linux__) && defined(__x86_64__)
+    void *mapped = mmap(NULL, (size_t)bytes, PROT_READ | PROT_WRITE,
+                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (mapped == MAP_FAILED) return errno;
+    *address = (UPtr)(uintptr_t)mapped;
+    return 0;
+#else
+    (void)bytes; (void)address;
+    return ENOSYS;
+#endif
+}
+
+I32 fasm_jit_seal(const void *address, UPtr bytes) {
+#if defined(__linux__) && defined(__x86_64__)
+    __builtin___clear_cache((char *)address, (char *)address + bytes);
+    if (mprotect((void *)address, (size_t)bytes, PROT_READ | PROT_EXEC) != 0) return errno;
+    return 0;
+#else
+    (void)address; (void)bytes;
+    return ENOSYS;
+#endif
+}
+
+I32 fasm_jit_unmap(const void *address, UPtr bytes) {
+#if defined(__linux__) && defined(__x86_64__)
+    if (munmap((void *)address, (size_t)bytes) != 0) return errno;
+    return 0;
+#else
+    (void)address; (void)bytes;
+    return ENOSYS;
+#endif
+}
+
+#if defined(__linux__) && defined(__x86_64__)
+static void fasm_jit_abi_fail(void) __attribute__((used, noreturn));
+static void fasm_jit_abi_fail(void) {
+    fputs("FASM JIT: callee-saved register corrupted\n", stderr);
+    abort();
+}
+
+// Exact SysV I64(I64,I64) entry, with all six callee-saved registers checked.
+// An assembly boundary also avoids function-type sanitizers reading metadata
+// BEFORE an entry in a freshly mapped page. Emitted code is not instrumented.
+#define TIL_JIT_SYMBOL_TEXT2(name) #name
+#define TIL_JIT_SYMBOL_TEXT(name) TIL_JIT_SYMBOL_TEXT2(name)
+__asm__(
+    ".text\n"
+    ".globl " TIL_JIT_SYMBOL_TEXT(fasm_jit_call_i64_2) "\n"
+    ".type " TIL_JIT_SYMBOL_TEXT(fasm_jit_call_i64_2) ",@function\n"
+    TIL_JIT_SYMBOL_TEXT(fasm_jit_call_i64_2) ":\n"
+    "push %rbp\n push %rbx\n push %r12\n push %r13\n push %r14\n push %r15\n"
+    "sub $24,%rsp\n"
+    "mov %rdi,(%rsp)\n mov %rsi,%rdi\n mov %rdx,%rsi\n"
+    "mov $0x1729,%ebp\n mov $0x273a,%ebx\n mov $0x374b,%r12d\n"
+    "mov $0x475c,%r13d\n mov $0x576d,%r14d\n mov $0x677e,%r15d\n"
+    "call *(%rsp)\n"
+    "cmp $0x1729,%rbp\n jne .Lfasm_jit_bad_abi\n"
+    "cmp $0x273a,%rbx\n jne .Lfasm_jit_bad_abi\n"
+    "cmp $0x374b,%r12\n jne .Lfasm_jit_bad_abi\n"
+    "cmp $0x475c,%r13\n jne .Lfasm_jit_bad_abi\n"
+    "cmp $0x576d,%r14\n jne .Lfasm_jit_bad_abi\n"
+    "cmp $0x677e,%r15\n jne .Lfasm_jit_bad_abi\n"
+    "add $24,%rsp\n"
+    "pop %r15\n pop %r14\n pop %r13\n pop %r12\n pop %rbx\n pop %rbp\n ret\n"
+    ".Lfasm_jit_bad_abi:\n"
+    "add $24,%rsp\n"
+    "pop %r15\n pop %r14\n pop %r13\n pop %r12\n pop %rbx\n pop %rbp\n"
+    "jmp " TIL_JIT_SYMBOL_TEXT(fasm_jit_abi_fail) "\n"
+    ".size " TIL_JIT_SYMBOL_TEXT(fasm_jit_call_i64_2) ",.-" TIL_JIT_SYMBOL_TEXT(fasm_jit_call_i64_2) "\n"
+);
+#undef TIL_JIT_SYMBOL_TEXT
+#undef TIL_JIT_SYMBOL_TEXT2
+#else
+I64 fasm_jit_call_i64_2(const void *address, I64 a, I64 b) {
+    (void)address; (void)a; (void)b;
+    fputs("FASM JIT: native calls require Linux x64\n", stderr);
+    exit(1);
+}
+#endif
 
 // #346: ext.c's exported functions retain their pointer-return ABI across
 // bootstrap generations, while ordinary til Str.clone now returns a value.
@@ -146,7 +230,6 @@ static void stdio_capture_fail(const char *op) {
 #include <dlfcn.h>
 #ifdef __linux__
 #include <elf.h>
-#include <sys/mman.h>
 #endif
 // REPL line editor (issue #332): raw mode, the ESC follow-up timeout,
 // the window size, and the cleanup signals.
