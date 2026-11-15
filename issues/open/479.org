@@ -35,11 +35,67 @@ needs no OTP; compiling it does.
   - Keep generating binding sources separate from compiling the bridge, so a
     default build never needs OTP.
 
-*** Decisions needing approval before implementation
+*** Depends on #495
 
-  Generated file names and layout, module naming, which builds generate the
-  binding, how the bridge is compiled (a flag like ~--jni~) and where the
-  result is installed, and the tools each step requires.
+Multiple return values ([[./495.org][#495]]): Erlang has no mutable arguments, so a
+~mut~ parameter comes back inside the result tuple, and a til API with
+several results should state them in its signature rather than through
+~mut~ parameters. Decided (2026-11-15) that this binding waits for it.
+
+*** Callers
+
+One Erlang module serves the three BEAM languages. Erlang calls it
+directly, and Elixir calls any Erlang module with no glue
+(~:til_mylib.add(1, 2)~). Gleam needs a typed ~@external(erlang, ...)~
+declaration per function; the representations below (integers, floats,
+binaries, ~{ok, V} | {error, E}~) are the ones Gleam's ~Int~, ~Float~,
+~String~ and ~Result~ use, so a generated ~.gleam~ file of those
+declarations can come later without changing the bridge, and likewise an
+Elixir module with ~@spec~ annotations.
+
+*** Decided (2026-11-15)
+
+  - Files, mirroring JNI: the sources ~gen/til/<name>_nif.c~ (the bridge)
+    and ~gen/til/erlang/til_<name>.erl~ on every ~mode lib~ build, as the
+    Python and JNI sources are, so no OTP is needed to generate them;
+    ~gen/lib/lib<name>_nif.so~ and ~gen/lib/til_<name>.beam~ only with
+    the flag below.
+  - Naming: Erlang modules are flat atoms, so the module is ~til_<name>~
+    (as Java's ~til.<pkg>~); function names stay as written (til's
+    snake_case is Erlang's).
+  - Compiling: ~til build --nif~ / ~til install --nif~, which install the
+    ~.so~ and the ~.beam~ in ~<prefix>/lib/~ beside the library. Packaging
+    as an OTP application (~priv/~, ~ebin/~) for rebar3, mix or Hex comes
+    later, as the server jar did for the JVM.
+  - Tools: ~erlc~ and ~erl_nif.h~ from OTP, located through the ~erl~ on
+    ~PATH~ as ~--jni~ locates the JDK; no environment variable unless one
+    is asked for. Ubuntu packages OTP 25 (~erlang-dev~) and Elixir 1.14.
+  - Values: integers as Erlang integers, range-checked against the til
+    width on the way in (~badarg~ when out of range); floats as floats;
+    ~Bool~ as ~true~ / ~false~; ~Str~ as a UTF-8 binary (the string of
+    Elixir and Gleam), not a charlist; ~Vec~ as a list; an enum as an atom,
+    or ~{Variant, Payload}~ for a variant with a payload.
+  - Ownership: a struct is a NIF resource, an opaque handle whose til
+    destructor runs when the VM collects it; ~delete/1~ releases it early,
+    and a released handle raises on use, as a closed JNI handle does.
+  - ~mut~ parameters: returned in the result, ~{Result, NewArg}~ (only
+    ~NewArg~ for a function with no result).
+  - Errors: a function that throws returns ~{ok, V} | {error, {Type,
+    Msg}}~; one that cannot throw returns ~V~. A til panic still takes the
+    whole VM down -- no NIF can prevent it -- and the binding documents it.
+  - Scheduling: every call runs on a dirty scheduler by default (a few
+    microseconds per call), so a long call never blocks a normal
+    scheduler; an opt-in marker for known-fast calls can come later.
+  - Callbacks: not part of a BEAM API. A NIF cannot call an Erlang
+    function in the middle of a call; the only route is messaging the
+    caller's process and blocking until it answers, which is complex and
+    can deadlock. A function taking or returning a FuncSig, and a struct
+    field of one, is left out of the BEAM module with a ~note:~ when the
+    library is built (as JNI notes what it cannot bind), not a build
+    error: the same library still serves C, Python and the JVM, where
+    callbacks work.
+  - First stage: values, strings and errors; then ownership, ~mut~
+    parameters (after #495) and dirty scheduling.
 
 *** Acceptance
 

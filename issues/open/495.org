@@ -1,0 +1,40 @@
+# priority: low
+# category: features
+** OPEN #495 Multiple return values (as in Go, Odin and Jai)
+
+A function returns one value today. Returning more takes a struct declared
+for the purpose, ~mut~ out-parameters, or the dynamic ~Tuple~ of
+src/core/tuple.til, which carries its element types as run-time names and
+is no typed signature. Go (~func f() (int, string)~), Odin
+(~f :: proc() -> (int, string)~) and Jai (~f :: () -> int, string~) let a
+signature declare several typed results and a call site bind them at once.
+
+Filed while deciding the BEAM binding ([[./479.org][#479]]), which depends on
+this: Erlang has no mutable arguments, so a ~mut~ parameter comes back to
+the Erlang caller inside the result tuple (~{Result, NewArg}~). With
+multiple returns, a til API can state several results in its own
+signature instead of through ~mut~ parameters, and every binding maps
+them the same way: an Erlang tuple, a Python tuple, a Java holder class.
+
+*** Decisions needing approval before implementation
+
+  - Declaration syntax, e.g. ~returns (I64, Str)~, and whether results may
+    be named (Go and Odin allow it).
+  - Call-site binding, e.g. ~n, s := f()~, discarding one (~_~), and
+    whether a multi-value call can be passed straight as another call's
+    arguments (Go allows it for an exact match).
+  - Qualifiers per result: each result's ~own~ / ~ref~ / ~shallow~, and
+    the garbager's rules for a partly bound result.
+  - Interplay with ~throws~: the results exist only on the success path.
+  - The C ABI: a generated struct returned by value, or out-pointers, and
+    what the C header, the til binding, Python, JNI and NIF bindings
+    expose.
+  - Whether ~Tuple~ stays as the dynamic container or is renamed, since
+    "tuple" may then mean the static form.
+
+*** Acceptance
+
+  - [ ] A func and a proc return two and three results of mixed types,
+    owned and shallow, bound at the call site, interpreted and compiled.
+  - [ ] The C header and the generated bindings expose them; the BEAM
+    binding (#479) returns them as one Erlang tuple.
