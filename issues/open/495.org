@@ -1,6 +1,6 @@
 # priority: low
 # category: features
-** OPEN #495 Multiple return values (as in Go, Odin and Jai)
+** WIP #495 Multiple return values (as in Go, Odin and Jai)
 
 A function returns one value today. Returning more takes a struct declared
 for the purpose, ~mut~ out-parameters, or the dynamic ~Tuple~ of
@@ -16,21 +16,345 @@ multiple returns, a til API can state several results in its own
 signature instead of through ~mut~ parameters, and every binding maps
 them the same way: an Erlang tuple, a Python tuple, a Java holder class.
 
-*** Decisions needing approval before implementation
+*** Plan (2026-11-15, master a06839a)
 
-  - Declaration syntax, e.g. ~returns (I64, Str)~, and whether results may
-    be named (Go and Odin allow it).
-  - Call-site binding, e.g. ~n, s := f()~, discarding one (~_~), and
-    whether a multi-value call can be passed straight as another call's
-    arguments (Go allows it for an exact match).
-  - Qualifiers per result: each result's ~own~ / ~ref~ / ~shallow~, and
-    the garbager's rules for a partly bound result.
-  - Interplay with ~throws~: the results exist only on the success path.
-  - The C ABI: a generated struct returned by value, or out-pointers, and
-    what the C header, the til binding, Python, JNI and NIF bindings
-    expose.
-  - Whether ~Tuple~ stays as the dynamic container or is renamed, since
-    "tuple" may then mean the static form.
+Nothing below is implemented. The decisions in "Proposed decisions" are new
+language surface and need a yes before step 1.
+
+**** The model in one paragraph
+
+A result list is a compiler-generated struct returned by value, and a
+multi-bind takes that struct apart by MOVING each field into its name.
+~returns I64, Str~ names the type ~Results__I64_Str~ (fields ~r0~, ~r1~);
+~return a, b~ becomes ~return Results__I64_Str(r0 = a, r1 = b)~; and
+~n, s := f()~ becomes a hidden temp holding the struct plus one "take"
+declaration per name. Every other part of the compiler -- FuncSigs,
+closures, interface contracts, generics, throws, the five back ends, the C
+ABI -- keeps seeing an ordinary function that returns one struct.
+
+**** What the code does today (checked, not assumed)
+
+  - Ordinary til functions already return every non-ref result by C value
+    (~func_returns_c_value~, src/self/context.til), and the interpreter's
+    FFI already returns structs by value through libffi
+    (~build_struct_ffi_type~, src/self/interpreter.til). A struct result
+    needs no new ABI anywhere.
+  - Written by hand, the model already runs interpreted and compiled: a
+    proc ~returns Res3~ with ~return Res3(r0 = a, r1 = t, r2 = v)~ moves its
+    locals into the constructor, the C is ~Res3 res = fwd(...)~, and
+    forwarding (~return mk(a)~) works. What it cannot do is move the fields
+    back out: ~s := res.r1~ compiles to ~Str s = Str_clone(&res.r1)~
+    followed by ~Res3_delete(&res, 0)~, because ~infer_decl_stmt~
+    (src/self/typer.til, the ~make_clone_call~ at the end of the Decl arm)
+    wraps every aggregate FieldAccess initializer in a clone. A clone-based
+    multi-bind would be exact but would copy every heap-owning result and
+    could not bind a result whose type has no ~clone~.
+  - Moving a field out of its holder is rejected on purpose (#415,
+    ~gc_reject_field_moves~ in src/self/garbager.til): the holder is
+    destroyed whole, so a moved field would be freed twice. The two places
+    that DO take a holder apart are compiler-generated, and both are the
+    precedent for the take: ~make_payload_steal_block~ (typer.til) copies
+    an enum payload's bytes out and releases only the shell with
+    ~free(own holder)~, and ~shallow_copy_transfer~ (garbager.til,
+    ~transfer_is_shallow_field_value_copy~) marks a transfer that moved the
+    value's bytes and leaves only the wrapper to free.
+  - A compiler-known type generator exists: ~Simd~ is a stub macro in
+    src/core/core.til that ~init_expand_type_gen_decl~
+    (src/self/initer.til) expands in code (~init_expand_simd~). Type
+    applications in annotations already mangle to one name per type
+    (~parse_type_app~ in src/self/parser.til: ~Name__A_B~, with ~ref_~ /
+    ~mut_~ prefixes for ~Name(ref X)~), lift one declaration per file
+    (~type_gen_lift~), are deduplicated across files
+    (~init_dedup_direct_type_gen_decls~) and are instantiated inside
+    generic funcs (~generic_materialize_type_deps~).
+  - ~throws~ is lowered before inference to ~_err_kind~ / ~_err_<T>~
+    out-parameters (~append_err_out_params~,
+    ~process_throw_catch_in_func_body~ in src/self/desugarer.til). The
+    error path returns ~make_default_value_expr(return_type)~, which for a
+    struct is raw zero storage (~is_throw_default~), so a result struct
+    needs no field defaults.
+  - Bindings: the til binding prints ~returns [ref [mut]] [shallow] T~ and
+    skips the throw ABI parameters by name (~emit_binding_func_decl~,
+    ~emit_binding_wrapper~ in src/self/codegen/c_codegen.til); the Python
+    binding is plain ctypes (~argtypes~ / ~restype~, one
+    ~ctypes.Structure~ per struct, ~build_python_binding~); JNI makes each
+    public struct a handle class and lists why a function is not bound
+    (~emit_jni_handle_class~, ~jni_unbound_reason~). There is no BEAM
+    binding yet.
+  - ~FuncSig~ sits at the start of ~FunctionDef~, the widest ~NodeType~
+    payload (it sets ~sizeof(Expr)~). The last commit that added AST
+    fields (#490's preparation, ceca223) was a "Two-pass: " commit.
+
+**** Why a struct and not the alternatives
+
+  - Out-parameters (the recipe ~throws~ uses): every extra result would
+    need an initialized slot at the call site and an old-value delete in
+    the callee's ~param = rhs~ swap (~hoist_param_swap_assign~) on every
+    call; the bound names would have to be ~mut~; a type with no default
+    value could not be a result; and each binding would have to rediscover
+    which ~mut~ parameters are really results, which is what #479 wants to
+    stop doing.
+  - ~Tuple~ (src/core/tuple.til) is one type for every shape: a heap
+    buffer plus a ~Vec(Str)~ of element type NAMES and a ~Vec(USize)~ of
+    sizes, filled by ~push~ at run time and read back with ~get~, which
+    returns ~ref Dynamic~. So ~returns Tuple~ would say neither how many
+    results there are nor what they are: the typer could not check
+    ~a, b := f()~ (count or types; ~get_checked~ panics at run time
+    instead), every call would allocate the buffer and both vectors, each
+    element's destructor would be found by name at run time, and the C
+    header and the bindings would see one opaque ~Tuple~ with nothing to
+    map to an Erlang, Python or Java shape.
+  - How the two differ is how ~Vec(T)~ differs from ~DynVec~
+    (src/std/dyn_vec.til). The result list is typed: its count and element
+    types are part of its name (~Results__I64_Str~), it is a plain struct
+    with the values inline, returned on the stack with no allocation, and
+    its ~delete~ is generated per type. ~Tuple~ is the dynamic one: any
+    count, any types, known only while running, which is what the
+    ~..Dynamic~ variadic lowering uses it for. By that naming the existing
+    type is the "DynTuple" and the typed one would be ~Tuple(I64, Str)~;
+    whether to rename is the open item under "Proposed decisions".
+  - An anonymous struct per signature (~anon_lift~): its name comes from a
+    program-wide counter, so the same list written in two files would be
+    two types and a FuncSig in one file could not accept a function from
+    another.
+
+**** Syntax (decided 2026-11-15)
+
+  #+begin_src til
+  mycall := func() returns T1, T2, T3 throws Whatever { ... }
+
+  t1, t2, t3 := mycall()?
+  t1, t2, t3 : T1, T2, T3 = mycall()?
+  #+end_src
+
+  - Declaration: ~returns T1, T2, ...~, a comma-separated list with no
+    parentheses. It is written like ~throws T1, T2~ after it and means the
+    opposite: a ~throws~ list is a choice (a call throws at most one of
+    them), a ~returns~ list is all of them together (every result comes
+    back, unless the call throws, and then none does). Each entry
+    takes what a single return takes: bare (owned by the caller), ~ref~ /
+    ~ref mut~, ~shallow~, each qualifier binding to its own entry; ~own~
+    stays rejected as redundant. Results are positional and unnamed.
+  - Binding: ~t1, t2, t3 := f()~ infers each type; ~t1, t2, t3 : T1, T2,
+    T3 = f()~ states them, one per name, and each is checked against its
+    result like a single typed declaration. ~_~ in place of a name ignores
+    that result (~n, _ := f()~).
+  - One place where the comma already means something else: a bodyless
+    signature written INSIDE a comma-separated list, as in
+    ~apply := func(f: Fn(I64) returns I64, x: I64)~ (test/fn_ptr.til) or
+    the bare-type form ~Sig := func(Fn(I64) returns I64, Str)~. There the
+    comma keeps ending the signature, as today, so no existing source
+    changes meaning. A callable type with several results is named first,
+    at statement level where nothing follows it:
+    ~Sig := func(I64) returns I64, Str~, then ~f: Sig~.
+
+**** Proposed decisions (each needs a yes)
+
+  - Named results are left out: they raise their own questions (is a
+    named list the same type as the unnamed one; naked ~return~) and
+    nothing here depends on them.
+  - Returning: ~return a, b~ with exactly one operand per result, or
+    ~return g(...)~ where ~g~ has the identical result list.
+  - Binding details: ~mut~ is per name (~a, mut b := f()~, as
+    ~for k, mut v in m~); a ~ref~ result is bound
+    with ~ref~ spelled (~n, ref s := f()~), as a single ref result must
+    be. ~a, b = f()~ assigns existing ~mut~ bindings. Not allowed: binding
+    the whole list to one name (~x := f()~), reading a field of it,
+    discarding every result with ~_~, and passing the call as another
+    call's arguments (~g(f())~).
+  - Ownership: owned and shallow results are stored inline in the struct,
+    and each bound name owns its value exactly as ~x := f()~ would. A
+    result discarded with ~_~ is destroyed at the bind. Nothing is cloned.
+  - ~throws~: unchanged. ~a, b := f()?~ and ~f()!~ work as for one result;
+    the results exist only on the success path.
+  - C ABI: the generated struct, returned by value, for ordinary and for
+    bodyless ~ext_*~ declarations alike. The header declares
+    ~Results__I64_Str~ like any other instance type. The til binding
+    declares ~ext_func(...) returns I64, Str {}~; Python returns a
+    tuple; JNI returns a holder class; #479's NIF returns one Erlang
+    tuple from the same signature.
+  - Naming: ~Tuple~ keeps its name and stays the dynamic container, and
+    the typed form is ~Results~, a name source never spells (docs and
+    diagnostics say "result list"). The alternative is to rename today's
+    ~Tuple~ to ~DynTuple~, as ~DynVec~ is to ~Vec~, and call the typed
+    generator ~Tuple~. That rename is its own alias ladder (the compiler
+    names ~Tuple~ in 22 places and ~til_boot~ emits it) and changes
+    nothing this issue needs, so it is not part of these steps unless
+    asked for.
+  - New surfaces this adds besides the syntax: ~Results~ as a reserved
+    type name (~parser_reserved_type_name~) that source cannot spell;
+    ~Results__...~ type names in generated C, headers and bindings; three
+    AST fields (step 1).
+  - Acceptance: the BEAM clause of the second item cannot be met before
+    #479 exists. Proposed: #495 closes on the header, til, Python and JNI
+    surfaces, and #479 owns "returns them as one Erlang tuple".
+
+**** Steps
+
+  1. AST (src/core/ast.til), fields appended at the end of their structs:
+     ~StructDef.is_results~ (the struct is a result list);
+     ~Declaration.result_bind~, an enum ~None / Temp / Take / LastTake~
+     (the hidden temp, a declaration that moves one field out of it, and
+     the take that also consumes the temp). No new ~NodeType~: a ~Return~
+     simply carries N children until the typer lowers it. Print the new
+     fields in src/self/observer.til (~put_funcsig~ and the Decl / StructDef
+     records) so ~til ast --phase=...~ shows them.
+  2. Parser (src/self/parser.til).
+     - ~parse_func_def~: after the first return type, a comma continues
+       the result list (the loop ~throws~ already has), ended by
+       ~throws~, a capture list, ~{~, ~=~ or the end of a bodyless
+       signature. Parse each entry's qualifier and ~parse_type_ref~, build
+       the mangled name with the rules ~parse_type_app~ already uses, and
+       lift ~Results__I64_Str := Results(I64, Str)~ through
+       ~type_gen_lift~ (not lifted when an entry names an active type
+       parameter, as for ~Vec(T)~). ~sig.return_type~ is the mangled name.
+       Reject a result list on ~macro~ and ~test~. A ~func~ parsed while
+       inside a parameter list (a parser depth counter) and
+       ~parse_fn_signature~ stop at the comma, as they do today.
+     - ~parse_statement_body~, ~KwReturn~: collect comma-separated
+       operands as children.
+     - ~parse_statement_ident~ (and the ~mut~ / ~ref~ / ~_~ leads): a
+       comma after the first name starts a multi-bind; after the names
+       comes ~:=~, ~=~, or ~:~ with one type per name and then ~=~. It is
+       lowered right here, since the lowering needs no types (a stated
+       type becomes its take's annotation, checked by the ordinary typed
+       Decl path):
+       #+begin_src til
+       results_g7 := f(x)       // result_bind = Temp
+       n := results_g7.r0       // result_bind = Take
+       s := results_g7.r1       // result_bind = LastTake
+       #+end_src
+       ~_~ at an owning position becomes a take into a hidden unused
+       local, which the garbager deletes at once. The assign form binds
+       hidden takes and then emits ordinary ~a = hidden~ assignments. The
+       extra statements go through a pending queue that ~parse_block~ and
+       the top-level loop in ~parse~ drain after each ~parse_statement~
+       (~priv~ and a leading doc comment apply to every name).
+     - Reserve ~Results~ in ~parser_reserved_type_name~.
+  3. Initer (src/self/initer.til): declare the stub in src/core/core.til
+     beside ~Simd~ and expand it in ~init_expand_type_gen_decl~ with a new
+     ~init_expand_results~: build the ~StructDef~ (~is_results = true~,
+     field ~rK~ per argument, ~own_type~ Ref with ~referent_mut~ from the
+     call's ~ref_args~ / ~ref_mut_args~ bits, inline otherwise). The
+     generated ~clone~ / ~delete~ / ~size~ come from the ordinary struct
+     sweeps. Check that ~init_lookup_type_gen_macro~,
+     ~init_is_direct_macro_inst_decl~ and ~init_macro_inst_name~ accept a
+     generator whose argument count varies, and fix whichever counts.
+  4. Typer (src/self/typer.til, src/self/desugarer.til).
+     - ~infer_return_stmt~: when the function's return type is a result
+       list and the ~Return~ has N children, rewrite it to the constructor
+       call before the existing checks run, so the consuming-constructor
+       rules, ~hoist_return_expr~ and ~check_carried_borrow_of_local_return~
+       apply unchanged. One child that is a call with the same result type
+       is the forwarding form. Report a wrong operand count.
+     - ~infer_decl_stmt~: a ~Temp~ must be initialized by a call whose type
+       is a result list ("'a, b :=' needs a call that returns 2 results");
+       a ~Take~ / ~LastTake~ checks its index against the struct's field
+       count ("f returns 3 results, 2 names bound") and skips the clone
+       wrap. A ~ref~ result must be bound ~ref~ and the reverse.
+     - Reject a result-list value anywhere else: a Decl or Assign that is
+       not the temp, a call argument, a field read, a struct field or
+       parameter annotation.
+     - Diagnostics spell the type as written, ~I64, Str~, through one
+       helper used wherever a type name is printed.
+  5. Garbager (src/self/garbager.til, with ~expr_transfers_own~ and
+     ~transfer_is_shallow_field_value_copy~ in typer.til). The earlier
+     takes are plain reads of the temp; the ~LastTake~ is the temp's
+     ownership transfer and is classified as a shallow-copy transfer, so
+     the temp gets no deep delete and only its wrapper is released where it
+     has one. Each bound name is an ordinary owned local from its
+     declaration on. The temp must stay a stack value in C
+     (~record_storage_decisions~): the transfer must not promote it to a
+     heap box. The takes are consecutive statements with no branch between
+     them, so the path-sensitive checks have nothing to split.
+  6. Back ends.
+     - Interpreter (src/self/interpreter.til, ~eval_declaration~): a take
+       copies the field's bytes into the new binding's own block instead
+       of the deep clone a field read gets, and the ~LastTake~ marks the
+       temp's binding ~payload_released~ so scope teardown frees the block
+       without running the destructor.
+     - C (src/self/codegen/c_codegen.til, ~emit_stmt_decl~): confirm a take
+       emits ~Str s = results_g7.r1;~ and that no ~Results__..._delete~
+       follows. HolyC, MLIR and FASM get the same check on their Decl
+       paths; none has an ABI of its own for this.
+  7. Tests and docs for steps 1-6.
+     - test/multi_return.til, registered with ~add_both~ in src/tests.til:
+       a func and a proc, two and three results, primitives with ~Str~ and
+       ~Vec~, explicit ~shallow~, ~_~, ~mut~ names, the typed bind
+       ~a, b : I64, Str = f()~, forwarding, a throwing
+       callee with ~?~ + ~catch~ and with ~!~, a method, a closure, and a
+       destructor counter proving no clone and exactly one delete per
+       result.
+     - Error tests with ~.expected~ files: wrong operand count, wrong name
+       count, a type count that differs from the name count, a stated type
+       that is not the result's, binding to one name, a result list as an
+       argument, ~_~ for every result.
+     - test/parsing.til: ~f: Fn(I64) returns I64, x: I64~ still parses as
+       two parameters.
+     - doc/concepts/functions.org (new "Multiple results" section),
+       doc/concepts/qualifiers.org and doc/concepts/ownership.org (a row in
+       each returns table), doc/concepts/throws.org,
+       doc/tutorial/5_functions_and_procedures.org, and the signature
+       printer behind ~til doc~.
+  8. The rest of the language surface, each with a case in
+     test/multi_return.til.
+     - ~ref~ / ~ref mut~ results: the field is a ~ref~ field, so the
+       existing holder-with-ref-field summaries
+       (~ref_return_carried_params~ and friends) cover the return side; on
+       the bind side the take of a ~ref~ field copies the pointer and must
+       not extend the temp's lifetime past the ~LastTake~.
+     - Callable types: ~Sig := func(I64) returns I64, Str~ used as a
+       parameter, field and local type, closures, lazy funcs and interface
+       method contracts. ~FuncSig.eq~ compares ~return_type~ names, and
+       the mangled name is the same in every file.
+     - Generic funcs: ~func<T: Type>(v: T) returns T, I64~, instantiated
+       through ~generic_materialize_type_deps~.
+     - The assign form ~a, b = f()~, and globals bound at top level.
+  9. Library surface (src/self/codegen/c_codegen.til), tested by a
+     ~mode lib~ library with a multi-result func, a C consumer, a til
+     consumer through the generated binding, and the JNI test class.
+     - Header: the result struct is emitted with the public types
+       (~emit_header_defs_and_funcs_lp~, ~lp_header_hides~).
+     - til binding: ~emit_binding_func_decl~ and ~emit_binding_wrapper~
+       print the result list instead of the generated name; the wrapper's
+       body binds and re-returns (~a, b := actual(...)~; ~return a, b~),
+       so the bodyless declaration's by-value struct stays behind it.
+     - Python: a ~def~ wrapper per multi-result function that returns
+       ~(r.r0, r.r1)~; the ctypes ~Structure~ comes from the existing type
+       loop.
+     - JNI: a holder class per result list, its fields converted as
+       returned values are today (~jni_c_return_out~); extend
+       ~jni_unbound_reason~ for the entry types it cannot convert.
+     - doc/ffi.org: one section on what each binding exposes, and the
+       hand-off to #479.
+
+**** Commits
+
+  - A: steps 1-7. The feature for owned and shallow results, interpreted
+    and compiled, with its tests and concept docs. If pass 1 cannot build
+    with the new AST fields it becomes a "Two-pass: " commit, as #490's
+    preparation was.
+  - B: step 8. Folded into A if it turns out small.
+  - C: step 9, which also moves this file to issues/fixed/ with the
+    post-mortem, if the acceptance split above is approved.
+
+  None of these needs a preparation commit or an alias ladder: the
+  compiler's own sources do not use the feature, so ~til_boot~ never has to
+  parse it. Using it inside src/ later is a separate change, after master's
+  ~til_boot~ understands the syntax.
+
+**** Risks to settle while implementing
+
+  - Step 5 is the part with no existing twin. If classifying the ~LastTake~
+    as a shallow-copy transfer does not fit ~collect_scope_locals~ as it
+    stands, the fallback with the same result is the steal block's shape:
+    an explicit ~free(own temp)~ after the takes, plus a storage rule that
+    keeps the temp off the heap in C.
+  - Step 3: every lookup that assumes a generator has a fixed parameter
+    list.
+  - Mangled names are not unique in principle (~Results__Q__A_B~), the
+    same as nested applications since #485/#494; arity keeps today's
+    generators apart, and this adds no new case beyond theirs.
 
 *** Acceptance
 
