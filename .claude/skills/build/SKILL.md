@@ -27,7 +27,8 @@ make test_two_pass > tmp/test.log 2>&1` instead, and prefix the
 commit subject with `Two-pass: `. Do not build first and then clean it away.
 
 A documentation-only commit has surviving non-generated changes only in
-documentation, issues or repository Markdown/Org instruction files. A comment
+documentation, issues, repository Markdown/Org instruction files or the bot
+harness under `.claude/` (settings, hooks, skills). A comment
 change in source is still a code change; generated boot/ churn does not decide
 the classification. For documentation-only changes run `make summary` instead
 of the full suite, and prefix the subject with `Doc: `.

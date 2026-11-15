@@ -90,7 +90,7 @@ to avoid re-discovering the same things.
 
 ** Doc vs docgen changes
 - *Doc change*: modifications to documentation-only files (e.g.
-   ~issues/open/189.org~, ~doc/bots/*.org~, ~README~). These do NOT affect the
+   ~issues/open/189.org~, ~doc/bots/*.org~, ~README~, ~.claude/**~). These do NOT affect the
   binary or boot files. Commit with ~Doc: ~ prefix and run ~make summary~;
   tutorial doctest changes are the exception below.
 - *Docgen change*: adding or modifying ~///~ doc comments in core

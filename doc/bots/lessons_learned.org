@@ -74,11 +74,12 @@
 
 ** Remote sessions: git recovery
 
-  - ~.claude/settings.json~ denies every ~git stash~ command, including
-    ~pop~ and ~list~. If a stash happens anyway, recover it without
-    naming the command:
-    ~git diff refs/stash^1 refs/stash > tmp/recover.patch~, then
-    ~git apply tmp/recover.patch~.
+  - ~git stash~ used to be denied by ~.claude/settings.json~, from the
+    time sessions worked directly on ~master~. Remote sessions have a
+    private clone and may stash now, so the deny rule is gone. Local
+    sessions still must not: all worktrees of one clone share
+    ~refs/stash~. That ban is text only (~bots.org~ "Commits"), since
+    ~.claude/~ is not loaded by local OpenCode sessions.
   - The auto-mode permission check refuses ~git rebase --skip~ and
     ~git checkout -B~. When a rebase stops on a commit master already
     carries (re-committed by the merge script), resolve each conflict to

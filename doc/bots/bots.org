@@ -613,7 +613,6 @@ Monitor and Workflow tools are denied, and the
 (also inside a subshell, `(cmd &)`) and `nohup` / `disown` / `setsid`, which
 would leave an untracked orphan process. It checks every line of the
 command, skipping quoted strings, comments and heredoc bodies.
-`git stash` is denied there as well.
 
 ### Jorge's rant on the background-task hell (read it and take it to heart)
 
@@ -704,9 +703,15 @@ not Boolean negation.
   otherwise the stop hook will block the session.
 - DOC-ONLY IS DETERMINED BY THE CHANGED NON-GENERATED FILE PATHS, NOT
   BY WHETHER THE EDIT IS PROSE. A commit is documentation-only only
-  when every surviving non-generated change is in documentation or
-  issue tracking (for example `doc/**`, `issues/**`, or a repository
-  Markdown/Org instruction file). Any surviving change to program,
+  when every surviving non-generated change is in documentation,
+  issue tracking, or the bot harness (for example `doc/**`,
+  `issues/**`, a repository Markdown/Org instruction file, or
+  `.claude/**`: its settings, hooks and skills instruct and constrain
+  Anthropic remote sessions only, and no build, test, or CI job reads
+  them, so `make test` cannot exercise a change there; test a changed
+  hook by running it by hand. That is also why nothing under
+  `.claude/` may be written to act on local sessions: local sessions
+  run OpenCode and never load it). Any surviving change to program,
   test, build, or configuration files makes it non-doc-only -- even a
   comment-only, docstring-only, or whitespace-only change. Therefore a
   comment-only edit to `src/self/interpreter.til` is NOT doc-only.
@@ -733,8 +738,19 @@ not Boolean negation.
   buffer and get stripped by some tools. Lead with a word and
   reference the issue number inline ("Issue #167: foo" or
   "Foo (#167)").
-- Never run destructive git commands (revert, restore, stash,
+- Never run destructive git commands (revert, restore,
   reset --hard, checkout -- files).
+- `git stash`: forbidden in local sessions, allowed in remote ones.
+  The stash (`refs/stash`) belongs to the repository, not to a
+  worktree: all worktrees of one clone share a single stash list, so
+  a local session's stash can be popped by another session or into
+  the human's checkout. Locally, commit on your worktree branch
+  instead. A remote session has its own private clone, so stashing
+  there is safe -- but the container is ephemeral and a stash is
+  never pushed, so do not leave work in one; pop it before the turn
+  ends. Nothing enforces the local ban mechanically: local sessions
+  run OpenCode, and `.claude/` is only for Anthropic remote sessions,
+  so the rule is this paragraph -- obey it.
 - Local sessions do NOT fetch and do NOT push; humans handle all
   syncing with remotes (when rebasing locally, rebase on the local
   `master` branch directly). Do not remind Jorge to push -- local
