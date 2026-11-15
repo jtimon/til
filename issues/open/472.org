@@ -2354,3 +2354,7 @@ show()
 Built ~--usize=64 --asan~ this reports heap-use-after-free on the second
 call. Passing ~NAME~ to an ~own~ parameter is rejected ("cannot pass ref
 variable to 'own' parameter"); a struct field is not checked.
+Closed with #483's round 4: the garbager now rejects this program at
+~Box(name = NAME)~ ("constant global 'NAME' is moved out here, and a
+constant is never given a new value: pass NAME.clone()"); a literal
+constant stays accepted. Regression: test/global_transfer_error.til.

@@ -25,7 +25,20 @@ maybe_drain_global415 := proc(flag: Bool) {
     maybe_global415 = "next"
 }
 
+// 3. A computed CONSTANT handed to a consuming constructor: a constant is
+// never given a new value, so its new owner frees it for good (#483:
+// make.til's `Command(name = TIL)` once TIL became `format(...)`, and the
+// next run(TIL, ...) read freed memory). A literal constant is static
+// storage nothing frees, so the literal case below is fine.
+Holder415 := struct { name := "" }
+computed_const415 := format("bin/", "til")
+literal_const415 := "bin/til"
+hold_computed415 := func() returns Holder415 { return Holder415(name = computed_const415) }
+hold_literal415 := func() returns Holder415 { return Holder415(name = literal_const415) }
+
 test_global_transfer_errors := test() {
     drain_global415()
     maybe_drain_global415(true)
+    assert(hold_computed415().name.len() > 0)
+    assert(hold_literal415().name.len() > 0)
 }

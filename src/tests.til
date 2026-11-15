@@ -2887,15 +2887,17 @@ main := proc(args: ..Str) returns I64 {
         format(til_bin, " build", asan_flag, " test/loop_transfer_error.til"))
     // #415: a function that moves a module global out must give it a new
     // value before it returns, and may not reassign it where it is moved
-    // on some paths only.
+    // on some paths only; a computed constant may not be moved out at all.
     add_counts(tests, "global_transfer_error_interp", "typer",
         format(til_bin, " interpret test/global_transfer_error.til"),
         CountCheck(needle = "is moved out by this function and not given a new value", expected_count = 1),
-        CountCheck(needle = "whose value was moved on some paths only", expected_count = 1))
+        CountCheck(needle = "whose value was moved on some paths only", expected_count = 1),
+        CountCheck(needle = "is moved out here, and a constant is never given a new value", expected_count = 1))
     add_counts(tests, "global_transfer_error_build", "typer",
         format(til_bin, " build", asan_flag, " test/global_transfer_error.til"),
         CountCheck(needle = "is moved out by this function and not given a new value", expected_count = 1),
-        CountCheck(needle = "whose value was moved on some paths only", expected_count = 1))
+        CountCheck(needle = "whose value was moved on some paths only", expected_count = 1),
+        CountCheck(needle = "is moved out here, and a constant is never given a new value", expected_count = 1))
     // #415: a field's value cannot be moved out of its holder, written as
     // `own h.f` (4 cases) or passed to a consuming constructor or variant
     // field (2): the holder would delete it again.

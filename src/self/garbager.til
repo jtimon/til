@@ -4364,10 +4364,6 @@ priv gc_settle_global_reassigns := proc(mut ctx: Context, body: Expr, locals: Ve
                 gmut = gb.is_mut
             case:
             }
-            // Only a `mut` global is ever given a new value, so only one can
-            // be settled. A constant handed to a consuming constructor
-            // (make.til's `Command(name = TIL)`, a literal) is not this rule's.
-            if gmut.not() { continue }
             // A Custom spelling (a named signature such as NextBoardsFn,
             // a struct declared later) is the type the scope resolves.
             switch gtype {
@@ -4385,13 +4381,34 @@ priv gc_settle_global_reassigns := proc(mut ctx: Context, body: Expr, locals: Ve
             // KEYWORDS at exit -- not a handoff to another owner, so it
             // does not trip the exit rule below.
             mut hands_off := false
+            mut handoff_line : U32 = 0
+            mut handoff_col : U32 = 0
             for gs : Expr in body.children {
                 if expr_transfers_own(gs, gname, scope, ctx) {
                     transfers = true
-                    if transfer_is_destructor_call(gs, gname, ctx.symbols).not() { hands_off = true }
+                    if transfer_is_destructor_call(gs, gname, ctx.symbols).not().and(hands_off.not()) {
+                        hands_off = true
+                        handoff_line = gs.line
+                        handoff_col = gs.col
+                    }
                 }
             }
             if transfers.not() { continue }
+            // A constant is never given a new value, so this rule's
+            // settling does not apply to it. One declared as a literal
+            // (make.til's `Command(name = SELF_SRC)`) lives in static
+            // storage no delete frees, so handing it to an owner is
+            // harmless; a computed one (`TIL := format("bin/til", EXE)`,
+            // #483) would be freed by its new owner and read afterwards
+            // as freed memory.
+            if gmut.not() {
+                if hands_off.and(const_global_is_literal(ctx, gname).not()) {
+                    type_error_at(ctx.path, handoff_line, handoff_col,
+                        format("constant global '", gname, "' is moved out here, and a constant is never given a new value: pass ",
+                            gname, ".clone()"), ctx)
+                }
+                continue
+            }
             glocal := LocalInfo(name = gname.clone(), type = gtype.clone(), decl_index = -1, has_transfer = true)
             if gc_body_reassigns(body, gname, facts, fi) {
                 gv := gc_flow_assign_verdicts(body, glocal, scope, ctx, facts, fi)
@@ -4407,6 +4424,22 @@ priv gc_settle_global_reassigns := proc(mut ctx: Context, body: Expr, locals: Ve
                     format("global '", gname, "' is moved out by this function and not given a new value before it returns"), ctx)
             }
         }
+}
+
+// Is the constant global `gname` declared as a literal (`SELF_SRC :=
+// "make.til"`)? Its value then lives in static storage, which no owner's
+// delete frees. A global is declared at the top level of one of the
+// loaded units; one declared nowhere is a broken invariant.
+priv const_global_is_literal := func(ctx: Context, gname: Str) returns Bool {
+    for unit : ImportUnit in ctx.imported.values {
+        for stmt : Expr in unit.ast.children {
+            if stmt.node_type.is(NodeType.Decl).not().or(stmt.children.len().eq(0)) { continue }
+            ref d : Declaration = decl_of(stmt)
+            if d.name != gname { continue }
+            return stmt.children[0].node_type.is(NodeType.Literal)
+        }
+    }
+    panic(__LOC__, "global '", gname, "' has no top-level declaration in any loaded unit")
 }
 
 // --- #415: no moving a field out of its holder -----------------------------

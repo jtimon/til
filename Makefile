@@ -48,16 +48,17 @@ ifeq ($(UNAME_S),Linux)
 HOST_OS := linux
 else ifeq ($(UNAME_S),Darwin)
 HOST_OS := macos
-else ifneq ($(filter UCRT64%,$(UNAME_S)),)
-# Windows, from an MSYS2 UCRT64 shell (issue #483): its make, sh and
-# coreutils run this file, and its gcc builds til against the universal
-# C runtime.
+else ifneq ($(filter MINGW% MSYS% UCRT%,$(UNAME_S)),)
+# Windows, from an MSYS2 shell (issue #483): its make, sh and coreutils
+# run this file, and its gcc builds til. That gcc must target the
+# universal C runtime: nng requires it (its CMakeLists rejects "the
+# legacy MinGW environments": timespec_get). MSYS2's uname says MINGW64
+# in its UCRT64 shell too, so the compiler is asked, not the shell's
+# name: UCRT MinGW headers define _UCRT.
 HOST_OS := windows
-else ifneq ($(filter MINGW% MSYS%,$(UNAME_S)),)
-# nng requires the universal C runtime (its CMakeLists rejects "the
-# legacy MinGW environments": timespec_get), which MINGW64's gcc does not
-# link, and the MSYS environment builds POSIX programs, not Windows ones.
-$(error unsupported build shell '$(UNAME_S)': on Windows, build til from an MSYS2 UCRT64 shell)
+ifeq ($(shell echo 'int x;' | gcc -dM -E -x c -include stdio.h - 2>/dev/null | grep -cw _UCRT),0)
+$(error the gcc on PATH does not target the universal C runtime: on Windows, build til from an MSYS2 UCRT64 shell (pacman -S mingw-w64-ucrt-x86_64-gcc))
+endif
 else
 $(error unsupported build host '$(UNAME_S)': til builds on Linux, macOS and Windows (an MSYS2 UCRT64 shell))
 endif

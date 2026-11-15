@@ -101,10 +101,23 @@ native build gets, and the next commit fixes that.
     gcc 14, a warning in the cross gcc. nng requires the universal C
     runtime (its CMakeLists rejects "the legacy MinGW environments"), and
     MINGW64's gcc links msvcrt. Decided: the Windows build shell is MSYS2
-    UCRT64 (~uname -s~ ~UCRT64_NT~, pacman's ~mingw-w64-ucrt-x86_64-~ gcc,
-    make and cmake); the Makefile rejects MINGW64 and MSYS shells saying
-    so. A UCRT host's nng twin does not import timespec_get from til.exe,
-    which defines it only for msvcrt.
+    UCRT64 (pacman's ~mingw-w64-ucrt-x86_64-~ gcc, make and cmake). A UCRT
+    host's nng twin does not import timespec_get from til.exe, which
+    defines it only for msvcrt.
+  - [X] Run 3110: MSYS2's ~uname -s~ is ~MINGW64_NT-...~ in the UCRT64
+    shell too, so a check on the shell's name rejected the right shell.
+    The Makefile now asks the compiler: on an MSYS2 host it requires the
+    gcc on PATH to define ~_UCRT~, and otherwise stops naming UCRT64 and
+    its gcc package. Both branches checked with ~make -n~ and a stand-in
+    gcc.
+  - [X] Why runs 3105-3110 were cancelled: the first round made make.til's
+    ~TIL~ a computed constant (~format("bin/til", EXE)~), and
+    ~Command(name = TIL)~ moved it into the goal list, which freed it; the
+    Linux ~windows-x64 host~ job's ~make build_win_host win_server~ then
+    ran a garbage program name and cancelled the run. The garbager's #415
+    rule skipped constants on the assumption that they are literals.
+    d226262 made make.til clone ~TIL~, ~ASAN~ and ~DEBUG~ there; the rule
+    now rejects moving a computed constant out ("pass X.clone()").
   - [ ] Fix what the next runs report, until the job passes; then make it
     blocking like the others and document the Windows build (MSYS2
     UCRT64, the three pacman packages) beside the Linux and macOS ones.
