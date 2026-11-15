@@ -256,17 +256,20 @@ jobs:
       # not run anywhere yet, and a trial must not redden a run. Without this
       # host's list the collect job reports the binary groups as "from one
       # producer only (not compared)".
-      - name: Install the mac cross toolchain and build the mac archives
+      # linux-x64 from this arm64 host is the CROSS half of the mirror pair
+      # (#472 plan, S5): the x64 producer builds the same things natively.
+      - name: Install the mac and linux-x64 cross toolchains and build their archives
         continue-on-error: true
         run: |
-          sudo apt-get install -y clang lld llvm cmake
+          sudo apt-get install -y clang lld llvm cmake gcc-x86-64-linux-gnu libc6-dev-amd64-cross
           make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
           make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
+          make vendor/libffi/build-linux-x64/.libs/libffi.a vendor/nng/build-linux-x64/libnng.a
       - name: Write the binary hash lists for the collector
         continue-on-error: true
         run: |
           mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til macos-arm64 macos-x64 linux-arm64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til macos-arm64 macos-x64 linux-arm64 linux-x64
       - name: Upload the binary hash lists
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -2032,12 +2035,15 @@ jobs:
       # linux-arm64 from this x64 host is the CROSS half of the pair #472 is
       # about; linux-arm64-native builds the same things natively. Ubuntu
       # 24.04 has gcc 13.3.0 and glibc 2.39 both ways.
+      # linux-x64 is the mirror pair (#472 plan, S5): native here, cross on
+      # linux-arm64-native. Its libffi was built for bin/til.
       - name: Write the binary hash lists for the collector
         run: |
           sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
           make vendor/libffi/build-linux-arm64/.libs/libffi.a vendor/nng/build-linux-arm64/libnng.a
+          make vendor/nng/build-linux-x64/libnng.a
           mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til macos-arm64 macos-x64 linux-arm64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til macos-arm64 macos-x64 linux-arm64 linux-x64
       - name: Upload the binary hash lists
         uses: actions/upload-artifact@v4
         with:

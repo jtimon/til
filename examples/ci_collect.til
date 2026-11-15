@@ -184,6 +184,39 @@ tool_output := proc(tool: Str, argument: Str) returns Str {
     return command.out().trim().clone()
 }
 
+// The prefix of the GNU tools for a linux target, as Debian names them on
+// every host, the target's own included.
+linux_tool_prefix := proc(target: Str) returns Str {
+    if target == "linux-arm64" { return "aarch64-linux-gnu-" }
+    if target == "linux-x64" { return "x86_64-linux-gnu-" }
+    fail(format("produce-binary does not know the tools of ", target))
+    return ""
+}
+
+// The --cc every producer passes for `target`, or "" where til's own choice
+// is the same tool on every host. til runs plain "gcc" for linux-x64
+// (targets.til, toolchain_command): the host's compiler, right on a
+// linux-x64 host only, so a cross producer has to name the cross gcc (as
+// bin/make does for the vendored archives; make.til, linux_x64_cc). The
+// native producer names it too -- there it is the same driver as "gcc" --
+// because the --cc text is part of the build stamp a program carries
+// (builder.til, executable stamp): given on one side only, every stamped
+// binary would differ by that alone. til itself carries no stamp and is
+// the same bytes with and without it (checked on a linux-x64 host).
+cross_cc_flag := func(target: Str) returns Str {
+    if target == "linux-x64" { return "--cc=x86_64-linux-gnu-gcc" }
+    return ""
+}
+
+// `compiler build --force-rebuild --target=<target>` and, where the target
+// needs it, the compiler; the caller adds the outputs and the source.
+build_command := proc(compiler: Str, target: Str) returns Cmd {
+    build := Cmd.new(compiler, "build", "--force-rebuild", format("--target=", target))
+    cc := cross_cc_flag(target)
+    if cc.len() > 0 { build.arg(cc) }
+    return build
+}
+
 // The identity of the toolchain this host uses for `target`: what has to be
 // the same on two producers for their binaries to be comparable (the
 // toolchain rule, end of issues/open/472.org). Version level, not the
@@ -197,8 +230,11 @@ toolchain_identity := proc(target: Str) returns Str {
         // Headers and libraries are the repository's vendor/macos.
         return format(version_line("clang"), "\n", version_line("ld.lld"), "\n", version_line("llvm-ar"), "\n", version_line("dsymutil"), "\n")
     }
-    if target == "linux-arm64" {
-        compiler := "aarch64-linux-gnu-gcc"
+    if target.starts_with("linux-") {
+        prefix := linux_tool_prefix(target)
+        // REM On a linux-x64 host til runs plain "gcc" for linux-x64, which
+        // a Debian gcc package installs as this same triplet-named driver.
+        compiler := format(prefix, "gcc")
         // The C library version the compiler's headers declare.
         probe := format(WORK, "/libc_version.c")
         File.writefile(probe, "#include <features.h>\nglibc __GLIBC__ __GLIBC_MINOR__\n")
@@ -207,7 +243,7 @@ toolchain_identity := proc(target: Str) returns Str {
         if preprocess.run() != 0 { fail(format("cannot read the C library version: ", preprocess.err())) }
         libc_version := preprocess.out()
         return format(compiler, " ", tool_output(compiler, "-dumpfullversion"), " ", tool_output(compiler, "-dumpmachine"), "\n",
-            version_line("aarch64-linux-gnu-ld"), "\n", version_line("aarch64-linux-gnu-ar"), "\n",
+            version_line(format(prefix, "ld")), "\n", version_line(format(prefix, "ar")), "\n",
             libc_version.trim(), "\n")
     }
     fail(format("produce-binary does not know the toolchain of ", target))
@@ -229,8 +265,8 @@ binary_sections := func(target: Str) returns Vec(Str) {
 // part of it: code, constants, data, debug info, the dynamic tables, the
 // build id. A section the binary does not have is listed as such.
 list_sections := proc(target: Str, binary: Str, label: Str, scratch: Str, mut lines: Vec(Str)) {
-    mut objcopy := "aarch64-linux-gnu-objcopy"
-    if target.starts_with("macos-") { objcopy = "llvm-objcopy" }
+    mut objcopy := "llvm-objcopy"
+    if target.starts_with("macos-").not() { objcopy = format(linux_tool_prefix(target), "objcopy") }
     mut section_names := Vec(Str).new()
     mut section_paths := Vec(Str).new()
     for section : Str in binary_sections(target) {
@@ -305,8 +341,8 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         for source : Str in array(Str, "examples/hello_script.til", "test/layout_corpus.til") {
             stem := file_stem(source)
             binary := format(directory, "/", stem)
-            build := Cmd.new(compiler, "build", "--force-rebuild", format("--target=", target), "-o", binary,
-                "-c", format(directory, "/", stem, ".c"), source)
+            build := build_command(compiler, target)
+            build.args("-o", binary, "-c", format(directory, "/", stem, ".c"), source)
             build.capture()
             if build.run() != 0 { fail(format(build.render(), " failed:\n", build.out(), build.err())) }
             levels.push(own small_level.clone())
@@ -318,7 +354,8 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         // source file.
         library := format(directory, "/ci_binary_lib.til")
         File.writefile(library, "mode lib\nci_binary_sum := func(a: I64, b: I64) returns I64 { return a + b }\n")
-        build := Cmd.new(compiler, "build", "--force-rebuild", format("--target=", target), library)
+        build := build_command(compiler, target)
+        build.arg(library)
         build.capture()
         if build.run() != 0 { fail(format(build.render(), " failed:\n", build.out(), build.err())) }
         mut shared := "libci_binary_lib.so"
@@ -344,8 +381,8 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
             paths.push(own archive.clone())
         }
         til_binary := format(directory, "/til")
-        til_build := Cmd.new(compiler, "build", "--force-rebuild", format("--target=", target), "-o", til_binary,
-            "-c", format(directory, "/til.c"), "src/til.til")
+        til_build := build_command(compiler, target)
+        til_build.args("-o", til_binary, "-c", format(directory, "/til.c"), "src/til.til")
         til_build.capture()
         if til_build.run() != 0 { fail(format(til_build.render(), " failed:\n", til_build.out(), til_build.err())) }
         levels.push(own "binary-trial")

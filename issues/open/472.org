@@ -2382,3 +2382,37 @@ with none; root reads it anyway, which is why it passed here. The
 collector now makes the extracted members readable (~chmod -R u+r~)
 before hashing. So no run has yet shown the trial lists after the fold
 fix; S2 to S4 still wait for one.
+
+*** linux-x64 joins the trial lists (S5, ahead of S4's result)
+
+Done before run 3115's collect job had reported, so that one CI round
+gives native-against-cross data for both Linux targets.
+
+- ~examples/ci_collect.til~ knows ~linux-x64~: the toolchain identity and
+  the section dumps use the target's GNU tool prefix
+  (~x86_64-linux-gnu-~, as ~aarch64-linux-gnu-~ for linux-arm64).
+- Both Linux producers list it: natively in the x64 job
+  (~macos-cross-build~), cross in ~linux-arm64-native~, which installs
+  ~gcc-x86-64-linux-gnu libc6-dev-amd64-cross~ and builds the linux-x64
+  libffi and nng with ~bin/make~ (its ~--linux-x64-cc~ default).
+- til runs plain ~gcc~ for linux-x64 (~toolchain_command~), which is the
+  host's compiler, so off a linux-x64 host the build needs
+  ~--cc=x86_64-linux-gnu-gcc~ (the mac host-cross job passes its own
+  ~--cc~ for the same reason). The ~--cc~ text is an input of the build
+  stamp a program carries in ~.rodata~ (~til-build-stamp:N;~), so given
+  on one side only, ~hello_script~ and the library artifacts differ by
+  the stamp alone. Seen here: same host, same gcc, with and without
+  ~--cc~, only ~.rodata~ and the build id of the stamped binaries
+  differed; ~til~ itself, which carries no stamp, was the same bytes.
+  Both producers therefore pass the same ~--cc~ for linux-x64.
+- Checked here: the list written on this x64 host equals, line for line,
+  the list written by an arm64 build of the collector run under qemu
+  (139 lines for linux-x64). That shows the collector does the same on
+  both hosts, not that a real cross gcc gives the same bytes: that is the
+  next run's answer.
+
+Open, not changed: whether ~--target=linux-x64~ off a linux-x64 host
+should pick the cross gcc itself instead of needing ~--cc~. Today it runs
+the host's ~gcc~. That is a compiler default, so it is Jorge's call.
+
+make clean && make test: 588/588.
