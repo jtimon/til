@@ -4737,10 +4737,7 @@ priv emit_expr_value := proc(f: File, e: Expr, shallow depth: I32, mut ctx: Cont
                     // #384: children[2] is the step. The literal 1 default
                     // keeps the ++/-- spelling; any other step is added or
                     // subtracted with the same wrapping rules.
-                    // #384 transitional: a call without the step child is
-                    // a unit step until the core inc/dec declare the param.
-                    mut unit_step := e.children.len() == 2
-                    if unit_step.not() { unit_step = c_step_is_unit_literal(e.children[2]) }
+                    unit_step := c_step_is_unit_literal(e.children[2])
                     mut pointer_step:=false
                     switch e.children[1].node_type {
                     case .FieldAccess: pointer_step=builder_fa_is_ptr(e.children[1],ctx)

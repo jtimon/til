@@ -201,12 +201,23 @@
 * Derived from add+sub+unity (structs and enums)
 
   If a type has ~add~ and ~unity~, auto-generate (if missing):
-** inc(mut self) -> self = self.add(self.unity())
+** inc(mut self, step = self.unity()) -> self = self.add(step)
 
   If a type has ~sub~ and ~unity~, auto-generate (if missing):
-** dec(mut self) -> self = self.sub(self.unity())
+** dec(mut self, step = self.unity()) -> self = self.sub(step)
 
-  Numeric ext_structs define their own inc/dec directly (C's ++/--).
+  The step is optional (#384). ~x.inc(amount)~ adds any value of the
+  type; an omitted step is the receiver's ~unity()~ -- the default reads
+  ~self~, see "Parameter defaults" in ~doc/concepts/functions.org~. ~x++~,
+  ~x--~ and range loops call ~inc()~ / ~dec()~ with no argument, so they
+  always step by one unity.
+
+  The numerics write their own inc/dec by hand as an optimization:
+  ~inc := core_func(mut self: I64, shallow step: I64 = 1)~, where ~1~ is
+  their ~unity()~. The back ends lower them to C's ~++~ / ~--~ for the
+  literal 1 and to a wrapping add/sub for any other step. A user type can
+  hand-write its own inc/dec the same way; a hand-written one always wins
+  over the derivation.
 
 * Rangeable types (#94)
 

@@ -47,3 +47,97 @@ test_vec2_cmp_derived := test() {
     assert(a.eq(c))
     assert(a.neq(b))
 }
+
+// #384: the derived inc/dec take an optional step. Explicit, it is any
+// value of the type; omitted, it is self.unity() -- the default reads the
+// receiver, so `x.inc()`, `x++` and a range loop step by one unity.
+test_vec2_inc_dec_step := test() {
+    mut v := Vec2(x = 3, y = 5)
+    v.inc(Vec2(x = 10, y = 20))
+    assert_eq(I64, v.x, 13)
+    assert_eq(I64, v.y, 25)
+    v.dec(Vec2(x = 3, y = 5))
+    assert_eq(I64, v.x, 10)
+    assert_eq(I64, v.y, 20)
+    step := Vec2(x = 2, y = 4)
+    v.inc(step)
+    assert_eq(I64, v.x, 12)
+    assert_eq(I64, v.y, 24)
+    v.inc()
+    assert_eq(I64, v.x, 13)
+    assert_eq(I64, v.y, 25)
+    v.dec()
+    assert_eq(I64, v.x, 12)
+    assert_eq(I64, v.y, 24)
+}
+
+// A unity that depends on the value: the omitted step must be the
+// RECEIVER's unity, not one resolved in the caller's scope.
+Scaled := struct {
+    n : I64 = 0
+    unit : I64 = 1
+namespace:
+    add := func(a: Scaled, b: Scaled) returns Scaled { return Scaled(n = a.n.add(b.n), unit = a.unit) }
+    sub := func(a: Scaled, b: Scaled) returns Scaled { return Scaled(n = a.n.sub(b.n), unit = a.unit) }
+    unity := func(self: Scaled) returns Scaled { return Scaled(n = self.unit, unit = self.unit) }
+    // A caller with its own `self` in scope: other.inc() steps by
+    // other.unity(), never by this method's self.unity().
+    bump_other := func(self: Scaled, mut other: Scaled) returns I64 {
+        other.inc()
+        return self.n
+    }
+}
+
+ScaledHolder := struct { s : Scaled }
+
+test_derived_inc_default_reads_receiver := test() {
+    mut a := Scaled(n = 0, unit = 5)
+    a.inc()
+    assert_eq(I64, a.n, 5)
+    a++
+    assert_eq(I64, a.n, 10)
+    a--
+    assert_eq(I64, a.n, 5)
+    a.inc(Scaled(n = 2))
+    assert_eq(I64, a.n, 7)
+    big := Scaled(n = 42, unit = 100)
+    assert_eq(I64, big.bump_other(a), 42)
+    assert_eq(I64, a.n, 12)
+    mut h := ScaledHolder(s = Scaled(n = 1, unit = 3))
+    h.s.inc()
+    assert_eq(I64, h.s.n, 4)
+    h.s--
+    assert_eq(I64, h.s.n, 1)
+}
+
+// Generic ++ / -- step by the element type's unity: the numerics' literal
+// 1 default and a derived type's self.unity() default alike.
+step_up_twice := func(T: Type, mut x: T) {
+    x++
+    x++
+}
+
+step_down_once := func(T: Type, mut x: T) {
+    x--
+}
+
+test_generic_inc_dec := test() {
+    mut i : I64 = 7
+    step_up_twice(I64, i)
+    assert_eq(I64, i, 9)
+    step_down_once(I64, i)
+    assert_eq(I64, i, 8)
+    mut b : U8 = 255
+    step_up_twice(U8, b)
+    assert_eq(U8, b, 1)
+    mut v := Vec2(x = 3, y = 5)
+    step_up_twice(Vec2, v)
+    assert_eq(I64, v.x, 5)
+    assert_eq(I64, v.y, 7)
+    step_down_once(Vec2, v)
+    assert_eq(I64, v.x, 4)
+    assert_eq(I64, v.y, 6)
+    mut s := Scaled(n = 0, unit = 4)
+    step_up_twice(Scaled, s)
+    assert_eq(I64, s.n, 8)
+}

@@ -3563,20 +3563,17 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 return holyc_expr(e.children[1], ctx, state, locals, error)
             }
             if method.eq("inc").or(method.eq("dec")) {
-                if e.children.len().eq(2).or(e.children.len().eq(3)).not() {
+                if e.children.len() != 3 {
                     error = format("invalid core call '", method, "'")
                     return ""
                 }
                 value := holyc_expr(e.children[1], ctx, state, locals, error)
                 // #384: children[2] is the step; the literal 1 default keeps
-                // the ++/-- spelling. Transitional: a call without the step
-                // child is a unit step until the core inc/dec declare it.
-                mut unit_step := e.children.len() == 2
-                if unit_step.not() {
-                    switch e.children[2].node_type {
-                    case .Literal(Literal.Num(step_num)): unit_step = step_num.literal_num_text() == "1"
-                    case:
-                    }
+                // the ++/-- spelling.
+                mut unit_step := false
+                switch e.children[2].node_type {
+                case .Literal(Literal.Num(step_num)): unit_step = step_num.literal_num_text() == "1"
+                case:
                 }
                 if unit_step.not() {
                     step := holyc_expr(e.children[2], ctx, state, locals, error)

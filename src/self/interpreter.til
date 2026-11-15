@@ -12713,14 +12713,9 @@ priv scalar_step_cell := proc(mut scope: Scope, mut e: Expr, type_str: Str, is_i
     case:
         panic(__LOC__, ": inc/dec receiver has no mutable storage")
     }
-    // #384 transitional: a call without the step child steps by one until
-    // the core inc/dec declare their step parameter.
-    mut step_value : I64 = 1
-    if e.children.len() > 2 {
-        ref mut step_arg : Expr = e.children[2]
-        step : Dynamic = scalar_read_arg(scope, step_arg, scalar_type, ctx)
-        step_value = raw_to_i64(scalar_type, step, ctx)
-    }
+    ref mut step_arg : Expr = e.children[2]
+    step : Dynamic = scalar_read_arg(scope, step_arg, scalar_type, ctx)
+    step_value := raw_to_i64(scalar_type, step, ctx)
     cur : Dynamic = scalar_word_load(scalar_type, storage, ctx)
     mut nv := raw_to_i64(scalar_type, cur, ctx)
     if is_inc { nv = nv.add(step_value) } else { nv = nv.sub(step_value) }

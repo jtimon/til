@@ -33,6 +33,74 @@ priv slot_default_index := func(code: I32) returns USize {
     return c.sub(code).to_usize()
 }
 
+// #384: a parameter default may name an EARLIER parameter -- the derived
+// `inc(mut self: T, step: T = self.unity())`. Defaults are typed at the call
+// site, so the name would otherwise resolve in the CALLER's scope. The fill
+// substitutes the argument bound to that parameter instead. The argument is
+// then evaluated twice (once for its own slot, once inside the default), so
+// only a variable, a field path or a scalar literal may be bound there.
+priv default_param_arg_is_place := func(e: Expr) returns Bool {
+    switch e.node_type {
+    case .Ident: return true
+    case .FieldAccess: return default_param_arg_is_place(e.children[0])
+    case: return e.node_type.is_literal_num().or(e.node_type.is_literal_bool())
+    }
+}
+
+// Returns false after reporting a default that cannot be filled; the slot
+// then holds the NoDefaultArg placeholder, exactly like a missing argument.
+priv substitute_default_param_refs := proc(mut dv: Expr, param_idx: USize, fdef_data: FunctionDef, slots: Vec(I32), args: Vec(Expr), defaults: Vec(Expr), mut ctx: Context) returns Bool {
+    switch dv.node_type {
+    case .Ident(id):
+        ref ref_name : Str = id.ident_name(ctx.symbols.names)
+        ref default_owner : Str = fdef_data.sig.params[param_idx].name
+        for j in 0..fdef_data.sig.params.len() {
+            if fdef_data.sig.params[j].name != ref_name { continue }
+            if j >= param_idx {
+                dv.type_error(format("default of parameter '", default_owner, "' refers to parameter '", ref_name, "', which is not declared before it"), ctx)
+                dv = Expr.new(own NodeType.NoDefaultArg, dv.line, dv.col)
+                return false
+            }
+            if (j.to_i32() == fdef_data.sig.variadic_index).or(j.to_i32() == fdef_data.sig.kwargs_index) {
+                dv.type_error(format("default of parameter '", default_owner, "' cannot refer to variadic parameter '", ref_name, "'"), ctx)
+                dv = Expr.new(own NodeType.NoDefaultArg, dv.line, dv.col)
+                return false
+            }
+            ref code : I32 = slots[j]
+            mut bound := Expr.new(own NodeType.NoDefaultArg, dv.line, dv.col)
+            if code < 0 {
+                bound = Expr.clone(defaults[slot_default_index(code)])
+            } else {
+                ref arg : Expr = args[code.to_usize()]
+                if arg.node_type.is(NodeType.NamedArg) {
+                    bound = Expr.clone(arg.children[0])
+                } else {
+                    bound = Expr.clone(arg)
+                }
+            }
+            if default_param_arg_is_place(bound).not() {
+                bound.type_error(format("the default of parameter '", default_owner, "' reads parameter '", ref_name,
+                    "', so its argument must be a variable or a field path (it is evaluated again for the default); bind it to a local first or pass '", default_owner, "' explicitly"), ctx)
+                dv = Expr.new(own NodeType.NoDefaultArg, dv.line, dv.col)
+                return false
+            }
+            dv = bound
+            return true
+        }
+        return true
+    case:
+        mut filled := true
+        for mut child : Expr in dv.children {
+            if substitute_default_param_refs(child, param_idx, fdef_data, slots, args, defaults, ctx).not() {
+                filled = false
+                break
+            }
+        }
+        if filled.not() { dv = Expr.new(own NodeType.NoDefaultArg, dv.line, dv.col) }
+        return filled
+    }
+}
+
 // Reorders an FCall's arguments into parameter order, expanding
 // variadic/kwargs runs and filling defaults. The rebuild MOVES the
 // argument subtrees out of the call's own children instead of cloning
@@ -149,7 +217,9 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
             ref param : Declaration = fdef_data.sig.params[i]
             if param.default_value.is_some() {
                 slots[i] = slot_default_code(defaults.len())
-                defaults.push(own resolve_default_value(param.default_expr(), e, ctx))
+                mut filled := resolve_default_value(param.default_expr(), e, ctx)
+                if substitute_default_param_refs(filled, i, fdef_data, slots, e.children, defaults, ctx).not() { missing = true }
+                defaults.push(own filled)
             } else {
                 e.type_error(format("missing argument for parameter '", param.name, "'"), ctx)
                 missing = true

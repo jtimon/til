@@ -224,6 +224,26 @@ size_for_target".
 A named test block; ~make test~ collects and runs them in both interp
 and compile modes.
 
+* Parameter defaults
+
+~name: T = expr~ makes a parameter optional. The default is copied into
+each call that omits the argument and typed there, at the call site, so
+~loc: Str = __LOC__~ reports the caller.
+
+A default may read an EARLIER parameter of the same function (#384). The
+fill puts that parameter's argument in the name's place:
+
+#+begin_src til
+inc := func(mut self: T, step: T = self.unity())
+v.inc()      // is v.inc(v.unity())
+#+end_src
+
+Because the argument is then evaluated a second time, inside the default,
+it must be a variable, a field path or a scalar literal; binding it to a
+call is a type error (bind the call to a local, or pass the defaulted
+argument explicitly). A default that names a LATER parameter is an error
+too. Any other name in a default still resolves at the call site.
+
 * Function types
 
 A bodyless ~func~ declaration names a function TYPE (a FuncSig):

@@ -35,8 +35,8 @@ namespace:
     mul := core_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
     div := core_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
     mod := core_func(shallow a: U8, shallow b: U8) returns shallow U8 {}
-    inc := core_func(mut self: U8) {}
-    dec := core_func(mut self: U8) {}
+    inc := core_func(mut self: U8, shallow step: U8 = 1) {}
+    dec := core_func(mut self: U8, shallow step: U8 = 1) {}
     /// Return the multiplicative identity (1) for this type.
     unity := func(_self: U8) returns U8 { return 1 }
     eq := core_func(shallow a: U8, shallow b: U8) returns shallow Bool {}
@@ -123,8 +123,8 @@ namespace:
     mul := core_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
     div := core_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
     mod := core_func(shallow a: U16, shallow b: U16) returns shallow U16 {}
-    inc := core_func(mut self: U16) {}
-    dec := core_func(mut self: U16) {}
+    inc := core_func(mut self: U16, shallow step: U16 = 1) {}
+    dec := core_func(mut self: U16, shallow step: U16 = 1) {}
     /// Return the multiplicative identity (1) for this type.
     unity := func(_self: U16) returns U16 { return 1 }
     eq := core_func(shallow a: U16, shallow b: U16) returns shallow Bool {}
@@ -215,8 +215,8 @@ namespace:
     mul := core_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     div := core_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
     mod := core_func(shallow a: U32, shallow b: U32) returns shallow U32 {}
-    inc := core_func(mut self: U32) {}
-    dec := core_func(mut self: U32) {}
+    inc := core_func(mut self: U32, shallow step: U32 = 1) {}
+    dec := core_func(mut self: U32, shallow step: U32 = 1) {}
     /// Return the multiplicative identity (1) for this type.
     unity := func(_self: U32) returns U32 { return 1 }
     eq := core_func(shallow a: U32, shallow b: U32) returns shallow Bool {}
@@ -310,8 +310,8 @@ namespace:
     mul := core_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
     div := core_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
     mod := core_func(shallow a: U64, shallow b: U64) returns shallow U64 {}
-    inc := core_func(mut self: U64) {}
-    dec := core_func(mut self: U64) {}
+    inc := core_func(mut self: U64, shallow step: U64 = 1) {}
+    dec := core_func(mut self: U64, shallow step: U64 = 1) {}
     /// Return the multiplicative identity (1) for this type.
     unity := func(_self: U64) returns U64 { return 1 }
     eq := core_func(shallow a: U64, shallow b: U64) returns shallow Bool {}
@@ -397,8 +397,8 @@ namespace:
     mul := core_func(shallow a: I8, shallow b: I8) returns shallow I8 {}
     div := core_func(shallow a: I8, shallow b: I8) returns shallow I8 {}
     mod := core_func(shallow a: I8, shallow b: I8) returns shallow I8 {}
-    inc := core_func(mut self: I8) {}
-    dec := core_func(mut self: I8) {}
+    inc := core_func(mut self: I8, shallow step: I8 = 1) {}
+    dec := core_func(mut self: I8, shallow step: I8 = 1) {}
     /// Return the multiplicative identity (1) for this type.
     unity := func(_self: I8) returns I8 { return 1 }
     eq := core_func(shallow a: I8, shallow b: I8) returns shallow Bool {}
@@ -456,8 +456,8 @@ namespace:
     mul := core_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     div := core_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
     mod := core_func(shallow a: I16, shallow b: I16) returns shallow I16 {}
-    inc := core_func(mut self: I16) {}
-    dec := core_func(mut self: I16) {}
+    inc := core_func(mut self: I16, shallow step: I16 = 1) {}
+    dec := core_func(mut self: I16, shallow step: I16 = 1) {}
     /// Return the multiplicative identity (1) for this type.
     unity := func(_self: I16) returns I16 { return 1 }
     eq := core_func(shallow a: I16, shallow b: I16) returns shallow Bool {}
@@ -565,8 +565,8 @@ namespace:
     mul := core_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     div := core_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
     mod := core_func(shallow a: I32, shallow b: I32) returns shallow I32 {}
-    inc := core_func(mut self: I32) {}
-    dec := core_func(mut self: I32) {}
+    inc := core_func(mut self: I32, shallow step: I32 = 1) {}
+    dec := core_func(mut self: I32, shallow step: I32 = 1) {}
     /// Return the multiplicative identity (1) for this type.
     unity := func(_self: I32) returns I32 { return 1 }
     eq := core_func(shallow a: I32, shallow b: I32) returns shallow Bool {}
@@ -693,8 +693,8 @@ namespace:
     mul := core_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     div := core_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
     mod := core_func(shallow a: I64, shallow b: I64) returns shallow I64 {}
-    inc := core_func(mut self: I64) {}
-    dec := core_func(mut self: I64) {}
+    inc := core_func(mut self: I64, shallow step: I64 = 1) {}
+    dec := core_func(mut self: I64, shallow step: I64 = 1) {}
     /// Return the multiplicative identity (1) for this type.
     unity := func(_self: I64) returns I64 { return 1 }
     eq := core_func(shallow a: I64, shallow b: I64) returns shallow Bool {}

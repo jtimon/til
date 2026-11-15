@@ -6,6 +6,12 @@ bump := func(mut count: I64) returns Bool {
     return true
 }
 byte_bump := func(mut value: I8) { value.inc() }
+// #384: explicit inc/dec steps, read from a parameter or a literal.
+step_by := func(mut value: I64, amount: I64) {
+    value.inc(amount)
+    value.dec(1)
+}
+byte_step := func(mut value: U8, amount: U8) { value.dec(amount) }
 pointer_width := func(value: UPtr) returns UPtr { return value }
 integer_edges := func(T:Type,mut calls:I64,low:T,high:T,width:T) {
     one:T=1
@@ -43,6 +49,17 @@ assert(count == 2)
 assert(and(gate, false, bump(count)).not())
 assert(or(gate.not(), true, bump(count)))
 assert(count == 2)
+
+mut stepped := 10
+step_by(stepped, 7)
+assert(stepped == 16)
+stepped.dec(20)
+assert(stepped == -4)
+mut stepped_byte : U8 = 3
+byte_step(stepped_byte, 5)
+assert(stepped_byte == 254)
+stepped_byte.inc(2)
+assert(stepped_byte == 0)
 
 mut i := 0
 mut sum := 0

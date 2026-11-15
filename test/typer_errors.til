@@ -2063,3 +2063,14 @@ terr415_closures := proc() {
     println(by_ref, in_func)
 }
 terr415_closures()
+
+// #384: a parameter default may read an EARLIER parameter -- the fill puts
+// that parameter's argument in its place -- but not a later one.
+terr384_later := func(a: I64 = b, b: I64 = 1) returns I64 { return a.add(b) }
+println(terr384_later().to_str())
+
+// #384: reading a parameter re-evaluates its argument for the default, so
+// that argument must be a variable or a field path, not a call.
+terr384_twice := func(a: I64, b: I64 = a) returns I64 { return a.add(b) }
+terr384_side := func() returns I64 { return 4 }
+println(terr384_twice(terr384_side()).to_str())

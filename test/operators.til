@@ -52,6 +52,77 @@ test_field_inc_dec_reference_once := test() {
     assert_eq(I64, value.cell.n, 11)
 }
 
+// #384: inc/dec take an optional step with add/sub's wrapping. Omitted, it
+// is the numerics' unity (1); explicit, any amount -- a literal, a local, on
+// plain, field, namespace-global, reference and ref-returning receivers.
+step_n_ref := func(value: StepHolder, mut calls: I64) returns ref I64 {
+    calls++
+    return value.cell.n
+}
+
+test_inc_dec_explicit_step := test() {
+    mut i := 10
+    i.inc(5)
+    assert_eq(I64, i, 15)
+    i.dec(7)
+    assert_eq(I64, i, 8)
+    i.inc()
+    assert_eq(I64, i, 9)
+    i.dec()
+    assert_eq(I64, i, 8)
+    step := 3
+    i.dec(step)
+    assert_eq(I64, i, 5)
+    i.inc(step.mul(4))
+    assert_eq(I64, i, 17)
+
+    mut b : U8 = 250
+    b.inc(10)
+    assert_eq(U8, b, 4)
+    b.dec(5)
+    assert_eq(U8, b, 255)
+    mut s : I8 = 120
+    s.inc(10)
+    assert_eq(I8, s, -126)
+    mut h : I16 = -32760
+    h.dec(10)
+    assert_eq(I16, h, 32766)
+    mut w : I32 = I32.MAX
+    w.inc(2)
+    assert_eq(I32, w, I32.MIN.add(1))
+    mut wide : I64 = I64.MIN
+    wide.dec(3)
+    assert_eq(I64, wide, I64.MAX.sub(2))
+    mut u : U64 = 1
+    u.dec(3)
+    assert_eq(U64, u, U64.MAX.sub(1))
+    mut u32 : U32 = 7
+    u32.inc(u32.unity())
+    assert_eq(U32, u32, 8)
+
+    mut value := StepHolder(cell = StepCell())
+    value.cell.n.inc(5)
+    assert_eq(I64, value.cell.n, 15)
+    value.cell.small.dec(3)
+    assert_eq(U8, value.cell.small, 1)
+    StepCell.count.inc(10)
+    assert_eq(I16, StepCell.count, 13)
+    StepCell.count.dec(10)
+    assert_eq(I16, StepCell.count, 3)
+    ref mut alias : I64 = value.cell.n
+    alias.inc(4)
+    assert_eq(I64, value.cell.n, 19)
+    alias.dec(9)
+    assert_eq(I64, value.cell.n, 10)
+    mut calls := 0
+    step_n_ref(value, calls).inc(6)
+    assert_eq(I64, calls, 1)
+    assert_eq(I64, value.cell.n, 16)
+    step_n_ref(value, calls).dec(2)
+    assert_eq(I64, calls, 2)
+    assert_eq(I64, value.cell.n, 14)
+}
+
 test_arithmetic := test() {
     assert_eq(I64, 34.add(35), 69)
     assert_eq(I64, 10.sub(3), 7)

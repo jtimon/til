@@ -1793,13 +1793,16 @@ gen_unity_derived_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
         if already_has { continue }
         if has_op.not() { continue }
 
+        // #384: `inc(mut self: T, step: T = self.unity())` -- the step is
+        // optional and its default names the receiver, so an omitted step
+        // (`x.inc()`, `x++`, a range loop's cursor step) is one unity step.
         mut self1 := Expr.new(own ident_node(symbols.intern("self")), stmt.line, stmt.col)
         mut self2 := Expr.new(own ident_node(symbols.intern("self")), stmt.line, stmt.col)
 
         mut unity_call := make_method_call_fcall(own self2, "unity", stmt.line, stmt.col, symbols)
 
         mut op_call := make_method_call_fcall(own self1, op, stmt.line, stmt.col, symbols)
-        op_call.add_child(own unity_call)
+        op_call.add_child(own Expr.new(own ident_node(symbols.intern("step")), stmt.line, stmt.col))
 
         mut assign := Expr.new(own NodeType.Assign(AssignData(name = "self")), stmt.line, stmt.col)
         assign.add_child(own op_call)
@@ -1811,6 +1814,9 @@ gen_unity_derived_for_stmt := func(mut stmt: Expr, mut symbols: SymbolPool) {
         func_decl.sig.func_type = FuncType.Func
         param := decl_typed(symbols, name = "self", type_name = sname, is_mut = true, own_type = OwnType.Ref)
         func_decl.sig.params.push(own param)
+        mut step_param := decl_typed(symbols, name = "step", type_name = sname, own_type = OwnType.Ref)
+        step_param.default_value = Option(Expr).Some(own unity_call)
+        func_decl.sig.params.push(own step_param)
         func_decl.sig.variadic_index = -1
         func_decl.sig.kwargs_index = -1
 

@@ -2325,20 +2325,16 @@ priv fasm_expr := proc(e: Expr, mut state: FasmState, mut lp: LoadedProgram, as_
                     fasm_float_cast(e,Type.Primitive(Primitive.I64),owner,false,state,lp)
                     return
                 }
-                if (op == "inc" || op == "dec") && (e.children.len() == 2 || e.children.len() == 3) {
+                if (op == "inc" || op == "dec") && e.children.len() == 3 {
                     fasm_pointer(e.children[1], state, lp)
                     address := fasm_slot(state)
                     fasm_emit(state, format("mov ", address, ", rax"))
                     // #384: children[2] is the step. The literal 1 default
-                    // keeps the inc/dec instruction. Transitional: a call
-                    // without the step child is a unit step until the core
-                    // inc/dec declare it.
-                    mut unit_step := e.children.len() == 2
-                    if unit_step.not() {
-                        switch e.children[2].node_type {
-                        case .Literal(Literal.Num(step_num)): unit_step = step_num.literal_num_text() == "1"
-                        case:
-                        }
+                    // keeps the inc/dec instruction.
+                    mut unit_step := false
+                    switch e.children[2].node_type {
+                    case .Literal(Literal.Num(step_num)): unit_step = step_num.literal_num_text() == "1"
+                    case:
                     }
                     mut step := ""
                     if unit_step.not() {

@@ -1,0 +1,72 @@
+# priority: low
+# category: features
+** FIXED #384 Allow explicit inc/dec step arguments
+
+*** Post-mortem
+
+Missing feature: inc/dec took only ~mut self~, so a caller wanting any other
+step had to write ~x = x.add(n)~. Adding an optional step needed a default
+that is the RECEIVER's ~unity()~ for derived methods, and til could not spell
+one: parameter defaults are copied to the call site and typed in the caller's
+scope, so ~step: T = self.unity()~ would have resolved the caller's ~self~
+(or nothing).
+
+Fix, in two commits (preparation + use, doc/self.org):
+
+- Preparation: the C, HolyC, MLIR, FASM and interpreter inc/dec lowerings add
+  or subtract an optional step child with the existing wrapping rules; a
+  literal 1 keeps the ++/-- spelling. The arg hoister leaves a literal step
+  inline (like is_n's width literal) so the back ends see it. This had to
+  land first: HEAD's til_boot reads core's new signature, fills the default
+  and hoists it, and its old back ends left the temp unused (-Werror).
+- Use: the numerics declare ~inc/dec := core_func(mut self: T, shallow
+  step: T = 1)~ -- a hand-written optimization, 1 being their unity. The
+  initer derives ~inc(mut self: T, step: T = self.unity())~ ->
+  ~self = self.add(step)~ (and dec from sub). The default fill
+  (~desugar_fcall_args_for_fdef~) now substitutes an earlier parameter's
+  argument for its name in a default, so ~v.inc()~ is ~v.inc(v.unity())~.
+  Since that argument is evaluated again, it must be a variable, field path
+  or scalar literal (type error otherwise); a default naming a later
+  parameter is an error. ~x++~/~x--~ still parse to ~inc()~/~dec()~ and range
+  loops still emit ~_rc.inc()~/~_rc.dec()~, so all of them step by unity
+  through the default. The back ends' transitional two-child form is gone.
+
+Regression tests: test/operators.til ~test_inc_dec_explicit_step~ (every
+numeric width's wrap, local/field/global/ref/getter receivers, omitted
+default); test/auto.til ~test_vec2_inc_dec_step~,
+~test_derived_inc_default_reads_receiver~ (a value-dependent unity, a
+caller with its own ~self~) and ~test_generic_inc_dec~ (generic ++/-- over
+numerics and derived types); test/scalar_control.til (shared C/interp/FASM/
+MLIR fixture) and test/templeos/holyc_primitives.til explicit steps;
+test/typer_errors.til the two default diagnostics. Range iteration stays
+covered by test/loops.til ~test_range_over_user_type_*~.
+
+
+The numeric ~inc~ and ~dec~ methods currently take only ~mut self~. Give them
+an optional step argument so direct calls can mutate by an arbitrary amount:
+
+#+begin_src til
+count.inc(TYPER_SYNTH_BINDING_SLACK)
+count.dec(step)
+#+end_src
+
+Omitting the argument should retain unit-step behavior. The generic source of
+that unit is the type's ~unity()~ method, not a numeric literal: derived
+~inc~ / ~dec~ methods are currently generated from ~add~ / ~sub~ as
+~self.add(self.unity())~ and ~self.sub(self.unity())~ in
+~gen_unity_derived_for_stmt~.
+
+Keep the two concepts distinct:
+
+- explicit ~inc(step)~ / ~dec(step)~ may use any step;
+- explicit ~inc()~ / ~dec()~ use the unity default;
+- ~++~ / ~--~ always mean one unity step and must continue to require the
+  generic ~unity~ interface; and
+- generic range-loop lowering likewise advances by unity, even though it
+  currently emits zero-argument ~inc~ / ~dec~ calls directly.
+
+The implementation must update numeric core methods and their C, interpreter
+and HolyC handling, derived method generation, operator lowering, and
+range-loop lowering. Add focused coverage for an explicit non-unity step,
+the omitted default, generic ~++~ / ~--~, and ascending/descending generic
+range iteration.

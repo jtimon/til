@@ -200,6 +200,20 @@ calls = 0
 values[counted_index(calls)].inc()
 values[counted_index(calls)].dec()
 if calls != 2 || values[0] != 7 { panic("primitive step receiver evaluation") }
+// #384: an explicit step; the receiver still runs once.
+values[counted_index(calls)].inc(5)
+values[counted_index(calls)].dec(2)
+if calls != 4 || values[0] != 10 { panic("primitive explicit step receiver evaluation") }
+mut stepped_byte : U8 = 250
+stepped_byte.inc(10)
+mut stepped_signed : I8 = -126
+stepped_signed.dec(10)
+mut stepped_wide : I64 = I64.MAX
+stepped_wide.inc(3)
+amount : U32 = 5
+mut stepped_word : U32 = 2
+stepped_word.dec(amount)
+if stepped_byte != 4 || stepped_signed != 120 || stepped_wide != I64.MIN.add(2) || stepped_word != U32.MAX.sub(2) { panic("primitive explicit step wrap") }
 StepI32 := I32
 StepI64 := I64
 StepU32 := U32
