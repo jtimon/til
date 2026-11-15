@@ -1,0 +1,31 @@
+mode script
+
+// Issue #499: plain (non-own, non-ref) Dynamic struct fields under the
+// interpreter. Constructing S() crashed: the field init copied through the
+// null word a `0` literal evaluates to (#321). And a field read handed
+// raw-pointer builtins the slot's address instead of the word stored in it,
+// so `s.p.is_null()` was false for a null field. Compiled code was right.
+
+S := struct { p: Dynamic = 0 }
+
+a := S()
+assert(a.p.is_null())
+b := S(p = 0)
+assert(b.p.is_null())
+
+c := S(p = malloc(16))
+assert(c.p.is_null().not())
+memset(c.p, 7, 16)
+free(own c.p)
+
+// A struct with a Dynamic field among others, built in a function.
+T := struct {
+    n : I64 = 1
+    p : Dynamic = 0
+}
+make_t := func() returns T { return T(n = 2) }
+t := make_t()
+assert_eq(I64, t.n, 2)
+assert(t.p.is_null())
+
+println("bug499: ok")

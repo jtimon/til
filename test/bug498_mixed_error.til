@@ -1,0 +1,34 @@
+mode script
+
+// Issue #498: type_arg_is_interface on a nested type application answers
+// from the struct literals its template returns, because the instance may
+// not exist yet. A template that returns an interface on one branch and a
+// struct on another has no single answer: a type error, not a guess.
+
+is_iface := macro(E: Type) returns FuncDef {
+    if type_arg_is_interface(E) {
+        return func() returns I64 { return 1 }
+    } else {
+        return func() returns I64 { return 0 }
+    }
+}
+
+Either := macro(T: Type) returns StructDef {
+    if type_arg_is_ref(T) {
+        return interface {
+            show := ext_func(self: Either(T)) returns Str {}
+        }
+    } else {
+        return struct {
+            value : I64 = 0
+        }
+    }
+}
+
+Box := struct<T: Type> {
+    n : I64 = 0
+namespace:
+    probe := is_iface(T)
+}
+
+println(Box(Either(I64)).probe().to_str())

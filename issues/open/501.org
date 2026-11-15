@@ -1,0 +1,26 @@
+# priority: medium
+# category: bugs
+** OPEN #501 A ref binding of another type to a Dynamic field is accepted
+
+Found while fixing [[../fixed/499.org][#499]]; reproduced at master 3646b19.
+
+#+begin_src til
+mode script
+S := struct { p: Dynamic = 0 }
+c := S(p = malloc(16))
+memset(c.p, 7, 16)
+ref seen : U8 = c.p
+println(seen.to_str())
+free(own c.p)
+#+end_src
+
+The typer accepts ~ref seen : U8 = c.p~, a U8 reference bound to a
+~Dynamic~ field, and both backends then bind it to the field's SLOT, not
+to what the field points at: the C backend emits ~seen = &c.p;~, which gcc
+rejects as an incompatible pointer type ('void **' to 'U8 *'), and the
+interpreter prints the low byte of the stored pointer. The same binding
+from a ~Dynamic~ local (~ref seen : U8 = d~) is rejected with "'ref'
+declaration requires a ref-returning function, a ref/param variable, or a
+raw allocation"; the field form should get the same check (or, if reading
+through a Dynamic field is meant to be allowed, bind to the pointee in both
+backends).

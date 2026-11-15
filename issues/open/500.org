@@ -1,0 +1,21 @@
+# priority: medium
+# category: bugs
+** OPEN #500 C backend: a raw allocation local passed to a Dynamic field is dereferenced
+
+Found while fixing [[../fixed/499.org][#499]]; reproduced at master 3646b19.
+
+#+begin_src til
+mode script
+S := struct { p: Dynamic = 0 }
+mut q : U8 = malloc(16)
+c := S(p = q)
+println(c.p.is_null().to_str())
+free(own c.p)
+#+end_src
+
+~bin/til run~ fails in the C compiler: the field is initialized with
+~c.p = DEREF(q);~ (the byte ~q~ points at) instead of the pointer, so gcc
+reports "assignment to 'void *' from 'U8' makes pointer from integer". The
+typer accepts the call and records the ownership transfer of ~q~ into the
+field. ~bin/til interpret~ stores the pointer and prints ~false~.
+~S(p = malloc(16))~, a call result instead of the local, compiles and runs.

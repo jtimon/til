@@ -46,4 +46,15 @@ views.push(owned)
 assert_eq(USize, views.len(), 1)
 assert_eq(USize, views[0].len(), 1)
 
+// A template that returns an interface: the query answers from the
+// interface literal it returns, nested or through an alias.
+Shows := macro(T: Type) returns StructDef {
+    return interface {
+        show := ext_func(self: Shows(T)) returns Str {}
+    }
+}
+assert_eq(I64, Box(Shows(I64)).probe(), 1)
+SI := Shows(I64)
+assert_eq(I64, Box(SI).probe(), 1)
+
 println("bug498: ok")

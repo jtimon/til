@@ -191,7 +191,12 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
     } else if container_elem_type(struct_name, ctx).len() > 0 {
         clone_container_buffer(struct_name, data, dst_data, ctx)
     } else if container_ref_slot_size(struct_name, ctx) > 0 {
-        clone_ref_container_buffer(struct_name, data, dst_data, ctx)
+        // #497: no program reaches a raw clone of a container of refs: its
+        // generated clone method copies it (probed with element, field,
+        // map-value and borrowed-argument copies and the whole suite). Fail
+        // here rather than run an untested copy or fall into the field walk
+        // below, which would treat the slot buffer as an owned scalar.
+        panic("heap_clone: raw clone of a container of refs is not implemented (", struct_name, "); see #497")
     } else if struct_def_shallow_safe(sdef_data, ctx) {
     } else {
         // sl.fields is positionally parallel to sdef_data.fields
@@ -1662,6 +1667,20 @@ priv init_field_raw := func(mut inst_data: Dynamic, dd: Declaration, field_offse
         }
         return
     }
+    // #499: a shallow Dynamic field holds one pointer word. A null literal
+    // arrives as the null word itself (#321, the same rule as the own/ref
+    // arm above); any other value as a temp block, or a ref/place, holding
+    // the word. The generic copy below read through the null word.
+    if dd.til_type.is(Type.Dynamic) {
+        if raw_is_ref.or(raw_is_place).not().and(raw.is_null()) {
+            write_ptr(dst, bits_word(0))
+            return
+        }
+        ref word : Dynamic = deref(raw)
+        write_ptr(dst, word)
+        if raw_is_ref.or(raw_is_place).not() { raw_block_free(raw) }
+        return
+    }
     // Shallow primitive field init from an inline word, at the layout
     // width (host struct bytes; see field_word_type). A ref or place
     // arg is a BARE address into the source's storage (an Ident eval,
@@ -2103,6 +2122,11 @@ priv eval_expr_field_raw := proc(mut scope: Scope, mut e: Expr, shallow expr_typ
                     return result
                 }
                 if ffi_place_is_foreign(base, ctx) { ffi_borrow_place(decl_type_name_ref(fdecl, ctx.symbols), ptr_add(base, fl.offset), ctx) }
+                // #499: the slot of a shallow Dynamic field holds the pointer
+                // word itself; as for a Dynamic local (eval_expr_raw_info's
+                // Ident arm), a raw-pointer consumer loads it through this
+                // address instead of taking the address as the value.
+                info.arg_deref = field_resolved_type.is(Type.Dynamic)
                 return ptr_add(base, fl.offset)
             }
             if decl_is_funcsig(fdecl, ctx) {
@@ -4962,20 +4986,6 @@ priv clone_container_buffer := func(struct_name: Str, src_data: Dynamic, mut dst
         elem_off := i.mul(esz)
         container_elem_clone_into(elem_type, ptr_add(new_buf, elem_off), ptr_add(src_hdr.p, elem_off), esz, ctx)
     }
-    own_slot_store(ptr_add(dst_data, data_fl.offset), new_buf, data_fl.size)
-}
-
-// #497: a container of refs copies its slots as they are: the clone
-// borrows the same referents.
-priv clone_ref_container_buffer := func(struct_name: Str, src_data: Dynamic, mut dst_data: Dynamic, ctx: Context) {
-    slot := container_ref_slot_size(struct_name, ctx)
-    ref data_fl : FieldLayout = ctx_field_layout(struct_name, "data", ctx)
-    ref src_hdr : DynPtrBox = ptr_add(src_data, data_fl.offset)
-    if src_hdr.p.is_null() { return }
-    cap := container_capacity(struct_name, src_data, ctx)
-    mut new_buf : Dynamic = EvalHeap.heap_alloc(cap.mul(slot))
-    n := container_live_count(struct_name, src_data, ctx)
-    memcpy(new_buf, src_hdr.p, n.mul(slot).to_uptr())
     own_slot_store(ptr_add(dst_data, data_fl.offset), new_buf, data_fl.size)
 }
 

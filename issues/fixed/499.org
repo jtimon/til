@@ -1,0 +1,43 @@
+# priority: medium
+# category: bugs
+** FIXED #499 Interpreting a struct with a plain Dynamic field crashes or misreads it
+
+*** Post-mortem
+
+Root cause, two halves of one gap in ~interpreter.til~ for a shallow
+(not own, not ref) ~Dynamic~ struct field, whose slot holds the pointer
+word itself:
+
+- Initialization: ~init_field_raw~ had no arm for it and reached the
+  generic ~memcpy(dst, raw, field_size)~. A ~0~ literal evaluates to the
+  null word itself (#321's rule, which the own/ref arm already applied),
+  so ~S()~ for ~S := struct { p: Dynamic = 0 }~ copied from address 0 and
+  crashed.
+- Reads: ~eval_expr_field_raw~ lends such a field as a ref to its slot but
+  left ~RawResultInfo.arg_deref~ unset, unlike a ~Dynamic~ local, so
+  ~raw_arg_pointer~ handed raw-pointer builtins the slot's ADDRESS:
+  ~s.p.is_null()~ was false for a null field. Hidden until now by the
+  crash.
+
+Fix: ~init_field_raw~ stores the word (null for the literal, else loaded
+from the temp block or the ref/place, freeing a temp), and the field read
+sets ~arg_deref~ for a ~Dynamic~ field. ~test/leak_report.til~, which
+crashed when interpreted, now runs (it stays a compiled-only ASAN row).
+
+Regression: ~test/bug499.til~ (interpreted and compiled): ~S()~,
+~S(p = 0)~, ~S(p = malloc(16))~ with ~is_null~ checks, and a struct with a
+~Dynamic~ field among others returned from a function. Master's compiler
+segfaults on it interpreted.
+
+*** Symptom
+
+#+begin_src til
+mode script
+S := struct { p: Dynamic = 0 }
+s := S()
+println(s.p.is_null().to_str())
+#+end_src
+
+~bin/til interpret~ segfaults (ASAN: SEGV in ~memmove~ from
+~init_field_raw~). ~bin/til run~ prints ~true~. Found while checking
+#497 under ASAN, where ~test/leak_report.til~ could not be interpreted.

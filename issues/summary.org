@@ -6,6 +6,8 @@
 *** [[./open/445.org][#445]] C library binding generation rejects builtin SIMD types
 *** [[./open/448.org][#448]] Same top-level function name in two units compiles silently; last definition wins everywhere
 *** [[./open/465.org][#465]] Enum switch payload binding reevaluates a side-effecting scrutinee
+*** [[./open/500.org][#500]] C backend: a raw allocation local passed to a Dynamic field is dereferenced
+*** [[./open/501.org][#501]] A ref binding of another type to a Dynamic field is accepted
 ** Low
 *** [[./open/427.org][#427]] func<G> fails when G appears inside another type in its signature
 *** [[./open/428.org][#428]] Errors inside an instantiated template point at the user's file and cascade

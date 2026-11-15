@@ -2410,6 +2410,7 @@ main := proc(args: ..Str) returns I64 {
     add_both(tests, "test/bug494.til", flags)
     add_both(tests, "test/bug497.til", flags)
     add_both(tests, "test/bug498.til", flags)
+    add_both(tests, "test/bug499.til", flags)
     add_both(tests, "test/bug468.til", flags)
     add_both(tests, "test/bug469.til", flags)
     add_both(tests, "test/bug471.til", flags)
@@ -2826,6 +2827,15 @@ main := proc(args: ..Str) returns I64 {
         CountCheck(needle = "must be marked", expected_count = 2))
     add_count(tests, "fcall_arg_parity_total_build", "typer", "error:", 12,
         format(til_bin, " build", asan_flag, " test/fcall_arg_parity_error.til"))
+    // #498: type_arg_is_interface on a nested application of a template whose
+    // branches return both an interface and a struct has no single answer.
+    bug498_mixed_checks := array(CountCheck,
+        CountCheck(needle = "cannot tell whether a 'Either' application is an interface before it is instantiated", expected_count = 1),
+        CountCheck(needle = "2 type error(s) found", expected_count = 1))
+    add_counts(tests, "bug498_mixed_interp", "typer",
+        format(til_bin, " interpret test/bug498_mixed_error.til"), ..bug498_mixed_checks)
+    add_counts(tests, "bug498_mixed_build", "typer",
+        format(til_bin, " build", asan_flag, " test/bug498_mixed_error.til"), ..bug498_mixed_checks)
     // #342: a `..` past the last bit of the per-argument bitmap is refused,
     // not silently dropped into the lowering as an ordinary element.
     add_count(tests, "splat_arg_limit_interp", "typer",

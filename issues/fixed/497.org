@@ -20,9 +20,11 @@ user-defined cases from that record (a core instance with no record
 panics), ~container_elem_type~ answers only for containers that own their
 elements, and ~container_ref_slot_size~ gives a ref container's slot width
 (core's ~slot_size~ rule: an interface value inline, else one pointer).
-Dropping a ref container frees only its buffer; a raw clone copies its
-slots. No test reaches the raw-clone path (the generated ~clone~ methods
-handle every case tried), so that branch is unexercised.
+Dropping a ref container frees only its buffer. A raw clone of one
+(~heap_clone~) is not reached by any program found -- element, field,
+map-value and borrowed-argument copies all go through the generated
+~clone~ method -- so that branch panics instead of running an untested
+copy (follow-up commit).
 
 Regression: ~test/bug497.til~ (interpreted and compiled): globals of
 ~Vec(ref Str)~ and ~Vec(ref VS)~ (~VS := Vec(Str)~), and a clone of the
