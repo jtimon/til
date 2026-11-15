@@ -2358,3 +2358,27 @@ Closed with #483's round 4: the garbager now rejects this program at
 ~Box(name = NAME)~ ("constant global 'NAME' is moved out here, and a
 constant is never given a new value: pass NAME.clone()"); a literal
 constant stays accepted. Regression: test/global_transfer_error.til.
+
+The same hole for borrowed names, closed here. A constructor field takes
+its value over (it is ~own~ without the keyword), and the typer only
+applied the "cannot pass ref variable" rule to an explicit ~own~ argument.
+So ~Box(name = text)~ compiled when ~text~ was a borrowed parameter, a
+~mut~ parameter, a ~ref~ local, a loop variable or a match payload, and
+the struct and the real owner both freed the value (use after free under
+ASAN for the first three, checked here). The typer now reports each where
+it marks the constructor argument ~own~ (~reject_borrowed_ctor_arg~):
+"cannot pass ref variable 'text' to 'own' field 'name'; use text.clone()
+to make an owned copy". A type with nothing to delete is copied and stays
+accepted, as does a ~ref~ field. Nothing in the repository tripped it.
+Regression: test/ctor_borrowed_arg_error.til (two suite rows).
+Left as it is: an interface-typed field given a borrowed box is still
+cloned silently by the typer (#432), not rejected.
+
+Run 3113 (master d226262), the first with the member lists, was cancelled
+by this issue's own step: the cross-build job could not hash
+~libffi_members/__.SYMDEF~ ("Permission denied"). ~ar x~ restores each
+member's recorded mode and a Mach-O archive's symbol table is recorded
+with none; root reads it anyway, which is why it passed here. The
+collector now makes the extracted members readable (~chmod -R u+r~)
+before hashing. So no run has yet shown the trial lists after the fold
+fix; S2 to S4 still wait for one.

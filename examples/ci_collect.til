@@ -255,6 +255,12 @@ list_members := proc(target: Str, archive: Str, label: Str, scratch: Str, mut li
     extract := Cmd.new("ar", "x", format("--output=", scratch), archive)
     extract.capture()
     if extract.run() != 0 { fail(format(extract.render(), " failed: ", extract.err())) }
+    // REM ar restores each member's recorded mode, and a Mach-O archive's
+    // symbol table (__.SYMDEF) is recorded with none: unreadable to anyone
+    // but root (CI run 3113).
+    readable := Cmd.new("chmod", "-R", "u+r", scratch)
+    readable.capture()
+    if readable.run() != 0 { fail(format(readable.render(), " failed: ", readable.err())) }
     mut names := Vec(Str).new()
     mut paths := Vec(Str).new()
     for name : Str in Dir.list(scratch) {

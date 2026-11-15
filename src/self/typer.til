@@ -1360,10 +1360,43 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
             case:
             }
         }
+        reject_borrowed_ctor_arg(e.children[ai], ctor_sdd.field_name_at(fi), scope, ctx)
         set_own_arg(e, ai)
     }
     e.set_til_type(Type.StructSym(ctx.symbols.intern(resolve_type_alias(scope, name, ctx.symbols))))
     return true
+}
+
+// A constructor field takes its value over: it is `own` without the keyword
+// (spelling it on every field of every constructor call would only be
+// noise). So a bare name can fill one only when the function owns that
+// name. A `ref` variable or a borrowed parameter belongs to somebody else:
+// handing it over leaves two owners and both delete it. This is the rule an
+// explicit `own` argument has always had; the caller says what it means
+// with NAME.clone(). (A global handed over is the garbager's to report,
+// gc_settle_global_reassigns.)
+// A type with nothing to delete is copied, not taken, so it is exempt.
+priv reject_borrowed_ctor_arg := proc(arg: Expr, field_name: Str, scope: TypeScope, mut ctx: Context) {
+    switch arg.node_type {
+    case .Ident(an):
+        // REM Not a value binding (a type or function name): nothing to own.
+        bo := scope.get_binding_sym(an.ident_sym())
+        if bo.is_none() { return }
+        ref ab : TypeBinding = bo.unwrap()
+        if ab.own_type.is(OwnType.Ref).not() { return }
+        mut at := arg.til_type().clone()
+        switch at {
+        case .Custom(acn): at = type_from_name_init_name(acn, scope, ctx.symbols)
+        case .CustomSym(acs): at = type_from_sym_init(acs, scope, ctx.symbols)
+        case:
+        }
+        if is_aggregate(at).not() { return }
+        if init_delete_is_noop(type_to_name(at, ctx.symbols), scope, ctx.symbols) { return }
+        ref aname : Str = an.ident_name(ctx.symbols.names)
+        arg.type_error(format("cannot pass ref variable '", aname, "' to 'own' field '", field_name, "'; use ", aname,
+            ".clone() to make an owned copy"), ctx)
+    case:
+    }
 }
 
 // Issue #281: materialize one parameter/field default value for a call/ctor

@@ -1,0 +1,75 @@
+mode test
+
+// Negative test: a constructor field takes its value over (it is `own`
+// without the keyword), so a name the function only borrows cannot fill
+// it. Each of these compiled, and the new struct and the real owner then
+// both freed the one value (found through #472: bin/make read a freed
+// name). The rule is the one an explicit `own` argument has; the message
+// names the clone to pass.
+
+Label := struct { name := "" }
+Pair := struct { x := 0; y := 0 }
+Tagged := struct { at := Pair(); count := 0 }
+Lender := struct { ref name : Str }
+Entry := enum { Empty, Named: Str }
+
+// 1. A borrowed parameter.
+label_param := func(text: Str) returns Label { return Label(name = text) }
+
+// 2. A `mut` parameter is borrowed too.
+label_mut_param := func(mut text: Str) returns Label {
+    text = format(text, "!")
+    return Label(name = text)
+}
+
+// 3. A `ref` local.
+label_ref_local := func(text: Str) returns Label {
+    ref alias : Str = text
+    return Label(name = alias)
+}
+
+// 4. A loop variable lends the element.
+label_each := func(texts: Vec(Str)) returns USize {
+    mut total : USize = 0
+    for text : Str in texts {
+        made := Label(name = text)
+        total = total + made.name.len()
+    }
+    return total
+}
+
+// 5. A match payload lends the variant's value.
+label_payload := func(entry: Entry) returns USize {
+    switch entry {
+    case .Named(text):
+        made := Label(name = text)
+        return made.name.len()
+    case:
+    }
+    return 0
+}
+
+// Accepted: what the function owns, a clone, a type with nothing to delete
+// (copied, not taken), and a `ref` field, which borrows.
+label_owned := func(own text: Str, borrowed: Str, at: Pair, count: I64) returns USize {
+    local := format(borrowed, "!")
+    from_own := Label(name = text)
+    from_local := Label(name = local)
+    from_clone := Label(name = borrowed.clone())
+    tagged := Tagged(at = at, count = count)
+    lent := Lender(name = borrowed)
+    return from_own.name.len() + from_local.name.len() + from_clone.name.len() + lent.name.len()
+        + tagged.count.to_usize()
+}
+
+test_ctor_borrowed_arg_errors := test() {
+    assert(label_param("a").name.len() == 1)
+    mut text := "b"
+    assert(label_mut_param(text).name.len() == 2)
+    assert(label_ref_local("c").name.len() == 1)
+    mut texts := Vec(Str).new()
+    texts.push(own "d")
+    assert(label_each(texts) == 1)
+    assert(label_payload(Entry.Named("e")) == 1)
+    assert(label_owned(own "f", "g", Pair(x = 1, y = 2), 3) == 8)
+}
