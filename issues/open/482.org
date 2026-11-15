@@ -29,6 +29,25 @@ Explore what the README's aspirational "Better concurrency than Go" could mean
 for Til. "At some point, subjectively" is a goal, not a claim about current
 capabilities.
 
+*** What the thread model must settle for the cage (#313, 2026-11-15)
+
+Two things in the default layout (--usize=32, the allocation cage) depend
+on the thread model chosen here. They are constraints on this issue's
+design, recorded here so the choice is made knowing them; the pointer
+representation itself is #313's subject and is not repeated.
+
+- The cage allocator is single-threaded by construction (no lock; ext.c
+  says so). Parallel til execution needs either a lock or per-thread
+  caches over a shared page pool, and the 4GB cap becomes ONE budget for
+  every thread's heap. This is the "runtime audit" the Investigation below
+  lists as unfinished, made concrete.
+- One question from #313 needs a yes or no from this design: can til code
+  ever run on a thread til did not start (a C library's callback thread,
+  such as NNG's completion threads), or only on threads til starts, with
+  foreign completions handed off to a til event loop? #313's open choice
+  for compressing stored references turns on it (a foreign thread's stack
+  can never be in the cage), and it waits for the answer.
+
 *** Questions to explore
 
 - Go channels and select: ownership, buffering, backpressure, cancellation,

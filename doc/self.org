@@ -398,15 +398,11 @@
   return value (~Option(ref T)~ included) would stay native in either
   design -- unlike an owned ~Option(T)~, which is a 4-byte value wherever
   it lives -- so the whole payoff is 4 bytes in those 19 fields. That is
-  why refs are native by
-  decision, not by omission: the density lives in owned links and buffers,
-  which are compressed, and a structure whose ~ref~ link ever turns out to
-  matter is better served by making that link ~own~ or an index. ~Dynamic~
-  stays native because it crosses the FFI, ~UPtr~ because it is a byte
-  count. Issue #313 ("Plan for the reference side") keeps the ordered
-  steps should the decision be revisited; it is not fully satisfying, and
-  it is written down so that the next reader starts from the measurement
-  rather than from the title.
+  why refs are native TODAY: the density lives in owned links and buffers,
+  which are compressed. ~Dynamic~ stays native because it crosses the FFI,
+  ~UPtr~ because it is a byte count. Whether stored refs get compressed
+  too is an open question, not a decision: issue #313 holds the options
+  and waits on the thread model of #482.
 
   The driver passes ~-DTIL_USIZE32~ or ~-DTIL_USIZE64~ on every C compile,
   and the generated headers carry the same pin as a default, so a flag-less

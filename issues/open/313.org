@@ -1,6 +1,101 @@
 # priority: low
 # category: features
-** FIXED #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
+** OPEN #313 Narrow UPtr to 32 bits on 64-bit hosts (pointer compression), like #309 did for USize
+
+*** Reopened (2026-11-12): stored references -- WAITING on #482's thread model
+
+Reopened by the human. The close (511bcde02) rested on "references are
+native by decision", but the human never decided that: his word
+(2026-11-09) was to document the reasons, "even though this isn't really
+fully satisfying". Recording it as a decision, and closing on it, was the
+session's overreach. The true state: owned pointers are compressed and
+done; whether stored ~ref~ fields are compressed too is OPEN. The
+post-mortem and Status below describe the state at the close and are kept
+as written, except that every "by decision" there reads "by
+recommendation".
+
+Remaining item: stored ~ref~ fields as 4-byte cage offsets under
+--usize=32, like ~own~ fields.
+
+**** The experiment (2026-11-12, another session, pass 1 only, not committed)
+
+~field_is_own_ptr~'s exclusions applied to ref fields too
+(~field_is_ref_ptr~ / ~field_is_cage_ptr~ for the target,
+~host_field_is_cptr~ with a ~HostRefPtrProbe~ for the running binary),
+routed through the typer's sizes, the struct typedef, ctor/field-assign
+stores (TIL_OWN_SET), the initer's FieldLayout, ffi field types, ctypes
+and JNI places. ~File~, ~Dir~ and ~Cmd~ held their C handles as ~ref U8~;
+those became ~ref Dynamic~ (correct on its own: they are C handles, and
+can land separately). Result: 539/564. Of the 25 failures, 21 are a
+compiled program storing a ref to a STACK local (0x7ff...) or a GLOBAL
+(0x55...), which ~til_cptr_encode~ refuses loudly (structs, ref,
+reference_rebinding, ownership_shapes, closures, own_fields, hashmaps,
+parsing, bug467, aggregate_control, script_str_runtime, the installed
+TilVm hosts through ~HeapBinding.ctx~, interp_session, ...); the rest are
+pins (library_namespace's binding text), an install test not opened, and
+pass 1's expected self_translate_native mismatch. Interpreted runs all
+pass: the interpreter's slots are in the cage. So the emitter is not the
+question; where a ref to a stack local or a global goes is. Those are
+ordinary til, not misuse.
+
+**** The options for refs to stack locals and globals
+
+1. A side table. The top slice of the 32-bit offset space (say the last
+   16MB) holds indices into a process-wide table of addresses outside the
+   cage; a ref field is a cage offset or a table index.
+   - For: keeps every current ~ref~ behaviour; works on Windows, with
+     ASAN's use-after-return frames, and from any thread on any stack.
+   - Against: a compare and branch on every ref-field load (ref fields are
+     read far more than stored; ~HeapBinding.ctx~ on nearly every
+     interpreter operation); a hash lookup when an outside address is
+     first stored; a table that only grows, with stale entries for dead
+     frames; a third pointer state (null, offset, index) through the
+     emitter, the interpreter layouts, reflection, FFI, ctypes, JNI and
+     the callback bridge.
+2. Stacks and globals in the cage. ~main~ and every til thread run on a
+   stack allocated in the cage, globals are placed there at startup.
+   - For: no per-access cost; one representation.
+   - Against: Windows cannot place a thread's stack in chosen memory
+     without hand-written stack switching; ASAN's use-after-return frames
+     live outside the cage, so that check would be turned off (5eb05df
+     deliberately kept it on); stacks come out of the same 4GB as the heap.
+3. A language rule that a stored ref must point at the heap. DISCARDED by
+   the human (2026-11-15): it breaks about 20 suite programs and a common
+   idiom.
+
+In every option the saving is the same and small: 4 bytes per stored ref
+field, about 30 such fields in the compiler (19 in struct definitions by
+the earlier count, several of them C handles or callables that stay
+native). The session that ran the experiment recommends 1; the session
+that wrote the reference plan below recommended compressing nothing. The
+human has decided neither.
+
+**** Threads decide between 1 and 2 (2026-11-15): wait for #482
+
+til will not stay single-threaded (#482), and the choice depends on the
+thread model:
+
+- If til code can ever run on a thread til did not start (a C library's
+  callback thread; #482's NNG completions run on NNG's own threads today,
+  though only NNG's copied data is touched there), its stack is outside
+  the cage and option 2 panics on the first ref to a local stored from
+  it. Only the side table is indifferent to whose stack an address is on.
+- If til code only ever runs on threads til starts (completions handed
+  off to a til event loop, #482's direction so far), option 2 is viable
+  on Linux and macOS, at the price of every thread's reserved stack
+  coming out of the 4GB, and the side table's per-load cost buys nothing.
+- The side table must be process-wide (one thread reads a ref another
+  stored). It can be read without a lock if it is append-only, locking
+  only when a new outside address is first stored; thread churn makes its
+  growth worse, since every new stack contributes addresses that are
+  never removed.
+- What threads require of the cage itself, whatever happens to refs, is
+  #482's to record ("What the thread model must settle for the cage").
+
+Decision (human, 2026-11-15): WAIT. Do not pick between 1 and 2 until
+#482 has chosen a thread model; then decide with a benchmark on the
+native self-translate row (self_ms / self_mem in doc/totals.csv), not on
+estimates. Nothing else in this issue is open.
 
 *** Post-mortem (final close, 2026-11-12)
 
@@ -184,9 +279,12 @@ What compressing them would cost:
   the stack. ~Dynamic~ and ~UPtr~ stay native regardless (FFI pointers and
   byte counts), as the own-field post-mortem below already settled.
 
-Decision (2026-11-09): references stay native. Documented in doc/self.org
-"Pointer-compression cage", "Why only own fields are compressed", with
-the measurement above; the steps below stay here for a future revisit.
+RECOMMENDATION, not a decision (it was recorded as "Decision (2026-11-09):
+references stay native" until 2026-11-15, wrongly: the human asked for
+the reasons to be documented, he did not decide). The reasons are in
+doc/self.org "Pointer-compression cage", "Why only own fields are
+compressed", with the measurement above; the question is open, see
+"Reopened" at the top.
 
 Recommendation (as proposed): do not compress references. Define the 32-bit layout as
 what it is -- owned pointer fields, which are where data structures' links
