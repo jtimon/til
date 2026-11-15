@@ -306,6 +306,7 @@ typedef struct InterpOutputEvent InterpOutputEvent;
 typedef struct ComptimeDefinition ComptimeDefinition;
 typedef struct ComptimePreparation ComptimePreparation;
 typedef struct EvalState EvalState;
+typedef struct TypeInstanceArg TypeInstanceArg;
 typedef struct Context Context;
 typedef struct priv___src_self_context_til__HostOwnPtrProbe priv___src_self_context_til__HostOwnPtrProbe;
 typedef struct Option__priv___src_self_context_til__HostOwnPtrProbe Option__priv___src_self_context_til__HostOwnPtrProbe;
@@ -337,6 +338,7 @@ typedef struct Option__ComptimePreparation Option__ComptimePreparation;
 typedef struct Map__Str_FuncType Map__Str_FuncType;
 typedef struct Option__Scope Option__Scope;
 typedef struct Map__Str_ImportUnit Map__Str_ImportUnit;
+typedef struct Map__Str_Vec__TypeInstanceArg Map__Str_Vec__TypeInstanceArg;
 typedef struct Map__UPtr_RootBits Map__UPtr_RootBits;
 typedef struct Map__UPtr_ParameterEffects Map__UPtr_ParameterEffects;
 typedef struct Map__Str_Type Map__Str_Type;
@@ -360,6 +362,8 @@ typedef struct Vec__ForeignPlace Vec__ForeignPlace;
 typedef struct Vec__Mode Vec__Mode;
 typedef struct Vec__FuncType Vec__FuncType;
 typedef struct Vec__ImportUnit Vec__ImportUnit;
+typedef struct Vec__TypeInstanceArg Vec__TypeInstanceArg;
+typedef struct Vec__Vec__TypeInstanceArg Vec__Vec__TypeInstanceArg;
 typedef struct Vec__RootBits Vec__RootBits;
 typedef struct Vec__ParameterEffects Vec__ParameterEffects;
 typedef struct Vec__Type Vec__Type;
@@ -525,6 +529,7 @@ typedef struct Option__priv___src_self_interpreter_til__InterpSharedI64 Option__
 typedef struct Option__ref_InterpSession Option__ref_InterpSession;
 typedef struct Option__ref_U8 Option__ref_U8;
 typedef struct Vec__priv___src_self_interpreter_til__InterfaceCallBox Vec__priv___src_self_interpreter_til__InterfaceCallBox;
+typedef struct Option__ref_TypeInstanceArg Option__ref_TypeInstanceArg;
 typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
 typedef struct Option__ref_Dynamic Option__ref_Dynamic;
 typedef struct Option__FuncSig Option__FuncSig;
@@ -1075,6 +1080,12 @@ typedef struct ComptimeDefinition {
 } ComptimeDefinition;
 
 
+typedef struct TypeInstanceArg {
+    Str name;
+    Bool is_ref;
+} TypeInstanceArg;
+
+
 typedef struct priv___src_self_context_til__HostOwnPtrProbe {
     TIL_OWN_PTR(U8) p;
 } priv___src_self_context_til__HostOwnPtrProbe;
@@ -1293,6 +1304,20 @@ typedef struct Vec__ImportUnit {
     USize count;
     USize cap;
 } Vec__ImportUnit;
+
+
+typedef struct Vec__TypeInstanceArg {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__TypeInstanceArg;
+
+
+typedef struct Vec__Vec__TypeInstanceArg {
+    TIL_OWN_PTR(U8) data;
+    USize count;
+    USize cap;
+} Vec__Vec__TypeInstanceArg;
 
 
 typedef struct Vec__RootBits {
@@ -2070,6 +2095,10 @@ typedef struct Vec__priv___src_self_interpreter_til__InterfaceCallBox {
 } Vec__priv___src_self_interpreter_til__InterfaceCallBox;
 
 
+struct Option__ref_TypeInstanceArg {
+    TypeInstanceArg *data;
+};
+
 struct Option__ref_Dynamic {
     void *data;
 };
@@ -2539,6 +2568,12 @@ typedef struct Map__Str_ImportUnit {
 } Map__Str_ImportUnit;
 
 
+typedef struct Map__Str_Vec__TypeInstanceArg {
+    Vec__Str keys;
+    Vec__Vec__TypeInstanceArg values;
+} Map__Str_Vec__TypeInstanceArg;
+
+
 typedef struct Map__UPtr_RootBits {
     Vec__UPtr keys;
     Vec__RootBits values;
@@ -2891,7 +2926,7 @@ typedef struct Context {
     Set__Str imports_typer_bodies_done;
     Bool infer_struct_fields_only;
     Set__Str type_gen_synths;
-    Map__Str_Vec__Str type_instance_args;
+    Map__Str_Vec__TypeInstanceArg type_instance_args;
     Map__Str_Expr generic_funcs;
     Map__UPtr_RootBits global_borrow_escapes;
     Map__UPtr_ParameterEffects parameter_effects;

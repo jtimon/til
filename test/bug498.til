@@ -1,0 +1,49 @@
+mode script
+
+// Issue #498: a nested type application passed as a type argument
+// (`Box(Vec(Str))`) is substituted into the template body as the instance it
+// names, the same as through an alias (`VS := Vec(Str)`; `Box(VS)`). It used
+// to be substituted as the call `Vec(Str)` itself, so a generator the body
+// forwards T to saw a value: "type_arg_is_interface requires a compile-time
+// type argument, not a value". Core's `Vec(ref T)` forwards T to
+// vec_ref_store(T), so `Vec(ref Vec(Str))` failed the same way.
+
+is_iface := macro(E: Type) returns FuncDef {
+    if type_arg_is_interface(E) {
+        return func() returns I64 { return 1 }
+    } else {
+        return func() returns I64 { return 0 }
+    }
+}
+
+Box := struct<T: Type> {
+    n : I64 = 0
+namespace:
+    probe := is_iface(T)
+    wrap := func(own v: T) returns Vec(T) {
+        mut out := Vec(T).new()
+        out.push(own v)
+        return out
+    }
+}
+
+assert_eq(I64, Box(Vec(Str)).probe(), 0)
+VS := Vec(Str)
+assert_eq(I64, Box(VS).probe(), 0)
+
+// The forwarded instance and the alias are one type, and Vec(T) inside the
+// body names the same Vec__Vec__Str as an outside Vec(Vec(Str)).
+mut inner := Vec(Str).new()
+inner.push(own "x")
+wrapped := Box(Vec(Str)).wrap(own inner)
+take := func(v: Vec(Vec(Str))) returns USize { return v.len() }
+assert_eq(USize, take(wrapped), 1)
+
+mut owned := Vec(Str).new()
+owned.push(own "y")
+mut views := Vec(ref Vec(Str)).new()
+views.push(owned)
+assert_eq(USize, views.len(), 1)
+assert_eq(USize, views[0].len(), 1)
+
+println("bug498: ok")

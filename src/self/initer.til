@@ -5455,15 +5455,15 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
         .or(ret_val.node_type.is(NodeType.FuncDef))
     if ret_val_ok.not() { return false }
 
-    // #493: record the instance's Type arguments. A ref argument is not
-    // recorded: the instance stores borrowed elements it does not own, so it
-    // is not an owning container of that type.
-    if ret_val.node_type.is(NodeType.StructDef).and(ref_params.len() == 0) {
-        mut type_args := Vec(Str).new()
+    // #493 / #497: record the instantiated struct's Type arguments.
+    if ret_val.node_type.is(NodeType.StructDef) {
+        mut type_args := Vec(TypeInstanceArg).new()
         for param : Declaration in funcdef_of(macro_fdef).sig.params {
             if decl_type_name_ref(param, ctx.symbols) != "Type" { continue }
             if subs.has(param.name).not() { continue }
-            type_args.push(own init_subst_ident_name(subs, ref_params, param.name, ctx.symbols))
+            type_args.push(own TypeInstanceArg(
+                name = init_subst_ident_name(subs, ref_params, param.name, ctx.symbols),
+                is_ref = ref_params.has(param.name)))
         }
         ctx.type_instance_args.set(decl_of(stmt).name, own type_args)
     }

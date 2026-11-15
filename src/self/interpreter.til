@@ -190,6 +190,8 @@ priv heap_clone := func(struct_name: Str, data: Dynamic, ctx: Context) returns D
         clone_dyn_set_buffer(data, dst_data, ctx)
     } else if container_elem_type(struct_name, ctx).len() > 0 {
         clone_container_buffer(struct_name, data, dst_data, ctx)
+    } else if container_ref_slot_size(struct_name, ctx) > 0 {
+        clone_ref_container_buffer(struct_name, data, dst_data, ctx)
     } else if struct_def_shallow_safe(sdef_data, ctx) {
     } else {
         // sl.fields is positionally parallel to sdef_data.fields
@@ -4608,38 +4610,56 @@ priv DynPtrBox := struct {
 // Clone/free the backing buffer here so interpreted containers have
 // the same ownership as their generated delete/clone methods.
 
-// Element type of a monomorphized container ("Array__Str" -> "Str",
-// "Vec__I64" -> "I64"); "" for a non-container struct name.
-container_elem_type := func(struct_name: Str, ctx: Context) returns Str {
-    array_prefix := "Array__"
-    if struct_name.starts_with(array_prefix) {
-        return struct_name.substr(array_prefix.count, struct_name.count - array_prefix.count)
+// The one Type argument of a type-generator instantiation the interpreter
+// manages as a container: a core Vec/Array/Set instance, or a user-defined
+// one shaped like them (test/templ_vec.til's TemplVec(T): an owned byte
+// buffer plus count and cap). #493 / #497: read from the instantiation's
+// recorded arguments, never from its name.
+priv container_instance_arg := func(struct_name: Str, ctx: Context) returns Option(ref TypeInstanceArg) {
+    core := struct_name.starts_with("Vec__").or(struct_name.starts_with("Array__")).or(struct_name.starts_with("Set__"))
+    if ctx.type_instance_args.has(struct_name).not() {
+        if core { panic("core container instance has no recorded type arguments: ", struct_name) }
+        // REM: a miss is expected -- most structs are written by hand, not
+        // produced by a type generator.
+        return Option(ref TypeInstanceArg).None
     }
-    vec_prefix := "Vec__"
-    if struct_name.starts_with(vec_prefix) {
-        return struct_name.substr(vec_prefix.count, struct_name.count - vec_prefix.count)
-    }
-    set_prefix := "Set__"
-    if struct_name.starts_with(set_prefix) {
-        return struct_name.substr(set_prefix.count, struct_name.count - set_prefix.count)
-    }
-    // A user-defined container of one element type (test/templ_vec.til's
-    // TemplVec(T)): a generated instance with an owned byte buffer plus
-    // count and cap. #493: its element type is the instance's recorded Type
-    // argument, not a piece of its name.
-    // REM: a miss is expected -- most structs are not generated instances.
-    if ctx.type_instance_args.has(struct_name).not() { return "" }
-    ref type_args : Vec(Str) = ctx.type_instance_args[struct_name]
-    if type_args.len() != 1 { return "" }
+    ref type_args : Vec(TypeInstanceArg) = ctx.type_instance_args[struct_name]
+    if type_args.len() != 1 { return Option(ref TypeInstanceArg).None }
+    if core { return safe_ref(type_args[0]) }
     ref data_fl : FieldLayout = ctx_field_layout(struct_name, "data", ctx)
     ref count_fl : FieldLayout = ctx_field_layout(struct_name, "count", ctx)
     ref cap_fl : FieldLayout = ctx_field_layout(struct_name, "cap", ctx)
     if data_fl.size.gt(0).and(count_fl.size.gt(0)).and(cap_fl.size.gt(0)) {
         if data_fl.own_type.is(OwnType.Own).and(data_fl.struct_name.len().eq(0)).and(data_fl.is_enum.or(data_fl.is_funcptr).not()) {
-            return type_args[0].clone()
+            return safe_ref(type_args[0])
         }
     }
-    return ""
+    return Option(ref TypeInstanceArg).None
+}
+
+// Element type of a container that owns its elements ("Vec__Str" -> "Str");
+// "" for any other struct, including a container of refs
+// (container_ref_slot_size).
+container_elem_type := func(struct_name: Str, ctx: Context) returns Str {
+    arg_o := container_instance_arg(struct_name, ctx)
+    if arg_o.is_none() { return "" }
+    ref arg : TypeInstanceArg = arg_o.unwrap()
+    if arg.is_ref { return "" }
+    return arg.name.clone()
+}
+
+// #497: slot width of a container of refs (`Vec(ref T)`): its buffer is
+// owned, its slots borrow. Mirrors core's slot_size -- an interface value
+// inline, otherwise one pointer. 0 for any other struct.
+container_ref_slot_size := func(struct_name: Str, ctx: Context) returns USize {
+    arg_o := container_instance_arg(struct_name, ctx)
+    if arg_o.is_none() { return 0 }
+    ref arg : TypeInstanceArg = arg_o.unwrap()
+    if arg.is_ref.not() { return 0 }
+    if ctx.struct_layouts.has(arg.name).and(ctx.struct_layouts[arg.name].is_interface) {
+        return ctx_total_size(arg.name, ctx)
+    }
+    return UPtr.size()
 }
 
 container_elem_size := func(elem_type: Str, ctx: Context) returns USize {
@@ -4907,6 +4927,11 @@ priv heap_drop_struct := func(struct_name: Str, mut data: Dynamic, ctx: Context)
         free_dyn_set_buffer(data, ctx)
     } else if container_elem_type(struct_name, ctx).len() > 0 {
         free_container_data(struct_name, data, ctx)
+    } else if container_ref_slot_size(struct_name, ctx) > 0 {
+        // #497: the referents belong to someone else; only the buffer goes.
+        ref data_fl : FieldLayout = ctx_field_layout(struct_name, "data", ctx)
+        ref mut hdr : DynPtrBox = ptr_add(data, data_fl.offset)
+        EvalHeap.heap_free(own hdr.p)
     }
 }
 
@@ -4937,6 +4962,20 @@ priv clone_container_buffer := func(struct_name: Str, src_data: Dynamic, mut dst
         elem_off := i.mul(esz)
         container_elem_clone_into(elem_type, ptr_add(new_buf, elem_off), ptr_add(src_hdr.p, elem_off), esz, ctx)
     }
+    own_slot_store(ptr_add(dst_data, data_fl.offset), new_buf, data_fl.size)
+}
+
+// #497: a container of refs copies its slots as they are: the clone
+// borrows the same referents.
+priv clone_ref_container_buffer := func(struct_name: Str, src_data: Dynamic, mut dst_data: Dynamic, ctx: Context) {
+    slot := container_ref_slot_size(struct_name, ctx)
+    ref data_fl : FieldLayout = ctx_field_layout(struct_name, "data", ctx)
+    ref src_hdr : DynPtrBox = ptr_add(src_data, data_fl.offset)
+    if src_hdr.p.is_null() { return }
+    cap := container_capacity(struct_name, src_data, ctx)
+    mut new_buf : Dynamic = EvalHeap.heap_alloc(cap.mul(slot))
+    n := container_live_count(struct_name, src_data, ctx)
+    memcpy(new_buf, src_hdr.p, n.mul(slot).to_uptr())
     own_slot_store(ptr_add(dst_data, data_fl.offset), new_buf, data_fl.size)
 }
 

@@ -4584,6 +4584,20 @@ priv infer_generic_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: St
     generic_finish_fcall(scope, e, src_name, subs, ref_params, explicit, in_func, ctx)
 }
 
+// #498: count the struct literals a type template can return, and how many
+// of them are interfaces.
+priv type_template_returned_structs := func(e: Expr, mut structs: USize, mut interfaces: USize) {
+    if e.node_type.is(NodeType.Return).and(e.children.len().gt(0)) {
+        switch e.children[0].node_type {
+        case .StructDef(sd):
+            structs = structs + 1
+            if sd.is_interface { interfaces = interfaces + 1 }
+        case:
+        }
+    }
+    for c : Expr in e.children { type_template_returned_structs(c, structs, interfaces) }
+}
+
 priv infer_type_arg_query := proc(mut scope: TypeScope, mut e: Expr, name: Str, mut ctx: Context) {
     if e.children.len() != 2 {
         e.type_error(format(name, " expects one compile-time type argument"), ctx)
@@ -4600,6 +4614,37 @@ priv infer_type_arg_query := proc(mut scope: TypeScope, mut e: Expr, name: Str, 
             if is_type.and(name == "type_arg_is_interface") {
                 ref resolved : Str = resolve_type_alias(scope, id.ident_name(ctx.symbols.names), ctx.symbols)
                 is_interface = type_name_is_interface(scope, resolved, ctx.symbols)
+            }
+        }
+    case .FCall:
+        // #498: a nested type application (`Vec(Str)`), the form a template
+        // forwards a type argument in when it was given one (`Box(Vec(Str))`
+        // calling `is_iface(T)`). It is a type token, as in
+        // initer.til::init_arg_is_type_token; its instance may not exist yet,
+        // so whether it is an interface comes from what the template returns.
+        if e.children[1].children.len().gt(0) {
+            switch e.children[1].children[0].node_type {
+            case .Ident(cn):
+                template_o := scope.lookup_func_by_sym(cn.ident_sym(), ctx.symbols)
+                if template_o.is_some() {
+                    ref template : Expr = template_o.unwrap()
+                    ref tfd : FunctionDef = funcdef_of(template)
+                    if tfd.sig.func_type.is(FuncType.Macro).and(tfd.sig.return_type.eq("StructDef").or(tfd.sig.return_type.eq("EnumDef"))) {
+                        is_type = true
+                        if name == "type_arg_is_interface" {
+                            mut structs : USize = 0
+                            mut interfaces : USize = 0
+                            type_template_returned_structs(template, structs, interfaces)
+                            if interfaces.gt(0).and(interfaces.lt(structs)) {
+                                e.type_error(format(name, ": cannot tell whether a '", cn.ident_name(ctx.symbols.names),
+                                    "' application is an interface before it is instantiated; bind it to a name first"), ctx)
+                                return
+                            }
+                            is_interface = interfaces.gt(0)
+                        }
+                    }
+                }
+            case:
             }
         }
     case:

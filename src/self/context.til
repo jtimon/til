@@ -1629,6 +1629,14 @@ EvalState := struct {
     cached_str_name := ""
 }
 
+// One Type argument of a type-generator instantiation (#493, #497).
+TypeInstanceArg := struct {
+    name := ""
+    // Passed as `ref T`: the instantiated container stores borrowed
+    // elements, which it does not own.
+    is_ref := false
+}
+
 Context := struct {
     mode := Mode()
     path := ""
@@ -1735,12 +1743,13 @@ Context := struct {
     // unit that sees an inline `TemplVec(Bool)` owns the synthesized decl;
     // later units rewrite to the same name without emitting another type.
     type_gen_synths := Set(Str).new()
-    // #493: the concrete Type arguments of each expanded type-generator
-    // instance (instance name -> arguments in parameter order), recorded where
-    // the initer substitutes them. An instance name cannot be split back into
-    // its arguments (nested applications, several arguments joined by `_`),
-    // and the interpreter needs a user container's element type.
-    type_instance_args := Map(Str, Vec(Str)).new()
+    // #493 / #497: the concrete Type arguments of each struct a type
+    // generator produced (instantiated type name -> arguments in parameter
+    // order), recorded where the initer substitutes them. An instantiated
+    // name cannot be split back into its arguments (nested applications,
+    // several arguments joined by `_`, `ref_` spellings), and the
+    // interpreter needs a container's element type and whether it holds refs.
+    type_instance_args := Map(Str, Vec(TypeInstanceArg)).new()
 
     // Issue #58 cross-unit direct generics: a `func(T: Type, ...)` generic
     // (e.g. core `assert_eq`) defined in one unit and CALLED from another is

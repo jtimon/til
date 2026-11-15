@@ -1,0 +1,45 @@
+# priority: medium
+# category: bugs
+** FIXED #497 Interpreting a global container of refs panics at teardown
+
+*** Post-mortem
+
+Root cause: the interpreter read a core container's element type off its
+instance name (~container_elem_type~, the ~Vec__~ / ~Array__~ / ~Set__~
+prefix cases). For ~Vec(ref Str)~ that gave ~ref_Str~, which has no layout,
+so freeing a global's buffer at teardown panicked. Even with a layout the
+answer was wrong: a container of refs owns its buffer, not its referents,
+so its elements must not be freed or deep-cloned. Same family as #493,
+whose fix had read only user containers from the recorded arguments and
+skipped ref instances entirely.
+
+Fix: ~ctx.type_instance_args~ now records every struct a type generator
+produces, ref arguments included (~TypeInstanceArg~: name and ~is_ref~).
+~interpreter.til::container_instance_arg~ answers both the core and the
+user-defined cases from that record (a core instance with no record
+panics), ~container_elem_type~ answers only for containers that own their
+elements, and ~container_ref_slot_size~ gives a ref container's slot width
+(core's ~slot_size~ rule: an interface value inline, else one pointer).
+Dropping a ref container frees only its buffer; a raw clone copies its
+slots. No test reaches the raw-clone path (the generated ~clone~ methods
+handle every case tried), so that branch is unexercised.
+
+Regression: ~test/bug497.til~ (interpreted and compiled): globals of
+~Vec(ref Str)~ and ~Vec(ref VS)~ (~VS := Vec(Str)~), and a clone of the
+former. Master's compiler panics on it with "no registered size: ref_Str".
+
+Found on the way: ~Vec(ref Vec(Str))~ failed to type-check (reported at
+~src/core/vec.til~'s ~vec_ref_store~); filed and fixed as [[./498.org][#498]].
+
+*** Symptom
+
+#+begin_src til
+mode script
+keep := "a"
+mut v := Vec(ref Str).new()
+v.push(keep)
+println(v.len().to_str())
+#+end_src
+
+~bin/til interpret~ prints ~1~, then exits 1 with ~panic: container element
+has no registered size: ref_Str~. ~bin/til run~ works.

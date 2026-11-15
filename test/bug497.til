@@ -1,0 +1,33 @@
+mode script
+
+// Issue #497: a container of refs owns its buffer, not its referents. The
+// interpreter read the element type off the instance name (`ref_Str` from
+// `Vec__ref_Str`), found no layout, and panicked freeing a GLOBAL `Vec(ref
+// Str)` at teardown. It now frees only the buffer, and a raw copy of such
+// a container copies its slots (both borrow the same referents).
+
+keep_a := "a"
+keep_b := "bb"
+
+mut words := Vec(ref Str).new()
+words.push(keep_a)
+words.push(keep_b)
+assert_eq(USize, words.len(), 2)
+assert_eq(Str, words[1], "bb")
+
+copy := words.clone()
+assert_eq(USize, copy.len(), 2)
+assert_eq(Str, copy[0], "a")
+// The referents outlive both containers and are still intact.
+assert_eq(Str, keep_a, "a")
+
+// A container of refs to containers (alias spelling: `Vec(ref Vec(Str))`
+// does not type-check yet).
+VS := Vec(Str)
+mut many := Vec(ref VS).new()
+mut owned := Vec(Str).new()
+owned.push(own "x")
+many.push(owned)
+assert_eq(USize, many.len(), 1)
+
+println("bug497: ok")

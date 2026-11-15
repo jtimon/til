@@ -1,0 +1,48 @@
+# priority: medium
+# category: bugs
+** FIXED #498 A nested type argument forwarded to another generator inside a template is a value
+
+*** Post-mortem
+
+Root cause: a template given a nested type application (~Vec(Str)~ in
+~Box(Vec(Str))~) substitutes that call for T, and the initer treats such a
+call as a type token (~initer.til::init_arg_is_type_token~). But the
+typer's ~type_arg_is_interface~ / ~type_arg_is_ref~ query
+(~typer.til::infer_type_arg_query~) accepted only an identifier. Where the
+body forwards T to a generator whose condition asks about it (~is_iface(T)~,
+or core ~Vec(ref T)~'s ~vec_ref_store(T)~), the condition rejected the call
+as a value. The alias spelling worked because it substitutes an identifier.
+
+Fix: ~infer_type_arg_query~ accepts a call whose callee is a struct- or
+enum-generating template, the same rule as the initer's. The instance may
+not exist yet, so ~type_arg_is_interface~ answers from the struct literals
+the template returns (~type_template_returned_structs~); a template whose
+branches disagree is a type error asking to bind the application to a
+name. A first attempt substituted the instance's name instead and hoisted
+it; that broke member generators of a template whose nested argument is a
+type not yet instantiated (core ~Map(Str, Vec(Pair))~), and was dropped.
+
+Regression: ~test/bug498.til~ (interpreted and compiled): a template that
+forwards a nested type argument to a generator, the alias form, a method
+returning ~Vec(T)~ accepted as an outside ~Vec(Vec(Str))~, and
+~Vec(ref Vec(Str))~. Master's compiler rejects it with the error below.
+
+*** Symptom
+
+#+begin_src til
+mode script
+is_iface := macro(E: Type) returns FuncDef {
+    if type_arg_is_interface(E) { return func() returns I64 { return 1 } }
+    else { return func() returns I64 { return 0 } }
+}
+Box := struct<T: Type> {
+    n : I64 = 0
+namespace:
+    probe := is_iface(T)
+}
+println(Box(Vec(Str)).probe().to_str())
+#+end_src
+
+reports ~error: type_arg_is_interface requires a compile-time type argument,
+not a value~; so does any use of ~Vec(ref Vec(Str))~. Found while fixing
+[[./497.org][#497]].
