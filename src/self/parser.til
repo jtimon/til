@@ -1972,13 +1972,16 @@ priv str_lit_decode := func(text: Str) returns Str {
         if c.eq('\\').and(i.add(1).lt(n)) {
             ref nx : I8 = text.unsafe_get(i + 1)
             mut val : I64 = -1
-            if nx == 'n' { val = 10 }
-            else if nx == 'r' { val = 13 }
-            else if nx == 't' { val = 9 }
-            else if nx == '\\' { val = 92 }
-            else if nx == '"' { val = 34 }
-            else if nx == '\'' { val = 39 }
-            else if nx == '0' { val = 0 }
+            switch nx {
+            case 'n': val = 10
+            case 'r': val = 13
+            case 't': val = 9
+            case '\\': val = 92
+            case '"': val = 34
+            case '\'': val = 39
+            case '0': val = 0
+            case:
+            }
             if val >= 0 {
                 out.push_str(Str.from_byte(val.to_u8()))
                 i = i + 2
@@ -2130,17 +2133,19 @@ priv parse_primary := proc(mut p: Parser) returns Expr {
             // The lexer accepted only the escapes strings take
             // (lexer.til escape_problem), \xH / \xHH included.
             ref c2 : I8 = ch.get(1)
-            if c2 == 'n' { byte_val = 10 }
-            else if c2 == 't' { byte_val = 9 }
-            else if c2 == 'r' { byte_val = 13 }
-            else if c2 == '\\' { byte_val = 92 }
-            else if c2 == '\'' { byte_val = 39 }
-            else if c2 == '"' { byte_val = 34 }
-            else if c2 == '0' { byte_val = 0 }
-            else if c2 == 'x' {
+            switch c2 {
+            case 'n': byte_val = 10
+            case 't': byte_val = 9
+            case 'r': byte_val = 13
+            case '\\': byte_val = 92
+            case '\'': byte_val = 39
+            case '"': byte_val = 34
+            case '0': byte_val = 0
+            case 'x':
                 byte_val = str_lit_hex_digit(ch.get(2))
                 if ch.len() > 3 { byte_val = byte_val.mul(16).add(str_lit_hex_digit(ch.get(3))) }
-            } else { panic(__LOC__, "char literal with an escape the lexer rejects: ", ch) }
+            case: panic(__LOC__, "char literal with an escape the lexer rejects: ", ch)
+            }
         } else {
             if ch.len() > 0 { byte_val = ch.get(0).cast(I64) }
         }

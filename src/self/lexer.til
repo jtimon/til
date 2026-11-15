@@ -131,14 +131,14 @@ priv is_hex_digit := func(c: I8) returns Bool {
 // typo -- or an escape a later til adds -- changed a program silently.
 priv escape_problem := func(src: Str, pos: USize, kind: Str) returns Str {
     ref c : I8 = src.unsafe_get(pos)
-    if c.eq('n').or(c.eq('r')).or(c.eq('t')).or(c.eq('\\')).or(c.eq('"')).or(c.eq('\'')).or(c.eq('0')) {
-        return ""
-    }
-    escapes := "the escapes are \\n \\r \\t \\\\ \\\" \\' \\0 and \\x with one or two hex digits"
-    if c.eq('x') {
+    switch c {
+    case 'n', 'r', 't', '\\', '"', '\'', '0': return ""
+    case 'x':
         if pos.add(1).lt(src.len()).and(is_hex_digit(src.unsafe_get(pos.add(1)))) { return "" }
         return format("'\\x' in a ", kind, " literal needs one or two hex digits")
+    case:
     }
+    escapes := "the escapes are \\n \\r \\t \\\\ \\\" \\' \\0 and \\x with one or two hex digits"
     mut hint := ""
     if kind == "string" { hint = "; write \\\\ for a backslash itself" }
     if c.lt(' ').or(c.gt('~')) {
@@ -551,6 +551,10 @@ tokenize := proc(src: Str, path: Str, quiet: Bool = false, mut diagnostics: Vec(
         // Strings
         case '"':
             pos++
+            // #484: the token and its diagnostic carry the line of the
+            // opening quote, with its col; the scan advances `line` past
+            // every newline inside the literal.
+            str_line := line
             mut bad_escape := false
             while pos < src_len {
                 if src.unsafe_get(pos) == '"' { break }
@@ -572,13 +576,13 @@ tokenize := proc(src: Str, path: Str, quiet: Bool = false, mut diagnostics: Vec(
             if pos.lt(src_len).and(src.unsafe_get(pos).eq('"')) {
                 pos++
                 if bad_escape {
-                    push_tok(tokens, TokenType.Error, start, pos - start, line, col)
+                    push_tok(tokens, TokenType.Error, start, pos - start, str_line, col)
                 } else {
-                    push_tok(tokens, TokenType.StringTok, start + 1, pos.sub(start) - 2, line, col)
+                    push_tok(tokens, TokenType.StringTok, start + 1, pos.sub(start) - 2, str_line, col)
                 }
             } else {
-                lex_error(path, line, col, "unterminated string", quiet, diagnostics)
-                push_tok(tokens, TokenType.Error, start, pos - start, line, col)
+                lex_error(path, str_line, col, "unterminated string", quiet, diagnostics)
+                push_tok(tokens, TokenType.Error, start, pos - start, str_line, col)
             }
             continue
 

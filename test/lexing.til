@@ -264,15 +264,22 @@ test_strings := test() {
 }
 
 test_multiline_string := test() {
-    // A newline inside a string advances the line for what follows.
-    src := "\"a\nb\" y"
+    // A newline inside a string advances the line for what follows; the
+    // string itself starts where its opening quote is (#484: it used to
+    // carry its end line with its start col).
+    src := "x := \"a\nb\nc\" y"
     tokens := tokenize(src, "test")
-    ref t : Token = tokens[0]
-    tt := t.type
-    assert(tt.eq(TokenType.StringTok))
-    assert_eq(Str, src.substr(t.start, t.len), "a\nb")
-    check_tok(src, tokens, 1, TokenType.Ident, "y", 2, 4)
-    check_eof(src, tokens, 3, 2, 5)
+    check_tok(src, tokens, 2, TokenType.StringTok, "a\nb\nc", 1, 6)
+    check_tok(src, tokens, 3, TokenType.Ident, "y", 3, 4)
+    check_eof(src, tokens, 5, 3, 5)
+    // The unterminated-string diagnostic too.
+    open_src := "x := \"a\nb"
+    mut diags := Vec(SourceDiagnostic).new()
+    open_tokens := tokenize(open_src, "lexfile", true, diags)
+    check_tok(open_src, open_tokens, 2, TokenType.Error, "\"a\nb", 1, 6)
+    assert_eq(USize, diags.len(), 1)
+    ref d0 : SourceDiagnostic = diags[0]
+    assert_eq(Str, d0.render(), "lexfile:1:6: error: unterminated string")
 }
 
 test_chars := test() {
