@@ -44,6 +44,56 @@ edit := proc(path: Str, content: Str) {
     next_tick()
 }
 
+// Run a command in WORK; its output must contain `expected`. The FASM
+// assembler prints a banner, so exact output is not the contract here.
+expect_output_contains := proc(command: Cmd, expected: Str) {
+    command.cwd(WORK)
+    command.capture()
+    if command.run() != 0 { panic(command.render(), ": ", command.out(), command.err()) }
+    if command.out().contains(expected).not() {
+        panic(command.render(), " expected '", expected, "' in '", command.out(), "'")
+    }
+}
+
+// #442: the FASM and MLIR backends reuse their source and executable by
+// the same rule as C: an identical run rewrites nothing, another program at
+// the same -o is rebuilt, and an edit retranslates.
+check_backend_reuse := proc(compiler: Str, backend: Str, extension: Str) {
+    for which : Str in array(Str, "one", "two") {
+        File.writefile(format(WORK, "/", backend, "_", which, ".til"),
+            format("mode cli\nmain := proc() { println(\"", which, " ", backend, "\") }\n"))
+    }
+    source := format(backend, "_one.til")
+    generated := format("gen/", backend, "/", backend, "_one", extension)
+    binary := format("bin/", backend, "_one")
+    flag := format("--backend=", backend)
+    // An assembler fast enough to write the binary in its source's own clock
+    // tick leaves it stale once (an input as new as its output counts as
+    // newer); the second run settles that before the comparison.
+    expect_output_contains(Cmd.new(compiler, "run", flag, source), format("one ", backend))
+    next_tick()
+    expect_output_contains(Cmd.new(compiler, "run", flag, source), format("one ", backend))
+    generated_time := mtime(generated)
+    binary_time := mtime(binary)
+    next_tick()
+    expect_output_contains(Cmd.new(compiler, "run", flag, source), format("one ", backend))
+    expect_same(generated, generated_time, format(backend, " unchanged run retranslated"))
+    expect_same(binary, binary_time, format(backend, " unchanged run rebuilt"))
+    shared := format(backend, "_shared")
+    expect_output_contains(Cmd.new(compiler, "run", flag, "-o", shared, format(backend, "_two.til")), format("two ", backend))
+    expect_output_contains(Cmd.new(compiler, "run", flag, "-o", shared, source), format("one ", backend))
+    edit(format(WORK, "/", source), format("mode cli\nmain := proc() { println(\"edited ", backend, "\") }\n"))
+    expect_output_contains(Cmd.new(compiler, "run", flag, source), format("edited ", backend))
+    expect_newer(generated, generated_time, format(backend, " edit"))
+}
+
+// Is `tool` on PATH? A missing command cannot start.
+have_tool := proc(tool: Str) returns Bool {
+    probe := Cmd.new("sh", "-c", format("command -v ", tool))
+    probe.capture()
+    return probe.run() == 0
+}
+
 main := proc(args: ..Str) {
     compiler := realpath_str(args[0])
     File.remove_tree(WORK)
@@ -324,6 +374,15 @@ main := proc(args: ..Str) {
     check_command(Cmd.new(compiler, "build", "--opt=2", "liba/same.til"), first_lib.out())
     expect_same("gen/til/liba/same.c", lib_c_time, "library --opt retranslated")
     expect_newer(lib_so, lib_so_time, "library --opt")
+
+    if detect_current_target().is(Target.LinuxX64) {
+        // Both backends need their own tools to build; translation alone
+        // does not show reuse of the executable.
+        if File.is_file(format(realpath_str("."), "/vendor/fasm/fasm")) { check_backend_reuse(compiler, "fasm", ".fasm") }
+        if have_tool("mlir-opt-18").and(have_tool("mlir-translate-18")).and(have_tool("clang-18")) {
+            check_backend_reuse(compiler, "mlir", ".mlir")
+        }
+    }
 
     // --force-rebuild regenerates both phases with nothing changed.
     next_tick()

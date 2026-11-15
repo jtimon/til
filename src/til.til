@@ -1320,9 +1320,9 @@ main := proc(args: ..Str) {
     // #442: placed between load_program and prepare_program -- loading
     // resolved every import, so the dependency set is known, and the
     // expensive half (init, type, constfold, emit, cc) is still ahead.
-    set_reuse_stamps(lp, cli.command, cli.custom_bin, cli.custom_c, target, cli.backend, cli.cc, cli.asan, cli.prof)
-    if cli.force_rebuild.not().and(translation_is_current(lp, cli.command, cli.custom_bin, cli.custom_c, target)) {
-        reused := reuse_translation(lp, cli.command, cli.custom_bin, cli.custom_c, user_argv, target, cli.cc, cli.asan, cli.prof)
+    set_reuse_stamps(lp, cli.command, cli.custom_bin, cli.custom_c, target, cli.backend, cli.cc, cli.asan, cli.prof, user_argv.len())
+    if cli.force_rebuild.not().and(translation_is_current(lp, cli.command, cli.custom_bin, cli.custom_c, target, cli.backend)) {
+        reused := reuse_translation(lp, cli.command, cli.custom_bin, cli.custom_c, user_argv, target, cli.cc, cli.asan, cli.prof, cli.backend)
         ffi_cleanup(lp.ctx)
         lexer_cleanup()
         if reused != 0 { exit(reused.cast(I64)) }

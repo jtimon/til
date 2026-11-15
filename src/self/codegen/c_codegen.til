@@ -7482,6 +7482,12 @@ priv c_lib_hex_byte := func(byte: U8) returns Str {
 // #90: artifact names are arbitrary path basenames, not C identifiers. Keep
 // alphanumerics readable and escape every other byte (including '_') so the
 // mapping is injective: a-b and a_x2db cannot collapse to one ABI namespace.
+// The prefix of the shared core's C names (prepare_lib_c_namespace sets
+// ctx.builder_core_c_prefix to it while translating).
+core_c_prefix := func(lp: LoadedProgram) returns Str {
+    return c_lib_prefix(lp.core_stem())
+}
+
 priv c_lib_prefix := func(lib_name: Str) returns Str {
     mut out := Str.with_capacity(lib_name.len().mul(4) + 6)
     out.push_str("til_")

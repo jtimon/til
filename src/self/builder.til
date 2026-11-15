@@ -1140,6 +1140,9 @@ priv compile_mlir := proc(lp: LoadedProgram, paths: BuildPaths) returns I32 {
     runtime := Cmd.new("clang-18", "-fPIC", usize_flag, "-I", lp.ext_c_path.strip_suffix("/ext.c"), "-DTIL_LIBRARY_BUILD", "-include", paths.runtime_fwd_path, "-c", lp.ext_c_path, "-o", runtime_obj)
     runtime.arg(format("-O", lp.opt_level.to_str())).arg("-ffp-contract=off").env("TMPDIR", temporary_directory)
     for flag : Str in lp.cpu.c_flags.split(" ") { if flag.len() > 0 { runtime.arg(flag) } }
+    // #442: the runtime object links into this executable only; ext.c turns
+    // the stamp into til_build_stamp, as for a C-backend executable.
+    if lp.executable_stamp.len() > 0 { runtime.arg(format("-DTIL_BUILD_STAMP=", lp.executable_stamp)) }
     if runtime.run() != 0 { return 1 }
     // LLVM may lower explicit FMA to fmaf on CPUs without a hardware FMA.
     mut support := mlir_shell_quote(runtime_obj)
@@ -1790,8 +1793,22 @@ priv translation_inputs := proc(lp: LoadedProgram) returns Vec(Str) {
 priv executable_inputs := proc(lp: LoadedProgram, paths: BuildPaths) returns Vec(Str) {
     mut inputs := Vec(Str).new()
     inputs.push(own paths.c_path.clone())
-    inputs.push(own paths.fwd_path.clone())
     inputs.push(own compiler_executable())
+    if paths.backend == "fasm" {
+        // The assembler, and the runtime the source includes by path.
+        inputs.push(own format(lp.ctx.import_support_dir, "/vendor/fasm/fasm"))
+        for line : Str in File.readfile(paths.c_path).split("\n") {
+            if line.starts_with("include '").not() { continue }
+            inputs.push(own line.strip_prefix("include '").strip_suffix("'").clone())
+        }
+        return inputs
+    }
+    if paths.fwd_path.len() > 0 { inputs.push(own paths.fwd_path.clone()) }
+    // MLIR's executable links the C core and runtime compiled from these.
+    if paths.runtime_c_path.len() > 0 {
+        inputs.push(own paths.runtime_c_path.clone())
+        inputs.push(own paths.runtime_fwd_path.clone())
+    }
     mut include_dirs := Vec(Str).new()
     ext_slash := lp.ext_c_path.rfind("/")
     if ext_slash >= 0 { include_dirs.push(own lp.ext_c_path.substr(0, ext_slash.to_usize())) }
@@ -1852,10 +1869,11 @@ priv executable_inputs := proc(lp: LoadedProgram, paths: BuildPaths) returns Vec
 
 // The outputs a reuse check talks about: the same derivation build_program
 // uses. Non-theme translate ignores -o.
-priv reuse_paths := proc(lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str, target: Target) returns BuildPaths {
+priv reuse_paths := proc(lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str, target: Target,
+    backend: Str) returns BuildPaths {
     mut bin_override := custom_bin.clone()
     if command == "translate" { bin_override = "" }
-    return derive_build_paths(lp, bin_override, custom_c, target)
+    return derive_build_paths(lp, bin_override, custom_c, target, backend)
 }
 
 // An absolute spelling of `path` with its "." and ".." components resolved
@@ -1907,7 +1925,14 @@ priv stamp_of := func(parts: Vec(Str)) returns Str {
     return hash_str(text).to_str()
 }
 
-priv translation_stamp_line := func(stamp: Str) returns Str {
+// The stamp line, in the generated source's own comment syntax.
+priv translation_stamp_line := func(stamp: Str, backend: Str) returns Str {
+    switch backend {
+    case "fasm": return format("; til-translation-stamp: ", stamp, "\n")
+    case "mlir": return format("// til-translation-stamp: ", stamp, "\n")
+    case "c":
+    case: UNREACHABLE("unknown build backend: ", backend)
+    }
     return format("/* til-translation-stamp: ", stamp, " */\n")
 }
 
@@ -1916,16 +1941,21 @@ priv executable_stamp_marker := func(stamp: Str) returns Str {
 }
 
 // Decide whether this invocation's outputs may be reused, and if so record
-// what produces them in lp.translation_stamp / lp.executable_stamp. Only
-// C-backend executables and libraries are reused; themes, other backends,
+// what produces them in lp.translation_stamp / lp.executable_stamp.
+// Executables of every backend and C-backend libraries are reused; themes,
 // `test`, a --jni library (the JDK is an input) and a program declaring a
 // value macro or translated under TIL_GC_AUDIT always regenerate.
 // Runs before prepare_program: the stamps describe the loaded program.
 set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str,
-    target: Target, backend: Str, cc_override: Str, asan: Bool, prof: Bool) {
+    target: Target, backend: Str, cc_override: Str, asan: Bool, prof: Bool, argc: USize) {
     if command != "translate" && command != "build" && command != "run" { return }
-    if backend != "c" { return }
     if lp.mode_str == "theme" { return }
+    // REM What build_program refuses for the other backends stays refused:
+    // it is never reached for a reused output.
+    if backend != "c" {
+        if lp.cur_mode.is_library || argc > 0 { return }
+        if backend == "fasm" && lp.mode_str != "cli" && lp.mode_str != "script" { return }
+    }
     // REM `run` of a library is refused by build_program.
     if lp.cur_mode.is_library && (command == "run" || lp.jni_build) { return }
     if target_lang(target).is(Lang.C).not() { return }
@@ -1937,7 +1967,7 @@ set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, c
     // The garbager's decision audit prints while translating: a reused
     // translation would print nothing.
     if get_env("TIL_GC_AUDIT").len() > 0 { return }
-    paths := reuse_paths(lp, command, custom_bin, custom_c, target)
+    paths := reuse_paths(lp, command, custom_bin, custom_c, target, backend)
     // #472: the stamp is a line of the generated C, so it names every file
     // as seen from the directory that C is written to. The same tree gives
     // the same line wherever it is checked out, and one output still tells
@@ -1947,6 +1977,7 @@ set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, c
     out_dir := c_abs.substr(0, c_slash).clone()
     mut translation := Vec(Str).new()
     translation.push(own "translation")
+    translation.push(own backend.clone())
     translation.push(own lp.compiler_revision.clone())
     translation.push(own path_from_dir(realpath_str(compiler), out_dir))
     translation.push(own path_from_dir(realpath_str(lp.path), out_dir))
@@ -1980,6 +2011,11 @@ set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, c
     executable.push(own path_from_dir(realpath_str(lp.ext_c_path), bin_dir))
     executable.push(own loads_gui_module(lp).to_str())
     lp.executable_stamp = stamp_of(executable)
+    // FASM assembles its source and nothing else, with no options, so what
+    // produced the binary is what produced that source. Its marker is in
+    // the source too (stamp_translation), so it cannot name the binary's
+    // path: another -o reuses the translation.
+    if backend == "fasm" { lp.executable_stamp = lp.translation_stamp.clone() }
 }
 
 // The compiled output that carries the executable stamp: the executable,
@@ -2007,21 +2043,30 @@ priv library_translation_files := func(paths: BuildPaths) returns Vec(Str) {
 // Is the program's existing C translation current, so translate/build/run
 // can skip preparing and emitting it?
 translation_is_current := proc(lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str,
-    target: Target) returns Bool {
+    target: Target, backend: Str) returns Bool {
     // REM No stamp: set_reuse_stamps ruled reuse out.
     if lp.translation_stamp.len() == 0 { return false }
-    paths := reuse_paths(lp, command, custom_bin, custom_c, target)
+    paths := reuse_paths(lp, command, custom_bin, custom_c, target, backend)
     inputs := translation_inputs(lp)
     if output_outranks_inputs(paths.c_path, inputs).not() { return false }
-    if output_outranks_inputs(paths.fwd_path, inputs).not() { return false }
-    if paths.do_lib {
-        closed := file_mtime(paths.c_path)
-        for file : Str in library_translation_files(paths) {
-            if output_outranks_inputs(file, inputs).not() { return false }
-            if file_mtime(file) > closed { return false }
-        }
+    // The other files the same translation wrote: written after the inputs
+    // changed and not after the stamped source, which was closed last.
+    // A library's header and bindings are named after the library and MLIR's
+    // runtime C is the C backend's path for the program, so another
+    // translation can overwrite them.
+    mut written := Vec(Str).new()
+    if paths.fwd_path.len() > 0 { written.push(own paths.fwd_path.clone()) }
+    if paths.runtime_c_path.len() > 0 {
+        written.push(own paths.runtime_c_path.clone())
+        written.push(own paths.runtime_fwd_path.clone())
     }
-    return File.readfile(paths.c_path).ends_with(translation_stamp_line(lp.translation_stamp))
+    if paths.do_lib { written.append(own library_translation_files(paths)) }
+    closed := file_mtime(paths.c_path)
+    for file : Str in written {
+        if output_outranks_inputs(file, inputs).not() { return false }
+        if file_mtime(file) > closed { return false }
+    }
+    return File.readfile(paths.c_path).ends_with(translation_stamp_line(lp.translation_stamp, backend))
 }
 
 priv executable_is_current := proc(lp: LoadedProgram, paths: BuildPaths) returns Bool {
@@ -2072,17 +2117,31 @@ priv stamp_translation := proc(lp: LoadedProgram, paths: BuildPaths) {
     // REM No stamp: this program's outputs are never reused.
     if lp.translation_stamp.len() == 0 { return }
     if paths.do_lib { File.appendfile(paths.c_path, library_stamp_block()) }
-    File.appendfile(paths.c_path, translation_stamp_line(lp.translation_stamp))
+    // The assembled binary carries the marker as read-only data of its own.
+    if paths.backend == "fasm" {
+        File.appendfile(paths.c_path, format("segment readable\ntil_build_stamp: db '",
+            executable_stamp_marker(lp.executable_stamp), "'\n"))
+    }
+    File.appendfile(paths.c_path, translation_stamp_line(lp.translation_stamp, paths.backend))
+}
+
+// What mlir_codegen decided while translating: the source declares a
+// function of the C core (one named with the core's C prefix).
+priv mlir_source_needs_core := func(lp: LoadedProgram, source: Str) returns Bool {
+    return source.contains(format("llvm.func @\"", core_c_prefix(lp)))
 }
 
 // Finish translate/build/run from a current translation: compile it only
 // when the executable is stale, then run it for `run`.
 reuse_translation := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str,
-    argv: Vec(Str), target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
-    paths := reuse_paths(lp, command, custom_bin, custom_c, target)
+    argv: Vec(Str), target: Target, cc_override: Str, asan: Bool, prof: Bool, backend: Str) returns I32 {
+    paths := reuse_paths(lp, command, custom_bin, custom_c, target, backend)
     if command == "translate" { print_translate_success(paths); return 0 }
     // The shared runtime's name and the C flags follow the USize width.
     register_target_int_aliases(lp)
+    // MLIR links the C core only when its source declares a core function,
+    // which the translation decided; the reused source says.
+    if backend == "mlir" { lp.mlir_needs_core = mlir_source_needs_core(lp, File.readfile(paths.c_path)) }
     if executable_is_current(lp, paths).not() {
         make_build_dirs(paths)
         result := compile_ast(lp, paths, target, cc_override, asan, prof)

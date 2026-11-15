@@ -50,9 +50,14 @@
 
 ** Command output paths and freshness
 
-  ~translate~, ~build~ and ~run~ of a C-backend executable, and
-  ~translate~ and ~build~ of a C-backend library, reuse existing outputs
-  (#442). The emitted C and its forward header are current when
+  ~translate~, ~build~ and ~run~ of an executable (C, MLIR or FASM
+  backend), and ~translate~ and ~build~ of a C-backend library, reuse
+  existing outputs (#442). MLIR and FASM follow the C rule below with
+  their own files: the stamp line is a ~//~ or ~;~ comment; MLIR's
+  runtime C must be written by the same translation (as a library's
+  header); a FASM binary depends on its source, the FASM runtime that
+  source includes and the vendored assembler, and carries the
+  translation stamp as data the stamp appends to the source. The emitted C and its forward header are current when
   newer than every loaded unit, mode file and the compiler binary, and the
   C ends with this invocation's translation stamp (compiler, source,
   output name, target, layout, CPU profile, loaded units); a current
@@ -74,8 +79,8 @@
   do. ~file_mtime~ reports nanoseconds; an input as new as its output
   (one coarse kernel clock tick) counts as newer. Programs declaring a
   value macro, translations under ~TIL_GC_AUDIT~ (whose dump prints while
-  translating), ~--jni~ libraries (the JDK is an input), themes, other
-  backends, ~test~ and ~install~ always regenerate, and ~--force-rebuild~ skips reuse. The build
+  translating), ~--jni~ libraries (the JDK is an input), MLIR and FASM
+  libraries, themes, ~test~ and ~install~ always regenerate, and ~--force-rebuild~ skips reuse. The build
   program's explicit dependency graph is separate from this CLI behavior
   and still decides which build steps need to run.
 
