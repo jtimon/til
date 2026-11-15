@@ -2398,6 +2398,7 @@ main := proc(args: ..Str) returns I64 {
     add_both(tests, "test/bug450.til", flags)
     add_both(tests, "test/bug467.til", flags)
     add_both(tests, "test/bug485.til", flags)
+    add_both(tests, "test/bug493.til", flags)
     add_both(tests, "test/bug468.til", flags)
     add_both(tests, "test/bug469.til", flags)
     add_both(tests, "test/bug471.til", flags)

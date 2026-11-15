@@ -2890,6 +2890,7 @@ typedef struct Context {
     Set__Str imports_typer_bodies_done;
     Bool infer_struct_fields_only;
     Set__Str type_gen_synths;
+    Map__Str_Vec__Str type_instance_args;
     Map__Str_Expr generic_funcs;
     Map__UPtr_RootBits global_borrow_escapes;
     Map__UPtr_ParameterEffects parameter_effects;

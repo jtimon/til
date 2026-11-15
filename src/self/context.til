@@ -1735,6 +1735,12 @@ Context := struct {
     // unit that sees an inline `TemplVec(Bool)` owns the synthesized decl;
     // later units rewrite to the same name without emitting another type.
     type_gen_synths := Set(Str).new()
+    // #493: the concrete Type arguments of each expanded type-generator
+    // instance (instance name -> arguments in parameter order), recorded where
+    // the initer substitutes them. An instance name cannot be split back into
+    // its arguments (nested applications, several arguments joined by `_`),
+    // and the interpreter needs a user container's element type.
+    type_instance_args := Map(Str, Vec(Str)).new()
 
     // Issue #58 cross-unit direct generics: a `func(T: Type, ...)` generic
     // (e.g. core `assert_eq`) defined in one unit and CALLED from another is

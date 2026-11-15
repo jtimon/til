@@ -1,0 +1,54 @@
+# priority: medium
+# category: bugs
+** FIXED #493 Interpreting a user container of a container panics: element type read off the instance name
+
+*** Post-mortem
+
+Root cause: ~interpreter.til::container_elem_type~ recovered a user
+container's element type by cutting its instance name between the first
+and second ~__~, which only works for a single non-nested argument.
+
+Fix: ~initer.til::init_expand_type_gen_decl~ records each expanded struct
+instance's concrete Type arguments in ~ctx.type_instance_args~, from the
+substitution map it already builds (instances with a ref argument are not
+recorded: they do not own their elements). The interpreter's user-container
+case requires exactly one recorded argument plus the data/count/cap shape,
+and returns that argument. The core Vec/Array/Set cases keep their prefix
+reading, which is exact for their single argument since #485.
+
+Regression: ~test/bug493.til~ (interpreted and compiled): globals of a
+~struct<T: Type>~ container holding ~Vec(Str)~, a struct whose name
+contains ~_~, and ~Vec(Vec(I64))~. Master's compiler panics on it with the
+message above.
+
+Found while fixing [[../fixed/485.org][#485]]; reproduced at master abea3cd.
+
+*** Symptom
+
+#+begin_src til
+mode script
+Stack := macro(T: Type) returns StructDef {
+    return struct {
+        own data: U8 = 0
+        count: USize = 0
+        cap: USize = 0
+    namespace:
+        new := func() returns Stack(T) { return Stack(T)() }
+    }
+}
+s := Stack(Vec(Str)).new()
+println("done")
+#+end_src
+
+~bin/til interpret~ prints ~done~, then exits 1 with ~panic: container
+element has no registered size: Vec~. ~bin/til run~ works.
+
+*** Cause
+
+~interpreter.til::container_elem_type~ treats any instance with
+~data~/~count~/~cap~ fields as an owning container (the shape of
+~test/templ_vec.til~'s ~TemplVec(T)~), and recovers T by cutting the
+instance name between its first and second ~__~. Since #485 a nested
+argument is spelled as its instance (~Stack__Vec__Str~), so the cut gives
+~Vec~. The name cannot be split unambiguously in general (nested
+arguments, several arguments joined by ~_~, names that contain ~_~).

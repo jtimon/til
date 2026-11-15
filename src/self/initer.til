@@ -5455,6 +5455,18 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
         .or(ret_val.node_type.is(NodeType.FuncDef))
     if ret_val_ok.not() { return false }
 
+    // #493: record the instance's Type arguments. A ref argument is not
+    // recorded: the instance stores borrowed elements it does not own, so it
+    // is not an owning container of that type.
+    if ret_val.node_type.is(NodeType.StructDef).and(ref_params.len() == 0) {
+        mut type_args := Vec(Str).new()
+        for param : Declaration in funcdef_of(macro_fdef).sig.params {
+            if decl_type_name_ref(param, ctx.symbols) != "Type" { continue }
+            if subs.has(param.name).not() { continue }
+            type_args.push(own init_subst_ident_name(subs, ref_params, param.name, ctx.symbols))
+        }
+        ctx.type_instance_args.set(decl_of(stmt).name, own type_args)
+    }
     mut cloned := ret_val.clone()
     init_substitute_type_params(cloned, subs, ref_params, ctx.symbols)
     init_expand_member_generators(cloned, macros, scope, ctx, mark_ctx, nested_synthesized)

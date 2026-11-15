@@ -1,0 +1,63 @@
+mode script
+
+// Issue #493: the interpreter takes a user-defined container's element type
+// from the instance's recorded Type argument, not from its name. Cutting
+// `Stack__Vec__Str` at its second `__` gave `Vec`, which has no layout, and
+// interpreting a global of it panicked at teardown. Globals on purpose:
+// freeing a global's buffer takes that path. A clone takes the matching
+// element-wise copy path.
+
+Stack := struct<T: Type> {
+    own data : U8 = 0
+    count : USize = 0
+    cap : USize = 0
+namespace:
+    new := func() returns Stack(T) {
+        return Stack(T)(data = malloc(T.size().to_uptr()), cap = 1)
+    }
+    push := func(mut self: Stack(T), own val: T) {
+        if self.count.eq(self.cap) {
+            new_cap := self.cap.mul(2)
+            self.data = realloc(own self.data, new_cap.to_uptr().mul(T.size().to_uptr()))
+            self.cap = new_cap
+        }
+        memcpy(ptr_add(self.data, self.count.to_uptr().mul(T.size().to_uptr())), val, T.size().to_uptr())
+        // Ownership moved into the buffer (test/templ_vec.til's push).
+        memset(val, 0, T.size().to_uptr())
+        self.count = self.count.add(1)
+    }
+    get := func(self: Stack(T), i: USize) returns ref T {
+        return ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
+    }
+}
+
+Named_Point := struct {
+    x : I64 = 0
+    label := ""
+}
+
+mut words := Stack(Vec(Str)).new()
+mut first := Vec(Str).new()
+first.push(own "a")
+first.push(own "b")
+words.push(own first)
+words.push(own Vec(Str).new())
+ref w0 : Vec(Str) = words.get(0)
+assert_eq(USize, w0.len(), 2)
+
+// An element type whose name contains `_`.
+mut points := Stack(Named_Point).new()
+points.push(own Named_Point(x = 3, label = "p"))
+ref p0 : Named_Point = points.get(0)
+assert_eq(I64, p0.x, 3)
+
+// Three levels: a Stack of Vecs of Vecs.
+mut deep := Stack(Vec(Vec(I64))).new()
+mut mid := Vec(Vec(I64)).new()
+mut leaf := Vec(I64).new()
+leaf.push(own 7)
+mid.push(own leaf)
+deep.push(own mid)
+assert_eq(USize, deep.count, 1)
+
+println("bug493: ok")

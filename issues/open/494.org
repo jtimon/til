@@ -1,0 +1,17 @@
+# priority: low
+# category: bugs
+** OPEN #494 A nested type application in a type annotation does not parse
+
+Found while fixing [[../fixed/485.org][#485]]; reproduced at master abea3cd.
+
+#+begin_src til
+mode script
+mut v : Vec(Vec(Str)) = Vec(Vec(Str)).new()
+#+end_src
+
+reports ~2:16: error: expected 'identifier', found '('~ (the inner ~(~). The
+same type works in expression position, and through an alias
+(~VS := Vec(Str)~; ~v : Vec(VS)~). The annotation parser mangles
+~Name(Arg)~ to ~Name__Arg~ but accepts only identifiers as arguments. Since
+#485 the expression form names this instance ~Vec__Vec__Str~, so the
+annotation should mangle a nested application to that same name.

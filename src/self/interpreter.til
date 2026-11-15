@@ -4623,19 +4623,20 @@ container_elem_type := func(struct_name: Str, ctx: Context) returns Str {
     if struct_name.starts_with(set_prefix) {
         return struct_name.substr(set_prefix.count, struct_name.count - set_prefix.count)
     }
-    sep := struct_name.find("__")
-    if sep >= 0 {
-        ref data_fl : FieldLayout = ctx_field_layout(struct_name, "data", ctx)
-        ref count_fl : FieldLayout = ctx_field_layout(struct_name, "count", ctx)
-        ref cap_fl : FieldLayout = ctx_field_layout(struct_name, "cap", ctx)
-        if data_fl.size.gt(0).and(count_fl.size.gt(0)).and(cap_fl.size.gt(0)) {
-            if data_fl.own_type.is(OwnType.Own).and(data_fl.struct_name.len().eq(0)).and(data_fl.is_enum.or(data_fl.is_funcptr).not()) {
-                start := sep.add(2).to_usize()
-                rest := struct_name.substr(start, struct_name.count.sub(start))
-                next_sep := rest.find("__")
-                if next_sep >= 0 { return rest.substr(0, next_sep.to_usize()) }
-                return rest
-            }
+    // A user-defined container of one element type (test/templ_vec.til's
+    // TemplVec(T)): a generated instance with an owned byte buffer plus
+    // count and cap. #493: its element type is the instance's recorded Type
+    // argument, not a piece of its name.
+    // REM: a miss is expected -- most structs are not generated instances.
+    if ctx.type_instance_args.has(struct_name).not() { return "" }
+    ref type_args : Vec(Str) = ctx.type_instance_args[struct_name]
+    if type_args.len() != 1 { return "" }
+    ref data_fl : FieldLayout = ctx_field_layout(struct_name, "data", ctx)
+    ref count_fl : FieldLayout = ctx_field_layout(struct_name, "count", ctx)
+    ref cap_fl : FieldLayout = ctx_field_layout(struct_name, "cap", ctx)
+    if data_fl.size.gt(0).and(count_fl.size.gt(0)).and(cap_fl.size.gt(0)) {
+        if data_fl.own_type.is(OwnType.Own).and(data_fl.struct_name.len().eq(0)).and(data_fl.is_enum.or(data_fl.is_funcptr).not()) {
+            return type_args[0].clone()
         }
     }
     return ""
