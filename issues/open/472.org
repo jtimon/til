@@ -2008,3 +2008,17 @@ toolchains for the same targets and are not producers of binary lists.
 If the two hosts' hashes match in the next run, that is the first
 cross-host binary equality; if not, the difference is traced by section
 (L3c).
+
+*** Progress: the binary level covers a library too (base master 802af86)
+
+~produce-binary~ now builds, per target, ~examples/hello_script.til~,
+~test/layout_corpus.til~ and a small library, and lists the two
+executables, the static archive, the object in it and the shared library:
+five artifacts plus the toolchain item. Locally (clang 18.1.3) two
+productions two seconds apart agree on all twelve lines for the two mac
+targets. ~doc/self.org~ now says what CI checks between hosts.
+
+Run 3090, the first with binary lists: NOT COMPARABLE for both targets, as
+expected (clang 21.1.8 against 18.1.3); it also lost its macos-x64 job to
+a runner network outage. Run 3093 is the first where both hosts have clang
+18.1.3 for the mac targets; not read yet.

@@ -21,8 +21,10 @@ import("../src/self/targets")
 //       producers have to refuse alike.
 //
 //   ci_collect produce-binary <producer> <list file> <compiler> <target>...
-//       Level "binary" (#472 level 3): build a program for each target and
-//       list the executable's hash, plus one "toolchain" item per target:
+//       Level "binary" (#472 level 3): build two programs and a library for
+//       each target and list the hash of every artifact (executables, the
+//       static archive, its object, the shared library), plus one
+//       "toolchain" item per target:
 //       the hash of the version lines of the compiler, linker, archiver
 //       and debug-symbol tool that built it. Binaries are only comparable
 //       between producers that used the SAME toolchain for the target (the
@@ -187,18 +189,41 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         File.writefile(identity_path, identity)
         directory := format(WORK, "/binary_", target)
         mkdir_p(directory)
-        source := "examples/hello_script.til"
-        binary := format(directory, "/hello_script")
-        build := Cmd.new(compiler, "build", "--force-rebuild", format("--target=", target), "-o", binary,
-            "-c", format(directory, "/hello_script.c"), source)
+        mut items := Vec(Str).new()
+        mut paths := Vec(Str).new()
+        items.push(own "- toolchain")
+        paths.push(own identity_path)
+        // Two programs: the smallest one, and one with every kind of type
+        // layout in it.
+        for source : Str in array(Str, "examples/hello_script.til", "test/layout_corpus.til") {
+            stem := file_stem(source)
+            binary := format(directory, "/", stem)
+            build := Cmd.new(compiler, "build", "--force-rebuild", format("--target=", target), "-o", binary,
+                "-c", format(directory, "/", stem, ".c"), source)
+            build.capture()
+            if build.run() != 0 { fail(format(build.render(), " failed:\n", build.out(), build.err())) }
+            items.push(own format(source, " ", stem))
+            paths.push(own binary)
+        }
+        // A library: its static archive, the object in it and the shared
+        // library. A library build writes to gen/lib/, named after the
+        // source file.
+        library := format(directory, "/ci_binary_lib.til")
+        File.writefile(library, "mode lib\nci_binary_sum := func(a: I64, b: I64) returns I64 { return a + b }\n")
+        build := Cmd.new(compiler, "build", "--force-rebuild", format("--target=", target), library)
         build.capture()
         if build.run() != 0 { fail(format(build.render(), " failed:\n", build.out(), build.err())) }
-        mut paths := Vec(Str).new()
-        paths.push(own identity_path)
-        paths.push(own binary)
+        for file : Str in array(Str, "libci_binary_lib.a", "ci_binary_lib.o", "libci_binary_lib.dylib") {
+            built := format("gen/lib/", file)
+            if File.is_file(built).not() { fail(format("the library build for ", target, " wrote no ", built)) }
+            // REM The next target's build writes the same names.
+            kept := format(directory, "/", file)
+            if copy_file(built, kept) != 0 { fail(format("cannot copy ", built)) }
+            items.push(own format("ci_binary_lib.til ", file))
+            paths.push(own kept)
+        }
         hashes := sha256_of(paths)
-        lines.push(own format(hashes[0], " binary ", target, " c 32 - toolchain"))
-        lines.push(own format(hashes[1], " binary ", target, " c 32 ", source, " hello_script"))
+        for i, hash in hashes { lines.push(own format(hash, " binary ", target, " c 32 ", items[i])) }
     }
     File.writefile(list, format(join(lines, "\n"), "\n"))
     println("ci_collect: ", producer, " wrote ", lines.len().to_str(), " lines to ", list)

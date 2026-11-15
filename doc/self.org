@@ -177,6 +177,21 @@
   is a trailing reuse stamp, which names the compiler binary that wrote
   the file.
 
+  What checks the HOST half is CI (#473). Five jobs -- Linux x64, Linux
+  arm64, macOS arm64, macOS x64 and the Windows ~til.exe~ -- each run their
+  own compiler over a small corpus and upload a list of hashes: the
+  ~til ast --phase~ records at all five phases, per source file, and the
+  file a translate writes for every target at both widths
+  (~examples/ci_collect.til produce~). The ~collect~ job compares the
+  lists and fails on any difference or on an item one host left out; a
+  list is all it reads. A Windows checkout has CR LF line ends, so the
+  records are read as text and a ~///~ doc comment's text ends before the
+  CR. For binaries the two Linux hosts also list what they build for the
+  mac targets (two programs and a library with its archive and object;
+  ~produce-binary~) together with the identity of their toolchain, and
+  ~collect~ compares those only where the toolchains are the same, per the
+  rule above.
+
 ** Shared program builder
 
   After CLI validation and the common ~prepare_program~ pass, C, HolyC, MLIR
