@@ -875,3 +875,12 @@ macos-arm64 and macos-x64, and ~collect~ also needs ~macos-cross-build~.
 Fixtures in ~test/ci_collect.til~: same toolchain and same binary (equal),
 same toolchain and another binary (fails), different toolchains (NOT
 COMPARABLE, nothing equal, no failure), no toolchain item (stops).
+
+*** Progress: superseded runs are cancelled (base master 71eb749)
+
+Decided by Jorge. The workflow has a ~concurrency~ group per branch with
+~cancel-in-progress~: a newer push cancels the older push's run, so runs
+no longer queue for hours behind each other on the Mac runners. A push
+whose head commit is "Doc: " is in a group of its own, so the run that
+skips everything does not cancel the code run before it. Cost: an
+intermediate commit gets no result of its own.

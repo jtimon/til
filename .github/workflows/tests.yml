@@ -19,6 +19,17 @@ permissions:
   contents: read
   actions: write
 
+# A newer push to the same branch cancels the run of the older one (Jorge,
+# #473): a full run holds the two Mac runners for about an hour and the
+# TempleOS guest for nearly two, and pushes used to queue behind each other
+# for hours. The older commit then gets no result of its own; the newest
+# one answers for the branch. A push whose head commit is "Doc: " gets a
+# group of its own: its run skips every job (doc-gate), and must not cancel
+# the run of the code commit before it.
+concurrency:
+  group: "tests-${{ github.ref }}-${{ startsWith(github.event.head_commit.message, 'Doc: ') && github.sha || 'code' }}"
+  cancel-in-progress: true
+
 jobs:
   # A push whose commits are all documentation-only ("Doc: " subject,
   # CLAUDE.md "Commits") runs nothing else: every other root job needs
