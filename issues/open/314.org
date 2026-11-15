@@ -2,6 +2,267 @@
 # category: features
 ** OPEN #314 Pluggable custom allocators (arena / bump / fixed-buffer), like Zig and Odin
 
+*** Plan (revised 2026-11-15, master eb69233)
+
+The text this issue was filed with (kept at the bottom) predates #313's
+cage and gets several things about til wrong. This section replaces its
+"Design axes" and "Scope note". Nothing here is decided: every new
+surface is listed under "Decisions that need the human's yes", and step 1
+is a measurement that can end the performance half of the issue.
+
+**** What the filing got wrong
+
+1. There is no GC. Memory is released by the garbager's ASAP destruction:
+   deletes are inserted at compile time at the last use
+   (doc/concepts/garbager.org). The filing's "main open question", the GC
+   interaction, does not exist. The real question is what an allocator
+   must answer when those inserted deletes reach ~free~.
+2. #313 does not depend on this issue, and is not waiting for it. Its
+   cage shipped as one central allocator in src/self/codegen/ext.c:
+   ext.h routes ~malloc~ / ~calloc~ / ~realloc~ / ~free~ to
+   ~til_malloc~ ... under ~TIL_CPTR32~ (--usize=32 on a 64-bit C target,
+   the default). So the allocation path is no longer "hardcoded libc":
+   on the default layout til owns it.
+3. "Zig-style explicit is the smaller step" is false for til. Almost no
+   allocation in a til program is written by the programmer: ~clone~
+   calls the garbager and desugarer insert, hoisted temporaries, own
+   boxes (~GcStorage.HeapBox~), container growth, ~Str~ building. An
+   older --prof table in doc/optimizations.org has ~Str_clone~ alone at
+   2.7M allocations in one self-translate. There is no source-level call
+   to hang an allocator parameter on, and core's signatures (~clone()~,
+   ~push~, ~concat~) would all have to grow one. The ambient form (Odin)
+   is the one that fits; see the design below.
+4. A fixed buffer on the stack or in static storage cannot back an
+   allocator under the compact layout: an ~own~ field holds a 32-bit
+   cage offset, and ~til_cptr_encode~ panics on any address outside the
+   cage. Every allocator whose blocks can reach an own field (every Str,
+   Vec, Map, box) must hand out cage memory.
+
+**** What the cage already provides
+
+- A page map with no block headers: ~TilCageState.kind[page]~ tells, for
+  any address in the cage, what it belongs to (a small size class, a
+  span, free, unused). ~til_free~ and ~til_realloc~ already dispatch on
+  it, and panic on an address the cage did not hand out.
+- A page-span layer (~til_cage_take_pages~ / ~til_cage_release~) under
+  the size classes: the "child allocator" an arena would take its
+  buffers from, and the equivalent of Zig's ~page_allocator~.
+- One cage and one bookkeeping block per process, shared by every copy
+  of ext.c (the program's and each mode-lib runtime's), so allocator
+  state placed in ~TilCageState~ is seen by all of them.
+- ASAN poisoning of everything not handed out, a live-block count, and
+  the leak report at exit.
+- A process-lifetime class of allocations already treated apart: the
+  literal copies (~til_cage_lit~, ~lit_bytes~ / ~lit_allocs~), plus the
+  sequence templates and the globals' run-time storage that the leak
+  scan had to learn were reachable.
+
+**** Proposed design: regions of the cage, found by address
+
+- A region is a chain of page spans taken from the cage, with a bump
+  cursor. Its pages get their own page kind. That is the arena; a region
+  with a fixed page budget that panics when it is full is the
+  fixed-buffer allocator (a hard bound, but its memory is cage pages,
+  not a caller's buffer: see point 4 above).
+- The free side needs no allocator argument. ~free(p)~ looks up
+  ~kind[page_of(p)]~ as it does today; a region page means "no reuse":
+  poison the block, decrement the region's live count. ~realloc~ of a
+  region block extends in place when it is the region's last block, and
+  otherwise bumps a new block in the SAME region and copies. So no
+  container stores an allocator and no destructor takes one. This is
+  the simplification #313 hands this issue: Zig threads the allocator
+  and Odin stores one in every dynamic array because ~free~ needs it;
+  here the address answers. An allocator field would also give back the
+  bytes #309 and #313 saved (a Vec is 12 bytes).
+- ~realloc~ staying with the old block's owner is a correctness rule,
+  not a detail: a long-lived Vec that grows while a region is current
+  keeps its buffer in the general heap, and a region's Vec keeps
+  growing in its region.
+- The alloc side is ambient: one "current region" slot. ~til_malloc~
+  bumps from it when it is set and takes today's size-class path when
+  it is not (one load and branch added to the general path). The slot
+  lives in ~TilCageState~, so a library runtime called inside the scope
+  allocates from the region too. A nested scope can set the slot back
+  to the general heap for the statements that must outlive the region
+  (inserting into a global cache, say).
+- Deletes keep running. The garbager inserts them exactly as now; a
+  delete that reaches a region block does a no-op free, one that
+  reaches a general-heap block the region's objects own does a real
+  one. Mixed ownership therefore needs no rule and no tracking.
+- Ending a region is CHECKED: since every delete ran, a region whose
+  values are all dead has a live count of zero, and a nonzero count
+  means something allocated in it escaped (or leaked). The end panics
+  on it, in every build, at the cost of a counter. Zig and Odin cannot
+  have this check; ASAP destruction gives it for free. ASAN builds
+  additionally poison the released pages. The classic failure of an
+  ambient allocator (a long-lived container quietly filled from a
+  temporary arena) becomes a panic at the scope's end instead of a
+  dangling pointer.
+- Process-lifetime allocations made lazily must never come from the
+  current region: ~TIL_OWN_LIT~'s first use at a site, the sequence
+  templates' ~<sym>_get()~, run-time global initialization. They go,
+  explicitly, to a static region (process lifetime, never freed, exempt
+  from the leak report by its page kind). This is required for
+  correctness as soon as a current region exists, and it replaces the
+  ~lit_bytes~ / ~lit_allocs~ side accounting.
+- The interpreter shares the allocator with the program it runs (#313:
+  ext funcs resolve to the cage functions; value payloads go through
+  ~EvalHeap.heap_alloc~). The program's current region is therefore
+  guest state the interpreter switches in only around the guest's own
+  allocations; its bookkeeping (scopes, ~HeapBinding~ metadata, the
+  typer's memo sets during compile-time evaluation) stays in the
+  general heap. This is the part most likely to be underestimated.
+- User-defined allocators (the "pluggable" in the title) come last, if
+  at all: a region kind whose header carries the allocator's functions,
+  fed by page spans. The page map still finds it for ~free~, so even
+  then nothing is threaded or stored. Interfaces exist
+  (doc/concepts/functions.org) and could spell the contract.
+
+**** What it would buy; measure first
+
+The cage's small-object path is already a free-list pop or a cursor
+bump plus two counters, so "bump allocation is nearly free" buys little
+over it. The candidate wins, in the order they are likely to matter:
+
+- Memory returned at once. Small pages are never returned to the OS or
+  to other size classes today; a region gives all its pages back when
+  it ends. For phase-structured programs (the compiler's passes) that
+  is a peak-RSS question.
+- Skipping destructor walks. Not available in this design's first
+  form, since deletes keep running. It needs the unchecked end below
+  and, to be worth much, the garbager knowing a value is region-owned.
+- A hard memory bound for a part of a program (the fixed region).
+- Lifetime grouping as an API for user programs (per-request,
+  per-frame data), with the checked end.
+
+Bar, as in #313: self_ms / self_mem in doc/totals.csv, not estimates.
+
+**** Decisions that need the human's yes (new surfaces)
+
+- The til-level API: a region type in std and how a scope is entered
+  and left. til has no ~defer~ and destruction is at last use, not at
+  scope exit, so Zig's ~defer arena.deinit()~ does not translate: the
+  region handle's own last use says nothing about the values allocated
+  from it. Candidates: a function that takes a callable and runs it
+  inside the region (no new syntax; how throws cross it must be checked
+  against doc/concepts/throws.org), or a block construct (new syntax).
+  Recommendation: the callable form first.
+- Whether an unchecked end exists (discard everything without requiring
+  a zero live count, the Zig/Odin behaviour): it is what allows
+  skipping teardown, and it leaks any general-heap block the region's
+  objects own. Recommendation: not in the first cut; the checked end
+  only.
+- Layouts with no cage: --usize=64, 32-bit targets (wasm32, linux-x86),
+  where ~malloc~ is libc's and there is no page map. Either the
+  allocator is split from the compression and built on every hosted C
+  target (~TIL_CPTR32~ would then select only the 4-byte encoding and
+  the 4GB size; --usize=64 also gains the foreign-free audit, the
+  poisoning and the leak report, and loses the unbounded libc heap for
+  a sized reservation), or regions exist on the compact layout only and
+  the others refuse them at compile time. There is no honest libc
+  implementation: without the page map ~free~ cannot tell a region
+  block, so neither the no-op free nor the checked end can be kept.
+  Recommendation: prototype on the compact layout, then split the
+  allocator; core and std use no region until every C layout has them.
+- Other backends (FASM's syscall allocator, MLIR on libc, HolyC, JVM,
+  mode theme): refuse loudly until each has an implementation.
+- A new page-map layout bumps ~TIL_CAGE_MAGIC~ (copies of ext.c from two
+  revisions refuse to share a cage); no new files, like #313.
+
+**** Steps
+
+1. Measure the ceiling before building anything (tmp/ experiment, not
+   committed). (a) A build of ext.c whose ~til_free~ does nothing and
+   whose ~til_malloc~ only bumps: self-translate time and peak RSS
+   against master bound what any arena can save on alloc/free, and show
+   what never reusing costs in RSS. (b) The share of the generated
+   ~_delete~ functions under callgrind bounds what skipping teardown
+   could save. If both are below #309's bar (-6% memory, -7% time), the
+   performance motive inside the compiler is dropped, recorded here,
+   and the issue continues only if the human wants regions as a feature
+   for programs.
+2. The region primitive in ext.c on the compact layout: page kind,
+   region header and span chain, the current-region slot, ~til_free~ /
+   ~til_realloc~ dispatch, the static region with the literal copies,
+   templates and global init moved to it, the checked end, poisoning,
+   and the leak scan treating region pages (no block boundaries, so a
+   live region is scanned as a whole and never reported block by
+   block). No til surface yet beyond what a regression needs.
+3. The til API chosen above, for compiled and interpreted programs (the
+   interpreter's guest-region switching). Regressions: everything dead
+   at the end; an escaping value panics at the end with the count; a
+   general-heap Vec growing inside a scope stays valid after it; a
+   region Vec growing stays in the region; nested regions and the
+   general-heap override; the fixed region's exhaustion panic; use
+   after the end under ASAN; a mode-lib library called inside a scope.
+4. The allocator on the layouts without the cage, per the decision.
+5. First real use, only if step 1 justified one: a compiler pass's
+   scratch or the interpreter's call scopes, measured on the totals. A
+   compiler that itself allocates from regions is a bootstrap-visible
+   change: stage it by doc/self.org.
+6. Later and separate: user-defined allocators; the unchecked end with
+   garbager support for skipping teardown.
+
+**** What this offers #313's open item (stored ~ref~ fields)
+
+#313 is waiting on #482 to choose between a side table and "stacks and
+globals in the cage". Regions do not change the side table. They do
+split the second option into pieces, and replace the piece that made it
+expensive:
+
+- Globals in the cage is the static region of step 2, the same
+  mechanism the literal copies and templates would already use.
+- Moving the machine stack into the cage is unnecessary. Only a local
+  whose address gets STORED in a field needs a cage address, and the
+  garbager already has that storage class: ~GcStorage.HeapBox~
+  (~LocalInfo.is_heap~). Such a local becomes a heap box, which is cage
+  memory today, with no allocator work at all. A per-thread frame
+  region (bump on entry, pop on exit, the shadow stack wasm32 and
+  SafeStack use for address-taken locals) only makes that box cheaper.
+- What that removes from #313's list against option 2: Windows needs no
+  stack switching; ASAN's use-after-return frames stay on (the machine
+  stack is untouched, and the cage poisons a popped box itself); thread
+  stacks do not come out of the 4GB, only the escaping locals do; and a
+  thread til did not start gets its frame region on its first til
+  allocation, so the yes/no question #313 put to #482 stops deciding
+  the representation.
+- What it costs, and it is the whole cost: deciding which locals
+  escape. A callee storing its ~ref~ parameter into a field makes the
+  CALLER's local escape, so it is an interprocedural effect, with every
+  indirect call (closures, interface dispatch, ext funcs) assumed to
+  store. The typer's global-retention effects (doc/concepts/
+  ownership.org, "Global retention follows the referent's owner") are
+  the precedent for carrying such a bit through helpers and generic
+  instances. A miss is loud, not silent: ~til_cptr_encode~ already
+  panics on a stack address reaching a compressed field, and the 21
+  programs of #313's experiment are the corpus. How many locals end up
+  boxed decides whether it beats the side table's branch per load: that
+  is #313's benchmark to run, with this as a third candidate.
+- Refs to C memory and code stay native in every option (~ref Dynamic~,
+  as the experiment already did for ~File~, ~Dir~ and ~Cmd~).
+
+Two smaller candidates inside #313's existing code, to verify, not
+promised: the static region replaces the ~lit_bytes~ / ~lit_allocs~
+counters and the leak scan's special knowledge of literal copies; and
+on cage layouts a free that lands in the static region can be refused
+by page kind, a second check behind ~TIL_CAP_LIT~.
+
+**** What this shares with #482
+
+- The current-region slot is per-thread state the moment til has
+  threads; a region is confined to the thread that entered it, so its
+  bump needs no lock, and only taking spans from the cage does.
+- "Per-thread caches over a shared page pool", which #482 lists for
+  the cage, is the same construction as an allocator instance here:
+  the size-class state (~free_list~, ~cursor~, ~cursor_end~, the live
+  counts) split from the page pool (~top~, ~committed~, ~free_spans~,
+  ~kind~, ~span_len~), one instance per thread. Step 2 should make
+  that split rather than add regions beside a monolithic
+  ~TilCageState~. Freeing a block from a thread that does not own its
+  page is #482's to settle.
+
+*** Original filing (the premises above supersede its "Design axes" and "Scope note")
+
 til has a fixed allocation path today (one global allocation strategy, plus the
 GC). This issue proposes a pluggable allocator interface so the ALLOCATION
 STRATEGY is chosen by the caller, not hardcoded -- the way Zig and Odin do it.

@@ -97,6 +97,34 @@ Decision (human, 2026-11-15): WAIT. Do not pick between 1 and 2 until
 native self-translate row (self_ms / self_mem in doc/totals.csv), not on
 estimates. Nothing else in this issue is open.
 
+**** A variant of option 2, from #314's revised plan (2026-11-15)
+
+Recorded for the session that runs the benchmark; it does not change the
+decision to wait, and nothing of it is implemented. #314 ("What this
+offers #313's open item") splits option 2 and drops its expensive piece:
+
+- The machine stack stays where the OS put it. Only a local whose
+  address gets stored in a field needs a cage address, and the garbager
+  already has that storage: ~GcStorage.HeapBox~ (~LocalInfo.is_heap~),
+  a cage block today. #314's per-thread frame region would only make
+  that box cheaper; it is not required.
+- Globals go to #314's static region, the one its plan also moves the
+  literal copies and sequence templates to.
+- Gone from the list against option 2: Windows stack switching, turning
+  off ASAN's use-after-return, thread stacks spending the 4GB, and the
+  panic on a thread til did not start (so #482's yes/no no longer
+  decides the representation; the cage allocator's thread safety is
+  still #482's).
+- The cost is the escape decision: which locals have their address
+  stored, including through a callee that stores its ~ref~ parameter
+  and through every indirect call. ~til_cptr_encode~'s panic catches a
+  miss, and the 21 failing programs of the experiment above are the
+  corpus.
+
+So the benchmark has three candidates: the side table, option 2 as
+written, and this variant. #314 no longer claims this issue depends on
+it; the dependency ran the other way (its plan builds on the cage).
+
 *** Post-mortem (final close, 2026-11-12)
 
 What was asked: 32-bit pointers on a 64-bit host, the way #309 narrowed
