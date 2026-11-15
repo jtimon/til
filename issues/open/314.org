@@ -171,7 +171,8 @@ Bar, as in #313: self_ms / self_mem in doc/totals.csv, not estimates.
 
 **** Steps
 
-1. Measure the ceiling before building anything (tmp/ experiment, not
+1. DONE, below the bar: see "Step 1 results" below. Measure the
+   ceiling before building anything (tmp/ experiment, not
    committed). (a) A build of ext.c whose ~til_free~ does nothing and
    whose ~til_malloc~ only bumps: self-translate time and peak RSS
    against master bound what any arena can save on alloc/free, and show
@@ -202,6 +203,76 @@ Bar, as in #313: self_ms / self_mem in doc/totals.csv, not estimates.
    change: stage it by doc/self.org.
 6. Later and separate: user-defined allocators; the unchecked end with
    garbager support for skipping teardown.
+
+**** Step 1 results (2026-11-15, master 19e770e): below the bar
+
+The performance motive inside the compiler is dropped, as step 1 said
+it would be: no arena design here reaches #309's bar (-6% memory, -7%
+time) on the self-translate, and the ones that come closest are not
+the design proposed above. Whether regions continue as a feature for
+programs is the human's call; nothing below step 1 is started.
+
+Setup. Linux x64, 4 cores, the compiler built exactly as make.til
+builds it (-O0 -g, --usize=32; the cc line logged through a ~--cc=~
+wrapper), each variant from the same generated C with one change.
+Workload: ~translate --usize=32 -c ... src/til.til~, the
+self_translate_native row. Every variant's output was byte-identical
+to the base's (and to boot/til.c except the revision stamp). Peak RSS
+from ~wait4~; medians of 3 runs, alternated, one session:
+
+| variant                                    | time   | user  | sys  | minor faults | peak RSS |
+|--------------------------------------------+--------+-------+------+--------------+----------|
+| base (master's cage allocator)             | 26.86s | 26.21 | 0.34 |      184,837 | 476MB    |
+| bump: malloc bumps, free does nothing      | 32.07s | 29.03 | 2.67 |    1,040,568 | 3941MB   |
+| nodtor: bump + every destructor returns    | 31.25s | 28.27 | 2.60 |    1,040,567 | 3941MB   |
+
+- bump: til_malloc bumps through 1MB chunks of cage pages (a request
+  over 512KB gets its own pages), til_free returns, til_realloc grows
+  the last block in place or bumps and copies. +19% time, 8.3x RSS:
+  the self-translate allocates 3.9GB in total for 426MB live at peak,
+  and never reusing memory costs more (5.6x the page faults, +2.3s
+  system time, +2.8s user time from cold cache lines) than the
+  allocator's instructions it removes.
+- nodtor: as bump, and every generated destructor except
+  ~File~ / ~Dir~ / ~Cmd~ (they close handles) starts with ~return~
+  (245 of 248). Skipping all teardown saves 0.8s (2.6%) against bump.
+- Instruction shares in the base (callgrind, 224.9G Ir, one run):
+  the allocator's entry points 6.98% inclusive (til_free 3.97%;
+  ~til_cage_block_size~, the page-map lookup in free and realloc,
+  2.31%; til_malloc
+  1.85%; til_realloc 0.94%; til_calloc 0.22%). Destructor trees, as
+  the inclusive cost of every call edge from a non-destructor into a
+  destructor, 8.59%, an upper bound; til_free called from destructors
+  is 3.28 points of that.
+- Fragmentation (a variant recording the cage's peak live bytes):
+  426MB live at peak, the cage's top at that moment 440MB, 466MB at
+  exit, 476MB RSS. Less than 15MB at peak is fragmentation, and size
+  classes plus a never-returned small page are all of it. A region
+  holds its data until it ends, not shorter, so it cannot lower a peak
+  made of live data; the "memory returned at once" item under "What it
+  would buy" has at most those 15MB to win here.
+
+What the numbers mean for the designs:
+
+- The checked-end region proposed above keeps every delete and every
+  free's page-map lookup, so it can save only part of the allocator's
+  6.98% of instructions (the size-class pick and the free-list push):
+  about 3% by estimate, before any locality cost. Below the bar.
+- An unchecked end that skips teardown is bounded by 8.59% of
+  instructions; measured as time it is 2.6%. Even added to everything
+  the allocator does, it stays below 7% unless the regions reuse their
+  memory (reset per phase), and a whole-run region shows the price of
+  not reusing it: +16% time. That design also needs the garbager
+  changes of step 6.
+- The cage allocator itself is not where time goes: ~Str_cmp~,
+  ~fnv1a~ and ~Str_eq~ alone are 12% of instructions.
+
+Reproduction: the experiment's files were in tmp/alloc314, not committed.
+The variants are one edit each to a copy of ext.c or of the generated
+C, as described above, compiled with the logged cc line plus
+~-Wno-error~ (the unused size-class functions warn); the destructor
+rule was every ~static void <Type>_delete(...) {~ whose type name
+starts upper-case after the last ~__~.
 
 **** What this offers #313's open item (stored ~ref~ fields)
 
