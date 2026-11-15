@@ -884,3 +884,19 @@ no longer queue for hours behind each other on the Mac runners. A push
 whose head commit is "Doc: " is in a group of its own, so the run that
 skips everything does not cancel the code run before it. Cost: an
 intermediate commit gets no result of its own.
+
+*** State after #472 closed (master 5ad2474, run 3094)
+
+#472 is fixed. Runs 3093 and 3094: the mac binaries built by the Linux
+x64 and Linux arm64 hosts with the same toolchain are identical, twelve
+items; ~collect~ in all: 1152 equal, 0 different, 0 not compared.
+
+What is left in THIS issue:
+- C4/C7 for the other targets: each has one producer. A second one needs
+  that target's toolchain on another host ("The toolchain rule", end of
+  ~issues/fixed/472.org~); every download or sysroot is Jorge's yes, per
+  target. Natural next: linux-arm64 (native on arm64, cross on x64).
+- The compiler binary and vendored libraries in the binary lists.
+- Windows as a native producer of binaries: #483.
+- Open choice: whether one failing job keeps cancelling the rest of a run.
+Done: C0-C3, C5, C6, C8, superseded-run cancelling, and C7's mechanism.

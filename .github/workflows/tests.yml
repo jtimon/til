@@ -256,7 +256,7 @@ jobs:
       # mac targets, with the identity of the clang, lld, llvm-ar and
       # dsymutil that built it. The collect job compares these binaries
       # between producers only where the toolchains are the same (the
-      # toolchain rule, end of issues/open/472.org) and says so where they
+      # toolchain rule, end of issues/fixed/472.org) and says so where they
       # are not. The mac headers and libraries are the repository's
       # vendor/macos on every host.
       - name: Install the mac cross toolchain
@@ -1861,7 +1861,7 @@ jobs:
     if: needs.doc-gate.outputs.code == 'true'
     name: macos (cross-compile on linux)
     # ubuntu-24.04, not ubuntu-latest, on purpose (#472 level 3, the toolchain
-    # rule at the end of issues/open/472.org): the mac targets' toolchain is
+    # rule at the end of issues/fixed/472.org): the mac targets' toolchain is
     # this release's clang, lld and llvm 18.1.3 with the repository's
     # vendor/macos. The other producer of mac binaries, linux-arm64-native,
     # runs on ubuntu-24.04-arm and gets the same packages, so the collect job
@@ -1982,7 +1982,7 @@ jobs:
       # mac targets, with the identity of the clang, lld, llvm-ar and
       # dsymutil that built it. The collect job compares these binaries
       # between producers only where the toolchains are the same (the
-      # toolchain rule, end of issues/open/472.org) and says so where they
+      # toolchain rule, end of issues/fixed/472.org) and says so where they
       # are not. The mac headers and libraries are the repository's
       # vendor/macos on every host.
       - name: Write the binary hash lists for the collector

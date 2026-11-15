@@ -192,6 +192,19 @@
   ~collect~ compares those only where the toolchains are the same, per the
   rule above.
 
+  In short, what is reproducible today. Inputs of a build are the source,
+  the target and ~--usize~, the compiler's revision, and for a binary the
+  target's toolchain; anything a macro reads from outside (files, git, the
+  environment) is an input its author declares. Not inputs: the host, its
+  CPU, its C library, the checkout's location, the time, the compiler's
+  own layout. Held on every push: the compiler's state before a backend
+  and the generated source, from five hosts; binaries from two checkout
+  roots and times; and, for the mac targets, binaries from two Linux hosts.
+  Not yet held: binaries between hosts for the other targets (each has one
+  producer so far; #473), the compiler binary itself, and vendored
+  libraries. Generated C built with another compiler than the target's is
+  outside all of this.
+
 ** Shared program builder
 
   After CLI validation and the common ~prepare_program~ pass, C, HolyC, MLIR

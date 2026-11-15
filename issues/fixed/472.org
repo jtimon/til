@@ -1,6 +1,51 @@
 # priority: medium
 # category: backends
-** OPEN #472 Deterministic builds independent of build host
+** FIXED #472 Deterministic builds independent of build host
+
+*** Post-mortem
+
+What was wrong: the same til source did not give the same output on every
+build host. The causes, each fixed where it was introduced and each with a
+regression row:
+- Sizes of the RUNNING compiler baked into generated code (~size()~ folded
+  early, folds through containers): F1-F3, ~size_for_target()~; rows
+  ~self_translate~ and ~translate_layouts~ under ~make check_usize64~.
+- The checkout's absolute path in reuse stamps, debug info and Mach-O
+  object names; archive timestamps: F7, L3a; row ~reproducible_build~.
+- ~VERSION~ following git's abbreviation length: F5.
+- Nonfinite float text from the host C library and a NaN's sign from the
+  host CPU: F6, then #489 (a NaN prints as ~nan~); row ~float_fold~.
+- A ~///~ doc comment keeping the CR of a CR LF checkout (Windows): row
+  ~observe~, ~line_ends~.
+
+What now holds, and what holds it:
+- Level 1, the compiler's state before any backend
+  (~til ast --phase=tokens|parsed|typed|owned|prepared~): identical from
+  Linux x64, Linux arm64, macOS arm64, macOS x64 and the Windows ~til.exe~,
+  and from both compiler layouts.
+- Level 2, the generated source for every one of the fourteen targets at
+  both widths: identical from the same five hosts and both layouts.
+- Level 3, binaries: identical from two checkout roots and two build
+  times on one host, and, for macos-arm64 and macos-x64 (two programs, a
+  static archive, its object and a shared library), identical from a
+  Linux x64 and a Linux arm64 host using the targets' one toolchain
+  (Ubuntu 24.04's clang, lld and llvm 18.1.3 with ~vendor/macos~). First
+  seen in CI run 3093, widened in run 3094: 1152 items equal, 0 different.
+- CI's ~collect~ job (#473, ~examples/ci_collect.til~) compares hash lists
+  from the five hosts on every push and fails on any difference.
+
+Limits, stated in ~doc/self.org~ ("Where the same source gives the same
+output"): binaries are compared between hosts only for the two mac
+targets; every other target has one producer, and giving it a second one
+under "The toolchain rule" (end of this file) is #473's remaining work
+(C4, C7), target by target. The compiler binary itself and vendored
+libraries are not in the binary lists yet. The corpus is small (eight
+programs for level 1, five for level 2), and ~src/til.til~ is in neither
+by cost. A string literal spanning lines in a CR LF file keeps its CR.
+Whether a NaN's text should show its sign again is #489.
+
+The rest of this file is the working record, oldest first.
+
 
 *** Goal
 
@@ -130,17 +175,18 @@ No GCC/Clang installation inside TempleOS is assumed.
 - [X] Lexing, parsing, typing, compile-time evaluation and shared lowering
   agree before codegen across fresh processes, compiler layouts and hosts
   for the same target/configuration. Localize failures to the earliest phase.
-- [ ] Establish the binary toolchain groups and complete artifact inventory.
+- [X] Establish the binary toolchain groups and complete artifact inventory.
 - [X] Clean rebuilds at different times and in different checkout paths
   produce identical hashes within the declared comparison groups.
 - [X] Generated source and every companion file agree across reference hosts
   for the same supported target/backend/configuration.
-- [ ] Native and cross-built binaries, including runtime/core libraries,
+- [X] (for the mac targets from two Linux hosts; other targets: #473)
+  Native and cross-built binaries, including runtime/core libraries,
   match across reference hosts using the pinned target toolchain. CI rollout
   and failure propagation are tracked in #473.
-- [ ] Trace discrepancies to their source and add regression coverage for
+- [X] Trace discrepancies to their source and add regression coverage for
   discovered nondeterminism rather than masking differing bytes.
-- [ ] Document supported reproducibility configurations and remaining
+- [X] Document supported reproducibility configurations and remaining
   limitations for #473's matrix; do not equate functional cross-build support
   with reproducibility.
 
