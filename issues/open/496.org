@@ -1,0 +1,49 @@
+# priority: low
+# category: features
+** OPEN #496 Nested type applications over a type parameter (Vec(Vec(T)) in a generic)
+
+Since [[../fixed/494.org][#494]] a nested type application parses in any annotation when its
+types are concrete (~v : Vec(Vec(Str))~), but one over a type parameter
+is rejected where it is written:
+
+#+begin_src til
+mode script
+nested_len := func<T>(v: Vec(Vec(T))) returns USize { return v.len() }
+#+end_src
+
+reports ~a nested type application over a type parameter
+('Vec(Vec(...))') is not supported yet; only concrete nested types are~
+(test/bug494_generic_error.til pins it). The same applies to a type
+generator's ~T: Type~ parameter.
+
+*** Why
+
+Generic instantiation reads a type parameter back out of a one-level
+instance NAME: ~typer.til::generic_decompose_nested~ splits ~Vec__T~ at
+~__~ and ~_~ and lines it up against ~Vec__I64~ to bind ~T = I64~. A
+nested instance is ~Vec__Vec__T~ against ~Vec__Vec__I64~, which that split
+does not decompose, and the outer application's lifted declaration
+(~Vec__Vec__T := Vec(Vec__T)~) names an inner instance that exists only
+once ~T~ is known. Before #494 rejected it, letting it parse produced a
+cascade of over a hundred unrelated errors.
+
+A related, separate limit (unchanged by #494): inferring ~T~ from a nested
+INSTANCE argument -- ~func<T>(v: Vec(T))~ called with a ~Vec(Vec(I64))~,
+so ~T = Vec(I64)~ -- is refused with "appears only inside another type".
+
+*** Direction
+
+Bind type parameters structurally rather than by splitting mangled
+names: keep the application's shape (callee and argument types) with the
+annotation, unify it recursively against the argument's type, and
+instantiate the inner application before the outer one. Both limits
+above would then fall out of one mechanism.
+
+*** Acceptance
+
+  - [ ] ~func<T>(v: Vec(Vec(T)))~ and ~Map(Str, Vec(T))~ parameters
+    instantiate and run, interpreted and compiled.
+  - [ ] A ~func<T>(v: Vec(T))~ called with a ~Vec(Vec(I64))~ infers
+    ~T = Vec(I64)~.
+  - [ ] A type generator's ~T: Type~ parameter in a nested application.
+  - [ ] test/bug494_generic_error.til becomes a passing test.
