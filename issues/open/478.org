@@ -20,7 +20,8 @@ case keyed on method names or a conservative taint:
   - ~clone_arg_may_be_view~ (#258): clone-to-move elision is disabled for
     every ~Str~, because a Str might be a view.
   - ~Str.delete~ and every backend read ~cap~ to tell owned, literal and
-    view apart (64 ~CAP_VIEW~ mentions in 13 files under src/self).
+    view apart (82 lines mentioning ~CAP_VIEW~ in 15 files under src/self,
+    counted 2026-11-15 at master eb692334d; it was 64 in 13 when filed).
   - doc/ffi.org: views are not NUL-terminated, so ~c_str~ needs a clone at
     the C boundary.
 
@@ -38,8 +39,32 @@ Mojo precedent: ~String.strip()~ returns
 (Mojo/stdlib/std/collections/string/string.mojo in the Modular repo), a
 distinct view type tied to its owner's origin; ~String~ itself always owns.
 
+*** What #329's prototype showed (2026-11-15, master eb692334d)
+
+A user-level slice struct (a ~ref~ data field plus a count; source in
+[[./329.org][#329]], "Prototype") already gets, from the generic carried-borrow
+machinery and with no name list: the owner kept alive through the view
+and through copies of it, "cannot return a borrow of local" on returning
+a view of a local (#372's case), "cannot reassign ... while ... still
+borrows its storage" (~view_escape_error.til~'s reassign case), and a
+temporary source kept alive (#447's case). So the premise of this issue
+holds for those.
+
+One thing the Str-specific code does today is NOT covered generically
+yet: #456's inner-scope escape (~check_view_escapes~: a view of a
+block-local pushed into a longer-lived container). That is #329's hole
+H1, its Plan step 2. Until it lands, migrating Str views would LOSE that
+protection.
+
+#329's other hole, H2 (the owner's buffer reallocating under a live
+borrow), does not arise for Str: ~push_str~ never reallocates (it panics
+past capacity), so a Str buffer only goes away by reassignment or
+destruction, both of which are covered.
+
 *** Plan
 
+  - [ ] Prerequisites in #329: the core ~Slice(T)~ (step 1) and H1
+    (step 2). Its sugar steps are not required for this issue.
   - [ ] After #329: decide the view type (~Slice(U8)~ vs a Str-specific
     slice) and how ~format~, ~println~, ~eq~ etc. accept it without
     clones (overloads, an interface, or an implicit borrow conversion).

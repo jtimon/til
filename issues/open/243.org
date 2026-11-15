@@ -22,6 +22,14 @@
      fixed-array representation behind ~[N]T~ still a separate decision.
      These type spellings do not settle bare value-literal ~[...]~ syntax.
 
+   Order of work (2026-11-15): #329 first (its Plan has the core
+   ~Slice(T)~, then ~[]T~ and the slicing sugar), then #330's remaining
+   type spellings, then this issue. The parser line numbers in the history
+   below are stale: the subscript desugar is no longer at
+   parser.til:1081-1099 (#329's Plan step 5 names the current site). And
+   the slicing spelling is decided: #329 approved ~a[low..high]~, not the
+   ~a[beg:end]~ the history below sketches.
+
    The remaining distinct discussion here is Array/Vec value-literal syntax,
    including inference, the default container for bare ~[...]~, and empty
    literals. Coordinate it with #329/#330 rather than treating typed

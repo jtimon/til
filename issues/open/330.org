@@ -9,6 +9,30 @@
    and its ownership/lifetime semantics land first in #329 so ~[]T~ cannot be
    ambiguously assigned to Vec.
 
+*** Current status (2026-11-15, master eb692334d)
+
+   Sequencing: ~[]T~ lands inside #329 (its Plan step 4), because #329's
+   acceptance needs the annotation. This issue then adds ~[..]T~ on the
+   same parser hook and stays open on ~[N]T~. ~[..]T~ is a pure alias of
+   the existing ~Vec(T)~ and does not depend on Slice semantics.
+
+   The parser facts in "Parser plan" below predate later work:
+
+   - ~parse_type_ref~ (src/self/parser.til) no longer accepts only an Ident
+     or an inline struct/enum. After the leading name it calls
+     ~parse_type_app~, which parses ~Name(A, B)~ in annotations, mangles it
+     to the instance name (~Name__A_B~) and queues the instantiation in
+     ~type_gen_decls~. The bracket spellings should produce their canonical
+     names through that same path, not a second one.
+   - Type arguments are no longer Ident-only: they take ~ref~ / ~own~
+     qualifiers (#320) and nested applications (#494). A nested
+     application over a type parameter (~Vec(Vec(T))~ inside a generator)
+     is still rejected, tracked in #496, and ~[][]T~ / ~[..][]T~ inherit
+     that restriction there.
+   - There is a value-argument precedent for ~[N]T~: ~Simd(T, N)~ parses
+     its width as an expression, lifts a declaration, and lets the initer
+     canonicalize the name once constants are resolved.
+
 *** Corrected language comparison
 
    Web sources checked 2026-07-27:
@@ -66,9 +90,10 @@
    no default remains required at struct construction under #242, exactly as
    in the example; the bracket sugar changes only its type spelling.
 
-   #329 separately asks whether slicing is spelled ~a[low..high]~ or
-   ~a[low:high]~; that operation syntax does not change these approved type
-   spellings.
+   #329 settled the slicing operation as ~a[low..high]~ (2026-11-15), the
+   spelling these examples already use. Note the two meanings that now sit
+   side by side: ~[..]T~ is the Vec TYPE, ~a[..]~ is the whole-slice
+   EXPRESSION.
 
 *** The fixed-array semantic decision
 

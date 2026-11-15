@@ -7,6 +7,223 @@
    pointer and a length, supports checked indexing/iteration, and can view an
    ~Array(T)~, ~Vec(T)~, or another ~Slice(T)~ without copying.
 
+   This is the first of the slice issues: [[./330.org][#330]] (bracket type
+   sugar), [[./478.org][#478]] (Str views as a typed slice) and
+   [[./243.org][#243]] (value literals) all build on it.
+
+*** Current status (2026-11-15, master eb692334d)
+
+   Nothing named Slice exists under src/ yet. But most of what this issue
+   described as future compiler work has landed through other issues since
+   it was written (2026-07-27), so the original outline overstated the job.
+   Checked by building a throwaway ~ProtoSlice~ (source under "Prototype"
+   below) and running it interpreted, compiled, and compiled with ~--asan~.
+   It needed NO compiler change.
+
+   Works today as a plain core-library type:
+
+   - Representation. #321 made a no-default ~ref~ field required at
+     construction and left null only in the raw quarantine. ~ref data : U8~
+     is a raw-buffer label, so ~data~ may be null exactly when ~count~ is 0
+     (a slice of a lazy-empty Vec; ~Slice(T)(data = 0, count = 0)~ compiles).
+     That settles the "reconcile the empty slice with #321" item.
+   - Generic type through ~struct<T: Type> { ... }~, the same generator path
+     as Array/Vec.
+   - Checked ~s[i]~, ~for x : T in s~ (the ~len~ / ~unsafe_get~ lowering),
+     nested slicing, a slice as a parameter, as a struct field with no
+     default (#242), and returned from a function that borrows a parameter.
+   - The auto-generated clone/delete: a ~ref~ field is copied as a pointer
+     and never freed (doc/concepts/ownership.org, "Fields").
+   - Owner lifetime. The typer's carried-borrow summaries
+     (~ref_return_carried_params~ / ~ref_return_into_params~, #351/#357)
+     see that the returned struct carries a borrow of the parameter, and the
+     garbager's ~collect_call_ref_return_edges~ keeps the owner alive
+     through the slice, through a slice of the slice, and through a clone of
+     it. A temporary source (~of_vec(make(), 0, 2)~) is hoisted and kept
+     alive as well. All ASAN-clean. This answers "specify how the garbager
+     extends an owner's last use through every live slice": it already does.
+   - Rejected today, by existing diagnostics:
+     - returning a slice of a local: "cannot return a borrow of local
+       'local' inside 'ProtoSlice__Str': the local dies with this call"
+       (~check_carried_borrow_of_local_return~);
+     - the same through a wrapping struct ("inside 'Holder'");
+     - reassigning the owner while the slice is used later: "cannot reassign
+       'values' while 'view' still borrows its storage";
+     - ~own values.delete()~ followed by a use of the slice: "use of
+       'values' after ownership transfer".
+
+   Holes found (ASAN use-after-poison compiled; garbage bytes or silence
+   interpreted). None is specific to slices:
+
+   - H1, inner-scope escape through an owned deposit. A slice of a
+     block-local pushed with ~own~ into a ~Vec(ProtoSlice(Str))~ declared
+     outside the block is accepted, and the Vec reads freed memory after the
+     block. Str views have ~check_view_escapes~ for exactly this (#456) and
+     ~Vec(ref T)~ has the deposit lifetime checks; a struct that CARRIES a
+     ref field and is deposited by value has neither.
+   - H2, owner mutation. ~values.push(...)~ while a slice is still used
+     later reallocates under it. The same hole exists without any slice:
+     ~ref first : Str = values[0]~, then ~values.push(own ...)~, then
+     ~println(first)~ compiles today and reads freed memory. ~Vec.get~'s doc
+     comment says the reference is "valid until the next mutation"; nothing
+     enforces that.
+   - H3, write permission. ~ref mut x : I64 = view[1]~ followed by ~x = 20~
+     writes through a slice of an immutable Vec. This is the access-path
+     enforcement #490 / #491 still have pending, not a slice rule.
+
+*** Decisions still needed
+
+   Decided 2026-11-15: slicing is spelled ~a[low..high]~ (see "Approved
+   type and slicing syntax").
+
+   Decided 2026-11-15: Slice has a ~new~. A struct with ~new~ in its
+   namespace cannot be built with the field literal outside that namespace
+   (#99, ~infer_struct_constructor_fcall_impl~: "struct 'X' has a new()
+   constructor; use X.new(...) instead"), and that is wanted here: without
+   it ~Slice(Str)(data = 0, count = 1000)~ compiles and forges a view with
+   no owner. More constructors may exist under their own names; ~new~ is
+   the one that disables the literal. ~new~ itself calls the literal, and
+   every other constructor reuses ~new~ rather than repeating it. (The
+   typer would allow the literal anywhere inside Slice's own namespace --
+   the rule compares the active type name, as ~Vec.with_capacity~ and
+   ~Range.clone~ rely on -- so "only ~new~ spells the literal" is this
+   type's convention, giving one place where the fields are set. Outside
+   the namespace, ~Vec.slice~ / ~Array.slice~ have no choice.)
+
+   Proposed shape, following core: ~new~ takes what the type cannot do
+   without (~Range.new(start, end)~, ~Array.new(cap)~,
+   ~Expr.new(data, line, col)~; ~Vec.new()~ takes nothing because nothing
+   is mandatory), further constructors are named (~with_capacity~,
+   ~from_hex~, ~from_c_str~), and a view or conversion is a method on its
+   source that calls the other type's constructor (~Array.to_vec~ calls
+   ~Vec(T).with_capacity~; ~Str.substr~). So: ~Slice(T).new(data, count)~,
+   called by ~Vec.slice~ / ~Array.slice~, which live outside Slice's
+   namespace and therefore cannot use the literal either. Checked with the
+   prototype: with a ~new~ the literal is rejected, and a function outside
+   the namespace that builds the slice through such a constructor from
+   ~ptr_add(v.data, ...)~ still gets the "cannot return a borrow of local"
+   and "cannot reassign ... while ... still borrows" diagnostics and is
+   ASAN-clean.
+
+   Still open:
+
+   - Mutability for the first cut. Recommended: read-only slices (no ~set~,
+     ~get~ / ~unsafe_get~ return ~ref T~), with writable slices decided
+     together with #490 / #491 once access-path enforcement exists; until
+     then H3 applies to slices exactly as it applies to ~Vec.get~.
+   - The H2 rule. Recommended: reject passing an owner as a ~mut~ argument
+     or receiver while a borrow INTO its storage (an element ref or a slice)
+     has a later use, the same shape as today's reassignment diagnostic.
+     That is conservative (~v.set~ does not reallocate), so its first step
+     is to count what it flags in src/ and test/ before it becomes an error.
+   - Method names for the open-bound forms, since the sugar must not
+     evaluate the receiver twice to ask for its length. Proposed:
+     ~slice(low, high)~, ~slice_from(low)~ and ~as_slice()~, with ~a[..high]~
+     lowering to ~a.slice(0, high)~.
+
+*** Plan
+
+   One squashed commit per step, each passing ~make clean && make test~.
+   Steps 1-5 never require the compiler's own sources to use slices, so
+   none is a "Two-pass: " commit; using ~[]T~ or ~a[..]~ inside src/self or
+   src/core is only possible once the sugar is in master (doc/self.org,
+   "When a preparation commit is needed").
+
+   1. [ ] Core type, no sugar. New ~src/core/slice.til~ (imported by
+      core.til, vec.til and array.til; it imports neither):
+      ~Slice := struct<T: Type>~ with ~ref data : U8~ and
+      ~const count : USize~; ~new~ (which closes the field literal, #99),
+      ~len~, ~unsafe_get~, checked ~get~ and ~slice~ (plus the open-bound
+      methods once named). ~slice~ on the
+      owning branches of ~Vec(T)~ and ~Array(T)~. Tests: ~test/slices.til~
+      (mode test) covers empty / full / prefix / middle / suffix views,
+      ~low > high~ and ~high > len~ throwing OutOfBounds, nested slicing,
+      for-in, clone and delete leaving the owner intact, parameters, returns
+      from a borrowed parameter, a field without a default, Array and Vec
+      sources and a lazy-empty Vec -- with heap-built elements (~format~),
+      because string literals mask a dangling read. A negative fixture
+      ~test/slice_escape_error.til~ pins the four diagnostics listed under
+      "Current status", registered in src/tests.til like
+      ~view_escape_error.til~. No compiler change is expected; if one turns
+      out to be needed, that is a finding to report, not to work around.
+   2. [ ] H1: extend the deposit lifetime check to a value that carries a
+      borrow and is deposited by ownership into storage outliving the
+      borrowed owner's scope. Regressions: a slice case and a plain
+      ref-field carrier case in the negative fixture.
+   3. [ ] H2, once its rule is approved: measure, then diagnose, with the
+      element-ref reproducer and the slice reproducer as regressions.
+   4. [ ] ~[]T~ in type positions: ~parse_type_ref~ recognizes ~[~ ~]~ and
+      goes through ~parse_type_app~'s path, so it yields the same ~Slice__T~
+      name and ~type_gen_decls~ instantiation as writing ~Slice(T)~. The
+      restriction tracked in #496 (a nested application over a type
+      parameter is rejected) applies unchanged. Parser tests, plus a diagnostic for ~[]~ with no
+      element type. #330 then adds ~[..]T~ and ~[N]T~ on the same hook.
+   5. [ ] Slicing sugar ~a[low..high]~, ~a[..high]~, ~a[low..]~, ~a[..]~:
+      the postfix subscript arm (src/self/parser.til, the ~LBracket~ case of
+      the postfix loop) reuses the range token and the operand parser that
+      ~parse_expression~'s range arm uses (~parse_binop~), and emits the
+      slice methods with ~set_fcall_subscript_bang~. The arm has to look for
+      ~..~ itself rather than take ~parse_expression~'s finished
+      ~Range.new~ call, because an open bound has no operand to parse. A
+      Range VALUE used as an index (~r := 1..3~, then ~a[r]~) is not
+      slicing; it stays ~a.get(r)~. Docs: a "Borrowed slices" section in
+      doc/concepts/ownership.org and the tutorial.
+   6. [ ] Close-out: slices over ref-element containers (~Vec(ref T)~ /
+      ~Array(ref T)~ store pointer slots, so they need their own branch as
+      in vec.til), the FFI layout note in doc/ffi.org, then the post-mortem
+      and the move to fixed/.
+
+*** Prototype
+
+   Kept here so the status above can be re-checked; it was a file under
+   tmp/ and is not committed anywhere.
+
+   #+begin_src til
+   ProtoSlice := struct<T: Type> {
+       ref data : U8
+       const count : USize = 0
+   namespace:
+       len := func(self: ProtoSlice(T)) returns USize { return self.count }
+       unsafe_get := func(self: ProtoSlice(T), i: USize) returns ref T {
+           return ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
+       }
+       get := func(self: ProtoSlice(T), shallow i: USize) returns ref T throws OutOfBounds {
+           if i < self.count { return self.unsafe_get(i) }
+           throw OutOfBounds()
+       }
+       of_vec := func(v: Vec(T), lo: USize, hi: USize) returns ProtoSlice(T) throws OutOfBounds {
+           if lo.lte(hi).and(hi.lte(v.count)) {
+               return ProtoSlice(T)(data = ptr_add(v.data, lo.to_uptr().mul(T.size().to_uptr())), count = hi.sub(lo))
+           }
+           throw OutOfBounds()
+       }
+       slice := func(self: ProtoSlice(T), lo: USize, hi: USize) returns ProtoSlice(T) throws OutOfBounds {
+           if lo.lte(hi).and(hi.lte(self.count)) {
+               return ProtoSlice(T)(data = ptr_add(self.data, lo.to_uptr().mul(T.size().to_uptr())), count = hi.sub(lo))
+           }
+           throw OutOfBounds()
+       }
+   }
+
+   // H1: accepted today, reads freed memory.
+   h1 := proc() {
+       mut views := Vec(ProtoSlice(Str)).new()
+       {
+           base := vec(Str, format("a", "1"), format("b", "2"))
+           views.push(own ProtoSlice(Str).of_vec(base, 0, 2)!)
+       }
+       println(views[0][0])
+   }
+
+   // H2: accepted today, reads freed memory.
+   h2 := proc() {
+       mut values := vec(Str, format("a", "1"), format("b", "2"))
+       view := ProtoSlice(Str).of_vec(values, 0, 2)!
+       values.push(own format("c", "3"))
+       println(view[0])
+   }
+   #+end_src
+
 *** Verified language precedents
 
    Checked 2026-07-27. Jai has no public official specification, so its
@@ -33,7 +250,7 @@
    is the growable array (the analogue of til's ~Vec(Str)~); Odin spells that
    type ~[dynamic]Str~. Both reserve ~[]Str~ for the borrowed view.
 
-*** Approved type syntax
+*** Approved type and slicing syntax
 
    Use ~[]T~ in type positions. Both Jai and Odin use this spelling for
    borrowed views. Keep ~Slice(T)~ as the canonical semantic type name:
@@ -53,10 +270,13 @@
    holder := Holder(names = names[0..2])
    #+end_src
 
-   Two range spellings are plausible. Do not choose silently; confirm the
-   examples before implementation.
+   Slicing uses til's own half-open range spelling (Candidate A below).
+   Approved by the human on 2026-11-15, after reading the same program in
+   both spellings: it is consistent with the range syntax of for loops and
+   lets the parser reuse the range code. Candidate B is kept as the
+   rejected alternative.
 
-   *Candidate A -- til-native / Zig-style range (recommended for discussion):*
+   *Candidate A -- til-native / Zig-style range (APPROVED):*
 
    #+begin_src til
    middle : []Str = names[1..3]  // indices 1 and 2; high bound excluded
@@ -66,11 +286,11 @@
    #+end_src
 
    Til already uses half-open ~lo..hi~ ranges, and today's subscript parser
-   already parses ~names[lo..hi]~ as ~names.get(Range.new(lo, hi))!~. Slice
-   syntax could recognize that Range-shaped index and lower it to a checked
-   slice operation. Open bounds would be new parser cases.
+   already parses ~names[lo..hi]~ as ~names.get(Range.new(lo, hi))!~
+   (nothing writes that today, and no type has a ~get~ taking a Range).
+   Open bounds are new parser cases; see the Plan's step 5.
 
-   *Candidate B -- Odin / Go colon range:*
+   *Candidate B -- Odin / Go colon range (rejected):*
 
    #+begin_src til
    middle : []Str = names[1:3]
@@ -107,9 +327,12 @@
    - Mutability must be explicit. Decide whether all slices permit element
      writes (matching current Array/Vec refs), or whether the type system needs
      separate read-only and mutable views before accepting ~view[i] = value~.
-   - An empty slice is a real expected state. Its representation must be
-     reconciled with #321's no-NULL direction rather than hidden behind a
-     defensive fallback.
+     Since this was written, #490 / #491 defined independent slot and
+     referent permissions (~returns ref T~ read-only, ~returns ref mut T~
+     writable); see "Decisions still needed".
+   - An empty slice is a real expected state: ~data~ is a ~ref ... : U8~
+     raw-buffer label, null exactly when ~count~ is 0 (settled by #321, see
+     "Current status").
 
 *** Borrow and lifetime rules
 
@@ -135,11 +358,16 @@
 
    Expected valid sources include globals, a caller-owned parameter whose
    view does not escape it, and a local Array/Vec used while that owner remains
-   live and un-reallocated. The issue must specify how the garbager extends an
-   owner's last use through every live slice, analogous to existing ref-local
-   lifetime extension.
+   live and un-reallocated. The garbager already extends an owner's last use
+   through every live slice (the carried-borrow edges; see "Current
+   status"). Of the two examples above, the first is rejected today; the
+   second is hole H2.
 
-*** Implementation outline
+*** Implementation outline (original, superseded by "Plan" above)
+
+   Kept for the record. Items 1, 2 and 5 are the Plan's steps 1, 4 and 5.
+   Item 3's first half ("a Slice borrows its source") needs no work: the
+   carried-borrow summaries already provide it. Its second half is H2.
 
    1. Add canonical ~Slice(T)~ storage and methods in core, using the same
       generic type-generation path as Array/Vec.
@@ -154,7 +382,10 @@
    5. Lower all sugar to the explicit Slice methods before interpreter/builder
       stages; neither backend should need syntax-specific handling.
    6. Document FFI layout only after deciding whether Slice is guaranteed to
-      be exactly ~(data, count)~ and how empty slices are represented.
+      be exactly ~(data, count)~ and how empty slices are represented. Under
+      the default ~--usize=32~ the prototype is a native pointer plus a
+      32-bit count; whether stored references stay native-width is #313's
+      open question.
 
 *** Acceptance
 
@@ -170,5 +401,5 @@
    - Tests cover empty/full/prefix/middle/suffix views, low > high, high > len,
      aggregates with owned elements, and source destruction ordering.
 
-   The ~[]T~ type spelling is settled. The slicing-range spelling remains a
-   decision in this OPEN issue until one example above is explicitly accepted.
+   The ~[]T~ type spelling and the ~a[low..high]~ slicing spelling are both
+   settled. What remains open is listed under "Decisions still needed".
