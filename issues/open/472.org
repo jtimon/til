@@ -2090,6 +2090,13 @@ a runner network outage. Run 3093 is the first where both hosts have clang
 
 *** Plan to finish: the compiler binary, native equals cross (written 2026-11-15, master 52e9399)
 
+Why this matters (agreed with Jorge, also at the top of #473): each
+environment tests til once, natively, and cross-compiles it for the
+others; ~collect~ checks that every cross-built til equals the natively
+tested one; so the cross builds need no tests of their own and the "build
+here, run there" jobs go. Those jobs are temporary and stay until this
+issue delivers the equality for their target.
+
 The goal in one sentence: for each target, ~til~ built for it on any host
 that can build it is the same bytes, including the host where that target
 is native; CI proves it on every push; and CI then drops the jobs that
@@ -2307,3 +2314,43 @@ two local productions.
   or one sysroot that both producers use. Not chosen yet.
 - Whether ~.text~ of ~til~ and of the small programs is equal once the
   fold is fixed: the next run.
+
+*** Progress: run 3107 lost to a crash in bin/make; fixed (base master 9bf8701)
+
+Run 3107, the first with the fold fix, was cancelled after five minutes
+by the ~macos gui (cross-compile on linux)~ job: ~./bin/make
+vendor/macos/frameworks/.stamp vendor/tinyfiledialogs/build-macos-arm64/libtinyfd.a
+vendor/tinyfiledialogs/build-macos-x64/libtinyfd.a~ died with a
+segmentation fault. No hash list was produced, so the questions of the
+previous section are still open. Later runs on master died the same way.
+
+Cause, reproduced here and seen under ASAN in the native layout
+(~bin/til build --usize=64 --asan make.til~): since 58b8868 (#483) the
+names ~TIL~, ~ASAN~ and ~DEBUG~ in ~make.til~ are built with ~format~
+instead of being literals, and ~commands()~ stored them in
+~Command(name = TIL, ...)~ as they were. Each goal builds that list and
+frees it, which freed the global's buffer: a use after free on the second
+goal and a corrupted allocator by the third. One goal, the usual case,
+never showed it. The three fields now take ~.clone()~.
+
+No suite row: the goals that reach this either build something or need
+tools not on every host, and without ASAN in the native layout the
+corruption does not show on a fixed number of goals.
+
+The hole behind it is the compiler's, not filed: a global ~Str~ that owns
+heap memory can be stored in a struct field with no ~.clone()~ and no
+error, and the struct's delete then frees the global.
+#+begin_src til
+mode script
+Box := struct { name := "" }
+NAME := format("glo", "bal")
+show := proc() {
+    box := Box(name = NAME)
+    println(box.name)
+}
+show()
+show()
+#+end_src
+Built ~--usize=64 --asan~ this reports heap-use-after-free on the second
+call. Passing ~NAME~ to an ~own~ parameter is rejected ("cannot pass ref
+variable to 'own' parameter"); a struct field is not checked.

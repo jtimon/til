@@ -6,6 +6,41 @@ CURRENT PLAN AND DECISIONS: the last section, "Plan to close". Where an
 earlier section differs from it, that section wins; the earlier ones are
 kept as the record of how the plan was reached.
 
+*** The point of this issue, in short (agreed with Jorge, 2026-11-15)
+
+READ THIS FIRST; it states the goal more plainly than the older text below,
+and wins where they differ.
+
+- Every environment tests til ONCE, natively: it builds its own til and
+  runs the suite on that build.
+- Every environment also cross-compiles til for every other target it
+  can, without running the result anywhere.
+- The ~collect~ job receives only hashes and checks that, for each
+  target, every cross-built til is byte for byte the til that was built
+  and tested natively on that target's own host.
+- Therefore a cross-built til needs no test of its own: the tests passed
+  on those exact bytes. That is why this issue needs #472 (deterministic
+  builds, down to the compiler binary), and it is the whole reason for
+  both.
+- So CI ends up with three levels: the doc gate, one level where each
+  host tests natively and cross-builds, and ~collect~. Every job that
+  exists today only to carry a binary built on one OS to another OS and
+  run it there ("build here, run there": the two Windows run jobs, the
+  cross-run steps inside the Mac jobs, the two ~macos-host-cross-*-run~
+  jobs) is TEMPORARY. Each goes, per target, in the commit after
+  ~collect~ has shown that target's cross-built til equal to its native
+  one. None is removed before that: until then they are the only test the
+  cross builds get.
+- What stays: targets on which til never runs (riscv, arm32, x86, wasm32,
+  Android, TempleOS) have no native build to equal; they are cross-built
+  once and tested under qemu, node or the guest, as today. The JNI jar
+  chain stays too: it merges four hosts' native libraries into one jar.
+- Per target, "equal" needs one toolchain for all its producers ("The
+  toolchain rule", end of ~issues/open/472.org~). Status and the plan are
+  at the end of #472 ("Plan to finish").
+
+*** Original statement (older; the section above wins)
+
 Each supported host should test its own native build and build programs for
 the other supported targets. Execute cross-built artifacts on the target or
 an emulator where available. A collecting job checks completeness and, as

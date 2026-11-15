@@ -2431,9 +2431,9 @@ commands := func() returns Vec(Command) {
     // Artifact goals: every path the Makefile used to accept on the
     // command line, so `make <path>` and `bin/make <path>` still name
     // the same thing.
-    out.push(own Command(name = TIL, alias_of = "til", is_path = true, go = build_til))
-    out.push(own Command(name = ASAN, alias_of = "asan", is_path = true, go = build_asan))
-    out.push(own Command(name = DEBUG, alias_of = "debug", is_path = true, go = build_debug))
+    out.push(own Command(name = TIL.clone(), alias_of = "til", is_path = true, go = build_til))
+    out.push(own Command(name = ASAN.clone(), alias_of = "asan", is_path = true, go = build_asan))
+    out.push(own Command(name = DEBUG.clone(), alias_of = "debug", is_path = true, go = build_debug))
     out.push(own Command(name = "bin/test_runner", alias_of = "test_runner", is_path = true, go = build_test_runner))
     out.push(own Command(name = "bin/plot", alias_of = "plot", is_path = true, go = build_plot))
     out.push(own Command(name = "bin/tests", alias_of = "tests", is_path = true, go = build_tests))
