@@ -608,13 +608,13 @@ test_own_arg_literal_tagged_local := test() {
 test_multiline_literal := test() {
     // A literal may span lines; its newlines are bytes like any other. The
     // C emitter used to copy the source text into a C string literal, where
-    // a raw newline does not compile. A backslash before any character it
-    // does not escape -- a newline included -- stays a backslash.
+    // a raw newline does not compile. A backslash before a newline is an
+    // unknown escape, a lex error; a backslash that stays one is \\.
     two := "first
 second"
     assert_eq(Str, two, "first\nsecond")
     assert_eq(USize, two.len(), 12)
-    spliced := "a\
+    spliced := "a\\
 b"
     assert_eq(Str, spliced, "a\\\nb")
     assert_eq(USize, spliced.len(), 4)
@@ -624,8 +624,9 @@ test_literal_escapes := test() {
     // Literal.Str holds a literal's bytes; each backend spells them for its
     // target. These are the spellings a backend must not get wrong: a hex
     // digit right after \xNN (C reads \x greedily), embedded NUL and high
-    // bytes, '?' pairs (C trigraphs), and escapes til does not define,
-    // which stay a backslash and the character (C would decode \e, \a).
+    // bytes, '?' pairs (C trigraphs), and a backslash before a letter til
+    // does not escape, written \\ since an unknown escape is a lex error
+    // (C would decode \e, \a).
     hex := "\x41BC\x7fF\x00Z\xff"
     assert_eq(USize, hex.len(), 8)
     assert_eq(U8, hex.get(0).cast(U8), 65)
@@ -639,7 +640,7 @@ test_literal_escapes := test() {
     assert_eq(U8, "a\x9z".get(1).cast(U8), 9)
     assert_eq(I8, "a\x9z".get(2), 'z')
     assert_eq(Str, "??=??/", format("?", "?=", "?", "?/"))
-    unknown := "\q\e\a"
+    unknown := "\\q\\e\\a"
     assert_eq(USize, unknown.len(), 6)
     assert_eq(I8, unknown.get(0), '\\')
     assert_eq(I8, unknown.get(1), 'q')

@@ -45,6 +45,17 @@ In codegen, literal data lives in static const storage and the Str wrapper is
 static too -- no malloc for either. In interpreter, data is strndup'd with
 cap=CAP_LIT (also not freed by til delete).
 
+*** Escapes
+String and character literals take the same escapes: ~\n~ ~\r~ ~\t~ ~\\~
+~\"~ ~\'~ ~\0~, and ~\x~ with one or two hex digits (~"\x41"~ is ~"A"~,
+~'\x7'~ is byte 7). Any other backslash sequence is a lex error at the
+escape, and so is ~\x~ without a hex digit: a string writes a backslash
+itself as ~\\~ (~"\\q"~ is a backslash and a ~q~). Unknown escapes used to
+stay as written in a string and lose their backslash in a character, so a
+typo, or an escape a later til adds, changed a program silently
+(src/self/lexer.til ~escape_problem~; test/lexing.til
+~test_unknown_escapes~).
+
 *** Owned (from operations)
 #+begin_src til
 s := a.concat(b)   # count = a.count + b.count, cap = count (owned)

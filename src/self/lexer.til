@@ -123,6 +123,35 @@ priv is_hex_digit := func(c: I8) returns Bool {
     .or(c.gte('A').and(c.lte('F')))
 }
 
+// The escapes a string or character literal may use, the ones
+// parser.til's str_lit_decode and Char case decode. `pos` is the byte after
+// the backslash. "" when the escape is one of them, else the error message:
+// an unknown escape used to stay as written in a string ("\q" was a
+// backslash and a q) and lose its backslash in a char ('\q' was 'q'), so a
+// typo -- or an escape a later til adds -- changed a program silently.
+priv escape_problem := func(src: Str, pos: USize, kind: Str) returns Str {
+    ref c : I8 = src.unsafe_get(pos)
+    if c.eq('n').or(c.eq('r')).or(c.eq('t')).or(c.eq('\\')).or(c.eq('"')).or(c.eq('\'')).or(c.eq('0')) {
+        return ""
+    }
+    escapes := "the escapes are \\n \\r \\t \\\\ \\\" \\' \\0 and \\x with one or two hex digits"
+    if c.eq('x') {
+        if pos.add(1).lt(src.len()).and(is_hex_digit(src.unsafe_get(pos.add(1)))) { return "" }
+        return format("'\\x' in a ", kind, " literal needs one or two hex digits")
+    }
+    mut hint := ""
+    if kind == "string" { hint = "; write \\\\ for a backslash itself" }
+    if c.lt(' ').or(c.gt('~')) {
+        return format("unknown escape in a ", kind, " literal: a backslash before byte ",
+            c.cast(U8).to_str(), hint, " (", escapes, ")")
+    }
+    letter := Str.from_byte(c.cast(U8))
+    if kind == "string" {
+        hint = format("; write '\\\\", letter, "' for a backslash followed by '", letter, "'")
+    }
+    return format("unknown escape '\\", letter, "' in a ", kind, " literal", hint, " (", escapes, ")")
+}
+
 priv is_bin_digit := func(c: I8) returns Bool {
     return c.eq('0').or(c.eq('1'))
 }
@@ -522,10 +551,17 @@ tokenize := proc(src: Str, path: Str, quiet: Bool = false, mut diagnostics: Vec(
         // Strings
         case '"':
             pos++
+            mut bad_escape := false
             while pos < src_len {
                 if src.unsafe_get(pos) == '"' { break }
                 if src.unsafe_get(pos).eq('\\').and(pos.add(1).lt(src_len)) {
+                    esc_col : U32 = pos.sub(line_start) + 1
                     pos++
+                    problem := escape_problem(src, pos, "string")
+                    if problem.len() > 0 {
+                        lex_error(path, line, esc_col, problem, quiet, diagnostics)
+                        bad_escape = true
+                    }
                 }
                 if src.unsafe_get(pos) == '\n' {
                     line++
@@ -535,7 +571,11 @@ tokenize := proc(src: Str, path: Str, quiet: Bool = false, mut diagnostics: Vec(
             }
             if pos.lt(src_len).and(src.unsafe_get(pos).eq('"')) {
                 pos++
-                push_tok(tokens, TokenType.StringTok, start + 1, pos.sub(start) - 2, line, col)
+                if bad_escape {
+                    push_tok(tokens, TokenType.Error, start, pos - start, line, col)
+                } else {
+                    push_tok(tokens, TokenType.StringTok, start + 1, pos.sub(start) - 2, line, col)
+                }
             } else {
                 lex_error(path, line, col, "unterminated string", quiet, diagnostics)
                 push_tok(tokens, TokenType.Error, start, pos - start, line, col)
@@ -546,12 +586,27 @@ tokenize := proc(src: Str, path: Str, quiet: Bool = false, mut diagnostics: Vec(
         case '\'':
             pos++
             ch_start := pos
+            mut bad_escape := false
             if pos.lt(src_len).and(src.unsafe_get(pos).eq('\\').and(pos.add(1).lt(src_len))) {
+                esc_col : U32 = pos.sub(line_start) + 1
                 pos++
+                problem := escape_problem(src, pos, "character")
+                if problem.len() > 0 {
+                    lex_error(path, line, esc_col, problem, quiet, diagnostics)
+                    bad_escape = true
+                } else if src.unsafe_get(pos).eq('x') {
+                    // \xH / \xHH: the hex digits belong to the escape.
+                    pos++
+                    if pos.add(1).lt(src_len).and(is_hex_digit(src.unsafe_get(pos.add(1)))) { pos++ }
+                }
             }
             pos++
             if pos.lt(src_len).and(src.unsafe_get(pos).eq('\'')) {
-                push_tok(tokens, TokenType.Char, ch_start, pos - ch_start, line, col)
+                if bad_escape {
+                    push_tok(tokens, TokenType.Error, start, pos.add(1).sub(start), line, col)
+                } else {
+                    push_tok(tokens, TokenType.Char, ch_start, pos - ch_start, line, col)
+                }
                 pos++
             } else {
                 lex_error(path, line, col, "unterminated character literal", quiet, diagnostics)

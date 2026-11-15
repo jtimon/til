@@ -368,6 +368,31 @@ test_unterminated_comment_and_char := test() {
     assert_eq(Str, d1.render(), "lexfile:2:1: error: unterminated comment")
 }
 
+# An unknown escape is a lex error in strings and chars alike (it used to
+# stay as written in a string and lose its backslash in a char); chars take
+# \xH / \xHH like strings, and \\ is the backslash itself.
+test_unknown_escapes := test() {
+    src := "\"a\\qb\" '\\q' \"\\x\" '\\x4' '\\x41' \"\\\\q\""
+    mut diags := Vec(SourceDiagnostic).new()
+    tokens := tokenize(src, "lexfile", true, diags)
+    check_tok(src, tokens, 0, TokenType.Error, "\"a\\qb\"", 1, 1)
+    check_tok(src, tokens, 1, TokenType.Error, "'\\q'", 1, 8)
+    check_tok(src, tokens, 2, TokenType.Error, "\"\\x\"", 1, 13)
+    check_tok(src, tokens, 3, TokenType.Char, "\\x4", 1, 18)
+    check_tok(src, tokens, 4, TokenType.Char, "\\x41", 1, 24)
+    check_tok(src, tokens, 5, TokenType.StringTok, "\\\\q", 1, 31)
+    check_eof(src, tokens, 7, 1, 36)
+    escapes := "(the escapes are \\n \\r \\t \\\\ \\\" \\' \\0 and \\x with one or two hex digits)"
+    assert_eq(USize, diags.len(), 3)
+    ref d0 : SourceDiagnostic = diags[0]
+    assert_eq(Str, d0.render(), format("lexfile:1:3: error: unknown escape '\\q' in a string literal; ",
+        "write '\\\\q' for a backslash followed by 'q' ", escapes))
+    ref d1 : SourceDiagnostic = diags[1]
+    assert_eq(Str, d1.render(), format("lexfile:1:9: error: unknown escape '\\q' in a character literal ", escapes))
+    ref d2 : SourceDiagnostic = diags[2]
+    assert_eq(Str, d2.render(), "lexfile:1:14: error: '\\x' in a string literal needs one or two hex digits")
+}
+
 test_tok_name := test() {
     assert_eq(Str, tok_name(TokenType.Eof), "eof")
     assert_eq(Str, tok_name(TokenType.LParen), "(")
