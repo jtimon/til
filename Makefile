@@ -48,8 +48,12 @@ ifeq ($(UNAME_S),Linux)
 HOST_OS := linux
 else ifeq ($(UNAME_S),Darwin)
 HOST_OS := macos
+else ifneq ($(filter MINGW% MSYS%,$(UNAME_S)),)
+# Windows, from an MSYS2 MinGW shell (issue #483): its make, sh and
+# coreutils run this file, and its gcc builds til.
+HOST_OS := windows
 else
-$(error unsupported build host '$(UNAME_S)': til builds on Linux and macOS)
+$(error unsupported build host '$(UNAME_S)': til builds on Linux, macOS and Windows (an MSYS2 MinGW shell))
 endif
 ifneq ($(filter x86_64 amd64,$(UNAME_M)),)
 HOST_ARCH := x64
@@ -89,6 +93,19 @@ EXT_C := $(wildcard src/self/codegen/*.c) $(wildcard src/self/codegen/*.h)
 # make.til builds those libraries, because bin/til (which links nng)
 # and the programs it builds are its business, not the bootstrap's.
 BOOT_LD_FLAGS := -rdynamic -ldl -lm -lpthread
+BOOT_CC := cc
+# What an executable is called here; make.til names its own with the
+# same suffix (EXE there).
+EXE :=
+ifeq ($(HOST_OS),windows)
+# What every til program links on Windows (targets.til
+# target_system_libs, and the export of its symbols the interpreter's
+# DLL twins import from the running til.exe); MinGW has no libdl, and
+# its libm and pthreads come with the C runtime.
+BOOT_LD_FLAGS := -Wl,--export-all-symbols -lpsapi
+BOOT_CC := gcc
+EXE := .exe
+endif
 
 # --- Goal delegation ---
 #
@@ -188,7 +205,7 @@ bin/til_boot: $(LIBFFI_HOST_DIR)/.built
 	for f in $$(git ls-tree --name-only HEAD src/self/codegen/ | grep '\.[ch]$$'); do \
 		git show "HEAD:$$f" > "tmp/boot/$$f" || exit 1; \
 	done
-	cc -Wall -Wextra -Werror -fsigned-char -g -Itmp/boot/src/self/codegen -Itmp/boot/boot tmp/boot/src/self/codegen/*.c tmp/boot/boot/til.c $(BOOT_LD_FLAGS) $(LIBFFI_FLAGS) -o bin/til_boot
+	$(BOOT_CC) -Wall -Wextra -Werror -fsigned-char -g -Itmp/boot/src/self/codegen -Itmp/boot/boot tmp/boot/src/self/codegen/*.c tmp/boot/boot/til.c $(BOOT_LD_FLAGS) $(LIBFFI_FLAGS) -o bin/til_boot$(EXE)
 
 # The build program itself: a generated artifact under the already
 # ignored bin/ tree, never committed and never installed. bin/til_boot
@@ -198,4 +215,4 @@ bin/til_boot: $(LIBFFI_HOST_DIR)/.built
 # Prerequisites otherwise mirror make.til's own self_sources(), so both
 # entry points agree on when bin/make is stale.
 bin/make: make.til $(wildcard src/self/*.til) $(wildcard src/self/codegen/*.til) $(wildcard examples/lib/*.til) $(wildcard vendor/bindings/*.til) $(CORE) $(STD) $(EXT_C) | bin/til_boot
-	bin/til_boot build -o bin/make make.til
+	bin/til_boot build -o bin/make$(EXE) make.til

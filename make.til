@@ -33,11 +33,22 @@ import("src/self/builder")
 get_cwd_str := ext_proc() returns Str {}
 til_setenv := ext_proc(name: I8, value: I8, shallow overwrite: I32) returns shallow I32 {}
 
-BOOT := "bin/til_boot"
-TIL := "bin/til"
-ASAN := "bin/til_asan"
-DEBUG := "bin/til_debug"
-USIZE64 := "bin/til_usize64"
+/// What an executable is called on a host: Windows insists on .exe,
+/// nothing else adds a suffix. The Makefile's EXE is the same.
+exe_suffix_for := func(os: Str) returns Str {
+    if os == "windows" { return ".exe" }
+    return ""
+}
+
+// The compilers this program builds and runs, under the names the host
+// gives them: a Windows til checks files through Win32, which does not
+// add .exe the way an MSYS2 shell does (issue #483).
+EXE := exe_suffix_for(host_os())
+BOOT := format("bin/til_boot", EXE)
+TIL := format("bin/til", EXE)
+ASAN := format("bin/til_asan", EXE)
+DEBUG := format("bin/til_debug", EXE)
+USIZE64 := format("bin/til_usize64", EXE)
 SELF_SRC := "make.til"
 
 // raylib and tinyfd are built per --target into
@@ -84,8 +95,7 @@ namespace:
     /// What an executable is called here. Windows insists on .exe;
     /// nothing else adds a suffix.
     exe_suffix := func(self: Host) returns Str {
-        if self.os == "windows" { return ".exe" }
-        return ""
+        return exe_suffix_for(self.os)
     }
 
     /// The suite opens real windows for the mode-gui tests, so on Linux

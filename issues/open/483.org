@@ -60,6 +60,30 @@ run on Windows.
 4. ~test/install.til~ on Windows in CI, then the suite subset that needs
    no POSIX-only tool (#473 step C4).
 
+*** Progress
+
+The goal, decided 2026-11-15: plain ~make~ and ~make install~ work on
+Windows like on the other hosts, from an MSYS2 MinGW shell, with nothing
+special for the user. Remote sessions have no Windows host, so CI's
+~windows-x64-native~ job is the test bench: each merge shows how far the
+native build gets, and the next commit fixes that.
+
+  - [X] The Makefile's bootstrap seam accepts an MSYS2 MinGW host
+    (~MINGW*~ / ~MSYS*~ ~uname -s~): gcc, the Windows link flags of every
+    til program (~-Wl,--export-all-symbols -lpsapi~), and ~.exe~ names
+    for ~bin/til_boot~ and ~bin/make~.
+  - [X] make.til names the compilers it builds with the host's suffix
+    (~EXE~ from ~host_os()~): a Windows til checks files through Win32,
+    which does not add ~.exe~ the way an MSYS2 shell does.
+  - [X] CI ~windows-x64-native~: pacman's MinGW gcc and cmake, ~make~,
+    ~make install~ into ~C:/Program Files/til~, then the installed til
+    interprets and runs a program from outside the checkout. In bring-up:
+    ~continue-on-error~ and no cancel step until it passes once.
+  - [ ] Fix what the first runs report (expected: make.til's vendored
+    library builds, which pick cross-compiler names for windows-x64, and
+    the install's support tree), until the job passes; then make it
+    blocking like the others.
+
 *** Acceptance
 
 - [ ] A til built on Windows from this repository, with no compiler

@@ -1405,6 +1405,44 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
+  # Issue #483: make and make install natively on Windows, from the
+  # repository alone -- no compiler or library imported from another host.
+  # The runner's MSYS2 (C:\msys64) supplies make, sh, coreutils and, from
+  # pacman, the MinGW gcc and cmake; MSYSTEM=MINGW64 selects that
+  # toolchain and CHERE_INVOKING keeps the checkout as the directory. The
+  # runner's user is an administrator, so the default prefix
+  # (C:/Program Files/til) is writable. BRING-UP: continue-on-error, and
+  # no cancel step, while each merge shows how far the native build gets;
+  # both go back to the repository's rule (a failed job fails the run)
+  # once it passes.
+  windows-x64-native:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
+    name: windows-x64 native (make, make install)
+    runs-on: windows-latest
+    continue-on-error: true
+    timeout-minutes: 90
+    env:
+      MSYSTEM: MINGW64
+      CHERE_INVOKING: 1
+      MSYS2_PATH_TYPE: inherit
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install the MinGW toolchain into MSYS2
+        shell: cmd
+        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed make mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake && uname -s && gcc --version"
+      - name: make
+        shell: cmd
+        run: C:\msys64\usr\bin\bash.exe -lc "make"
+      - name: make install
+        shell: cmd
+        run: C:\msys64\usr\bin\bash.exe -lc "make install"
+      # The installed compiler, from a directory outside the checkout: it
+      # finds its support tree through its own location.
+      - name: The installed til builds and runs a program elsewhere
+        shell: cmd
+        run: C:\msys64\usr\bin\bash.exe -lc "mkdir -p ../elsewhere && cp examples/hello_script.til ../elsewhere/ && cd ../elsewhere && '/c/Program Files/til/bin/til.exe' interpret hello_script.til && '/c/Program Files/til/bin/til.exe' run hello_script.til | grep -q 'Hello World'"
+
   # Issue #25 phase 1: native macOS. No continue-on-error anywhere: a
   # failed job fails the run, honestly red until the remaining darwin
   # bug is fixed. Runners are headless (no windowing session for
