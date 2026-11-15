@@ -50,8 +50,9 @@
 
 ** Command output paths and freshness
 
-  ~translate~, ~build~ and ~run~ of a C-backend executable reuse existing
-  outputs (#442). The emitted C and its forward header are current when
+  ~translate~, ~build~ and ~run~ of a C-backend executable, and
+  ~translate~ and ~build~ of a C-backend library, reuse existing outputs
+  (#442). The emitted C and its forward header are current when
   newer than every loaded unit, mode file and the compiler binary, and the
   C ends with this invocation's translation stamp (compiler, source,
   output name, target, layout, CPU profile, loaded units); a current
@@ -63,13 +64,18 @@
   they include, linked archives, the macOS framework stubs a cross link
   uses and the compiler, and it carries this
   invocation's executable stamp (ext.c's ~til_build_stamp~: the
-  translation stamp plus every compile option). A timestamp alone cannot
+  translation stamp plus every compile option). A library's translation
+  also wrote its header and bindings: each must be newer than the inputs
+  and no newer than the stamped C, since another library of the same name
+  writes the same files. Its ~.so~ and ~.a~ both carry the executable
+  stamp (a constant the stamp appends to the library's C), and the shared
+  runtime and core it links need only be current. A timestamp alone cannot
   establish which program or options produced a file (#406); the stamps
   do. ~file_mtime~ reports nanoseconds; an input as new as its output
   (one coarse kernel clock tick) counts as newer. Programs declaring a
   value macro, translations under ~TIL_GC_AUDIT~ (whose dump prints while
-  translating), libraries, themes, other backends and ~test~ always
-  regenerate, and ~--force-rebuild~ skips reuse. The build
+  translating), ~--jni~ libraries (the JDK is an input), themes, other
+  backends, ~test~ and ~install~ always regenerate, and ~--force-rebuild~ skips reuse. The build
   program's explicit dependency graph is separate from this CLI behavior
   and still decides which build steps need to run.
 

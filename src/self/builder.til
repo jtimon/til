@@ -53,7 +53,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
         user_c_path: Str, link_flags: Str, include_flags: Str, target: Target,
         cc_override: Str, asan: Bool, usize64: Bool, shared_runtime: Bool,
         runtime_stem: Str, runtime_basename: Str, core_stem: Str,
-        core_basename: Str, build_flags: Str) returns I32 {
+        core_basename: Str, build_flags: Str, build_stamp: Str) returns I32 {
     mut uc := user_c_path
     mut lf := link_flags
     mut ifl := include_flags
@@ -90,10 +90,17 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     slash := ext_c_path.rfind("/")
     if slash >= 0 { ext_dir = ext_c_path.substr(0, slash.to_usize()).clone() }
 
+    // #442: what produced this library, for a later reuse check. Only the
+    // library's own objects define it: the constant is in its generated C
+    // (stamp_translation), and the shared runtime and core are not this
+    // library's.
+    mut stamp_flag := ""
+    if build_stamp.len() > 0 { stamp_flag = format(" -DTIL_BUILD_STAMP=", build_stamp) }
+
     // Compile library .c to object
     obj_path := format("gen/lib/", lib_name, ".o")
     fwd_path := forward_header_path(c_path)
-    mut cmd := compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -I", ext_dir,
+    mut cmd := compiler.format(extra, werr, asan_flags, usize_flags, stamp_flag, " -fPIC -I", ext_dir,
         " -c ", c_path, " -o ", obj_path)
     mut result := system_cmd(cmd)
     if result != 0 {
@@ -175,7 +182,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
         File.rename(core_shared_tmp, core_shared_path)
 
         shared_obj_path = format("gen/lib/", lib_name, "_shared.o")
-        cmd = compiler.format(extra, werr, asan_flags, usize_flags,
+        cmd = compiler.format(extra, werr, asan_flags, usize_flags, stamp_flag,
             " -fPIC -DTIL_SHARED_CORE -I", ext_dir,
             " -c ", c_path, " -o ", shared_obj_path)
         result = system_cmd(cmd)
@@ -1009,7 +1016,7 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
             lp.link_c_paths, link_flags, include_flags, target,
             cc_override, asan, usize64, lp.uses_shared_runtime(),
             lp.runtime_stem(), lp.runtime_shared_basename(),
-            lp.core_stem(), lp.core_shared_basename(), build_flags)
+            lp.core_stem(), lp.core_shared_basename(), build_flags, lp.executable_stamp)
     }
     compiled := compile_c(paths.c_path, paths.bin_path, lp.ext_c_path, lp.link_c_paths, link_flags, include_flags, target, cc_override, loads_gui_module(lp), asan, prof, usize64, lp.cptr32, build_flags, lp.executable_stamp)
     if compiled != 0 {
@@ -1615,23 +1622,25 @@ priv build_program := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str,
         result = build_jni(lp, paths, target, cc_override, asan)
         if result != 0 { return result }
     }
-    if command == "build" && paths.do_lib {
-        if backend == "c" { print_translate_success(paths) }
-        mut extension := shared_lib_extension(target)
-        if backend == "mlir" { extension = ".so" }
-        println(format("Generated: gen/lib/lib", paths.name, extension))
-        println(format("Generated: gen/lib/lib", paths.name, ".a"))
-        if backend == "c" && lp.uses_shared_runtime() {
-            println(format("Generated: gen/lib/", lp.runtime_shared_basename()))
-            println(format("Generated: gen/lib/", lp.core_shared_basename()))
-        }
-        if lp.jni_build {
-            println(format("Generated: ", jni_bridge_path(paths, target)))
-            println(format("Generated: ", jni_jar_path(paths)))
-        }
-    }
+    if command == "build" && paths.do_lib { print_library_build_success(lp, paths, target, backend) }
     if command == "run" || command == "test" { return run_artifact(paths, argv, target, asan) }
     return 0
+}
+
+priv print_library_build_success := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, backend: Str) {
+    if backend == "c" { print_translate_success(paths) }
+    mut extension := shared_lib_extension(target)
+    if backend == "mlir" { extension = ".so" }
+    println(format("Generated: gen/lib/lib", paths.name, extension))
+    println(format("Generated: gen/lib/lib", paths.name, ".a"))
+    if backend == "c" && lp.uses_shared_runtime() {
+        println(format("Generated: gen/lib/", lp.runtime_shared_basename()))
+        println(format("Generated: gen/lib/", lp.core_shared_basename()))
+    }
+    if lp.jni_build {
+        println(format("Generated: ", jni_bridge_path(paths, target)))
+        println(format("Generated: ", jni_jar_path(paths)))
+    }
 }
 
 // --- #442: reuse unchanged outputs ---
@@ -1908,15 +1917,17 @@ priv executable_stamp_marker := func(stamp: Str) returns Str {
 
 // Decide whether this invocation's outputs may be reused, and if so record
 // what produces them in lp.translation_stamp / lp.executable_stamp. Only
-// C-backend executables are reused; libraries, themes, other backends and
-// `test` always regenerate, and so does a program declaring a value macro
-// or a translation under TIL_GC_AUDIT.
+// C-backend executables and libraries are reused; themes, other backends,
+// `test`, a --jni library (the JDK is an input) and a program declaring a
+// value macro or translated under TIL_GC_AUDIT always regenerate.
 // Runs before prepare_program: the stamps describe the loaded program.
 set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str,
     target: Target, backend: Str, cc_override: Str, asan: Bool, prof: Bool) {
     if command != "translate" && command != "build" && command != "run" { return }
     if backend != "c" { return }
-    if lp.mode_str == "theme" || lp.cur_mode.is_library { return }
+    if lp.mode_str == "theme" { return }
+    // REM `run` of a library is refused by build_program.
+    if lp.cur_mode.is_library && (command == "run" || lp.jni_build) { return }
     if target_lang(target).is(Lang.C).not() { return }
     compiler := compiler_executable()
     // REM A compiler that cannot name its own executable cannot show it is
@@ -1948,9 +1959,9 @@ set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, c
     for unit_path : Str in lp.unit_paths() { translation.push(own path_from_dir(realpath_str(unit_path), out_dir)) }
     for mode_file : Str in lp.mode_files { translation.push(own path_from_dir(realpath_str(mode_file), out_dir)) }
     lp.translation_stamp = stamp_of(translation)
-    // The executable's stamp is a string inside the executable: the same
-    // rule, from the directory the executable is written to.
-    bin_abs := path_absolute(paths.bin_path)
+    // The executable's stamp is a string inside the executable (or the
+    // library): the same rule, from the directory it is written to.
+    bin_abs := path_absolute(compiled_output_path(paths, target))
     bin_slash := bin_abs.rfind("/").to_usize()
     bin_dir := bin_abs.substr(0, bin_slash).clone()
     mut executable := Vec(Str).new()
@@ -1971,6 +1982,28 @@ set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, c
     lp.executable_stamp = stamp_of(executable)
 }
 
+// The compiled output that carries the executable stamp: the executable,
+// or a library's shared library.
+priv compiled_output_path := func(paths: BuildPaths, target: Target) returns Str {
+    if paths.do_lib { return format("gen/lib/lib", paths.name, shared_lib_extension(target)) }
+    return paths.bin_path.clone()
+}
+
+// A library's translation also writes its C header and bindings. Those are
+// named after the library, not its source path, so another library of the
+// same name can overwrite them. Each is current when written after its
+// inputs changed and not after its C was closed with the stamp: the same
+// translation wrote it.
+priv library_translation_files := func(paths: BuildPaths) returns Vec(Str) {
+    mut files := Vec(Str).new()
+    files.push(own paths.h_path.clone())
+    files.push(own paths.til_path.clone())
+    files.push(own paths.py_path.clone())
+    files.push(own paths.jni_c_path.clone())
+    files.push(own paths.java_path.clone())
+    return files
+}
+
 // Is the program's existing C translation current, so translate/build/run
 // can skip preparing and emitting it?
 translation_is_current := proc(lp: LoadedProgram, command: Str, custom_bin: Str, custom_c: Str,
@@ -1981,6 +2014,13 @@ translation_is_current := proc(lp: LoadedProgram, command: Str, custom_bin: Str,
     inputs := translation_inputs(lp)
     if output_outranks_inputs(paths.c_path, inputs).not() { return false }
     if output_outranks_inputs(paths.fwd_path, inputs).not() { return false }
+    if paths.do_lib {
+        closed := file_mtime(paths.c_path)
+        for file : Str in library_translation_files(paths) {
+            if output_outranks_inputs(file, inputs).not() { return false }
+            if file_mtime(file) > closed { return false }
+        }
+    }
     return File.readfile(paths.c_path).ends_with(translation_stamp_line(lp.translation_stamp))
 }
 
@@ -1988,14 +2028,50 @@ priv executable_is_current := proc(lp: LoadedProgram, paths: BuildPaths) returns
     // APK signing and SDK tools have their own inputs. Regenerate packaging
     // from the reusable C rather than treating a ZIP as an ELF executable.
     if paths.android_dir.len() > 0 { return false }
-    if output_outranks_inputs(paths.bin_path, executable_inputs(lp, paths)).not() { return false }
-    return File.readfile(paths.bin_path).contains(executable_stamp_marker(lp.executable_stamp))
+    inputs := executable_inputs(lp, paths)
+    marker := executable_stamp_marker(lp.executable_stamp)
+    if paths.do_lib.not() {
+        if output_outranks_inputs(paths.bin_path, inputs).not() { return false }
+        return File.readfile(paths.bin_path).contains(marker)
+    }
+    // Both of the library's own archives carry its stamp. The shared runtime
+    // and core are named after everything that shapes their ABI and are
+    // shared by every library of that ABI: they only have to be current.
+    for own_output : Str in array(Str, compiled_output_path(paths, lp.target), format("gen/lib/lib", paths.name, ".a")) {
+        if output_outranks_inputs(own_output, inputs).not() { return false }
+        if File.readfile(own_output).contains(marker).not() { return false }
+    }
+    if lp.uses_shared_runtime() {
+        mut shared := Vec(Str).new()
+        shared.push(own format("gen/lib/", lp.runtime_shared_basename()))
+        shared.push(own format("gen/lib/", lp.core_shared_basename()))
+        if is_windows_target(lp.target) {
+            shared.push(own format("gen/lib/lib", lp.runtime_stem(), ".dll.a"))
+            shared.push(own format("gen/lib/lib", lp.core_stem(), ".dll.a"))
+        }
+        for shared_output : Str in shared {
+            if output_outranks_inputs(shared_output, inputs).not() { return false }
+        }
+    }
+    return true
+}
+
+// The library's copy of the executable stamp, compiled only into its own
+// objects (compile_lib passes TIL_BUILD_STAMP to them, never to the shared
+// runtime or core). An executable's is ext.c's til_build_stamp.
+priv library_stamp_block := func() returns Str {
+    return format("#ifdef TIL_BUILD_STAMP\n",
+        "#define TIL_LIBRARY_STAMP_STR2(x) #x\n",
+        "#define TIL_LIBRARY_STAMP_STR(x) TIL_LIBRARY_STAMP_STR2(x)\n",
+        "__attribute__((used)) static const char til_library_build_stamp[] = \"til-build-stamp:\" TIL_LIBRARY_STAMP_STR(TIL_BUILD_STAMP) \";\";\n",
+        "#endif\n")
 }
 
 // Close a successful C translation with its stamp (#442).
 priv stamp_translation := proc(lp: LoadedProgram, paths: BuildPaths) {
     // REM No stamp: this program's outputs are never reused.
     if lp.translation_stamp.len() == 0 { return }
+    if paths.do_lib { File.appendfile(paths.c_path, library_stamp_block()) }
     File.appendfile(paths.c_path, translation_stamp_line(lp.translation_stamp))
 }
 
@@ -2005,12 +2081,14 @@ reuse_translation := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, 
     argv: Vec(Str), target: Target, cc_override: Str, asan: Bool, prof: Bool) returns I32 {
     paths := reuse_paths(lp, command, custom_bin, custom_c, target)
     if command == "translate" { print_translate_success(paths); return 0 }
+    // The shared runtime's name and the C flags follow the USize width.
+    register_target_int_aliases(lp)
     if executable_is_current(lp, paths).not() {
-        register_target_int_aliases(lp)
         make_build_dirs(paths)
         result := compile_ast(lp, paths, target, cc_override, asan, prof)
         if result != 0 { return result }
     }
+    if paths.do_lib { print_library_build_success(lp, paths, target, "c") }
     if command == "run" { return run_artifact(paths, argv, target, asan) }
     return 0
 }

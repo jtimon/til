@@ -286,6 +286,45 @@ main := proc(args: ..Str) {
         }
     }
 
+    // #442: a library's outputs are reused too. Its header, bindings and
+    // archives are named after the library, so another library of the same
+    // name overwrites them, and must not be taken for this one.
+    mkdir_p(format(WORK, "/liba"))
+    mkdir_p(format(WORK, "/libb"))
+    File.writefile(format(WORK, "/liba/same.til"),
+        "mode lib\nlib_add442 := func(a: I64, b: I64) returns I64 { return a + b }\n")
+    File.writefile(format(WORK, "/libb/same.til"),
+        "mode lib\nlib_sub442 := func(a: I64, b: I64) returns I64 { return a - b }\n")
+    lib_so := format("gen/lib/libsame", shared_lib_extension(detect_current_target()))
+    lib_files := array(Str, "gen/til/liba/same.c", "gen/til/same.h", "gen/til/same.til",
+        "gen/til/same.py", lib_so, "gen/lib/libsame.a")
+    first_lib := Cmd.new(compiler, "build", "liba/same.til")
+    first_lib.cwd(WORK)
+    first_lib.capture()
+    if first_lib.run() != 0 { panic(first_lib.out(), first_lib.err()) }
+    mut lib_times := Vec(I64).new()
+    for file : Str in lib_files { lib_times.push(own mtime(file)) }
+    next_tick()
+    // The same lines as the build that wrote them, and nothing rewritten.
+    check_command(Cmd.new(compiler, "build", "liba/same.til"), first_lib.out())
+    for i in 0..lib_files.len() { expect_same(lib_files[i], lib_times[i], "unchanged library rebuilt") }
+    check_command(Cmd.new(compiler, "build", "libb/same.til"), first_lib.out().replace("liba/", "libb/"))
+    check_command(Cmd.new(compiler, "build", "liba/same.til"), first_lib.out())
+    header := File.readfile(format(WORK, "/gen/til/same.h"))
+    if header.contains("lib_add442").not().or(header.contains("lib_sub442")) {
+        panic("another library's header was reused: ", header)
+    }
+    if File.readfile(format(WORK, "/", lib_so)).contains("lib_add442").not() {
+        panic("another library's shared library was reused")
+    }
+    // An option of the compile only: the translation is kept.
+    lib_c_time := mtime("gen/til/liba/same.c")
+    lib_so_time := mtime(lib_so)
+    next_tick()
+    check_command(Cmd.new(compiler, "build", "--opt=2", "liba/same.til"), first_lib.out())
+    expect_same("gen/til/liba/same.c", lib_c_time, "library --opt retranslated")
+    expect_newer(lib_so, lib_so_time, "library --opt")
+
     // --force-rebuild regenerates both phases with nothing changed.
     next_tick()
     check_command(Cmd.new(compiler, "run", "--force-rebuild", "--usize=64", "deps/main.til"), "direct2-transitive2 2\n")
