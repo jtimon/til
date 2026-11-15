@@ -266,8 +266,15 @@ ffi_get_version_number := ext_func() returns shallow I64 {}
 
 /* ---- Internals API ---------------------------------------------------- */
 
-ffi_get_default_abi := ext_func() returns shallow I32 {}
-ffi_get_closure_size := ext_func() returns shallow USize {}
+// REM ext_proc, not ext_func: both answers belong to the libffi of the
+// program's TARGET. A pure external function with constant arguments is
+// folded at compile time by calling the COMPILER's own libffi, so as
+// ext_func these baked the build host's value into the program (#472: til
+// cross-built for one target carried 56 from an x64 host and 48 from an
+// arm64 host, the two sizes of ffi_closure, and on a target where the
+// closure is larger than on the host that is a short allocation).
+ffi_get_default_abi := ext_proc() returns shallow I32 {}
+ffi_get_closure_size := ext_proc() returns shallow USize {}
 
 /* ---- Definitions for closures ----------------------------------------- */
 

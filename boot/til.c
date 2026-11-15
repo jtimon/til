@@ -3523,6 +3523,7 @@ I64 compiler_read_source(const Str *, Str *, Str *);
 
 
 
+USize ffi_get_closure_size(void);
 void * ffi_closure_alloc(USize, void *);
 void ffi_closure_free(void *);
 I32 ffi_prep_closure_loc(ffi_closure *, ffi_cif *, const void *, void *, void *);
@@ -429918,7 +429919,7 @@ static void * priv___src_self_interpreter_til__native_callable_thunk(Str * name,
         panic(&_va_Array_1, &hoisted__Str_self_interpreter_native_callable_thunk_65);
     }
     U8 *executable_slot = calloc(1ULL, 8);
-    U32 hoisted__U32_97 = 56;
+    U32 hoisted__U32_97 = ffi_get_closure_size();
     void * allocation = ffi_closure_alloc(hoisted__U32_97, executable_slot);
     Bool hoisted__Bool_98 = ((Bool)((UPtr)(allocation) == 0));
     if (hoisted__Bool_98) {
@@ -479829,8 +479830,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-3edead6d3", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("3edead6d3fa6834d42f7d91e3d6278e27916cf5b", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-63c556a02", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("63c556a02f4b17cc09f5733491f9c15e32c9a950", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

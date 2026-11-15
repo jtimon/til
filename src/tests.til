@@ -1193,6 +1193,14 @@ main := proc(args: ..Str) returns I64 {
         CountCheck(needle = "TIL_OWN_LIT(\"-inf\", 4ULL)", expected_count = 1),
         CountCheck(needle = "TIL_OWN_LIT(\"nan\", 3ULL)", expected_count = 1))
 
+    // #472: libffi's answers about itself are the target's, so they are
+    // never folded at compile time, where the compiler's own libffi would
+    // answer for the build host.
+    add_counts(tests, "ffi_target_values", "build",
+        format(til_bin, " translate -c gen/c/ffi_target_values.c test/ffi_target_values.til '&&' cat gen/c/ffi_target_values.c"),
+        CountCheck(needle = "= ffi_get_closure_size();", expected_count = 1),
+        CountCheck(needle = "= ffi_get_default_abi();", expected_count = 1))
+
     add_count(tests, "test_dependencies", "build", "test prerequisites passed", 1,
         format(til_bin, " run", asan_flag,
             " -o bin/c/test_dependencies -c gen/c/test_dependencies.c test/test_dependencies.til"))

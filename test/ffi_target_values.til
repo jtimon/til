@@ -1,0 +1,13 @@
+mode script
+
+import("../vendor/bindings/libffi")
+
+// #472: what libffi answers about itself belongs to the program's TARGET,
+// so the call has to reach the built program. A pure external function with
+// constant arguments is folded by calling the compiler's own libffi, which
+// baked the build host's ffi_closure size into a cross-built til (56 from an
+// x64 host, 48 from an arm64 one). The suite row "ffi_target_values" checks
+// that both calls are still calls in the generated C; nothing runs this.
+closure_size := ffi_get_closure_size()
+default_abi := ffi_get_default_abi()
+println(closure_size.to_str(), " ", default_abi.to_str())

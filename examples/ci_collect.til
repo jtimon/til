@@ -225,6 +225,46 @@ binary_sections := func(target: Str) returns Vec(Str) {
         ".debug_line", ".debug_str", ".debug_line_str")
 }
 
+// A binary by section, so that a difference between producers names the
+// part of it: code, constants, data, debug info, the dynamic tables, the
+// build id. A section the binary does not have is listed as such.
+list_sections := proc(target: Str, binary: Str, label: Str, scratch: Str, mut lines: Vec(Str)) {
+    mut objcopy := "aarch64-linux-gnu-objcopy"
+    if target.starts_with("macos-") { objcopy = "llvm-objcopy" }
+    mut section_names := Vec(Str).new()
+    mut section_paths := Vec(Str).new()
+    for section : Str in binary_sections(target) {
+        dumped := format(scratch, "_", section_names.len().to_str())
+        dump := Cmd.new(objcopy, format("--dump-section=", section, "=", dumped), binary, format(scratch, "_copy"))
+        dump.capture()
+        if dump.run() != 0 || File.is_file(dumped).not() {
+            lines.push(own format("refused binary-trial ", target, " c 32 ", label, ":", section))
+            continue
+        }
+        section_names.push(own section.clone())
+        section_paths.push(own dumped)
+    }
+    section_hashes := sha256_of(section_paths)
+    for i, hash in section_hashes { lines.push(own format(hash, " binary-trial ", target, " c 32 ", label, ":", section_names[i])) }
+}
+
+// An archive by member, for the same reason.
+list_members := proc(target: Str, archive: Str, label: Str, scratch: Str, mut lines: Vec(Str)) {
+    File.remove_tree(scratch)
+    mkdir_p(scratch)
+    extract := Cmd.new("ar", "x", format("--output=", scratch), archive)
+    extract.capture()
+    if extract.run() != 0 { fail(format(extract.render(), " failed: ", extract.err())) }
+    mut names := Vec(Str).new()
+    mut paths := Vec(Str).new()
+    for name : Str in Dir.list(scratch) {
+        paths.push(own format(scratch, "/", name))
+        names.push(own name.clone())
+    }
+    hashes := sha256_of(paths)
+    for i, hash in hashes { lines.push(own format(hash, " binary-trial ", target, " c 32 ", label, ":", names[i])) }
+}
+
 // Level "binary": artifacts a run has shown equal between producers; a
 // difference fails the collect job. Level "binary-trial": artifacts being
 // tried; compared and printed the same way, never failing. An artifact
@@ -309,28 +349,25 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         hashes := sha256_of(paths)
         for i, hash in hashes { lines.push(own format(hash, " ", levels[i], " ", target, " c 32 ", items[i])) }
 
-        // til by section, so that a difference between producers names the
-        // part of the binary it is in: code, constants, data, debug info,
-        // the dynamic tables, the build id. A section the binary does not
-        // have is listed as such.
-        mut objcopy := "aarch64-linux-gnu-objcopy"
-        if target.starts_with("macos-") { objcopy = "llvm-objcopy" }
-        sections := binary_sections(target)
-        mut section_names := Vec(Str).new()
-        mut section_paths := Vec(Str).new()
-        for section : Str in sections {
-            dumped := format(directory, "/til_section_", section_names.len().to_str())
-            dump := Cmd.new(objcopy, format("--dump-section=", section, "=", dumped), til_binary, format(directory, "/til_copy"))
-            dump.capture()
-            if dump.run() != 0 || File.is_file(dumped).not() {
-                lines.push(own format("refused binary-trial ", target, " c 32 src/til.til til:", section))
-                continue
-            }
-            section_names.push(own section.clone())
-            section_paths.push(own dumped)
-        }
-        section_hashes := sha256_of(section_paths)
-        for i, hash in section_hashes { lines.push(own format(hash, " binary-trial ", target, " c 32 src/til.til til:", section_names[i])) }
+        // The C til was built from, without its reuse stamp line: if this
+        // differs between producers the compilers disagree, not the
+        // toolchains. (#472: it did, by one constant folded on the host.)
+        generated := format(directory, "/til.c.compared")
+        File.writefile(generated, without_stamp(File.readfile(format(directory, "/til.c"))))
+        mut generated_paths := Vec(Str).new()
+        generated_paths.push(own generated)
+        generated_paths.push(own format(directory, "/til_forward.h"))
+        generated_hashes := sha256_of(generated_paths)
+        lines.push(own format(generated_hashes[0], " binary-trial ", target, " c 32 src/til.til til.c"))
+        lines.push(own format(generated_hashes[1], " binary-trial ", target, " c 32 src/til.til til_forward.h"))
+
+        list_sections(target, til_binary, "src/til.til til", format(directory, "/til_section"), lines)
+        list_sections(target, format(directory, "/hello_script"), "examples/hello_script.til hello_script",
+            format(directory, "/hello_section"), lines)
+        list_members(target, format("vendor/libffi/build-", target, "/.libs/libffi.a"), "vendor libffi.a",
+            format(directory, "/libffi_members"), lines)
+        list_members(target, format("vendor/nng/build-", target, "/libnng.a"), "vendor libnng.a",
+            format(directory, "/libnng_members"), lines)
     }
     File.writefile(list, format(join(lines, "\n"), "\n"))
     println("ci_collect: ", producer, " wrote ", lines.len().to_str(), " lines to ", list)

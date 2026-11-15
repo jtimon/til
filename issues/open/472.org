@@ -2245,3 +2245,65 @@ Seen on the way, not fixed, not filed: a ~mut~ Vec local assigned a new
 ~vec(...)~ in an ~if~ and then iterated with ~for x : Str in~ crashed the
 built program in ~Str_clone~ of the loop variable (the first version of
 the section list). Returning the Vec from a function avoids it.
+
+*** Progress: run 3101 read; the first host dependence in til itself (base master 58b8868)
+
+**** What run 3101 showed (trial items, two Linux hosts)
+
+- Mac targets: ~libffi.a~ and ~libnng.a~ are the same from both hosts.
+  ~til~ differed, and by section only in ~__TEXT,__text~: every other
+  section was equal.
+- linux-arm64, native against cross: ~libnng.a~ equal, ~libffi.a~
+  different. ~til~ different in ~.text~, ~.debug_info~, ~.debug_line~,
+  ~.debug_line_str~ and the build id; equal in ~.rodata~, ~.data~,
+  ~.dynsym~, ~.dynstr~, ~.eh_frame~ and the rest. The two small programs
+  differ too (not listed by section in that run).
+- The arm64 host built the mac archives without trouble.
+
+**** The cause of the code difference: a libffi answer folded on the host
+
+Reproduced without a second host: a ~til~ cross-built for linux-arm64 and
+run under ~qemu-aarch64~ is an arm64-hosted compiler. It and the x64
+~bin/til~ translated ~src/til.til~ for one target; the two ~til.c~ files
+differed in ONE line, ~56~ against ~48~: the argument of
+~ffi_closure_alloc~ in the interpreter's ~native_callable_thunk~.
+
+~vendor/bindings/libffi.til~ declared ~ffi_get_closure_size~ (and
+~ffi_get_default_abi~) as ~ext_func()~. A pure external function with
+constant arguments is folded at compile time by CALLING it, and what
+answers is the compiler's own libffi, on the build host. So ~til~ built
+for any target carried the build host's ~sizeof(ffi_closure)~. That is
+also a cross-build bug: where the target's closure is larger than the
+host's (x64 target, arm64 host) the allocation is short. Both are
+~ext_proc~ now: the call reaches the built program.
+
+After the fix the two hosts' ~til.c~ are identical for macos-arm64,
+linux-arm64 and linux-x64 (0 differing lines each). Regression: suite row
+~ffi_target_values~ (~test/ffi_target_values.til~), both calls must still
+be calls in the generated C.
+
+The general hazard, noted not solved: ANY ~ext_func~ whose answer depends
+on the platform is folded with the build host's answer. The other
+zero-argument ones (~ffi_get_version~, ~ffi_get_version_number~, the two
+eval-heap bases) are the same on every host or are not folded.
+
+**** More detail in the trial lists, for the next run
+
+~til.c~ (without its stamp line) and ~til_forward.h~, so a compiler
+disagreement shows as such; ~hello_script~ by section; ~libffi.a~ and
+~libnng.a~ by member. 381 lines for the three targets, all equal between
+two local productions.
+
+**** Still open for linux-arm64 native against cross
+
+- ~libffi.a~: which members, from the next run.
+- Debug sections: the cross gcc records its own header directories
+  (~/usr/aarch64-linux-gnu/include/...~, ~/usr/lib/gcc-cross/...~) where
+  the native one has ~/usr/include/...~ (with ~bits~ under the multiarch
+  directory) and ~/usr/lib/gcc/...~. These are in ~.debug_line_str~ of
+  every program that includes a system header with inline code. Options,
+  to decide once the other sections are shown equal: prefix maps for the
+  cross layout in ~builder.til~ (ties til to Debian's directory layout),
+  or one sysroot that both producers use. Not chosen yet.
+- Whether ~.text~ of ~til~ and of the small programs is equal once the
+  fold is fixed: the next run.
