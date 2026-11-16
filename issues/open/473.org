@@ -418,8 +418,9 @@ No cell has a compare level yet.
      Apple's toolchain and stay outside the comparison.
    - "Build on one OS, run it on another" goes away target by target, as
      soon as that target's cross and native hashes match. The
-     Linux-to-Windows pair also needs [[./483.org][#483]], because today the only
-     Windows compiler is the cross-built ~til.exe~.
+     Linux-to-Windows pair also needed [[../fixed/483.org][#483]] (fixed: ~make~ builds
+     til natively on Windows), when the only Windows compiler was the
+     cross-built ~til.exe~.
    - Unchanged: targets that are run under an emulator or in a VM (riscv64,
      x86, arm32, riscv32 under qemu, wasm32 under node, TempleOS in its
      guest). The compiler does not run on those systems, only its output
@@ -495,7 +496,8 @@ named in its own commit before it lands.
 - til's default (~toolchain_command~) switches to clang for a target in
   the commit that makes that target's hashes match, so the suite tests
   what is compared. ~--cc~ stays as the override.
-- Windows as a native producer is [[./483.org][#483]].
+- Windows as a native producer: [[../fixed/483.org][#483]] (fixed) builds til natively
+  there; the ~windows-x64-native~ CI job does not hash its output yet.
 
 C5. First equality group, frontend (needs #472 O1-O3).
 ~linux-x64~ and ~linux-arm64-native~ run #472's observation command for

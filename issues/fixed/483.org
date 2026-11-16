@@ -1,6 +1,31 @@
 # priority: medium
 # category: backends
-** OPEN #483 Build and install til natively on a Windows host (make, make install)
+** FIXED #483 Build and install til natively on a Windows host (make, make install)
+
+*** Post-mortem
+
+CI run 3121 (master 2c20b83): on the Windows runner, from an MSYS2 UCRT64
+shell, ~make~ bootstraps til from the repository alone (no compiler or
+library imported from another host), ~make install~ installs it under
+~C:/Program Files/til~, and the installed til.exe interprets and builds
+and runs a program from a directory outside the checkout.
+
+The root causes, one per round (details in Progress below): the Makefile
+and make.til knew only Linux and macOS hosts (no ~.exe~ names, cross tool
+prefixes, ~make~ finding ~bin/make.exe~ through CreateProcess's search
+order, cmake's Visual Studio default); nng needs the universal C runtime,
+so the build shell is UCRT64, checked through the compiler's ~_UCRT~
+rather than ~uname~; a computed make.til constant moved into a goal list
+and freed (now a garbager error); and the installed support tree's paths
+held a space that the compile command did not quote and that the
+loader's space-joined link flags split. Link arguments are now lists,
+quoted for the host shell by one function, ~targets.til::shell_path~.
+
+Regression tests: the CI job ~windows-x64-native~ (now blocking, with
+the cancel step every job has); ~test/install.til~ installs under
+"tmp/install test", a path with a space; ~test/global_transfer_error.til~
+for the computed-constant move. The Windows build is documented in
+README.org, "Windows host".
 
 Filed while planning [[./472.org][#472]] and [[./473.org][#473]]: the question was whether a
 Windows-installed til exists to compare against the Linux and macOS ones.
@@ -144,15 +169,15 @@ native build gets, and the next commit fixes that.
     with ~Cmd~ (argv, no shell; ~win_quote_arg~ on Windows) so no
     quoting is left. Two flags rely on the shell today: the ~'$ORIGIN'~
     rpath and the framework stubs' ~*.tbd~ glob.
-  - [ ] Fix what the next runs report, until the job passes; then make it
-    blocking like the others and document the Windows build (MSYS2
-    UCRT64, the three pacman packages) beside the Linux and macOS ones.
+  - [X] Run 3121: the job passes. It is blocking like the others, with
+    the cancel step, and README.org documents the Windows build (MSYS2
+    UCRT64, the pacman packages).
 
 *** Acceptance
 
-- [ ] A til built on Windows from this repository, with no compiler
+- [X] A til built on Windows from this repository, with no compiler
   imported from another host.
-- [ ] ~make install~ and ~til.exe install --prefix=...~ produce an
-  installed compiler that compiles and runs a program from another
-  directory.
-- [ ] CI runs that on the Windows runner.
+- [X] ~make install~ produces an installed compiler that compiles and
+  runs a program from another directory (~make install~ is
+  ~til install~ with the default prefix).
+- [X] CI runs that on the Windows runner.

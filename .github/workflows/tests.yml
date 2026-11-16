@@ -1418,16 +1418,12 @@ jobs:
   # runtime, which nng requires (MINGW64 links msvcrt) -- and
   # CHERE_INVOKING keeps the checkout as the directory. The
   # runner's user is an administrator, so the default prefix
-  # (C:/Program Files/til) is writable. BRING-UP: continue-on-error, and
-  # no cancel step, while each merge shows how far the native build gets;
-  # both go back to the repository's rule (a failed job fails the run)
-  # once it passes.
+  # (C:/Program Files/til) is writable.
   windows-x64-native:
     needs: doc-gate
     if: needs.doc-gate.outputs.code == 'true'
     name: windows-x64 native (make, make install)
     runs-on: windows-latest
-    continue-on-error: true
     timeout-minutes: 90
     env:
       MSYSTEM: UCRT64
@@ -1449,6 +1445,12 @@ jobs:
       - name: The installed til builds and runs a program elsewhere
         shell: cmd
         run: C:\msys64\usr\bin\bash.exe -lc "mkdir -p ../elsewhere && cp examples/hello_script.til ../elsewhere/ && cd ../elsewhere && '/c/Program Files/til/bin/til.exe' interpret hello_script.til && '/c/Program Files/til/bin/til.exe' run hello_script.til | grep -q 'Hello World'"
+      - name: Cancel the rest of this run
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
 
   # Issue #25 phase 1: native macOS. No continue-on-error anywhere: a
   # failed job fails the run, honestly red until the remaining darwin
