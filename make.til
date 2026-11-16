@@ -1123,7 +1123,7 @@ run_clean_vendor := proc(mut b: Build) {
     // FASM's executable is also its bootstrap seed; retain it so changed
     // assembly can rebuild itself without another external bootstrap.
     run("git", "clean", "-fdx", "vendor/raylib", "vendor/tinyfiledialogs",
-        "vendor/nng", "vendor/secp256k1", "vendor/libffi", EMSDK_DIR, LLVM_MINGW_DIR)
+        "vendor/nng", "vendor/secp256k1", "vendor/libffi", EMSDK_DIR, LLVM_MINGW_DIR, LLVM_DIR)
 }
 
 /// ~rm -rf <dir>/*~: the entries go, the directory stays.
@@ -2357,6 +2357,75 @@ build_llvm_mingw := proc(mut b: Build) {
     File.writefile(stamp, "")
 }
 
+// --- LLVM ---
+//
+// Issue #472: the mac targets are built with one compiler on every host,
+// LLVM's own release (clang, lld, dsymutil and the llvm tools) at one
+// pinned version: the LLVM inside the pinned llvm-mingw, which cannot
+// build them itself (its packaging removes ld64.lld and dsymutil).
+// Downloaded, not vendored: the archive is 1.5 to 1.9 GB, so only the
+// tools til and bin/make run for a mac target are unpacked, under
+// LLVM_DIR (ignored). Its bin directory goes first on PATH; headers and
+// libSystem are vendor/macos. There is no release for an Intel Mac host.
+
+LLVM_RELEASE := "23.1.5"
+LLVM_DIR := "vendor/llvm"
+// REM What tar unpacks, as patterns under the archive's top directory:
+// clang (a link to clang-<major>), lld under the names clang looks for,
+// dsymutil, the archive and object tools, and clang's own headers.
+LLVM_TOOLS := "*/bin/clang */bin/clang-[0-9]* */bin/lld */bin/ld.lld */bin/ld64.lld */bin/dsymutil */bin/llvm-ar */bin/llvm-ranlib */bin/llvm-nm */bin/llvm-objcopy */lib/clang/*"
+
+llvm_archive_for := func(host: Host) returns LlvmMingwArchive {
+    prefix := format("LLVM-", LLVM_RELEASE, "-")
+    if host.os == "linux" {
+        if host.arch == "x64" {
+            return LlvmMingwArchive(file = format(prefix, "Linux-X64.tar.xz"),
+                sha256 = "f72edb0b36580ece7f52e23858f00c18fad4e87395ea7ad05d7e55c39f8fc78a")
+        }
+        if host.arch == "arm64" {
+            return LlvmMingwArchive(file = format(prefix, "Linux-ARM64.tar.xz"),
+                sha256 = "44f1e4b7a125b2763d56386a199928dd57ec32e151cc6042dce2f7b0da7bb651")
+        }
+    }
+    if host.os == "macos" {
+        if host.arch == "arm64" {
+            return LlvmMingwArchive(file = format(prefix, "macOS-ARM64.tar.xz"),
+                sha256 = "aba592b4a15e8f90c634c5367b51ec8418b8bcd2829865db331a17dc9418dcff")
+        }
+    }
+    panic("LLVM ", LLVM_RELEASE, " has no archive for a ", host.target_name(), " host")
+    return LlvmMingwArchive()
+}
+
+/// Download the pinned LLVM and unpack its mac-target tools once per
+/// checkout, like build_llvm_mingw: the stamp names the release, and the
+/// archive is checked against its sha256 before anything in it is used.
+/// The .tar.xz, not the smaller .tar.zst: that one needs zstd's long
+/// window, which tar cannot ask for (CI run 3131).
+build_llvm := proc(mut b: Build) {
+    if b.begin("llvm").not() { return }
+    stamp := format(LLVM_DIR, "/.til-llvm-", LLVM_RELEASE)
+    if File.exists(stamp) { return }
+    archive := llvm_archive_for(b.host)
+    File.remove_tree(LLVM_DIR)
+    mkdir_p(LLVM_DIR)
+    download := format(LLVM_DIR, "/", archive.file)
+    run("curl", "-sSL", "--fail", "-o", download,
+        format("https://github.com/llvm/llvm-project/releases/download/llvmorg-", LLVM_RELEASE, "/", archive.file))
+    got := file_sha256(b.host, download)
+    if got != archive.sha256 {
+        panic(download, " has sha256 ", got, ", expected ", archive.sha256)
+    }
+    unpack := Cmd.new("tar", "-xf", download, "-C", LLVM_DIR, "--strip-components=1")
+    // REM GNU tar matches member patterns only when asked; a Mac's bsdtar
+    // always does and does not know the option.
+    if b.host.is_mac().not() { unpack.arg("--wildcards") }
+    for pattern : Str in LLVM_TOOLS.split(" ") { unpack.arg(pattern) }
+    unpack.run_checked()
+    File.remove(download)
+    File.writefile(stamp, "")
+}
+
 build_raylib_web := proc(mut b: Build) {
     if b.begin("raylib_web").not() { return }
     build_emsdk(b)
@@ -2622,6 +2691,8 @@ commands := func() returns Vec(Command) {
         about = "wasm32 raylib (emcc, vendored emsdk), for mode gui"))
     out.push(own Command(name = "llvm_mingw", go = build_llvm_mingw,
         about = "download the pinned llvm-mingw into vendor/llvm-mingw (windows targets, #472)"))
+    out.push(own Command(name = "llvm", go = build_llvm,
+        about = "download the pinned LLVM's mac-target tools into vendor/llvm (mac targets, #472)"))
     out.push(own Command(name = raylib_lib("android-x64"), is_path = true, go = gui_android_x64,
         about = "android-x64 raylib and native-app glue, for APK builds"))
     out.push(own Command(name = raylib_lib("android-arm64"), is_path = true, go = gui_android_arm64,

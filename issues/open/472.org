@@ -2766,3 +2766,28 @@ steps now unpack with ~zstd -d --long=31 -c ... | tar -xf -~ under
 
 Reading these runs: a step with ~continue-on-error~ shows as successful
 in the jobs list even when it failed; only its log says what happened.
+
+*** `make llvm`: the pinned LLVM is downloaded by bin/make and cached in CI
+
+As the #483 session did for llvm-mingw in b0529a9. ~bin/make llvm~
+downloads LLVM 23.1.5's archive for the host (Linux x64, Linux arm64,
+macOS arm64; an Intel Mac has none), checks its sha256, and unpacks into
+the ignored ~vendor/llvm~ only what til and ~bin/make~ run for a mac
+target: clang, lld under its three names, dsymutil, llvm-ar/ranlib/nm/
+objcopy and clang's own headers. A stamp names the release; a tree of
+another release is replaced; ~clean_vendor~ removes it. It takes the
+~.tar.xz~: the smaller ~.tar.zst~ needs zstd's long window, which tar
+cannot ask for (the workaround of be7bb4c is gone with the inline
+download).
+
+The three mac trial steps run ~make llvm~ and put ~vendor/llvm/bin~ first
+on PATH, and CI keeps ~vendor/llvm~ in the Actions cache, one entry per
+release and runner kind. Per runner kind because the archives are
+different programs (one per host OS and architecture), not one file
+fetched three times; each is downloaded once and restored from the cache
+after that, until the release changes or GitHub evicts the entry (unused
+for a week, or the repository over 10 GB of caches).
+
+Not run here: this container cannot download from GitHub, so
+~bin/make llvm~ and its tar patterns first run in CI, in steps that are
+continue-on-error. ~bin/make~ builds and lists the goal.

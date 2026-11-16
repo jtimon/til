@@ -46,6 +46,7 @@ vendor/emscripten/downloads/
 vendor/emscripten/node/
 vendor/emscripten/upstream/
 vendor/llvm-mingw/
+vendor/llvm/
 *~
 \#*\#
 .#*

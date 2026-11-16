@@ -315,23 +315,31 @@ jobs:
       # Issue #472: the mac targets with the one compiler every host uses
       # for them, LLVM's own release (clang, lld, dsymutil, the llvm tools)
       # at one pinned version, published for Linux x64 and arm64 and macOS
-      # arm64 hosts. Only the tools til and bin/make run are unpacked (the
-      # archive needs zstd's long window, which tar --zstd refuses), and
-      # they go first on PATH. Headers and libSystem are vendor/macos, as
+      # arm64 hosts. `make llvm` downloads it, checks its sha256 and unpacks
+      # only the tools til and bin/make run; they go first on PATH. Headers and libSystem are vendor/macos, as
       # before. On trial and continue-on-error until a run shows the three
       # hosts equal; the mac binaries the Macs RUN are still built by
       # macos-cross-build with Ubuntu's clang.
+      # The pinned LLVM (make.til LLVM_RELEASE), unpacked by `make llvm` into
+      # vendor/llvm, kept between runs: one cache entry per release and
+      # runner kind.
+      - name: The pinned LLVM release
+        id: llvm
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned LLVM
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm
+          key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: Write the mac binary hash lists with the pinned LLVM
         continue-on-error: true
         run: |
-          archive=LLVM-23.1.5-Linux-ARM64
-          curl -sSL --fail -o tmp/$archive.tar.zst https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.5/$archive.tar.zst
-          echo "830ceb70edf63849ce66e97bf85310a3bf2bdd04c860a9f2fa4ef1560e290cef  tmp/$archive.tar.zst" | sha256sum -c -
-          mkdir -p tmp/llvm
-          set -o pipefail
-          zstd -d --long=31 -c tmp/$archive.tar.zst | tar -xf - -C tmp/llvm --strip-components=1 --wildcards '*/bin/clang*' '*/bin/lld' '*/bin/ld.lld' '*/bin/ld64.lld' '*/bin/dsymutil' '*/bin/llvm-ar' '*/bin/llvm-ranlib' '*/bin/llvm-nm' '*/bin/llvm-objcopy' '*/lib/clang/*'
-          rm tmp/$archive.tar.zst
-          export PATH="$PWD/tmp/llvm/bin:$PATH"
+          make llvm
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
           clang --version
           clang --version | grep -q "clang version 23.1.5"
           ld64.lld --version
@@ -1049,23 +1057,31 @@ jobs:
       # Issue #472: the mac targets with the one compiler every host uses
       # for them, LLVM's own release (clang, lld, dsymutil, the llvm tools)
       # at one pinned version, published for Linux x64 and arm64 and macOS
-      # arm64 hosts. Only the tools til and bin/make run are unpacked (the
-      # archive needs zstd's long window, which tar --zstd refuses), and
-      # they go first on PATH. Headers and libSystem are vendor/macos, as
+      # arm64 hosts. `make llvm` downloads it, checks its sha256 and unpacks
+      # only the tools til and bin/make run; they go first on PATH. Headers and libSystem are vendor/macos, as
       # before. On trial and continue-on-error until a run shows the three
       # hosts equal; the mac binaries the Macs RUN are still built by
       # macos-cross-build with Ubuntu's clang.
+      # The pinned LLVM (make.til LLVM_RELEASE), unpacked by `make llvm` into
+      # vendor/llvm, kept between runs: one cache entry per release and
+      # runner kind.
+      - name: The pinned LLVM release
+        id: llvm
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned LLVM
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm
+          key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: Write the mac binary hash lists with the pinned LLVM
         continue-on-error: true
         run: |
-          archive=LLVM-23.1.5-Linux-X64
-          curl -sSL --fail -o tmp/$archive.tar.zst https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.5/$archive.tar.zst
-          echo "c3107384835f788768f614db610e87fba7077f125ca950eb02a78bab0a308065  tmp/$archive.tar.zst" | sha256sum -c -
-          mkdir -p tmp/llvm
-          set -o pipefail
-          zstd -d --long=31 -c tmp/$archive.tar.zst | tar -xf - -C tmp/llvm --strip-components=1 --wildcards '*/bin/clang*' '*/bin/lld' '*/bin/ld.lld' '*/bin/ld64.lld' '*/bin/dsymutil' '*/bin/llvm-ar' '*/bin/llvm-ranlib' '*/bin/llvm-nm' '*/bin/llvm-objcopy' '*/lib/clang/*'
-          rm tmp/$archive.tar.zst
-          export PATH="$PWD/tmp/llvm/bin:$PATH"
+          make llvm
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
           clang --version
           clang --version | grep -q "clang version 23.1.5"
           ld64.lld --version
@@ -1837,16 +1853,26 @@ jobs:
       # bin/make directly: through the Makefile, the missing stamp of the
       # host's libffi would have it rebuilt with Apple's cc. On trial and
       # continue-on-error.
+      # The pinned LLVM (make.til LLVM_RELEASE), unpacked by `make llvm` into
+      # vendor/llvm, kept between runs: one cache entry per release and
+      # runner kind.
+      - name: The pinned LLVM release
+        id: llvm
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned LLVM
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm
+          key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: Write the binary hash list with the pinned LLVM
         continue-on-error: true
         run: |
-          archive=LLVM-23.1.5-macOS-ARM64
-          curl -sSL --fail -o tmp/$archive.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.5/$archive.tar.xz
-          echo "aba592b4a15e8f90c634c5367b51ec8418b8bcd2829865db331a17dc9418dcff  tmp/$archive.tar.xz" | shasum -a 256 -c -
-          mkdir -p tmp/llvm
-          tar -xf tmp/$archive.tar.xz -C tmp/llvm --strip-components 1 '*/bin/clang*' '*/bin/lld' '*/bin/ld.lld' '*/bin/ld64.lld' '*/bin/dsymutil' '*/bin/llvm-ar' '*/bin/llvm-ranlib' '*/bin/llvm-nm' '*/bin/llvm-objcopy' '*/lib/clang/*'
-          rm tmp/$archive.tar.xz
-          export PATH="$PWD/tmp/llvm/bin:$PATH"
+          make llvm
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
           clang --version
           clang --version | grep -q "clang version 23.1.5"
           ld64.lld --version
