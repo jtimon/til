@@ -2737,7 +2737,14 @@ llvm-mingw -- is published for Linux x64, Linux arm64 and macOS arm64
   Ubuntu-clang lists, where they were strict: a producer cannot list one
   target twice. Every binary item is on trial until its target has been
   shown equal with its pinned compiler.
-- Known and left: the arm64 Mac's own libffi and nng are still built by
-  Apple's cc (they are "the host's own" in the Makefile and ~make.til~),
-  so its ~til~ cannot match the Linux hosts' yet; the two programs and
-  the library can.
+- The arm64 Mac's own libffi and nng were "the host's own" in
+  ~make.til~, built by Apple's cc, so its ~til~ could not have matched.
+  Follow-up commit: ~make.til~ asks the same question til does
+  (~mac_sdkless~, ~builds_as_host~) and builds a Mac's own libffi and nng
+  the cross way when its clang is not Apple's; the Mac's trial step
+  rebuilds both with ~bin/make~ directly (through the Makefile the
+  missing stamp would have the host's libffi rebuilt with Apple's cc).
+  Not run on a Mac here. Possible next difference, to be read from the
+  first run: ~bin/make~ gives the mac builds the checkout's absolute path
+  (~-isystem <cwd>/vendor/macos/include~), which differs between the
+  Linux runners and the Mac.

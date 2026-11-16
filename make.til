@@ -248,6 +248,30 @@ have_tool := proc(name: Str) returns Bool {
     return probe.run() == 0
 }
 
+/// Does this host build the mac targets without Apple's SDK: the vendored
+/// headers and libSystem stub, clang and lld? Every host that is not a
+/// Mac, and (#472) a Mac whose ~clang~ is not Apple's -- the pinned LLVM
+/// release every host uses for the mac targets, first on PATH. til asks the
+/// same question the same way (targets.til, macos_is_cross), and the two
+/// have to agree: til links the libffi and nng built here.
+mac_sdkless := proc(b: Build) returns Bool {
+    if b.host.is_mac().not() { return true }
+    probe := Cmd.new("clang", "--version")
+    probe.capture()
+    if probe.run() != 0 { panic("cannot run clang --version to tell Apple's clang from LLVM's: ", probe.err()) }
+    return probe.out().contains("Apple clang").not()
+}
+
+/// Is ~target~ built as this host's own -- its native compiler, the
+/// Makefile's libffi -- and not as a cross target? A Mac building the mac
+/// targets SDK-less builds its own target the cross way too, so that its
+/// archives are the ones every other host builds.
+builds_as_host := proc(b: Build, target: Str) returns Bool {
+    if target != b.host.target_name() { return false }
+    if b.host.is_mac() { return mac_sdkless(b).not() }
+    return true
+}
+
 /// A cross recipe's C compiler, checked where the build starts (issue
 /// #435) instead of left to fail deep inside cmake or configure as
 /// "compiler not found". ~cc~ may carry flags; its first word is the
@@ -1488,10 +1512,10 @@ libffi_cross_targets := proc(b: Build) returns Vec(LibffiCross) {
             t.host = "aarch64-apple-darwin"
             t.cc = "clang -target arm64-apple-macos11"
         }
-        // On a mac the real SDK serves the other arch too; elsewhere the
-        // vendored SDK-less headers and libSystem.tbd, like the mac gui
-        // archives.
-        if b.host.is_mac().not() {
+        // On a mac with Apple's clang the real SDK serves the other arch
+        // too; elsewhere the vendored SDK-less headers and libSystem.tbd,
+        // like the mac gui archives.
+        if mac_sdkless(b) {
             t.cc = format(t.cc, " -nostdlibinc -isystem ", get_cwd_str(), "/vendor/macos/include")
             t.ldflags = format("-fuse-ld=lld -L", get_cwd_str(), "/vendor/macos")
             t.ar = "llvm-ar"
@@ -1515,7 +1539,7 @@ build_libffi_out_of_tree := proc(mut b: Build, name: Str) {
     }
     if found.not() { panic("no libffi build for --target=", name) }
     // The host's own is the Makefile's (the bootstrap links it).
-    if name == b.host.target_name() {
+    if builds_as_host(b, name) {
         require_libffi(b)
         return
     }
@@ -1617,7 +1641,7 @@ nng_targets := proc(b: Build) returns Vec(NngTarget) {
             t.processor = "arm64"
             t.clang_target = "arm64-apple-macos11"
         }
-        if b.host.is_mac().not() {
+        if mac_sdkless(b) {
             t.cflags = format("-nostdlibinc -isystem ", get_cwd_str(), "/vendor/macos/include")
             t.sdkless_mac = true
         }
@@ -1639,7 +1663,7 @@ build_nng_target := proc(mut b: Build, target: Str) {
     if found.not() { panic("no nng build for --target=", target) }
     // The host's own archive is a plain native build; any other target
     // is a cross build with its compiler.
-    is_host := target == b.host.target_name()
+    is_host := builds_as_host(b, target)
     if is_host.not() {
         if t.cc.is_empty() {
             panic("pass --riscv32-cc=<path to riscv32 gcc> (or set RISCV32_CC), e.g. the Bootlin toolchain")

@@ -1793,10 +1793,11 @@ jobs:
       # windows-x64-build job). With that clang first on PATH til builds the
       # mac targets here as it does everywhere else -- vendor/macos, lld,
       # named objects -- not with Apple's SDK and linker (targets.til,
-      # macos_is_cross). On trial and continue-on-error. Known and left for
-      # the next step: this host's own libffi and nng are still built by
-      # Apple's cc, so til, which links them, cannot match yet; the two
-      # programs and the library can.
+      # macos_is_cross), and bin/make builds this host's own libffi and nng
+      # the same way (make.til, builds_as_host). They are rebuilt here by
+      # bin/make directly: through the Makefile, the missing stamp of the
+      # host's libffi would have it rebuilt with Apple's cc. On trial and
+      # continue-on-error.
       - name: Write the binary hash list with the pinned LLVM
         continue-on-error: true
         run: |
@@ -1810,7 +1811,8 @@ jobs:
           clang --version
           clang --version | grep -q "clang version 23.1.5"
           ld64.lld --version
-          make vendor/nng/build-macos-arm64/libnng.a
+          rm -rf vendor/libffi/build-macos-arm64 vendor/nng/build-macos-arm64
+          ./bin/make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/nng/build-macos-arm64/libnng.a
           mkdir -p tmp/hashes-binary
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary/macos-arm64.txt bin/til macos-arm64
       - name: Upload the binary hash list
