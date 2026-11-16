@@ -36,11 +36,14 @@ import("../src/self/targets")
 //   ci_collect collect <directory> [report]
 //       Read every *.txt hash list under the directory; the file's name is
 //       the producer's. Items are compared between the producers that
-//       took part in the same level, target, backend and width. Prints
-//       what differs, what a producer left out, and what only one producer
-//       has (which is not compared, never "equal"). A
-//       difference at level "binary-trial" is printed and does not fail
-//       either: that level is for artifacts not yet shown equal. Exits 1 on a
+//       took part in the same level, target, backend and width; a
+//       "binary-trial" line is compared with the "binary" lines of the same
+//       item (they are one level, on trial or not). Prints what differs,
+//       what a producer left out, and what only one producer has (which is
+//       not compared, never "equal"). A difference that any trial line is
+//       part of is printed and does not fail, nor does an item missing
+//       from a producer with no strict line in the group: trial is for
+//       artifacts, and producers, not yet shown equal. Exits 1 on a
 //       difference, a missing item or a line it cannot read; with `report`
 //       a difference or a missing item is printed but does not fail.
 //
@@ -54,6 +57,9 @@ Entry := struct {
     hash := ""
     group := ""
     item := ""
+    // REM Listed at a "-trial" level: compared with the same level's
+    // strict lines, but a difference it is part of never fails.
+    trial := false
 }
 
 fail := proc(message: Str) {
@@ -175,6 +181,18 @@ version_line := proc(tool: Str) returns Str {
     return output.substr(0, end.to_usize()).clone()
 }
 
+// The first line `tool argument` prints on either stream (Apple's ld -v
+// writes its version to stderr).
+first_line_of := proc(tool: Str, argument: Str) returns Str {
+    command := Cmd.new(tool, argument)
+    command.capture()
+    if command.run() != 0 { fail(format("cannot run ", tool, " ", argument, ": ", command.err())) }
+    output := format(command.out(), command.err())
+    end := output.find("\n")
+    if end < 0 { return output.clone() }
+    return output.substr(0, end.to_usize()).clone()
+}
+
 // What `tool` prints for one argument, trimmed.
 tool_output := proc(tool: Str, argument: Str) returns Str {
     command := Cmd.new(tool, argument)
@@ -224,6 +242,11 @@ build_command := proc(compiler: Str, target: Str) returns Cmd {
 // REM The tools are the ones til runs for the target (targets.til,
 // toolchain_command; builder.til, compile_c).
 toolchain_identity := proc(target: Str) returns Str {
+    if target.starts_with("macos-").and(host_os() == "macos") {
+        // A mac builds its own target with Apple's tools and SDK.
+        return format(version_line("clang"), "\n", first_line_of("ld", "-v"), "\n",
+            "SDK ", tool_output("xcrun", "--show-sdk-version"), "\n")
+    }
     if target.starts_with("macos-") {
         // Headers and libraries are the repository's vendor/macos.
         return format(version_line("clang"), "\n", version_line("ld.lld"), "\n", version_line("llvm-ar"), "\n", version_line("dsymutil"), "\n")
@@ -286,7 +309,11 @@ list_sections := proc(target: Str, level: Str, binary: Str, label: Str, scratch:
 list_members := proc(target: Str, level: Str, archive: Str, label: Str, scratch: Str, mut lines: Vec(Str)) {
     File.remove_tree(scratch)
     mkdir_p(scratch)
-    extract := Cmd.new("ar", "x", format("--output=", scratch), archive)
+    // REM Apple's ar has no --output; a mac host uses llvm-ar (see the
+    // workflow's mac jobs for where it comes from).
+    mut archiver := "ar"
+    if host_os() == "macos" { archiver = "llvm-ar" }
+    extract := Cmd.new(archiver, "x", format("--output=", scratch), archive)
     extract.capture()
     if extract.run() != 0 { fail(format(extract.render(), " failed: ", extract.err())) }
     // REM ar restores each member's recorded mode, and a Mach-O archive's
@@ -327,8 +354,11 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         // archives and every section and member since run 3115 (after the
         // host-folded libffi constant was fixed). Everything else is on
         // trial.
+        // A mac's own build of its target is on trial: it uses Apple's
+        // clang, linker and SDK, and has not been shown equal to the Linux
+        // hosts' builds yet.
         mut target_level := "binary-trial"
-        if target.starts_with("macos-") { target_level = "binary" }
+        if target.starts_with("macos-").and(host_os() != "macos") { target_level = "binary" }
         mut levels := Vec(Str).new()
         mut items := Vec(Str).new()
         mut paths := Vec(Str).new()
@@ -464,9 +494,10 @@ read_list := proc(path: Str, mut entries: Vec(Entry)) {
         if fields[0].len() != 64 && fields[0] != "refused" {
             fail(format(path, ":", number.to_str(), ": not a sha256 or \"refused\": ", fields[0]))
         }
+        trial := fields[1].ends_with("-trial")
         entries.push(own Entry(producer = producer.clone(), hash = fields[0].clone(),
-            group = format(fields[1], " ", fields[2], " ", fields[3], " ", fields[4]),
-            item = format(fields[5], " ", fields[6])))
+            group = format(fields[1].strip_suffix("-trial"), " ", fields[2], " ", fields[3], " ", fields[4]),
+            item = format(fields[5], " ", fields[6]), trial = trial))
     }
 }
 
@@ -480,6 +511,9 @@ collect := proc(directory: Str, report_only: Bool) {
     // Who took part in each group, and who has each item of it.
     mut group_producers := Map(Str, Set(Str)).new()
     mut item_hashes := Map(Str, Map(Str, Str)).new()
+    // Who listed each item on trial, and who has a strict line in a group.
+    mut item_trial := Map(Str, Set(Str)).new()
+    mut group_strict := Map(Str, Set(Str)).new()
     for entry : Entry in entries {
         if group_producers.has(entry.group).not() { group_producers.set(entry.group, own Set(Str).new()) }
         ref mut producers : Set(Str) = group_producers[entry.group]
@@ -491,6 +525,15 @@ collect := proc(directory: Str, report_only: Bool) {
             fail(format(entry.producer, " lists ", key, " twice"))
         }
         by_producer.set(entry.producer, own entry.hash.clone())
+        if item_trial.has(key).not() { item_trial.set(key, own Set(Str).new()) }
+        if group_strict.has(entry.group).not() { group_strict.set(entry.group, own Set(Str).new()) }
+        if entry.trial {
+            ref mut on_trial : Set(Str) = item_trial[key]
+            on_trial.add(own entry.producer.clone())
+        } else {
+            ref mut strict : Set(Str) = group_strict[entry.group]
+            strict.add(own entry.producer.clone())
+        }
     }
 
     mut equal : USize = 0
@@ -505,27 +548,42 @@ collect := proc(directory: Str, report_only: Bool) {
         for key, by_producer in item_hashes {
             if key.starts_with(prefix).not() { continue }
             item := key.substr(prefix.len(), key.len() - prefix.len())
+            ref on_trial : Set(Str) = item_trial[key]
+            ref strict : Set(Str) = group_strict[group]
             for producer : Str in producers {
                 if by_producer.has(producer).not() {
-                    println("MISSING ", group, ": ", producer, " has no ", item)
-                    missing++
+                    // REM A producer only on trial in this group, or an item
+                    // someone lists on trial, is reported and does not fail.
+                    if strict.has(producer).and(on_trial.len() == 0) {
+                        println("MISSING ", group, ": ", producer, " has no ", item)
+                        missing++
+                    } else {
+                        println("MISSING (trial, does not fail) ", group, ": ", producer, " has no ", item)
+                    }
                 }
             }
             if by_producer.len() == 1 {
                 group_alone++
                 continue
             }
+            // The strict lines are compared among themselves, and that alone
+            // decides a failure; trial lines only add a trial difference.
             mut first := ""
             mut same := true
-            for _, hash in by_producer {
+            mut strict_first := ""
+            mut strict_same := true
+            for producer, hash in by_producer {
                 if first.len() == 0 { first = hash.clone() }
                 else if hash != first { same = false }
+                if on_trial.has(producer) { continue }
+                if strict_first.len() == 0 { strict_first = hash.clone() }
+                else if hash != strict_first { strict_same = false }
             }
             if same {
                 group_equal++
                 continue
             }
-            if group.starts_with("binary-trial ") {
+            if strict_same {
                 trial_different++
                 println("DIFFERENT (trial, does not fail) ", group, ": ", item)
             } else {

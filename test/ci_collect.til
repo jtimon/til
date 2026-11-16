@@ -150,7 +150,7 @@ main := proc(args: ..Str) {
     other_tools := fixture("other_tools")
     list(other_tools, "one", tools_a, hello_a)
     list(other_tools, "two", tools_b, hello_a)
-    collect(collector, other_tools, "", 0, "DIFFERENT (trial, does not fail) binary-trial macos-arm64 c 32: - toolchain",
+    collect(collector, other_tools, "", 0, "DIFFERENT (trial, does not fail) binary macos-arm64 c 32: - toolchain",
         "1 equal, 0 different, 0 missing, 0 not compared, 1 different on trial", "!NOT COMPARABLE")
     // Different toolchains and another binary: the binary fails.
     other_tools_binary := fixture("other_tools_binary")
@@ -166,8 +166,34 @@ main := proc(args: ..Str) {
         format(HASH_A, " binary-trial linux-arm64 c 32 src/til.til til:.text"))
     list(trial, "two", trial_tools, format(HASH_C, " binary-trial linux-arm64 c 32 src/til.til til"),
         format(HASH_A, " binary-trial linux-arm64 c 32 src/til.til til:.text"))
-    collect(collector, trial, "", 0, "DIFFERENT (trial, does not fail) binary-trial linux-arm64 c 32: src/til.til til",
+    collect(collector, trial, "", 0, "DIFFERENT (trial, does not fail) binary linux-arm64 c 32: src/til.til til",
         "2 equal, 0 different, 0 missing, 0 not compared, 1 different on trial")
+    // A producer on trial beside strict ones (a mac's own build beside the
+    // Linux hosts' cross builds): its lines are compared with theirs, a
+    // difference it is part of does not fail, and what it leaves out is
+    // reported and does not fail either. Among the strict producers a
+    // difference still fails.
+    strict_two := format(HASH_A, " binary macos-arm64 c 32 hello.til hello")
+    lib_line := format(HASH_A, " binary macos-arm64 c 32 lib.til lib")
+    beside := fixture("beside")
+    list(beside, "one", tools_a, strict_two, lib_line)
+    list(beside, "two", tools_a, strict_two, lib_line)
+    list(beside, "mac", tools_b, format(HASH_C, " binary-trial macos-arm64 c 32 hello.til hello"))
+    collect(collector, beside, "", 0, "DIFFERENT (trial, does not fail) binary macos-arm64 c 32: hello.til hello",
+        "MISSING (trial, does not fail) binary macos-arm64 c 32: mac has no lib.til lib",
+        "binary macos-arm64 c 32: 3 producers (mac, one, two)",
+        "1 equal, 0 different, 0 missing, 0 not compared, 2 different on trial")
+    beside_equal := fixture("beside_equal")
+    list(beside_equal, "one", tools_a, strict_two)
+    list(beside_equal, "two", tools_a, strict_two)
+    list(beside_equal, "mac", tools_a, format(HASH_A, " binary-trial macos-arm64 c 32 hello.til hello"))
+    collect(collector, beside_equal, "", 0, "2 equal, 0 different, 0 missing, 0 not compared, 0 different on trial")
+    beside_strict := fixture("beside_strict")
+    list(beside_strict, "one", tools_a, strict_two)
+    list(beside_strict, "two", tools_a, format(HASH_C, " binary macos-arm64 c 32 hello.til hello"))
+    list(beside_strict, "mac", tools_a, format(HASH_A, " binary-trial macos-arm64 c 32 hello.til hello"))
+    collect(collector, beside_strict, "", 1, "DIFFERENT binary macos-arm64 c 32: hello.til hello",
+        "1 equal, 1 different, 0 missing, 0 not compared, 0 different on trial")
 
     // A line that is not a hash-list line stops the collector.
     malformed := fixture("malformed")

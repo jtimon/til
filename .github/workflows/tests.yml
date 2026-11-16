@@ -1613,6 +1613,26 @@ jobs:
           name: hashes-macos-arm64
           path: tmp/hashes/macos-arm64.txt
           if-no-files-found: error
+      # Issue #472: this Mac's own build of its target, beside the Linux
+      # hosts' cross builds. The end goal is that they are the same bytes, so
+      # that the suite run here tests what the other hosts build; until a
+      # run shows that, everything here is on trial: the collector compares
+      # it with the cross builds and a difference does not fail. Apple's
+      # clang, ld and SDK build it; Homebrew's llvm@18 is appended to PATH
+      # (so clang stays Apple's) only for llvm-objcopy's section dumps.
+      - name: Write the binary hash list for the collector
+        continue-on-error: true
+        run: |
+          export PATH="$PATH:$(brew --prefix llvm@18)/bin"
+          make vendor/nng/build-macos-arm64/libnng.a
+          mkdir -p tmp/hashes-binary
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary/macos-arm64.txt bin/til macos-arm64
+      - name: Upload the binary hash list
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-macos-arm64
+          path: tmp/hashes-binary/macos-arm64.txt
       # Guard Malloc puts every allocation on its own guarded page, so
       # an out-of-bounds or use-after-free write faults AT THE CULPRIT
       # INSTRUCTION (even from uninstrumented code like libffi asm) and
@@ -1759,6 +1779,26 @@ jobs:
           name: hashes-macos-x64
           path: tmp/hashes/macos-x64.txt
           if-no-files-found: error
+      # Issue #472: this Mac's own build of its target, beside the Linux
+      # hosts' cross builds. The end goal is that they are the same bytes, so
+      # that the suite run here tests what the other hosts build; until a
+      # run shows that, everything here is on trial: the collector compares
+      # it with the cross builds and a difference does not fail. Apple's
+      # clang, ld and SDK build it; Homebrew's llvm@18 is appended to PATH
+      # (so clang stays Apple's) only for llvm-objcopy's section dumps.
+      - name: Write the binary hash list for the collector
+        continue-on-error: true
+        run: |
+          export PATH="$PATH:$(brew --prefix llvm@18)/bin"
+          make vendor/nng/build-macos-x64/libnng.a
+          mkdir -p tmp/hashes-binary
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-x64 tmp/hashes-binary/macos-x64.txt bin/til macos-x64
+      - name: Upload the binary hash list
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-macos-x64
+          path: tmp/hashes-binary/macos-x64.txt
       # See the macos-arm64 job for what the probe and the dump step
       # are for and why they look like this.
       - name: Guard Malloc probe

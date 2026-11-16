@@ -2541,3 +2541,27 @@ first linux-x64 pair: native on x64, cross from the arm64 host.
 Left for linux-x64 and linux-arm64 after this: the debug information of
 the programs (the directories the two drivers record), with the
 decision open.
+
+*** The Macs' own builds join the binary lists, on trial (S8, first step)
+
+By the restated rule a Mac's own build of its target counts if its bytes
+equal the cross builds; no pinned LLVM is needed unless they do not. So
+the native ~macos-arm64~ and ~macos-x64~ jobs now run ~produce-binary~
+for their own target, with Apple's clang, ld and SDK (the toolchain item
+records ~clang --version~, ~ld -v~ and the SDK version). The steps are
+~continue-on-error~; ~llvm-objcopy~ and ~llvm-ar~ (Apple's ar has no
+~--output~) come from Homebrew's llvm@18, appended to PATH so that
+~clang~ stays Apple's. Whether llvm@18 is on the runner image is not
+checked here; without it the section and member lines say ~refused~.
+
+For that the collector changed in one respect: a "binary-trial" line and
+a "binary" line of the same item are now one group and compared with
+each other (before, the level was part of the group, so a trial producer
+could not be compared with strict ones at all). A difference fails only
+when the strict lines differ among themselves; a difference a trial line
+adds is printed as a trial difference, and an item missing from a
+producer with no strict line in the group does not fail either. The mac
+targets' lines from a mac host are all trial; from a Linux host they stay
+strict. Fixtures: a trial producer beside two strict ones, differing
+(trial difference, its missing item reported), equal, and with the two
+strict producers differing (fails).
