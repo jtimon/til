@@ -264,7 +264,7 @@ binary_sections := func(target: Str) returns Vec(Str) {
 // A binary by section, so that a difference between producers names the
 // part of it: code, constants, data, debug info, the dynamic tables, the
 // build id. A section the binary does not have is listed as such.
-list_sections := proc(target: Str, binary: Str, label: Str, scratch: Str, mut lines: Vec(Str)) {
+list_sections := proc(target: Str, level: Str, binary: Str, label: Str, scratch: Str, mut lines: Vec(Str)) {
     mut objcopy := "llvm-objcopy"
     if target.starts_with("macos-").not() { objcopy = format(linux_tool_prefix(target), "objcopy") }
     mut section_names := Vec(Str).new()
@@ -274,18 +274,18 @@ list_sections := proc(target: Str, binary: Str, label: Str, scratch: Str, mut li
         dump := Cmd.new(objcopy, format("--dump-section=", section, "=", dumped), binary, format(scratch, "_copy"))
         dump.capture()
         if dump.run() != 0 || File.is_file(dumped).not() {
-            lines.push(own format("refused binary-trial ", target, " c 32 ", label, ":", section))
+            lines.push(own format("refused ", level, " ", target, " c 32 ", label, ":", section))
             continue
         }
         section_names.push(own section.clone())
         section_paths.push(own dumped)
     }
     section_hashes := sha256_of(section_paths)
-    for i, hash in section_hashes { lines.push(own format(hash, " binary-trial ", target, " c 32 ", label, ":", section_names[i])) }
+    for i, hash in section_hashes { lines.push(own format(hash, " ", level, " ", target, " c 32 ", label, ":", section_names[i])) }
 }
 
 // An archive by member, for the same reason.
-list_members := proc(target: Str, archive: Str, label: Str, scratch: Str, mut lines: Vec(Str)) {
+list_members := proc(target: Str, level: Str, archive: Str, label: Str, scratch: Str, mut lines: Vec(Str)) {
     File.remove_tree(scratch)
     mkdir_p(scratch)
     extract := Cmd.new("ar", "x", format("--output=", scratch), archive)
@@ -304,7 +304,7 @@ list_members := proc(target: Str, archive: Str, label: Str, scratch: Str, mut li
         names.push(own name.clone())
     }
     hashes := sha256_of(paths)
-    for i, hash in hashes { lines.push(own format(hash, " binary-trial ", target, " c 32 ", label, ":", names[i])) }
+    for i, hash in hashes { lines.push(own format(hash, " ", level, " ", target, " c 32 ", label, ":", names[i])) }
 }
 
 // Level "binary": artifacts a run has shown equal between producers; a
@@ -324,10 +324,13 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         // relative to the checkout, is in the binary's debug info.
         directory := format(WORK, "/binary_", target)
         mkdir_p(directory)
-        // The mac targets' small artifacts are equal between the two Linux
-        // hosts since CI run 3094; everything else is on trial.
-        mut small_level := "binary-trial"
-        if target.starts_with("macos-") { small_level = "binary" }
+        // The mac targets' artifacts are all equal between the two Linux
+        // hosts: the small ones since CI run 3094, til, the vendored
+        // archives and every section and member since run 3115 (after the
+        // host-folded libffi constant was fixed). Everything else is on
+        // trial.
+        mut target_level := "binary-trial"
+        if target.starts_with("macos-") { target_level = "binary" }
         mut levels := Vec(Str).new()
         mut items := Vec(Str).new()
         mut paths := Vec(Str).new()
@@ -345,7 +348,7 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
             build.args("-o", binary, "-c", format(directory, "/", stem, ".c"), source)
             build.capture()
             if build.run() != 0 { fail(format(build.render(), " failed:\n", build.out(), build.err())) }
-            levels.push(own small_level.clone())
+            levels.push(own target_level.clone())
             items.push(own format(source, " ", stem))
             paths.push(own binary)
         }
@@ -366,7 +369,7 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
             // REM The next target's build writes the same names.
             kept := format(directory, "/", file)
             if copy_file(built, kept) != 0 { fail(format("cannot copy ", built)) }
-            levels.push(own small_level.clone())
+            levels.push(own target_level.clone())
             items.push(own format("ci_binary_lib.til ", file))
             paths.push(own kept)
         }
@@ -376,7 +379,7 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         for archive : Str in array(Str, format("vendor/libffi/build-", target, "/.libs/libffi.a"),
             format("vendor/nng/build-", target, "/libnng.a")) {
             if File.is_file(archive).not() { fail(format(archive, " is not built; run bin/make ", archive, " first")) }
-            levels.push(own "binary-trial")
+            levels.push(own target_level.clone())
             items.push(own format("vendor ", file_stem(format(archive, ".til"))))
             paths.push(own archive.clone())
         }
@@ -385,7 +388,7 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         til_build.args("-o", til_binary, "-c", format(directory, "/til.c"), "src/til.til")
         til_build.capture()
         if til_build.run() != 0 { fail(format(til_build.render(), " failed:\n", til_build.out(), til_build.err())) }
-        levels.push(own "binary-trial")
+        levels.push(own target_level.clone())
         items.push(own "src/til.til til")
         paths.push(own til_binary.clone())
 
@@ -401,15 +404,15 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         generated_paths.push(own generated)
         generated_paths.push(own format(directory, "/til_forward.h"))
         generated_hashes := sha256_of(generated_paths)
-        lines.push(own format(generated_hashes[0], " binary-trial ", target, " c 32 src/til.til til.c"))
-        lines.push(own format(generated_hashes[1], " binary-trial ", target, " c 32 src/til.til til_forward.h"))
+        lines.push(own format(generated_hashes[0], " ", target_level, " ", target, " c 32 src/til.til til.c"))
+        lines.push(own format(generated_hashes[1], " ", target_level, " ", target, " c 32 src/til.til til_forward.h"))
 
-        list_sections(target, til_binary, "src/til.til til", format(directory, "/til_section"), lines)
-        list_sections(target, format(directory, "/hello_script"), "examples/hello_script.til hello_script",
+        list_sections(target, target_level, til_binary, "src/til.til til", format(directory, "/til_section"), lines)
+        list_sections(target, target_level, format(directory, "/hello_script"), "examples/hello_script.til hello_script",
             format(directory, "/hello_section"), lines)
-        list_members(target, format("vendor/libffi/build-", target, "/.libs/libffi.a"), "vendor libffi.a",
+        list_members(target, target_level, format("vendor/libffi/build-", target, "/.libs/libffi.a"), "vendor libffi.a",
             format(directory, "/libffi_members"), lines)
-        list_members(target, format("vendor/nng/build-", target, "/libnng.a"), "vendor libnng.a",
+        list_members(target, target_level, format("vendor/nng/build-", target, "/libnng.a"), "vendor libnng.a",
             format(directory, "/libnng_members"), lines)
     }
     File.writefile(list, format(join(lines, "\n"), "\n"))

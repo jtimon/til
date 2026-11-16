@@ -2416,3 +2416,59 @@ should pick the cross gcc itself instead of needing ~--cc~. Today it runs
 the host's ~gcc~. That is a compiler default, so it is Jorge's call.
 
 make clean && make test: 588/588.
+
+*** Run 3115: til for the mac targets is the same from both Linux hosts
+
+The first run with the fold fix and the full trial lists to reach
+~collect~ (master 62a9582; the run itself was cancelled later, see
+below). Binary level, x64 host against arm64 host, same clang 18.1.3:
+
+- macos-arm64 and macos-x64: everything equal, 115 and 117 trial
+  items: ~til~, its generated ~til.c~ and ~til_forward.h~, every listed
+  section of ~til~ and ~hello_script~, ~libffi.a~ and ~libnng.a~ and
+  every member of both. So S2 and S3 hold for the mac targets. This
+  commit moves all of them to the strict ~binary~ level.
+- linux-arm64, native gcc against cross gcc (both 13.3.0, glibc 2.39):
+  ~.text~, ~.rodata~, the dynamic tables and the rest are equal now (the
+  code difference of run 3101 was the host-folded libffi constant).
+  What differs is debug information only -- ~.debug_info~, ~.debug_line~,
+  ~.debug_line_str~, and the build id computed over them -- for ~til~ and
+  ~hello_script~, and three members of ~libffi.a~ (~types.o~,
+  ~raw_api.o~, ~java_raw_api.o~; members are hashed whole, so which
+  section is not known yet). Every member of ~libnng.a~ is equal. This is
+  the include and library directories the two drivers record
+  (~/usr/aarch64-linux-gnu/include~ and ~/usr/lib/gcc-cross/...~
+  against ~/usr/include~, its multiarch ~bits~ directory, and
+  ~/usr/lib/gcc/...~). How to make those equal is Jorge's decision: path
+  maps for the two Debian layouts, no ~-g~ for the binaries compared, or
+  one shared sysroot. Not changed yet.
+
+Run 3115 was cancelled by the ~--usize=64~ job: ~translate_layouts~
+compared the FASM output of two compilers and found it different. Since
+557c99a (#442) FASM output ends in the executable's marker, a two-line
+data segment, and a ~;~ stamp comment, and MLIR output in a ~//~ stamp
+comment; the stamp names the compiler binary, so two compilers always
+differ there. The test only removed C's ~/*~ stamp line. It now removes
+the stamp in each backend's syntax, and FASM's marker with it. Checked:
+~translate_layouts~ passes against a ~--usize=64~ compiler built here
+(268 files from 138 translations, 42 from FASM, MLIR and the bindings).
+The test only runs under ~make check_usize64~, which is why ~make test~
+did not show it.
+
+Seen on the way, not fixed, not filed: in a function, a ~for x : Str in
+...~ loop variable that shadows a local ~x~ of the same function
+miscompiles in C (~Str_clone(&x)~ given the loop's pointer, a gcc type
+error); the interpreter runs it right.
+#+begin_src til
+mode cli
+show := proc(name: Str) {
+    mut level := "a"
+    if name.len() > 5 { level = "b" }
+    mut out := Vec(Str).new()
+    for level : Str in array(Str, "x", "y") {
+        out.push(own level.clone())
+    }
+    println(out[0], out[1], level)
+}
+main := proc(args: ..Str) { show(args[0]) }
+#+end_src

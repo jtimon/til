@@ -56,15 +56,26 @@ translation := proc(compiler: Str, job: Job, side: Str) returns Cmd {
     return command
 }
 
-// The text without its trailing reuse stamp line.
+// The text without its trailing reuse stamp (#442), in each backend's
+// syntax (builder.til, stamp_translation): the stamp names the compiler
+// binary that wrote the file, and these are two binaries. C and MLIR end in
+// one comment line; FASM's comment line follows the executable's marker, a
+// read-only data segment of two lines derived from the same stamp.
 without_stamp := func(text: Str) returns Str {
-    at := text.rfind("/* til-translation-stamp: ")
-    if at < 0 { return text.clone() }
-    start := at.to_usize()
-    rest := text.substr(start, text.len() - start)
-    // REM Only a stamp that is the whole last line is one.
-    if rest.find("\n") != rest.len().to_i64() - 1 { return text.clone() }
-    return text.substr(0, start).clone()
+    for opener : Str in array(Str, "/* til-translation-stamp: ", "// til-translation-stamp: ", "; til-translation-stamp: ") {
+        at := text.rfind(opener)
+        if at < 0 { continue }
+        start := at.to_usize()
+        rest := text.substr(start, text.len() - start)
+        // REM Only a stamp that is the whole last line is one.
+        if rest.find("\n") != rest.len().to_i64() - 1 { continue }
+        body := text.substr(0, start)
+        if opener.starts_with(";").not() { return body.clone() }
+        marker := body.rfind("segment readable\ntil_build_stamp: db 'til-build-stamp:")
+        if marker < 0 { return body.clone() }
+        return body.substr(0, marker.to_usize()).clone()
+    }
+    return text.clone()
 }
 
 // Compare one emitted file of a job. False when neither compiler wrote it.
