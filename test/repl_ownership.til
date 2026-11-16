@@ -63,7 +63,8 @@ main := proc(compiler: Str) {
         "println(\"REPL_GETTER_ESCAPE_REJECTED\")\n"))
     cmd := format("XDG_STATE_HOME=tmp/repl_ownership_state HOME=tmp/repl_ownership_home '",
         compiler, "' < tmp/repl_ownership_input > tmp/repl_ownership_output 2>&1")
-    status := wait_cmd(spawn_cmd(cmd))
+    // sh syntax (the variables, the quoting), so sh runs it on every host.
+    status := Cmd.new("sh", "-c", cmd).run()
     output := File.readfile("tmp/repl_ownership_output")
     if status != 0 {
         println("repl_ownership FAIL: REPL exited ", status.to_str())

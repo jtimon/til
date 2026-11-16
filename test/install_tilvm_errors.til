@@ -4,6 +4,10 @@ import("../src/std/sys")
 import("../src/std/file")
 import("../src/self/install")
 
+// The compiler under the host's executable name (bin/til.exe on Windows,
+// where a Win32 file check does not add the .exe).
+EXE := executable_extension(detect_current_target())
+
 // Installed API rejection checks run independently of the two ASAN hosts.
 // Each driver owns its installation and scratch files so cleanup cannot race.
 PREFIX := "tmp/install_tilvm_errors"
@@ -13,10 +17,10 @@ main := proc() returns I64 {
     File.remove_tree(PREFIX)
     File.remove_tree(WORK)
     mkdir_p(WORK)
-    if install_executable("bin/til", format(PREFIX, "/bin/til"), ".", PREFIX) != 0 {
+    if install_executable(format("bin/til", EXE), format(PREFIX, "/bin/til", EXE), ".", PREFIX) != 0 {
         panic("copy-only TilVm compiler installation failed")
     }
-    installed_til := "../install_tilvm_errors/bin/til"
+    installed_til := format("../install_tilvm_errors/bin/til", EXE)
 
     // Load and type the installed SDK once for all three privacy rejections.
     // Separate functions keep each case's VM/callback lifetime independent.

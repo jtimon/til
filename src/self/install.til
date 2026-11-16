@@ -94,9 +94,7 @@ install_compiler_support := proc(root: Str, prefix: Str) returns I32 {
     if rc != 0 { return rc }
     // Its loadable twin, for an interpreted program that links libffi
     // (ffi_load_archive_twin; .so on a mac host too).
-    mut ffi_twin_ext := ".so"
-    if host_os() == "windows" { ffi_twin_ext = ".dll" }
-    ffi_twin := format(ffi_archive.strip_suffix(".a"), ffi_twin_ext)
+    ffi_twin := format(ffi_archive.strip_suffix(".a"), archive_twin_extension())
     rc = install_file(format(root, "/", ffi_twin), format(dst_root, "/", ffi_twin), "install embedding libffi twin")
     if rc != 0 { return rc }
     // There is no top-level lib/ to install. It held six example-only
@@ -178,9 +176,8 @@ install_compiler_support := proc(root: Str, prefix: Str) returns I32 {
 // root). nng stays out: the server modes are --extra-modes user files
 // (examples/custom_modes.til), not installed built-ins.
 priv support_link_artifacts := proc() returns Vec(Str) {
-    // Match ffi_load_archive_twin, including its .so spelling on macOS.
-    mut twin_ext := ".so"
-    if host_os() == "windows" { twin_ext = ".dll" }
+    // Match ffi_load_archive_twin (targets.til archive_twin_extension).
+    twin_ext := archive_twin_extension()
     mut out := Vec(Str).new()
     // mode gui and std/crypto link the archives under their target's
     // build directory (issue #422); an installed til carries the host's.

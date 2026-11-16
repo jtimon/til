@@ -3,9 +3,12 @@ mode cli
 import("std/sys")
 import("std/file")
 import("test_scheduler")
+import("self/targets")
 
 NL := "\n"
-TIL := "bin/til"
+// The compiler under the host's executable name: bin/til.exe on Windows,
+// where the tests check it and copy it through Win32, which adds no .exe.
+TIL := format("bin/til", executable_extension(detect_current_target()))
 RUNNER := "bin/test_runner"
 // `bin/tests --regen` (issue #172) rewrites every expected-output golden
 // from what the tests actually print, instead of comparing against it. Set
@@ -775,7 +778,10 @@ main := proc(args: ..Str) returns I64 {
     mut en_gui := 1
     // --no-jvm: for hosts without a JDK. The JNI binding tests still check
     // the generated Java and C as text; only their JDK runs are skipped.
+    // Implied on a Windows host, where til builds no --jni library
+    // (builder.til; doc/ffi.org).
     mut en_jvm := 1
+    if host_os() == "windows" { en_jvm = 0 }
     mut til_bin := TIL
     mut asan := 0
     mut usize_flag := ""
@@ -1129,16 +1135,20 @@ main := proc(args: ..Str) returns I64 {
     // The panic names the ARGUMENT that handed C the view -- test/cstr_view.til:46
     // is `setenv(view.c_str, ...)` -- in the same file:line:col shape every
     // other diagnostic has, on both backends.
+    // POSIX hosts only, like test/ext_libc.til: its callee is libc's
+    // setenv, which the Windows C runtime does not have.
     cstr_view_msg := "Str is not NUL-terminated"
     cstr_view_at := "test/cstr_view.til:46:"
-    add_counts(tests, "cstr_view_interp", "cli",
-        format(til_bin, " test/cstr_view.til"),
-        CountCheck(needle = cstr_view_msg.clone(), expected_count = 1),
-        CountCheck(needle = cstr_view_at.clone(), expected_count = 1))
-    add_counts(tests, "cstr_view_run", "cli",
-        format(til_bin, " build", asan_flag, " -o bin/cstr_view test/cstr_view.til '&&' bin/cstr_view"),
-        CountCheck(needle = cstr_view_msg.clone(), expected_count = 1),
-        CountCheck(needle = cstr_view_at.clone(), expected_count = 1))
+    if host_os() != "windows" {
+        add_counts(tests, "cstr_view_interp", "cli",
+            format(til_bin, " test/cstr_view.til"),
+            CountCheck(needle = cstr_view_msg.clone(), expected_count = 1),
+            CountCheck(needle = cstr_view_at.clone(), expected_count = 1))
+        add_counts(tests, "cstr_view_run", "cli",
+            format(til_bin, " build", asan_flag, " -o bin/cstr_view test/cstr_view.til '&&' bin/cstr_view"),
+            CountCheck(needle = cstr_view_msg.clone(), expected_count = 1),
+            CountCheck(needle = cstr_view_at.clone(), expected_count = 1))
+    }
 
     // Cmd's argv round trip (issue #349): spawn test/echo_argv.til's
     // binary through Cmd with the argument shapes a quoted command
@@ -2432,8 +2442,10 @@ main := proc(args: ..Str) returns I64 {
     // std/sys's get_env wrapper over that same libc getenv. On both
     // backends because they marshal the bindings separately -- the
     // interpreter goes through libffi and its own `returns ref` handling,
-    // which is what borrows the environ pointer.
-    add_both(tests, "test/ext_libc.til", flags)
+    // which is what borrows the environ pointer. POSIX hosts only: the
+    // Windows C runtime has no setenv or unsetenv (its _putenv_s is another
+    // function).
+    if host_os() != "windows" { add_both(tests, "test/ext_libc.til", flags) }
     // Issue #420: a program calling libffi directly links the target's own
     // archive; ffi_prep_cif answers FFI_OK only for the running arch's
     // default ABI. The linux cross CI jobs run it under qemu.
@@ -2546,12 +2558,13 @@ main := proc(args: ..Str) returns I64 {
     //
     // The failure SHAPE is platform-dependent (issue #25): ELF defers
     // undefined symbols to dlopen time, so the .so builds and dlopen
-    // fails; Mach-O's linker refuses the undefined symbol while BUILDING
-    // the .so, so the loud runtime report is the compile failure instead.
-    // Both paths exercise the same #283 guarantee: the interpreter
-    // reports the FFI load problem at runtime rather than swallowing it.
+    // fails; Mach-O's linker, and the PE linker of a Windows DLL, refuse
+    // the undefined symbol while BUILDING the library, so the loud runtime
+    // report is the compile failure instead. Both paths exercise the same
+    // #283 guarantee: the interpreter reports the FFI load problem at
+    // runtime rather than swallowing it.
     mut dlopen_fail_pat := "dlopen failed"
-    if host_os() == "macos" { dlopen_fail_pat = "failed to compile FFI library" }
+    if host_os().eq("macos").or(host_os().eq("windows")) { dlopen_fail_pat = "failed to compile FFI library" }
     // No paired compiled row, unlike the diagnostics below: compiling links
     // the symbol statically, so the same mistake is caught by ld with a
     // toolchain-worded message rather than by til. Asserting on that text

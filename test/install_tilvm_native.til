@@ -4,6 +4,10 @@ import("../src/std/sys")
 import("../src/std/file")
 import("../src/self/install")
 
+// The compiler under the host's executable name (bin/til.exe on Windows,
+// where a Win32 file check does not add the .exe).
+EXE := executable_extension(detect_current_target())
+
 // One central build prerequisite creates the native libraries and ASAN host.
 // Normal suite jobs then run families synchronously in fresh processes with
 // private library copies, guest directories and HOME.
@@ -89,10 +93,10 @@ main := proc(args: ..Str) returns I64 {
     File.remove_tree(prefix)
     File.remove_tree(work)
     mkdir_p(work)
-    if install_executable("bin/til", format(prefix, "/bin/til"), ".", prefix) != 0 {
+    if install_executable(format("bin/til", EXE), format(prefix, "/bin/til", EXE), ".", prefix) != 0 {
         panic("copy-only TilVm compiler installation failed")
     }
-    installed_til := format("../install_", fixture, "/bin/til")
+    installed_til := format("../install_", fixture, "/bin/til", EXE)
 
     // A prebuilt Til library, consumed through its generated bindings by BOTH
     // the compiled host and the guest. Library construction is a test setup

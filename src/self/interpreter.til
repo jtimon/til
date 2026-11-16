@@ -9023,9 +9023,7 @@ priv ffi_link_error := proc(path: Str, detail: Str, mut ctx: Context, origin: St
 }
 
 priv ffi_archive_twin_path := proc(archive_path: Str) returns Str {
-    mut twin_ext := ".so"
-    if host_os() == "windows" { twin_ext = ".dll" }
-    return archive_path.strip_suffix(".a").format(twin_ext)
+    return archive_path.strip_suffix(".a").format(archive_twin_extension())
 }
 
 priv ffi_load_archive_twin := proc(archive_path: Str, mut ctx: Context, origin: Str = "", line: U32 = 0, col: U32 = 0) returns I32 {

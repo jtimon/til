@@ -4,6 +4,10 @@ import("../src/std/sys")
 import("../src/std/file")
 import("../src/self/install")
 
+// The compiler under the host's executable name (bin/til.exe on Windows,
+// where a Win32 file check does not add the .exe).
+EXE := executable_extension(detect_current_target())
+
 // The central suite schedules one build prerequisite and separate family
 // jobs. Each family runs one child synchronously in its own guest directory;
 // the SDK and host executable are read-only products of this invocation's
@@ -50,10 +54,10 @@ main := proc(args: ..Str) returns I64 {
     File.remove_tree(prefix)
     File.remove_tree(work)
     mkdir_p(work)
-    if install_executable("bin/til", format(prefix, "/bin/til"), ".", prefix) != 0 {
+    if install_executable(format("bin/til", EXE), format(prefix, "/bin/til", EXE), ".", prefix) != 0 {
         panic("copy-only TilVm compiler installation failed")
     }
-    installed_til := format("../install_", fixture, "/bin/til")
+    installed_til := format("../install_", fixture, "/bin/til", EXE)
 
     // #370: SDK imports still resolve through installed logical namespaces.
     // The local module is test code, copied alongside the selected host.

@@ -28,6 +28,10 @@ import("jni_support")
 // C:/Program Files/til, does, and every path the installed compiler hands
 // a command line -- its support tree, its archives -- must survive one.
 PREFIX := "tmp/install test"
+// The compiler under the host's executable name (bin/til.exe on Windows,
+// where a Win32 file check does not add the .exe).
+EXE := executable_extension(detect_current_target())
+TIL := format("bin/til", EXE)
 WORK := "tmp/install_test_work"
 
 require := proc(path: Str) {
@@ -49,7 +53,7 @@ binding_dependency := func(binding: Str, field: Str) returns Str {
 
 rebuild_install := proc(prefix: Str) {
     // Use Clang to reduce C compilation time in this full compiler rebuild.
-    install := Cmd.new("bin/til", "install", "--usize=32", "--cc=clang", format("--prefix=", prefix), "src/til.til")
+    install := Cmd.new(TIL, "install", "--usize=32", "--cc=clang", format("--prefix=", prefix), "src/til.til")
     install.run_checked()
 }
 
@@ -89,13 +93,13 @@ main := proc(args: ..Str) returns I64 {
     // make install uses the same copy-only phase after its unprivileged
     // build. Reinstall from those existing artifacts, then exercise that
     // installation below. Copying must not rebuild checkout outputs.
-    binary_time := file_mtime("bin/til")
+    binary_time := file_mtime(TIL)
     c_time := file_mtime("gen/til/til.c")
     boot_time := file_mtime("boot/til.c")
     File.remove_tree(PREFIX)
     // What a killed copy leaves behind: copy_file's "<name>.tmp.<pid>".
     // The next install removes them, for the executable and in the tree.
-    stale_binary := format(PREFIX, "/bin/til.tmp.99999")
+    stale_binary := format(PREFIX, "/bin/til", EXE, ".tmp.99999")
     stale_source := format(PREFIX, "/lib/til/src/core/str.til.tmp.99999")
     other_program := format(PREFIX, "/bin/other.tmp.99999")
     mkdir_p(format(PREFIX, "/bin"))
@@ -103,7 +107,7 @@ main := proc(args: ..Str) returns I64 {
     File.writefile(stale_binary, "partial")
     File.writefile(stale_source, "partial")
     File.writefile(other_program, "not ours")
-    if install_executable("bin/til", format(PREFIX, "/bin/til"), ".", PREFIX) != 0 {
+    if install_executable(TIL, format(PREFIX, "/bin/til", EXE), ".", PREFIX) != 0 {
         panic("copy-only compiler installation failed")
     }
     if host_os() != "windows" {
@@ -111,7 +115,7 @@ main := proc(args: ..Str) returns I64 {
         expect(File.exists(stale_source).not(), "an interrupted copy in the support tree survived the install")
     }
     expect(File.exists(other_program), "the install removed another program's file")
-    if file_mtime("bin/til") != binary_time { panic("copy-only install rebuilt bin/til") }
+    if file_mtime(TIL) != binary_time { panic("copy-only install rebuilt bin/til") }
     if file_mtime("gen/til/til.c") != c_time { panic("copy-only install regenerated C") }
     if file_mtime("boot/til.c") != boot_time { panic("copy-only install regenerated boot") }
 
@@ -122,7 +126,7 @@ main := proc(args: ..Str) returns I64 {
     // each linked archive with the .so twin the interpreter dlopens.
     // Both handwritten documentation trees and the generated reference
     // are part of the installed compiler support tree.
-    require(format(PREFIX, "/bin/til"))
+    require(format(PREFIX, "/bin/til", EXE))
     require(format(PREFIX, "/lib/til/src/core/core.til"))
     require(format(PREFIX, "/lib/til/src/std/file.til"))
     require(format(PREFIX, "/lib/til/src/std/tilvm.til"))
@@ -135,9 +139,9 @@ main := proc(args: ..Str) returns I64 {
     require(format(PREFIX, "/lib/til/vendor/bindings/raylib.til"))
     require(format(PREFIX, "/lib/til/vendor/bindings/tinyfd.til"))
     require(format(PREFIX, "/lib/til/vendor/raylib/build-", target_to_str(detect_current_target()), "/libraylib.a"))
-    require(format(PREFIX, "/lib/til/vendor/raylib/build-", target_to_str(detect_current_target()), "/libraylib.so"))
+    require(format(PREFIX, "/lib/til/vendor/raylib/build-", target_to_str(detect_current_target()), "/libraylib", archive_twin_extension()))
     require(format(PREFIX, "/lib/til/vendor/tinyfiledialogs/build-", target_to_str(detect_current_target()), "/libtinyfd.a"))
-    require(format(PREFIX, "/lib/til/vendor/tinyfiledialogs/build-", target_to_str(detect_current_target()), "/libtinyfd.so"))
+    require(format(PREFIX, "/lib/til/vendor/tinyfiledialogs/build-", target_to_str(detect_current_target()), "/libtinyfd", archive_twin_extension()))
     require(format(PREFIX, "/lib/til/src/modes/gui.til"))
     require(format(PREFIX, "/lib/til/src/self/codegen/ext.c"))
     require(format(PREFIX, "/lib/til/src/self/codegen/ext.HC"))
@@ -153,7 +157,7 @@ main := proc(args: ..Str) returns I64 {
     // Paths are relative to WORK, where the program is compiled: the
     // installed til is found through its own location, not through this
     // repository's working directory.
-    installed_til := "../install test/bin/til"
+    installed_til := format("../install test/bin/til", EXE)
     if detect_current_target().is(Target.LinuxX64) && File.is_file("vendor/fasm/fasm") {
         assembler := format(PREFIX, "/lib/til/vendor/fasm/fasm")
         runtime := format(PREFIX, "/lib/til/src/self/codegen/ext.fasm")

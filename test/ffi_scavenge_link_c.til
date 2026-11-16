@@ -21,12 +21,15 @@ import("../src/std/file")
 main := proc(til_bin: Str) {
     out_path := "tmp/ffi_scavenge_link_c.c"
     log_path := "tmp/ffi_scavenge_link_c.log"
-    cmd := format(til_bin, " translate -c ", out_path,
-        " examples/ffi/ext_module.til > ", log_path, " 2>&1")
-    ec := wait_cmd(spawn_cmd(cmd))
+    // An argv, not shell text: cmd.exe would read the / in bin/til as a
+    // switch.
+    cmd := Cmd.new(til_bin, "translate", "-c", out_path, "examples/ffi/ext_module.til")
+    cmd.stdout_to(log_path)
+    cmd.stderr_to_stdout()
+    ec := cmd.run()
     if ec.neq(0) {
         eprint_single(format("ffi_scavenge_link_c: translate failed (exit ", ec.to_str(), ")\n"))
-        eprint_single(format("  command: ", cmd, "\n"))
+        eprint_single(format("  command: ", cmd.render(), "\n"))
         // 126 is the shell's "found it, could not run it": no permission,
         // or the binary is being written right now by another build.
         if ec.eq(126) {

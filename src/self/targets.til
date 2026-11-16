@@ -335,6 +335,15 @@ toolchain_extra_args := proc(target: Target) returns Str {
     return out
 }
 
+/// The extension of a vendored archive's loadable twin on this host: the
+/// shared library beside libfoo.a that the interpreter loads for a program
+/// linking the archive (interpreter.til ffi_load_archive_twin), and that an
+/// installed compiler carries. .so on a mac host too.
+archive_twin_extension := proc() returns Str {
+    if host_os() == "windows" { return ".dll" }
+    return ".so"
+}
+
 executable_extension := func(target: Target) returns Str {
     switch target {
     case .WindowsX64, .WindowsX86: return ".exe"

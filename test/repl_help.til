@@ -40,8 +40,8 @@ main := proc(args: ..Str) {
     // be asserted instead of assumed (and so a real ~/.local/state is
     // never touched by the suite).
     _clean := system_cmd("rm -rf tmp/repl_help_state tmp/repl_help_home")
-    pid := spawn_cmd(format("XDG_STATE_HOME=tmp/repl_help_state HOME=tmp/repl_help_home '", compiler, "' < tmp/repl_help_input > tmp/repl_help_output 2>&1"))
-    exit_code := wait_cmd(pid)
+    // sh syntax (the variables, the quoting), so sh runs it on every host.
+    exit_code := Cmd.new("sh", "-c", format("XDG_STATE_HOME=tmp/repl_help_state HOME=tmp/repl_help_home '", compiler, "' < tmp/repl_help_input > tmp/repl_help_output 2>&1")).run()
     // A REPL that never started is not a failed assertion. The exit code
     // used to be dropped on the floor, so a bin/til that could not be
     // exec'd -- no permission, or mid-rewrite by another build (126) --

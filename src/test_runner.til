@@ -3,6 +3,7 @@ mode cli
 import("std/sys")
 import("std/file")
 import("test_scheduler")
+import("self/targets")
 
 // test_runner.til -- runs tests and reports structured results for tests.til.
 //
@@ -16,7 +17,9 @@ import("test_scheduler")
 // (issue #172) overwrites the golden from the command's own output, so an
 // intentional behaviour change is one explicit run plus a reviewed diff.
 
-TIL := "bin/til"
+// The compiler under the host's executable name: bin/til.exe on Windows,
+// where the tests check it and copy it through Win32, which adds no .exe.
+TIL := format("bin/til", executable_extension(detect_current_target()))
 
 // Extract basename from path: "test/types.til" -> "types"
 test_basename := func(path: Str) returns Str {

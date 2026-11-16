@@ -1636,12 +1636,30 @@ static Bool float_hex_nearest_bits(const Str *s, int precision, uint64_t *bits) 
     return 1;
 }
 
+// The C library's decimal parsers, correctly rounded on every host. The
+// Windows C runtime's strtod/strtof are not: they read a bounded number of
+// digits, so a value just above a rounding midpoint, decided hundreds of
+// digits in, rounds down (CI run 3129, test/float_literals.til). MinGW-w64
+// ships David Gay's correctly rounded gdtoa beside it as __mingw_strtod and
+// __mingw_strtof, which agree with glibc's and Apple's.
+#ifdef __MINGW32__
+// stdlib.h declares them only inside its inline strtod/strtof, under
+// __USE_MINGW_STRTOX.
+double __cdecl __mingw_strtod(const char *__restrict__, char **__restrict__);
+float __cdecl __mingw_strtof(const char *__restrict__, char **__restrict__);
+#define TIL_STRTOD __mingw_strtod
+#define TIL_STRTOF __mingw_strtof
+#else
+#define TIL_STRTOD strtod
+#define TIL_STRTOF strtof
+#endif
+
 // Faithful decimal/scientific float parse (strtof) -- handles exponents
 // and full precision, unlike the old hand-rolled Str.to_f32. Backs
 // Str.to_f32 so folded F32 literals round-trip in interp and codegen.
 F32 str_parse_f32(const Str *s) {
     char *p = dup_n((const char *)TIL_OWN_GET(I8, s->c_str), s->count);
-    float v = strtof(p, NULL);
+    float v = TIL_STRTOF(p, NULL);
     uint64_t bits;
     if (float_hex_nearest_bits(s, 24, &bits)) {
         uint32_t word = (uint32_t)bits;
@@ -1701,7 +1719,7 @@ Str *F64_to_repr(F64 v) {
 // Faithful decimal/scientific parse (strtod), F64 twin of str_parse_f32.
 F64 str_parse_f64(const Str *s) {
     char *p = dup_n((const char *)TIL_OWN_GET(I8, s->c_str), s->count);
-    double v = strtod(p, NULL);
+    double v = TIL_STRTOD(p, NULL);
     uint64_t bits;
     if (float_hex_nearest_bits(s, 53, &bits)) memcpy(&v, &bits, sizeof(v));
     free(p);
@@ -4030,11 +4048,23 @@ I32 crename_path(const Str *src, const Str *dst) {
     char *s = dup_n((const char *)TIL_OWN_GET(I8, src->c_str), src->count);
     char *d = dup_n((const char *)TIL_OWN_GET(I8, dst->c_str), dst->count);
 #ifdef _WIN32
-    int rc = MoveFileExA(s, d, MOVEFILE_REPLACE_EXISTING) ? 0 : 1;
+    // rename(2) also replaces an EMPTY directory with a directory;
+    // MoveFileEx replaces files only. RemoveDirectory refuses a non-empty
+    // one, which is where rename(2) fails too (ENOTEMPTY).
+    DWORD src_attr = GetFileAttributesA(s);
+    DWORD dst_attr = GetFileAttributesA(d);
+    int both_dirs = src_attr != INVALID_FILE_ATTRIBUTES && (src_attr & FILE_ATTRIBUTE_DIRECTORY) &&
+        dst_attr != INVALID_FILE_ATTRIBUTES && (dst_attr & FILE_ATTRIBUTE_DIRECTORY);
+    int rc = (both_dirs && !RemoveDirectoryA(d)) ? 1 : (MoveFileExA(s, d, MOVEFILE_REPLACE_EXISTING) ? 0 : 1);
 #else
     int rc = rename(s, d) == 0 ? 0 : 1;
 #endif
+#ifdef _WIN32
+    // Win32 reports through GetLastError, not errno.
+    if (rc != 0) fprintf(stderr, "rename_path: failed from '%s' to '%s': Win32 error %lu\n", s, d, (unsigned long)GetLastError());
+#else
     if (rc != 0) fprintf(stderr, "rename_path: failed from '%s' to '%s': %s\n", s, d, strerror(errno));
+#endif
     free(s);
     free(d);
     return (I32)rc;
@@ -4399,22 +4429,53 @@ static char *cmd_temp_path(void) {
         fprintf(stderr, "cmd: could not create local 'tmp' directory: %s\n", strerror(errno));
         exit(1);
     }
+    // The POSIX spool's name (mkstemp's tmp/til_cmd_XXXXXX), made unique by
+    // pid and a counter and claimed with CREATE_NEW: GetTempFileName's
+    // three-letter prefix named it tmp\tilXXXX.tmp, which nothing that
+    // looks for a capture spool recognises.
+    static unsigned long spool_count = 0;
     char path[MAX_PATH];
-    if (GetTempFileNameA("tmp", "til", 0, path) == 0) {
-        fprintf(stderr, "cmd: GetTempFileName failed\n");
-        exit(1);
+    for (;;) {
+        spool_count++;
+        snprintf(path, sizeof(path), "tmp/til_cmd_%lu_%lu", (unsigned long)GetCurrentProcessId(), spool_count);
+        HANDLE h = CreateFileA(path, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (h != INVALID_HANDLE_VALUE) {
+            CloseHandle(h);
+            return dup_n(path, strlen(path));
+        }
+        if (GetLastError() != ERROR_FILE_EXISTS) {
+            fprintf(stderr, "cmd: cannot create the capture spool '%s' (Win32 error %lu)\n",
+                    path, (unsigned long)GetLastError());
+            exit(1);
+        }
     }
-    return dup_n(path, strlen(path));
 }
 
 static void cmd_start_impl(TilCmd *c) {
+    // A relative program path with a directory in it names a file from
+    // the child's directory, as posix_spawnp does after Cmd.cwd's chdir.
+    // CreateProcess resolves it from this process's directory instead,
+    // so `Cmd.new("../../bin/til").cwd(dir)` missed on Windows only.
+    const char *prog = c->argv[0];
+    char *prog_in_cwd = NULL;
+    int prog_has_dir = strchr(prog, '/') != NULL || strchr(prog, '\\') != NULL;
+    int prog_absolute = prog[0] == '/' || prog[0] == '\\' || (prog[0] != '\0' && prog[1] == ':');
+    if (c->cwd && prog_has_dir && !prog_absolute) {
+        size_t cwd_len = strlen(c->cwd);
+        size_t prog_len = strlen(prog);
+        prog_in_cwd = malloc(cwd_len + 1 + prog_len + 1);
+        memcpy(prog_in_cwd, c->cwd, cwd_len);
+        prog_in_cwd[cwd_len] = '/';
+        memcpy(prog_in_cwd + cwd_len + 1, prog, prog_len + 1);
+    }
     CmdBuf line = {0};
     for (size_t i = 0; i < c->argc; i++) {
         if (i > 0) cmd_buf_puts(&line, " ");
-        char *q = win_quote_arg(c->argv[i]);
+        char *q = win_quote_arg(i == 0 && prog_in_cwd ? prog_in_cwd : c->argv[i]);
         cmd_buf_puts(&line, q);
         free(q);
     }
+    free(prog_in_cwd);
 
     HANDLE out = INVALID_HANDLE_VALUE;
     HANDLE err = INVALID_HANDLE_VALUE;
@@ -4941,11 +5002,30 @@ static U8 *ffi_cage_symbol(const Str *name) {
 #endif
 
 #ifdef _WIN32
+// Load a DLL so that its own directory is searched for the DLLs it
+// imports -- a til library's shared core beside it in gen/lib, as the
+// '$ORIGIN' rpath does on the ELF hosts. LoadLibrary searches the
+// executable's directory and PATH instead, so such a library "could not
+// be found" (CI run 3129, ffi_lib_layout). LOAD_WITH_ALTERED_SEARCH_PATH
+// takes an absolute path; a bare name keeps the ordinary search.
+static HMODULE til_load_library(const char *path) {
+    if (strchr(path, '/') == NULL && strchr(path, '\\') == NULL) return LoadLibraryA(path);
+    char *abs = _fullpath(NULL, path, 0);
+    if (abs == NULL) return NULL;
+    for (char *q = abs; *q; q++) if (*q == '/') *q = '\\';
+    HMODULE h = LoadLibraryExA(abs, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+    DWORD error = GetLastError();
+    // _fullpath allocated with libc's malloc: (free) bypasses the cage macro.
+    (free)(abs);
+    SetLastError(error);
+    return h;
+}
+
 // dup_n on every Str reaching a C string API here: only owned til Strs
 // carry a NUL past count, views (substr/trim/from_c_str) do not.
 Bool ffi_load_global_lib(const Str *soname) {
     char *s = dup_n((const char *)TIL_OWN_GET(I8, soname->c_str), soname->count);
-    Bool ok = LoadLibraryA(s) != NULL;
+    Bool ok = til_load_library(s) != NULL;
     free(s);
     return ok;
 }
@@ -4959,7 +5039,7 @@ void ffi_close_user_so(void);
 Bool ffi_open_user_so(const Str *path) {
     static Bool closes_at_exit;
     char *p = dup_n((const char *)TIL_OWN_GET(I8, path->c_str), path->count);
-    ffi_handle = LoadLibraryA(p);
+    ffi_handle = til_load_library(p);
     if (!ffi_handle) {
         DWORD error = GetLastError();
         free(p);

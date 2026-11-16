@@ -280,14 +280,26 @@ jobs:
       # bin/make already run, as clang and the llvm tools. On trial and
       # continue-on-error until a run shows the three hosts' til.exe equal;
       # the other windows jobs keep Ubuntu's and MSYS2's gcc until then.
+      # The pinned llvm-mingw (make.til LLVM_MINGW_RELEASE), unpacked by
+      # `make llvm_mingw` into vendor/llvm-mingw, kept between runs: one
+      # cache entry per release and runner kind.
+      - name: The pinned llvm-mingw release
+        id: llvm-mingw
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned llvm-mingw
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm-mingw
+          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: Write the windows binary hash list with the pinned llvm-mingw
         continue-on-error: true
         run: |
-          archive=llvm-mingw-20261104-ucrt-ubuntu-22.04-aarch64
-          curl -sSL --fail -o tmp/$archive.tar.xz https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$archive.tar.xz
-          echo "595e95bdffabfc62559fe26e30bdfbccf277cbaed4902793555015ee47306b94  tmp/$archive.tar.xz" | sha256sum -c -
-          tar -xf tmp/$archive.tar.xz -C tmp
-          export PATH="$PWD/tmp/$archive/bin:$PATH"
+          make llvm_mingw
+          export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
           x86_64-w64-mingw32-gcc --version
           x86_64-w64-mingw32-gcc --version | grep -q clang
           rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
@@ -1000,14 +1012,26 @@ jobs:
       # continue-on-error until a run shows the three hosts' til.exe equal;
       # the other windows steps keep Ubuntu's and MSYS2's gcc until then.
       # Last in this job: it rebuilds the windows libffi and nng with clang.
+      # The pinned llvm-mingw (make.til LLVM_MINGW_RELEASE), unpacked by
+      # `make llvm_mingw` into vendor/llvm-mingw, kept between runs: one
+      # cache entry per release and runner kind.
+      - name: The pinned llvm-mingw release
+        id: llvm-mingw
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned llvm-mingw
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm-mingw
+          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: Write the windows binary hash list with the pinned llvm-mingw
         continue-on-error: true
         run: |
-          archive=llvm-mingw-20261104-ucrt-ubuntu-22.04-x86_64
-          curl -sSL --fail -o tmp/$archive.tar.xz https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$archive.tar.xz
-          echo "919380403de87dca3c581c2053230cd298af5e891286628ba0613b7fed370926  tmp/$archive.tar.xz" | sha256sum -c -
-          tar -xf tmp/$archive.tar.xz -C tmp
-          export PATH="$PWD/tmp/$archive/bin:$PATH"
+          make llvm_mingw
+          export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
           x86_64-w64-mingw32-gcc --version
           x86_64-w64-mingw32-gcc --version | grep -q clang
           rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
@@ -1595,16 +1619,27 @@ jobs:
       # not depend on what built it. The small stamped programs differ from
       # the Linux hosts' by the stamp alone here (the compiler is named
       # bin/til.exe); til.exe carries no stamp.
+      # The pinned llvm-mingw (make.til LLVM_MINGW_RELEASE), unpacked by
+      # `make llvm_mingw` into vendor/llvm-mingw, kept between runs: one
+      # cache entry per release and runner kind.
+      - name: The pinned llvm-mingw release
+        id: llvm-mingw
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned llvm-mingw
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm-mingw
+          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: Write the windows binary hash list with the pinned llvm-mingw
         continue-on-error: true
         shell: C:\msys64\usr\bin\bash.exe -leo pipefail {0}
         run: |
-          archive=llvm-mingw-20261104-ucrt-x86_64
-          mkdir -p tmp
-          curl -sSL --fail -o tmp/$archive.zip https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$archive.zip
-          echo "552191b5754c49a5a20723276a6fc56541ea1922c4c50b7b669022333fc1b40f  tmp/$archive.zip" | sha256sum -c -
-          (cd tmp && /c/Windows/System32/tar.exe -xf $archive.zip)
-          export PATH="$PWD/tmp/$archive/bin:$PATH"
+          make llvm_mingw
+          export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
           gcc --version
           gcc --version | grep -q clang
           x86_64-w64-mingw32-gcc --version | grep -q clang

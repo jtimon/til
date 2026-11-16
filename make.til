@@ -33,17 +33,11 @@ import("src/self/builder")
 get_cwd_str := ext_proc() returns Str {}
 til_setenv := ext_proc(name: I8, value: I8, shallow overwrite: I32) returns shallow I32 {}
 
-/// What an executable is called on a host: Windows insists on .exe,
-/// nothing else adds a suffix. The Makefile's EXE is the same.
-exe_suffix_for := func(os: Str) returns Str {
-    if os == "windows" { return ".exe" }
-    return ""
-}
-
 // The compilers this program builds and runs, under the names the host
-// gives them: a Windows til checks files through Win32, which does not
-// add .exe the way an MSYS2 shell does (issue #483).
-EXE := exe_suffix_for(host_os())
+// gives them (targets.til executable_extension; the Makefile's EXE is the
+// same): a Windows til checks files through Win32, which does not add
+// .exe the way an MSYS2 shell does (issue #483).
+EXE := executable_extension(detect_current_target())
 BOOT := format("bin/til_boot", EXE)
 TIL := format("bin/til", EXE)
 ASAN := format("bin/til_asan", EXE)
@@ -112,12 +106,6 @@ namespace:
 
     is_mac := func(self: Host) returns Bool {
         return self.os == "macos"
-    }
-
-    /// What an executable is called here. Windows insists on .exe;
-    /// nothing else adds a suffix.
-    exe_suffix := func(self: Host) returns Str {
-        return exe_suffix_for(self.os)
     }
 
     /// The suite opens real windows for the mode-gui tests, so on Linux
@@ -1029,14 +1017,14 @@ run_summary := proc(mut b: Build) {
 run_install := proc(mut b: Build) {
     if b.begin("install").not() { return }
     build_til(b)
-    copy_compiler_install(b.host)
+    copy_compiler_install()
 }
 
 // No compiler invocation here: all checkout writes must have finished
 // as the build user before sudo's privileged process copies the result.
-copy_compiler_install := proc(host: Host) {
+copy_compiler_install := proc() {
     prefix := default_install_prefix()
-    destination := format(prefix, "/bin/til", host.exe_suffix())
+    destination := format(prefix, "/bin/til", EXE)
     if install_executable(TIL, destination, get_cwd_str(), prefix) != 0 {
         exit(1)
     }
@@ -1112,9 +1100,9 @@ without_mode_line := func(source: Str) returns Str {
 /// is never skipped quietly.
 run_clean := proc(mut b: Build) {
     if b.begin("clean").not() { return }
-    self_path := self_bin(b.host)
+    self_path := SELF_BIN
     if b.host.os == "windows" {
-        if File.exists(self_path) { File.rename(self_path, self_backup(b.host)) }
+        if File.exists(self_path) { File.rename(self_path, SELF_BACKUP) }
     }
     clear_dir("bin")
     clear_dir("gen")
@@ -1128,13 +1116,14 @@ run_clean := proc(mut b: Build) {
 /// git clean rather than each library's own ~make clean~: after a tree
 /// swap the leftover build system belongs to the OLD version.
 /// Emsdk's control tree is committed; its node/upstream/config/stamp
-/// install outputs are ignored and therefore removed by the same command.
+/// install outputs are ignored and therefore removed by the same command,
+/// as is the downloaded llvm-mingw.
 run_clean_vendor := proc(mut b: Build) {
     if b.begin("clean_vendor").not() { return }
     // FASM's executable is also its bootstrap seed; retain it so changed
     // assembly can rebuild itself without another external bootstrap.
     run("git", "clean", "-fdx", "vendor/raylib", "vendor/tinyfiledialogs",
-        "vendor/nng", "vendor/secp256k1", "vendor/libffi", EMSDK_DIR)
+        "vendor/nng", "vendor/secp256k1", "vendor/libffi", EMSDK_DIR, LLVM_MINGW_DIR)
 }
 
 /// ~rm -rf <dir>/*~: the entries go, the directory stays.
@@ -2286,6 +2275,88 @@ build_emsdk := proc(mut b: Build) {
     File.writefile(EMSDK_STAMP, "")
 }
 
+// --- llvm-mingw ---
+//
+// Issue #472: windows targets are built with one compiler on every host,
+// llvm-mingw (clang, lld and the mingw-w64 UCRT headers and libraries) at
+// one pinned release. Downloaded, not vendored: a few hundred MB per build
+// host and per release. Unpacked under LLVM_MINGW_DIR (ignored), whose bin
+// directory carries the x86_64-w64-mingw32-gcc, -ar, -windres and -dlltool
+// names til and bin/make run.
+
+LLVM_MINGW_RELEASE := "20261104"
+LLVM_MINGW_DIR := "vendor/llvm-mingw"
+
+/// The release's archive built for one host, and the sha256 it must have.
+LlvmMingwArchive := struct {
+    file := ""
+    sha256 := ""
+}
+
+llvm_mingw_archive_for := func(host: Host) returns LlvmMingwArchive {
+    prefix := format("llvm-mingw-", LLVM_MINGW_RELEASE, "-ucrt-")
+    if host.os == "linux" {
+        if host.arch == "x64" {
+            return LlvmMingwArchive(file = format(prefix, "ubuntu-22.04-x86_64.tar.xz"),
+                sha256 = "919380403de87dca3c581c2053230cd298af5e891286628ba0613b7fed370926")
+        }
+        if host.arch == "arm64" {
+            return LlvmMingwArchive(file = format(prefix, "ubuntu-22.04-aarch64.tar.xz"),
+                sha256 = "595e95bdffabfc62559fe26e30bdfbccf277cbaed4902793555015ee47306b94")
+        }
+    }
+    if host.os == "macos" {
+        return LlvmMingwArchive(file = format(prefix, "macos-universal.tar.xz"),
+            sha256 = "66cbd5178c4a71b0d473e68ede172f8eb7d15d023e67f39201d0a69e21f6bf3c")
+    }
+    if host.os == "windows" {
+        if host.arch == "x64" {
+            return LlvmMingwArchive(file = format(prefix, "x86_64.zip"),
+                sha256 = "552191b5754c49a5a20723276a6fc56541ea1922c4c50b7b669022333fc1b40f")
+        }
+    }
+    panic("llvm-mingw ", LLVM_MINGW_RELEASE, " has no archive for a ", host.target_name(), " host")
+    return LlvmMingwArchive()
+}
+
+/// The sha256 of one file, from the host's own tool.
+file_sha256 := proc(host: Host, path: Str) returns Str {
+    mut tool := Cmd.new("sha256sum", path)
+    if host.is_mac() { tool = Cmd.new("shasum", "-a", "256", path) }
+    tool.capture()
+    if tool.run() != 0 { panic("cannot hash ", path, ": ", tool.err()) }
+    out := tool.out()
+    if out.len() < 64 { panic("no sha256 in: ", out) }
+    return out.substr(0, 64).clone()
+}
+
+/// Download and unpack the pinned llvm-mingw once per checkout. The stamp
+/// names the release, so a tree of another one -- an older checkout's, or
+/// a CI cache restored from one -- is removed and replaced. The archive is
+/// checked against its sha256 before anything in it is used.
+build_llvm_mingw := proc(mut b: Build) {
+    if b.begin("llvm_mingw").not() { return }
+    stamp := format(LLVM_MINGW_DIR, "/.til-llvm-mingw-", LLVM_MINGW_RELEASE)
+    if File.exists(stamp) { return }
+    archive := llvm_mingw_archive_for(b.host)
+    File.remove_tree(LLVM_MINGW_DIR)
+    mkdir_p(LLVM_MINGW_DIR)
+    download := format(LLVM_MINGW_DIR, "/", archive.file)
+    run("curl", "-sSL", "--fail", "-o", download,
+        format("https://github.com/mstorsjo/llvm-mingw/releases/download/", LLVM_MINGW_RELEASE, "/", archive.file))
+    got := file_sha256(b.host, download)
+    if got != archive.sha256 {
+        panic(download, " has sha256 ", got, ", expected ", archive.sha256)
+    }
+    // Windows' own tar (bsdtar) reads the zip; MSYS2's GNU tar, first on
+    // PATH in its shell, does not.
+    mut tar := "tar"
+    if b.host.os == "windows" { tar = format(get_env("SystemRoot").replace("\\", "/"), "/System32/tar.exe") }
+    run(tar, "-xf", download, "-C", LLVM_MINGW_DIR, "--strip-components=1")
+    File.remove(download)
+    File.writefile(stamp, "")
+}
+
 build_raylib_web := proc(mut b: Build) {
     if b.begin("raylib_web").not() { return }
     build_emsdk(b)
@@ -2549,6 +2620,8 @@ commands := func() returns Vec(Command) {
     out.push(own Command(name = MAC_STUBS_STAMP, alias_of = "build_mac", is_path = true, go = build_mac_framework_stubs))
     out.push(own Command(name = raylib_lib("wasm32"), is_path = true, go = build_raylib_web,
         about = "wasm32 raylib (emcc, vendored emsdk), for mode gui"))
+    out.push(own Command(name = "llvm_mingw", go = build_llvm_mingw,
+        about = "download the pinned llvm-mingw into vendor/llvm-mingw (windows targets, #472)"))
     out.push(own Command(name = raylib_lib("android-x64"), is_path = true, go = gui_android_x64,
         about = "android-x64 raylib and native-app glue, for APK builds"))
     out.push(own Command(name = raylib_lib("android-arm64"), is_path = true, go = gui_android_arm64,
@@ -2642,13 +2715,8 @@ dispatch := proc(mut b: Build, name: Str) {
 // the replacement is run with the arguments this invocation was given
 // -- never continued with the old code.
 
-self_bin := func(host: Host) returns Str {
-    return format("bin/make", host.exe_suffix())
-}
-
-self_backup := func(host: Host) returns Str {
-    return format("bin/make.previous", host.exe_suffix())
-}
+SELF_BIN := format("bin/make", EXE)
+SELF_BACKUP := format("bin/make.previous", EXE)
 
 /// What bin/make is built from: this file, the library it imports, and
 /// the C runtime it links.
@@ -2676,24 +2744,24 @@ self_sources := proc() returns Vec(Str) {
 /// a backup with no program beside it is the only copy left, and a
 /// backup beside a program is last run's, kept because Windows could
 /// not delete the image that was running.
-settle_previous := proc(host: Host) {
-    backup := self_backup(host)
+settle_previous := proc() {
+    backup := SELF_BACKUP
     if File.exists(backup).not() { return }
-    if File.exists(self_bin(host)) {
+    if File.exists(SELF_BIN) {
         File.remove(backup)
         return
     }
-    File.rename(backup, self_bin(host))
+    File.rename(backup, SELF_BIN)
 }
 
 rebuild_self_if_stale := proc(host: Host, build_uid: Str, args: ..Str) {
-    settle_previous(host)
-    self_path := self_bin(host)
+    settle_previous()
+    self_path := SELF_BIN
     if needs_rebuild(self_path, self_sources()).not() { return }
     require_boot()
     println("bin/make: rebuilding the build program from make.til")
 
-    backup := self_backup(host)
+    backup := SELF_BACKUP
     if File.exists(self_path) { File.rename(self_path, backup) }
     build := build_user_command(build_uid)
     build.args(BOOT, "build", "-o", self_path, SELF_SRC)
@@ -2790,7 +2858,7 @@ main := proc(args: ..Str) {
             dispatch(b, goal)
         } else {
             command := build_user_command(build_uid)
-            command.arg(self_bin(host))
+            command.arg(SELF_BIN)
             if b.jobs.len() > 0 { command.arg(format("-j", b.jobs)) }
             if b.no_jvm { command.arg("--no-jvm") }
             if b.riscv32_cc.len() > 0 {
@@ -2803,7 +2871,7 @@ main := proc(args: ..Str) {
                 command.arg(goal)
             }
             command.run_checked()
-            if goal == "install" { copy_compiler_install(host) }
+            if goal == "install" { copy_compiler_install() }
         }
     }
 }
