@@ -1429,7 +1429,11 @@ jobs:
   # runtime, which nng requires (MINGW64 links msvcrt) -- and
   # CHERE_INVOKING keeps the checkout as the directory. The
   # runner's user is an administrator, so the default prefix
-  # (C:/Program Files/til) is writable.
+  # (C:/Program Files/til) is writable. The suite's clang (make.til
+  # check_clang, the linux jobs' apt clang) is UCRT64's too: the runner's
+  # PATH also holds Visual Studio's clang, which targets MSVC and its
+  # headers (run 3125: -Werror on their getenv deprecation), and UCRT64's
+  # bin comes first in that shell.
   windows-x64-native:
     needs: doc-gate
     if: needs.doc-gate.outputs.code == 'true'
@@ -1444,7 +1448,7 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install the MinGW toolchain into MSYS2
         shell: cmd
-        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed make mingw-w64-ucrt-x86_64-make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake && uname -s && gcc --version"
+        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed make mingw-w64-ucrt-x86_64-make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-clang && uname -s && gcc --version && command -v clang && clang --version"
       - name: make
         shell: cmd
         run: C:\msys64\usr\bin\bash.exe -lc "make"

@@ -116,10 +116,12 @@ built one. ~--cc~ stays as the override.
 ** Windows host
 
 Build from an [[https://www.msys2.org/][MSYS2]] UCRT64 shell, which supplies ~make~, ~sh~ and the
-coreutils the build runs. Install its gcc, GNU make and cmake:
+coreutils the build runs. Install its gcc, GNU make and cmake, and its
+clang for ~make test~ (another clang on ~PATH~, such as Visual Studio's,
+targets MSVC and its headers instead):
 
 #+begin_src sh
-pacman -S --needed make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-make mingw-w64-ucrt-x86_64-cmake
+pacman -S --needed make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-make mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-clang
 #+end_src
 
 Then ~make~ and ~make install~ as on the other hosts; the default prefix
