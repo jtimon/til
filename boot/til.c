@@ -5039,6 +5039,7 @@ static void priv___src_self_targets_til__validate_lang_for_target(Lang * lang, T
 static Str toolchain_command(Target * target, Lang * lang);
 static Str priv___src_self_targets_til__target_prefix_args(Target * target);
 static Bool priv___src_self_targets_til__macos_is_cross(Target * target);
+static Bool priv___src_self_targets_til__host_clang_is_apple(void);
 static Str priv___src_self_targets_til__macos_cross_args(Target * target);
 static Str target_link_extra_args(Target * target);
 static Bool target_links_named_objects(Target * target);
@@ -9801,6 +9802,7 @@ static struct {
     Str hbe89af3da62a;
     Str h00017c952063;
     Str h00310f395fd0;
+    Str h00310f3b5e2a;
     Str he6eb3cfe6be0;
     Str h0652f6a73a5b;
     Str h00310f3b6d8c;
@@ -11888,6 +11890,7 @@ static void til_str_lits_init(void) {
         {offsetof(__typeof__(*_til_str_lits_cage), hbe89af3da62a), "cfile_write_str", 15ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), h00017c952063), "char", 4ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), h00310f395fd0), "chmod", 5ULL},
+        {offsetof(__typeof__(*_til_str_lits_cage), h00310f3b5e2a), "clang", 5ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), he6eb3cfe6be0), "clang-18", 8ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), h0652f6a73a5b), "class ", 6ULL},
         {offsetof(__typeof__(*_til_str_lits_cage), h00310f3b6d8c), "clear", 5ULL},
@@ -17801,6 +17804,7 @@ static struct {
     Str hoisted__Str_self_scavenger_shared_core_signature_42;
     Str hoisted__Str_self_scavenger_shared_core_signature_61;
     Str hoisted__Str_self_targets_android_triple_9;
+    Str hoisted__Str_self_targets_host_clang_is_apple_5;
     Str hoisted__Str_self_targets_validate_lang_for_target_11;
     Str hoisted__Str_self_typer_aggregate_borrows_type_13;
     Str hoisted__Str_self_typer_aggregate_borrows_type_30;
@@ -24057,6 +24061,7 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_scavenger_shared_core_signature_42), "./src/self/scavenger.til:2011:13", 32ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_scavenger_shared_core_signature_61), "./src/self/scavenger.til:2013:12", 32ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_targets_android_triple_9), "./src/self/targets.til:116:5", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_targets_host_clang_is_apple_5), "./src/self/targets.til:276:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_targets_validate_lang_for_target_11), "./src/self/targets.til:187:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_aggregate_borrows_type_13), "./src/self/typer.til:3297:36", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_aggregate_borrows_type_30), "./src/self/typer.til:3297:36", 28ULL},
@@ -25117,7 +25122,7 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_theme_codegen_translate_16), "./src/self/codegen/theme_codegen.til:309:41", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_theme_codegen_translate_57), "./src/self/codegen/theme_codegen.til:318:9", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_theme_codegen_translate_62), "./src/self/codegen/theme_codegen.til:319:41", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_toolchain_extra_args_3), "./src/self/targets.til:301:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_toolchain_extra_args_3), "./src/self/targets.til:319:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_transfer_is_shallow_field_value_copy_12), "./src/self/typer.til:11216:41", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_transfer_is_shallow_field_value_copy_20), "./src/self/typer.til:11233:74", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_transfer_is_shallow_field_value_copy_46), "./src/self/typer.til:11216:41", 29ULL},
@@ -30316,6 +30321,7 @@ static void til_loc_lits_init(void) {
 #define hoisted__Str_self_scavenger_shared_core_signature_42 (_til_loc_lits_cage->hoisted__Str_self_scavenger_shared_core_signature_42)
 #define hoisted__Str_self_scavenger_shared_core_signature_61 (_til_loc_lits_cage->hoisted__Str_self_scavenger_shared_core_signature_61)
 #define hoisted__Str_self_targets_android_triple_9 (_til_loc_lits_cage->hoisted__Str_self_targets_android_triple_9)
+#define hoisted__Str_self_targets_host_clang_is_apple_5 (_til_loc_lits_cage->hoisted__Str_self_targets_host_clang_is_apple_5)
 #define hoisted__Str_self_targets_validate_lang_for_target_11 (_til_loc_lits_cage->hoisted__Str_self_targets_validate_lang_for_target_11)
 #define hoisted__Str_self_typer_aggregate_borrows_type_13 (_til_loc_lits_cage->hoisted__Str_self_typer_aggregate_borrows_type_13)
 #define hoisted__Str_self_typer_aggregate_borrows_type_30 (_til_loc_lits_cage->hoisted__Str_self_typer_aggregate_borrows_type_30)
@@ -109277,8 +109283,7 @@ static Str toolchain_command(Target * target, Lang * lang) {
     case Target_TAG_MacosArm64:
     case Target_TAG_AndroidX64:
     case Target_TAG_AndroidArm64: {
-        Str hoisted__Str_toolchain_command_19 = (Str){.c_str = TIL_OWN_LIT("clang", 5ULL), .count = 5ULL, .cap = TIL_CAP_LIT};
-        { Str _ret = hoisted__Str_toolchain_command_19; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+        { Str _ret = _til_str_lits.h00310f3b5e2a; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
     }
     case Target_TAG_Wasm32: {
         { Str _ret = _til_str_lits.h00017c964e9d; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
@@ -109350,16 +109355,52 @@ static Bool priv___src_self_targets_til__macos_is_cross(Target * target) {
             _m_Bool_0 = hoisted__Bool_3;
         }
     }
-    Bool hoisted__Bool_7 = ((Bool)(!(_m_Bool_0)));
-    if (hoisted__Bool_7) {
+    Bool hoisted__Bool_8 = ((Bool)(!(_m_Bool_0)));
+    if (hoisted__Bool_8) {
         Bool hoisted__Bool_6 = 0;
         return hoisted__Bool_6;
     }
-    Str hoisted__Str_self_targets_macos_is_cross_8 = ({ Str *_hp = (Str *)host_os(); Str _hv = *_hp; if (_hp->cap != TIL_CAP_LIT) { free(_hp); } if (_hv.cap == TIL_CAP_LIT) { _hv.cap = TIL_CAP_VIEW; } _hv; });
-    Bool hoisted__Bool_10 = Str_eq(&hoisted__Str_self_targets_macos_is_cross_8, &_til_str_lits.h00310fea53b8);
-    Str_delete(&hoisted__Str_self_targets_macos_is_cross_8, 0);
-    Bool hoisted__Bool_11 = ((Bool)(!(hoisted__Bool_10)));
-    return hoisted__Bool_11;
+    Str hoisted__Str_self_targets_macos_is_cross_9 = ({ Str *_hp = (Str *)host_os(); Str _hv = *_hp; if (_hp->cap != TIL_CAP_LIT) { free(_hp); } if (_hv.cap == TIL_CAP_LIT) { _hv.cap = TIL_CAP_VIEW; } _hv; });
+    Bool hoisted__Bool_11 = Str_eq(&hoisted__Str_self_targets_macos_is_cross_9, &_til_str_lits.h00310fea53b8);
+    Str_delete(&hoisted__Str_self_targets_macos_is_cross_9, 0);
+    Bool hoisted__Bool_12 = ((Bool)(!(hoisted__Bool_11)));
+    if (hoisted__Bool_12) {
+        Bool hoisted__Bool_7 = 1;
+        return hoisted__Bool_7;
+    }
+    Bool hoisted__Bool_13 = priv___src_self_targets_til__host_clang_is_apple();
+    Bool hoisted__Bool_14 = ((Bool)(!(hoisted__Bool_13)));
+    return hoisted__Bool_14;
+}
+
+static Bool priv___src_self_targets_til__host_clang_is_apple(void) {
+    Str version = (Str){.c_str = TIL_OWN_LIT("", 0ULL), .count = 0ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_6 = 2;
+    Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_6);
+    I64 _va_Array_1_ek = 0;
+    U32 hoisted__U32_7 = 0;
+    Array__Str_set(&_va_Array_1, hoisted__U32_7, &_til_str_lits.h00310f3b5e2a, &_va_Array_1_ek);
+    U32 hoisted__U32_9 = 1;
+    Array__Str_set(&_va_Array_1, hoisted__U32_9, &_til_str_lits.h7cd562cfa245, &_va_Array_1_ek);
+    I64 hoisted__I64_11 = run_cmd(&version, &_va_Array_1);
+    I64 hoisted__I64_12 = 0;
+    Bool hoisted__Bool_13 = ((Bool)(hoisted__I64_11 != hoisted__I64_12));
+    if (hoisted__Bool_13) {
+        U32 hoisted__U32_0 = 2;
+        Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_0);
+        I64 _va_Array_0_ek = 0;
+        U32 hoisted__U32_1 = 0;
+        Str hoisted__Str_self_targets_host_clang_is_apple_2 = (Str){.c_str = TIL_OWN_LIT("cannot run clang --version to tell Apple's clang from LLVM's: ", 62ULL), .count = 62ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_self_targets_host_clang_is_apple_2, &_va_Array_0_ek);
+        U32 hoisted__U32_3 = 1;
+        Str hoisted__Str_self_targets_host_clang_is_apple_4 = Str_clone(&version);
+        Array__Str_set(&_va_Array_0, hoisted__U32_3, &hoisted__Str_self_targets_host_clang_is_apple_4, &_va_Array_0_ek);
+        panic(&_va_Array_0, &hoisted__Str_self_targets_host_clang_is_apple_5);
+    }
+    Str hoisted__Str_self_targets_host_clang_is_apple_14 = (Str){.c_str = TIL_OWN_LIT("Apple clang", 11ULL), .count = 11ULL, .cap = TIL_CAP_LIT};
+    Bool hoisted__Bool_15 = Str_contains(&version, &hoisted__Str_self_targets_host_clang_is_apple_14);
+    Str_delete(&version, 0);
+    return hoisted__Bool_15;
 }
 
 static Str priv___src_self_targets_til__macos_cross_args(Target * target) {
@@ -481273,8 +481314,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-146787152", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("146787152f54ff083b059be3c1d2fc5430c4e326", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-52dac0079", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("52dac007987f7546f96aefa65df80c3946643724", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

@@ -252,12 +252,30 @@ priv target_prefix_args := func(target: Target) returns Str {
 // does): zig's curated darwin libc headers plus the libSystem.tbd
 // linker stub under vendor/macos/, compiled by the host's clang and
 // linked with lld (which ad-hoc code-signs arm64 Mach-O). Native mac
-// builds keep the real SDK: no -nostdlibinc, system linker.
+// builds with Apple's clang keep the real SDK: no -nostdlibinc, system
+// linker.
+//
+// #472: a Mac builds its own targets the same SDK-less way when the clang
+// on its PATH is not Apple's: the pinned LLVM release every host uses for
+// the mac targets, which has lld and none of Apple's SDK integration.
+// That is what lets a Mac write the same bytes as the other hosts. With
+// Apple's clang first on PATH a Mac keeps Apple's SDK and linker, as
+// before. The question is asked of `clang`, til's compiler for a mac
+// target; a --cc does not change the answer.
 priv macos_is_cross := proc(target: Target) returns Bool {
     if target.is(Target.MacosX64).or(target.is(Target.MacosArm64)).not() {
         return false
     }
-    return host_os().eq("macos").not()
+    if host_os().eq("macos").not() { return true }
+    return host_clang_is_apple().not()
+}
+
+priv host_clang_is_apple := proc() returns Bool {
+    mut version := ""
+    if run_cmd(version, "clang", "--version") != 0 {
+        panic("cannot run clang --version to tell Apple's clang from LLVM's: ", version)
+    }
+    return version.contains("Apple clang")
 }
 
 priv macos_cross_args := proc(target: Target) returns Str {

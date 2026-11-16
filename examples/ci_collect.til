@@ -232,8 +232,10 @@ build_command := proc(compiler: Str, target: Str) returns Cmd {
 // REM The tools are the ones til runs for the target (targets.til,
 // toolchain_command; builder.til, compile_c).
 toolchain_identity := proc(target: Str) returns Str {
-    if target.starts_with("macos-").and(host_os() == "macos") {
-        // A mac builds its own target with Apple's tools and SDK.
+    if target.starts_with("macos-").and(host_os() == "macos").and(version_line("clang").contains("Apple clang")) {
+        // A mac whose clang is Apple's builds its own target with Apple's
+        // tools and SDK; with the pinned LLVM first on PATH it builds as
+        // every other host does (targets.til, macos_is_cross).
         return format(version_line("clang"), "\n", first_line_of("ld", "-v"), "\n",
             "SDK ", tool_output("xcrun", "--show-sdk-version"), "\n")
     }
@@ -358,16 +360,13 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         // relative to the checkout, is in the binary's debug info.
         directory := format(WORK, "/binary_", target)
         mkdir_p(directory)
-        // The mac targets' artifacts are all equal between the two Linux
-        // hosts: the small ones since CI run 3094, til, the vendored
-        // archives and every section and member since run 3115 (after the
-        // host-folded libffi constant was fixed). Everything else is on
-        // trial.
-        // A mac's own build of its target is on trial: it uses Apple's
-        // clang, linker and SDK, and has not been shown equal to the Linux
-        // hosts' builds yet.
-        mut target_level := "binary-trial"
-        if target.starts_with("macos-").and(host_os() != "macos") { target_level = "binary" }
+        // Everything is on trial: each target is moving to its one pinned
+        // compiler (#472, "Clang, one release, on every host"), and no run
+        // has shown a target equal from every host with it yet. The mac
+        // targets were equal between the two Linux hosts with Ubuntu's
+        // clang 18.1.3 (strict from run 3115 to 3130); they come back to
+        // "binary" when the pinned LLVM has shown the same.
+        target_level := "binary-trial"
         mut levels := Vec(Str).new()
         mut items := Vec(Str).new()
         mut paths := Vec(Str).new()

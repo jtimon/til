@@ -2704,3 +2704,40 @@ Next, in order:
    lld can be the mac targets' compiler is to be checked, else LLVM's own
    release at the same version).
 4. Linux: clang and lld with one C library tree per target (#504).
+
+*** Run 3130: the pinned llvm-mingw works on the first host; the mac targets get theirs
+
+Run 3130 (master 52dac00), ~windows-x64-build~ (Linux x64): the archive
+downloaded, its sha256 matched, the ~x86_64-w64-mingw32-gcc~ name is
+"clang version 23.1.5" with LLD 23.1.5 and mingw-w64 15.0.0, libffi and
+nng built with it, and the producer wrote all 131 lines. The arm64 and
+Windows hosts' steps had not run yet when this was written.
+
+The mac targets (plan item 3). llvm-mingw cannot be their compiler: its
+packaging removes ~ld64.lld~ and ~dsymutil~, which til runs for a mac
+target. LLVM's own release can, and 23.1.5 -- the LLVM inside the pinned
+llvm-mingw -- is published for Linux x64, Linux arm64 and macOS arm64
+(and Windows); not for Intel macOS. So:
+- Three producers build the mac targets with it, on trial and
+  ~continue-on-error~: Linux x64 (in ~windows-x64-build~, after the
+  windows step), ~linux-arm64-native~, and the arm64 Mac for its own
+  target. Each downloads the archive, checks its sha256, unpacks only
+  clang, lld, dsymutil, llvm-ar/ranlib/nm/objcopy and clang's own headers
+  into ~tmp/llvm~, puts that first on PATH, and (on Linux) rebuilds the
+  mac libffi and nng with it.
+- A Mac builds its own targets the SDK-less way -- ~vendor/macos~, lld,
+  named objects -- when the ~clang~ on its PATH is not Apple's
+  (~targets.til~ ~macos_is_cross~ asks ~clang --version~). With Apple's
+  clang first, as in every existing Mac step, nothing changes. Not run on
+  a Mac here; the trial step is its first run.
+- The Intel Mac writes no binary list: it cannot run the pinned compiler.
+  It keeps running and testing the macos-x64 binaries other hosts build.
+- The Apple-toolchain trial steps of both Macs are gone (run 3124 gave
+  their answer), and the mac targets are off the Linux hosts'
+  Ubuntu-clang lists, where they were strict: a producer cannot list one
+  target twice. Every binary item is on trial until its target has been
+  shown equal with its pinned compiler.
+- Known and left: the arm64 Mac's own libffi and nng are still built by
+  Apple's cc (they are "the host's own" in the Makefile and ~make.til~),
+  so its ~til~ cannot match the Linux hosts' yet; the two programs and
+  the library can.

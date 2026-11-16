@@ -242,35 +242,30 @@ jobs:
           path: tmp/hashes/linux-arm64.txt
           if-no-files-found: error
       # Issue #472 (level 3) / #473 (C7): what this host builds for the two
-      # mac targets, with the identity of the clang, lld, llvm-ar and
-      # dsymutil that built it. The collect job compares these binaries
-      # between producers whatever toolchains they recorded: every host has
-      # to build the same bytes for a target (the toolchain rule, end of
-      # issues/open/472.org); the toolchains are listed for diagnosis. The
-      # mac headers and libraries are the repository's vendor/macos on
-      # every host.
-      # til links libffi and nng, so til for a mac target needs that target's
-      # archives; bin/make builds them with the toolchain installed here.
-      # This host's own (linux-arm64) were built for bin/til.
-      # continue-on-error on these three steps while the artifacts are on
-      # trial (#472 plan, S1): building the mac archives on an arm64 host has
-      # not run anywhere yet, and a trial must not redden a run. Without this
-      # host's list the collect job reports the binary groups as "from one
-      # producer only (not compared)".
-      # linux-x64 from this arm64 host is the CROSS half of the mirror pair
-      # (#472 plan, S5): the x64 producer builds the same things natively.
-      - name: Install the mac and linux-x64 cross toolchains and build their archives
+      # Linux targets, its own natively and linux-x64 cross (the mirror of
+      # the x64 producer, #472 plan S5), with the identity of the tools that
+      # built them. The collect job compares these binaries between
+      # producers whatever toolchains they recorded: every host has to build
+      # the same bytes for a target (the toolchain rule, end of
+      # issues/open/472.org); the toolchains are listed for diagnosis.
+      # til links libffi and nng, so til for a target needs that target's
+      # archives; bin/make builds linux-x64's with the cross gcc installed
+      # here, and this host's own were built for bin/til.
+      # continue-on-error on these steps while the artifacts are on trial:
+      # a trial must not redden a run. Without this host's list the collect
+      # job reports the binary groups as "from one producer only (not
+      # compared)". The windows and mac targets follow, each with its one
+      # pinned compiler.
+      - name: Install the linux-x64 cross toolchain and build its archives
         continue-on-error: true
         run: |
-          sudo apt-get install -y clang lld llvm cmake gcc-x86-64-linux-gnu libc6-dev-amd64-cross
-          make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
-          make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
+          sudo apt-get install -y cmake gcc-x86-64-linux-gnu libc6-dev-amd64-cross
           make vendor/libffi/build-linux-x64/.libs/libffi.a vendor/nng/build-linux-x64/libnng.a
       - name: Write the binary hash lists for the collector
         continue-on-error: true
         run: |
           mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til macos-arm64 macos-x64 linux-arm64 linux-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til linux-arm64 linux-x64
       - name: Upload the binary hash lists
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -305,6 +300,38 @@ jobs:
         with:
           name: hashes-binary-windows-linux-arm64
           path: tmp/hashes-binary-windows/linux-arm64.txt
+      # Issue #472: the mac targets with the one compiler every host uses
+      # for them, LLVM's own release (clang, lld, dsymutil, the llvm tools)
+      # at one pinned version, published for Linux x64 and arm64 and macOS
+      # arm64 hosts. Only the tools til and bin/make run are unpacked, and
+      # they go first on PATH. Headers and libSystem are vendor/macos, as
+      # before. On trial and continue-on-error until a run shows the three
+      # hosts equal; the mac binaries the Macs RUN are still built by
+      # macos-cross-build with Ubuntu's clang.
+      - name: Write the mac binary hash lists with the pinned LLVM
+        continue-on-error: true
+        run: |
+          archive=LLVM-23.1.5-Linux-ARM64
+          curl -sSL --fail -o tmp/$archive.tar.zst https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.5/$archive.tar.zst
+          echo "830ceb70edf63849ce66e97bf85310a3bf2bdd04c860a9f2fa4ef1560e290cef  tmp/$archive.tar.zst" | sha256sum -c -
+          mkdir -p tmp/llvm
+          tar --zstd -xf tmp/$archive.tar.zst -C tmp/llvm --strip-components=1 --wildcards '*/bin/clang*' '*/bin/lld' '*/bin/ld.lld' '*/bin/ld64.lld' '*/bin/dsymutil' '*/bin/llvm-ar' '*/bin/llvm-ranlib' '*/bin/llvm-nm' '*/bin/llvm-objcopy' '*/lib/clang/*'
+          rm tmp/$archive.tar.zst
+          export PATH="$PWD/tmp/llvm/bin:$PATH"
+          clang --version
+          clang --version | grep -q "clang version 23.1.5"
+          ld64.lld --version
+          rm -rf vendor/libffi/build-macos-arm64 vendor/libffi/build-macos-x64 vendor/nng/build-macos-arm64 vendor/nng/build-macos-x64
+          make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
+          make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
+          mkdir -p tmp/hashes-binary-mac
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary-mac/linux-arm64.txt bin/til macos-arm64 macos-x64
+      - name: Upload the mac binary hash lists
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-mac-linux-arm64
+          path: tmp/hashes-binary-mac/linux-arm64.txt
           if-no-files-found: error
       - name: Cancel the rest of this run
         if: failure()
@@ -993,6 +1020,38 @@ jobs:
         with:
           name: hashes-binary-windows-linux-x64
           path: tmp/hashes-binary-windows/linux-x64.txt
+      # Issue #472: the mac targets with the one compiler every host uses
+      # for them, LLVM's own release (clang, lld, dsymutil, the llvm tools)
+      # at one pinned version, published for Linux x64 and arm64 and macOS
+      # arm64 hosts. Only the tools til and bin/make run are unpacked, and
+      # they go first on PATH. Headers and libSystem are vendor/macos, as
+      # before. On trial and continue-on-error until a run shows the three
+      # hosts equal; the mac binaries the Macs RUN are still built by
+      # macos-cross-build with Ubuntu's clang.
+      - name: Write the mac binary hash lists with the pinned LLVM
+        continue-on-error: true
+        run: |
+          archive=LLVM-23.1.5-Linux-X64
+          curl -sSL --fail -o tmp/$archive.tar.zst https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.5/$archive.tar.zst
+          echo "c3107384835f788768f614db610e87fba7077f125ca950eb02a78bab0a308065  tmp/$archive.tar.zst" | sha256sum -c -
+          mkdir -p tmp/llvm
+          tar --zstd -xf tmp/$archive.tar.zst -C tmp/llvm --strip-components=1 --wildcards '*/bin/clang*' '*/bin/lld' '*/bin/ld.lld' '*/bin/ld64.lld' '*/bin/dsymutil' '*/bin/llvm-ar' '*/bin/llvm-ranlib' '*/bin/llvm-nm' '*/bin/llvm-objcopy' '*/lib/clang/*'
+          rm tmp/$archive.tar.zst
+          export PATH="$PWD/tmp/llvm/bin:$PATH"
+          clang --version
+          clang --version | grep -q "clang version 23.1.5"
+          ld64.lld --version
+          rm -rf vendor/libffi/build-macos-arm64 vendor/libffi/build-macos-x64 vendor/nng/build-macos-arm64 vendor/nng/build-macos-x64
+          make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
+          make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
+          mkdir -p tmp/hashes-binary-mac
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-mac/linux-x64.txt bin/til macos-arm64 macos-x64
+      - name: Upload the mac binary hash lists
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-mac-linux-x64
+          path: tmp/hashes-binary-mac/linux-x64.txt
       - name: Cancel the rest of this run
         if: failure()
         shell: bash
@@ -1729,17 +1788,28 @@ jobs:
           name: hashes-macos-arm64
           path: tmp/hashes/macos-arm64.txt
           if-no-files-found: error
-      # Issue #472: this Mac's own build of its target, beside the Linux
-      # hosts' cross builds. The end goal is that they are the same bytes, so
-      # that the suite run here tests what the other hosts build; until a
-      # run shows that, everything here is on trial: the collector compares
-      # it with the cross builds and a difference does not fail. Apple's
-      # clang, ld and SDK build it; Homebrew's llvm@18 is appended to PATH
-      # (so clang stays Apple's) only for llvm-objcopy's section dumps.
-      - name: Write the binary hash list for the collector
+      # Issue #472: this Mac's own build of its target with the pinned LLVM
+      # release the Linux hosts use for the mac targets (see the
+      # windows-x64-build job). With that clang first on PATH til builds the
+      # mac targets here as it does everywhere else -- vendor/macos, lld,
+      # named objects -- not with Apple's SDK and linker (targets.til,
+      # macos_is_cross). On trial and continue-on-error. Known and left for
+      # the next step: this host's own libffi and nng are still built by
+      # Apple's cc, so til, which links them, cannot match yet; the two
+      # programs and the library can.
+      - name: Write the binary hash list with the pinned LLVM
         continue-on-error: true
         run: |
-          export PATH="$PATH:$(brew --prefix llvm@18)/bin"
+          archive=LLVM-23.1.5-macOS-ARM64
+          curl -sSL --fail -o tmp/$archive.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.5/$archive.tar.xz
+          echo "aba592b4a15e8f90c634c5367b51ec8418b8bcd2829865db331a17dc9418dcff  tmp/$archive.tar.xz" | shasum -a 256 -c -
+          mkdir -p tmp/llvm
+          tar -xf tmp/$archive.tar.xz -C tmp/llvm --strip-components 1 '*/bin/clang*' '*/bin/lld' '*/bin/ld.lld' '*/bin/ld64.lld' '*/bin/dsymutil' '*/bin/llvm-ar' '*/bin/llvm-ranlib' '*/bin/llvm-nm' '*/bin/llvm-objcopy' '*/lib/clang/*'
+          rm tmp/$archive.tar.xz
+          export PATH="$PWD/tmp/llvm/bin:$PATH"
+          clang --version
+          clang --version | grep -q "clang version 23.1.5"
+          ld64.lld --version
           make vendor/nng/build-macos-arm64/libnng.a
           mkdir -p tmp/hashes-binary
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary/macos-arm64.txt bin/til macos-arm64
@@ -1895,26 +1965,10 @@ jobs:
           name: hashes-macos-x64
           path: tmp/hashes/macos-x64.txt
           if-no-files-found: error
-      # Issue #472: this Mac's own build of its target, beside the Linux
-      # hosts' cross builds. The end goal is that they are the same bytes, so
-      # that the suite run here tests what the other hosts build; until a
-      # run shows that, everything here is on trial: the collector compares
-      # it with the cross builds and a difference does not fail. Apple's
-      # clang, ld and SDK build it; Homebrew's llvm@18 is appended to PATH
-      # (so clang stays Apple's) only for llvm-objcopy's section dumps.
-      - name: Write the binary hash list for the collector
-        continue-on-error: true
-        run: |
-          export PATH="$PATH:$(brew --prefix llvm@18)/bin"
-          make vendor/nng/build-macos-x64/libnng.a
-          mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-x64 tmp/hashes-binary/macos-x64.txt bin/til macos-x64
-      - name: Upload the binary hash list
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: hashes-binary-macos-x64
-          path: tmp/hashes-binary/macos-x64.txt
+      # Issue #472: no binary hash list from this host. LLVM publishes no
+      # release for Intel macOS, so this Mac cannot run the pinned compiler
+      # the other hosts build the mac targets with; it runs and tests the
+      # macos-x64 binaries they build (the steps marked "cross run").
       # See the macos-arm64 job for what the probe and the dump step
       # are for and why they look like this.
       - name: Guard Malloc probe
@@ -2201,7 +2255,7 @@ jobs:
           make vendor/libffi/build-linux-arm64/.libs/libffi.a vendor/nng/build-linux-arm64/libnng.a
           make vendor/nng/build-linux-x64/libnng.a
           mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til macos-arm64 macos-x64 linux-arm64 linux-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til linux-arm64 linux-x64
       - name: Upload the binary hash lists
         uses: actions/upload-artifact@v4
         with:
