@@ -1424,7 +1424,7 @@ jobs:
     if: needs.doc-gate.outputs.code == 'true'
     name: windows-x64 native (make, make install)
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
       MSYSTEM: UCRT64
       CHERE_INVOKING: 1
@@ -1445,6 +1445,15 @@ jobs:
       - name: The installed til builds and runs a program elsewhere
         shell: cmd
         run: C:\msys64\usr\bin\bash.exe -lc "mkdir -p ../elsewhere && cp examples/hello_script.til ../elsewhere/ && cd ../elsewhere && '/c/Program Files/til/bin/til.exe' interpret hello_script.til && '/c/Program Files/til/bin/til.exe' run hello_script.til | grep -q 'Hello World'"
+      # The whole suite, as linux-x64 runs it (without ASAN: MinGW has
+      # none). BRING-UP: continue-on-error on this step only, so the job
+      # still guards make and make install while each merge shows how far
+      # the suite gets; it goes once the suite passes.
+      - name: make test
+        shell: cmd
+        continue-on-error: true
+        timeout-minutes: 75
+        run: C:\msys64\usr\bin\bash.exe -lc "make test"
       - name: Cancel the rest of this run
         if: failure()
         shell: bash

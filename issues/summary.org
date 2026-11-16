@@ -22,6 +22,7 @@
 *** [[./open/488.org][#488]] Restore pristine upstream raylib and upstream the Android lifecycle fixes
 ** Low
 *** [[./open/449.org][#449]] Map and set literal nodes have no type slot; the instance name lives on the Decl
+*** [[./open/503.org][#503]] Run the C compile and link commands through Cmd, with no shell
 * Optimizations
 ** Medium
 *** [[./open/461.org][#461]] Simplify borrow-aware last-use destruction and reduce analysis cost

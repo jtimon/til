@@ -33,10 +33,9 @@ count_matches := func(haystack: Str, needle: Str) returns I64 {
     return count
 }
 
-// Run a shell command, return exit code
+// Run a shell command (sh syntax, see suite_spawn), return exit code
 run := proc(cmd: Str) returns I64 {
-    pid := spawn_cmd(cmd)
-    return wait_cmd(pid)
+    return suite_run(cmd)
 }
 
 // --- Helpers ---

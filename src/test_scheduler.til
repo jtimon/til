@@ -5,6 +5,34 @@ import("std/file")
 
 PEAK_MEM_SAMPLE_MS := 100
 
+// How many scripts suite_spawn has written in this process (Windows only):
+// each gets its own file, so a script is never rewritten while the shell
+// started on it may still be reading it.
+mut SUITE_SCRIPT_COUNT := 0
+
+/// Start a suite command -- shell text, sh syntax on every host (pipes,
+/// redirects, single quotes, ~&&~) -- without waiting; pair with wait_cmd
+/// or check_cmd_status. spawn_cmd already hands it to /bin/sh on POSIX.
+/// On Windows spawn_cmd's shell is cmd.exe, which reads none of that sh
+/// syntax and takes the ~/~ in ~bin/til~ for a switch, so the command runs
+/// under the sh the Windows build already needs (MSYS2's, on PATH there):
+/// written to a script file under tmp/, so no text has to survive cmd.exe's
+/// quoting on its way to sh.
+suite_spawn := proc(cmd: Str) returns I64 {
+    if host_os() != "windows" { return spawn_cmd(cmd) }
+    dir := format("tmp/suite_sh_", process_id().to_str())
+    mkdir_p(dir)
+    SUITE_SCRIPT_COUNT = SUITE_SCRIPT_COUNT + 1
+    script := format(dir, "/", SUITE_SCRIPT_COUNT.to_str(), ".sh")
+    File.writefile(script, format(cmd, "\n"))
+    return spawn_cmd(format("sh ", script))
+}
+
+/// suite_spawn, then wait: the command's exit status.
+suite_run := proc(cmd: Str) returns I64 {
+    return wait_cmd(suite_spawn(cmd))
+}
+
 ms_to_str := func(ms: I64) returns Str {
     secs := ms / 1000
     frac := ms.mod(1000) / 10
@@ -159,7 +187,7 @@ run_all_parallel := proc(mut tests: Vec(Test), j: USize, mut fail: I64,
                 ref mut t : Test = tests[next]
                 cmd := format(t.cmd, " > ", t.outfile, " 2>&1")
                 start := clock_ms()
-                pid := spawn_cmd(cmd)
+                pid := suite_spawn(cmd)
                 t.pid = pid.clone()
                 t.start_ms = start.clone()
                 slots[si] = Slot(test_idx = next, pid = pid, start_ms = start)

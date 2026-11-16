@@ -271,27 +271,22 @@ namespace:
     }
 }
 
+/// Run a program with its arguments and wait, putting its stdout and
+/// stderr, interleaved as written, into ~output~; returns its status. The
+/// arguments are argv elements (a Cmd), not shell text: they were once
+/// single-quoted into a string for spawn_cmd, which cmd.exe does not read
+/// as quotes, so on Windows every argument reached the program with its
+/// quotes on (~git 'rev-parse' 'HEAD'~ asked git for a command named
+/// ~'rev-parse'~).
 run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
-    mut cmd := ""
+    c := Cmd.new()
     mut i : USize = 0
     while i < args.len() {
         ref arg: Str = args[i]
-        if i > 0 {
-            cmd = cmd.format(" '", arg, "'")
-        } else {
-            cmd = arg.clone()
-        }
+        c.arg(arg)
         i++
     }
-    if host_os() == "windows" {
-        _mk := spawn_cmd("if not exist tmp mkdir tmp >NUL 2>&1")
-        _ec := wait_cmd(_mk)
-        if _ec < 0 { }
-    } else {
-        _mk := spawn_cmd("mkdir -p tmp >/dev/null 2>&1")
-        _ec := wait_cmd(_mk)
-        if _ec < 0 { }
-    }
+    mkdir_p("tmp")
     // Per-PROCESS capture file. One fixed `tmp/_run_cmd_out` made every
     // concurrent run_cmd in the tree fight over the same bytes: the suite
     // runs its tests in parallel (bin/tests -j), and two `til bindings`
@@ -302,8 +297,9 @@ run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
     // that had done nothing wrong. Racy by scheduling, so it passed
     // repeatedly before it failed.
     tmpf := format("tmp/_run_cmd_out_", process_id().to_str())
-    pid := spawn_cmd(cmd.format(" > ", tmpf, " 2>&1"))
-    ec := wait_cmd(pid)
+    c.stdout_to(tmpf)
+    c.stderr_to_stdout()
+    ec := c.run()
     content := File.readfile(tmpf)
     // Plain assignment: the builder deletes output's old value before the
     // write (save_old_delete), and the asap pass moves `content` in at its

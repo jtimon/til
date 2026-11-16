@@ -121,8 +121,8 @@ namespace:
     }
 
     /// The suite opens real windows for the mode-gui tests, so on Linux
-    /// it runs under a virtual X server. macOS has no X11 and runs them
-    /// bare; windows is not a suite host at all.
+    /// it runs under a virtual X server. macOS and Windows have no X11
+    /// and run them bare.
     needs_xvfb := func(self: Host) returns Bool {
         return self.os == "linux"
     }

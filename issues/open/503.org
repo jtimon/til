@@ -1,0 +1,24 @@
+# priority: low
+# category: cleanups
+** OPEN #503 Run the C compile and link commands through Cmd, with no shell
+
+Split from [[../fixed/483.org][#483]], which did not need it. builder.til writes every C
+compile and link command as one string and runs it with ~system_cmd~
+(~system()~: ~sh -c~, or ~cmd.exe /c~ on a Windows host), so every path in
+it is quoted for that shell by targets.til ~shell_path~ / ~shell_args~.
+~Cmd~ (argv; ~posix_spawnp~, or ~CreateProcessA~ with ~win_quote_arg~ on
+Windows) runs no shell, so with it no quoting would be left, and the
+command would mean the same on every host.
+
+Two flags rely on the shell today and need rewriting first:
+
+- the ~'$ORIGIN'~ rpath of a program linked against a shared library
+  (builder.til, the shared-link flag): the quotes only stop sh expanding
+  ~$ORIGIN~; as an argv element it is passed as ~-Wl,-rpath,$ORIGIN~.
+- the framework stubs' ~*.tbd~ glob (~macos_framework_stubs_link~): the
+  shell expands it; without one the builder lists the directory itself,
+  as the stamp code near "The framework stubs link through a *.tbd glob"
+  already does for its inputs.
+
+Then ~shell_path~ / ~shell_args~ remain only for commands that really go
+through a shell, if any; ~args_text~ stays for display and stamps.

@@ -2,6 +2,7 @@ mode cli
 
 import("std/sys")
 import("std/file")
+import("test_scheduler")
 
 // test_runner.til -- runs tests and reports structured results for tests.til.
 //
@@ -139,7 +140,7 @@ truncate_capture := proc(path: Str) {
 // the reader can rerun the same diff by hand from the printed command.
 print_output_diff := proc(label: Str, expected_path: Str, actual_path: Str) {
     diff_path := format("gen/out/single/", label, ".diff")
-    system_cmd(format("diff -u '", expected_path, "' '", actual_path, "' > ", diff_path, " 2>&1"))
+    suite_run(format("diff -u '", expected_path, "' '", actual_path, "' > ", diff_path, " 2>&1"))
     echo_file("diff -u expected actual", diff_path)
 }
 
@@ -151,7 +152,7 @@ PhaseResult := struct {
 
 run_phase := proc(cmd: Str) returns PhaseResult {
     start := clock_ms()
-    pid := spawn_cmd(cmd)
+    pid := suite_spawn(cmd)
     mut mem := 0
     while true {
         rss := current_rss_bytes(pid).cast(I64)
