@@ -1,0 +1,42 @@
+# priority: medium
+# category: bugs
+** OPEN #502 A for-in loop variable shadowing a local of the same name miscompiles in C
+
+Found while working on [[./472.org][#472]] (examples/ci_collect.til);
+reproduced at master 4266191.
+
+#+begin_src til
+mode cli
+show := proc(name: Str) {
+    level := "a"
+    mut out := Vec(Str).new()
+    for level : Str in array(Str, "x", "y") {
+        out.push(own level.clone())
+    }
+    println(out[0], out[1], level, name)
+}
+main := proc(args: ..Str) { show(args[0]) }
+#+end_src
+
+~bin/til run tmp/shadow.til q~ fails in the C compiler: the loop body's
+~level.clone()~ is emitted as ~Str_clone(&level)~, but inside the loop
+~level~ is the loop variable, declared ~Str *level~ (a pointer into the
+array), so gcc reports "passing argument 1 of 'Str_clone' from
+incompatible pointer type". ~bin/til interpret~ prints ~xyaq~, which is
+right. The same program with ~level~ a global (mode script, at top level)
+compiles and runs.
+
+The typer accepts it on purpose: its redeclaration rule (#327, in
+~infer_decl~, "already declared in this function") leaves nested scopes
+alone, naming "the for-in desugar's loop variable (which reuses the
+user's name and is renamed by codegen)" as legitimate. So the defect is
+in emission: the pointer-shaped loop variable gets the shape of the
+same-named value local of the enclosing scope. That is the shape of the
+case the #327 comment still describes ("a pointer-shaped block local
+shadowing a shallow parameter, where the builder's name-keyed shape query
+picks the parameter"), here with an outer local instead of a parameter,
+and #327 is closed.
+
+Either the shape query has to follow the binding the identifier resolves
+to, or the typer has to reject the shadowing; both backends must agree
+either way.

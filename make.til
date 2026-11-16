@@ -1529,8 +1529,16 @@ build_libffi_out_of_tree := proc(mut b: Build, name: Str) {
     // --disable-multi-os-directory: the archive is linked from the build
     // directory, never installed, and the install-dir probe is a gcc
     // option clang rejects with an error line per configure.
+    // --with-pic as in the Makefile's build of the host's own archive: a
+    // target's archive is that host's own on a machine of that target, and
+    // the two have to be the same bytes (#472). Without it the linux-arm64
+    // archive from an x64 host differed from the arm64 host's in types.o,
+    // raw_api.o and java_raw_api.o, and only there; with it, an x64 host's
+    // cross gcc writes the arm64 host's bytes (CI run 3115's hashes). On
+    // windows targets libtool's PIC flag is -DDLL_EXPORT, which libffi's
+    // sources do not read.
     configure := Cmd.new("../configure", format("--host=", t.host), format("CC=", t.cc),
-        "--disable-shared", "--enable-static", "--disable-docs", "--disable-multi-os-directory", "--quiet")
+        "--disable-shared", "--enable-static", "--with-pic", "--disable-docs", "--disable-multi-os-directory", "--quiet")
     if t.ar.is_empty().not() { configure.arg(format("AR=", t.ar)) }
     if t.ranlib.is_empty().not() { configure.arg(format("RANLIB=", t.ranlib)) }
     if t.ldflags.is_empty().not() { configure.arg(format("LDFLAGS=", t.ldflags)) }

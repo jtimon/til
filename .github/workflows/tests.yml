@@ -244,10 +244,11 @@ jobs:
       # Issue #472 (level 3) / #473 (C7): what this host builds for the two
       # mac targets, with the identity of the clang, lld, llvm-ar and
       # dsymutil that built it. The collect job compares these binaries
-      # between producers only where the toolchains are the same (the
-      # toolchain rule, end of issues/open/472.org) and says so where they
-      # are not. The mac headers and libraries are the repository's
-      # vendor/macos on every host.
+      # between producers whatever toolchains they recorded: every host has
+      # to build the same bytes for a target (the toolchain rule, end of
+      # issues/open/472.org); the toolchains are listed for diagnosis. The
+      # mac headers and libraries are the repository's vendor/macos on
+      # every host.
       # til links libffi and nng, so til for a mac target needs that target's
       # archives; bin/make builds them with the toolchain installed here.
       # This host's own (linux-arm64) were built for bin/til.
@@ -2028,10 +2029,11 @@ jobs:
       # Issue #472 (level 3) / #473 (C7): what this host builds for the two
       # mac targets, with the identity of the clang, lld, llvm-ar and
       # dsymutil that built it. The collect job compares these binaries
-      # between producers only where the toolchains are the same (the
-      # toolchain rule, end of issues/open/472.org) and says so where they
-      # are not. The mac headers and libraries are the repository's
-      # vendor/macos on every host.
+      # between producers whatever toolchains they recorded: every host has
+      # to build the same bytes for a target (the toolchain rule, end of
+      # issues/open/472.org); the toolchains are listed for diagnosis. The
+      # mac headers and libraries are the repository's vendor/macos on
+      # every host.
       # linux-arm64 from this x64 host is the CROSS half of the pair #472 is
       # about; linux-arm64-native builds the same things natively. Ubuntu
       # 24.04 has gcc 13.3.0 and glibc 2.39 both ways.

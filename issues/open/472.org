@@ -1949,6 +1949,24 @@ READ THIS before any binary comparison work (L3b onward, #473 C4/C7). It
 replaces every earlier "one clang / LLVM 18 for everything" in this file
 and in #473; those passages are marked as superseded where they stand.
 
+RESTATED by Jorge, 2026-11-16 -- this wins over the list below where they
+differ: "the toolchain doesn't have to be the same for all host
+compilers, it just has to result in the same binary for each target from
+every host". The requirement is the bytes, per target, from every host.
+One toolchain version per target is the usual way to meet it, not the
+rule itself: the bullets saying every producer must use the target's
+toolchain, and that a producer with another toolchain is "reported as a
+failure, not compared", are superseded. The collector now compares the
+binaries whatever toolchains the producers recorded; the toolchain item
+is a trial item, printed when it differs and never failing by itself.
+Jorge's examples (same day): clang for every mac build, gcc -- or clang,
+which may suit the MLIR path better -- for every windows build, and for
+Linux whatever CI picks, since each Linux user's own system will differ
+anyway. "All we need is each til binary producing the same hash when
+cross compiling itself to a given target." A host building its own
+target natively (windows to windows, say) may well use other tools than
+a cross host does (no wine, no mingw prefix); only the result counts.
+
 - Each TARGET has ONE toolchain: compiler, linker, archiver, headers and
   libraries or sysroot, at one exact version, with the flags til passes.
 - Every producer that builds that target -- natively or cross, whatever
@@ -2031,13 +2049,10 @@ toolchain rule above:
   (printed to the log too). Only the mac targets so far: their headers and
   libraries are ~vendor/macos~ on every host, so the tools are all that
   can differ.
-- ~collect~ compares a binary group only if every producer in it recorded
-  the same toolchain. Otherwise it prints ~NOT COMPARABLE~ with the
-  hashes, counts the items as not compared, and does not fail: different
-  toolchains are not expected to agree, and equal bytes from them are not
-  called equal either. With the same toolchain a different binary fails
-  the job like any other difference. A binary list without its toolchain
-  item stops the collector.
+- (Superseded 2026-11-16, see the restated rule above: the collector no
+  longer gates on the toolchain.) ~collect~ compared a binary group only
+  if every producer in it recorded the same toolchain, and otherwise
+  printed ~NOT COMPARABLE~ and did not fail.
 - Producers: the ~macos-cross-build~ job (Linux x64) and
   ~linux-arm64-native~, which installs ~clang lld llvm~ from Ubuntu's
   archive for it. No download is added.
@@ -2455,7 +2470,7 @@ the stamp in each backend's syntax, and FASM's marker with it. Checked:
 The test only runs under ~make check_usize64~, which is why ~make test~
 did not show it.
 
-Seen on the way, not fixed, not filed: in a function, a ~for x : Str in
+Seen on the way, filed as #502: in a function, a ~for x : Str in
 ...~ loop variable that shadows a local ~x~ of the same function
 miscompiles in C (~Str_clone(&x)~ given the loop's pointer, a gcc type
 error); the interpreter runs it right.
@@ -2472,3 +2487,30 @@ show := proc(name: Str) {
 }
 main := proc(args: ..Str) { show(args[0]) }
 #+end_src
+
+*** The three libffi members: --with-pic on one side only
+
+Not debug information: libffi builds with ~-O3~ and no ~-g~. On CI the
+native linux-arm64 archive is the Makefile's (the host's own, configured
+~--with-pic~ so that it can be relinked into the interpreter's twin), and
+the cross one is ~make.til~'s, configured without it. Building the cross
+archive here both ways changes exactly ~types.o~, ~raw_api.o~ and
+~java_raw_api.o~, the three members run 3115 named, and with ~--with-pic~
+those three, and the whole ~libffi.a~, have the hashes the native arm64
+runner recorded (~cc74b907...~ for the archive). ~make.til~ now passes
+~--with-pic~ for every libffi target, as the Makefile does and as nng's
+~POSITION_INDEPENDENT_CODE~ already did. On windows targets libtool's PIC
+flag is ~-DDLL_EXPORT~, which libffi's sources do not read.
+Archives built before this change are not rebuilt by ~bin/make~ (libffi
+has no inputs there); remove ~vendor/libffi/build-<target>~ to rebuild.
+
+So of run 3115's linux-arm64 differences only the debug information of
+the programs is left (the include directories the two drivers record),
+with the decision on how to fix it still open.
+
+The toolchain gate is gone from the collector (Jorge, 2026-11-16, the
+restated rule above): binaries are compared whatever toolchains the
+producers recorded, and the toolchain is a trial item. Fixtures in
+~test/ci_collect.til~: same binary, another binary (fails), different
+toolchains with the same binary (equal; the toolchains printed as a trial
+difference), different toolchains and another binary (fails).

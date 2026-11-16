@@ -24,22 +24,21 @@ import("../src/self/targets")
 //       Level "binary" (#472 level 3): build two programs and a library for
 //       each target and list the hash of every artifact (executables, the
 //       static archive, its object, the shared library), plus one
-//       "toolchain" item per target:
-//       the hash of the version lines of the compiler, linker, archiver
-//       and debug-symbol tool that built it. Binaries are only comparable
-//       between producers that used the SAME toolchain for the target (the
-//       toolchain rule, end of issues/open/472.org). It also lists, at
-//       level "binary-trial", the vendored archives til links and til
-//       itself, and for a target not yet shown equal, everything.
+//       "toolchain" item per target: the hash of the version lines of the
+//       compiler, linker, archiver and debug-symbol tool that built it.
+//       What has to agree is the binaries, from every host, whatever
+//       toolchain each used (the toolchain rule, end of
+//       issues/open/472.org); the toolchain item is listed at level
+//       "binary-trial" only, so that different toolchains show up next to
+//       any difference they explain and never fail by themselves. Also at
+//       "binary-trial": every artifact of a target not yet shown equal.
 //
 //   ci_collect collect <directory> [report]
 //       Read every *.txt hash list under the directory; the file's name is
 //       the producer's. Items are compared between the producers that
 //       took part in the same level, target, backend and width. Prints
 //       what differs, what a producer left out, and what only one producer
-//       has (which is not compared, never "equal"). A binary group whose
-//       producers recorded different toolchains is NOT COMPARABLE: its
-//       hashes are printed, counted as not compared, and never fail. A
+//       has (which is not compared, never "equal"). A
 //       difference at level "binary-trial" is printed and does not fail
 //       either: that level is for artifacts not yet shown equal. Exits 1 on a
 //       difference, a missing item or a line it cannot read; with `report`
@@ -217,12 +216,11 @@ build_command := proc(compiler: Str, target: Str) returns Cmd {
     return build
 }
 
-// The identity of the toolchain this host uses for `target`: what has to be
-// the same on two producers for their binaries to be comparable (the
+// The identity of the toolchain this host uses for `target`, recorded for
+// diagnosis: it does not have to match between hosts, the binaries do (the
 // toolchain rule, end of issues/open/472.org). Version level, not the
-// distribution's package string: a native and a cross compiler of one
-// version are one toolchain, and whether their bytes agree is what the
-// comparison measures.
+// distribution's package string, so that a native and a cross compiler of
+// one version read the same.
 // REM The tools are the ones til runs for the target (targets.til,
 // toolchain_command; builder.til, compile_c).
 toolchain_identity := proc(target: Str) returns Str {
@@ -334,11 +332,9 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         mut levels := Vec(Str).new()
         mut items := Vec(Str).new()
         mut paths := Vec(Str).new()
-        for level : Str in array(Str, "binary", "binary-trial") {
-            levels.push(own level.clone())
-            items.push(own "- toolchain")
-            paths.push(own identity_path.clone())
-        }
+        levels.push(own "binary-trial")
+        items.push(own "- toolchain")
+        paths.push(own identity_path.clone())
         // Two programs: the smallest one, and one with every kind of type
         // layout in it.
         for source : Str in array(Str, "examples/hello_script.til", "test/layout_corpus.til") {
@@ -506,21 +502,6 @@ collect := proc(directory: Str, report_only: Bool) {
         mut group_equal : USize = 0
         mut group_alone : USize = 0
         prefix := format(group, " ")
-        // A binary group is comparable only if every producer in it built
-        // with the same toolchain: one "toolchain" hash.
-        mut comparable := true
-        toolchain_key := format(prefix, "- toolchain")
-        if group.starts_with("binary") {
-            if item_hashes.has(toolchain_key).not() { fail(format(group, ": no producer recorded its toolchain")) }
-            ref toolchains : Map(Str, Str) = item_hashes[toolchain_key]
-            mut first_toolchain := ""
-            for producer : Str in producers {
-                if toolchains.has(producer).not() { fail(format(group, ": ", producer, " recorded no toolchain")) }
-                if first_toolchain.len() == 0 { first_toolchain = toolchains[producer].clone() }
-                else if toolchains[producer] != first_toolchain { comparable = false }
-            }
-            if comparable.not() { println("NOT COMPARABLE ", group, ": the producers' toolchains differ") }
-        }
         for key, by_producer in item_hashes {
             if key.starts_with(prefix).not() { continue }
             item := key.substr(prefix.len(), key.len() - prefix.len())
@@ -532,12 +513,6 @@ collect := proc(directory: Str, report_only: Bool) {
             }
             if by_producer.len() == 1 {
                 group_alone++
-                continue
-            }
-            if comparable.not() {
-                group_alone++
-                println("    ", item)
-                for producer, hash in by_producer { println("        ", producer, " ", hash) }
                 continue
             }
             mut first := ""

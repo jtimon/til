@@ -35,9 +35,10 @@ and wins where they differ.
   Android, TempleOS) have no native build to equal; they are cross-built
   once and tested under qemu, node or the guest, as today. The JNI jar
   chain stays too: it merges four hosts' native libraries into one jar.
-- Per target, "equal" needs one toolchain for all its producers ("The
-  toolchain rule", end of ~issues/open/472.org~). Status and the plan are
-  at the end of #472 ("Plan to finish").
+- Per target, every host's build has to be the same bytes; the hosts'
+  toolchains do not have to be the same, their result does (Jorge,
+  2026-11-16; "The toolchain rule", end of ~issues/open/472.org~). Status
+  and the plan are at the end of #472 ("Plan to finish").
 
 *** Original statement (older; the section above wins)
 
@@ -876,6 +877,8 @@ this commit: one green run with the Windows fix first.
 
 *** The toolchain rule (decided by Jorge, 2026-11-14)
 
+(Restated 2026-11-16, see #472: the requirement is the same binary per
+target from every host; the toolchains themselves may differ.)
 Decision 4 as corrected: each target has one toolchain, chosen per target
 (not necessarily clang, and not necessarily the same for two targets),
 and every producer of that target uses it, at the same version, with the
