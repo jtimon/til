@@ -1381,6 +1381,14 @@ so one pass covers the whole enabled API), and libffi's
 ~ffi.h~, and writes the output to
 ~vendor/bindings/{raylib,tinyfd,nng,secp256k1,libffi}.til~.
 
+*The same on every host.*  The header is preprocessed by ~clang~ as
+linux-x64 sees it (~--target=x86_64-unknown-linux-gnu -ffreestanding
+-nostdlibinc~), not by the host's ~cc~: a Windows host's ~_WIN32~ kept
+tinyfiledialogs.h's wide-character block, which no committed binding
+has.  The headers bound here include only what clang ships itself
+(~stdarg.h~, ~stdbool.h~, ~stddef.h~, ~stdint.h~, ~limits.h~), so the
+host's C library takes no part.
+
 *The audit survives.*  The committed ~.til~ IS the audit record, so
 the generator reads the file it is about to overwrite and keeps what
 it finds there: every declaration whose name the header still

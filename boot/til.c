@@ -13031,8 +13031,8 @@ static struct {
     Str hoisted__Str_gen_unity_derived_for_stmt_34;
     Str hoisted__Str_gen_unity_derived_for_stmt_4;
     Str hoisted__Str_gen_unity_derived_for_stmt_80;
-    Str hoisted__Str_generate_bindings_15;
-    Str hoisted__Str_generate_bindings_5;
+    Str hoisted__Str_generate_bindings_19;
+    Str hoisted__Str_generate_bindings_9;
     Str hoisted__Str_generic_instantiate_152;
     Str hoisted__Str_generic_instantiate_18;
     Str hoisted__Str_generic_instantiate_67;
@@ -19288,8 +19288,8 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_gen_unity_derived_for_stmt_34), "./src/self/initer.til:1826:13", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_gen_unity_derived_for_stmt_4), "./src/self/initer.til:1769:13", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_gen_unity_derived_for_stmt_80), "./src/self/initer.til:1772:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_generate_bindings_15), "./src/self/binder.til:2188:27", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_generate_bindings_5), "./src/self/binder.til:2186:18", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_generate_bindings_19), "./src/self/binder.til:2196:27", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_generate_bindings_9), "./src/self/binder.til:2194:18", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_generic_instantiate_152), "./src/self/initer.til:4613:5", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_generic_instantiate_18), "./src/self/initer.til:4513:30", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_generic_instantiate_67), "./src/self/initer.til:4548:17", 29ULL},
@@ -25548,8 +25548,8 @@ static void til_loc_lits_init(void) {
 #define hoisted__Str_gen_unity_derived_for_stmt_34 (_til_loc_lits_cage->hoisted__Str_gen_unity_derived_for_stmt_34)
 #define hoisted__Str_gen_unity_derived_for_stmt_4 (_til_loc_lits_cage->hoisted__Str_gen_unity_derived_for_stmt_4)
 #define hoisted__Str_gen_unity_derived_for_stmt_80 (_til_loc_lits_cage->hoisted__Str_gen_unity_derived_for_stmt_80)
-#define hoisted__Str_generate_bindings_15 (_til_loc_lits_cage->hoisted__Str_generate_bindings_15)
-#define hoisted__Str_generate_bindings_5 (_til_loc_lits_cage->hoisted__Str_generate_bindings_5)
+#define hoisted__Str_generate_bindings_19 (_til_loc_lits_cage->hoisted__Str_generate_bindings_19)
+#define hoisted__Str_generate_bindings_9 (_til_loc_lits_cage->hoisted__Str_generate_bindings_9)
 #define hoisted__Str_generic_instantiate_152 (_til_loc_lits_cage->hoisted__Str_generic_instantiate_152)
 #define hoisted__Str_generic_instantiate_18 (_til_loc_lits_cage->hoisted__Str_generic_instantiate_18)
 #define hoisted__Str_generic_instantiate_67 (_til_loc_lits_cage->hoisted__Str_generic_instantiate_67)
@@ -474318,82 +474318,95 @@ static Str priv___src_self_binder_til__reapply_audited_decls(Str * generated, Ma
 static void generate_bindings(Str * in_path, Str * out_path) {
     Str incdir = priv___src_self_binder_til__header_dir_of(in_path);
     Str pre = (Str){.c_str = TIL_OWN_LIT("", 0ULL), .count = 0ULL, .cap = TIL_CAP_LIT};
-    U32 hoisted__U32_16 = 2;
-    Array__Str _va_Array_2 = Array__Str_new(hoisted__U32_16);
+    U32 hoisted__U32_20 = 2;
+    Array__Str _va_Array_2 = Array__Str_new(hoisted__U32_20);
     I64 _va_Array_2_ek = 0;
-    U32 hoisted__U32_17 = 0;
-    Array__Str_set(&_va_Array_2, hoisted__U32_17, &_til_str_lits.h00000059705b, &_va_Array_2_ek);
-    U32 hoisted__U32_19 = 1;
-    Str hoisted__Str_generate_bindings_20 = Str_clone(&incdir);
-    Array__Str_set(&_va_Array_2, hoisted__U32_19, &hoisted__Str_generate_bindings_20, &_va_Array_2_ek);
-    U32 hoisted__U32_21 = 6;
-    Array__Str _va_Array_3 = Array__Str_new(hoisted__U32_21);
+    U32 hoisted__U32_21 = 0;
+    Array__Str_set(&_va_Array_2, hoisted__U32_21, &_til_str_lits.h00000059705b, &_va_Array_2_ek);
+    U32 hoisted__U32_23 = 1;
+    Str hoisted__Str_generate_bindings_24 = Str_clone(&incdir);
+    Array__Str_set(&_va_Array_2, hoisted__U32_23, &hoisted__Str_generate_bindings_24, &_va_Array_2_ek);
+    U32 hoisted__U32_25 = 9;
+    Array__Str _va_Array_3 = Array__Str_new(hoisted__U32_25);
     I64 _va_Array_3_ek = 0;
-    U32 hoisted__U32_22 = 0;
-    Str hoisted__Str_generate_bindings_23 = (Str){.c_str = TIL_OWN_LIT("cc", 2ULL), .count = 2ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_22, &hoisted__Str_generate_bindings_23, &_va_Array_3_ek);
-    U32 hoisted__U32_24 = 1;
-    Str hoisted__Str_generate_bindings_25 = (Str){.c_str = TIL_OWN_LIT("-E", 2ULL), .count = 2ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_24, &hoisted__Str_generate_bindings_25, &_va_Array_3_ek);
-    U32 hoisted__U32_26 = 2;
-    Str hoisted__Str_generate_bindings_27 = (Str){.c_str = TIL_OWN_LIT("-CC", 3ULL), .count = 3ULL, .cap = TIL_CAP_LIT};
-    Array__Str_set(&_va_Array_3, hoisted__U32_26, &hoisted__Str_generate_bindings_27, &_va_Array_3_ek);
-    U32 hoisted__U32_28 = 3;
-    Str hoisted__Str_generate_bindings_29 = (Str){.c_str = TIL_OWN_LIT("-dD", 3ULL), .count = 3ULL, .cap = TIL_CAP_LIT};
+    U32 hoisted__U32_26 = 0;
+    Array__Str_set(&_va_Array_3, hoisted__U32_26, &_til_str_lits.h00310f3b5e2a, &_va_Array_3_ek);
+    U32 hoisted__U32_28 = 1;
+    Str hoisted__Str_generate_bindings_29 = (Str){.c_str = TIL_OWN_LIT("--target=x86_64-unknown-linux-gnu", 33ULL), .count = 33ULL, .cap = TIL_CAP_LIT};
     Array__Str_set(&_va_Array_3, hoisted__U32_28, &hoisted__Str_generate_bindings_29, &_va_Array_3_ek);
-    U32 hoisted__U32_30 = 4;
-    Str hoisted__Str_generate_bindings_31 = format(&_va_Array_2);
+    U32 hoisted__U32_30 = 2;
+    Str hoisted__Str_generate_bindings_31 = (Str){.c_str = TIL_OWN_LIT("-ffreestanding", 14ULL), .count = 14ULL, .cap = TIL_CAP_LIT};
     Array__Str_set(&_va_Array_3, hoisted__U32_30, &hoisted__Str_generate_bindings_31, &_va_Array_3_ek);
-    U32 hoisted__U32_32 = 5;
-    Str hoisted__Str_generate_bindings_33 = Str_clone(in_path);
+    U32 hoisted__U32_32 = 3;
+    Str hoisted__Str_generate_bindings_33 = (Str){.c_str = TIL_OWN_LIT("-nostdlibinc", 12ULL), .count = 12ULL, .cap = TIL_CAP_LIT};
     Array__Str_set(&_va_Array_3, hoisted__U32_32, &hoisted__Str_generate_bindings_33, &_va_Array_3_ek);
+    U32 hoisted__U32_34 = 4;
+    Str hoisted__Str_generate_bindings_35 = (Str){.c_str = TIL_OWN_LIT("-E", 2ULL), .count = 2ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_34, &hoisted__Str_generate_bindings_35, &_va_Array_3_ek);
+    U32 hoisted__U32_36 = 5;
+    Str hoisted__Str_generate_bindings_37 = (Str){.c_str = TIL_OWN_LIT("-CC", 3ULL), .count = 3ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_36, &hoisted__Str_generate_bindings_37, &_va_Array_3_ek);
+    U32 hoisted__U32_38 = 6;
+    Str hoisted__Str_generate_bindings_39 = (Str){.c_str = TIL_OWN_LIT("-dD", 3ULL), .count = 3ULL, .cap = TIL_CAP_LIT};
+    Array__Str_set(&_va_Array_3, hoisted__U32_38, &hoisted__Str_generate_bindings_39, &_va_Array_3_ek);
+    U32 hoisted__U32_40 = 7;
+    Str hoisted__Str_generate_bindings_41 = format(&_va_Array_2);
+    Array__Str_set(&_va_Array_3, hoisted__U32_40, &hoisted__Str_generate_bindings_41, &_va_Array_3_ek);
+    U32 hoisted__U32_42 = 8;
+    Str hoisted__Str_generate_bindings_43 = Str_clone(in_path);
+    Array__Str_set(&_va_Array_3, hoisted__U32_42, &hoisted__Str_generate_bindings_43, &_va_Array_3_ek);
     I64 ec = run_cmd(&pre, &_va_Array_3);
-    I64 hoisted__I64_34 = 0;
-    Bool hoisted__Bool_35 = ((Bool)(ec != hoisted__I64_34));
-    if (hoisted__Bool_35) {
-        U32 hoisted__U32_0 = 2;
+    I64 hoisted__I64_44 = 0;
+    Bool hoisted__Bool_45 = ((Bool)(ec != hoisted__I64_44));
+    if (hoisted__Bool_45) {
+        U32 hoisted__U32_0 = 4;
         Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_0);
         I64 _va_Array_0_ek = 0;
         U32 hoisted__U32_1 = 0;
-        Str hoisted__Str_generate_bindings_2 = (Str){.c_str = TIL_OWN_LIT("cc preprocessing failed for ", 28ULL), .count = 28ULL, .cap = TIL_CAP_LIT};
+        Str hoisted__Str_generate_bindings_2 = (Str){.c_str = TIL_OWN_LIT("clang preprocessing failed for ", 31ULL), .count = 31ULL, .cap = TIL_CAP_LIT};
         Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_generate_bindings_2, &_va_Array_0_ek);
         U32 hoisted__U32_3 = 1;
         Str hoisted__Str_generate_bindings_4 = Str_clone(in_path);
         Array__Str_set(&_va_Array_0, hoisted__U32_3, &hoisted__Str_generate_bindings_4, &_va_Array_0_ek);
-        panic(&_va_Array_0, &hoisted__Str_generate_bindings_5);
+        U32 hoisted__U32_5 = 2;
+        Array__Str_set(&_va_Array_0, hoisted__U32_5, &_til_str_lits.h0000005971c9, &_va_Array_0_ek);
+        U32 hoisted__U32_7 = 3;
+        Str hoisted__Str_generate_bindings_8 = Str_clone(&pre);
+        Array__Str_set(&_va_Array_0, hoisted__U32_7, &hoisted__Str_generate_bindings_8, &_va_Array_0_ek);
+        panic(&_va_Array_0, &hoisted__Str_generate_bindings_9);
     }
     Vec__Str lines = priv___src_self_binder_til__filter_preprocessed(&pre, &incdir);
-    U32 hoisted__U32_36 = (lines.count);
-    U32 hoisted__U32_37 = 0;
-    Bool hoisted__Bool_38 = ((Bool)(hoisted__U32_36 == hoisted__U32_37));
-    if (hoisted__Bool_38) {
-        U32 hoisted__U32_6 = 4;
-        Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_6);
+    U32 hoisted__U32_46 = (lines.count);
+    U32 hoisted__U32_47 = 0;
+    Bool hoisted__Bool_48 = ((Bool)(hoisted__U32_46 == hoisted__U32_47));
+    if (hoisted__Bool_48) {
+        U32 hoisted__U32_10 = 4;
+        Array__Str _va_Array_1 = Array__Str_new(hoisted__U32_10);
         I64 _va_Array_1_ek = 0;
-        U32 hoisted__U32_7 = 0;
-        Str hoisted__Str_generate_bindings_8 = (Str){.c_str = TIL_OWN_LIT("no lines from ", 14ULL), .count = 14ULL, .cap = TIL_CAP_LIT};
-        Array__Str_set(&_va_Array_1, hoisted__U32_7, &hoisted__Str_generate_bindings_8, &_va_Array_1_ek);
-        U32 hoisted__U32_9 = 1;
-        Str hoisted__Str_generate_bindings_10 = Str_clone(in_path);
-        Array__Str_set(&_va_Array_1, hoisted__U32_9, &hoisted__Str_generate_bindings_10, &_va_Array_1_ek);
-        U32 hoisted__U32_11 = 2;
-        Str hoisted__Str_generate_bindings_12 = (Str){.c_str = TIL_OWN_LIT(" after filtering by ", 20ULL), .count = 20ULL, .cap = TIL_CAP_LIT};
+        U32 hoisted__U32_11 = 0;
+        Str hoisted__Str_generate_bindings_12 = (Str){.c_str = TIL_OWN_LIT("no lines from ", 14ULL), .count = 14ULL, .cap = TIL_CAP_LIT};
         Array__Str_set(&_va_Array_1, hoisted__U32_11, &hoisted__Str_generate_bindings_12, &_va_Array_1_ek);
-        U32 hoisted__U32_13 = 3;
-        Str hoisted__Str_generate_bindings_14 = Str_clone(&incdir);
+        U32 hoisted__U32_13 = 1;
+        Str hoisted__Str_generate_bindings_14 = Str_clone(in_path);
         Array__Str_set(&_va_Array_1, hoisted__U32_13, &hoisted__Str_generate_bindings_14, &_va_Array_1_ek);
-        panic(&_va_Array_1, &hoisted__Str_generate_bindings_15);
+        U32 hoisted__U32_15 = 2;
+        Str hoisted__Str_generate_bindings_16 = (Str){.c_str = TIL_OWN_LIT(" after filtering by ", 20ULL), .count = 20ULL, .cap = TIL_CAP_LIT};
+        Array__Str_set(&_va_Array_1, hoisted__U32_15, &hoisted__Str_generate_bindings_16, &_va_Array_1_ek);
+        U32 hoisted__U32_17 = 3;
+        Str hoisted__Str_generate_bindings_18 = Str_clone(&incdir);
+        Array__Str_set(&_va_Array_1, hoisted__U32_17, &hoisted__Str_generate_bindings_18, &_va_Array_1_ek);
+        panic(&_va_Array_1, &hoisted__Str_generate_bindings_19);
     }
     Str old = (Str){.c_str = TIL_OWN_LIT("", 0ULL), .count = 0ULL, .cap = TIL_CAP_LIT};
-    Bool hoisted__Bool_39 = File_exists(out_path);
-    if (hoisted__Bool_39) {
+    Bool hoisted__Bool_49 = File_exists(out_path);
+    if (hoisted__Bool_49) {
         { Str _new = File_readfile(out_path); Str_delete(&old, (Bool){0}); old = _new; }
     }
     Map__Str_priv___src_self_binder_til__AuditedDecl prev = priv___src_self_binder_til__load_audited_decls(&old);
-    U32 hoisted__U32_40 = 262144;
-    Str out = Str_with_capacity(hoisted__U32_40);
-    Str hoisted__Str_generate_bindings_41 = (Str){.c_str = TIL_OWN_LIT("mode lib\n\n", 10ULL), .count = 10ULL, .cap = TIL_CAP_LIT};
-    Str_push_str(&out, &hoisted__Str_generate_bindings_41);
+    U32 hoisted__U32_50 = 262144;
+    Str out = Str_with_capacity(hoisted__U32_50);
+    Str hoisted__Str_generate_bindings_51 = (Str){.c_str = TIL_OWN_LIT("mode lib\n\n", 10ULL), .count = 10ULL, .cap = TIL_CAP_LIT};
+    Str_push_str(&out, &hoisted__Str_generate_bindings_51);
     priv___src_self_binder_til__BinderState bs = {0};
     bs.alias_to_primitive = _til_str_lits.h00000002b621;
     bs.alias_to_dynamic = _til_str_lits.h00000002b621;
@@ -481303,8 +481316,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-be7bb4ca7", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("be7bb4ca76ace0c533466050a90315aff53b8e62", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-3ca15db5c", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("3ca15db5c8854b44c971a9742ac04a7cc6a47b12", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

@@ -2182,8 +2182,16 @@ priv reapply_audited_decls := proc(generated: Str, mut prev: Map(Str, AuditedDec
 generate_bindings := proc(in_path: Str, out_path: Str) {
     incdir := header_dir_of(in_path)
     mut pre := ""
-    ec := run_cmd(pre, "cc", "-E", "-CC", "-dD", format("-I", incdir), in_path)
-    if ec != 0 { panic("cc preprocessing failed for ", in_path) }
+    // The header as linux-x64 sees it, whatever host runs this: every host
+    // generates the same binding. The host's cc defined its own macros --
+    // a Windows host's _WIN32 kept tinyfiledialogs.h's wide-character
+    // block, which no committed binding has. clang can preprocess for
+    // another target; -ffreestanding -nostdlibinc leave the host's C
+    // library out, and the headers bound here include only what clang
+    // ships itself (stdarg, stdbool, stddef, stdint, limits).
+    ec := run_cmd(pre, "clang", "--target=x86_64-unknown-linux-gnu", "-ffreestanding", "-nostdlibinc",
+        "-E", "-CC", "-dD", format("-I", incdir), in_path)
+    if ec != 0 { panic("clang preprocessing failed for ", in_path, ":\n", pre) }
     lines := filter_preprocessed(pre, incdir)
     if lines.len() == 0 { panic("no lines from ", in_path, " after filtering by ", incdir) }
     // The old file's buffer must outlive `prev`: its entries are views into
