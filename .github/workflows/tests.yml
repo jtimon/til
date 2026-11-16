@@ -315,7 +315,8 @@ jobs:
       # Issue #472: the mac targets with the one compiler every host uses
       # for them, LLVM's own release (clang, lld, dsymutil, the llvm tools)
       # at one pinned version, published for Linux x64 and arm64 and macOS
-      # arm64 hosts. Only the tools til and bin/make run are unpacked, and
+      # arm64 hosts. Only the tools til and bin/make run are unpacked (the
+      # archive needs zstd's long window, which tar --zstd refuses), and
       # they go first on PATH. Headers and libSystem are vendor/macos, as
       # before. On trial and continue-on-error until a run shows the three
       # hosts equal; the mac binaries the Macs RUN are still built by
@@ -327,7 +328,8 @@ jobs:
           curl -sSL --fail -o tmp/$archive.tar.zst https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.5/$archive.tar.zst
           echo "830ceb70edf63849ce66e97bf85310a3bf2bdd04c860a9f2fa4ef1560e290cef  tmp/$archive.tar.zst" | sha256sum -c -
           mkdir -p tmp/llvm
-          tar --zstd -xf tmp/$archive.tar.zst -C tmp/llvm --strip-components=1 --wildcards '*/bin/clang*' '*/bin/lld' '*/bin/ld.lld' '*/bin/ld64.lld' '*/bin/dsymutil' '*/bin/llvm-ar' '*/bin/llvm-ranlib' '*/bin/llvm-nm' '*/bin/llvm-objcopy' '*/lib/clang/*'
+          set -o pipefail
+          zstd -d --long=31 -c tmp/$archive.tar.zst | tar -xf - -C tmp/llvm --strip-components=1 --wildcards '*/bin/clang*' '*/bin/lld' '*/bin/ld.lld' '*/bin/ld64.lld' '*/bin/dsymutil' '*/bin/llvm-ar' '*/bin/llvm-ranlib' '*/bin/llvm-nm' '*/bin/llvm-objcopy' '*/lib/clang/*'
           rm tmp/$archive.tar.zst
           export PATH="$PWD/tmp/llvm/bin:$PATH"
           clang --version
@@ -1047,7 +1049,8 @@ jobs:
       # Issue #472: the mac targets with the one compiler every host uses
       # for them, LLVM's own release (clang, lld, dsymutil, the llvm tools)
       # at one pinned version, published for Linux x64 and arm64 and macOS
-      # arm64 hosts. Only the tools til and bin/make run are unpacked, and
+      # arm64 hosts. Only the tools til and bin/make run are unpacked (the
+      # archive needs zstd's long window, which tar --zstd refuses), and
       # they go first on PATH. Headers and libSystem are vendor/macos, as
       # before. On trial and continue-on-error until a run shows the three
       # hosts equal; the mac binaries the Macs RUN are still built by
@@ -1059,7 +1062,8 @@ jobs:
           curl -sSL --fail -o tmp/$archive.tar.zst https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.5/$archive.tar.zst
           echo "c3107384835f788768f614db610e87fba7077f125ca950eb02a78bab0a308065  tmp/$archive.tar.zst" | sha256sum -c -
           mkdir -p tmp/llvm
-          tar --zstd -xf tmp/$archive.tar.zst -C tmp/llvm --strip-components=1 --wildcards '*/bin/clang*' '*/bin/lld' '*/bin/ld.lld' '*/bin/ld64.lld' '*/bin/dsymutil' '*/bin/llvm-ar' '*/bin/llvm-ranlib' '*/bin/llvm-nm' '*/bin/llvm-objcopy' '*/lib/clang/*'
+          set -o pipefail
+          zstd -d --long=31 -c tmp/$archive.tar.zst | tar -xf - -C tmp/llvm --strip-components=1 --wildcards '*/bin/clang*' '*/bin/lld' '*/bin/ld.lld' '*/bin/ld64.lld' '*/bin/dsymutil' '*/bin/llvm-ar' '*/bin/llvm-ranlib' '*/bin/llvm-nm' '*/bin/llvm-objcopy' '*/lib/clang/*'
           rm tmp/$archive.tar.zst
           export PATH="$PWD/tmp/llvm/bin:$PATH"
           clang --version

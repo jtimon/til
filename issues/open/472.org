@@ -2748,3 +2748,21 @@ llvm-mingw -- is published for Linux x64, Linux arm64 and macOS arm64
   first run: ~bin/make~ gives the mac builds the checkout's absolute path
   (~-isystem <cwd>/vendor/macos/include~), which differs between the
   Linux runners and the Mac.
+
+*** Runs 3130 and 3131: all three hosts build windows-x64; the mac archive needs zstd's long window
+
+Run 3130: the Linux arm64 host and the Windows host also built
+windows-x64 with the pinned llvm-mingw and uploaded their lists (131
+lines each on Linux x64 and Windows). The collect job that compares the
+three had not started when this was written; it waits for the Mac
+suites.
+
+Run 3131, the first with the pinned LLVM for the mac targets: on Linux
+x64 the download and the sha256 were right, and the unpack failed --
+LLVM's ~.tar.zst~ is compressed with a long window ("Window size larger
+than maximum", "Use --long=30"), which ~tar --zstd~ refuses. Both Linux
+steps now unpack with ~zstd -d --long=31 -c ... | tar -xf -~ under
+~pipefail~. The Mac's step uses the ~.tar.xz~ and is not affected.
+
+Reading these runs: a step with ~continue-on-error~ shows as successful
+in the jobs list even when it failed; only its log says what happened.
