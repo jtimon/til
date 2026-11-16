@@ -1633,6 +1633,11 @@ jobs:
       MSYSTEM: UCRT64
       CHERE_INVOKING: 1
       MSYS2_PATH_TYPE: inherit
+      # Mesa's CPU renderer, the one the linux jobs draw with. Left to
+      # choose, Mesa took its D3D12 driver over Microsoft's software
+      # D3D12, and every GUI test that drew a frame died with exit 87 or
+      # never ended (CI run 3136; the ones that drew nothing passed).
+      GALLIUM_DRIVER: llvmpipe
     steps:
       - uses: actions/checkout@v5
       - name: Install the MinGW toolchain into MSYS2
