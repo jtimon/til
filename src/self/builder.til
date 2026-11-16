@@ -88,7 +88,9 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     // Extract directory from ext_c_path for -I flag
     mut ext_dir := "."
     slash := ext_c_path.rfind("/")
-    if slash >= 0 { ext_dir = ext_c_path.substr(0, slash.to_usize()).clone() }
+    if slash >= 0 { ext_dir = shell_path(ext_c_path.substr(0, slash.to_usize())) }
+    // Both name the compiler's support tree, which may hold a space (#483).
+    ext_c_arg := shell_path(ext_c_path)
 
     // #442: what produced this library, for a later reuse check. Only the
     // library's own objects define it: the constant is in its generated C
@@ -123,7 +125,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
         runtime_import_tmp := format(runtime_import_path, pid_suffix)
         cmd = compiler.format(extra, werr, asan_flags, usize_flags,
             " -fPIC -DTIL_LIBRARY_BUILD -include ", fwd_path, " -I", ext_dir,
-            " -c ", ext_c_path, " -o ", runtime_obj_tmp)
+            " -c ", ext_c_arg, " -o ", runtime_obj_tmp)
         result = system_cmd(cmd)
         if result != 0 {
             println("error: shared runtime compilation failed")
@@ -193,7 +195,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     } else {
         cmd = compiler.format(extra, werr, asan_flags, usize_flags,
             " -fPIC -DTIL_LIBRARY_BUILD -include ", fwd_path, " -I", ext_dir,
-            " -c ", ext_c_path, " -o ", ext_obj)
+            " -c ", ext_c_arg, " -o ", ext_obj)
         result = system_cmd(cmd)
         if result != 0 {
             println("error: ext.c compilation failed")
@@ -296,21 +298,19 @@ priv loads_gui_module := proc(lp: LoadedProgram) returns Bool {
 // (<prefix>/lib/til, the same root the loader's root_dir uses), and an
 // archive found in neither keeps its name. Only ".a"
 // tokens are touched; -l flags pass through.
-priv resolve_target_archives := proc(flags: Str, root: Str) returns Str {
-    if flags.find(".a").lt(0) { return flags }
-    mut out := ""
-    for tok : Str in flags.split(" ") {
-        if tok.len() == 0 { continue }
-        mut resolved := tok.clone()
-        if tok.ends_with(".a").and(File.is_absolute(tok).not()) {
-            if realpath_str(tok).len() == 0 {
-                root_candidate := format(root, "/", tok)
-                if realpath_str(root_candidate).len() > 0 { resolved = root_candidate }
-            }
+priv resolve_target_archive := proc(arg: Str, root: Str) returns Str {
+    if arg.ends_with(".a").and(File.is_absolute(arg).not()) {
+        if realpath_str(arg).len() == 0 {
+            root_candidate := format(root, "/", arg)
+            if realpath_str(root_candidate).len() > 0 { return root_candidate }
         }
-        if out.len() > 0 { out = format(out, " ") }
-        out = format(out, resolved)
     }
+    return arg.clone()
+}
+
+priv resolve_target_archives := proc(args: Vec(Str), root: Str) returns Vec(Str) {
+    mut out := Vec(Str).new()
+    for arg : Str in args { out.push(own resolve_target_archive(arg, root)) }
     return out
 }
 
@@ -390,7 +390,9 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // Extract directory from ext_c_path for -I flag
     mut ext_dir := "."
     slash := ext_c_path.rfind("/")
-    if slash >= 0 { ext_dir = ext_c_path.substr(0, slash.to_usize()).clone() }
+    if slash >= 0 { ext_dir = shell_path(ext_c_path.substr(0, slash.to_usize())) }
+    // Both name the compiler's support tree, which may hold a space (#483).
+    ext_c_arg := shell_path(ext_c_path)
 
     // If link_c files present, compile each to .o separately with -include forward.h
     mut user_part := ""
@@ -441,9 +443,6 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     if is_windows_target(target) { dyn_flag = " -Wl,--export-all-symbols" }
     if target.is(Target.Wasm32) { dyn_flag = "" }
 
-    // The -l flags a program's untargeted link()s carry for linux, as the
-    // target takes them (targets.til, target_link_flags).
-    lf = target_link_flags(lf, target)
 
     // Per-target system link flags. Table in src/self/targets.til.
     sys_libs := target_system_libs(target)
@@ -468,12 +467,12 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     if target_links_named_objects(target) {
         return compile_c_named_objects(compiler, extra, format(werr, asan_flags, prof_flags, usize_flags, stamp_flag),
             format(asan_flags, prof_link_flags, target_link_extra_args(target), dyn_flag),
-            ext_dir, bin_path, c_path, ext_c_path, format(user_part, lf, " ", sys_libs))
+            ext_dir, bin_path, c_path, ext_c_arg, format(user_part, lf, " ", sys_libs))
     }
 
     cmd := compiler.format(extra, werr, asan_flags, prof_flags, usize_flags, stamp_flag, prof_link_flags, target_link_extra_args(target), wasm_js_flags, " -g", dyn_flag, " -I", ext_dir,
         " -o ", bin_path, " ", c_path,
-        " ", ext_c_path, user_part, lf,
+        " ", ext_c_arg, user_part, lf,
         " ", sys_libs)
 
     result := system_cmd(cmd)
@@ -1005,15 +1004,20 @@ priv compile_ast := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, c
     // alias used by typecheck, layout, constfold, and interpretation.
     usize64 := lp.ctx.target_usize_pname == "U64"
     build_flags := c_build_flags(lp)
-    link_flags := format(lp.link_flags_for_target(), macos_framework_flags(lp))
-    include_flags := lp.include_flags_for_target()
+    // Command-line text, each path quoted for the host's shell (#483). A
+    // program's link arguments are filtered for its target; a library's
+    // are passed as written, as they always were.
+    link_args := lp.link_args_for_target()
+    lib_link_flags := format(shell_args(link_args, ""), macos_framework_flags(lp))
+    link_flags := format(shell_args(target_link_args(link_args, target), ""), macos_framework_flags(lp))
+    include_flags := shell_args(lp.include_dirs_for_target(), "-I")
     if paths.android_dir.len() > 0 {
         return compile_android_apk(lp, paths, target, cc_override, asan, prof)
     }
     if report_missing_target_archives(lp) != 0 { return 1 }
     if paths.do_lib {
         return compile_lib(paths.c_path, paths.name, lp.ext_c_path,
-            lp.link_c_paths, link_flags, include_flags, target,
+            lp.link_c_paths, lib_link_flags, include_flags, target,
             cc_override, asan, usize64, lp.uses_shared_runtime(),
             lp.runtime_stem(), lp.runtime_shared_basename(),
             lp.core_stem(), lp.core_shared_basename(), build_flags, lp.executable_stamp)
@@ -1069,7 +1073,8 @@ priv macos_framework_flags := proc(lp: LoadedProgram) returns Str {
         }
         return out
     }
-    return format(" ", macos_framework_stubs_dir(lp), "/*.tbd")
+    // The glob stays outside the quotes, for sh to expand.
+    return format(" ", shell_path(macos_framework_stubs_dir(lp)), "/*.tbd")
 }
 
 // Where the framework stubs are: the cwd spelling inside a til checkout,
@@ -1100,9 +1105,8 @@ priv report_missing_target_archives := proc(lp: LoadedProgram) returns I32 {
     }
     for tl : TargetLink in lp.target_links {
         if target_list_has(tl.targets, lp.target).not() { continue }
-        archive := tl.flag.trim()
-        if archive.ends_with(".a").not() { continue }
-        if realpath_str(resolve_target_archives(archive, lp.ctx.import_support_dir)).len() > 0 { continue }
+        if tl.arg.ends_with(".a").not() { continue }
+        if realpath_str(resolve_target_archive(tl.arg, lp.ctx.import_support_dir)).len() > 0 { continue }
         println(format("error: this program links ", tl.written, " for --target=",
             target_to_str(lp.target), ", and it is not built"))
         if lp.cur_mode.build_hint.len() > 0 {
@@ -1116,10 +1120,6 @@ priv report_missing_target_archives := proc(lp: LoadedProgram) returns I32 {
         return 1
     }
     return 0
-}
-
-priv mlir_shell_quote := func(value: Str) returns Str {
-    return format("'", value.replace("'", "'\"'\"'"), "'")
 }
 
 priv compile_mlir := proc(lp: LoadedProgram, paths: BuildPaths) returns I32 {
@@ -1145,8 +1145,8 @@ priv compile_mlir := proc(lp: LoadedProgram, paths: BuildPaths) returns I32 {
     if lp.executable_stamp.len() > 0 { runtime.arg(format("-DTIL_BUILD_STAMP=", lp.executable_stamp)) }
     if runtime.run() != 0 { return 1 }
     // LLVM may lower explicit FMA to fmaf on CPUs without a hardware FMA.
-    mut support := mlir_shell_quote(runtime_obj)
-    if lp.mlir_needs_core { support = format(mlir_shell_quote(core_obj), " ", support) }
+    mut support := shell_path(runtime_obj)
+    if lp.mlir_needs_core { support = format(shell_path(core_obj), " ", support) }
     mut flags := format(" -x none ", support, " -lm")
     if paths.do_lib {
         destination = format("gen/lib/", paths.name, ".o")
@@ -1156,9 +1156,9 @@ priv compile_mlir := proc(lp: LoadedProgram, paths: BuildPaths) returns I32 {
     // caller's tmp/, restore those attributes from declarations, then optimize.
     // This is regenerated scratch storage, not a compilation cache.
     llvm_path := format("tmp/mlir-",process_id().to_str(),".ll")
-    pipeline := format("mlir-opt-18 ", mlir_shell_quote(paths.c_path),
+    pipeline := format("mlir-opt-18 ", shell_path(paths.c_path),
         " --convert-vector-to-llvm --convert-arith-to-llvm --reconcile-unrealized-casts",
-        " | mlir-translate-18 --mlir-to-llvmir > ",mlir_shell_quote(llvm_path))
+        " | mlir-translate-18 --mlir-to-llvmir > ",shell_path(llvm_path))
     shell := Cmd.new()
     shell.args("bash", "-o", "pipefail", "-c", pipeline)
     shell.env("TMPDIR", temporary_directory)
@@ -1170,8 +1170,8 @@ priv compile_mlir := proc(lp: LoadedProgram, paths: BuildPaths) returns I32 {
     }
     llvm_ir := File.readfile(llvm_path)
     File.writefile(llvm_path,mlir_llvm_call_attributes(llvm_ir))
-    compile := Cmd.new("bash","-o","pipefail","-c",format("clang-18 -x ir ",mlir_shell_quote(llvm_path),
-        " -O",lp.opt_level.to_str()," ",lp.cpu.c_flags," -ffp-contract=off",flags," -o ",mlir_shell_quote(destination)))
+    compile := Cmd.new("bash","-o","pipefail","-c",format("clang-18 -x ir ",shell_path(llvm_path),
+        " -O",lp.opt_level.to_str()," ",lp.cpu.c_flags," -ffp-contract=off",flags," -o ",shell_path(destination)))
     compile.env("TMPDIR",temporary_directory)
     compile_status := compile.run()
     File.remove(llvm_path)
@@ -1436,29 +1436,29 @@ priv compile_android_apk := proc(lp: LoadedProgram, paths: BuildPaths, target: T
     extra := format(toolchain_extra_args(target), c_build_flags(lp), width,
         " -fPIC -fvisibility=hidden -ffunction-sections -fdata-sections -Werror",
         " -DTIL_ANDROID_GUI -DInitWindow=til_android_init_window -I",
-        mlir_shell_quote(format(root, "/vendor/android/native_app_glue")))
+        shell_path(format(root, "/vendor/android/native_app_glue")))
     ext_dir := lp.ext_c_path.substr(0, lp.ext_c_path.rfind("/").to_usize())
     mut objects := ""
     mut index : USize = 0
     for source : Str in lp.link_c_paths.split(" ") {
         if source.len() == 0 { continue }
         object := format(stage, "/user_", index.to_str(), ".o")
-        cmd := format(compiler, extra, " -I", mlir_shell_quote(ext_dir), lp.include_flags_for_target(),
-            " -include ", mlir_shell_quote(paths.fwd_path), " -c ", mlir_shell_quote(source), " -o ", mlir_shell_quote(object))
+        cmd := format(compiler, extra, " -I", shell_path(ext_dir), shell_args(lp.include_dirs_for_target(), "-I"),
+            " -include ", shell_path(paths.fwd_path), " -c ", shell_path(source), " -o ", shell_path(object))
         if system_cmd(cmd) != 0 { println("error: Android link_c compilation failed"); return 1 }
-        objects = format(objects, " ", mlir_shell_quote(object))
+        objects = format(objects, " ", shell_path(object))
         index++
     }
-    mut links := ""
-    for token : Str in resolve_target_archives(lp.link_flags_for_target(), root).split(" ") {
-        if token.len() == 0 { continue }
-        if token.eq("-lrt").or(token.eq("-lpthread")) { continue }
-        links = format(links, " ", token)
+    mut kept := Vec(Str).new()
+    for arg : Str in resolve_target_archives(lp.link_args_for_target(), root) {
+        if arg.eq("-lrt").or(arg.eq("-lpthread")) { continue }
+        kept.push(own arg.clone())
     }
-    cmd := format(compiler, extra, " -g -I", mlir_shell_quote(ext_dir),
+    links := shell_args(kept, "")
+    cmd := format(compiler, extra, " -g -I", shell_path(ext_dir),
         " -shared -Wl,--gc-sections,-z,defs -Wl,-u,ANativeActivity_onCreate -Wl,-soname,", lib_name,
-        target_link_extra_args(target), " -o ", mlir_shell_quote(shared), " ", mlir_shell_quote(paths.c_path),
-        " ", mlir_shell_quote(lp.ext_c_path), objects, links, " ", target_system_libs(target))
+        target_link_extra_args(target), " -o ", shell_path(shared), " ", shell_path(paths.c_path),
+        " ", shell_path(lp.ext_c_path), objects, links, " ", target_system_libs(target))
     if system_cmd(cmd) != 0 { println("error: Android native application link failed"); return 1 }
     unsigned := format(stage, "/unsigned.apk")
     aligned := format(stage, "/aligned.apk")
@@ -1517,9 +1517,9 @@ priv build_jni := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_
     // the til runtime (allocator, cage) resolve at load time from the
     // libraries lib<name> brings in, as ELF does by default.
     if host_os() == "macos" { link_extra = " -Wl,-undefined,dynamic_lookup" }
-    mut includes := format(" -I", mlir_shell_quote(format(java_home, "/include")),
-        " -I", mlir_shell_quote(format(java_home, "/include/", os_include)))
-    mut rpath := format(" ", mlir_shell_quote(format("-Wl,-rpath,", origin)))
+    mut includes := format(" -I", shell_path(format(java_home, "/include")),
+        " -I", shell_path(format(java_home, "/include/", os_include)))
+    mut rpath := format(" ", shell_path(format("-Wl,-rpath,", origin)))
     if is_android_target(target) {
         includes = ""
         rpath = ""
@@ -1528,7 +1528,7 @@ priv build_jni := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_
     }
     cmd := compiler.format(toolchain_extra_args(target), c_build_flags(lp), " -Werror", asan_flags, usize_flags,
         " -shared -fPIC", includes,
-        " -I", h_dir, " -I", ext_dir, " ", paths.jni_c_path, " -Lgen/lib -l", paths.name,
+        " -I", h_dir, " -I", shell_path(ext_dir), " ", paths.jni_c_path, " -Lgen/lib -l", paths.name,
         rpath, link_extra, " -o ", jni_bridge_path(paths, target))
     if system_cmd(cmd) != 0 {
         println("error: JNI bridge compilation failed")
@@ -1812,9 +1812,7 @@ priv executable_inputs := proc(lp: LoadedProgram, paths: BuildPaths) returns Vec
     mut include_dirs := Vec(Str).new()
     ext_slash := lp.ext_c_path.rfind("/")
     if ext_slash >= 0 { include_dirs.push(own lp.ext_c_path.substr(0, ext_slash.to_usize())) }
-    for flag : Str in lp.include_flags_for_target().split(" ") {
-        if flag.starts_with("-I") { include_dirs.push(own flag.strip_prefix("-I").clone()) }
-    }
+    for dir : Str in lp.include_dirs_for_target() { include_dirs.push(own dir.clone()) }
     if is_android_target(lp.target) {
         // These are vendored build inputs, not untracked host system headers
         // and libraries. A sysroot upgrade must invalidate a reused executable.
@@ -1844,11 +1842,9 @@ priv executable_inputs := proc(lp: LoadedProgram, paths: BuildPaths) returns Vec
     }
     // Linked files the program names by path (archives, objects); -l
     // libraries are system ones, untracked as with make.
-    linked := resolve_target_archives(lp.link_flags_for_target(), builder_compiler_root(lp))
-    for token : Str in linked.split(" ") {
-        if token.len() == 0 { continue }
-        if token.starts_with("-") { continue }
-        if File.is_file(token) { inputs.push(own token.clone()) }
+    for arg : Str in resolve_target_archives(lp.link_args_for_target(), builder_compiler_root(lp)) {
+        if arg.starts_with("-") { continue }
+        if File.is_file(arg) { inputs.push(own arg.clone()) }
     }
     // The framework stubs link through a *.tbd glob the shell expands, so
     // the flags name no file: list each stub, and the directory itself,
@@ -2004,9 +2000,9 @@ set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, c
     executable.push(own prof.to_str())
     executable.push(own lp.opt_level.to_str())
     executable.push(own lp.cpu.c_flags.clone())
-    executable.push(own lp.link_flags_for_target())
+    executable.push(own args_text(lp.link_args_for_target(), ""))
     executable.push(own macos_framework_flags(lp))
-    executable.push(own lp.include_flags_for_target())
+    executable.push(own args_text(lp.include_dirs_for_target(), "-I"))
     executable.push(own lp.link_c_paths.clone())
     executable.push(own path_from_dir(realpath_str(lp.ext_c_path), bin_dir))
     executable.push(own loads_gui_module(lp).to_str())

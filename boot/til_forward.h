@@ -1625,8 +1625,8 @@ typedef struct ProgramUnit {
 
 
 typedef struct TargetLink {
-    Str flag;
-    Str include;
+    Str arg;
+    Str include_dir;
     Str targets;
     Str written;
 } TargetLink;
@@ -3022,8 +3022,8 @@ typedef struct LoadedProgram {
     Str mode_str;
     Str path;
     Str ext_c_path;
-    Str link_flags;
-    Str include_flags;
+    Vec__Str link_args;
+    Vec__Str include_dirs;
     Vec__TargetLink target_links;
     Str macos_frameworks;
     Str link_c_paths;

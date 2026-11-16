@@ -1108,7 +1108,7 @@ priv validate_theme_cli := proc(cli: CliArgs, lp: LoadedProgram) {
 }
 
 // Split trailing args (after the source path) into -l flags (appended to
-// lp.link_flags) and user argv (returned).
+// lp.link_args) and user argv (returned).
 collect_user_argv := func(mut lp: LoadedProgram, args: Array(Str), start_idx: USize) returns Vec(Str) {
     mut user_argv := Vec(Str).new()
     mut ai := start_idx
@@ -1121,7 +1121,7 @@ collect_user_argv := func(mut lp: LoadedProgram, args: Array(Str), start_idx: US
                 ref next_arg : Str = args[ai]
                 lib = next_arg.clone()
             }
-            lp.link_flags = lp.link_flags.format(" -l", lib)
+            lp.link_args.push(own format("-l", lib))
         } else {
             user_argv.push(own arg.clone())
         }
@@ -1346,7 +1346,7 @@ main := proc(args: ..Str) {
     }
     prepare_program(lp, cli.command == "test")
 
-    if cli.backend.eq("fasm").or(cli.backend.eq("mlir")) && (lp.link_c_paths.len() > 0 || lp.link_flags_for_target().len() > 0) {
+    if cli.backend.eq("fasm").or(cli.backend.eq("mlir")) && (lp.link_c_paths.len() > 0 || lp.link_args_for_target().len() > 0) {
         if cli.backend == "fasm" {
             println("error: FASM backend does not yet support link_c or link flags")
         } else {

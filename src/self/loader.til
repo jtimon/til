@@ -324,12 +324,14 @@ priv unit_is_native_api := func(path: Str, unit: ImportUnit, ctx: Context) retur
 // --- LoadedProgram ---
 
 // A link() restricted to some targets by its optional second argument
-// (issue #422): the flag and include directory it contributes, kept
-// apart from LoadedProgram's unconditional ones until the build target
-// is known -- load_program runs before til.til sets lp.target.
+// (issue #422): the link argument and include directory it contributes,
+// kept apart from LoadedProgram's unconditional ones until the build
+// target is known -- load_program runs before til.til sets lp.target.
 TargetLink := struct {
-    flag := ""
-    include := ""
+    // One argument: `-l<name>`, or a resolved path, unquoted.
+    arg := ""
+    // "" when the link() names no directory to include.
+    include_dir := ""
     targets := ""
     // The link() argument as written, for the missing-archive report's
     // build_hint (bin/make goals are root-relative, not resolved paths).
@@ -359,10 +361,14 @@ LoadedProgram := struct {
     mode_str := ""
     path := ""
     ext_c_path := ""
-    link_flags := ""
-    include_flags := ""
-    // link()s with a target list; link_flags_for_target and
-    // include_flags_for_target add the ones that apply to `target`.
+    // One entry per argument (`-l<name>` or a resolved library path) and
+    // per include directory, unquoted: a path may hold a space, so it is
+    // never joined into one string the readers would have to split
+    // (#483). A command line quotes each one where it is written.
+    link_args := Vec(Str).new()
+    include_dirs := Vec(Str).new()
+    // link()s with a target list; link_args_for_target and
+    // include_dirs_for_target add the ones that apply to `target`.
     target_links := Vec(TargetLink).new()
     // link_macos()'s framework names, space-separated: linked only for the
     // macOS targets (-framework on a mac host, the generated stubs off one).
@@ -468,17 +474,19 @@ namespace:
     }
     // Every link flag of the program for its target: the unconditional
     // link()s plus the target-restricted ones naming self.target.
-    link_flags_for_target := func(self: LoadedProgram) returns Str {
-        mut out := self.link_flags.clone()
+    link_args_for_target := func(self: LoadedProgram) returns Vec(Str) {
+        mut out := self.link_args.clone()
         for tl : TargetLink in self.target_links {
-            if target_list_has(tl.targets, self.target) { out = format(out, tl.flag) }
+            if target_list_has(tl.targets, self.target) { out.push(own tl.arg.clone()) }
         }
         return out
     }
-    include_flags_for_target := func(self: LoadedProgram) returns Str {
-        mut out := self.include_flags.clone()
+    include_dirs_for_target := func(self: LoadedProgram) returns Vec(Str) {
+        mut out := self.include_dirs.clone()
         for tl : TargetLink in self.target_links {
-            if target_list_has(tl.targets, self.target) { out = format(out, tl.include) }
+            if target_list_has(tl.targets, self.target).and(tl.include_dir.len().gt(0)) {
+                out.push(own tl.include_dir.clone())
+            }
         }
         return out
     }
@@ -493,8 +501,8 @@ namespace:
         Str.delete(own self.mode_str, false)
         Str.delete(own self.path, false)
         Str.delete(own self.ext_c_path, false)
-        Str.delete(own self.link_flags, false)
-        Str.delete(own self.include_flags, false)
+        own self.link_args.delete(false)
+        own self.include_dirs.delete(false)
         own self.target_links.delete(false)
         Str.delete(own self.macos_frameworks, false)
         Str.delete(own self.link_c_paths, false)
@@ -992,7 +1000,7 @@ priv validate_cli_main := proc(lp: LoadedProgram) {
 }
 
 // Scan program AST for link()/link_macos()/link_c() directives; fill
-// link_flags, include_flags, target_links, macos_frameworks and
+// link_args, include_dirs, target_links, macos_frameworks and
 // link_c_paths on the given LoadedProgram.
 priv extract_link_info := proc(mut lp: LoadedProgram) {
     root_dir := lp.ctx.import_support_dir.clone()
@@ -1019,17 +1027,17 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
                     case .Literal(Literal.Str(arg)):
                         if fname.ident_name(lp.ctx.symbols.names) == "link" {
                             keep = false
-                            mut flag := format(" -l", arg)
-                            mut include := ""
+                            mut link_arg := format("-l", arg)
+                            mut include_dir := ""
                             if arg.find("/") >= 0 {
                                 resolved := resolve_link_path(base_dir, link_root, arg)
-                                flag = format(" ", resolved)
+                                link_arg = resolved.clone()
                                 last_slash := resolved.rfind("/")
                                 if last_slash >= 0 {
                                     parent_dir := resolved.substr(0, last_slash.to_usize())
                                     parent_slash := parent_dir.rfind("/")
                                     if parent_slash >= 0 {
-                                        include = format(" -I", parent_dir.substr(0, parent_slash.to_usize()), "/include")
+                                        include_dir = format(parent_dir.substr(0, parent_slash.to_usize()), "/include")
                                     }
                                 }
                             }
@@ -1037,10 +1045,10 @@ priv extract_link_info := proc(mut lp: LoadedProgram) {
                                 // link(path, "<targets>") (issue #422): only for the
                                 // listed targets, decided once lp.target is known.
                                 targets := link_targets_arg(stmt.children[2], u.path)
-                                lp.target_links.push(own TargetLink(flag = flag, include = include, targets = targets, written = arg.clone()))
+                                lp.target_links.push(own TargetLink(arg = link_arg, include_dir = include_dir, targets = targets, written = arg.clone()))
                             } else {
-                                lp.link_flags = lp.link_flags.format(flag)
-                                lp.include_flags = lp.include_flags.format(include)
+                                lp.link_args.push(own link_arg)
+                                if include_dir.len() > 0 { lp.include_dirs.push(own include_dir) }
                             }
                         } else if nargs.eq(1).and(fname.ident_name(lp.ctx.symbols.names) == "link_macos") {
                             // link_macos("<Framework> ...") (issue #422): the

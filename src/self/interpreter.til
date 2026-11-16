@@ -8233,7 +8233,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
         // Embedding only loads prebuilt libraries. It never builds a link_c
         // bridge or takes ownership of the process-global user-FFI handle.
         if lp.ctx.imported[lp.path].prelude_import.len() == 0 {
-            if ffi_init_link_libs(lp.link_flags_for_target(), lp.ctx) != 0 { return 1 }
+            if ffi_init_link_libs(lp.link_args_for_target(), lp.ctx) != 0 { return 1 }
         } else {
             root_dir := lp.ctx.import_support_dir.clone()
             for unit : ProgramUnit in lp.units {
@@ -8265,7 +8265,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
             }
         }
     } else {
-        ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_flags_for_target(), lp.ctx)
+        ffi_rc := ffi_init(empty, fwd_path, lp.link_c_paths, lp.ext_c_path, lp.link_args_for_target(), lp.ctx)
         if ffi_rc.eq(0).not() { return ffi_rc }
     }
     runtime_src_prefix := compiler_src_prefix(lp.ctx)
@@ -9038,23 +9038,16 @@ priv ffi_load_archive_twin := proc(archive_path: Str, mut ctx: Context, origin: 
     return 0
 }
 
-priv ffi_init_link_libs := proc(link_flags: Str, mut ctx: Context, origin: Str = "", line: U32 = 0, col: U32 = 0) returns I32 {
+priv ffi_init_link_libs := proc(link_args: Vec(Str), mut ctx: Context, origin: Str = "", line: U32 = 0, col: U32 = 0) returns I32 {
     // `-lfoo` names a soname; archives need a loadable twin. Every other
     // entry is a library path already resolved relative to its source file
     // by the loader. Pass those paths to the OS loader as written, including
     // versioned shared libraries and files without the usual suffix.
     // dlopen resolves "-lfoo" flags by soname; the shared-lib suffix is
     // host-dependent (this runs in the compiler, on the build host).
-    mut i : USize = 0
-    while i < link_flags.len() {
-        if link_flags.unsafe_get(i) == 32 { i++; continue }
-        start := i
-        while i < link_flags.len() {
-            if link_flags.unsafe_get(i) == 32 { break }
-            i++
-        }
-        tok := link_flags.substr(start, i - start)
-        if ffi_load_link(tok, ctx, origin, line, col) != 0 { return 1 }
+    // One link argument each, a path that may hold a space included (#483).
+    for arg : Str in link_args {
+        if ffi_load_link(arg, ctx, origin, line, col) != 0 { return 1 }
     }
     return 0
 }
@@ -9132,7 +9125,7 @@ priv ffi_load_link := proc(target: Str, mut ctx: Context, origin: Str = "", line
     return 0
 }
 
-priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut so_path_out: Str) returns I32 {
+priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_args: Vec(Str), mut so_path_out: Str) returns I32 {
     so_path_out = Str(c_str = bits_word(0), count = 0, cap = 0)
     if user_c_path.len() == 0 { return 0 }
 
@@ -9153,12 +9146,12 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     // Compiled programs still link their original archives in the builder.
     // The host is the bridge's target: its link flags are filtered as a
     // build for it filters them (a macOS host has no -latomic).
-    mut lf := ""
-    for flag : Str in target_link_flags(link_flags, detect_current_target()).split(" ") {
-        if flag.len() == 0 { continue }
-        if flag.ends_with(".a") { lf = format(lf, " ", ffi_archive_twin_path(flag)) }
-        else { lf = format(lf, " ", flag) }
+    mut linked := Vec(Str).new()
+    for arg : Str in target_link_args(link_args, detect_current_target()) {
+        if arg.ends_with(".a") { linked.push(own ffi_archive_twin_path(arg)) }
+        else { linked.push(own arg.clone()) }
     }
+    lf := shell_args(linked, "")
     // #299: match the interpreter's own sanitizer. Under bin/til_asan the user
     // .so must be ASAN-instrumented too, so its libc allocator IS the ASAN
     // allocator -- otherwise an interpreter-side calloc that libffi routes to
@@ -9185,7 +9178,7 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     // ffi_dlopen_fail_interp asserts that shape on macos, which a blanket
     // -undefined dynamic_lookup broke (run 2879).
     mut link_kind := " -shared -fPIC"
-    if host_os() == "macos" { link_kind = format(" -bundle -bundle_loader ", get_exe_path(), " -fPIC") }
+    if host_os() == "macos" { link_kind = format(" -bundle -bundle_loader ", shell_path(get_exe_path()), " -fPIC") }
     mut compiler := "cc"
     mut host_imports := ""
     if host_os() == "windows" {
@@ -9211,7 +9204,7 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
             return 1
         }
     }
-    cmd := format(compiler, " -Wall -Wextra -fsigned-char", link_kind, san, usize_define, " -I", ext_dir,
+    cmd := format(compiler, " -Wall -Wextra -fsigned-char", link_kind, san, usize_define, " -I", shell_path(ext_dir),
         " -include ", fwd_path,
         " -o ", so_path_out,
         " ", user_c_path, lf, " ", host_imports)
@@ -13363,7 +13356,7 @@ ffi_init_scan_program := proc(program: Expr, mut ctx: Context, runtime_decl: Boo
     }
 }
 
-priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_flags: Str, mut ctx: Context) returns I32 {
+priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path: Str, link_args: Vec(Str), mut ctx: Context) returns I32 {
     if ctx.ffi.loaded {
         ffi_cleanup(ctx)
         ctx.ffi.entries_inited = false
@@ -13376,13 +13369,13 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
     // the order stays what it was.
     windows := host_os() == "windows"
     if windows {
-        if ffi_init_link_libs(link_flags, ctx) != 0 { return 1 }
+        if ffi_init_link_libs(link_args, ctx) != 0 { return 1 }
     }
-    if ffi_init_user_so(fwd_path, user_c_path, ext_c_path, link_flags, so_path).eq(0).not() {
+    if ffi_init_user_so(fwd_path, user_c_path, ext_c_path, link_args, so_path).eq(0).not() {
         return 1
     }
     if windows.not() {
-        if ffi_init_link_libs(link_flags, ctx) != 0 {
+        if ffi_init_link_libs(link_args, ctx) != 0 {
             if so_path.len() > 0 {
                 ffi_close_user_so()
                 File.remove(so_path)

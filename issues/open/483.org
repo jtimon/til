@@ -118,6 +118,32 @@ native build gets, and the next commit fixes that.
     rule skipped constants on the assumption that they are literals.
     d226262 made make.til clone ~TIL~, ~ASAN~ and ~DEBUG~ there; the rule
     now rejects moving a computed constant out ("pass X.clone()").
+  - [X] Run 3114: ~make~ and ~make install~ PASS natively on Windows,
+    from the repository alone, and the installed til.exe interprets a
+    program from outside the checkout. ~til.exe run~ failed: the compile
+    command passed the support tree, ~C:/Program Files/til/lib/til~,
+    unquoted, so gcc got ~-IC:/Program~ and ~Files/til/...~. builder.til
+    now quotes the support tree's paths (~ext_dir~, ~ext.c~) for the
+    host's shell (targets.til ~shell_path~: single quotes for sh, double
+    quotes for cmd.exe, unchanged when no quoting is needed). Reproduced
+    and checked on Linux with a prefix holding a space.
+  - [X] A ~link()~ path holding a space (every installed archive, under
+    the default Windows prefix): the loader kept link flags as one
+    space-joined string, which the compile command, ~target_link_flags~,
+    ~resolve_target_archives~ and the interpreter's ~ffi_init_link_libs~
+    all split on spaces. Now ~LoadedProgram~ keeps ~link_args~ and
+    ~include_dirs~ as lists of unquoted paths (~resolve_link_path~ still
+    the only producer); every reader iterates them, the interpreter loads
+    each with its existing ~ffi_load_link~, and command lines are written
+    by targets.til ~shell_args~ through the one quoter, ~shell_path~,
+    which replaces builder.til's ~mlir_shell_quote~. test/install.til now
+    installs under "tmp/install test", so every installed-compiler leg
+    (gui, std/crypto interpreted and compiled, Python, JNI, the REPL)
+    runs with a space in its paths.
+  - [ ] Later (not needed for this issue): build the compile commands
+    with ~Cmd~ (argv, no shell; ~win_quote_arg~ on Windows) so no
+    quoting is left. Two flags rely on the shell today: the ~'$ORIGIN'~
+    rpath and the framework stubs' ~*.tbd~ glob.
   - [ ] Fix what the next runs report, until the job passes; then make it
     blocking like the others and document the Windows build (MSYS2
     UCRT64, the three pacman packages) beside the Linux and macOS ones.

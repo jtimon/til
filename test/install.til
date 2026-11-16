@@ -24,7 +24,10 @@ import("jni_support")
 // Not part of `both`: it is a driver, not a test() file. Run through
 // `bin/til run test/install.til` like the other cli-driven tests.
 
-PREFIX := "tmp/install_test"
+// The prefix holds a space on purpose (#483): the default Windows prefix,
+// C:/Program Files/til, does, and every path the installed compiler hands
+// a command line -- its support tree, its archives -- must survive one.
+PREFIX := "tmp/install test"
 WORK := "tmp/install_test_work"
 
 require := proc(path: Str) {
@@ -150,7 +153,7 @@ main := proc(args: ..Str) returns I64 {
     // Paths are relative to WORK, where the program is compiled: the
     // installed til is found through its own location, not through this
     // repository's working directory.
-    installed_til := "../install_test/bin/til"
+    installed_til := "../install test/bin/til"
     if detect_current_target().is(Target.LinuxX64) && File.is_file("vendor/fasm/fasm") {
         assembler := format(PREFIX, "/lib/til/vendor/fasm/fasm")
         runtime := format(PREFIX, "/lib/til/src/self/codegen/ext.fasm")
@@ -196,7 +199,7 @@ main := proc(args: ..Str) returns I64 {
     if host_os() != "windows" {
         File.writefile(format(WORK, "/reinstall_self.til"), format(
             "mode script\nimport(\"std/sys\")\n",
-            "if copy_file(\"../../bin/til\", \"../install_test/bin/til\") != 0 { panic(\"busy reinstall failed\") }\n",
+            "if copy_file(\"../../bin/til\", \"../install test/bin/til\") != 0 { panic(\"busy reinstall failed\") }\n",
             "println(\"reinstalled while running\")\n"))
         reinstall := Cmd.new(installed_til, "interpret", "reinstall_self.til")
         reinstall.cwd(WORK).capture()
@@ -349,7 +352,7 @@ main := proc(args: ..Str) returns I64 {
         "installed_split_join := func(value: Dynamic) returns I64 { parts := Str.from_c_str(value).split(\"|\"); return join(parts, \":\").len().to_i64() }\n",
         "installed_format := func() returns I64 { return format(\"hello\", \"!\").replace(\"!\", \"\").len().to_i64() }\n",
         "installed_failure := func() { panic(\"installed\", \" core panic\", loc = \"installed-test\") }\n"))
-    lib_install := Cmd.new(installed_til, "install", "--prefix=../install_test", "installed_lib.til")
+    lib_install := Cmd.new(installed_til, "install", "--prefix=../install test", "installed_lib.til")
     lib_install.cwd(WORK)
     lib_install.run_checked()
     // Installing a library creates the existing lib/ search directory. Now
@@ -386,7 +389,7 @@ main := proc(args: ..Str) returns I64 {
     saved_core := format(WORK, "/saved_core", shared_ext)
     File.rename(core_path, saved_core)
     missing_core := Cmd.new("python3", "-c",
-        "import sys; sys.path.insert(0, '../install_test/lib/til/lib'); import installed_lib")
+        "import sys; sys.path.insert(0, '../install test/lib/til/lib'); import installed_lib")
     missing_core.cwd(WORK)
     missing_core.capture()
     missing_status := missing_core.run()
@@ -401,11 +404,11 @@ main := proc(args: ..Str) returns I64 {
     }
     if canonical_parser.not() { panic("installed private numeric parser has no canonical core name") }
     py := Cmd.new("python3", "-c",
-        "import sys, ctypes; sys.path.insert(0, '../install_test/lib/til/lib'); import installed_lib; assert installed_lib.installed_value() == 77; assert installed_lib.installed_format() == 5; assert installed_lib.installed_parse(ctypes.c_char_p(b'18446744073709551615')) == 18446744073709551615; assert installed_lib.installed_split_join(ctypes.c_char_p(b'alpha|beta|gamma')) == 16")
+        "import sys, ctypes; sys.path.insert(0, '../install test/lib/til/lib'); import installed_lib; assert installed_lib.installed_value() == 77; assert installed_lib.installed_format() == 5; assert installed_lib.installed_parse(ctypes.c_char_p(b'18446744073709551615')) == 18446744073709551615; assert installed_lib.installed_split_join(ctypes.c_char_p(b'alpha|beta|gamma')) == 16")
     py.cwd(WORK)
     py.run_checked()
     py_failure := Cmd.new("python3", "-c",
-        "import sys; sys.path.insert(0, '../install_test/lib/til/lib'); import installed_lib; installed_lib.installed_failure()")
+        "import sys; sys.path.insert(0, '../install test/lib/til/lib'); import installed_lib; installed_lib.installed_failure()")
     py_failure.cwd(WORK)
     py_failure.capture()
     if py_failure.run() != 1 { panic("installed shared panic did not exit with status 1") }
@@ -419,7 +422,7 @@ main := proc(args: ..Str) returns I64 {
     // caller outside the checkout needs only the installed jar, which
     // carries the natives.
     if run_jvm {
-        jni_install := Cmd.new(installed_til, "install", "--jni", "--prefix=../install_test", "installed_lib.til")
+        jni_install := Cmd.new(installed_til, "install", "--jni", "--prefix=../install test", "installed_lib.til")
         jni_install.cwd(WORK)
         jni_install.run_checked()
         jar := format(PREFIX, "/lib/installed_lib.jar")
@@ -525,7 +528,7 @@ main := proc(args: ..Str) returns I64 {
     File.remove(format(PREFIX, "/lib/til/", ffi_archive))
     File.writefile(format(WORK, "/installed_ffi.til"), format(
         "mode cli\n\n",
-        "import(\"../install_test/lib/til/vendor/bindings/libffi\")\n",
+        "import(\"../install test/lib/til/vendor/bindings/libffi\")\n",
         "link(\"", ffi_archive, "\", \"", host_name, "\")\n\n",
         "main := proc() {\n",
         "    mut rt := ffi_type()\n",
@@ -551,7 +554,7 @@ main := proc(args: ..Str) returns I64 {
         panic("could not restore installed libffi archive")
     }
 
-    repl := Cmd.new("sh", "-c", "printf '%s\\n' 'help(\"println\")' | ../install_test/bin/til")
+    repl := Cmd.new("sh", "-c", "printf '%s\\n' 'help(\"println\")' | '../install test/bin/til'")
     repl.cwd(WORK)
     repl.capture()
     repl_status := repl.run()

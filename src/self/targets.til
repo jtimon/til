@@ -315,6 +315,28 @@ executable_extension := func(target: Target) returns Str {
     }
 }
 
+// A path as one argument of a command line that system_cmd runs through
+// the host's shell: sh, or cmd.exe on Windows. Returned as it is when it
+// holds only bytes neither shell treats specially, so existing command
+// lines are unchanged; otherwise single-quoted for sh, and double-quoted
+// for cmd.exe, which passes the quotes to the program (a Windows path
+// cannot contain '"'). #483: the installed support tree is
+// C:/Program Files/til/lib/til, and gcc took `-IC:/Program` and
+// `Files/til/...` as two arguments.
+shell_path := proc(path: Str) returns Str {
+    mut plain := true
+    for i in 0..path.len() {
+        ref c : I8 = path.get(i)
+        switch c {
+        case 'a'..'z', 'A'..'Z', '0'..'9', '/', '.', '_', '-', '+', ':', '@', '%', ',', '=':
+        case: plain = false
+        }
+    }
+    if plain { return path.clone() }
+    if host_os() == "windows" { return format("\"", path, "\"") }
+    return format("'", path.replace("'", "'\"'\"'"), "'")
+}
+
 shared_lib_extension := func(target: Target) returns Str {
     switch target {
     case .WindowsX64, .WindowsX86: return ".dll"
@@ -370,23 +392,39 @@ target_list_has := func(list: Str, target: Target) returns Bool {
 // linux-only dep, which the mingw nng build does not need); on wasm it
 // stays.
 //
-// The rewrite is TOKEN-level, never substring replace: matching whole
-// tokens keeps a path that merely contains one of these strings intact.
-// Anything unrecognized is kept and fails loudly at link with its real
-// name. Used for a build (builder.til, compile_c) and for the bridge the
-// interpreter links for the host (interpreter.til, ffi_init_user_so).
-target_link_flags := func(flags: Str, target: Target) returns Str {
+// The filter is per ARGUMENT, never substring replace: matching whole
+// arguments keeps a path that merely contains one of these strings
+// intact. Anything unrecognized is kept and fails loudly at link with its
+// real name. Used for a build (builder.til, compile_c) and for the bridge
+// the interpreter links for the host (interpreter.til, ffi_init_user_so).
+target_link_args := func(args: Vec(Str), target: Target) returns Vec(Str) {
     is_macos := target.is(Target.MacosX64).or(target.is(Target.MacosArm64))
     is_win := is_windows_target(target)
-    if is_win.or(is_macos).or(target.is(Target.Wasm32)).or(is_android_target(target)).not() { return flags.clone() }
-    mut kept := ""
-    for token : Str in flags.split(" ") {
-        if token.len() == 0 { continue }
-        if token.eq("-ldl").or(token.eq("-lrt")).or(token.eq("-lpthread")).or(token.eq("-lm")) { continue }
-        if is_macos.or(is_win).and(token.eq("-latomic")) { continue }
-        kept = format(kept, " ", token)
+    if is_win.or(is_macos).or(target.is(Target.Wasm32)).or(is_android_target(target)).not() { return args.clone() }
+    mut kept := Vec(Str).new()
+    for arg : Str in args {
+        if arg.eq("-ldl").or(arg.eq("-lrt")).or(arg.eq("-lpthread")).or(arg.eq("-lm")) { continue }
+        if is_macos.or(is_win).and(arg.eq("-latomic")) { continue }
+        kept.push(own arg.clone())
     }
     return kept
+}
+
+// Arguments as part of a command line that system_cmd runs: each one
+// after a space and `prefix` (`-I` for include directories), quoted by
+// shell_path. Every command line til writes joins its paths here.
+shell_args := proc(args: Vec(Str), prefix: Str) returns Str {
+    mut out := ""
+    for arg : Str in args { out = format(out, " ", prefix, shell_path(arg)) }
+    return out
+}
+
+// The same arguments as text for a reader -- a generated comment, a
+// stamp: no quoting, the spelling the flags have always had.
+args_text := func(args: Vec(Str), prefix: Str) returns Str {
+    mut out := ""
+    for arg : Str in args { out = format(out, " ", prefix, arg) }
+    return out
 }
 
 // ---------- Detect current platform

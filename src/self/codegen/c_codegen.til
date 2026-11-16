@@ -7549,7 +7549,7 @@ program_binds_til_lib := func(lib: Str, ctx: Context) returns Bool {
 // path (lib<name>.<ext>) among its link flags whose binding it imports.
 linked_til_libs := func(lp: LoadedProgram) returns Vec(Str) {
     mut libs := Vec(Str).new()
-    for token : Str in lp.link_flags_for_target().split(" ") {
+    for token : Str in lp.link_args_for_target() {
         mut name := ""
         if token.starts_with("-l") {
             name = token.substr(2, token.len() - 2).clone()
