@@ -3600,6 +3600,19 @@ Str *host_os(void) {
 #endif
 }
 
+// A til program writes the same bytes on every host: '\n' is one LF. The
+// Windows C runtime opens stdout and stderr in text mode, which writes each
+// '\n' as CR LF -- every captured output, every RESULT line the suite reads
+// back and every `til ast` observation then differed from the other hosts'
+// (CI run 3128). Binary mode writes what the program wrote. Windows'
+// consoles show a bare LF as a line end.
+void til_stdio_binary(void) {
+#ifdef _WIN32
+    _setmode(_fileno(stdout), _O_BINARY);
+    _setmode(_fileno(stderr), _O_BINARY);
+#endif
+}
+
 // Architecture this binary was COMPILED for, from predefined macros --
 // deliberately NOT uname: under emulation (Rosetta, qemu-user) uname
 // reports the kernel's arch while this binary, and the libffi linked

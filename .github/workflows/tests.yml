@@ -1460,6 +1460,21 @@ jobs:
       - name: The installed til builds and runs a program elsewhere
         shell: cmd
         run: C:\msys64\usr\bin\bash.exe -lc "mkdir -p ../elsewhere && cp examples/hello_script.til ../elsewhere/ && cd ../elsewhere && '/c/Program Files/til/bin/til.exe' interpret hello_script.til && '/c/Program Files/til/bin/til.exe' run hello_script.til | grep -q 'Hello World'"
+      # Issue #472: this host's own build of windows-x64 -- til.exe, two
+      # programs, a library, the vendored archives -- beside the Linux
+      # hosts' cross builds, which it has to equal. On trial, like the Macs'
+      # own builds, until a run shows the same bytes: the collector compares
+      # and a difference does not fail.
+      - name: Write the binary hash list for the collector
+        shell: cmd
+        continue-on-error: true
+        run: C:\msys64\usr\bin\bash.exe -lc "mkdir -p tmp/hashes-binary && ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary windows-x64 tmp/hashes-binary/windows-x64.txt bin/til.exe windows-x64"
+      - name: Upload the binary hash list
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-windows-x64
+          path: tmp/hashes-binary/windows-x64.txt
       # The whole suite, as linux-x64 runs it (without ASAN: MinGW has
       # none). BRING-UP: continue-on-error on this step only, so the job
       # still guards make and make install while each merge shows how far
@@ -2273,7 +2288,7 @@ jobs:
   # arrived, and it failed saying so.
   collect:
     name: collect (compare the producers' hash lists)
-    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-host-run, macos-arm64, macos-x64, macos-cross-build]
+    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-host-run, windows-x64-native, macos-arm64, macos-x64, macos-cross-build]
     if: always() && needs.doc-gate.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -2283,13 +2298,15 @@ jobs:
           LINUX_X64: ${{ needs.linux-x64.result }}
           LINUX_ARM64: ${{ needs.linux-arm64-native.result }}
           WINDOWS_X64: ${{ needs.windows-x64-host-run.result }}
+          WINDOWS_X64_NATIVE: ${{ needs.windows-x64-native.result }}
           MACOS_ARM64: ${{ needs.macos-arm64.result }}
           MACOS_X64: ${{ needs.macos-x64.result }}
           MACOS_CROSS: ${{ needs.macos-cross-build.result }}
         run: |
           status=0
           for pair in "linux-x64=$LINUX_X64" "linux-arm64-native=$LINUX_ARM64" \
-            "windows-x64-host-run=$WINDOWS_X64" "macos-arm64=$MACOS_ARM64" "macos-x64=$MACOS_X64" \
+            "windows-x64-host-run=$WINDOWS_X64" "windows-x64-native=$WINDOWS_X64_NATIVE" \
+            "macos-arm64=$MACOS_ARM64" "macos-x64=$MACOS_X64" \
             "macos-cross-build=$MACOS_CROSS"; do
             echo "$pair"
             if [ "${pair#*=}" != success ]; then status=1; fi

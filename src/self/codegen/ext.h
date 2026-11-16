@@ -329,6 +329,9 @@ U64 peak_rss_bytes(void);
 U64 current_rss_bytes(I64 pid);
 Str *host_os(void);
 Str *host_arch(void);
+// The first statement of every til program's main (c_codegen.til): the
+// same output bytes on every host. A no-op except on Windows.
+void til_stdio_binary(void);
 I32 mkdir_p(const Str *path);
 I32 copy_file(const Str *src, const Str *dst);
 I32 copy_tree(const Str *src, const Str *dst);

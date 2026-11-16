@@ -202,11 +202,16 @@ tool_output := proc(tool: Str, argument: Str) returns Str {
 }
 
 // The prefix of the GNU tools for a linux or windows target, as Debian
-// names them on every host, the target's own included.
+// names them on every host, the target's own included -- except a windows
+// target on a Windows host, whose MinGW installs them unprefixed (the
+// "gcc" targets.til toolchain_command runs there).
 gnu_tool_prefix := proc(target: Str) returns Str {
     if target == "linux-arm64" { return "aarch64-linux-gnu-" }
     if target == "linux-x64" { return "x86_64-linux-gnu-" }
-    if target == "windows-x64" { return "x86_64-w64-mingw32-" }
+    if target == "windows-x64" {
+        if host_os() == "windows" { return "" }
+        return "x86_64-w64-mingw32-"
+    }
     fail(format("produce-binary does not know the tools of ", target))
     return ""
 }

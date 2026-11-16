@@ -6223,10 +6223,13 @@ priv emit_func_def := proc(f: File, name: Str, func_def: Expr, mode: Mode, is_st
             // deliberately-unused convention -- so the cast reads as
             // intentional rather than as a suppressed liveness bug.
             f.write("int main(int argc, char **_argv) {\n")
+            f.write("    til_stdio_binary();\n")
             f.write("    (void)_argv;\n")
             f.write("    if (argc > 1) { fprintf(stderr, \"error: main expects no arguments, got %d\\n\", argc - 1); return 1; }\n")
         } else {
             f.write("int main(int argc, char **argv) {\n")
+            // ext.c til_stdio_binary: the same output bytes on every host.
+            f.write("    til_stdio_binary();\n")
             mut fixed := nparam.to_i32()
             if vi >= 0 {
                 fixed--
@@ -14299,6 +14302,7 @@ priv emit_ns_const_global_defs := proc(f: File, mut lp: LoadedProgram) {
 
 priv emit_test_main := proc(f: File, mut lp: LoadedProgram) {
     f.write("int main(void) {\n")
+    f.write("    til_stdio_binary();\n")
     emit_runtime_inits(f, lp)
     mut test_count : I32 = 0
     for u : ProgramUnit in lp.units {
@@ -14369,6 +14373,7 @@ priv builder_script_main_leaves := func(mut lp: LoadedProgram) returns Bool {
 
 priv emit_script_main := proc(f: File, mut lp: LoadedProgram) {
     f.write("int main(void) {\n")
+    f.write("    til_stdio_binary();\n")
     // main's body is a FUNCTION body like any other, so it starts from
     // fresh per-function scratch. Clearing only unsafe_to_hoist left the
     // previously emitted function's locals in stack_locals / ptr_locals,

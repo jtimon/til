@@ -2793,6 +2793,7 @@ static void adopt__CfNestedValues(void * dest, CfNestedValues * src) {
 }
 
 int main(void) {
+    til_stdio_binary();
     STATIC_STR = (Str){.c_str = TIL_OWN_LIT("static-folded", 13ULL), .count=13ULL, .cap=TIL_CAP_LIT};
     STATIC_NICHE = NestedToken_Inner(({ WideToken *_oa = malloc(TIL_BOX(WideToken)); *_oa = WideToken_Num(&(I64){9}); _oa; }));
     CF_COMPOSED_VALUES = Vec__I64_clone(_til_precomputed_sequence_22_get());

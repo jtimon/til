@@ -1,3 +1,9 @@
+# Every checkout holds the repository's bytes, on every host: git converts
+# no line ends. Git for Windows would otherwise check text out with CR LF,
+# and til built there would read other sources than everywhere else -- and
+# could not be the same binary (issue 472).
+* -text
+
 # Use Zig for now, maybe Go would be better? Roc? Odin again?
 *.til                       linguist-language=Zig
 
