@@ -2608,3 +2608,99 @@ MSYS2's UCRT64 gcc against the universal C runtime, while Ubuntu's mingw
 links msvcrt, so those bytes cannot be equal as things are; which
 runtime and compiler windows-x64 uses on every host is a decision
 (Jorge mentioned clang).
+
+*** linux-x64 needs no --cc anywhere; til at --usize=64 joins the lists
+
+Jorge, 2026-11-16: the same binary has to come from every host, at the
+default width and at --usize=64, with nothing for the user to decide. Two
+things followed.
+
+til picks the compiler for linux-x64 by host: ~gcc~ on a linux-x64 host,
+~x86_64-linux-gnu-gcc~ (Debian's cross gcc, ~bin/make~'s default too)
+anywhere else, where plain ~gcc~ is another machine's compiler
+(~toolchain_command~). A cross gcc with another name still goes in with
+~--cc~, as the mac host-cross job does. The collector no longer passes
+~--cc~ for linux-x64 (it did on both hosts, only to keep the build stamp
+equal), so every producer runs one command line for every target.
+Checked here: an arm64-hosted til, run under qemu, builds
+~examples/hello_script.til~ for linux-x64 with no ~--cc~, and the result
+is the same bytes as the x64-hosted til's when both compilers sit at the
+same path (the build stamp names the compiler's path, so two compilers
+at two paths differ by the stamp alone -- on CI both are ~bin/til~).
+No suite row: it needs a host that is not linux-x64; the arm64 producer's
+linux-x64 build is the check.
+
+The binary lists also build ~til~ with ~--usize=64~ for every target and
+list the executable and its generated C at width 64, on trial for every
+target until a run shows them equal (the lists only had the default
+width). Built here for linux-x64, linux-arm64, macos-arm64 and
+windows-x64.
+
+*** Clang, one release, on every host (Jorge, 2026-11-16)
+
+Decided: the way to the same binary from every host is the same compiler
+release on every host, and that compiler is clang (with lld), for the
+windows targets first and the Linux targets after; "why would we want to
+use different releases if we want to produce an identical binary?". No
+further question on this is to be put to Jorge.
+
+Why it has to be a pinned release and not "clang" from each host's
+packages -- run 3124 (master bcf8c51), the first with a Mac's own build on
+the lists: the Intel Mac built ~til~ for macos-x64 with Apple's clang,
+and it differs from the two Linux hosts' Ubuntu clang 18.1.3 builds in
+everything compiled (~til~, every object of ~libnng.a~); the two Linux
+hosts are the same bytes, and only what til generates (11 items) is the
+same on all three. The arm64 Mac's list did not arrive (its trial step
+failed; log not read yet).
+
+Windows, step 1 (this commit). The compiler is llvm-mingw: clang, lld,
+compiler-rt and the mingw-w64 UCRT runtime in one release, published for
+Linux x64 and arm64, macOS (universal) and Windows hosts. Pinned:
+release 20261104 (LLVM 23.1.5), each archive checked against its sha256
+in the workflow. Its ~bin~ goes first on PATH and carries the
+~x86_64-w64-mingw32-gcc~, ~-ar~, ~-windres~, ~-dlltool~ names til and
+~bin/make~ already run, so nothing in til names a different tool yet.
+- Three producers build windows-x64 with it, on trial and
+  ~continue-on-error~: ~windows-x64-build~ (Linux x64), ~linux-arm64-native~
+  (Linux arm64) and ~windows-x64-native~ (Windows, after its suite). Each
+  step checks that the gcc name is clang, rebuilds the windows libffi and
+  nng with it, and writes ~hashes-binary-windows-<producer>~. The other
+  windows steps and jobs keep Ubuntu's and MSYS2's gcc until a run shows
+  the three ~til.exe~ equal.
+- This container cannot download the release (its GitHub access is this
+  repository only), so the steps are untested here. What was run here is
+  a stand-in: Ubuntu's clang 18.1.3 and lld under the
+  ~x86_64-w64-mingw32-gcc~ name, with Ubuntu's mingw-w64 headers. With
+  it the whole windows-x64 producer passes twice with the same 131 lines
+  (executables, the library's ~.a~/~.dll~/objects, ~til.exe~ at both
+  widths, libffi and nng).
+- One thing in til had to change for clang: a shared-core function's
+  definition carries ~__declspec(dllexport)~ but its prototype did not,
+  and clang rejects a redeclaration that adds the attribute (gcc takes
+  it). The prototypes of shared-core functions now carry the same
+  ~TIL_CORE_EXPORT~ under ~TIL_CORE_ONLY~ (~emit_shared_core_prototype_export~).
+- The toolchain item for a windows target is the compiler's ~--version~
+  line (clang has no ~-dumpfullversion~), so the log says which compiler
+  the gcc name was.
+- The native Windows job's own list, added in 1467871 with MSYS2's gcc,
+  is replaced by the llvm-mingw one: a producer cannot list one target
+  twice, and gcc 15 could not equal the other hosts' compiler.
+- Known and left: on the Windows host the small stamped programs differ
+  from the Linux hosts' by the build stamp (the compiler there is named
+  ~bin/til.exe~); ~til.exe~ carries no stamp.
+
+Next, in order:
+1. Read the first run: do the three hosts write the same ~til.exe~? Fix
+   what differs.
+2. Windows, step 2 (the #483 session's, it owns the Windows build and
+   proposed the same toolchain): ~bin/make~ downloads the pinned release
+   into an ignored ~vendor/llvm-mingw/~, replacing the inline downloads;
+   every windows job and the native Windows build (Makefile, README
+   "Windows host") use it, windows-x86 included; til names clang for the
+   windows targets; Ubuntu's mingw-w64 and MSYS2's gcc go. Then the
+   windows "build here, run there" jobs can go (S7).
+3. The Macs: the same pinned clang instead of Apple's for the mac
+   targets (llvm-mingw's macOS build is universal; whether its clang and
+   lld can be the mac targets' compiler is to be checked, else LLVM's own
+   release at the same version).
+4. Linux: clang and lld with one C library tree per target (#504).

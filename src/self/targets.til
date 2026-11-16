@@ -190,13 +190,21 @@ priv validate_lang_for_target := func(lang: Lang, target: Target) {
 
 // ---------- Toolchain commands
 
-// proc, not func: the WindowsX64 case is host-dependent (host_os() is a
-// proc), so the whole thing must be a proc. Its two callers (compile_c,
+// proc, not func: the LinuxX64 and WindowsX64 cases are host-dependent
+// (host_os() is a proc), so the whole thing must be a proc. Its two callers (compile_c,
 // compile_lib) are already procs.
 toolchain_command := proc(target: Target, lang: Lang) returns Str {
     validate_lang_for_target(lang, target)
     switch target {
-    case .LinuxX64:     return "gcc"
+    // The host's own gcc on a linux-x64 host. On any other host "gcc" is
+    // another machine's compiler, so the cross gcc is named: the distro's
+    // (Debian's name, bin/make's default for the vendored archives too);
+    // one with another name goes in with --cc. #472: every host has to
+    // build the same linux-x64 binary from the same command line, and a
+    // --cc given on some hosts only would change the build stamp.
+    case .LinuxX64:
+        if detect_current_target().is(Target.LinuxX64) { return "gcc" }
+        return "x86_64-linux-gnu-gcc"
     case .LinuxArm64:   return "aarch64-linux-gnu-gcc"
     case .LinuxRiscv64: return "riscv64-linux-gnu-gcc"
     case .LinuxX86:     return "gcc"

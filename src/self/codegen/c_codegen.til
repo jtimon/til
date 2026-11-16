@@ -6723,6 +6723,17 @@ priv end_shared_core_definition := proc(f: File, partitioned: Bool) {
     if partitioned { f.write("#endif\n") }
 }
 
+// The export attribute a shared-core function's DEFINITION carries
+// (begin_shared_core_definition) has to be on its first declaration too:
+// clang rejects a redeclaration that adds dllexport ("should not add
+// 'dllexport' attribute", an error under -Werror), where gcc takes it.
+// #472: the windows targets are to build with clang as well.
+priv emit_shared_core_prototype_export := func(f: File, c_name: Str, ctx: Context) {
+    if ctx.builder_core_c_prefix.len() == 0 { return }
+    if ctx.builder_core_c_names.has(c_name).not() { return }
+    f.write("#ifdef TIL_CORE_ONLY\nTIL_CORE_EXPORT\n#endif\n")
+}
+
 // A shared object needs a declaration for core-owned data after its local
 // definition is removed. Functions already get that declaration from the
 // forward-declaration pass; globals have no separate pass in the generated C.
@@ -7925,6 +7936,7 @@ priv emit_func_forward_decl := proc(f: File, name: Str, fdef: Expr, top_level: B
     if lp_header_hides(name, ctx) { return }
     if ctx.builder_forward_declared.has(name).not() { ctx.builder_forward_declared.add(own name.clone()) }
     ret := func_return_ctype(fd, ctx)
+    emit_shared_core_prototype_export(f, func_to_c(name), ctx)
     if builder_func_is_tu_local(name, ctx) { f.write("static ") }
     // #303: mirror the typer's noreturn knowledge in the C, so the C
     // compiler also knows calls to these functions never come back.
@@ -14899,8 +14911,14 @@ priv build := proc(mode: Mode, run_tests: Bool, c_output_path: Str, mut lp: Load
     print_single_kept := builder_program_declares("print_single", lp)
     print_flush_kept := builder_program_declares("print_flush", lp)
     pp_st := builder_static_prefix(lp.ctx)
-    if print_single_kept { f.write(pp_st).write("void print_single(Str *s);\n") }
-    if print_flush_kept { f.write(pp_st).write("void print_flush();\n") }
+    if print_single_kept {
+        emit_shared_core_prototype_export(f, "print_single", lp.ctx)
+        f.write(pp_st).write("void print_single(Str *s);\n")
+    }
+    if print_flush_kept {
+        emit_shared_core_prototype_export(f, "print_flush", lp.ctx)
+        f.write(pp_st).write("void print_flush();\n")
+    }
     if print_single_kept.or(print_flush_kept) { f.write("\n") }
 
     emit_all_forward_declarations(f, mode, lp)

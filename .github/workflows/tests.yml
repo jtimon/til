@@ -259,26 +259,52 @@ jobs:
       # producer only (not compared)".
       # linux-x64 from this arm64 host is the CROSS half of the mirror pair
       # (#472 plan, S5): the x64 producer builds the same things natively.
-      # windows-x64 is cross from both Linux hosts, with Ubuntu's mingw-w64.
       - name: Install the mac and linux-x64 cross toolchains and build their archives
         continue-on-error: true
         run: |
-          sudo apt-get install -y clang lld llvm cmake gcc-x86-64-linux-gnu libc6-dev-amd64-cross mingw-w64
+          sudo apt-get install -y clang lld llvm cmake gcc-x86-64-linux-gnu libc6-dev-amd64-cross
           make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
           make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
           make vendor/libffi/build-linux-x64/.libs/libffi.a vendor/nng/build-linux-x64/libnng.a
-          make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
       - name: Write the binary hash lists for the collector
         continue-on-error: true
         run: |
           mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til macos-arm64 macos-x64 linux-arm64 linux-x64 windows-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til macos-arm64 macos-x64 linux-arm64 linux-x64
       - name: Upload the binary hash lists
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-linux-arm64
           path: tmp/hashes-binary/linux-arm64.txt
+      # Issue #472: windows-x64 with the one compiler every host uses for it,
+      # llvm-mingw (clang, lld and the mingw-w64 UCRT runtime) at one pinned
+      # release, which is published for Linux x64 and arm64, macOS and
+      # Windows hosts. Its bin directory goes first on PATH: it carries the
+      # x86_64-w64-mingw32-gcc, -ar, -windres and -dlltool names til and
+      # bin/make already run, as clang and the llvm tools. On trial and
+      # continue-on-error until a run shows the three hosts' til.exe equal;
+      # the other windows jobs keep Ubuntu's and MSYS2's gcc until then.
+      - name: Write the windows binary hash list with the pinned llvm-mingw
+        continue-on-error: true
+        run: |
+          archive=llvm-mingw-20261104-ucrt-ubuntu-22.04-aarch64
+          curl -sSL --fail -o tmp/$archive.tar.xz https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$archive.tar.xz
+          echo "595e95bdffabfc62559fe26e30bdfbccf277cbaed4902793555015ee47306b94  tmp/$archive.tar.xz" | sha256sum -c -
+          tar -xf tmp/$archive.tar.xz -C tmp
+          export PATH="$PWD/tmp/$archive/bin:$PATH"
+          x86_64-w64-mingw32-gcc --version
+          x86_64-w64-mingw32-gcc --version | grep -q clang
+          rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
+          make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
+          mkdir -p tmp/hashes-binary-windows
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary-windows/linux-arm64.txt bin/til windows-x64
+      - name: Upload the windows binary hash list
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-windows-linux-arm64
+          path: tmp/hashes-binary-windows/linux-arm64.txt
           if-no-files-found: error
       - name: Cancel the rest of this run
         if: failure()
@@ -938,6 +964,35 @@ jobs:
             bin/ffi_prep-x86.exe
             bin/nng_pair.exe
             bin/nng_pair-x86.exe
+      # Issue #472: windows-x64 with the one compiler every host uses for it,
+      # llvm-mingw (clang, lld and the mingw-w64 UCRT runtime) at one pinned
+      # release, which is published for Linux x64 and arm64, macOS and
+      # Windows hosts. Its bin directory goes first on PATH: it carries the
+      # x86_64-w64-mingw32-gcc, -ar, -windres and -dlltool names til and
+      # bin/make already run, as clang and the llvm tools. On trial and
+      # continue-on-error until a run shows the three hosts' til.exe equal;
+      # the other windows steps keep Ubuntu's and MSYS2's gcc until then.
+      # Last in this job: it rebuilds the windows libffi and nng with clang.
+      - name: Write the windows binary hash list with the pinned llvm-mingw
+        continue-on-error: true
+        run: |
+          archive=llvm-mingw-20261104-ucrt-ubuntu-22.04-x86_64
+          curl -sSL --fail -o tmp/$archive.tar.xz https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$archive.tar.xz
+          echo "919380403de87dca3c581c2053230cd298af5e891286628ba0613b7fed370926  tmp/$archive.tar.xz" | sha256sum -c -
+          tar -xf tmp/$archive.tar.xz -C tmp
+          export PATH="$PWD/tmp/$archive/bin:$PATH"
+          x86_64-w64-mingw32-gcc --version
+          x86_64-w64-mingw32-gcc --version | grep -q clang
+          rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
+          make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
+          mkdir -p tmp/hashes-binary-windows
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-windows/linux-x64.txt bin/til windows-x64
+      - name: Upload the windows binary hash list
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-windows-linux-x64
+          path: tmp/hashes-binary-windows/linux-x64.txt
       - name: Cancel the rest of this run
         if: failure()
         shell: bash
@@ -1460,21 +1515,6 @@ jobs:
       - name: The installed til builds and runs a program elsewhere
         shell: cmd
         run: C:\msys64\usr\bin\bash.exe -lc "mkdir -p ../elsewhere && cp examples/hello_script.til ../elsewhere/ && cd ../elsewhere && '/c/Program Files/til/bin/til.exe' interpret hello_script.til && '/c/Program Files/til/bin/til.exe' run hello_script.til | grep -q 'Hello World'"
-      # Issue #472: this host's own build of windows-x64 -- til.exe, two
-      # programs, a library, the vendored archives -- beside the Linux
-      # hosts' cross builds, which it has to equal. On trial, like the Macs'
-      # own builds, until a run shows the same bytes: the collector compares
-      # and a difference does not fail.
-      - name: Write the binary hash list for the collector
-        shell: cmd
-        continue-on-error: true
-        run: C:\msys64\usr\bin\bash.exe -lc "mkdir -p tmp/hashes-binary && ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary windows-x64 tmp/hashes-binary/windows-x64.txt bin/til.exe windows-x64"
-      - name: Upload the binary hash list
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: hashes-binary-windows-x64
-          path: tmp/hashes-binary/windows-x64.txt
       # The whole suite, as linux-x64 runs it (without ASAN: MinGW has
       # none). BRING-UP: continue-on-error on this step only, so the job
       # still guards make and make install while each merge shows how far
@@ -1484,6 +1524,41 @@ jobs:
         continue-on-error: true
         timeout-minutes: 75
         run: C:\msys64\usr\bin\bash.exe -lc "make test"
+      # Issue #472: this host's own windows-x64 build -- til.exe, two
+      # programs, a library, the vendored archives -- with the pinned
+      # llvm-mingw, the third producer beside the two Linux hosts' cross
+      # builds (see the windows-x64-build job), which it has to equal. This
+      # replaces the list this job wrote with MSYS2's gcc: one host cannot
+      # list one target twice, and gcc 15 against the Linux hosts' compiler
+      # could never be the same bytes. After the suite, because it
+      # rebuilds the host's libffi and nng with clang. bin/til.exe, built
+      # above with MSYS2's gcc, only drives the build: what it builds must
+      # not depend on what built it. The small stamped programs differ from
+      # the Linux hosts' by the stamp alone here (the compiler is named
+      # bin/til.exe); til.exe carries no stamp.
+      - name: Write the windows binary hash list with the pinned llvm-mingw
+        continue-on-error: true
+        shell: C:\msys64\usr\bin\bash.exe -leo pipefail {0}
+        run: |
+          archive=llvm-mingw-20261104-ucrt-x86_64
+          mkdir -p tmp
+          curl -sSL --fail -o tmp/$archive.zip https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/$archive.zip
+          echo "552191b5754c49a5a20723276a6fc56541ea1922c4c50b7b669022333fc1b40f  tmp/$archive.zip" | sha256sum -c -
+          (cd tmp && /c/Windows/System32/tar.exe -xf $archive.zip)
+          export PATH="$PWD/tmp/$archive/bin:$PATH"
+          gcc --version
+          gcc --version | grep -q clang
+          x86_64-w64-mingw32-gcc --version | grep -q clang
+          rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
+          make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
+          mkdir -p tmp/hashes-binary-windows
+          ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary windows-x64 tmp/hashes-binary-windows/windows-x64.txt bin/til.exe windows-x64
+      - name: Upload the windows binary hash list
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-windows-windows-x64
+          path: tmp/hashes-binary-windows/windows-x64.txt
       - name: Cancel the rest of this run
         if: failure()
         shell: bash
@@ -2120,15 +2195,13 @@ jobs:
       # 24.04 has gcc 13.3.0 and glibc 2.39 both ways.
       # linux-x64 is the mirror pair (#472 plan, S5): native here, cross on
       # linux-arm64-native. Its libffi was built for bin/til.
-      # windows-x64 is cross from both Linux hosts, with Ubuntu's mingw-w64.
       - name: Write the binary hash lists for the collector
         run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross mingw-w64
+          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
           make vendor/libffi/build-linux-arm64/.libs/libffi.a vendor/nng/build-linux-arm64/libnng.a
           make vendor/nng/build-linux-x64/libnng.a
-          make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
           mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til macos-arm64 macos-x64 linux-arm64 linux-x64 windows-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til macos-arm64 macos-x64 linux-arm64 linux-x64
       - name: Upload the binary hash lists
         uses: actions/upload-artifact@v4
         with:
@@ -2288,7 +2361,7 @@ jobs:
   # arrived, and it failed saying so.
   collect:
     name: collect (compare the producers' hash lists)
-    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-host-run, windows-x64-native, macos-arm64, macos-x64, macos-cross-build]
+    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-host-run, windows-x64-native, windows-x64-build, macos-arm64, macos-x64, macos-cross-build]
     if: always() && needs.doc-gate.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:

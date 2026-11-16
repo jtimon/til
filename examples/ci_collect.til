@@ -216,28 +216,12 @@ gnu_tool_prefix := proc(target: Str) returns Str {
     return ""
 }
 
-// The --cc every producer passes for `target`, or "" where til's own choice
-// is the same tool on every host. til runs plain "gcc" for linux-x64
-// (targets.til, toolchain_command): the host's compiler, right on a
-// linux-x64 host only, so a cross producer has to name the cross gcc (as
-// bin/make does for the vendored archives; make.til, linux_x64_cc). The
-// native producer names it too -- there it is the same driver as "gcc" --
-// because the --cc text is part of the build stamp a program carries
-// (builder.til, executable stamp): given on one side only, every stamped
-// binary would differ by that alone. til itself carries no stamp and is
-// the same bytes with and without it (checked on a linux-x64 host).
-cross_cc_flag := func(target: Str) returns Str {
-    if target == "linux-x64" { return "--cc=x86_64-linux-gnu-gcc" }
-    return ""
-}
-
-// `compiler build --force-rebuild --target=<target>` and, where the target
-// needs it, the compiler; the caller adds the outputs and the source.
+// `compiler build --force-rebuild --target=<target>` with no --cc: til
+// picks the compiler for the target on every host (targets.til,
+// toolchain_command), so every producer runs the same command line. The
+// caller adds the outputs and the source.
 build_command := proc(compiler: Str, target: Str) returns Cmd {
-    build := Cmd.new(compiler, "build", "--force-rebuild", format("--target=", target))
-    cc := cross_cc_flag(target)
-    if cc.len() > 0 { build.arg(cc) }
-    return build
+    return Cmd.new(compiler, "build", "--force-rebuild", format("--target=", target))
 }
 
 // The identity of the toolchain this host uses for `target`, recorded for
@@ -278,7 +262,13 @@ toolchain_identity := proc(target: Str) returns Str {
         if last_break >= 0 {
             libc_version = preprocessed.substr(last_break.to_usize() + 1, preprocessed.len() - last_break.to_usize() - 1).clone()
         }
-        return format(compiler, " ", tool_output(compiler, "-dumpfullversion"), " ", tool_output(compiler, "-dumpmachine"), "\n",
+        // REM clang, which a windows toolchain's "gcc" may be (llvm-mingw),
+        // has no -dumpfullversion; its --version line says which it is.
+        mut compiler_identity := format(compiler, " ", version_line(compiler))
+        if target.starts_with("linux-") {
+            compiler_identity = format(compiler, " ", tool_output(compiler, "-dumpfullversion"), " ", tool_output(compiler, "-dumpmachine"))
+        }
+        return format(compiler_identity, "\n",
             version_line(format(prefix, "ld")), "\n", version_line(format(prefix, "ar")), "\n",
             libc_version.trim(), "\n")
     }
@@ -455,6 +445,23 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         generated_hashes := sha256_of(generated_paths)
         lines.push(own format(generated_hashes[0], " ", target_level, " ", target, " c 32 src/til.til til.c"))
         lines.push(own format(generated_hashes[1], " ", target_level, " ", target, " c 32 src/til.til til_forward.h"))
+
+        // til again in the native layout (--usize=64): the other width a
+        // user can build, and it has to be the same from every host too.
+        // On trial for every target until a run has shown it equal.
+        wide_binary := format(directory, "/til64")
+        wide_build := build_command(compiler, target)
+        wide_build.args("--usize=64", "-o", wide_binary, "-c", format(directory, "/til64.c"), "src/til.til")
+        wide_build.capture()
+        if wide_build.run() != 0 { fail(format(wide_build.render(), " failed:\n", wide_build.out(), wide_build.err())) }
+        wide_generated := format(directory, "/til64.c.compared")
+        File.writefile(wide_generated, without_stamp(File.readfile(format(directory, "/til64.c"))))
+        mut wide_paths := Vec(Str).new()
+        wide_paths.push(own format(wide_binary, extension))
+        wide_paths.push(own wide_generated)
+        wide_hashes := sha256_of(wide_paths)
+        lines.push(own format(wide_hashes[0], " binary-trial ", target, " c 64 src/til.til til"))
+        lines.push(own format(wide_hashes[1], " binary-trial ", target, " c 64 src/til.til til.c"))
 
         list_sections(target, target_level, format(til_binary, extension), "src/til.til til", format(directory, "/til_section"), lines)
         list_sections(target, target_level, format(directory, "/hello_script", extension), "examples/hello_script.til hello_script",
