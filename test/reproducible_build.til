@@ -99,6 +99,7 @@ main := proc(args: ..Str) {
     generated := format(WORK, "/case/program.c")
     mut shared_extension := ".so"
     if target_flag.contains("macos") { shared_extension = ".dylib" }
+    if target_flag.contains("windows") { shared_extension = ".dll" }
     library_outputs := array(Str, "gen/lib/libreproducible_lib.a", "gen/lib/reproducible_lib.o",
         format("gen/lib/libreproducible_lib", shared_extension))
 

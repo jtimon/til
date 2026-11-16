@@ -2574,3 +2574,37 @@ as Go does, or bundle the headers as Zig does) is undecided, and is now
 [[./504.org][#504]], with the measurements, what those languages do and
 the options. Nothing left in this issue for linux-arm64 and linux-x64
 moves until it is decided; the mac targets and S7 do not depend on it.
+
+*** Run 3122 confirms the libffi fixes; windows-x64 joins, with a fixed timestamp
+
+Run 3122 (master d2a1329), green, the first with both libffi fixes: for
+linux-arm64 and linux-x64, native against cross, ~libffi.a~ and every
+member, ~libnng.a~, and every listed section of ~til~ except debug
+information are equal. Left: ~.debug_info~, ~.debug_line~,
+~.debug_line_str~ and the build id, for ~til~ and the two small programs
+(#504). The mac targets are equal at the strict level, 119 and 121 items.
+Runs 3118, 3119, 3121 and 3122 are green: master's CI is back.
+
+windows-x64 was not the same bytes twice on ONE host: mingw's ld writes
+the link time into the PE header, and with it the export table's stamp
+and the header checksum (three bytes differed between two builds of
+~hello_script~ two seconds apart). til now passes
+~-Wl,--no-insert-timestamp~ on every link for a windows target
+(~target_link_extra_args~). Checked here, two builds each: the
+executable, the library's ~.a~, ~.dll~ and objects, and ~til.exe~ are the
+same bytes. ~test/reproducible_build.til~ takes the windows targets now
+(the library is a ~.dll~), and the windows cross job runs it for
+windows-x64 and windows-x86; windows-x86 was not run here (no i686 mingw
+in this container).
+
+Both Linux producers now list windows-x64 on trial, cross-built with
+Ubuntu's mingw-w64 (gcc 13-win32, binutils 2.41.90, mingw-w64 11.0.1
+here): the same artifacts as for the other targets, PE sections, and the
+mingw-w64 runtime version in the toolchain item. Two runs of the producer
+here give the same 129 lines. The arm64 host installs ~mingw-w64~ for it
+(not run anywhere yet; those steps stay ~continue-on-error~).
+Not yet: the native Windows job as a third producer. It builds with
+MSYS2's UCRT64 gcc against the universal C runtime, while Ubuntu's mingw
+links msvcrt, so those bytes cannot be equal as things are; which
+runtime and compiler windows-x64 uses on every host is a decision
+(Jorge mentioned clang).

@@ -268,6 +268,10 @@ target_link_extra_args := proc(target: Target) returns Str {
         return format(" -fuse-ld=lld -nodefaultlibs -Lvendor/android/sysroot/usr/lib/",
             android_triple(target), "/28 -Wl,-z,max-page-size=16384")
     }
+    // #472: mingw's ld writes the link time into the PE header (and the
+    // export table, and the checksum over them) unless told not to, so no
+    // two builds of one program were the same bytes.
+    if is_windows_target(target) { return " -Wl,--no-insert-timestamp" }
     if macos_is_cross(target).not() { return "" }
     return " -fuse-ld=lld -Lvendor/macos"
 }

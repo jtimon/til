@@ -201,11 +201,12 @@ tool_output := proc(tool: Str, argument: Str) returns Str {
     return command.out().trim().clone()
 }
 
-// The prefix of the GNU tools for a linux target, as Debian names them on
-// every host, the target's own included.
-linux_tool_prefix := proc(target: Str) returns Str {
+// The prefix of the GNU tools for a linux or windows target, as Debian
+// names them on every host, the target's own included.
+gnu_tool_prefix := proc(target: Str) returns Str {
     if target == "linux-arm64" { return "aarch64-linux-gnu-" }
     if target == "linux-x64" { return "x86_64-linux-gnu-" }
+    if target == "windows-x64" { return "x86_64-w64-mingw32-" }
     fail(format("produce-binary does not know the tools of ", target))
     return ""
 }
@@ -251,18 +252,27 @@ toolchain_identity := proc(target: Str) returns Str {
         // Headers and libraries are the repository's vendor/macos.
         return format(version_line("clang"), "\n", version_line("ld.lld"), "\n", version_line("llvm-ar"), "\n", version_line("dsymutil"), "\n")
     }
-    if target.starts_with("linux-") {
-        prefix := linux_tool_prefix(target)
+    if target.starts_with("linux-") || target.starts_with("windows-") {
+        prefix := gnu_tool_prefix(target)
         // REM On a linux-x64 host til runs plain "gcc" for linux-x64, which
         // a Debian gcc package installs as this same triplet-named driver.
         compiler := format(prefix, "gcc")
-        // The C library version the compiler's headers declare.
+        // The C library version the compiler's headers declare: glibc's,
+        // or the mingw-w64 runtime's.
         probe := format(WORK, "/libc_version.c")
-        File.writefile(probe, "#include <features.h>\nglibc __GLIBC__ __GLIBC_MINOR__\n")
+        mut probe_text := "#include <features.h>\nglibc __GLIBC__ __GLIBC_MINOR__\n"
+        if target.starts_with("windows-") { probe_text = "#include <_mingw.h>\nmingw-w64 __MINGW64_VERSION_STR\n" }
+        File.writefile(probe, probe_text)
         preprocess := Cmd.new(compiler, "-E", "-P", probe)
         preprocess.capture()
         if preprocess.run() != 0 { fail(format("cannot read the C library version: ", preprocess.err())) }
-        libc_version := preprocess.out()
+        // REM The last line: mingw's header also declares things.
+        preprocessed := preprocess.out().trim()
+        mut libc_version := preprocessed.clone()
+        last_break := preprocessed.rfind("\n")
+        if last_break >= 0 {
+            libc_version = preprocessed.substr(last_break.to_usize() + 1, preprocessed.len() - last_break.to_usize() - 1).clone()
+        }
         return format(compiler, " ", tool_output(compiler, "-dumpfullversion"), " ", tool_output(compiler, "-dumpmachine"), "\n",
             version_line(format(prefix, "ld")), "\n", version_line(format(prefix, "ar")), "\n",
             libc_version.trim(), "\n")
@@ -277,6 +287,10 @@ binary_sections := func(target: Str) returns Vec(Str) {
         return vec(Str, "__TEXT,__text", "__TEXT,__const", "__TEXT,__cstring", "__TEXT,__unwind_info",
             "__DATA,__data", "__DATA,__const", "__DATA_CONST,__const", "__DATA_CONST,__got")
     }
+    if target.starts_with("windows-") {
+        return vec(Str, ".text", ".data", ".rdata", ".pdata", ".xdata", ".edata", ".idata", ".CRT", ".tls",
+            ".reloc", ".debug_info", ".debug_abbrev", ".debug_line", ".debug_str", ".debug_line_str")
+    }
     return vec(Str, ".interp", ".note.gnu.build-id", ".dynsym", ".dynstr", ".rela.dyn", ".text", ".rodata",
         ".eh_frame", ".init_array", ".data.rel.ro", ".data", ".comment", ".debug_info", ".debug_abbrev",
         ".debug_line", ".debug_str", ".debug_line_str")
@@ -287,7 +301,7 @@ binary_sections := func(target: Str) returns Vec(Str) {
 // build id. A section the binary does not have is listed as such.
 list_sections := proc(target: Str, level: Str, binary: Str, label: Str, scratch: Str, mut lines: Vec(Str)) {
     mut objcopy := "llvm-objcopy"
-    if target.starts_with("macos-").not() { objcopy = format(linux_tool_prefix(target), "objcopy") }
+    if target.starts_with("macos-").not() { objcopy = format(gnu_tool_prefix(target), "objcopy") }
     mut section_names := Vec(Str).new()
     mut section_paths := Vec(Str).new()
     for section : Str in binary_sections(target) {
@@ -365,6 +379,8 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         levels.push(own "binary-trial")
         items.push(own "- toolchain")
         paths.push(own identity_path.clone())
+        mut extension := ""
+        if target.starts_with("windows-") { extension = ".exe" }
         // Two programs: the smallest one, and one with every kind of type
         // layout in it.
         for source : Str in array(Str, "examples/hello_script.til", "test/layout_corpus.til") {
@@ -374,9 +390,10 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
             build.args("-o", binary, "-c", format(directory, "/", stem, ".c"), source)
             build.capture()
             if build.run() != 0 { fail(format(build.render(), " failed:\n", build.out(), build.err())) }
+            // REM til adds the target's extension to the -o name.
             levels.push(own target_level.clone())
             items.push(own format(source, " ", stem))
-            paths.push(own binary)
+            paths.push(own format(binary, extension))
         }
         // A library: its static archive, the object in it and the shared
         // library. A library build writes to gen/lib/, named after the
@@ -389,6 +406,7 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         if build.run() != 0 { fail(format(build.render(), " failed:\n", build.out(), build.err())) }
         mut shared := "libci_binary_lib.so"
         if target.starts_with("macos-") { shared = "libci_binary_lib.dylib" }
+        if target.starts_with("windows-") { shared = "libci_binary_lib.dll" }
         for file : Str in array(Str, "libci_binary_lib.a", "ci_binary_lib.o", shared) {
             built := format("gen/lib/", file)
             if File.is_file(built).not() { fail(format("the library build for ", target, " wrote no ", built)) }
@@ -416,7 +434,7 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         if til_build.run() != 0 { fail(format(til_build.render(), " failed:\n", til_build.out(), til_build.err())) }
         levels.push(own target_level.clone())
         items.push(own "src/til.til til")
-        paths.push(own til_binary.clone())
+        paths.push(own format(til_binary, extension))
 
         hashes := sha256_of(paths)
         for i, hash in hashes { lines.push(own format(hash, " ", levels[i], " ", target, " c 32 ", items[i])) }
@@ -433,8 +451,8 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         lines.push(own format(generated_hashes[0], " ", target_level, " ", target, " c 32 src/til.til til.c"))
         lines.push(own format(generated_hashes[1], " ", target_level, " ", target, " c 32 src/til.til til_forward.h"))
 
-        list_sections(target, target_level, til_binary, "src/til.til til", format(directory, "/til_section"), lines)
-        list_sections(target, target_level, format(directory, "/hello_script"), "examples/hello_script.til hello_script",
+        list_sections(target, target_level, format(til_binary, extension), "src/til.til til", format(directory, "/til_section"), lines)
+        list_sections(target, target_level, format(directory, "/hello_script", extension), "examples/hello_script.til hello_script",
             format(directory, "/hello_section"), lines)
         list_members(target, target_level, format("vendor/libffi/build-", target, "/.libs/libffi.a"), "vendor libffi.a",
             format(directory, "/libffi_members"), lines)

@@ -25114,7 +25114,7 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_theme_codegen_translate_16), "./src/self/codegen/theme_codegen.til:309:41", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_theme_codegen_translate_57), "./src/self/codegen/theme_codegen.til:318:9", 42ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_theme_codegen_translate_62), "./src/self/codegen/theme_codegen.til:319:41", 43ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_toolchain_extra_args_3), "./src/self/targets.til:289:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_toolchain_extra_args_3), "./src/self/targets.til:293:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_transfer_is_shallow_field_value_copy_12), "./src/self/typer.til:11216:41", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_transfer_is_shallow_field_value_copy_20), "./src/self/typer.til:11233:74", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_transfer_is_shallow_field_value_copy_46), "./src/self/typer.til:11216:41", 29ULL},
@@ -109364,8 +109364,8 @@ static Str priv___src_self_targets_til__macos_cross_args(Target * target) {
 }
 
 static Str target_link_extra_args(Target * target) {
-    Bool hoisted__Bool_9 = is_android_target(target);
-    if (hoisted__Bool_9) {
+    Bool hoisted__Bool_10 = is_android_target(target);
+    if (hoisted__Bool_10) {
         U32 hoisted__U32_0 = 3;
         Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_0);
         I64 _va_Array_0_ek = 0;
@@ -109381,13 +109381,18 @@ static Str target_link_extra_args(Target * target) {
         Str hoisted__Str_target_link_extra_args_7 = format(&_va_Array_0);
         { Str _ret = hoisted__Str_target_link_extra_args_7; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
     }
-    Bool hoisted__Bool_10 = priv___src_self_targets_til__macos_is_cross(target);
-    Bool hoisted__Bool_11 = ((Bool)(!(hoisted__Bool_10)));
+    Bool hoisted__Bool_11 = is_windows_target(target);
     if (hoisted__Bool_11) {
+        Str hoisted__Str_target_link_extra_args_8 = (Str){.c_str = TIL_OWN_LIT(" -Wl,--no-insert-timestamp", 26ULL), .count = 26ULL, .cap = TIL_CAP_LIT};
+        { Str _ret = hoisted__Str_target_link_extra_args_8; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+    }
+    Bool hoisted__Bool_12 = priv___src_self_targets_til__macos_is_cross(target);
+    Bool hoisted__Bool_13 = ((Bool)(!(hoisted__Bool_12)));
+    if (hoisted__Bool_13) {
         { Str _ret = _til_str_lits.h000000001505; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
     }
-    Str hoisted__Str_target_link_extra_args_12 = (Str){.c_str = TIL_OWN_LIT(" -fuse-ld=lld -Lvendor/macos", 28ULL), .count = 28ULL, .cap = TIL_CAP_LIT};
-    { Str _ret = hoisted__Str_target_link_extra_args_12; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+    Str hoisted__Str_target_link_extra_args_14 = (Str){.c_str = TIL_OWN_LIT(" -fuse-ld=lld -Lvendor/macos", 28ULL), .count = 28ULL, .cap = TIL_CAP_LIT};
+    { Str _ret = hoisted__Str_target_link_extra_args_14; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
 }
 
 static Bool target_links_named_objects(Target * target) {
@@ -481233,8 +481238,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-bcf8c5146", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("bcf8c5146bb59a99afde63a5799651779051df97", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-2600f5b24", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("2600f5b2405a137d94427a1869ccfd77901f8f1a", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

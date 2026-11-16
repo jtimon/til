@@ -259,18 +259,20 @@ jobs:
       # producer only (not compared)".
       # linux-x64 from this arm64 host is the CROSS half of the mirror pair
       # (#472 plan, S5): the x64 producer builds the same things natively.
+      # windows-x64 is cross from both Linux hosts, with Ubuntu's mingw-w64.
       - name: Install the mac and linux-x64 cross toolchains and build their archives
         continue-on-error: true
         run: |
-          sudo apt-get install -y clang lld llvm cmake gcc-x86-64-linux-gnu libc6-dev-amd64-cross
+          sudo apt-get install -y clang lld llvm cmake gcc-x86-64-linux-gnu libc6-dev-amd64-cross mingw-w64
           make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
           make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
           make vendor/libffi/build-linux-x64/.libs/libffi.a vendor/nng/build-linux-x64/libnng.a
+          make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
       - name: Write the binary hash lists for the collector
         continue-on-error: true
         run: |
           mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til macos-arm64 macos-x64 linux-arm64 linux-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til macos-arm64 macos-x64 linux-arm64 linux-x64 windows-x64
       - name: Upload the binary hash lists
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -838,6 +840,15 @@ jobs:
           # windows-x86 (32-bit, mingw i686) -- issue #232
           ./bin/til build --target=windows-x86 -o bin/hello_script-x86.exe examples/hello_script.til
           file bin/hello_script-x86.exe | grep -q -E "Intel (80386|i386)"
+      # Issue #472 (L3a): the driver of the suite's reproducible_build row,
+      # for the two windows targets. mingw's ld wrote the link time into
+      # every PE; til now links them with --no-insert-timestamp. A program
+      # and a library, from two checkout roots and at two times, compared
+      # byte for byte.
+      - name: Build for windows-x64 and windows-x86 reproducibly
+        run: |
+          ./bin/til run test/reproducible_build.til bin/til windows-x64
+          ./bin/til run test/reproducible_build.til bin/til windows-x86
       # Issue #472 (F1a): see the linux-arm64 job. Build only: the asserts
       # are checked by the compiler, and this file is not in the artifact
       # the windows runner executes.
@@ -2090,13 +2101,15 @@ jobs:
       # 24.04 has gcc 13.3.0 and glibc 2.39 both ways.
       # linux-x64 is the mirror pair (#472 plan, S5): native here, cross on
       # linux-arm64-native. Its libffi was built for bin/til.
+      # windows-x64 is cross from both Linux hosts, with Ubuntu's mingw-w64.
       - name: Write the binary hash lists for the collector
         run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross mingw-w64
           make vendor/libffi/build-linux-arm64/.libs/libffi.a vendor/nng/build-linux-arm64/libnng.a
           make vendor/nng/build-linux-x64/libnng.a
+          make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
           mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til macos-arm64 macos-x64 linux-arm64 linux-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til macos-arm64 macos-x64 linux-arm64 linux-x64 windows-x64
       - name: Upload the binary hash lists
         uses: actions/upload-artifact@v4
         with:
