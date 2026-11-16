@@ -1618,6 +1618,22 @@ jobs:
       - name: The installed til builds and runs a program elsewhere
         shell: cmd
         run: C:\msys64\usr\bin\bash.exe -lc "mkdir -p ../elsewhere && cp examples/hello_script.til ../elsewhere/ && cd ../elsewhere && '/c/Program Files/til/bin/til.exe' interpret hello_script.til && '/c/Program Files/til/bin/til.exe' run hello_script.til | grep -q 'Hello World'"
+      # The runner has no GPU, so no OpenGL driver: raylib's OpenGL 3.3
+      # build stops at "WGL: The driver does not appear to support OpenGL"
+      # (CI run 3129). The linux jobs get a software OpenGL from Mesa
+      # (libgl1-mesa-dri); this is the same for Windows: MSYS2's Mesa,
+      # registered as the OpenGL driver Windows' opengl32.dll loads. The
+      # binaries are the ones users get; only the machine's driver differs.
+      # BRING-UP: continue-on-error until a run shows the GUI tests pass.
+      - name: Software OpenGL for the GUI tests (Mesa)
+        shell: cmd
+        continue-on-error: true
+        run: |
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-mesa && ls /ucrt64/bin | grep -i -E 'gallium|opengl'"
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v DLL /t REG_SZ /d C:\msys64\ucrt64\bin\libgallium_wgl.dll /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v DriverVersion /t REG_DWORD /d 1 /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v Flags /t REG_DWORD /d 1 /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v Version /t REG_DWORD /d 2 /f
       # The whole suite, as linux-x64 runs it (without ASAN: MinGW has
       # none). BRING-UP: continue-on-error on this step only, so the job
       # still guards make and make install while each merge shows how far
