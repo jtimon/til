@@ -2196,8 +2196,8 @@ original partial-archive split rather than accidentally linking both into one
 private copy. Both compiled and interpreted cases must print their success
 marker, so a compiler diagnostic followed by exit zero cannot pass the test.
 
-Verification: ~make clean && make test~ in the local memory-limited systemd
-scope passed *561/561* tests, including ~link_objects~. This was native Linux
+Verification: ~make clean && make test~ passed *561/561* tests, including
+~link_objects~. This was native Linux
 verification, not a claimed macOS/Windows execution result. The new private
 helper requires no bootstrap preparation/use migration.
 
