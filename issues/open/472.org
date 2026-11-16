@@ -2565,3 +2565,12 @@ targets' lines from a mac host are all trial; from a Linux host they stay
 strict. Fixtures: a trial producer beside two strict ones, differing
 (trial difference, its missing item reported), equal, and with the two
 strict producers differing (fails).
+
+*** The Linux debug-information difference is #504
+
+Jorge, 2026-11-16: which model to follow for the host's C library on the
+Linux targets (rewrite the recorded paths as Rust does, use no C library
+as Go does, or bundle the headers as Zig does) is undecided, and is now
+[[./504.org][#504]], with the measurements, what those languages do and
+the options. Nothing left in this issue for linux-arm64 and linux-x64
+moves until it is decided; the mac targets and S7 do not depend on it.

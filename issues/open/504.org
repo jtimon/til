@@ -1,0 +1,127 @@
+# priority: medium
+# category: features
+** OPEN #504 Linux targets: the host's C library leaks into the binary (header paths in debug info today, more with other hosts)
+
+Split from [[./472.org][#472]] (Jorge, 2026-11-16): which model to follow
+is undecided, so it gets its own issue. #472 and #473 cannot finish for
+the Linux targets until this is settled, because the collector compares
+whole binaries.
+
+*** The problem
+
+til's generated C and ~ext.c~ include the system's C headers
+(~stdio.h~, ~stdint.h~, the ~bits/~, ~sys/~ and ~linux/~ headers), and a
+Linux build links the system's start files and C library. Everything
+else til links is vendored (libffi, nng, secp256k1, raylib,
+tinyfiledialogs, the X11 headers, ~vendor/macos~, the Android sysroot,
+emscripten, fasm). glibc is the one part of a Linux build the repository
+takes from the host.
+
+What that costs today, measured in CI runs 3115 and 3117 (Ubuntu 24.04
+on both hosts, gcc 13.3.0, glibc 2.39): for linux-arm64 built natively
+on an arm64 host and cross-built on an x64 host, and for linux-x64 the
+other way round, code and data are the same bytes; only the debug
+information differs (~.debug_info~, ~.debug_line~, ~.debug_line_str~),
+and the build id computed over it. DWARF records the directory of every
+file that went into the program, and Debian installs the same headers in
+two places:
+
+| | native gcc | Debian cross gcc |
+|-+------------+------------------|
+| C library headers | ~/usr/include~ | ~/usr/aarch64-linux-gnu/include~ |
+| per-architecture headers (~bits/~, ~sys/~, ...) | ~/usr/include/aarch64-linux-gnu/...~ | ~/usr/aarch64-linux-gnu/include/...~ |
+| the compiler's own headers | ~/usr/lib/gcc/aarch64-linux-gnu/13/include~ | ~/usr/lib/gcc-cross/aarch64-linux-gnu/13/include~ |
+
+(The cross column was read from a til built here; the native column is
+Debian's layout, not read from a runner.) til's own source paths are
+relative and already equal.
+
+Switching the Linux targets to clang does not change this by itself:
+clang 18.1.3 here, building for linux-arm64 on x64, records
+~/usr/bin/../lib/gcc-cross/aarch64-linux-gnu/13/../../../../aarch64-linux-gnu/include/bits~,
+the same cross layout.
+
+What it would cost with hosts that are NOT the same distribution release:
+the C library "standard" is the interface, not the files. Header macros
+and inline functions become code, each libc function a program uses is
+bound to a symbol version (~memcpy@GLIBC_2.14~, recorded in ~.dynsym~,
+which also fixes the oldest glibc the program runs on), and the start
+files (~crt1.o~ and friends) are linked into every executable. Two hosts
+with different glibc versions would differ in code and symbols, not only
+in paths.
+
+*** What other languages do
+
+- Rust: no C header takes part in compiling Rust code (its ~libc~ crate
+  declares the C functions by hand; from memory, not from the searches
+  below), so no header directory reaches the debug information. Where
+  its own paths would differ per machine it rewrites them: the standard
+  library's sources are recorded as ~/rustc/<commit hash>/library/...~ on
+  every host, and Cargo's ~trim-paths~ / ~--remap-path-prefix~ do the same
+  for user code. Linker and C library still come from the system, and
+  Rust does not promise the same binary from every host (its own
+  reproducibility test notes executables are not reproducible on
+  non-Linux targets).
+- Go: no C library and no C compiler by default; its own compiler and
+  linker, talking to the kernel directly. Since Go 1.21 the toolchain is
+  byte-identical whichever host builds it, cross-compiled or not, and
+  user programs too with ~-trimpath~. With cgo (the host's C compiler and
+  library) Go gives no such guarantee.
+- Zig: bundles the C library headers for every target inside the
+  compiler, including one set of glibc headers that stands for any
+  supported glibc version, plus a symbol list per version, so every host
+  reads the same headers from the compiler's own directory. No statement
+  was found that its output is byte-identical from any host.
+
+Sources (searched 2026-11-16):
+- https://go.dev/blog/rebuild
+- https://github.com/golang/go/issues/57120
+- https://lists.archlinux.org/archives/list/arch-dev-public@lists.archlinux.org/thread/M54TVJNYPNQ7KZDCRS2LNJFKMDN3NRWT/
+- https://rust-lang.github.io/rfcs/3127-trim-paths.html
+- https://doc.rust-lang.org/rustc/remap-source-paths.html
+- https://rust.googlesource.com/rust/+/HEAD/tests/run-make/reproducible-build/rmake.rs
+- https://git.jakstys.lt/motiejus/zig/raw/lib/libc/glibc/README.md
+
+*** The options for til
+
+til generates C that includes the system headers, so it stands where Go
+stands with cgo. Each option changes the compile commands til emits or
+adds a tree, so each needs Jorge's yes.
+
+1. Rewrite the recorded paths (Rust's way). til passes
+   ~-ffile-prefix-map~ options when it drives a Debian cross gcc, mapping
+   the cross directories to the native ones. One map is not enough: the
+   native layout keeps ~bits/~, ~sys/~, ~gnu/~, ~asm/~ under a
+   per-architecture directory, so it takes one map per such directory,
+   plus one for the compiler's own include directory. No download; the
+   debugger still finds the headers on a native system. Tied to Debian's
+   layout, and it only fixes paths: it does nothing for hosts with
+   another glibc version.
+2. A view of the host's own headers. til or ~bin/make~ builds a directory
+   with one fixed layout (say ~tmp/sysroot-<target>/~) of links to
+   whatever the host has installed, and points the compiler only there
+   (~-nostdinc~ plus ~-isystem~ per directory). The compiler records the
+   path it opened, so every host writes the same strings. No download; a
+   new generated directory and new flags. Paths only, like option 1.
+3. Bundle the C library (Zig's way, and what ~vendor/macos~ already is
+   for the mac targets): a pinned glibc's headers, start files and
+   libraries per Linux target, vendored or a pinned download, used by the
+   native build too. Removes the dependence on the host's glibc version
+   altogether, and that version becomes the minimum users need to run
+   til. A new vendored tree; the largest change. clang would make this
+   easier (one binary, ~--target~ and ~--sysroot~), gcc takes ~--sysroot~
+   too.
+4. Do not include system headers at all (Go's way, Rust's for headers):
+   declare what the generated C needs from the C library in til's own
+   headers. Removes the header paths and the inline code; start files and
+   symbol versions remain the host's unless combined with option 3.
+5. No ~-g~ for the binaries compared. They match, but that til carries no
+   debug information; not what users get.
+
+*** Acceptance
+
+- [ ] For linux-arm64 and linux-x64, til built natively and cross-built
+  on the other architecture's host is the same bytes, whole file, in a
+  CI run (the collector's ~binary~ level, #472).
+- [ ] The answer is written down for a host with another glibc version:
+  either the same bytes there too, or stated as outside the guarantee.
