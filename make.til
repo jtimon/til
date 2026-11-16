@@ -1536,9 +1536,11 @@ build_libffi_out_of_tree := proc(mut b: Build, name: Str) {
     // raw_api.o and java_raw_api.o, and only there; with it, an x64 host's
     // cross gcc writes the arm64 host's bytes (CI run 3115's hashes). On
     // windows targets libtool's PIC flag is -DDLL_EXPORT, which libffi's
-    // sources do not read.
+    // sources do not read. --without-gcc-arch as in the Makefile too: a
+    // native configure would add a -march for the build machine's CPU,
+    // which a cross configure never does (CI run 3117, linux-x64).
     configure := Cmd.new("../configure", format("--host=", t.host), format("CC=", t.cc),
-        "--disable-shared", "--enable-static", "--with-pic", "--disable-docs", "--disable-multi-os-directory", "--quiet")
+        "--disable-shared", "--enable-static", "--with-pic", "--without-gcc-arch", "--disable-docs", "--disable-multi-os-directory", "--quiet")
     if t.ar.is_empty().not() { configure.arg(format("AR=", t.ar)) }
     if t.ranlib.is_empty().not() { configure.arg(format("RANLIB=", t.ranlib)) }
     if t.ldflags.is_empty().not() { configure.arg(format("LDFLAGS=", t.ldflags)) }

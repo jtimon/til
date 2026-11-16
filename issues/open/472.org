@@ -2514,3 +2514,30 @@ producers recorded, and the toolchain is a trial item. Fixtures in
 ~test/ci_collect.til~: same binary, another binary (fails), different
 toolchains with the same binary (equal; the toolchains printed as a trial
 difference), different toolchains and another binary (fails).
+
+*** Run 3117: linux-x64 native against cross, and libffi's -march
+
+Run 3117 (master 45068f4, before the ~--with-pic~ fix) was cancelled by
+the layout test fixed in 4266191, but its ~collect~ job compared the
+first linux-x64 pair: native on x64, cross from the arm64 host.
+- ~hello_script~: debug information and build id only, as for
+  linux-arm64.
+- ~til~: also ~.text~, ~.rodata~, ~.data.rel.ro~, ~.dynsym~, ~.rela.dyn~
+  and ~.eh_frame~, and eight of ten ~libffi.a~ members differ. The cause
+  is libffi's configure: natively on x86 it reads cpuid and adds a
+  ~-march~ for the build machine (~-march=core2~ on this host; whatever
+  the runner's CPU is in CI), cross it adds none. So the host's own
+  libffi, and every til linked with it, depended on the machine that
+  built it, and could need instructions another machine lacks. Built here
+  with ~--without-gcc-arch~ and no PIC, all eight members have the hashes
+  the arm64 host's cross build recorded in run 3117.
+- Both libffi configure lines (the Makefile's host build and
+  ~make.til~'s for every target) now pass ~--with-pic
+  --without-gcc-arch~. Checked here: the Makefile's ~libffi.a~ and a
+  ~make.til~-style build of linux-x64 on this host are the same file.
+  The native mac builds had the same ~-march~ on macos-x64 (cpuid); no
+  more.
+
+Left for linux-x64 and linux-arm64 after this: the debug information of
+the programs (the directories the two drivers record), with the
+decision open.

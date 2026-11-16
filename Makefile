@@ -176,7 +176,12 @@ endif
 # that stays here: the host's own build. The other targets' libffi builds
 # are make.til's (its LibffiCross table). --with-pic because make.til
 # relinks this archive into the interpreter's loadable twin, as for every
-# archive a program links (issue #422).
+# archive a program links (issue #422). --without-gcc-arch: otherwise
+# configure adds a -march for the CPU it runs on (cpuid on x86; -march=core2
+# on one host, whatever the CI runner has on another), so the archive, and
+# til linked with it, would depend on the build machine and could need
+# instructions other machines lack. A cross configure never adds one, and
+# every host has to build the same bytes for a target (#472).
 #
 # On a mac host the archive must be built for the deployment target til
 # links its programs at (targets.til: macos11 on arm64, macos10.12 on
@@ -193,7 +198,7 @@ endif
 endif
 $(LIBFFI_HOST_DIR)/.built:
 	mkdir -p $(LIBFFI_HOST_DIR)
-	cd $(LIBFFI_HOST_DIR) && $(LIBFFI_ENV) ../configure --disable-shared --enable-static --with-pic --disable-docs --quiet
+	cd $(LIBFFI_HOST_DIR) && $(LIBFFI_ENV) ../configure --disable-shared --enable-static --with-pic --without-gcc-arch --disable-docs --quiet
 	$(LIBFFI_ENV) $(MAKE) -C $(LIBFFI_HOST_DIR)
 	touch $@
 
