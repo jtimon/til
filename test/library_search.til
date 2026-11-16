@@ -1,0 +1,19 @@
+mode lib
+
+// Shared by the tests that load a library they just built by its name
+// (link("-l...")): the place the loader looks, on every host.
+
+import("../src/std/sys")
+
+// Run `command` with the libraries in `dir` loadable by name:
+// LD_LIBRARY_PATH on Linux, DYLD_LIBRARY_PATH on macOS, and on Windows the
+// directory first on PATH, where Windows looks for a DLL loaded by name
+// (CI run 3133: "libffi_lib_layout_probe.dll: The specified module could
+// not be found"). A relative `dir` is the child's, as with the other two.
+library_search_in := proc(command: Cmd, dir: Str) {
+    command.env("LD_LIBRARY_PATH", dir)
+    command.env("DYLD_LIBRARY_PATH", dir)
+    if host_os() == "windows" {
+        command.env("PATH", format(dir.replace("/", "\\"), ";", get_env("PATH")))
+    }
+}

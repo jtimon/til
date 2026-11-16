@@ -3,6 +3,7 @@ mode cli
 import("../src/std/sys")
 import("../src/std/file")
 import("jni_support")
+import("library_search")
 
 require_contains := func(text: Str, expected: Str) returns Bool {
     if text.contains(expected).not() { panic("missing generated binding text: ", expected) }
@@ -78,8 +79,7 @@ check_binding_composition := proc(compiler: Str) {
         "layer_bump := proc() { noop_proc(); library_namespace_a_state++ }\n"))
     layer := Cmd.new(compiler, "build", "tmp/library_namespace_layer.til")
     layer.env("LIBRARY_PATH", "gen/lib")
-    layer.env("LD_LIBRARY_PATH", "gen/lib")
-    layer.env("DYLD_LIBRARY_PATH", "gen/lib")
+    library_search_in(layer, "gen/lib")
     layer.run_checked()
     binding := File.readfile("gen/til/library_namespace_layer.til")
     require_contains(binding, "import(\"./library_namespace_a\")")
@@ -93,8 +93,7 @@ check_binding_composition := proc(compiler: Str) {
         "outer_bump := proc() { layer_bump() }\n"))
     outer := Cmd.new(compiler, "build", "tmp/library_namespace_outer.til")
     outer.env("LIBRARY_PATH", "gen/lib")
-    outer.env("LD_LIBRARY_PATH", "gen/lib")
-    outer.env("DYLD_LIBRARY_PATH", "gen/lib")
+    library_search_in(outer, "gen/lib")
     outer.run_checked()
     outer_binding := File.readfile("gen/til/library_namespace_outer.til")
     require_contains(outer_binding, "import(\"./library_namespace_layer\")")
@@ -116,8 +115,7 @@ check_binding_composition := proc(compiler: Str) {
     for action in vec(Str, "run", "interpret") {
         consumer := Cmd.new(compiler, action, "tmp/library_namespace_package/consumer.til")
         consumer.env("LIBRARY_PATH", "gen/lib")
-        consumer.env("LD_LIBRARY_PATH", "gen/lib")
-        consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
+        library_search_in(consumer, "gen/lib")
         consumer.run_checked()
     }
 }
@@ -301,8 +299,7 @@ main := proc(args: ..Str) {
     consumer := Cmd.new("bin/til", "run", "-c", "gen/c/library_namespace_consumer.c",
                         "test/library_namespace_consumer.til")
     consumer.env("LIBRARY_PATH", "gen/lib")
-    consumer.env("LD_LIBRARY_PATH", "gen/lib")
-    consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
+    library_search_in(consumer, "gen/lib")
     consumer.run_checked()
 
     // Generated enum declarations must remain compilable when their methods
@@ -358,13 +355,11 @@ main := proc(args: ..Str) {
     if asan { enum_consumer.arg("--asan") }
     enum_consumer.arg("tmp/library_namespace_enum.til")
     enum_consumer.env("LIBRARY_PATH", "gen/lib")
-    enum_consumer.env("LD_LIBRARY_PATH", "gen/lib")
-    enum_consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
+    library_search_in(enum_consumer, "gen/lib")
     enum_consumer.run_checked()
     enum_interpreted := Cmd.new(til_bin, "interpret", "tmp/library_namespace_enum.til")
     enum_interpreted.env("LIBRARY_PATH", "gen/lib")
-    enum_interpreted.env("LD_LIBRARY_PATH", "gen/lib")
-    enum_interpreted.env("DYLD_LIBRARY_PATH", "gen/lib")
+    library_search_in(enum_interpreted, "gen/lib")
     enum_interpreted.run_checked()
     check_binding_composition(til_bin)
 
@@ -408,8 +403,7 @@ main := proc(args: ..Str) {
 
     interpreted := Cmd.new(til_bin, "interpret", "test/library_namespace_consumer.til")
     interpreted.env("LIBRARY_PATH", "gen/lib")
-    interpreted.env("LD_LIBRARY_PATH", "gen/lib")
-    interpreted.env("DYLD_LIBRARY_PATH", "gen/lib")
+    library_search_in(interpreted, "gen/lib")
     interpreted.run_checked()
 
     // Borrowed foreign places survive a cloned Context and rebuilt FFI cache
@@ -418,8 +412,7 @@ main := proc(args: ..Str) {
         "lib := import(\"gen/til/library_namespace_a\")\nref w := lib.library_widths_ref()\nlib.library_set_widths(307)\nprintln(format(\"foreign-repl=\", w.second.to_str()))\nref t := lib.library_text_ref()\nlib.library_set_text()\nprintln(format(\"foreign-text=\", t))\nWidths := lib.BindingWidths\n{\nref value : Widths = lib.library_widths_pool_borrow()\nref alias : Widths = value\nprintln(format(\"pool-foreign=\", alias.second.to_str()))\n}\nlib.library_widths_pool_reuse()\n{\nref mut raw : U8 = lib.library_widths_pool_host()\nwrite_u32(raw, 111)\nwrite_u32(ptr_add(raw, 4), 222)\nwrite_u64(ptr_add(raw, 8), 333)\nref view : Widths = ptr_add(raw, 0)\nprintln(format(\"pool-host=\", view.second.to_str()))\n}\n{\nprintln(format(\"pool-temporary=\", lib.library_widths_pool_borrow().second.to_str()))\nlib.library_widths_pool_reuse()\nref mut raw : U8 = lib.library_widths_pool_host()\nwrite_u32(raw, 111)\nwrite_u32(ptr_add(raw, 4), 444)\nwrite_u64(ptr_add(raw, 8), 555)\nref view : Widths = ptr_add(raw, 0)\nprintln(format(\"pool-host-temporary=\", view.second.to_str()))\n}\n")
     repl := Cmd.new("sh", "-c", "bin/til < tmp/library_namespace_repl_input")
     repl.env("LIBRARY_PATH", "gen/lib")
-    repl.env("LD_LIBRARY_PATH", "gen/lib")
-    repl.env("DYLD_LIBRARY_PATH", "gen/lib")
+    library_search_in(repl, "gen/lib")
     repl.capture()
     repl.run_checked()
     output := format(repl.out(), repl.err())

@@ -3,6 +3,7 @@ mode cli
 import("../src/std/sys")
 import("../src/std/file")
 import("../src/self/install")
+import("library_search")
 
 // The compiler under the host's executable name (bin/til.exe on Windows,
 // where a Win32 file check does not add the .exe).
@@ -58,8 +59,7 @@ run_native_family := proc(work: Str, fixture: Str, family: Str) {
     child.cwd(directory)
     child.env("PATH", "")
     child.env("HOME", realpath_str(format(directory, "/home")))
-    child.env("LD_LIBRARY_PATH", library_dir)
-    child.env("DYLD_LIBRARY_PATH", library_dir)
+    library_search_in(child, library_dir)
     child.capture()
     if child.run() != 0 { panic("installed native TilVm ", family, " failed: ", child.out(), child.err()) }
     check_native_output(format("tilvm_native_", family), child.out(), child.err())
@@ -180,8 +180,7 @@ main := proc(args: ..Str) returns I64 {
     native_run.env("PATH", "")
     mkdir_p(format(work, "/home"))
     native_run.env("HOME", realpath_str(format(work, "/home")))
-    native_run.env("LD_LIBRARY_PATH", library_dir)
-    native_run.env("DYLD_LIBRARY_PATH", library_dir)
+    library_search_in(native_run, library_dir)
     native_run.capture()
     if native_run.run() != 0 { panic("installed native TilVm failed: ", native_run.out(), native_run.err()) }
     check_native_output(fixture, native_run.out(), native_run.err())

@@ -2812,6 +2812,7 @@ typedef struct Map__Str_HeapBinding {
 
 typedef struct DocCatalog {
     Vec__DocEntry entries;
+    Str support_dir;
 } DocCatalog;
 
 

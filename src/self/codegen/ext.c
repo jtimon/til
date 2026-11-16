@@ -1641,7 +1641,7 @@ static Bool float_hex_nearest_bits(const Str *s, int precision, uint64_t *bits) 
 // digits, so a value just above a rounding midpoint, decided hundreds of
 // digits in, rounds down (CI run 3129, test/float_literals.til). MinGW-w64
 // ships David Gay's correctly rounded gdtoa beside it as __mingw_strtod and
-// __mingw_strtof, which agree with glibc's and Apple's.
+// __mingw_strtof, which agree with glibc's and Apple's on the digits.
 #ifdef __MINGW32__
 // stdlib.h declares them only inside its inline strtod/strtof, under
 // __USE_MINGW_STRTOX.
@@ -1654,12 +1654,47 @@ float __cdecl __mingw_strtof(const char *__restrict__, char **__restrict__);
 #define TIL_STRTOF strtof
 #endif
 
+// The sign is til's, not the C library's: MinGW-w64 releases disagree on
+// it at zero (one turned "-0" into +0, CI run 3133; another turns "-x",
+// which holds no number, into -0). Leading space and one sign are read
+// here, the library parses the unsigned rest, and text with no number
+// after them is +0 -- what glibc answers.
+static const char *float_text_unsigned(const char *p, int *negative) {
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\v' || *p == '\f' || *p == '\r') p++;
+    *negative = 0;
+    if (*p == '+' || *p == '-') {
+        *negative = (*p == '-');
+        p++;
+    }
+    return p;
+}
+
+static double til_parse_double(const char *text) {
+    int negative;
+    const char *p = float_text_unsigned(text, &negative);
+    if (*p == '+' || *p == '-') return 0.0;
+    char *end;
+    double v = TIL_STRTOD(p, &end);
+    if (end == p) return 0.0;
+    return negative ? -v : v;
+}
+
+static float til_parse_float(const char *text) {
+    int negative;
+    const char *p = float_text_unsigned(text, &negative);
+    if (*p == '+' || *p == '-') return 0.0f;
+    char *end;
+    float v = TIL_STRTOF(p, &end);
+    if (end == p) return 0.0f;
+    return negative ? -v : v;
+}
+
 // Faithful decimal/scientific float parse (strtof) -- handles exponents
 // and full precision, unlike the old hand-rolled Str.to_f32. Backs
 // Str.to_f32 so folded F32 literals round-trip in interp and codegen.
 F32 str_parse_f32(const Str *s) {
     char *p = dup_n((const char *)TIL_OWN_GET(I8, s->c_str), s->count);
-    float v = TIL_STRTOF(p, NULL);
+    float v = til_parse_float(p);
     uint64_t bits;
     if (float_hex_nearest_bits(s, 24, &bits)) {
         uint32_t word = (uint32_t)bits;
@@ -1719,7 +1754,7 @@ Str *F64_to_repr(F64 v) {
 // Faithful decimal/scientific parse (strtod), F64 twin of str_parse_f32.
 F64 str_parse_f64(const Str *s) {
     char *p = dup_n((const char *)TIL_OWN_GET(I8, s->c_str), s->count);
-    double v = TIL_STRTOD(p, NULL);
+    double v = til_parse_double(p);
     uint64_t bits;
     if (float_hex_nearest_bits(s, 53, &bits)) memcpy(&v, &bits, sizeof(v));
     free(p);
@@ -4344,6 +4379,13 @@ static char *win_quote_arg(const char *arg) {
     int needs = (*arg == '\0');
     for (const char *p = arg; *p && !needs; p++) {
         if (*p == ' ' || *p == '\t' || *p == '"') needs = 1;
+        // A Cygwin or MSYS2 program (the echo, sh and coreutils of an
+        // MSYS2 shell) started by a native one expands the wildcards of
+        // every UNQUOTED argument itself, as its missing shell would have:
+        // Cmd.new("echo", "*") printed the directory listing (CI run 3133,
+        // test/process.til). Quoted, the argument arrives as written; a
+        // native program's argv is the same either way.
+        if (*p == '*' || *p == '?' || *p == '[') needs = 1;
     }
     size_t len = strlen(arg);
     char *out = malloc(len * 2 + 3);

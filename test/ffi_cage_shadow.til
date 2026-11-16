@@ -2,6 +2,7 @@ mode cli
 
 import("../src/std/sys")
 import("../src/std/file")
+import("library_search")
 
 // #313: one cage per process, shared by every copy of the allocator -- and
 // so is its ASAN shadow. An ASAN interpreter loading a library built WITHOUT
@@ -36,8 +37,7 @@ main := proc(args: ..Str) {
     build.run_checked()
     consumer := Cmd.new(compiler, "interpret", format(WORK, "/consumer.til"))
     consumer.env("LIBRARY_PATH", "gen/lib")
-    consumer.env("LD_LIBRARY_PATH", "gen/lib")
-    consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
+    library_search_in(consumer, "gen/lib")
     consumer.capture()
     consumer.run_checked()
     if consumer.out().contains("cage shadow ok").not() {

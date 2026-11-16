@@ -2,6 +2,7 @@ mode cli
 
 import("../src/std/sys")
 import("../src/std/file")
+import("library_search")
 
 // #313 follow-up: a library's values cross an interpreted call in the
 // interpreter's layout, and the library shares the interpreter's allocator.
@@ -33,8 +34,7 @@ expect_refused := proc(args: Array(Str), flip: Str) {
     build.run_checked()
     consumer := Cmd.new(compiler, "interpret", format(WORK, "/consumer.til"))
     consumer.env("LIBRARY_PATH", "gen/lib")
-    consumer.env("LD_LIBRARY_PATH", "gen/lib")
-    consumer.env("DYLD_LIBRARY_PATH", "gen/lib")
+    library_search_in(consumer, "gen/lib")
     consumer.capture()
     status := consumer.run()
     if status == 0 { panic("library built ", flip, " was loaded: ", consumer.out()) }
@@ -78,8 +78,7 @@ expect_linked := proc(args: Array(Str)) {
     compiled.env("LIBRARY_PATH", "gen/lib")
     compiled.run_checked()
     run := Cmd.new(format(WORK, "/consumer_bin"))
-    run.env("LD_LIBRARY_PATH", "gen/lib")
-    run.env("DYLD_LIBRARY_PATH", "gen/lib")
+    library_search_in(run, "gen/lib")
     run.capture()
     if run.run() != 0 { panic("matching compiled consumer failed: ", run.out(), run.err()) }
     if run.out().contains("layout probe loaded").not() { panic("matching compiled consumer: ", run.out()) }
@@ -122,14 +121,12 @@ main := proc(args: ..Str) {
         "plain_value := ext_proc() returns shallow I64 {}\n",
         "println(plain_value().to_str())\n"))
     old := Cmd.new(args[0], "interpret", format(WORK, "/old_consumer.til"))
-    old.env("LD_LIBRARY_PATH", "gen/lib")
-    old.env("DYLD_LIBRARY_PATH", "gen/lib")
+    library_search_in(old, "gen/lib")
     old.capture()
     if old.run() == 0 { panic("a til library with no layout record was loaded: ", old.out()) }
     if old.err().contains("no layout record").not() { panic("not refused for its missing layout: ", old.out(), old.err()) }
     plain := Cmd.new(args[0], "interpret", format(WORK, "/plain_consumer.til"))
-    plain.env("LD_LIBRARY_PATH", "gen/lib")
-    plain.env("DYLD_LIBRARY_PATH", "gen/lib")
+    library_search_in(plain, "gen/lib")
     plain.capture()
     if plain.run() != 0 { panic("a C library was refused: ", plain.out(), plain.err()) }
     if plain.out().contains("9").not() { panic("C library call failed: ", plain.out()) }

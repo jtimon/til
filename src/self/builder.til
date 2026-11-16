@@ -119,15 +119,25 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     if shared_runtime {
         runtime_shared_path = format("gen/lib/", runtime_basename)
         runtime_import_path = format("gen/lib/lib", runtime_stem, ".dll.a")
-        pid_suffix := format(".tmp.", process_id().to_str())
-        runtime_obj_tmp := format("gen/lib/", runtime_stem, ".o", pid_suffix)
-        runtime_shared_tmp := format(runtime_shared_path, pid_suffix)
-        runtime_import_tmp := format(runtime_import_path, pid_suffix)
+        // Built in a directory of this process's own and moved into place,
+        // so that concurrent builds never see a half-written one -- under
+        // the FINAL file names: a PE DLL is named after its output file,
+        // and that name is what its import library records and every
+        // consumer imports. Built as <name>.dll.tmp.<pid> and renamed, the
+        // core imported libtilrt-....dll.tmp.<pid>, which no host can load
+        // (CI run 3133).
+        stage := format("gen/lib/stage_", process_id().to_str())
+        File.remove_tree(stage)
+        mkdir_p(stage)
+        runtime_obj_tmp := format(stage, "/", runtime_stem, ".o")
+        runtime_shared_tmp := format(stage, "/", runtime_basename)
+        runtime_import_tmp := format(stage, "/lib", runtime_stem, ".dll.a")
         cmd = compiler.format(extra, werr, asan_flags, usize_flags,
             " -fPIC -DTIL_LIBRARY_BUILD -include ", fwd_path, " -I", ext_dir,
             " -c ", ext_c_arg, " -o ", runtime_obj_tmp)
         result = system_cmd(cmd)
         if result != 0 {
+            File.remove_tree(stage)
             println("error: shared runtime compilation failed")
             return 1
         }
@@ -137,8 +147,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
             identity_args, " ", target_system_libs(target))
         result = system_cmd(cmd)
         if result != 0 {
-            File.remove(runtime_obj_tmp)
-            File.remove(runtime_import_tmp)
+            File.remove_tree(stage)
             println("error: shared runtime creation failed")
             return 1
         }
@@ -151,14 +160,15 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
 
         core_shared_path = format("gen/lib/", core_basename)
         core_import_path = format("gen/lib/lib", core_stem, ".dll.a")
-        core_obj_tmp := format("gen/lib/", core_stem, ".o", pid_suffix)
-        core_shared_tmp := format(core_shared_path, pid_suffix)
-        core_import_tmp := format(core_import_path, pid_suffix)
+        core_obj_tmp := format(stage, "/", core_stem, ".o")
+        core_shared_tmp := format(stage, "/", core_basename)
+        core_import_tmp := format(stage, "/lib", core_stem, ".dll.a")
         cmd = compiler.format(extra, werr, asan_flags, usize_flags,
             " -fPIC -fvisibility=hidden -ffunction-sections -fdata-sections",
             " -DTIL_CORE_ONLY -I", ext_dir, " -c ", c_path, " -o ", core_obj_tmp)
         result = system_cmd(cmd)
         if result != 0 {
+            File.remove_tree(stage)
             println("error: shared core compilation failed")
             return 1
         }
@@ -171,8 +181,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
             " ", target_system_libs(target))
         result = system_cmd(cmd)
         if result != 0 {
-            File.remove(core_obj_tmp)
-            File.remove(core_import_tmp)
+            File.remove_tree(stage)
             println("error: shared core creation failed")
             return 1
         }
@@ -182,6 +191,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
             File.rename(core_import_tmp, core_import_path)
         }
         File.rename(core_shared_tmp, core_shared_path)
+        File.remove_tree(stage)
 
         shared_obj_path = format("gen/lib/", lib_name, "_shared.o")
         cmd = compiler.format(extra, werr, asan_flags, usize_flags, stamp_flag,
@@ -2356,6 +2366,9 @@ DocEntry := struct {
 
 DocCatalog := struct {
     entries := Vec(DocEntry).new()
+    // The compiler's support root (ctx.import_support_dir): its units are
+    // named from there in doc/gen (til_doc_out_path).
+    support_dir := ""
 }
 
 priv doc_decl_hidden := func(dd: Declaration, meta: DocMeta) returns Bool {
@@ -2467,7 +2480,7 @@ priv collect_enum_doc_members := func(unit_path: Str, page: Str, type_name: Str,
 
 priv collect_unit_doc_catalog := func(u: ProgramUnit, ctx: Context, mut catalog: DocCatalog) {
     ref iu : ImportUnit = ctx.imported[u.path]
-    page := doc_index_link_path(til_doc_out_path(u.path))
+    page := doc_index_link_path(til_doc_out_path(u.path, catalog.support_dir))
     for stmt : Expr in iu.ast.children {
         if stmt.node_type.is(NodeType.Decl) {
             ref dd : Declaration = decl_of(stmt)
@@ -2597,7 +2610,7 @@ priv expand_doc_catalog_links := func(mut catalog: DocCatalog) {
 }
 
 priv build_doc_catalog := func(lp: LoadedProgram) returns DocCatalog {
-    mut catalog := DocCatalog()
+    mut catalog := DocCatalog(support_dir = lp.ctx.import_support_dir.clone())
     if lp.skip_core.not() {
         for u : ProgramUnit in lp.core_units { collect_unit_doc_catalog(u, lp.ctx, catalog) }
     }
@@ -3242,7 +3255,7 @@ priv format_unit_doc_html := func(unit_path: Str, catalog: DocCatalog, version: 
     mut title := unit_path.clone()
     if title.starts_with("./") { title = title.strip_prefix("./").clone() }
 
-    current_page := doc_index_link_path(doc_html_path(til_doc_out_path(unit_path)))
+    current_page := doc_index_link_path(doc_html_path(til_doc_out_path(unit_path, catalog.support_dir)))
     mut total : USize = title.len().mul(6) + 8192 + doc_html_sidebar_capacity(catalog, current_page)
     for e : DocEntry in catalog.entries {
         if e.unit_path == unit_path { total = total + doc_html_entry_capacity(e) }
@@ -3414,8 +3427,13 @@ priv emit_doc_index := proc(catalog: DocCatalog, version: Str) {
     println(format("Generated: ", html_out))
 }
 
-// "src/core/vec.til" -> "doc/gen/src/core/vec.org"
-priv til_doc_out_path := func(unit_path: Str) returns Str {
+// "src/core/vec.til" -> "doc/gen/src/core/vec.org". A unit is named as the
+// loader displays it, relative to the working directory, or -- the
+// compiler's own library, when the program lives elsewhere -- relative to
+// the support root, as it is inside the repository. Its absolute path used
+// to be glued under doc/gen (doc/gen//home/.../src/std/mode_type.org), and
+// a Windows drive letter cannot be a directory name (CI run 3133).
+priv til_doc_out_path := func(unit_path: Str, support_dir: Str) returns Str {
     // Trim a leading "./" and a trailing ".til" via self-reassigns from
     // substrings of `name`. `name = name.strip_prefix(...).clone()` is compiled
     // correctly: #238 fixed the asap-destruction delete-ordering (the typer
@@ -3423,13 +3441,21 @@ priv til_doc_out_path := func(unit_path: Str) returns Str {
     // the old-value delete is ordered after the clone), and #258 keeps the
     // clone of any Str whose defs are not provably owning.
     mut name := unit_path.clone()
+    if File.is_absolute(name) {
+        support_prefix := format(support_dir, "/")
+        if name.starts_with(support_prefix).not() {
+            panic("til doc: no page path for '", unit_path,
+                "': it is outside the working directory and the compiler's support tree")
+        }
+        name = name.strip_prefix(support_prefix).clone()
+    }
     if name.starts_with("./") { name = name.strip_prefix("./").clone() }
     if name.ends_with(".til") { name = name.strip_suffix(".til").clone() }
     return format("doc/gen/", name, ".org")
 }
 
-priv til_doc_html_out_path := func(unit_path: Str) returns Str {
-    return doc_html_path(til_doc_out_path(unit_path))
+priv til_doc_html_out_path := func(unit_path: Str, support_dir: Str) returns Str {
+    return doc_html_path(til_doc_out_path(unit_path, support_dir))
 }
 
 // Ensure the parent directory of `path` exists (mkdir -p).
@@ -3442,13 +3468,13 @@ priv ensure_parent_dir := proc(path: Str) {
 }
 
 priv emit_unit_doc := proc(u: ProgramUnit, catalog: DocCatalog, version: Str) {
-    out := til_doc_out_path(u.path)
+    out := til_doc_out_path(u.path, catalog.support_dir)
     ensure_parent_dir(out)
     page := format_unit_doc_org(u.path, catalog, version)
     File.writefile(out, page)
     println(format("Generated: ", out))
 
-    html_out := til_doc_html_out_path(u.path)
+    html_out := til_doc_html_out_path(u.path, catalog.support_dir)
     html_page := format_unit_doc_html(u.path, catalog, version)
     File.writefile(html_out, html_page)
     println(format("Generated: ", html_out))
