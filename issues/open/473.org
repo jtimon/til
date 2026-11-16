@@ -947,3 +947,22 @@ Done: C0-C3, C5, C6, C8, superseded-run cancelling, and C7's mechanism.
 Jorge: it was meant as a one-off, not a rule; with merges every hour no
 run would ever finish. The ~concurrency~ block is gone and every push
 gets its full run again.
+
+*** Runs go one at a time; a started run always finishes (base master f0acf43)
+
+Jorge, 2026-11-16, after seven runs (3132 to 3138) had queued behind each
+other and the newest could not even start its first job: try the milder
+rule. The workflow has a ~concurrency~ group per branch with
+~cancel-in-progress: false~:
+- a run that has started is never cancelled by a later push;
+- while it runs, the newest push waits, and replaces whichever push was
+  waiting before it. That older one is cancelled without having started;
+  its changes are tested as part of the newer run.
+So a run finishes about every two hours and covers the newest commit of
+that moment; the commits in between show as cancelled.
+This is not the rule removed above (b74f4cf), which cancelled the run in
+progress. A push whose head commit is "Doc: " keeps a group of its own,
+as it had then: its run skips every job and must neither wait behind a
+code run nor replace the waiting code push.
+Runs queued before this commit have no group and still run in full; the
+rule holds from the first push that carries it.

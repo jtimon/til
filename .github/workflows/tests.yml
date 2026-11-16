@@ -10,6 +10,23 @@ on:
   # branch instead of burning a master merge per attempt.
   workflow_dispatch:
 
+# Runs of one branch go one at a time, and a run that has started always
+# finishes (Jorge, #473, 2026-11-16). While one runs, the newest push waits
+# and replaces whichever push was waiting before it; that older one is
+# cancelled without having started, and its changes are tested as part of
+# the newer run. Without this every push started a full run of its own:
+# about two hours, most of the account's runners, and seven of them queued
+# behind each other on 2026-11-16.
+# This is NOT the rule removed on 2026-11-15, which cancelled the run in
+# progress, so that with frequent merges no run ever finished:
+# cancel-in-progress stays false.
+# A push whose head commit is "Doc: " gets a group of its own: its run
+# skips every job (doc-gate), and must neither wait behind a code run nor
+# replace the code push that is waiting.
+concurrency:
+  group: "tests-${{ github.ref }}-${{ startsWith(github.event.head_commit.message, 'Doc: ') && github.sha || 'code' }}"
+  cancel-in-progress: false
+
 # Every job ends with "Cancel the rest of this run", which runs only when
 # one of its steps failed and cancels the whole run (actions: write), so a
 # failing commit stops holding runners. The failing job keeps its log and
