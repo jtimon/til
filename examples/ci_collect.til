@@ -471,6 +471,12 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
             format(directory, "/libnng_members"), lines)
     }
     File.writefile(list, format(join(lines, "\n"), "\n"))
+    // The til binaries' own lines, in this job's log: the binary that
+    // matters can be compared between hosts as soon as their jobs end,
+    // without waiting for the collect job (which waits for every producer).
+    for line : Str in lines {
+        if line.ends_with(" src/til.til til") { println("ci_collect: ", producer, " ", line) }
+    }
     println("ci_collect: ", producer, " wrote ", lines.len().to_str(), " lines to ", list)
 }
 

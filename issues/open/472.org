@@ -2791,3 +2791,52 @@ for a week, or the repository over 10 GB of caches).
 Not run here: this container cannot download from GitHub, so
 ~bin/make llvm~ and its tar patterns first run in CI, in steps that are
 continue-on-error. ~bin/make~ builds and lists the goal.
+
+*** The producers print til's hashes in their own logs
+
+The collect job waits for every producer, the Mac suites included, so a
+comparison of ~til~ between hosts was two hours away from the push that
+changed something. ~produce-binary~ now prints the list lines of ~til~
+itself (both widths, every target it built) in its job's log, where they
+can be read and compared as soon as that job ends. Checked here for
+linux-x64: two lines, widths 32 and 64.
+
+Also checked here, because the Windows and Mac runners check the
+repository out under other directories than the Linux runners: the
+checkout's absolute path does not occur in the vendored archives built
+here (libffi and nng for macos-arm64 and windows-x64, nng for linux-x64
+and linux-arm64).
+
+*** Run 3130: til.exe's code is the same from three hosts; the files are not yet
+
+The first comparison of windows-x64 built with the pinned llvm-mingw on
+Linux x64, Linux arm64 and the Windows runner (131 lines each):
+- Equal on all three: ~til.exe~'s ~.text~, and 28 items in all at width
+  32. So the three hosts generate the same code.
+- Different between EVERY pair of hosts (99 of 102 differing items):
+  ~til.exe~ as a whole and its ~.debug_info~ and ~.debug_line~, the same
+  for ~hello_script~, and every C object of ~libffi.a~ and ~libnng.a~
+  (libffi's assembly member is equal).
+- Different on the Windows host only (3 items): the toolchain item, and
+  the stamped programs' ~.rdata~ (the build stamp names ~bin/til.exe~
+  there, known).
+
+In that run each host unpacked the toolchain into ~tmp/<archive name>~,
+and the archive's name carries the host's architecture, so the
+toolchain's headers sat under a different path on every host. That
+accounts for the debug information: til maps the checkout directory to
+~.~ (~-ffile-prefix-map~), and the header paths below it still differed.
+Since b0529a9 the toolchain is ~vendor/llvm-mingw~ on every host, so the
+next run should show the two Linux hosts equal there; the Windows host
+depends on the checkout path being mapped the same way.
+
+Not explained yet: the vendored objects. They are built without ~-g~
+(libffi ~-O3~, nng cmake Release), the clang-built ones made here contain
+no path, and their code links to the same ~.text~. The three windows
+trial steps now dump one small object in full (libffi's ~types.o~:
+headers, symbols and section contents) into their logs, to read the
+difference from the next run.
+
+Reading the comparison: a continue-on-error step reads as successful in
+the jobs list, and the collect job starts only after the Mac suites, two
+hours after the push.

@@ -304,6 +304,13 @@ jobs:
           x86_64-w64-mingw32-gcc --version | grep -q clang
           rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
           make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
+          # Run 3130: til.exe's code was the same from all three hosts, but
+          # every C object of libffi and nng differed between each pair of
+          # them. One small object in full, to read what differs from the
+          # three logs.
+          mkdir -p tmp/probe
+          (cd tmp/probe && x86_64-w64-mingw32-ar x ../../vendor/libffi/build-windows-x64/.libs/libffi.a types.o)
+          x86_64-w64-mingw32-objdump -h -t -s tmp/probe/types.o
           mkdir -p tmp/hashes-binary-windows
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary-windows/linux-arm64.txt bin/til windows-x64
       - name: Upload the windows binary hash list
@@ -1046,6 +1053,13 @@ jobs:
           x86_64-w64-mingw32-gcc --version | grep -q clang
           rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
           make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
+          # Run 3130: til.exe's code was the same from all three hosts, but
+          # every C object of libffi and nng differed between each pair of
+          # them. One small object in full, to read what differs from the
+          # three logs.
+          mkdir -p tmp/probe
+          (cd tmp/probe && x86_64-w64-mingw32-ar x ../../vendor/libffi/build-windows-x64/.libs/libffi.a types.o)
+          x86_64-w64-mingw32-objdump -h -t -s tmp/probe/types.o
           mkdir -p tmp/hashes-binary-windows
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-windows/linux-x64.txt bin/til windows-x64
       - name: Upload the windows binary hash list
@@ -1681,6 +1695,13 @@ jobs:
           x86_64-w64-mingw32-gcc --version | grep -q clang
           rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
           make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
+          # Run 3130: til.exe's code was the same from all three hosts, but
+          # every C object of libffi and nng differed between each pair of
+          # them. One small object in full, to read what differs from the
+          # three logs.
+          mkdir -p tmp/probe
+          (cd tmp/probe && x86_64-w64-mingw32-ar x ../../vendor/libffi/build-windows-x64/.libs/libffi.a types.o)
+          x86_64-w64-mingw32-objdump -h -t -s tmp/probe/types.o
           mkdir -p tmp/hashes-binary-windows
           ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary windows-x64 tmp/hashes-binary-windows/windows-x64.txt bin/til.exe windows-x64
       - name: Upload the windows binary hash list
