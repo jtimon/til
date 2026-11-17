@@ -21,7 +21,7 @@ main := proc(args: ..Str) {
     mkdir_p(WORK)
     File.writefile(format(WORK, "/ffi_cage_shadow_lib.til"), format(
         "mode lib\n",
-        "ShadowProbe := struct { count: USize = 3; own tail : Str = \"\" }\n",
+        "ShadowProbe := struct { count : USize = 3; own tail : Str = \"\" }\n",
         "shadow_make := func() returns ShadowProbe { return ShadowProbe(count = 4, tail = format(\"tail \", \"seven\")) }\n"))
     File.writefile(format(WORK, "/consumer.til"), format(
         "import(\"../../gen/til/ffi_cage_shadow_lib\")\n",

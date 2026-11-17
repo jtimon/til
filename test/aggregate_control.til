@@ -1,17 +1,17 @@
 mode script
 import("std/file")
 
-Record := struct { mark: U8 = 0; number: I64 = 0; text: Str = "" }
-Plain := struct { number: I64 = 0 }
-Envelope := struct { prefix: U8 = 0; record: Record = Record(); tail: USize = 0 }
+Record := struct { mark : U8 = 0; number : I64 = 0; text : Str = "" }
+Plain := struct { number : I64 = 0 }
+Envelope := struct { prefix : U8 = 0; record : Record = Record(); tail : USize = 0 }
 Owned := struct {
-    own record: Record = Record()
+    own record : Record = Record()
 namespace:
     clone := func(self: Owned) returns Owned { return Owned(record=self.record.clone()) }
 }
-Counts := struct { drops: I64 = 0 }
+Counts := struct { drops : I64 = 0 }
 Tracked := struct {
-    ref counts: Counts
+    ref counts : Counts
     active := false
     text := ""
 namespace:
@@ -77,7 +77,7 @@ EnumRef := enum(U16) { Some: ref Record = 19, None = 37 }
 EnumOwned := enum { Some: Tracked, None }
 EnumDrop := enum { Empty, Value: Tracked, Text: Str }
 EnumNested := enum { Empty, Inner: EnumScalar, Text: Str }
-EnumHolder := struct { mark: U8 = 0; value: EnumValue = EnumValue.Empty; tail: USize = 0 }
+EnumHolder := struct { mark : U8 = 0; value : EnumValue = EnumValue.Empty; tail : USize = 0 }
 EnumTemplate := enum { Some: Record, None }
 
 enum_value := func(n: I64) returns EnumValue {
@@ -213,9 +213,9 @@ SizeFactory := func(counts: Counts) returns SizeAction
 SlotAction := func(mut action: UnaryAction, seed: I64) returns ref UnaryAction
 RecordAction := func(number: I64) returns Record
 TextPrinter := proc(text: Str)
-ActionHolder := struct { action: UnaryAction }
-SizeHolder := struct { action: SizeAction }
-BodyHolder := struct { action: Body = {} }
+ActionHolder := struct { action : UnaryAction }
+SizeHolder := struct { action : SizeAction }
+BodyHolder := struct { action : Body = {} }
 action_add := func(value: I64) returns I64 { return value + 1 }
 action_borrow := func(mut value: I64) returns ref I64 { value++; return value }
 action_record := func(number: I64) returns Record { return make_record(number,"callable record") }

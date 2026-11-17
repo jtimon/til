@@ -76,7 +76,7 @@ drawable_tag := func(_d: Drawable) returns I64 {
 // error, pinned in test/typer_errors.til); a value is always a boxed struct
 // or enum that implements it.
 Counted := struct implements Collection {
-    n: U32 = 3
+    n : U32 = 3
 namespace:
     get := func(self: Counted, _i: U32) returns Dynamic { return to_ptr(self) }
     len := func(self: Counted) returns USize { return self.n.to_usize() }
@@ -97,7 +97,7 @@ test_second_interface_type := test() {
 // A concrete default method is a real, callable implementation, reached
 // through a boxed implementer that does not override it.
 test_interface_concrete_default_method := test() {
-    d: Drawable = Circle(r = 1)
+    d : Drawable = Circle(r = 1)
     assert_eq(Str, d.label(), "shape")
 }
 
@@ -217,7 +217,7 @@ test_return_default_dispatch := test() {
 // runtime type. The holder's auto-gen clone/delete recurse into the box, so
 // construct/use/destroy exercises the owned box's clone+free (ASAN-checked).
 DrawHolder := struct {
-    shape: Drawable
+    shape : Drawable
 }
 
 test_field_dispatch := test() {
@@ -230,7 +230,7 @@ test_field_dispatch := test() {
 // A resource-owning implementer makes lifetime failures observable: drawing
 // reads heap data as well as the concrete struct's storage.
 CaptionShape := struct implements Drawable {
-    text: Str
+    text : Str
 namespace:
     draw := func(self: CaptionShape) returns Str { return self.text.clone() }
 }
@@ -241,23 +241,23 @@ make_text_drawable := func(mut calls: I64) returns CaptionShape {
 }
 
 return_interface_temporary := func(mut calls: I64) returns Drawable {
-    d: Drawable = make_text_drawable(calls)
+    d : Drawable = make_text_drawable(calls)
     return d
 }
 
 return_interface_constructor := func() returns Drawable {
-    d: Drawable = CaptionShape(text = format("temporary ", "constructor"))
+    d : Drawable = CaptionShape(text = format("temporary ", "constructor"))
     return d
 }
 
 return_interface_temporary_holder := func(mut calls: I64) returns DrawHolder {
-    d: Drawable = make_text_drawable(calls)
+    d : Drawable = make_text_drawable(calls)
     return DrawHolder(shape = d)
 }
 
 test_interface_temporary_lifetimes := test() {
     mut calls := 0
-    local: Drawable = make_text_drawable(calls)
+    local : Drawable = make_text_drawable(calls)
     assert_eq(Str, local.draw(), "temporary factory")
     escaped := return_interface_temporary(calls)
     assert_eq(Str, escaped.draw(), "temporary factory")
@@ -278,7 +278,7 @@ borrow_interface_holder := func(d: Drawable) returns DrawHolder {
 
 test_interface_named_local_copy := test() {
     mut value := CaptionShape(text = format("before ", "change"))
-    d: Drawable = value
+    d : Drawable = value
     holder := borrow_interface_holder(d)
     value.text = format("after ", "change")
     assert_eq(Str, d.draw(), "before change")
@@ -288,7 +288,7 @@ test_interface_named_local_copy := test() {
 
 test_interface_ref_local_aliases := test() {
     mut value := CaptionShape(text = format("before ", "alias"))
-    ref view: Drawable = value
+    ref view : Drawable = value
     value.text = format("after ", "alias")
     assert_eq(Str, view.draw(), "after alias")
     holder := borrow_interface_holder(view)
@@ -302,7 +302,7 @@ test_interface_ref_local_aliases := test() {
 // the frame: a return, a value field, an `own` argument. CloneProbe counts
 // the copies that are actually made.
 CloneProbe := struct implements Drawable {
-    text: Str
+    text : Str
 namespace:
     mut clones := 0
     draw := func(self: CloneProbe) returns Str { return self.text.clone() }
@@ -314,30 +314,30 @@ namespace:
 
 return_elided_copy := func() returns Drawable {
     source := CloneProbe(text = format("returned ", "copy"))
-    d: Drawable = source
+    d : Drawable = source
     return d
 }
 
 return_elided_copy_holder := func() returns DrawHolder {
     source := CloneProbe(text = format("holder ", "copy"))
-    d: Drawable = source
+    d : Drawable = source
     return DrawHolder(shape = d)
 }
 
 return_elided_copy_via_param := func() returns DrawHolder {
     source := CloneProbe(text = format("relayed ", "copy"))
-    d: Drawable = source
+    d : Drawable = source
     return borrow_interface_holder(d)
 }
 
 test_interface_elided_copy := test() {
     source := CloneProbe(text = format("elided ", "copy"))
     before := CloneProbe.clones
-    d: Drawable = source
+    d : Drawable = source
     assert_eq(Str, d.draw(), "elided copy")
     assert_eq(Str, d.describe(), "elided copy")
     assert_eq(I64, CloneProbe.clones, before)
-    mut copied: Drawable = source
+    mut copied : Drawable = source
     assert_eq(I64, CloneProbe.clones, before + 1)
     assert_eq(Str, copied.draw(), "elided copy")
     copied = Polygon.Tri
@@ -361,7 +361,7 @@ test_interface_elided_copy_escapes := test() {
 
 test_interface_elided_copy_owned_argument := test() {
     source := CloneProbe(text = format("deposited ", "copy"))
-    view: Drawable = source
+    view : Drawable = source
     before := CloneProbe.clones
     mut values := Vec(own Drawable).new()
     values.push(own view)
@@ -370,7 +370,7 @@ test_interface_elided_copy_owned_argument := test() {
     assert_eq(Str, view.draw(), "deposited copy")
     if true {
         inner := CloneProbe(text = format("inner ", "copy"))
-        inner_view: Drawable = inner
+        inner_view : Drawable = inner
         values.push(own inner_view)
     }
     assert_eq(Str, values[1].draw(), "inner copy")
@@ -378,7 +378,7 @@ test_interface_elided_copy_owned_argument := test() {
 }
 
 return_interface_enum_temporary := func() returns Drawable {
-    d: Drawable = Polygon.Quad
+    d : Drawable = Polygon.Quad
     return d
 }
 
@@ -428,7 +428,7 @@ test_interface_argument_escapes := test() {
 // A borrowed PARAMETER is a borrow of the box itself, not proof that its
 // payload is borrowed. Copying it into an owned field must call box.clone().
 return_existing_box_holder := func(mut calls: I64) returns DrawHolder {
-    d: Drawable = make_argument_caption(calls)
+    d : Drawable = make_argument_caption(calls)
     return borrow_interface_holder(d)
 }
 
@@ -484,7 +484,7 @@ test_interface_bound_static_dispatch := test() {
     assert_eq(Str, static_describe(Polygon.Quad), "shape:polygon/polygon")
     // The interface's own boxed value satisfies the bound; inside that copy
     // the calls dispatch on the box as for any `d: Drawable`.
-    view: Drawable = Labeled(n = 2)
+    view : Drawable = Labeled(n = 2)
     assert_eq(Str, static_draw(view), "custom:labeled")
 }
 
@@ -500,7 +500,7 @@ Named := interface {
 }
 
 Badge := struct implements Drawable, Named {
-    text: Str
+    text : Str
 namespace:
     draw := func(self: Badge) returns Str { return format("badge ", self.text) }
     name := func(self: Badge) returns Str { return self.text.clone() }
@@ -524,8 +524,8 @@ test_interface_multiple_implements := test() {
     assert_eq(Str, both_sides(b), "badge b1/hi b1/badge/badge b1")
     assert_eq(Str, both_sides(Mood.Happy), "mood/hi happy/enum/mood")
     assert_eq(Str, static_draw(b), "badge:badge b1")
-    d: Drawable = b
-    n: Named = b
+    d : Drawable = b
+    n : Named = b
     assert_eq(Str, d.describe(), "badge b1")
     assert_eq(Str, n.greet(), "hi b1")
     assert_eq(Str, render(Mood.Happy), "mood")
@@ -583,9 +583,9 @@ test_interface_argument_enum_payload := test() {
 // An enum concrete follows the same local rule as a struct (#432).
 test_interface_enum_local_copy := test() {
     choice := CaptionChoice.Text(format("enum ", "source"))
-    view: Drawable = choice
+    view : Drawable = choice
     assert_eq(Str, view.draw(), "enum source")
-    mut copied: Drawable = choice
+    mut copied : Drawable = choice
     assert_eq(Str, copied.draw(), "enum source")
     copied = Polygon.Quad
     assert_eq(Str, copied.draw(), "polygon")
@@ -600,7 +600,7 @@ borrow_drawable := func(value: Drawable) returns ref Drawable { return value }
 
 test_interface_reassignment := test() {
     mut calls := 0
-    mut d: Drawable = make_argument_caption(calls)
+    mut d : Drawable = make_argument_caption(calls)
     assert_eq(Str, d.draw(), "argument 1")
     d = CaptionChoice.Text(format("replacement ", calls.to_str()))
     assert_eq(Str, d.draw(), "replacement 1")
@@ -645,7 +645,7 @@ make_interface_collection := func(n: I64) returns Vec(own Drawable) {
     source := CaptionShape(text = format("named ", n.to_str()))
     values.push(own source)
     values.push(own CaptionChoice.Text(format("enum ", n.to_str())))
-    box: Drawable = CaptionShape(text = format("boxed ", n.to_str()))
+    box : Drawable = CaptionShape(text = format("boxed ", n.to_str()))
     values.push(own box)
     return values
 }
@@ -672,7 +672,7 @@ test_interface_collection_lifetimes := test() {
 // A deposited box owns its payload: a collection never aliases a local (#432).
 test_interface_collection_copies := test() {
     mut source := CaptionShape(text = format("deposited ", "before"))
-    view: Drawable = source
+    view : Drawable = source
     mut values := Vec(own Drawable).new()
     values.push(own view)
     source.text = format("deposited ", "after")
@@ -685,7 +685,7 @@ test_interface_collection_copies := test() {
 // Count destruction of the OLD payload independently of any new temporary
 // or clone. Each replacement must add exactly one old-payload destruction.
 StorageProbe := struct implements Drawable {
-    id: I64
+    id : I64
 namespace:
     mut old_drops := 0
     draw := func(self: StorageProbe) returns Str { return self.id.to_str() }
@@ -696,14 +696,14 @@ namespace:
 }
 
 test_interface_replacement_destruction := test() {
-    mut d: Drawable = StorageProbe(id = 1)
+    mut d : Drawable = StorageProbe(id = 1)
     assert_eq(Str, d.draw(), "1")
     before_local := StorageProbe.old_drops
     d = StorageProbe(id = 2)
     assert_eq(I64, StorageProbe.old_drops, before_local + 1)
     assert_eq(Str, d.draw(), "2")
 
-    mut outer: Drawable = StorageProbe(id = 1)
+    mut outer : Drawable = StorageProbe(id = 1)
     assert_eq(Str, outer.draw(), "1")
     before_outer := StorageProbe.old_drops
     if true { outer = StorageProbe(id = 2) }
@@ -749,7 +749,7 @@ FullContract := interface {
 }
 
 ContractValue := struct implements FullContract {
-    text: Str
+    text : Str
     n := 0
 namespace:
     read := func(self: ContractValue) returns Str { return self.text.clone() }
@@ -769,7 +769,7 @@ test_interface_full_contract := test() {
     mut value := ContractValue(text = "contract")
     assert_eq(I64, value.add(3), 3)
     assert_eq(Str, value.take(own "owned"), "owned")
-    ref text: Str = value.borrow()
+    ref text : Str = value.borrow()
     assert_eq(Str, text, "contract")
     assert_eq(Str, value.label(), "override contract")
     value.announce()
@@ -779,7 +779,7 @@ test_interface_full_contract := test() {
 // scalar returns, and inherited defaults must not depend on inference order.
 ContractCount := I64
 CounterValue := struct implements CounterContract {
-    n: ContractCount = 7
+    n : ContractCount = 7
 namespace:
     value := func(self: CounterValue) returns ContractCount { return self.n }
     copy := func(self: CounterValue) returns CounterValue { return self.clone() }
@@ -864,13 +864,13 @@ dispatch_announce := proc(view: FullContract) { view.announce() }
 
 test_interface_dispatch_mut_and_ref := test() {
     mut value := ContractValue(text = "borrowed", n = 1)
-    ref mut view: FullContract = value
+    ref mut view : FullContract = value
     assert_eq(I64, view.add(4), 5)
     assert_eq(I64, value.n, 5)
-    ref text: Str = view.borrow()
+    ref text : Str = view.borrow()
     assert_eq(Str, text, "borrowed")
     dispatch_announce(view)
-    mut copy: FullContract = value
+    mut copy : FullContract = value
     assert_eq(I64, copy.add(1), 6)
     assert_eq(I64, value.n, 5)
 }
@@ -879,7 +879,7 @@ Finishable := interface {
     finish := ext_func(own self: Finishable) returns I64 {}
 }
 FinishValue := struct implements Finishable {
-    n: I64
+    n : I64
 namespace:
     mut drops := 0
     finish := func(own self: FinishValue) returns I64 { return self.n }
@@ -900,22 +900,22 @@ namespace:
 }
 
 test_interface_dispatch_owned_self := test() {
-    owned: Finishable = FinishValue(n = 5)
+    owned : Finishable = FinishValue(n = 5)
     before_owned := FinishValue.drops
     assert_eq(I64, Finishable.finish(own owned), 5)
     assert_eq(I64, FinishValue.drops, before_owned + 1)
     source := FinishValue(n = 7)
-    borrowed: Finishable = source
+    borrowed : Finishable = source
     before_borrowed := FinishValue.drops
     assert_eq(I64, Finishable.finish(own borrowed), 7)
     assert_eq(I64, FinishValue.drops, before_borrowed + 1)
     assert_eq(I64, source.n, 7)
-    choice: Finishable = FinishChoice.Value(11)
+    choice : Finishable = FinishChoice.Value(11)
     assert_eq(I64, Finishable.finish(own choice), 11)
 }
 
 test_interface_dispatch_self_values := test() {
-    view: CounterContract = CounterValue(n = 7)
+    view : CounterContract = CounterValue(n = 7)
     copy := view.copy()
     assert_eq(I64, forward_interface_value(view), 7)
     assert_eq(I64, copy.value(), 7)
@@ -944,7 +944,7 @@ CheckedBorrow := interface {
     get := ext_func(self: CheckedBorrow) returns ref Str throws DispatchFailure {}
 }
 CheckedValue := struct implements CheckedBorrow {
-    text: Str
+    text : Str
 namespace:
     get := func(self: CheckedValue) returns ref Str throws DispatchFailure {
         if self.text.len() == 0 { throw DispatchFailure(message = "empty") }
@@ -953,10 +953,10 @@ namespace:
 }
 
 test_interface_dispatch_ref_throws := test() {
-    good: CheckedBorrow = CheckedValue(text = "checked")
-    ref text: Str = good.get()!
+    good : CheckedBorrow = CheckedValue(text = "checked")
+    ref text : Str = good.get()!
     assert_eq(Str, text, "checked")
-    bad: CheckedBorrow = CheckedValue(text = "")
+    bad : CheckedBorrow = CheckedValue(text = "")
     mut message := ""
     bad.get()?
     catch (err: DispatchFailure) { message = err.message }
@@ -1005,9 +1005,9 @@ namespace:
 runtime_default_len := func(view: DefaultFlow) returns USize { return view.len() }
 
 test_interface_default_virtual_selection := test() {
-    plain: DefaultFlow = PlainFlow()
-    changed: DefaultFlow = OverrideFlow()
-    choice: DefaultFlow = EnumFlow.Value
+    plain : DefaultFlow = PlainFlow()
+    changed : DefaultFlow = OverrideFlow()
+    choice : DefaultFlow = EnumFlow.Value
     assert_eq(Str, plain.label(), "default")
     assert_eq(Str, changed.label(), "override")
     assert_eq(Str, choice.label(), "enum")
@@ -1021,10 +1021,10 @@ test_interface_default_virtual_selection := test() {
 }
 
 test_interface_default_owned_results := test() {
-    plain: DefaultFlow = PlainFlow()
-    changed: DefaultFlow = OverrideFlow()
-    choice: DefaultFlow = EnumFlow.Value
-    second: DefaultFlow = PlainFlow(n = 5)
+    plain : DefaultFlow = PlainFlow()
+    changed : DefaultFlow = OverrideFlow()
+    choice : DefaultFlow = EnumFlow.Value
+    second : DefaultFlow = PlainFlow(n = 5)
     plain_copy := plain.copy()
     changed_copy := changed.copy()
     choice_copy := choice.copy()
@@ -1052,7 +1052,7 @@ test_interface_default_owned_results := test() {
 }
 
 DefaultLabel := func(DefaultFlow) returns Str
-DefaultCallbacks := struct { label: DefaultLabel }
+DefaultCallbacks := struct { label : DefaultLabel }
 make_default_flow := func(mut calls: I64) returns DefaultFlow {
     calls++
     return OverrideFlow(n = calls)
@@ -1067,17 +1067,17 @@ test_interface_default_callable_once := test() {
     callbacks := DefaultCallbacks(label = dyn_fn("DefaultFlow", "indirect"))
     view := make_default_flow(calls)
     assert_eq(Str, callbacks.label(view), "indirect override")
-    plain_view: DefaultFlow = PlainFlow()
+    plain_view : DefaultFlow = PlainFlow()
     assert_eq(Str, callbacks.label(plain_view), "indirect default")
     assert_eq(I64, calls, 2)
     assert_eq(I64, OverrideFlow.labels, before_labels + 2)
 }
 
 test_interface_local_dyn_fn := test() {
-    label: DefaultLabel = dyn_fn("DefaultFlow", "indirect")
-    view: DefaultFlow = OverrideFlow()
+    label : DefaultLabel = dyn_fn("DefaultFlow", "indirect")
+    view : DefaultFlow = OverrideFlow()
     assert_eq(Str, label(view), "indirect override")
-    plain_view: DefaultFlow = PlainFlow()
+    plain_view : DefaultFlow = PlainFlow()
     assert_eq(Str, label(plain_view), "indirect default")
 }
 
@@ -1097,13 +1097,13 @@ InheritedBorrowFlow := struct implements DefaultBorrow {
 }
 
 test_interface_default_ref_override := test() {
-    mut view: DefaultBorrow = BorrowFlow()
-    ref mut number: I64 = view.get(own "unused")
+    mut view : DefaultBorrow = BorrowFlow()
+    ref mut number : I64 = view.get(own "unused")
     number++
     assert_eq(I64, view.get(own "unused"), 8)
     assert_eq(I64, default_number_cell.n, 3)
-    inherited: DefaultBorrow = InheritedBorrowFlow()
-    ref base: I64 = inherited.get(own "unused")
+    inherited : DefaultBorrow = InheritedBorrowFlow()
+    ref base : I64 = inherited.get(own "unused")
     assert_eq(I64, base, 3)
 }
 
@@ -1128,7 +1128,7 @@ namespace:
 }
 
 test_interface_multi_defaults := test() {
-    view: MultiContract = MultiValue(n = 1)
+    view : MultiContract = MultiValue(n = 1)
     assert_eq(I64, view.combine(4, 5), 46)
     assert_eq(I64, view.combine(), 24)
     assert_eq(I64, view.combine(4), 44)
@@ -1149,7 +1149,7 @@ test_interface_multi_owned_mut_and_order := test() {
     assert_eq(I64, calls, 3)
     assert_eq(I64, count, 2)
     mut source := MultiValue(n = 4)
-    ref mut view: MultiContract = source
+    ref mut view : MultiContract = source
     left := format("owned ", "left")
     right := format("owned ", "right")
     assert_eq(Str, view.take(own left, count, own right), "owned left/owned right")
@@ -1162,7 +1162,7 @@ dispatch_multi_checked := func(view: MultiContract, a: I64, b: I64) returns I64 
 }
 
 test_interface_multi_throws := test() {
-    view: MultiContract = MultiValue(n = 2)
+    view : MultiContract = MultiValue(n = 2)
     assert_eq(I64, dispatch_multi_checked(view, 12, 3)!, 6)
     mut message := ""
     dispatch_multi_checked(view, 7, 0)?
@@ -1184,7 +1184,7 @@ namespace:
 }
 
 test_interface_multi_enum := test() {
-    view: MultiEnumContract = MultiChoice.Value(4)
+    view : MultiEnumContract = MultiChoice.Value(4)
     assert_eq(I64, view.combine(1, 2, 3), 127)
 }
 
@@ -1215,20 +1215,20 @@ read_required := func(T: Type implements RequiredValue, OtherRequiredValue, valu
 test_interface_signature_requirements := test() {
     value := SignatureValue()
     assert_eq(I64, read_required(value), 7)
-    first: RequiredValue = value
-    second: OtherRequiredValue = value
+    first : RequiredValue = value
+    second : OtherRequiredValue = value
     assert_eq(I64, first.value(), 7)
     assert_eq(I64, second.value(), 7)
     first.nothing()
-    inherited: RequiredValue = InheritedRequirement()
+    inherited : RequiredValue = InheritedRequirement()
     assert_eq(I64, inherited.value(), 11)
     inherited.nothing()
 }
 
 NestedSlot := macro(T: Type, N: USize) returns StructDef {
     return struct {
-        item: T
-        count: USize = N
+        item : T
+        count : USize = N
     }
 }
 NestedVectorAlias := Vec(own Nested_Copies)
@@ -1240,7 +1240,7 @@ Nested_Copies := interface {
     value := func(self: Nested_Copies) returns I64
     required_views := func(self: Nested_Copies) returns Vec(ref Nested_Copies)
     copies := func(self: Nested_Copies) returns NestedVectorAlias {
-        mut result: NestedVectorAlias = Vec(own Nested_Copies).new()
+        mut result : NestedVectorAlias = Vec(own Nested_Copies).new()
         result.push(own self.clone())
         return result
     }
@@ -1296,7 +1296,7 @@ namespace:
     }
 }
 local_nested_copies := func() returns NestedVectorAlias {
-    view: Nested_Copies = NestedRecord(n = 23)
+    view : Nested_Copies = NestedRecord(n = 23)
     return view.copies()
 }
 read_nested_value := func(value: Nested_Copies) returns I64 { return value.value() }
@@ -1307,15 +1307,15 @@ bounded_nested := func(T: Type implements Nested_Copies, value: T) returns I64 {
 
 test_interface_nested_default_types := test() {
     record := NestedRecord()
-    view: Nested_Copies = record
+    view : Nested_Copies = record
     offered := Option(ref Nested_Copies).Some(view)
-    mut records: NestedVectorAlias = record.copies()
+    mut records : NestedVectorAlias = record.copies()
     assert_eq(I64, read_nested_value(records[0]), 7)
-    optional: NestedOptionAlias = record.optional()
+    optional : NestedOptionAlias = record.optional()
     assert_eq(I64, read_nested_value(optional.unwrap()), 7)
     nested_records := record.nested().unwrap()
     assert_eq(I64, read_nested_value(nested_records[0]), 7)
-    borrowed: NestedBorrowedAlias = record.borrowed(offered)
+    borrowed : NestedBorrowedAlias = record.borrowed(offered)
     assert_eq(I64, read_nested_value(borrowed.unwrap()), 7)
     slot := record.slot()
     assert_eq(I64, read_nested_value(slot.item), 7)
@@ -1323,9 +1323,9 @@ test_interface_nested_default_types := test() {
     assert_eq(I64, record.first(records), 7)
     assert_eq(Str, record.type_name(), "NestedRecord")
     choice := NestedChoice.Value(9)
-    choice_view: Nested_Copies = choice
+    choice_view : Nested_Copies = choice
     offered_choice := Option(ref Nested_Copies).Some(choice_view)
-    choices: NestedVectorAlias = choice.copies()
+    choices : NestedVectorAlias = choice.copies()
     assert_eq(I64, read_nested_value(choices[0]), 9)
     assert_eq(I64, read_nested_value(choice.optional().unwrap()), 9)
     assert_eq(I64, read_nested_value(choice.borrowed(offered_choice).unwrap()), 9)
@@ -1337,20 +1337,20 @@ test_interface_nested_default_types := test() {
     assert_eq(Str, view.type_name(), "NestedRecord")
     records.push(own choice)
     assert_eq(I64, records[1].value(), 9)
-    boxed_copies: NestedVectorAlias = view.copies()
+    boxed_copies : NestedVectorAlias = view.copies()
     assert_eq(I64, boxed_copies[0].value(), 7)
     assert_eq(I64, view.first(records), 7)
-    boxed_optional: NestedOptionAlias = view.optional()
+    boxed_optional : NestedOptionAlias = view.optional()
     assert_eq(I64, boxed_optional.unwrap().value(), 7)
-    boxed_borrowed: NestedBorrowedAlias = view.borrowed(offered)
+    boxed_borrowed : NestedBorrowedAlias = view.borrowed(offered)
     assert_eq(I64, boxed_borrowed.unwrap().value(), 7)
     boxed_nested := view.nested().unwrap()
     assert_eq(I64, boxed_nested[0].value(), 7)
-    views: Vec(ref Nested_Copies) = record.borrowed_views()
-    boxed_views: Vec(ref Nested_Copies) = view.borrowed_views()
+    views : Vec(ref Nested_Copies) = record.borrowed_views()
+    boxed_views : Vec(ref Nested_Copies) = view.borrowed_views()
     assert_eq(I64, views[0].value(), 7)
     assert_eq(I64, boxed_views[0].value(), 7)
-    mapped: NestedMapAlias = view.mapped()
+    mapped : NestedMapAlias = view.mapped()
     assert_eq(I64, mapped["self"].value(), 7)
     assert_eq(I64, view.slot().item.value(), 7)
     local_copies := local_nested_copies()
@@ -1359,19 +1359,19 @@ test_interface_nested_default_types := test() {
 
 test_interface_nested_borrowed_default_lifetimes := test() {
     mut record := NestedRecord(n = 10)
-    views: Vec(ref Nested_Copies) = record.borrowed_views()
+    views : Vec(ref Nested_Copies) = record.borrowed_views()
     record.n = 12
     assert_eq(I64, views[0].value(), 12)
 
-    ref view: Nested_Copies = record
-    boxed: Vec(ref Nested_Copies) = view.borrowed_views()
-    required: Vec(ref Nested_Copies) = view.required_views()
+    ref view : Nested_Copies = record
+    boxed : Vec(ref Nested_Copies) = view.borrowed_views()
+    required : Vec(ref Nested_Copies) = view.required_views()
     record.n = 14
     assert_eq(I64, boxed[0].value(), 14)
     assert_eq(I64, required[0].value(), 14)
 
-    owner: Nested_Copies = NestedChoice.Value(31)
-    required_owned: Vec(ref Nested_Copies) = owner.required_views()
+    owner : Nested_Copies = NestedChoice.Value(31)
+    required_owned : Vec(ref Nested_Copies) = owner.required_views()
     assert_eq(I64, required_owned[0].value(), 31)
 }
 
@@ -1415,9 +1415,9 @@ angle_parts := func<T: Type implements Drawable>(value: T, parts: ..Str) returns
     return result
 }
 priv hidden_angle := func<T: Type implements Drawable>(value: T) returns Str { return value.draw() }
-BoundedBox := struct<T: Type implements Drawable> { value: T }
+BoundedBox := struct<T: Type implements Drawable> { value : T }
 TemplateShape := struct<T: Type> implements Drawable {
-    value: T
+    value : T
 namespace:
     draw := func(self: TemplateShape(T)) returns Str { return self.value.to_str() }
 }
@@ -1450,7 +1450,7 @@ test_bounded_generator_ufcs := test() {
     assert_eq(Str, box.value.draw(), "circle")
     shape := TemplateShape(I64)(value = 17)
     assert_eq(Str, shape.angle_draw(), "17")
-    view: Drawable = circle
+    view : Drawable = circle
     assert_eq(Str, view.angle_draw(), "circle")
     mut values := Vec(Circle).new()
     values.angle_append(own Circle())

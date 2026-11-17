@@ -7,7 +7,7 @@ namespace:
 }
 
 main := proc() {
-    raw: Dynamic = dyn_fn("WrongCallback", "value")
-    callback: Unary = raw
+    raw : Dynamic = dyn_fn("WrongCallback", "value")
+    callback : Unary = raw
     println(callback(7).to_str())
 }

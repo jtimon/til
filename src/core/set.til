@@ -19,9 +19,9 @@ priv set_ref_store := macro(Element: Type) returns FuncDef {
 Set := macro(T: Type) returns StructDef {
     if type_arg_is_ref(T) {
         return struct {
-            own data: U8 = 0
-            count: USize = 0
-            cap: USize = 0
+            own data : U8 = 0
+            count : USize = 0
+            cap : USize = 0
         namespace:
             priv slot_size := func() returns USize {
                 if type_arg_is_interface(T) { return T.size() }
@@ -43,7 +43,7 @@ Set := macro(T: Type) returns StructDef {
             }
             clear := func(mut self: Set(T)) { self.count = 0 }
             priv position := func(self: Set(T), val: T) returns USize {
-                mut lo: USize = 0
+                mut lo : USize = 0
                 mut hi := self.count
                 while lo < hi {
                     mid := lo + (hi - lo) / 2

@@ -2332,7 +2332,7 @@ priv shift_fcall_bitmap_for_ufcs := func(bits: U64) returns U64 {
 priv check_ufcs_arg_bitmap := proc(call: Expr, mut ctx: Context) {
     ref flags : FCallData = fcall_of(call)
     marked := flags.own_args.bor(flags.keep_outer_args).bor(flags.ref_args).bor(flags.splat_args)
-    one: U64 = 1
+    one : U64 = 1
     if marked.band(one.shl(FCALL_ARG_BITS.sub(1).to_u64())) != 0 {
         call.type_error("UFCS receiver insertion would overflow the argument qualifier bitmap", ctx)
     }
@@ -5399,7 +5399,7 @@ priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_type
             }
             field_semantic_type := declaration_resolved_type(fd, inner, ctx.symbols)
             inner.set(tc_fname, field_semantic_type, fd.is_mut, ctx.path, expr.line, expr.col, false, fd.own_type, ctx.symbols)
-            ref mut field_binding: TypeBinding = inner.get_binding_name(tc_fname, ctx.symbols).unwrap()
+            ref mut field_binding : TypeBinding = inner.get_binding_name(tc_fname, ctx.symbols).unwrap()
             field_binding.referent_mut = fd.referent_mut
             if field_semantic_type.is_funcptr() {
                 // Registered by the inner.set on the line above.
@@ -5994,7 +5994,7 @@ priv capture_borrow_permission := func(scope: TypeScope, name: Str) returns I32 
 
 priv borrow_call_contract := func(value: Expr, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
     if value.children.len() > 0 {
-        ref callee: Expr = value.children[0]
+        ref callee : Expr = value.children[0]
         if is_funcptr_sig(callee.til_type()) {
             return scope.lookup_func_name(type_name_ref(callee.til_type(), symbols), symbols)
         }
@@ -6013,7 +6013,7 @@ priv borrow_call_argument := func(value: Expr, index: USize, scope: TypeScope, s
             if index + 1 < value.children.len() { return safe_ref(value.children[index + 1]) }
             return Option(ref Expr).None
         }
-        ref callee: Expr = value.children[0]
+        ref callee : Expr = value.children[0]
         if callee.node_type.is(NodeType.FieldAccess).and(fa_is_ns(callee, scope, symbols).not()) {
             if resolve_fn_sig(value, scope, symbols).is_some() {
                 if index + 1 < value.children.len() { return safe_ref(value.children[index + 1]) }
@@ -6031,7 +6031,7 @@ priv writable_borrow_problem := func(scope: TypeScope, value: Expr, symbols: Sym
     case .Ident(id):
         binding := scope.get_binding_sym(id.ident_sym())
         if binding.is_none() { return "source has no storage binding" }
-        ref b: TypeBinding = binding.unwrap()
+        ref b : TypeBinding = binding.unwrap()
         if reference_binding_in_frame(scope, b.name, symbols).is_none() {
             if capture_borrow_permission(scope, b.name) == 0 { return format("capture '", b.name, "' grants read-only access") }
         }
@@ -6047,11 +6047,11 @@ priv writable_borrow_problem := func(scope: TypeScope, value: Expr, symbols: Sym
         if owner_name.is_none() { return "field receiver has no resolved type" }
         definition := scope.get_struct(owner_name.unwrap(), symbols)
         if definition.is_none() { return "field receiver has no definition" }
-        ref name: Str = access.field_access_name(symbols.names)
+        ref name : Str = access.field_access_name(symbols.names)
         if fa_is_ns(value, scope, symbols) {
             member := def_ns_get(definition.unwrap(), name)
             if member.is_none() { return "namespace member has no storage declaration" }
-            ref d: Declaration = member.unwrap()
+            ref d : Declaration = member.unwrap()
             if d.own_type.is(OwnType.Ref) {
                 if d.referent_mut { return "" }
             } else if d.is_mut.or(d.own_type.is(OwnType.Own)) { return "" }
@@ -6061,7 +6061,7 @@ priv writable_borrow_problem := func(scope: TypeScope, value: Expr, symbols: Sym
         case .StructDef(sd):
             field := member_get(sd.fields_index, sd.fields, name)
             if field.is_none() { return "access does not name a stored field" }
-            ref d: Declaration = field.unwrap()
+            ref d : Declaration = field.unwrap()
             if d.own_type.is(OwnType.Ref) {
                 if d.referent_mut { return "" }
                 return format("field '", name, "' is a read-only reference; add 'mut' after 'ref' to grant writable access")
@@ -6080,10 +6080,10 @@ priv writable_borrow_problem := func(scope: TypeScope, value: Expr, symbols: Sym
         definition := borrow_call_contract(value, scope, symbols)
         if definition.is_none() { return "call has no resolved writable-reference contract" }
         if definition.unwrap().node_type.is(NodeType.FuncDef).not() { return "call has no writable-reference contract" }
-        ref fd: FunctionDef = funcdef_of(definition.unwrap())
+        ref fd : FunctionDef = funcdef_of(definition.unwrap())
         if fd.sig.return_ref_mut.not() { return "call has no 'returns ref mut' contract" }
         for pi in 0..fd.sig.params.len() {
-            ref param: Declaration = fd.sig.params[pi]
+            ref param : Declaration = fd.sig.params[pi]
             if param.own_type.is(OwnType.Ref).and(param.is_mut.or(param.referent_mut)) {
                 argument := borrow_call_argument(value, pi, scope, symbols)
                 if argument.is_none() { return "call is missing a writable argument" }
@@ -6104,7 +6104,7 @@ borrow_source_is_writable := func(scope: TypeScope, value: Expr, symbols: Symbol
 priv credit_mutable_return := func(mut scope: TypeScope, value: Expr, symbols: SymbolPool) {
     switch value.node_type {
     case .Ident(id):
-        ref mut b: TypeBinding = scope.get_binding_sym(id.ident_sym()).unwrap()
+        ref mut b : TypeBinding = scope.get_binding_sym(id.ident_sym()).unwrap()
         b.mutable_ref_return = true
         if b.own_type.is(OwnType.Ref).or(b.iface_borrow_explicit) {
             for root: BorrowRoot in b.borrow_roots {
@@ -6113,7 +6113,7 @@ priv credit_mutable_return := func(mut scope: TypeScope, value: Expr, symbols: S
                 if root.carried.and(b.iface_borrow_explicit.not()) { continue }
                 mut source := lookup_binding_at(scope, root, symbols)
                 if source.is_some() {
-                    ref mut source_binding: TypeBinding = source.unwrap()
+                    ref mut source_binding : TypeBinding = source.unwrap()
                     source_binding.mutable_ref_return = true
                 }
             }
@@ -6127,9 +6127,9 @@ priv credit_mutable_return := func(mut scope: TypeScope, value: Expr, symbols: S
         if raw.is_some() {
             credit_mutable_return(scope, raw.unwrap(), symbols)
         } else {
-            ref fd: FunctionDef = funcdef_of(borrow_call_contract(value, scope, symbols).unwrap())
+            ref fd : FunctionDef = funcdef_of(borrow_call_contract(value, scope, symbols).unwrap())
             for pi in 0..fd.sig.params.len() {
-                ref param: Declaration = fd.sig.params[pi]
+                ref param : Declaration = fd.sig.params[pi]
                 if param.own_type.is(OwnType.Ref).and(param.is_mut.or(param.referent_mut)) {
                     credit_mutable_return(scope, borrow_call_argument(value, pi, scope, symbols).unwrap(), symbols)
                 }
@@ -8723,7 +8723,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
             sdecl.own_type = OwnType.Shallow
             decl_b.iface_payload_borrowed = true
             decl_b.iface_borrow_explicit = true
-            ref payload: Expr = rhs.children[2]
+            ref payload : Expr = rhs.children[2]
             if payload.node_type.is(NodeType.NamedArg) {
                 decl_b.referent_mut = sdecl.referent_mut.and(borrow_source_is_writable(scope, payload.children[0], ctx.symbols))
             } else {
@@ -10033,7 +10033,7 @@ priv comptime_prepare_value := proc(name: Str, path: Str, stmt: Expr, mut prep: 
     if b_o.is_some() {
         ref b : TypeBinding = b_o.unwrap()
         ctx.scope.set(name, b.type, b.is_mut, path, stmt.line, stmt.col, false, b.own_type, ctx.symbols)
-        ref mut exported_binding: TypeBinding = ctx.scope.get_binding_name(name, ctx.symbols).unwrap()
+        ref mut exported_binding : TypeBinding = ctx.scope.get_binding_name(name, ctx.symbols).unwrap()
         exported_binding.referent_mut = b.referent_mut
         ref mut global_binding : TypeBinding = ctx.scope.get_binding_name(name, ctx.symbols).unwrap()
         global_binding.is_priv = decl.is_priv
@@ -13271,7 +13271,7 @@ priv mut ref_type_arg_carriers := Set(Str).new()
 
 priv type_contains_callable_value := func(scope: TypeScope, name: Str, mut visited: Set(Str), symbols: SymbolPool) returns Bool {
     if name.len() == 0 { return false }
-    ref resolved: Str = resolve_type_alias(scope, name, symbols)
+    ref resolved : Str = resolve_type_alias(scope, name, symbols)
     if type_is_callable_storage(type_from_name_init_name(resolved, scope, symbols)) { return true }
     if visited.has(resolved) { return false }
     visited.add(own resolved.clone())
@@ -15333,7 +15333,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
 
 priv summary_decl_count := func(e: Expr, name: Str) returns USize {
     if e.node_type.is(NodeType.FuncDef) { return 0 }
-    mut count: USize = 0
+    mut count : USize = 0
     switch e.node_type {
     case .Decl(d): if d.name == name { count++ }
     case:
@@ -15616,7 +15616,7 @@ priv place_type := func(place: ParameterPlace, params: Vec(Declaration), scope: 
         definition := scope.get_struct(type_name_ref(type, symbols), symbols)
         if definition.is_none() { return Type.Unknown }
         if definition.unwrap().node_type.is(NodeType.StructDef).not() { return Type.Unknown }
-        ref sd: StructDef = structdef_of(definition.unwrap())
+        ref sd : StructDef = structdef_of(definition.unwrap())
         member := member_get(sd.fields_index, sd.fields, field)
         if member.is_none() { return Type.Unknown }
         type = declaration_resolved_type(member.unwrap(), scope, symbols)
@@ -15632,7 +15632,7 @@ priv place_crosses_ref := func(place: ParameterPlace, params: Vec(Declaration), 
         definition := scope.get_struct(type_name_ref(type, symbols), symbols)
         if definition.is_none() { return false }
         if definition.unwrap().node_type.is(NodeType.StructDef).not() { return false }
-        ref sd: StructDef = structdef_of(definition.unwrap())
+        ref sd : StructDef = structdef_of(definition.unwrap())
         member := member_get(sd.fields_index, sd.fields, field)
         if member.is_none() { return false }
         if member.unwrap().own_type.is(OwnType.Ref) {
@@ -15652,7 +15652,7 @@ priv place_callee := func(e: Expr, aliases: Map(Str, ParameterPlaces), params: V
     direct := summary_effect_callee(e, scope, self_type, params, ctx.symbols, ctx)
     if direct.is_some() { return direct }
     if e.children.len() == 0 { return direct }
-    ref callee: Expr = e.children[0]
+    ref callee : Expr = e.children[0]
     if callee.node_type.is(NodeType.FieldAccess).not().or(callee.children.len() == 0) { return direct }
     for place: ParameterPlace in expression_places(callee.children[0], aliases, params, scope, self_type, ctx) {
         type := place_type(place, params, scope, ctx.symbols)
@@ -15684,7 +15684,7 @@ priv expression_places := func(e: Expr, aliases: Map(Str, ParameterPlaces), para
     mut result := Vec(ParameterPlace).new()
     switch e.node_type {
     case .Ident(id):
-        ref name: Str = id.ident_name(ctx.symbols.names)
+        ref name : Str = id.ident_name(ctx.symbols.names)
         if aliases.has(name) { return aliases[name].values.clone() }
     case .FieldAccess(fa):
         if e.children.len() == 0 || fa_is_ns(e, scope, ctx.symbols) { return result }
@@ -15696,7 +15696,7 @@ priv expression_places := func(e: Expr, aliases: Map(Str, ParameterPlaces), para
         if raw.is_some() { return expression_places(raw.unwrap(), aliases, params, scope, self_type, ctx) }
         callee := place_callee(e, aliases, params, scope, self_type, ctx)
         if callee.is_some() {
-            ref fd: FunctionDef = funcdef_of(callee.unwrap())
+            ref fd : FunctionDef = funcdef_of(callee.unwrap())
             if fd.sig.return_own_type.is(OwnType.Ref).not() { return result }
             key := word_bits(to_ptr(fd)).to_uptr()
             if ctx.parameter_effects.has(key) {
@@ -15724,7 +15724,7 @@ priv parameter_effect_walk := func(e: Expr, mut aliases: Map(Str, ParameterPlace
         }
         for name: Str in aliases.keys {
             if local.has(name).and(shadows.has(name).not()) {
-                ref mut outer: ParameterPlaces = aliases[name]
+                ref mut outer : ParameterPlaces = aliases[name]
                 for place: ParameterPlace in local[name].values { _ := place_add(outer.values, place) }
             }
         }
@@ -15746,12 +15746,12 @@ priv parameter_effect_walk := func(e: Expr, mut aliases: Map(Str, ParameterPlace
         }
     case .Assign(ad):
         if aliases.has(ad.name).and(e.children.len() > 0) {
-            ref rhs: Expr = e.children[0]
+            ref rhs : Expr = e.children[0]
             mut rebinds := false
             if aliases[ad.name].is_reference {
                 switch rhs.node_type {
                 case .Ident(id):
-                    ref name: Str = id.ident_name(ctx.symbols.names)
+                    ref name : Str = id.ident_name(ctx.symbols.names)
                     if aliases.has(name) { rebinds = aliases[name].is_reference }
                 case .FieldAccess: rebinds = fa_is_ns(rhs, scope, ctx.symbols).not()
                 case .FCall:
@@ -15762,7 +15762,7 @@ priv parameter_effect_walk := func(e: Expr, mut aliases: Map(Str, ParameterPlace
             }
             if rebinds {
                 source := expression_places(rhs, aliases, fd.sig.params, scope, self_type, ctx)
-                ref mut prior: ParameterPlaces = aliases[ad.name]
+                ref mut prior : ParameterPlaces = aliases[ad.name]
                 for place: ParameterPlace in source { _ := place_add(prior.values, place) }
             } else {
                 for place: ParameterPlace in aliases[ad.name].values {
@@ -15778,7 +15778,7 @@ priv parameter_effect_walk := func(e: Expr, mut aliases: Map(Str, ParameterPlace
     case .FCall:
         callee := place_callee(e, aliases, fd.sig.params, scope, self_type, ctx)
         if callee.is_some() {
-            ref called: FunctionDef = funcdef_of(callee.unwrap())
+            ref called : FunctionDef = funcdef_of(callee.unwrap())
             for pi in 0..called.sig.params.len() {
                 if called.sig.params[pi].is_mut.not() { continue }
                 argument := summary_fcall_arg_for_param(e, called, pi, scope, ctx.symbols)
@@ -15800,7 +15800,7 @@ priv parameter_effect_walk := func(e: Expr, mut aliases: Map(Str, ParameterPlace
 }
 
 priv update_parameter_effects := func(e: Expr, scope: TypeScope, self_type: Str, mut ctx: Context) returns Bool {
-    ref fd: FunctionDef = funcdef_of(e)
+    ref fd : FunctionDef = funcdef_of(e)
     if e.children.len() == 0 || fd.auto_generated || fd.sig.func_type.is_bodyless() { return false }
     if init_func_is_generic(e, ctx.symbols) { return false }
     mut interesting := fd.sig.return_own_type.is(OwnType.Ref)
@@ -15835,9 +15835,9 @@ priv check_indirect_call_writes := proc(mut scope: TypeScope, call: Expr, fd: Fu
         for field: Str in place.field.split(".") {
             if field == "*" { recursive = true; break }
             type := target.til_type().clone()
-            ref definition: Expr = scope.get_struct(type_name_ref(type, ctx.symbols), ctx.symbols).unwrap()
-            ref sd: StructDef = structdef_of(definition)
-            ref member: Declaration = member_get(sd.fields_index, sd.fields, field).unwrap()
+            ref definition : Expr = scope.get_struct(type_name_ref(type, ctx.symbols), ctx.symbols).unwrap()
+            ref sd : StructDef = structdef_of(definition)
+            ref member : Declaration = member_get(sd.fields_index, sd.fields, field).unwrap()
             mut access := Expr.new(own field_access_node(ctx.symbols.intern(field)), call.line, call.col)
             access.set_til_type(declaration_resolved_type(member, scope, ctx.symbols))
             access.add_child(own target)

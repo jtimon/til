@@ -282,7 +282,7 @@ run_cmd := proc(mut output: Str, args: ..Str) returns I64 {
     c := Cmd.new()
     mut i : USize = 0
     while i < args.len() {
-        ref arg: Str = args[i]
+        ref arg : Str = args[i]
         c.arg(arg)
         i++
     }

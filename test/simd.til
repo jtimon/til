@@ -13,40 +13,40 @@ I32x32 := Simd(I32, 32)
 F64x16 := Simd(F64, 16)
 
 // An ordinary constructor whose name resembles the intrinsic dispatch names.
-Simd__ordinary_add := struct { value: I64 = 0 }
+Simd__ordinary_add := struct { value : I64 = 0 }
 
 FieldMask := Simd(Bool,4)
 FieldUnsigned := Simd(U32,4)
 SimdFieldBox := struct {
-    tag:I8=0
-    f:F4=F4.zero()
-    s:I4=I4.zero()
-    u:FieldUnsigned=FieldUnsigned.zero()
-    mask:FieldMask=FieldMask.zero()
+    tag : I8= 0
+    f : F4= F4.zero()
+    s : I4= I4.zero()
+    u : FieldUnsigned= FieldUnsigned.zero()
+    mask : FieldMask= FieldMask.zero()
 }
-SimdFieldOuter := struct { prefix:Bool=false;box:SimdFieldBox=SimdFieldBox() }
+SimdFieldOuter := struct { prefix : Bool= false;box : SimdFieldBox= SimdFieldBox() }
 
 // Shared baseline slice: the optional native driver imports these ordinary
 // helpers, so its FASM checks use the same assertions as this full suite.
 simd_baseline_float := proc(T:Type,V:Type,M:Type,shape:V,mask_shape:M) {
     noop_proc()
-    width:=shape.len()
-    mut a:=shape
+    width := shape.len()
+    mut a := shape
     for i in 0..width { a.set(i,own T.from_i64(i.to_i64()+1))! }
-    two:=T.from_i64(2)
-    b:=V.splat(two)
-    sum:=a+b
-    difference:=a-b
-    product:=a*b
-    quotient:=a/b
-    equal:=a.eq(b)
-    unequal:=a.neq(b)
-    less:=a.lt(b)
-    less_equal:=a.lte(b)
-    greater:=a.gt(b)
-    greater_equal:=a.gte(b)
+    two := T.from_i64(2)
+    b := V.splat(two)
+    sum := a+b
+    difference := a-b
+    product := a*b
+    quotient := a/b
+    equal := a.eq(b)
+    unequal := a.neq(b)
+    less := a.lt(b)
+    less_equal := a.lte(b)
+    greater := a.gt(b)
+    greater_equal := a.gte(b)
     for i in 0..width {
-        expected:=T.from_i64(i.to_i64()+1)
+        expected := T.from_i64(i.to_i64()+1)
         assert_eq(T,sum[i],expected+two)
         assert_eq(T,difference[i],expected-two)
         assert_eq(T,product[i],expected*two)
@@ -64,10 +64,10 @@ simd_baseline_float := proc(T:Type,V:Type,M:Type,shape:V,mask_shape:M) {
     assert(a.eq(a).all() && a.neq(a).any().not())
     assert(a.lt(a+b).all() && a.lte(a+b).all())
     assert((a+b).gt(a).all() && (a+b).gte(a).all())
-    mut mask:=mask_shape
+    mut mask := mask_shape
     for i in 0..width { mask.set(i,own i.mod(2).eq(0))! }
-    chosen:=mask.select(a,b)
-    chosen_mask:=mask.select(mask.bnot(),mask)
+    chosen := mask.select(a,b)
+    chosen_mask := mask.select(mask.bnot(),mask)
     assert(chosen_mask.any().not())
     assert((mask|mask.bnot()).all())
     assert((mask&mask.bnot()).any().not())
@@ -76,27 +76,27 @@ simd_baseline_float := proc(T:Type,V:Type,M:Type,shape:V,mask_shape:M) {
         if mask[i] { assert_eq(T,chosen[i],a[i]) }
         else { assert_eq(T,chosen[i],two) }
     }
-    zero:=T.from_i64(0)
-    negative_zero:=zero*T.from_i64(-1)
-    mut zeros:=V.splat(zero)
+    zero := T.from_i64(0)
+    negative_zero := zero*T.from_i64(-1)
+    mut zeros := V.splat(zero)
     zeros.set(width-1,own negative_zero.clone())!
     assert_eq(Str,zeros.reduce_min().to_repr(),"-0")
     assert_eq(Str,zeros.reduce_max().to_repr(),"0")
-    nan:=zero/zero
+    nan := zero/zero
     for i in 0..width {
-        mut mixed:=a
+        mut mixed := a
         mixed.set(i,own nan.clone())!
-        minimum:=mixed.reduce_min()
-        maximum:=mixed.reduce_max()
+        minimum := mixed.reduce_min()
+        maximum := mixed.reduce_max()
         assert(minimum!=minimum && maximum!=maximum)
-        mixed_equal:=mixed.eq(b)
-        mixed_unequal:=mixed.neq(b)
-        mixed_less:=mixed.lt(b)
-        mixed_less_equal:=mixed.lte(b)
-        mixed_greater:=mixed.gt(b)
-        mixed_greater_equal:=mixed.gte(b)
+        mixed_equal := mixed.eq(b)
+        mixed_unequal := mixed.neq(b)
+        mixed_less := mixed.lt(b)
+        mixed_less_equal := mixed.lte(b)
+        mixed_greater := mixed.gt(b)
+        mixed_greater_equal := mixed.gte(b)
         for j in 0..width {
-            scalar:=mixed[j]
+            scalar := mixed[j]
             assert_eq(Bool,mixed_equal[j],scalar==two)
             assert_eq(Bool,mixed_unequal[j],scalar!=two)
             assert_eq(Bool,mixed_less[j],scalar<two)
@@ -105,18 +105,18 @@ simd_baseline_float := proc(T:Type,V:Type,M:Type,shape:V,mask_shape:M) {
             assert_eq(Bool,mixed_greater_equal[j],scalar>=two)
         }
     }
-    invalid:=V.splat(nan)
+    invalid := V.splat(nan)
     assert(invalid.eq(a).any().not() && invalid.neq(a).all())
     assert(invalid.lt(a).any().not() && invalid.lte(a).any().not())
     assert(invalid.gt(a).any().not() && invalid.gte(a).any().not())
     assert(a.lt(invalid).any().not() && a.lte(invalid).any().not())
     assert(a.gt(invalid).any().not() && a.gte(invalid).any().not())
-    mut bad_lane:=false
-    _outside_read:=a.get(width)?
+    mut bad_lane := false
+    _outside_read := a.get(width)?
     catch (err:OutOfBounds) { bad_lane=true }
     assert(bad_lane)
     bad_lane=false
-    _outside_write:=a.set(USize.MAX,own two.clone())?
+    _outside_write := a.set(USize.MAX,own two.clone())?
     catch (err:OutOfBounds) { bad_lane=true }
     assert(bad_lane)
     assert_eq(T,a[0],T.from_i64(1))
@@ -124,19 +124,19 @@ simd_baseline_float := proc(T:Type,V:Type,M:Type,shape:V,mask_shape:M) {
 
 simd_baseline_bounds := proc(T:Type,V:Type,value:T,sentinel:T,shape:V) {
     noop_proc()
-    width:=shape.len()
+    width := shape.len()
     for count in array(USize,0,1,width-1,width,width+1) {
-        mut values:=Array(T).new(count)
+        mut values := Array(T).new(count)
         for start in array(USize,0,1,count,USize.MAX) {
             for i in 0..count { values.set(i,own sentinel.clone())! }
-            mut valid:=start<=count
+            mut valid := start<=count
             if valid { valid=count-start>=width }
-            mut load_failed:=false
-            _loaded:=V.load(values,start)?
+            mut load_failed := false
+            _loaded := V.load(values,start)?
             catch (err:OutOfBounds) { load_failed=true }
             assert_eq(Bool,load_failed,valid.not())
-            mut store_failed:=false
-            _stored:=V.splat(value).store(values,start)?
+            mut store_failed := false
+            _stored := V.splat(value).store(values,start)?
             catch (err:OutOfBounds) { store_failed=true }
             assert_eq(Bool,store_failed,valid.not())
             for i in 0..count {
@@ -147,34 +147,34 @@ simd_baseline_bounds := proc(T:Type,V:Type,value:T,sentinel:T,shape:V) {
     }
 }
 
-BaselineSimdBox := struct { tag:I8=0; small:F4=F4.zero(); wide:D2=D2.zero() }
+BaselineSimdBox := struct { tag : I8= 0; small : F4= F4.zero(); wide : D2= D2.zero() }
 BaselineSimdMaker := func(shallow small:F4,shallow wide:D2) returns BaselineSimdBox
-BaselineSimdHolder := struct { make:BaselineSimdMaker }
+BaselineSimdHolder := struct { make : BaselineSimdMaker }
 simd_baseline_make := func(shallow small:F4,shallow wide:D2) returns BaselineSimdBox {
     return BaselineSimdBox(tag=-7,small=small+F4.splat(1.0),wide=wide*D2.splat(2.0))
 }
 simd_baseline_add := func(shallow a:F4,shallow b:F4) returns F4 { return a+b }
 simd_baseline_abi := proc(seed:I64) {
     noop_proc()
-    small:=F4.splat(seed.to_f32())
-    wide:=D2.new(seed.to_f64(),-1.0)
-    make:BaselineSimdMaker=simd_baseline_make
-    mut box:=make(small,wide)
-    copy:=box.clone()
+    small := F4.splat(seed.to_f32())
+    wide := D2.new(seed.to_f64(),-1.0)
+    make : BaselineSimdMaker= simd_baseline_make
+    mut box := make(small,wide)
+    copy := box.clone()
     assert(box.tag == -7 && box.small.eq(F4.splat(seed.to_f32()+1.0)).all())
     box.small.set(1,own 9.0)!
     assert_eq(F32,copy.small[1],seed.to_f32()+1.0)
     assert_eq(F64,box.wide[0],seed.to_f64()*2.0)
     assert_eq(F64,box.wide[1],-2.0)
     assert((box.small+F4.splat(1.0)).gte(copy.small).all())
-    sum:=simd_baseline_add(small,F4.splat(3.0))
+    sum := simd_baseline_add(small,F4.splat(3.0))
     assert(sum.eq(F4.splat(seed.to_f32()+3.0)).all())
-    bias:=copy.small
-    original:=BaselineSimdHolder(make=func(shallow a:F4,shallow b:D2) returns BaselineSimdBox [own bias] {
+    bias := copy.small
+    original := BaselineSimdHolder(make=func(shallow a:F4,shallow b:D2) returns BaselineSimdBox [own bias] {
         return simd_baseline_make(a+bias,b)
     })
-    cloned:=original.clone()
-    result:=cloned.make(copy.small,wide)
+    cloned := original.clone()
+    result := cloned.make(copy.small,wide)
     assert(result.small.eq(F4.splat((seed.to_f32()+1.0)*2.0+1.0)).all())
 }
 
@@ -185,10 +185,10 @@ checked_bool_index := proc(mut calls:I64,index:USize) returns USize {
 }
 simd_checked_bool_logic := proc(M:Type,shape:M) {
     noop_proc()
-    width:=shape.len()
-    mut mask:=shape
+    width := shape.len()
+    mut mask := shape
     mask.set(0,own true)!
-    last:=width-1
+    last := width-1
     mask.set(last,own false)!
     assert(mask[0] && mask[0])
     assert((mask[0] && mask[last]).not())
@@ -196,14 +196,14 @@ simd_checked_bool_logic := proc(M:Type,shape:M) {
     assert((mask[last] || mask[last]).not())
     assert(mask[0].and(mask[0]))
     assert(mask[last].or(mask[0]))
-    mut calls:I64=0
-    skipped_and:=mask[last] && mask[checked_bool_index(calls,width)]
+    mut calls : I64= 0
+    skipped_and := mask[last] && mask[checked_bool_index(calls,width)]
     assert(skipped_and.not() && calls==0)
-    skipped_or:=mask[0] || mask[checked_bool_index(calls,width)]
+    skipped_or := mask[0] || mask[checked_bool_index(calls,width)]
     assert(skipped_or && calls==0)
-    taken_and:=mask[0] && mask[checked_bool_index(calls,last)]
+    taken_and := mask[0] && mask[checked_bool_index(calls,last)]
     assert(taken_and.not() && calls==1)
-    taken_or:=mask[last] || mask[checked_bool_index(calls,0)]
+    taken_or := mask[last] || mask[checked_bool_index(calls,0)]
     assert(taken_or && calls==2)
     assert(and(mask[0],mask[last],mask[checked_bool_index(calls,width)]).not())
     assert(or(mask[last],mask[0],mask[checked_bool_index(calls,width)]))
@@ -232,15 +232,15 @@ simd_baseline_checks := proc(seed:I64) {
     simd_baseline_abi(seed)
     simd_checked_bool_logic(Simd(Bool,2),Simd(Bool,2).zero())
     simd_checked_bool_logic(FieldMask,FieldMask.zero())
-    mut source:=F4.splat(seed.to_f32())
-    snapshot:=source.fma(fma_replace_source(source),F4.splat(4.0))
+    mut source := F4.splat(seed.to_f32())
+    snapshot := source.fma(fma_replace_source(source),F4.splat(4.0))
     assert(snapshot.eq(F4.splat(seed.to_f32()*3.0+4.0)).all())
     source=F4.splat(seed.to_f32())
-    sum:=source+fma_replace_source(source)
+    sum := source+fma_replace_source(source)
     assert(sum.eq(F4.splat(seed.to_f32()+3.0)).all())
     source=F4.splat(seed.to_f32())
-    mask:=source.eq(source)
-    selected:=mask.select(source,fma_replace_source(source))
+    mask := source.eq(source)
+    selected := mask.select(source,fma_replace_source(source))
     assert(selected.eq(F4.splat(seed.to_f32())).all())
     assert_eq(F32,F4.new(1e20,1.0,-1e20,1.0).reduce_add(),2.0)
 }
@@ -248,37 +248,37 @@ test_simd_baseline_float_slice := test() { simd_baseline_checks(2) }
 
 simd_baseline_integer := proc(T:Type,V:Type,values:Array(T),shape:V) {
     noop_proc()
-    width:=shape.len()
+    width := shape.len()
     all_bits := T.MIN.bxor(T.MAX)
     for first in 0..values.len() {
         for second in 0..values.len() {
-            mut a:=shape
-            mut b:=shape
+            mut a := shape
+            mut b := shape
             for lane in 0..width {
                 a.set(lane,own values[(first+lane)%values.len()].clone())!
                 b.set(lane,own values[(second+lane*3)%values.len()].clone())!
             }
-            sum:=a+b
-            difference:=a-b
-            product:=a*b
-            quotient:=a/b
-            both:=a.band(b)
-            either:=a.bor(b)
-            exclusive:=a.bxor(b)
-            complement:=a.bnot()
-            equal:=a.eq(b)
-            unequal:=a.neq(b)
-            less:=a.lt(b)
-            less_equal:=a.lte(b)
-            greater:=a.gt(b)
-            greater_equal:=a.gte(b)
-            selected:=less.select(a,b)
-            mut expected_sum:T=0
-            mut minimum:=a[0]
-            mut maximum:=a[0]
+            sum := a+b
+            difference := a-b
+            product := a*b
+            quotient := a/b
+            both := a.band(b)
+            either := a.bor(b)
+            exclusive := a.bxor(b)
+            complement := a.bnot()
+            equal := a.eq(b)
+            unequal := a.neq(b)
+            less := a.lt(b)
+            less_equal := a.lte(b)
+            greater := a.gt(b)
+            greater_equal := a.gte(b)
+            selected := less.select(a,b)
+            mut expected_sum : T= 0
+            mut minimum := a[0]
+            mut maximum := a[0]
             for lane in 0..width {
-                left:=a[lane]
-                right:=b[lane]
+                left := a[lane]
+                right := b[lane]
                 assert_eq(T,sum[lane],left+right)
                 assert_eq(T,difference[lane],left-right)
                 assert_eq(T,product[lane],left*right)
@@ -309,23 +309,23 @@ simd_baseline_integer := proc(T:Type,V:Type,values:Array(T),shape:V) {
 simd_integer_replace := proc(T:Type,V:Type,mut source:V) returns V {
     noop_proc()
     source=V.splat(T.MAX)
-    three:T=3
+    three : T= 3
     return V.splat(three)
 }
 simd_integer_snapshots := proc(T:Type,V:Type,shape:V) {
     noop_proc()
-    two:T=2
-    five:T=5
-    mut source:=shape+V.splat(two)
-    sum:=source+simd_integer_replace(T,V,source)
+    two : T= 2
+    five : T= 5
+    mut source := shape+V.splat(two)
+    sum := source+simd_integer_replace(T,V,source)
     assert(sum.eq(V.splat(five)).all())
     assert(source.eq(V.splat(T.MAX)).all())
     source=V.splat(two)
-    compared:=source.lt(simd_integer_replace(T,V,source))
+    compared := source.lt(simd_integer_replace(T,V,source))
     assert(compared.all())
     source=V.splat(two)
-    mask:=source.eq(source)
-    selected:=mask.select(source,simd_integer_replace(T,V,source))
+    mask := source.eq(source)
+    selected := mask.select(source,simd_integer_replace(T,V,source))
     assert(selected.eq(V.splat(two)).all())
 }
 
@@ -358,7 +358,7 @@ simd_wide_integer := proc(T:Type,V:Type,M:Type,values:Array(T),shape:V,mask_shap
     noop_proc()
     simd_baseline_integer(T,V,values,shape)
     simd_integer_snapshots(T,V,shape)
-    sentinel:T=7
+    sentinel : T= 7
     simd_memory_roundtrip(T,V,T.MAX,sentinel,shape)
     simd_baseline_bounds(T,V,T.MAX,sentinel,shape)
     simd_select_bits(T,V,M,U32,array(U32,0,0xffffffff,0x80000000,0x7fffffff),shape,mask_shape)
@@ -380,23 +380,23 @@ simd_wide_bool_counted := proc(mut calls:I64,digit:I64) returns Bool {
 }
 simd_wide_constructors := proc() {
     noop_proc()
-    mut calls:I64=0
-    f:=F8.new(simd_wide_counted(F32,calls,1),simd_wide_counted(F32,calls,2),simd_wide_counted(F32,calls,3),simd_wide_counted(F32,calls,4),simd_wide_counted(F32,calls,5),simd_wide_counted(F32,calls,6),simd_wide_counted(F32,calls,7),simd_wide_counted(F32,calls,8))
+    mut calls : I64= 0
+    f := F8.new(simd_wide_counted(F32,calls,1),simd_wide_counted(F32,calls,2),simd_wide_counted(F32,calls,3),simd_wide_counted(F32,calls,4),simd_wide_counted(F32,calls,5),simd_wide_counted(F32,calls,6),simd_wide_counted(F32,calls,7),simd_wide_counted(F32,calls,8))
     assert(calls==8)
     calls=0
-    d:=WideDouble8.new(simd_wide_counted(F64,calls,1),simd_wide_counted(F64,calls,2),simd_wide_counted(F64,calls,3),simd_wide_counted(F64,calls,4),simd_wide_counted(F64,calls,5),simd_wide_counted(F64,calls,6),simd_wide_counted(F64,calls,7),simd_wide_counted(F64,calls,8))
+    d := WideDouble8.new(simd_wide_counted(F64,calls,1),simd_wide_counted(F64,calls,2),simd_wide_counted(F64,calls,3),simd_wide_counted(F64,calls,4),simd_wide_counted(F64,calls,5),simd_wide_counted(F64,calls,6),simd_wide_counted(F64,calls,7),simd_wide_counted(F64,calls,8))
     assert(calls==8)
     calls=0
-    s:=WideSigned8.new(simd_wide_counted(I32,calls,1),simd_wide_counted(I32,calls,2),simd_wide_counted(I32,calls,3),simd_wide_counted(I32,calls,4),simd_wide_counted(I32,calls,5),simd_wide_counted(I32,calls,6),simd_wide_counted(I32,calls,7),simd_wide_counted(I32,calls,8))
+    s := WideSigned8.new(simd_wide_counted(I32,calls,1),simd_wide_counted(I32,calls,2),simd_wide_counted(I32,calls,3),simd_wide_counted(I32,calls,4),simd_wide_counted(I32,calls,5),simd_wide_counted(I32,calls,6),simd_wide_counted(I32,calls,7),simd_wide_counted(I32,calls,8))
     assert(calls==8)
     calls=0
-    u:=WideUnsigned8.new(simd_wide_counted(U32,calls,1),simd_wide_counted(U32,calls,2),simd_wide_counted(U32,calls,3),simd_wide_counted(U32,calls,4),simd_wide_counted(U32,calls,5),simd_wide_counted(U32,calls,6),simd_wide_counted(U32,calls,7),simd_wide_counted(U32,calls,8))
+    u := WideUnsigned8.new(simd_wide_counted(U32,calls,1),simd_wide_counted(U32,calls,2),simd_wide_counted(U32,calls,3),simd_wide_counted(U32,calls,4),simd_wide_counted(U32,calls,5),simd_wide_counted(U32,calls,6),simd_wide_counted(U32,calls,7),simd_wide_counted(U32,calls,8))
     assert(calls==8)
     calls=0
-    mask:=WideMask8.new(simd_wide_bool_counted(calls,1),simd_wide_bool_counted(calls,2),simd_wide_bool_counted(calls,3),simd_wide_bool_counted(calls,4),simd_wide_bool_counted(calls,5),simd_wide_bool_counted(calls,6),simd_wide_bool_counted(calls,7),simd_wide_bool_counted(calls,8))
+    mask := WideMask8.new(simd_wide_bool_counted(calls,1),simd_wide_bool_counted(calls,2),simd_wide_bool_counted(calls,3),simd_wide_bool_counted(calls,4),simd_wide_bool_counted(calls,5),simd_wide_bool_counted(calls,6),simd_wide_bool_counted(calls,7),simd_wide_bool_counted(calls,8))
     assert(calls==8)
     for i:USize in 0..8 {
-        expected:=i.to_i64()+1
+        expected := i.to_i64()+1
         assert_eq(F32,f[i],expected.to_f32())
         assert_eq(F64,d[i],expected.to_f64())
         assert_eq(I32,s[i],expected.to_i32())
@@ -407,46 +407,46 @@ simd_wide_constructors := proc() {
 
 WideFloat32 := Simd(F32,32)
 WideUnsigned32 := Simd(U32,32)
-WideSimdBox := struct { tag:I8=0; small:WideFloat32=WideFloat32.zero(); wide:F64x16=F64x16.zero(); signed:I32x32=I32x32.zero() }
+WideSimdBox := struct { tag : I8= 0; small : WideFloat32= WideFloat32.zero(); wide : F64x16= F64x16.zero(); signed : I32x32= I32x32.zero() }
 WideSimdMaker := func(shallow small:WideFloat32,shallow wide:F64x16,shallow signed:I32x32) returns WideSimdBox
-WideSimdHolder := struct { make:WideSimdMaker }
+WideSimdHolder := struct { make : WideSimdMaker }
 simd_wide_make := func(shallow small:WideFloat32,shallow wide:F64x16,shallow signed:I32x32) returns WideSimdBox {
     return WideSimdBox(tag=-7,small=small+WideFloat32.splat(1.0),wide=wide*F64x16.splat(2.0),signed=signed+I32x32.splat(3))
 }
 simd_wide_abi := proc(seed:I64) {
     noop_proc()
-    f:=WideFloat32.splat(seed.to_f32())
-    d:=F64x16.splat(seed.to_f64())
-    s:=I32x32.splat(seed.to_i32())
-    make:WideSimdMaker=simd_wide_make
-    mut box:=make(f,d,s)
-    copy:=box.clone()
+    f := WideFloat32.splat(seed.to_f32())
+    d := F64x16.splat(seed.to_f64())
+    s := I32x32.splat(seed.to_i32())
+    make : WideSimdMaker= simd_wide_make
+    mut box := make(f,d,s)
+    copy := box.clone()
     box.small.set(4,own 9.0)!
     box.small.set(31,own 10.0)!
     assert(box.tag == -7)
     assert_eq(F32,copy.small[4],seed.to_f32()+1.0)
     assert_eq(F32,copy.small[31],seed.to_f32()+1.0)
     assert(box.wide.eq(F64x16.splat(seed.to_f64()*2.0)).all())
-    bias:=copy.small
-    original:=WideSimdHolder(make=func(shallow a:WideFloat32,shallow b:F64x16,shallow c:I32x32) returns WideSimdBox [own bias] {
+    bias := copy.small
+    original := WideSimdHolder(make=func(shallow a:WideFloat32,shallow b:F64x16,shallow c:I32x32) returns WideSimdBox [own bias] {
         return simd_wide_make(a+bias,b,c)
     })
-    cloned:=original.clone()
-    result:=cloned.make(f,d,s)
+    cloned := original.clone()
+    result := cloned.make(f,d,s)
     assert(result.small.eq(WideFloat32.splat(seed.to_f32()*2.0+2.0)).all())
     assert(result.signed.eq(I32x32.splat(seed.to_i32()+3)).all())
 }
 
 simd_wide_checks := proc() {
     noop_proc()
-    bits32:=array(U32,0x80000000,0x7f800001,0x7fc12345,0xff800000,0x7f800000,1,0x7f7fffff,0)
-    bits64:=array(U64,0x8000000000000000,0x7ff0000000000001,0x7ff8123456789abc,0xfff0000000000000,0x7ff0000000000000,1,0x7fefffffffffffff,0)
+    bits32 := array(U32,0x80000000,0x7f800001,0x7fc12345,0xff800000,0x7f800000,1,0x7f7fffff,0)
+    bits64 := array(U64,0x8000000000000000,0x7ff0000000000001,0x7ff8123456789abc,0xfff0000000000000,0x7ff0000000000000,1,0x7fefffffffffffff,0)
     simd_wide_float(F32,F8,WideMask8,U32,1.1920928955078125e-7,bits32,F8.zero(),WideMask8.zero())
     simd_wide_float(F32,Simd(F32,32),Simd(Bool,32),U32,1.1920928955078125e-7,bits32,Simd(F32,32).zero(),Simd(Bool,32).zero())
     simd_wide_float(F64,Simd(F64,4),FieldMask,U64,2.220446049250313e-16,bits64,Simd(F64,4).zero(),FieldMask.zero())
     simd_wide_float(F64,F64x16,Simd(Bool,16),U64,2.220446049250313e-16,bits64,F64x16.zero(),Simd(Bool,16).zero())
-    signed:=array(I32,I32.MIN,-1,0,65537,I32.MAX)
-    unsigned:=array(U32,0,1,0x7fffffff,0x80000000,U32.MAX)
+    signed := array(I32,I32.MIN,-1,0,65537,I32.MAX)
+    unsigned := array(U32,0,1,0x7fffffff,0x80000000,U32.MAX)
     simd_wide_integer(I32,WideSigned8,WideMask8,signed,WideSigned8.zero(),WideMask8.zero())
     simd_wide_integer(I32,I32x32,Simd(Bool,32),signed,I32x32.zero(),Simd(Bool,32).zero())
     simd_wide_integer(U32,WideUnsigned8,WideMask8,unsigned,WideUnsigned8.zero(),WideMask8.zero())
@@ -564,11 +564,11 @@ test_simd_narrow_integer_slice := test() { simd_narrow_checks() }
 
 simd_baseline_pod_fields := proc() {
     noop_proc()
-    mut outer:=SimdFieldOuter(prefix=true,box=SimdFieldBox(tag=-7,
+    mut outer := SimdFieldOuter(prefix=true,box=SimdFieldBox(tag=-7,
         f=F4.new(1,2,3,4),s=I4.new(-1,2,-3,4),u=FieldUnsigned.splat(U32.MAX),
         mask=FieldMask.new(true,false,true,false)))
-    snapshot:=outer.clone()
-    ref mut f:F4=outer.box.f
+    snapshot := outer.clone()
+    ref mut f : F4= outer.box.f
     f.set(1,own 9.0)!
     outer.box.s=outer.box.s+I4.splat(3)
     outer.box.mask=FieldMask.splat(true)
@@ -583,7 +583,7 @@ simd_baseline_pod_fields := proc() {
     outer=SimdFieldOuter(box=SimdFieldBox(f=F4.splat(5)))
     assert(outer.box.f.eq(F4.splat(5)).all() && outer.prefix.not())
     assert_eq(F32,snapshot.box.f[1],2)
-    zero:=SimdFieldOuter()
+    zero := SimdFieldOuter()
     assert(zero.box.f.eq(F4.zero()).all() && zero.box.mask.any().not())
 }
 test_simd_pod_fields := test() { simd_baseline_pod_fields() }

@@ -6,8 +6,8 @@ import("std/dyn_vec")
 // has ONLY an indirect call, so neither proc effects nor mut writes can be
 // credited to an unrelated direct call as a workaround.
 TextEdit := proc(mut text: Str)
-Binding := struct { action: TextEdit }
-NestedBinding := struct { binding: Binding }
+Binding := struct { action : TextEdit }
+NestedBinding := struct { binding : Binding }
 
 edit := proc(mut text: Str) {
     print_flush()
@@ -29,7 +29,7 @@ call_cast := proc(raw: Dynamic, mut text: Str) { cast(raw, TextEdit)(text) }
 // Mutation is independent of proc effects: a func may mutate its explicit
 // mutable arguments, and the field-call path must retain that evidence too.
 CounterEdit := func(mut value: I64)
-CounterBinding := struct { action: CounterEdit }
+CounterBinding := struct { action : CounterEdit }
 bump := func(mut value: I64) { value++ }
 call_counter := func(binding: CounterBinding, mut value: I64) { binding.action(value) }
 
@@ -37,7 +37,7 @@ call_counter := func(binding: CounterBinding, mut value: I64) { binding.action(v
 // expected-type path (narrow literals, contextual enum variants and generics).
 Choice := enum { One, Two }
 Choose := func(value: Choice, amount: U8) returns U8
-Chooser := struct { action: Choose }
+Chooser := struct { action : Choose }
 choose := func(value: Choice, amount: U8) returns U8 {
     if value.is(Choice.One) { return amount }
     return 0
@@ -56,7 +56,7 @@ namespace:
         for entry : Binding in self.entries { entry.action(text) }
     }
 }
-CommandCapture := struct { text: Str }
+CommandCapture := struct { text : Str }
 owned_command := proc(seed: Str) returns TextEdit {
     noop_proc()
     state := CommandCapture(text = seed.clone())

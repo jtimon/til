@@ -1,18 +1,18 @@
 mode cli
-Cell := struct { number: I64 = 0 }
+Cell := struct { number : I64 = 0 }
 borrow := func(cell: Cell) returns ref Cell { return cell }
-CounterRef := struct { ref value: I64 }
+CounterRef := struct { ref value : I64 }
 increment := func(counter: CounterRef) {
-    ref mut value: I64 = counter.value
+    ref mut value : I64 = counter.value
     value++
 }
 forward := func(counter: CounterRef) { increment(counter) }
 assign := func(counter: CounterRef, number: I64) {
-    ref mut value: I64 = counter.value
+    ref mut value : I64 = counter.value
     value = number
 }
 bad_indirect_scalar_write := func() {
-    count: I64 = 0
+    count : I64 = 0
     counter := CounterRef(value = count)
     increment(counter)
     forward(counter)

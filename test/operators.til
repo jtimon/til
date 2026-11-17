@@ -1,16 +1,16 @@
 mode test
 
 StepCell := struct {
-    n: I64 = 10
-    small: U8 = 4
+    n : I64 = 10
+    small : U8 = 4
 namespace:
-    mut count: I16 = 3
+    mut count : I16 = 3
     step := func(mut self: StepCell) {
         self.n++
         self.small--
     }
 }
-StepHolder := struct { cell: StepCell }
+StepHolder := struct { cell : StepCell }
 
 test_field_inc_dec := test() {
     mut value := StepHolder(cell = StepCell())
@@ -45,7 +45,7 @@ test_field_inc_dec_reference_once := test() {
     step_cell_ref(value, calls).small--
     assert_eq(I64, calls, 2)
     assert_eq(U8, value.cell.small, 3)
-    ref mut alias: I64 = value.cell.n
+    ref mut alias : I64 = value.cell.n
     alias++
     assert_eq(I64, value.cell.n, 12)
     alias--

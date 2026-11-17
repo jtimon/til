@@ -279,7 +279,7 @@ main := proc(args: ..Str) {
     File.writefile(format(WORK, "/mlir-sources/lanes.til"),
         "mode pure\nF4 := Simd(F32,4)\nadd := func(a: F4, b: F4) returns F4 { return a + b }\n")
     File.writefile(format(WORK, "/mlir-sources/count.til"),
-        "mode pure\ncount := func(n: USize) returns USize { mut i: USize = 0; mut total: USize = 0; while i < n { i++; if i == 2 { continue }; total = total + i }; return total }\n")
+        "mode pure\ncount := func(n: USize) returns USize { mut i : USize = 0; mut total : USize = 0; while i < n { i++; if i == 2 { continue }; total = total + i }; return total }\n")
     for name : Str in array(Str, "lanes", "count") {
         in_place = in_place + compare_in_place(format("mlir-", name), tested_path, reference_path,
             format(WORK, "/mlir-sources/", name, ".til"), "--backend=mlir", "--usize=64")

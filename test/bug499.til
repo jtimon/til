@@ -6,7 +6,7 @@ mode script
 // raw-pointer builtins the slot's address instead of the word stored in it,
 // so `s.p.is_null()` was false for a null field. Compiled code was right.
 
-S := struct { p: Dynamic = 0 }
+S := struct { p : Dynamic = 0 }
 
 a := S()
 assert(a.p.is_null())

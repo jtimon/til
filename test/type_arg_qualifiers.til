@@ -144,7 +144,7 @@ query_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "    mut values := MyAltVec(I64).new()\n",
         "    values.push(own 7)\n",
         "    assert_eq(I64, values[0], 7)\n",
-        "    mut contracts: MyAltVec(own Contract) = MyAltVec(own Contract).new()\n",
+        "    mut contracts : MyAltVec(own Contract) = MyAltVec(own Contract).new()\n",
         "    contracts.push(own Record())\n",
         "    assert_eq(I64, contracts[0].value(), 11)\n",
         "    assert(empty_borrow(Option(ref Contract).None))\n",
@@ -156,7 +156,7 @@ query_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "    assert_eq(Str, texts[0], \"changed text\")\n",
         "    mut copied_texts := texts.clone()\n",
         "    texts.set(0, other)!\ntexts.unsafe_set(1, text)\n",
-        "    ref popped_text: Str = texts.pop()\n",
+        "    ref popped_text : Str = texts.pop()\n",
         "    assert_eq(Str, popped_text, \"changed text\")\n",
         "    texts.remove_at(0)!\nassert_eq(USize, texts.len(), 0)\n",
         "    assert_eq(Str, copied_texts[0], \"changed text\")\n",
@@ -169,7 +169,7 @@ query_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "    moved := texts.take()\nassert_eq(USize, texts.len(), 0)\ntexts.move_from(own moved)\n",
         "    texts.truncate(0)\ntexts.push(text)\n",
         "    lent := borrow_one(other)\nassert_eq(Str, lent[0], \"other text\")\n",
-        "    mut number: I64 = 12\n",
+        "    mut number : I64 = 12\n",
         "    mut numbers := MyAltVec(ref I64).new()\n",
         "    numbers.push(number)\nnumber = 19\nassert_eq(I64, numbers[0], 19)\n",
         "    mut record := Record()\nchoice := Choice.One\n",
@@ -181,14 +181,14 @@ query_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "    mut sum := 0\nfor view in views { sum = sum + view.value() }\nassert_eq(I64, sum, 22)\n",
         "    copied_views := views.clone()\n",
         "    views.set(0, choice)!\nviews.unsafe_set(1, record)\n",
-        "    ref popped_view: Contract = views.pop()\nassert_eq(I64, popped_view.value(), 21)\n",
+        "    ref popped_view : Contract = views.pop()\nassert_eq(I64, popped_view.value(), 21)\n",
         "    views.clear()\nassert_eq(I64, copied_views[0].value(), 21)\nassert_eq(I64, copied_views[1].value(), 1)\n",
         "    mut self_take := MyAltVec(ref Contract).with_capacity(1)\nself_take.push(record)\nself_take.push_take(self_take, 0)\nassert_eq(I64, self_take[1].value(), 21)\n",
         "    mut strings := Vec(Str).new()\nstrings.push(own format(\"nested\"))\n",
         "    mut nested_refs := MyAltVec(ref StringVec).new()\nnested_refs.push(strings)\nassert_eq(USize, nested_refs[0].len(), 1)\n",
         "    mut disposable := MyAltVec(ref Str).new()\ndisposable.push(text)\nsurviving_copy := disposable.clone()\nown disposable.delete()\nassert_eq(Str, surviving_copy[0], \"changed text\")\n",
         "    factory_refs := borrow_one(text)\ntext = format(\"after clone\")\nassert_eq(Str, factory_refs[0], \"after clone\")\nassert_eq(Str, surviving_copy[0], \"after clone\")\n",
-        "    handle: Contract = Record(n = 51)\nhandle_refs: MyAltVec(ref Contract) = handle.borrowed_values()\nmut handle_copies: MyAltVec(own Contract) = handle.owned_values()\nhandle_copies.push(own Choice.One)\nassert_eq(I64, handle_refs[0].value(), 51)\nassert_eq(I64, handle_copies[1].value(), 1)\n",
+        "    handle : Contract = Record(n = 51)\nhandle_refs : MyAltVec(ref Contract) = handle.borrowed_values()\nmut handle_copies : MyAltVec(own Contract) = handle.owned_values()\nhandle_copies.push(own Choice.One)\nassert_eq(I64, handle_refs[0].value(), 51)\nassert_eq(I64, handle_copies[1].value(), 1)\n",
         "    println(\"qualifiers OK\")\n}\n"))
     check(Cmd.new(compiler, "interpret", format(root, "/probe.til")), "qualifiers OK\n")
     check_run(compiler, root, "probe", "qualifiers OK\n", asan)
@@ -197,13 +197,13 @@ query_checks := proc(compiler: Str, root: Str, asan: Bool) {
 family_type_source := func() returns Str {
     return format(
         "Ordered := interface { value := func(self: Ordered) returns I64\ncmp := func(self: Ordered, other: Ordered) returns I64 }\n",
-        "Item := struct implements Ordered { n: I64\nnamespace:\n",
+        "Item := struct implements Ordered { n : I64\nnamespace:\n",
         "value := func(self: Item) returns I64 { return self.n }\n",
         "cmp := func(self: Item, other: Item) returns I64 { return I64.cmp(self.n, other.n) } }\n",
-        "Entry := enum implements Ordered { Number: I64\nnamespace:\n",
+        "Entry := enum implements Ordered { Number : I64\nnamespace:\n",
         "value := func(self: Entry) returns I64 { switch self { case .Number(n): return n } }\n",
         "cmp := func(self: Entry, other: Entry) returns I64 { return I64.cmp(self.value(), other.value()) } }\n",
-        "RefKey := struct implements Ordered { ref label: Str\nnamespace:\nvalue := func(self: RefKey) returns I64 { return self.label.len().to_i64() }\ncmp := func(self: RefKey, other: RefKey) returns I64 { return Str.cmp(self.label, other.label) } }\n")
+        "RefKey := struct implements Ordered { ref label : Str\nnamespace:\nvalue := func(self: RefKey) returns I64 { return self.label.len().to_i64() }\ncmp := func(self: RefKey, other: RefKey) returns I64 { return Str.cmp(self.label, other.label) } }\n")
 }
 
 container_checks := proc(compiler: Str, root: Str, asan: Bool) {
@@ -338,16 +338,16 @@ vector_borrow_checks := proc(compiler: Str, root: Str) {
         "bad := func() returns MyAltVec(ref Str) { text := format(\"local\"); mut v := MyAltVec(ref Str).new(); v.push(text); return v.clone() }\nmain := proc() {}",
         "main := proc() { mut v := MyAltVec(ref Str).new(); if true { text := format(\"local\"); v.push(text) } }",
         "bad := proc(mut v: MyAltVec(ref Str)) { text := format(\"local\"); v.push(text) }\nmain := proc() {}",
-        "main := proc() { mut v := MyAltVec(ref Str).new(); if true { ref mut alias: MyAltVec(ref Str) = v; text := format(\"local\"); alias.push(text) } }",
+        "main := proc() { mut v := MyAltVec(ref Str).new(); if true { ref mut alias : MyAltVec(ref Str) = v; text := format(\"local\"); alias.push(text) } }",
         "Holder := struct { refs := MyAltVec(ref Str).new() }\nmain := proc() { mut holder := Holder(); if true { text := format(\"local\"); holder.refs.push(text) } }",
         "main := proc() { mut v := MyAltVec(ref Str).new(); v.push(format(\"temporary\")) }",
         "main := proc() { mut v := MyAltVec(ref I64).new(); v.push(7) }",
-        "bad := func() returns MyAltVec(ref I64) { mut raw: I64 = malloc(I64.size().to_uptr()); raw = 5; mut v := MyAltVec(ref I64).new(); v.push(raw); return v }\nmain := proc() {}",
+        "bad := func() returns MyAltVec(ref I64) { mut raw : I64 = malloc(I64.size().to_uptr()); raw = 5; mut v := MyAltVec(ref I64).new(); v.push(raw); return v }\nmain := proc() {}",
         "bad := func() returns MyAltVec(ref Contract) { record := Record(); mut v := MyAltVec(ref Contract).new(); v.push(record); return v.clone() }\nmain := proc() {}",
         "main := proc() { mut v := MyAltVec(ref Contract).new(); if true { record := Record(); v.push(record) } }",
         "main := proc() { mut v := MyAltVec(ref Contract).new(); v.push(Record()) }",
         "bad := func() returns MyAltVec(ref Str) { return borrow_one(format(\"temporary\")) }\nmain := proc() {}",
-        "main := proc() { mut owner: Contract = Record(); mut v := MyAltVec(ref Contract).new(); v.push(owner); copy := v.clone(); own v.delete(); owner = Record(n = 8); println(copy[0].value()) }",
+        "main := proc() { mut owner : Contract = Record(); mut v := MyAltVec(ref Contract).new(); v.push(owner); copy := v.clone(); own v.delete(); owner = Record(n = 8); println(copy[0].value()) }",
         "Opt := Option(ref Str)\nbad := func(text: Str) returns MyAltVec(ref Opt) { item := Opt.Some(text); mut v := MyAltVec(ref Opt).new(); v.push(item); return v }\nmain := proc() {}") {
         File.writefile(format(root, "/invalid_borrow.til"), format("mode cli\nimport(\"MyAltVec\")\n", contract,
             "Record := struct implements Contract { n := 3\nnamespace:\nvalue := func(self: Record) returns I64 { return self.n } }\n",
@@ -373,7 +373,7 @@ interface_argument_checks := proc(compiler: Str, root: Str) {
         "Bad := Option(MyAltVec(Contract))",
         "Alias := Contract\nBad := MyAltVec(Alias)",
         "priv Private := interface { value := func(self: Private) returns I64 }\nBad := MyAltVec(Private)",
-        "Holder := struct<T: Type> { item: T }\nBad := Holder(Contract)",
+        "Holder := struct<T: Type> { item : T }\nBad := Holder(Contract)",
         "Bad := Option(Contract)",
         "accept := proc(values: MyAltVec(Contract)) {}",
         "good := proc(values: MyAltVec(own Contract)) {}\nbad := proc(values: MyAltVec(Contract)) {}",
@@ -427,7 +427,7 @@ interface_argument_checks := proc(compiler: Str, root: Str) {
             "Contract := interface { required := func(self: Contract) returns MyAltVec(ref Contract)\n",
             "defaulted := func(self: Contract) returns MyAltVec(ref Contract) { mut result := MyAltVec(ref Contract).new(); result.push(self); return result } }\n",
             "Item := struct implements Contract { n := 1\nnamespace:\nrequired := func(self: Item) returns MyAltVec(ref Contract) { mut result := MyAltVec(ref Contract).new(); result.push(self); return result } }\n",
-            "bad := func() returns MyAltVec(ref Contract) { owner: Contract = Item(); return owner.", method, "() }\n",
+            "bad := func() returns MyAltVec(ref Contract) { owner : Contract = Item(); return owner.", method, "() }\n",
             "main := proc() {}\n"))
         for action : Str in array(Str, "interpret", "translate") {
             cmd := Cmd.new(compiler, action, format(root, "/invalid_default.til"))
@@ -454,7 +454,7 @@ interface_argument_checks := proc(compiler: Str, root: Str) {
 generic_call_checks := proc(compiler: Str, root: Str, asan: Bool) {
     File.writefile(format(root, "/ufcs_api.til"), format(
         "mode lib\nRender := interface { draw := func(self: Render) returns Str }\n",
-        "RenderValue := struct implements Render { text: Str\nnamespace:\ndraw := func(self: RenderValue) returns Str { return self.text.clone() } }\n",
+        "RenderValue := struct implements Render { text : Str\nnamespace:\ndraw := func(self: RenderValue) returns Str { return self.text.clone() } }\n",
         "render := func<T: Type implements Render>(value: T) returns Str { return value.draw() }\n",
         "runtime_type_label := func(value: Type) returns Str { return dyn_type_to_str(value) }\n",
         "render_kind := func<T: Type implements Render>(value: T, kind: Type) returns Str { return format(value.draw(), \"/\", dyn_type_to_str(kind)) }\n",
@@ -489,7 +489,7 @@ generic_call_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "check := func<T implements Draw, Extra>(_value: T) returns Bool { return true }\n",
         "main := proc() { value := Good(); println(value.check()) }\n"), "does not implement 'Extra'")
     reject_generic(compiler, root, format(bound_prelude,
-        "Box := struct<T: Type implements Draw> { value: T }\nBad := Box(I64)\nmain := proc() {}\n"), "does not implement 'Draw'")
+        "Box := struct<T: Type implements Draw> { value : T }\nBad := Box(I64)\nmain := proc() {}\n"), "does not implement 'Draw'")
     reject_generic(compiler, root, format(bound_prelude,
         "check := macro(T: Type implements Draw) returns FuncDef { return func(_value: T) returns Bool { return true } }\n",
         "main := proc() { println(check(I64)(1)) }\n"), "does not implement 'Draw'")
@@ -526,17 +526,17 @@ reference_permission_checks := proc(compiler: Str, root: Str, asan: Bool) {
             if angle == 1 { forward = "forward := func<T>(box: PermBox(T)) returns PermBox(T)" }
             File.writefile(path, format(
                 "mode cli\nPayload := struct { n := 1 }\n",
-                "PermBox := struct<T> { permission_value: T\n",
-                "const ref permission_read: T\nconst ref mut permission_write: T\nnamespace:\n",
+                "PermBox := struct<T> { permission_value : T\n",
+                "const ref permission_read : T\nconst ref mut permission_write : T\nnamespace:\n",
                 "borrow := func(self: PermBox(T)) returns T { return self.permission_value }\n}\n",
                 "PermChoice := macro(T: Type) returns EnumDef { return enum { Empty, PermissionPayload: T } }\n",
                 forward, " { return box.clone() }\n",
                 "explicit_forward := func<T>(box: PermBox(", qualifier, "T)) returns PermBox(", qualifier, "T) { return box.clone() }\n",
                 "main := proc() {\nmut payload := Payload()\n",
-                "box: PermBox(", qualifier, "Payload) = PermBox(", qualifier, "Payload)(permission_value = payload, permission_read = payload, permission_write = payload)\n",
+                "box : PermBox(", qualifier, "Payload) = PermBox(", qualifier, "Payload)(permission_value = payload, permission_read = payload, permission_write = payload)\n",
                 "copy := forward(", qualifier, "Payload, box)\n",
                 "explicit_copy := explicit_forward(", qualifier, "Payload, box)\n",
-                "ref result: Payload = copy.borrow()\n",
+                "ref result : Payload = copy.borrow()\n",
                 "choice := PermChoice(", qualifier, "Payload).PermissionPayload(payload)\n",
                 "copied_choice := choice.clone()\npayload.n = 37\n",
                 "assert_eq(I64, result.n, 37)\nassert_eq(I64, copy.permission_read.n, 37)\n",
@@ -584,21 +584,21 @@ return_signature_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "read := func(mut value: ReturnRecord491) returns ref ReturnRecord491 { value.n++; return value }\n",
         "write := func(mut value: ReturnRecord491) returns ref mut ReturnRecord491 { value.n++; return value }\n}\n")
     for body : Str in array(Str,
-        "main := proc() { mut value := ReturnRecord491(); bad: Write491 = reader491; ref result: ReturnRecord491 = bad(value); println(result.n.to_str()) }\n",
-        "Box491 := struct { callback: Write491 }\nmain := proc() { mut value := ReturnRecord491(); box := Box491(callback = reader491); ref result: ReturnRecord491 = box.callback(value); println(result.n.to_str()) }\n",
-        "invoke491 := func(callback: Write491, mut value: ReturnRecord491) returns I64 { ref result: ReturnRecord491 = callback(value); return result.n }\nmain := proc() { mut value := ReturnRecord491(); println(invoke491(reader491, value).to_str()) }\n",
-        "main := proc() { mut value := ReturnRecord491(); bad: Write491 = func(mut input: ReturnRecord491) returns ref ReturnRecord491 { input.n++; return input }; ref result: ReturnRecord491 = bad(value); println(result.n.to_str()) }\n",
-        "main := proc() { seed := 1; mut value := ReturnRecord491(); bad: Write491 = func(mut input: ReturnRecord491) returns ref ReturnRecord491 [seed] { input.n = input.n + seed; return input }; ref result: ReturnRecord491 = bad(value); println(result.n.to_str()) }\n") {
+        "main := proc() { mut value := ReturnRecord491(); bad : Write491 = reader491; ref result : ReturnRecord491 = bad(value); println(result.n.to_str()) }\n",
+        "Box491 := struct { callback : Write491 }\nmain := proc() { mut value := ReturnRecord491(); box := Box491(callback = reader491); ref result : ReturnRecord491 = box.callback(value); println(result.n.to_str()) }\n",
+        "invoke491 := func(callback: Write491, mut value: ReturnRecord491) returns I64 { ref result : ReturnRecord491 = callback(value); return result.n }\nmain := proc() { mut value := ReturnRecord491(); println(invoke491(reader491, value).to_str()) }\n",
+        "main := proc() { mut value := ReturnRecord491(); bad : Write491 = func(mut input: ReturnRecord491) returns ref ReturnRecord491 { input.n++; return input }; ref result : ReturnRecord491 = bad(value); println(result.n.to_str()) }\n",
+        "main := proc() { seed := 1; mut value := ReturnRecord491(); bad : Write491 = func(mut input: ReturnRecord491) returns ref ReturnRecord491 [seed] { input.n = input.n + seed; return input }; ref result : ReturnRecord491 = bad(value); println(result.n.to_str()) }\n") {
         reject_generic(compiler, root, format(prelude, body), "return differs in 'ref mut'")
     }
     reject_generic(compiler, root, format(prelude,
         "owned491 := func(mut value: ReturnRecord491) returns ReturnRecord491 { value.n++; return value.clone() }\n",
-        "main := proc() { mut value := ReturnRecord491(); bad: Read491 = owned491; ref result: ReturnRecord491 = bad(value); println(result.n.to_str()) }\n"),
+        "main := proc() { mut value := ReturnRecord491(); bad : Read491 = owned491; ref result : ReturnRecord491 = bad(value); println(result.n.to_str()) }\n"),
         "return differs in 'ref'")
 
     lookup_path := format(root, "/return_lookup_mismatch.til")
     File.writefile(lookup_path, format(prelude, lookup,
-        "main := proc() { mut value := ReturnRecord491(); bad: Write491 = dyn_fn(\"ReturnOps491\", \"read\"); ref result: ReturnRecord491 = bad(value); println(result.n.to_str()) }\n"))
+        "main := proc() { mut value := ReturnRecord491(); bad : Write491 = dyn_fn(\"ReturnOps491\", \"read\"); ref result : ReturnRecord491 = bad(value); println(result.n.to_str()) }\n"))
     for action : Str in array(Str, "interpret", "run") {
         cmd := Cmd.new(compiler, action)
         if action == "run" {
@@ -616,16 +616,16 @@ return_signature_checks := proc(compiler: Str, root: Str, asan: Bool) {
     File.writefile(format(root, "/return_signatures.til"), format(prelude, lookup,
         "borrow491 := func<T>(mut value: T) returns ref mut T { value.n++; return value }\n",
         "main := proc() {\nmut value := ReturnRecord491()\n",
-        "writable: Write491 = writer491\nref mut first: ReturnRecord491 = writable(value)\nfirst.n = 10\n",
+        "writable : Write491 = writer491\nref mut first : ReturnRecord491 = writable(value)\nfirst.n = 10\n",
         // A writable implementation may satisfy a read-only result contract.
-        "readonly: Read491 = writer491\nref second: ReturnRecord491 = readonly(value)\nassert_eq(I64, second.n, 11)\n",
-        "inferred: Write491 = (input) { input.n++; return input }\n",
-        "ref third: ReturnRecord491 = inferred(value)\nassert_eq(I64, third.n, 12)\n",
-        "seed := 1\ncaptured: Write491 = func(mut input: ReturnRecord491) returns ref mut ReturnRecord491 [seed] { input.n = input.n + seed; return input }\n",
-        "ref fourth: ReturnRecord491 = captured(value)\nassert_eq(I64, fourth.n, 13)\n",
-        "ref fifth: ReturnRecord491 = borrow491(value)\nassert_eq(I64, fifth.n, 14)\n",
-        "dynamic: Write491 = dyn_fn(\"ReturnOps491\", \"write\")\n",
-        "ref sixth: ReturnRecord491 = dynamic(value)\nassert_eq(I64, sixth.n, 15)\n",
+        "readonly : Read491 = writer491\nref second : ReturnRecord491 = readonly(value)\nassert_eq(I64, second.n, 11)\n",
+        "inferred : Write491 = (input) { input.n++; return input }\n",
+        "ref third : ReturnRecord491 = inferred(value)\nassert_eq(I64, third.n, 12)\n",
+        "seed := 1\ncaptured : Write491 = func(mut input: ReturnRecord491) returns ref mut ReturnRecord491 [seed] { input.n = input.n + seed; return input }\n",
+        "ref fourth : ReturnRecord491 = captured(value)\nassert_eq(I64, fourth.n, 13)\n",
+        "ref fifth : ReturnRecord491 = borrow491(value)\nassert_eq(I64, fifth.n, 14)\n",
+        "dynamic : Write491 = dyn_fn(\"ReturnOps491\", \"write\")\n",
+        "ref sixth : ReturnRecord491 = dynamic(value)\nassert_eq(I64, sixth.n, 15)\n",
         "println(\"return signatures passed\")\n}\n"))
     check(Cmd.new(compiler, "interpret", format(root, "/return_signatures.til")), "return signatures passed\n")
     check_run(compiler, root, "return_signatures", "return signatures passed\n", asan)
@@ -649,8 +649,8 @@ return_signature_checks := proc(compiler: Str, root: Str, asan: Bool) {
 
 writable_return_source_checks := proc(compiler: Str, root: Str, asan: Bool) {
     prelude := format("mode cli\nItem491 := struct { n := 0 }\n",
-        "ReadHolder491 := struct { ref value: Item491 }\n",
-        "WriteHolder491 := struct { const ref mut value: Item491 }\n",
+        "ReadHolder491 := struct { ref value : Item491 }\n",
+        "WriteHolder491 := struct { const ref mut value : Item491 }\n",
         "OwnedHolder491 := struct { value := Item491() }\n",
         "ConstHolder491 := struct { const value := Item491() }\n",
         "ReadMaybe491 := enum { None, Some: ref Item491 }\n",
@@ -658,25 +658,25 @@ writable_return_source_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "WriteZero491 := func() returns ref mut Item491\n",
         "ReadView491 := func(mut Item491) returns ref Item491\n",
         "WriteView491 := func(mut Item491) returns ref mut Item491\n",
-        "CallbackHolder491 := struct { action: WriteView491 }\n",
+        "CallbackHolder491 := struct { action : WriteView491 }\n",
         "read491 := func(value: Item491) returns ref Item491 { return value }\n",
         "write491 := func(mut value: Item491) returns ref mut Item491 { return value }\n")
     for definition : Str in array(Str,
         "bad := func(value: Item491) returns ref mut Item491 { return value }\n",
-        "bad := func(mut value: Item491) returns ref mut Item491 { ref alias: Item491 = value; return alias }\n",
-        "bad := func(mut value: Item491) returns ref mut Item491 { const ref mut alias: Item491 = read491(value); return alias }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { ref alias : Item491 = value; return alias }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { const ref mut alias : Item491 = read491(value); return alias }\n",
         "bad := func(mut holder: ReadHolder491) returns ref mut Item491 { return holder.value }\n",
-        "bad := func(mut holder: ReadHolder491) returns ref mut Item491 { ref mut alias: Item491 = holder.value; return alias }\n",
+        "bad := func(mut holder: ReadHolder491) returns ref mut Item491 { ref mut alias : Item491 = holder.value; return alias }\n",
         "bad := func(mut value: Item491) returns ref mut Item491 { return read491(value) }\n",
-        "bad := func(mut value: Item491) returns ref mut Item491 { mut ref alias: Item491 = value; return alias }\n",
-        "bad := func(mut value: Item491) returns ref mut Item491 { mut ref alias: Item491 = value; return write491(alias) }\n",
-        "bad := func(mut value: Item491) returns ref mut Item491 { ref mut alias: Item491 = write491(value); alias = read491(value); return alias }\n",
-        "bad := func(mut value: Item491) returns ref mut Item491 { ref mut alias: Item491 = read491(value); alias = write491(value); return alias }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { mut ref alias : Item491 = value; return alias }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { mut ref alias : Item491 = value; return write491(alias) }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { ref mut alias : Item491 = write491(value); alias = read491(value); return alias }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { ref mut alias : Item491 = read491(value); alias = write491(value); return alias }\n",
         "bad := func(mut holder: ReadHolder491, flag: Bool) returns ref mut Item491 { if flag { return holder.value }; while flag { return holder.value }; return holder.value }\n",
         "bad := func(mut holder: ConstHolder491) returns ref mut Item491 { return holder.value }\n",
         "bad := func(mut value: ReadMaybe491) returns ref mut Item491 { switch value { case .Some(data): return data; case: panic(\"empty\") } }\n",
-        "bad := func(mut value: Item491) returns ref mut Item491 { view: ReadView491 = write491; return view(value) }\n",
-        "bad := func(mut value: Item491) returns ref mut Item491 { callback: WriteZero491 = func() returns ref mut Item491 [value] { return value }; return callback() }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { view : ReadView491 = write491; return view(value) }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { callback : WriteZero491 = func() returns ref mut Item491 [value] { return value }; return callback() }\n",
         "bad := func(mut value: Item491) returns ref mut Item491 { return ptr_add(to_ptr(read491(value)), 0) }\n") {
         reject_generic(compiler, root, format(prelude, definition, "main := proc() {}\n"), "cannot return a writable reference")
     }
@@ -694,7 +694,7 @@ writable_return_source_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "redundant := func(mut holder: WriteHolder491) returns ref mut Item491 { return holder.value }\nmain := proc() {}\n"),
         "redundant 'mut' on parameter 'holder'")
     reject_generic(compiler, root, format(prelude,
-        "redundant_slot := func(mut value: Item491) returns ref mut Item491 { mut ref mut alias: Item491 = value; return alias }\nmain := proc() {}\n"),
+        "redundant_slot := func(mut value: Item491) returns ref mut Item491 { mut ref mut alias : Item491 = value; return alias }\nmain := proc() {}\n"),
         "redundant 'mut' on local 'alias'")
     File.writefile(format(root, "/writable_returns.til"), format(prelude,
         "ReturnError491 := struct {}\n",
@@ -704,30 +704,30 @@ writable_return_source_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "owned_field := func(mut holder: OwnedHolder491) returns ref mut Item491 { return holder.value }\n",
         "ref_field := func(holder: WriteHolder491) returns ref mut Item491 { return holder.value }\n",
         "callback_field491 := func(holder: CallbackHolder491, mut value: Item491) returns ref mut Item491 { return holder.action(value) }\n",
-        "alias491 := func(mut value: Item491) returns ref mut Item491 { ref mut alias: Item491 = value; return alias }\n",
-        "fixed491 := func(mut value: Item491) returns ref mut Item491 { const ref mut alias: Item491 = write491(value); return alias }\n",
-        "nested491 := func(mut value: Item491, flag: Bool) returns ref mut Item491 { if flag { const ref mut alias: Item491 = value; return alias }; return value }\n",
+        "alias491 := func(mut value: Item491) returns ref mut Item491 { ref mut alias : Item491 = value; return alias }\n",
+        "fixed491 := func(mut value: Item491) returns ref mut Item491 { const ref mut alias : Item491 = write491(value); return alias }\n",
+        "nested491 := func(mut value: Item491, flag: Bool) returns ref mut Item491 { if flag { const ref mut alias : Item491 = value; return alias }; return value }\n",
         "payload491 := func(value: WriteMaybe491) returns ref mut Item491 { switch value { case .Some(data): return data; case: panic(\"empty\") } }\n",
         "shadow491 := func(value: WriteMaybe491) returns ref mut Item491 { switch value { case .Some(value): return value; case: panic(\"empty\") } }\n",
-        "capture491 := func(mut value: Item491) returns ref mut Item491 { callback: WriteZero491 = func() returns ref mut Item491 [mut value] { return value }; return callback() }\n",
+        "capture491 := func(mut value: Item491) returns ref mut Item491 { callback : WriteZero491 = func() returns ref mut Item491 [mut value] { return value }; return callback() }\n",
         "mut global491 := Item491()\nglobal_ref491 := func() returns ref mut Item491 { return global491 }\n",
-        "const ref mut global_alias491: Item491 = global491\n",
+        "const ref mut global_alias491 : Item491 = global491\n",
         "global_alias_ref491 := func() returns ref mut Item491 { return global_alias491 }\n",
         "main := proc() {\nmut item := Item491()\n",
-        "mut number: I64 = 0\nref mut scalar: I64 = primitive491(number)\nscalar = 9\nassert_eq(I64, number, 9)\n",
-        "ref mut direct: Item491 = write491(item)\ndirect.n = 1\n",
-        "ref mut alias: Item491 = alias491(item)\nalias.n = 2\n",
-        "ref fixed: Item491 = fixed491(item)\nassert_eq(I64, fixed.n, 2)\n",
-        "ref nested: Item491 = nested491(item, true)\nassert_eq(I64, nested.n, 2)\n",
-        "ref throwing: Item491 = forward_throw491(item)\nassert_eq(I64, throwing.n, 2)\n",
-        "holder := WriteHolder491(value = item)\nref field: Item491 = ref_field(holder)\nassert_eq(I64, field.n, 2)\n",
-        "callback_holder := CallbackHolder491(action = write491)\nref callback_value: Item491 = callback_field491(callback_holder, item)\nassert_eq(I64, callback_value.n, 2)\n",
-        "mut owned := OwnedHolder491()\nref mut inner: Item491 = owned_field(owned)\ninner.n = 3\n",
-        "maybe := WriteMaybe491.Some(item)\nref payload: Item491 = payload491(maybe)\nassert_eq(I64, payload.n, 2)\n",
-        "ref shadow: Item491 = shadow491(maybe)\nassert_eq(I64, shadow.n, 2)\n",
-        "ref captured: Item491 = capture491(item)\nassert_eq(I64, captured.n, 2)\n",
-        "ref mut global: Item491 = global_ref491()\nglobal.n = 4\n",
-        "ref fixed_global: Item491 = global_alias_ref491()\nassert_eq(I64, fixed_global.n, 4)\n",
+        "mut number : I64 = 0\nref mut scalar : I64 = primitive491(number)\nscalar = 9\nassert_eq(I64, number, 9)\n",
+        "ref mut direct : Item491 = write491(item)\ndirect.n = 1\n",
+        "ref mut alias : Item491 = alias491(item)\nalias.n = 2\n",
+        "ref fixed : Item491 = fixed491(item)\nassert_eq(I64, fixed.n, 2)\n",
+        "ref nested : Item491 = nested491(item, true)\nassert_eq(I64, nested.n, 2)\n",
+        "ref throwing : Item491 = forward_throw491(item)\nassert_eq(I64, throwing.n, 2)\n",
+        "holder := WriteHolder491(value = item)\nref field : Item491 = ref_field(holder)\nassert_eq(I64, field.n, 2)\n",
+        "callback_holder := CallbackHolder491(action = write491)\nref callback_value : Item491 = callback_field491(callback_holder, item)\nassert_eq(I64, callback_value.n, 2)\n",
+        "mut owned := OwnedHolder491()\nref mut inner : Item491 = owned_field(owned)\ninner.n = 3\n",
+        "maybe := WriteMaybe491.Some(item)\nref payload : Item491 = payload491(maybe)\nassert_eq(I64, payload.n, 2)\n",
+        "ref shadow : Item491 = shadow491(maybe)\nassert_eq(I64, shadow.n, 2)\n",
+        "ref captured : Item491 = capture491(item)\nassert_eq(I64, captured.n, 2)\n",
+        "ref mut global : Item491 = global_ref491()\nglobal.n = 4\n",
+        "ref fixed_global : Item491 = global_alias_ref491()\nassert_eq(I64, fixed_global.n, 4)\n",
         "println(\"writable returns passed\")\n}\n"))
     check(Cmd.new(compiler, "interpret", format(root, "/writable_returns.til")), "writable returns passed\n")
     check_run(compiler, root, "writable_returns", "writable returns passed\n", asan)
@@ -735,7 +735,7 @@ writable_return_source_checks := proc(compiler: Str, root: Str, asan: Bool) {
 
 main := proc(args: ..Str) {
     if args.len() > 3 { panic("expected compiler, optional family, and optional --asan") }
-    ref compiler: Str = args[0]
+    ref compiler : Str = args[0]
     mut family := "all"
     if args.len() > 1 { family = args[1].borrowed_view() }
     // TEMPORARY (#464): sanitizer coverage is selected by the suite.

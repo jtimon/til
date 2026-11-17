@@ -356,9 +356,9 @@ namespace:
     }
 }
 
-MapHookedWrapper := struct { value: MapHookedResource }
+MapHookedWrapper := struct { value : MapHookedResource }
 MapHookedPayload := enum { Empty, Direct: MapHookedResource, Wrapped: MapHookedWrapper }
-MapOwnedHookedWrapper := struct { own value: MapHookedResource }
+MapOwnedHookedWrapper := struct { own value : MapHookedResource }
 MapOwnedHookedPayload := enum { Empty, Wrapped: MapOwnedHookedWrapper }
 
 test_map_nested_custom_resource_hooks := test() {

@@ -5,7 +5,7 @@ mode cli
 // before the use is fine. The rejected shapes are in test/bug469_error.til.
 
 // One machine word: small enough to be auto-shallow.
-Word := struct { x: I64 = 0 }
+Word := struct { x : I64 = 0 }
 
 returns_kept := proc(seed: I64) returns I64 {
     mut values := Array(I64).new(2)

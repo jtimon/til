@@ -10,7 +10,7 @@ mode script
 // address. Registered by src/tests.til on Linux ASAN runs only (macOS runs
 // with detect_leaks=0).
 
-S := struct { p: Dynamic = 0 }
+S := struct { p : Dynamic = 0 }
 keep := proc(s: S) returns I64 { noop_proc(); if s.p.is_null() { return 0 }; return 1 }
 lose := proc(n: I64) returns I64 {
     mut kept : I64 = 0

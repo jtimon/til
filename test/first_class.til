@@ -668,8 +668,8 @@ test_explicit_funcdef_annotation := test() {
 // still depends on #58's metatype-reflection foundation.
 
 Point56 := struct {
-    x: I64 = 0
-    y: I64 = 0
+    x : I64 = 0
+    y : I64 = 0
 }
 
 // A struct type can be passed where a `Type` parameter is expected and
@@ -705,8 +705,8 @@ test_vec_of_struct_instances := test() {
 
 test_anon_struct_ctor := test() {
     p := struct {
-        x: I64 = 0
-        y: I64 = 0
+        x : I64 = 0
+        y : I64 = 0
     }(x=10, y=20)
     assert_eq(I64, p.x, 10)
     assert_eq(I64, p.y, 20)
@@ -714,7 +714,7 @@ test_anon_struct_ctor := test() {
 
 test_anon_struct_defaults := test() {
     q := struct {
-        a: I64 = 7
+        a : I64 = 7
     }()
     assert_eq(I64, q.a, 7)
 }
@@ -769,8 +769,8 @@ test_anon_enum_payload_switch := test() {
 // Conversely, literals that differ observably (here, a field default) stay
 // distinct types and keep their own defaults.
 test_anon_struct_distinct_defaults := test() {
-    a := struct { x: I64 = 1 }()
-    b := struct { x: I64 = 2 }()
+    a := struct { x : I64 = 1 }()
+    b := struct { x : I64 = 2 }()
     assert_eq(I64, a.x, 1)
     assert_eq(I64, b.x, 2)
 }
@@ -782,27 +782,27 @@ test_anon_struct_distinct_defaults := test() {
 // identical value-position one, so a value flows into the annotated slot.
 
 anon_sum_xy := func(p: struct {
-    x: I64 = 0
-    y: I64 = 0
+    x : I64 = 0
+    y : I64 = 0
 }) returns I64 {
     return p.x.add(p.y)
 }
 
 test_anon_param_type := test() {
     arg := struct {
-        x: I64 = 0
-        y: I64 = 0
+        x : I64 = 0
+        y : I64 = 0
     }(x=3, y=4)
     assert_eq(I64, anon_sum_xy(arg), 7)
 }
 
 anon_make_pt := func() returns struct {
-    x: I64 = 0
-    y: I64 = 0
+    x : I64 = 0
+    y : I64 = 0
 } {
     return struct {
-        x: I64 = 0
-        y: I64 = 0
+        x : I64 = 0
+        y : I64 = 0
     }(x=5, y=6)
 }
 
@@ -831,16 +831,16 @@ test_anon_enum_param_type := test() {
 }
 
 test_anon_local_decl_type := test() {
-    p: struct { x: I64 = 0 } = struct { x: I64 = 0 }(x=9)
+    p : struct { x : I64 = 0 } = struct { x : I64 = 0 }(x=9)
     assert_eq(I64, p.x, 9)
 }
 
 AnonFieldHolder := struct {
-    inner: struct { v: I64 = 0 } = struct { v: I64 = 0 }()
+    inner : struct { v : I64 = 0 } = struct { v : I64 = 0 }()
 }
 
 test_anon_field_type := test() {
-    h := AnonFieldHolder(inner = struct { v: I64 = 0 }(v=42))
+    h := AnonFieldHolder(inner = struct { v : I64 = 0 }(v=42))
     assert_eq(I64, h.inner.v, 42)
 }
 
@@ -857,11 +857,11 @@ test_anon_field_type := test() {
 test_anon_struct_as_value := test() {
     mut defs := Vec(StructDef).new()
     defs.push(own struct {
-        x: I64 = 0
-        y: I64 = 0
+        x : I64 = 0
+        y : I64 = 0
     })
     defs.push(own struct {
-        a: I64 = 0
+        a : I64 = 0
     })
     assert_eq(USize, defs.len(), 2)
 }
@@ -904,8 +904,8 @@ test_anon_enum_as_type_arg := test() {
 
 test_anon_struct_as_type_arg := test() {
     assert_eq(I64, count_fields_of(struct {
-        x: I64 = 0
-        y: I64 = 0
+        x : I64 = 0
+        y : I64 = 0
     }), 2)
 }
 
@@ -940,8 +940,8 @@ test_anon_enum_as_macro_arg := test() {
 
 make_pair := macro(T: Type) returns StructDef {
     return struct {
-        first: T
-        second: T
+        first : T
+        second : T
     }
 }
 PairI64 := make_pair(I64)
@@ -958,8 +958,8 @@ test_macro_struct_gen := test() {
 // tests below already build these.
 make_kv := macro(K: Type, V: Type) returns StructDef {
     return struct {
-        key: K
-        value: V
+        key : K
+        value : V
     }
 }
 KVI64Str := make_kv(I64, Str)
@@ -1014,7 +1014,7 @@ test_macro_enum_ns_t_and_self := test() {
 // test_macro_enum_ns_t_and_self on the enum side (#57).
 make_box56 := macro(T: Type) returns StructDef {
     return struct {
-        v: T = 0
+        v : T = 0
     namespace:
         twice := func(self: make_box56(T)) returns T { return self.v.add(self.v) }
     }
@@ -1046,7 +1046,7 @@ test_macro_struct_infer_type := test() {
 // the expression evaluates at compile time.
 make_sized56 := macro(N: I64) returns StructDef {
     return struct {
-        size: I64 = N.add(1)
+        size : I64 = N.add(1)
     }
 }
 Sized5 := make_sized56(4)
@@ -1274,7 +1274,7 @@ test_size_condition_generators := test() {
 // frees every other body gets: a local such a function owned leaked in the
 // compiler (the ASAN suite reports it), and a file-level value initialized
 // by a variadic call was read as garbage.
-OwnedRecord472 := struct { address: UPtr; byte: U8 }
+OwnedRecord472 := struct { address : UPtr; byte : U8 }
 owned_joined472 := format("ab", "cd")
 OwnedNames472 := struct { namespace:
     joined := "xyz"
@@ -1327,7 +1327,7 @@ test_generator_conditions_owning_memory := test() {
 }
 
 // --- Conditional macro bodies (issue #58) ---
-GenericSizePoint := struct { x: I32; y: I32 }
+GenericSizePoint := struct { x : I32; y : I32 }
 GenericSizeTag := enum { First, Second }
 GenericSizePayload := enum { Empty, Value: U32 }
 priv SIZE_METHOD_BIAS : USize = 2
@@ -1337,34 +1337,34 @@ priv size_method_value := func() returns USize {
     return value + 1
 }
 GenericSizeCustom := struct {
-    storage: U64
+    storage : U64
 namespace:
     size := func() returns USize { return size_method_value() }
 }
 // A method named size is not necessarily a layout query (#472).
 GenericSizeSetter := struct {
-    count: USize = 0
+    count : USize = 0
 namespace:
     size := func(mut self: GenericSizeSetter, value: USize) { self.count = value.clone() }
 }
 GenericSizeArgument := struct {
-    count: USize = 0
+    count : USize = 0
 namespace:
     size := func(value: USize) returns USize { return value }
 }
 GenericSizeText := struct {
-    count: USize = 0
+    count : USize = 0
 namespace:
     size := func() returns Str { return "named size" }
 }
 GenericSizeProc := struct {
-    count: USize = 0
+    count : USize = 0
 namespace:
     size := proc() returns USize { noop_proc(); return 17 }
 }
 GenericSizeError := struct {}
 GenericSizeThrowing := struct {
-    count: USize = 0
+    count : USize = 0
 namespace:
     size := func() returns USize throws GenericSizeError { throw GenericSizeError() }
 }
@@ -1427,18 +1427,18 @@ test_unrelated_size_methods_keep_target_layout := test() {
 make_tagged := macro(T: Type) returns StructDef {
     if T.is(Type.Primitive(Primitive.I64)) {
         return struct {
-            value: I64 = 0
-            tag:   I32 = 1
+            value : I64 = 0
+            tag :   I32 = 1
         }
     } else if T.is(Type.Primitive(Primitive.I32)) {
         return struct {
-            value: I64 = 0
-            tag:   I32 = 2
+            value : I64 = 0
+            tag :   I32 = 2
         }
     } else {
         return struct {
-            value: I64 = 0
-            tag:   I32 = 3
+            value : I64 = 0
+            tag :   I32 = 3
         }
     }
 }
@@ -1621,11 +1621,11 @@ reflected_read491 := func(mut text: Str) returns ref Str { text.push_str("r"); r
 reflected_write491 := func(mut text: Str) returns ref mut Str { text.push_str("w"); return text }
 ReflectInline491 := func(read: Fn(mut Str) returns ref Str,
     write: Fn(mut Str) returns ref mut Str)
-use_reflected_inline491: ReflectInline491 = (read, write) {
+use_reflected_inline491 : ReflectInline491 = (read, write) {
     mut text := Str.with_capacity(32)
     text.push_str("inline")
-    ref first: Str = read(text)
-    ref second: Str = write(text)
+    ref first : Str = read(text)
+    ref second : Str = write(text)
     assert(first == second)
 }
 
@@ -1640,14 +1640,14 @@ func_sig_return_ref_mut := func() returns I64 { return 37 }
 
 test_reflected_return_permission := test() {
     // Runtime-computed reflection names need the types used independently.
-    read: ReflectReadonly491 = reflected_read491
-    write: ReflectWritable491 = reflected_write491
+    read : ReflectReadonly491 = reflected_read491
+    write : ReflectWritable491 = reflected_write491
     mut text := Str.with_capacity(32)
     text.push_str("reflect")
-    ref read_value: Str = read(text)
-    ref write_value: Str = write(text)
+    ref read_value : Str = read(text)
+    ref write_value : Str = write(text)
     assert(read_value == "reflectrw" && write_value == read_value)
-    inline_value: ReflectInline491 = use_reflected_inline491
+    inline_value : ReflectInline491 = use_reflected_inline491
     inline_value(reflected_read491, reflected_write491)
     readonly := reflect_return_permission491("ReflectReadonly491")
     mut writable := reflect_return_permission491("ReflectWritable491")
@@ -1670,10 +1670,10 @@ ReflectVariadicDefaults := proc(mut prefix: Str, values: ..I64,
     mut suffix: Str = "end") returns Str throws FuncSigError58
 
 ReflectFields490 := struct {
-    ref read: I64
-    ref mut write: I64
-    const ref fixed_read: I64
-    const ref mut fixed_write: I64
+    ref read : I64
+    ref mut write : I64
+    const ref fixed_read : I64
+    const ref mut fixed_write : I64
 }
 ReflectPayloads490 := enum {
     Empty,
@@ -1694,14 +1694,14 @@ struct_field_referent_mut := func() returns I64 { return 41 }
 enum_variant_payload_ref_mut := func() returns I64 { return 43 }
 
 test_reflected_stored_permissions := test() {
-    mut number: I64 = 7
+    mut number : I64 = 7
     value := ReflectFields490(read = number, write = number,
         fixed_read = number, fixed_write = number)
     copy := value.clone()
     payload := ReflectPayloads490.Write(copy.write)
     payload_copy := payload.clone()
     number++
-    ref borrowed: I64 = copy.write
+    ref borrowed : I64 = copy.write
     assert(borrowed == 8)
     switch payload_copy {
     case .Write(data): assert(data == 8)
@@ -1907,7 +1907,7 @@ test_func_sig_of_complete_contract := test() {
 // left untouched. Distinct from the macro path (`macro(T: Type) returns
 // FuncDef`), which requires a separate naming step.
 
-Point58g := struct { x: I64 = 0; y: I64 = 0 }
+Point58g := struct { x : I64 = 0; y : I64 = 0 }
 
 gid := func(T: Type, v: T) returns T { return v }
 gdefault := func(T: Type) returns T { return T() }

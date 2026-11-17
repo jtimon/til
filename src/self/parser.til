@@ -220,6 +220,51 @@ priv expect_text := func(mut p: Parser, type: TokenType) returns Str {
     return text
 }
 
+// True when token `i` (a name or an operator, whose start/len cover exactly
+// its text) is followed directly by the next token instead of by a space or
+// a line end. The source byte decides, not the next token's start: a string
+// or char token starts after its opening quote. The Eof token ends the
+// source, so nothing touches it.
+priv tokens_touch := func(p: Parser, i: USize) returns Bool {
+    if p.tokens[i + 1].type.is(TokenType.Eof) { return false }
+    ref a : Token = p.tokens[i]
+    ref after : I8 = p.source.unsafe_get(a.start + a.len)
+    return after.eq(' ').or(after.eq('\t')).or(after.eq('\r')).or(after.eq('\n')).not()
+}
+
+// #505: the first enforced format rule. A declaration's `:` / `:=` stands
+// apart from the name before it and from what follows it: `x := 1` and
+// `x : I64 = 1`, never `x:= 1`, `x :=1` or `x: I64 = 1`. Consumes the
+// operator, which is the current token; the name is the token before it.
+priv advance_decl_op := func(mut p: Parser) {
+    op_pos := p.pos
+    ref op : Token = p.tokens[op_pos]
+    if tokens_touch(p, op_pos - 1) {
+        parse_fail(p, op.line, op.col, "expected a space between '", tok_text(p, p.tokens[op_pos - 1]),
+            "' and '", tok_text(p, op), "' in a declaration")
+        return
+    }
+    if tokens_touch(p, op_pos) {
+        ref next : Token = p.tokens[op_pos + 1]
+        parse_fail(p, next.line, next.col, "expected a space after '", tok_text(p, op), "' in a declaration")
+        return
+    }
+    advance(p)
+}
+
+// #505: the `=` of a typed declaration (`x : I64 = 1`) stands apart from the
+// initial value after it.
+priv expect_decl_eq := func(mut p: Parser) {
+    if check(p, TokenType.Eq) {
+        if tokens_touch(p, p.pos) {
+            ref value : Token = p.tokens[p.pos + 1]
+            parse_fail(p, value.line, value.col, "expected a space after '=' in a declaration")
+            return
+        }
+    }
+    expect_token(p, TokenType.Eq)
+}
+
 // Save line/col before advancing
 priv peek_line := func(p: Parser) returns U32 { return peek(p).line }
 priv peek_col := func(p: Parser) returns U32 { return peek(p).col }
@@ -1148,11 +1193,11 @@ priv parse_ns_decl := proc(mut p: Parser, member_priv: Bool) returns Declaration
     if check(p, TokenType.KwMut) { advance(p); ns_is_mut = true }
     ns_name := expect_text(p, TokenType.Ident)
     if check(p, TokenType.ColonEq) {
-        advance(p)
+        advance_decl_op(p)
     } else if check(p, TokenType.Colon) {
-        advance(p)
+        advance_decl_op(p)
         ns_type_name = parse_type_ref(p)
-        expect_token(p, TokenType.Eq)
+        expect_decl_eq(p)
     }
     ns_doc := p.pending_doc.clone()
     p.pending_doc = ""
@@ -1350,11 +1395,13 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
             // default is still mandatory, so a bare `name` stays illegal.
             mut f_has_default := true
             if check(p, TokenType.Colon) {
-                advance(p)
+                advance_decl_op(p)
                 f_type_name = parse_type_ref(p)
-                if check(p, TokenType.Eq) { advance(p) }
+                if check(p, TokenType.Eq) { expect_decl_eq(p) }
                 else if check(p, TokenType.ColonEq) { advance(p) }
                 else { f_has_default = false }
+            } else if check(p, TokenType.ColonEq) {
+                advance_decl_op(p)
             } else {
                 expect_token(p, TokenType.ColonEq)
             }
@@ -1430,11 +1477,11 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
         m_name := expect_text(p, TokenType.Ident)
         mut m_type_name := ""
         if check(p, TokenType.ColonEq) {
-            advance(p)
+            advance_decl_op(p)
         } else if check(p, TokenType.Colon) {
-            advance(p)
+            advance_decl_op(p)
             m_type_name = parse_type_ref(p)
-            expect_token(p, TokenType.Eq)
+            expect_decl_eq(p)
         } else {
             expect_token(p, TokenType.ColonEq)
         }
@@ -2557,7 +2604,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
 
     // Declaration: name := value
     if check(p, TokenType.ColonEq) {
-        advance(p)
+        advance_decl_op(p)
 
         // Namespace sugar: Name := namespace { ... }
         if check(p, TokenType.KwNamespace) {
@@ -2595,7 +2642,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
 
     // Declaration with explicit type: name : Type = value
     if check(p, TokenType.Colon) {
-        advance(p)
+        advance_decl_op(p)
 
         // FuncSig form: name : func(Types) returns T = (names) { body }
         // parse_func_def handles the full `func(...) returns T = (names) { body }`
@@ -2616,7 +2663,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
             if syn_name.len() > 0 { type_name = syn_name }
         }
 
-        expect_token(p, TokenType.Eq)
+        expect_decl_eq(p)
 
         // Named FuncSig form: name : Type = (names) { body }
         // Lookahead: check if pattern is (ident [, ident]* [,]) {
@@ -2973,9 +3020,11 @@ priv parse_reference_decl := proc(mut p: Parser, slot_mut: Bool, slot_explicit: 
     mut declaration := Declaration(name = name, own_type = OwnType.Ref, is_mut = mutable,
         referent_mut = referent_mut, ref_slot_explicit = slot_explicit)
     if check(p, TokenType.Colon) {
-        advance(p)
+        advance_decl_op(p)
         set_decl_type(declaration, parse_type_ref(p), p.symbols)
-        expect_token(p, TokenType.Eq)
+        expect_decl_eq(p)
+    } else if check(p, TokenType.ColonEq) {
+        advance_decl_op(p)
     } else {
         expect_token(p, TokenType.ColonEq)
     }

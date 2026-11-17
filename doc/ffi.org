@@ -310,7 +310,7 @@ VM/callback operations, as for the rest of the embedding API.
 #+begin_src til
 SharedScalar := enum { None, Some: ref I64 }
 Retain := proc(SharedScalar)
-ref mut cell: I64 = vm.shared_i64()
+ref mut cell : I64 = vm.shared_i64()
 cell = 10
 mut callback := vm.lookup("retain_cell", Retain)!
 mut arguments := Tuple.new()
@@ -341,7 +341,7 @@ read/write its pointee using normal Til reference semantics.
 #+begin_src til
 SharedRequest := struct { label := ""; ref count: I64 }
 UseRequest := proc(mut SharedRequest)
-ref mut cell: I64 = vm.shared_i64()
+ref mut cell : I64 = vm.shared_i64()
 mut arguments := Tuple.new()
 arguments.push(SharedRequest, own SharedRequest(label = format("host", " label"), count = cell))
 mut callback := vm.lookup("use_request", UseRequest)!

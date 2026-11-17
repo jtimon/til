@@ -7,9 +7,9 @@ mode script
 // only through a value.
 
 Rec := struct {
-    format: Str = "x"
-    len: I64 = 3
-    println: Bool = true
+    format : Str = "x"
+    len : I64 = 3
+    println : Bool = true
 namespace:
     show := func(self: Rec) returns Str { return format("<", self.format, ">") }
     sized := func(self: Rec, s: Str) returns I64 { return s.len().to_i64() + self.len }

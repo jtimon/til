@@ -386,7 +386,7 @@ Scope := struct {
     is_call_scope := false
 }
 
-priv InterpSharedI64 := struct { value: I64 = 0 }
+priv InterpSharedI64 := struct { value : I64 = 0 }
 
 InterpSession := struct {
     // #321/#324: the session's root scope, OWNED. It was `ref ... = NULL`
@@ -461,7 +461,7 @@ TilVmCallback := struct {
     // absence, never a fabricated null reference to a VM. Successful lookup
     // always returns Some; invoking an absent result reports an error.
     priv session := Option(ref InterpSession).None
-    priv own callable: U8 = calloc(1, Dynamic.size())
+    priv own callable : U8 = calloc(1, Dynamic.size())
 namespace:
     // Implementation factory; applications obtain handles through TilVm.lookup.
     lookup := proc(mut session: InterpSession, name: Str, signature: Type = Type.None) returns TilVmCallback throws TilVmError {
@@ -761,7 +761,7 @@ priv enum_payload_deep_free := func(enum_name: Str, mut data: Dynamic, ctx: Cont
     if payload_type == "Str" { enum_free_str_payload(data, ctx); return }
     resolved := type_from_name_init_name(payload_type, ctx.scope, ctx.symbols)
     if heap_type_is_callable(resolved) {
-        ref mut slot: Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET)
+        ref mut slot : Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET)
         callable_storage_free(deref(slot))
         write_ptr(slot, bits_word(0))
         return
@@ -816,7 +816,7 @@ priv enum_payload_deep_clone := func(enum_name: Str, mut data: Dynamic, ctx: Con
     if payload_type == "Str" { enum_clone_str_payload(data, ctx); return }
     resolved := type_from_name_init_name(payload_type, ctx.scope, ctx.symbols)
     if heap_type_is_callable(resolved) {
-        ref mut slot: Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET)
+        ref mut slot : Dynamic = ptr_add(data, ENUM_PAYLOAD_OFFSET)
         write_ptr(slot, callable_storage_clone(deref(slot)))
         return
     }
@@ -1495,7 +1495,7 @@ priv raw_arg_pointer := func(raw: Dynamic, info: RawResultInfo, ctx: Context) re
 
 priv callable_storage_func_def := func(stored: Dynamic) returns ref Expr {
     if native_callable_box_is(stored) {
-        ref box: NativeImportedCallable = to_ptr(stored)
+        ref box : NativeImportedCallable = to_ptr(stored)
         return box.func_def
     }
     if callable_box_is(stored) {
@@ -3330,7 +3330,7 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
                         val_is_ref = false
                     }
                     if drop_field {
-                        ref mut slot: Dynamic = ptr_add(base, wf_fl.offset)
+                        ref mut slot : Dynamic = ptr_add(base, wf_fl.offset)
                         eval_callable_capture_delete(deref(slot), stmt, ctx)
                     }
                 } else if drop_field.and(fdecl.own_type.is(OwnType.Ref).not()).and(is_aggregate(fdecl.til_type)) {
@@ -3520,7 +3520,7 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
 
 priv interp_param_bind_type := func(param: Declaration, source_type_w: Dynamic, is_variadic: Bool, mut ctx: Context) returns Dynamic {
     if is_variadic { return source_type_w }
-    ref source_type: Type = to_ptr(source_type_w)
+    ref source_type : Type = to_ptr(source_type_w)
     if param.own_type.is(OwnType.Ref).and(raw_type_is_prim(source_type, ctx))
         .and(raw_type_is_prim(declaration_resolved_type(param, ctx.scope, ctx.symbols), ctx)) {
         return source_type_w
@@ -3892,9 +3892,9 @@ priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callab
         return raw_unit_result(e.til_type(), ctx)
     }
     if native_callable_box_is(deref(callable)) {
-        ref mut box: NativeImportedCallable = to_ptr(deref(callable))
+        ref mut box : NativeImportedCallable = to_ptr(deref(callable))
         box.active = box.active + 1
-        result: Dynamic = native_callable_import_invoke(box, caller_scope, e, ctx, destination)
+        result : Dynamic = native_callable_import_invoke(box, caller_scope, e, ctx, destination)
         box.active = box.active - 1
         if box.retired.and(box.active == 0) { NativeImportedCallable.delete(own to_ptr(box), true) }
         return result
@@ -3966,7 +3966,7 @@ priv eval_callable_call := proc(mut caller_scope: Scope, mut e: Expr, mut callab
 }
 
 priv InterfaceCallBox := struct {
-    ref data: Dynamic
+    ref data : Dynamic
     release := false
 }
 
@@ -6042,7 +6042,7 @@ priv callable_box_is := func(ptr: Dynamic) returns Bool {
 
 priv callable_storage_clone := func(ptr: Dynamic) returns Dynamic {
     if native_callable_box_is(ptr) {
-        ref box: NativeImportedCallable = to_ptr(ptr)
+        ref box : NativeImportedCallable = to_ptr(ptr)
         return native_callable_import(box.name, box.native, box.signature, box.context)
     }
     if callable_box_is(ptr).not() { return ptr }
@@ -6057,7 +6057,7 @@ priv callable_storage_clone := func(ptr: Dynamic) returns Dynamic {
 
 priv callable_storage_free := func(mut ptr: Dynamic) {
     if native_callable_box_is(ptr) {
-        ref mut box: NativeImportedCallable = to_ptr(ptr)
+        ref mut box : NativeImportedCallable = to_ptr(ptr)
         if box.active > 0 { box.retired = true }
         else { NativeImportedCallable.delete(own to_ptr(box), true) }
         return
@@ -6077,15 +6077,15 @@ priv callable_box_free := func(mut ptr: Dynamic) {
 }
 
 priv eval_closure_capture_clone := proc(cap: Declaration, source: Scope, mut target: Scope, site: Expr, mut ctx: Context) {
-    ref hb: HeapBinding = source.heap_bindings[cap.name]
+    ref hb : HeapBinding = source.heap_bindings[cap.name]
     if hb.moved_out { panic("closure clone from moved binding: ", cap.name) }
-    ref data: Dynamic = to_ptr(hb.ptr)
+    ref data : Dynamic = to_ptr(hb.ptr)
     if hb.is_borrowed {
         scope_set_heap_owned(target, cap.name, data, hb.til_type_p, hb.own_type, hb.ctx, false, true, hb.is_erased_dynamic)
         if source.heap_aliases.has(cap.name) { target.heap_aliases.set(cap.name, own source.heap_aliases[cap.name].clone()) }
         return
     }
-    mut copied: Dynamic = 0
+    mut copied : Dynamic = 0
     if heap_type_is_callable(hb_type(hb)) {
         copied = EvalHeap.heap_alloc(Dynamic.size())
         write_ptr(copied, eval_callable_clone(deref(data), site, ctx))
@@ -6111,15 +6111,15 @@ priv eval_callable_slot_clone := proc(shallow value_type: Type, slot: Dynamic, s
     if ffi_place_is_foreign(slot, ctx) {
         return native_callable_slot_import(resolved_type_name(value_type, ctx.symbols), slot, ctx)
     }
-    mut result: Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+    mut result : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
     write_ptr(result, eval_callable_clone(deref(slot), site, ctx))
     return result
 }
 
 priv eval_callable_clone := proc(value: Dynamic, site: Expr, mut ctx: Context) returns Dynamic {
     if callable_box_is(value).not() { return callable_storage_clone(value) } // Static/native callable storage.
-    ref box: InterpCallableBox = to_ptr(value)
-    ref source: Scope = callable_env(box)
+    ref box : InterpCallableBox = to_ptr(value)
+    ref source : Scope = callable_env(box)
     mut target := scope_new_owned(source.parent)
     switch box.func_def.node_type {
     case .FuncDef(fd):
@@ -6134,8 +6134,8 @@ priv eval_callable_clone := proc(value: Dynamic, site: Expr, mut ctx: Context) r
         }
     case: UNREACHABLE("callable box without a function or Body")
     }
-    mut result: Dynamic = EvalHeap.heap_alloc(InterpCallableBox.size())
-    ref mut cloned: InterpCallableBox = to_ptr(result)
+    mut result : Dynamic = EvalHeap.heap_alloc(InterpCallableBox.size())
+    ref mut cloned : InterpCallableBox = to_ptr(result)
     cloned.magic = CALLABLE_BOX_MAGIC
     cloned.func_def = box.func_def
     cloned.env = Option(Scope).Some(own target)
@@ -6733,8 +6733,8 @@ priv prepare_owned_str_wrapper := func(mut value: Dynamic, ctx: Context) {
 }
 
 priv write_field := proc(mut inst_data: Dynamic, dd: Declaration, field_offset: USize, field_size: USize, mut raw: Dynamic, info:RawResultInfo, drop_old: Bool, ctx: Context) {
-    ref raw_type:Type=raw_result_source_type(info)
-    raw_is_ref:=info.is_ref
+    ref raw_type : Type= raw_result_source_type(info)
+    raw_is_ref := info.is_ref
     ref mut dst : Dynamic = ptr_add(inst_data, field_offset)
     if decl_is_funcsig(dd, ctx) {
         ref mut old_callable : Dynamic = deref(dst)
@@ -7160,25 +7160,25 @@ interp_session_lookup_function := proc(mut session: InterpSession, mut lp: Loade
 // The native callable prefix is the existing TilClosure ABI. These pointers
 // are native addresses, including executable libffi memory outside the cage.
 priv NativeCallablePrefix := struct {
-    ref call: Dynamic
-    ref env: Dynamic
-    ref drop: Dynamic
-    ref copy: Dynamic
+    ref call : Dynamic
+    ref env : Dynamic
+    ref drop : Dynamic
+    ref copy : Dynamic
 }
 
 NativeCallableThunk := struct {
-    own cif: U8
-    own argument_types: U8
-    ref executable: Dynamic
-    ref allocation: Dynamic
+    own cif : U8
+    own argument_types : U8
+    ref executable : Dynamic
+    ref allocation : Dynamic
 }
 
 priv NativeGuestCallable := struct {
-    ref context: Context
+    ref context : Context
     signature := FuncSig()
-    own callable: U8
+    own callable : U8
     borrowed_callable := false
-    active: USize = 0
+    active : USize = 0
     retired := false
 namespace:
     delete := func(own self: NativeGuestCallable, call_free: Bool = true) {
@@ -7195,14 +7195,14 @@ namespace:
 priv NativeFfiHandler := proc(mut Dynamic, mut Dynamic, Dynamic)
 
 priv NativeImportedCallable := struct {
-    magic: U64 = 0
-    ref func_def: Expr
-    ref context: Context
+    magic : U64 = 0
+    ref func_def : Expr
+    ref context : Context
     name := ""
     signature := FuncSig()
-    ref native: Dynamic
+    ref native : Dynamic
     borrowed := false
-    active: USize = 0
+    active : USize = 0
     retired := false
 namespace:
     delete := func(own self: NativeImportedCallable, call_free: Bool = true) {
@@ -7213,24 +7213,24 @@ namespace:
     }
 }
 
-priv NATIVE_CALLABLE_MAGIC: U64 = 7811882221234791352
+priv NATIVE_CALLABLE_MAGIC : U64 = 7811882221234791352
 priv native_callable_box_is := func(value: Dynamic) returns Bool {
     if value.is_null() { return false } // Empty/moved callable slots.
-    ref magic: U64 = value
+    ref magic : U64 = value
     return magic == NATIVE_CALLABLE_MAGIC
 }
 
 priv native_callable_import := func(name: Str, source: Dynamic, signature: FuncSig, ctx: Context, borrowed: Bool = false) returns Dynamic {
-    mut copied: Dynamic = source
+    mut copied : Dynamic = source
     if borrowed.not() {
-        mut source_slot: U8 = malloc(Dynamic.size())
+        mut source_slot : U8 = malloc(Dynamic.size())
         write_ptr(source_slot, source)
-        copied_slot: Dynamic = til_closure_slot_clone(source_slot)
+        copied_slot : Dynamic = til_closure_slot_clone(source_slot)
         copied = deref(copied_slot)
         free(own copied_slot)
         free(own source_slot)
     }
-    mut storage: Dynamic = EvalHeap.heap_alloc(NativeImportedCallable.size())
+    mut storage : Dynamic = EvalHeap.heap_alloc(NativeImportedCallable.size())
     adopt(NativeImportedCallable, storage, own NativeImportedCallable(magic = NATIVE_CALLABLE_MAGIC,
         func_def = ctx.scope.lookup_func_name(name, ctx.symbols).unwrap(), context = ctx,
         name = name.clone(), signature = signature.clone(), native = copied, borrowed = borrowed))
@@ -7243,16 +7243,16 @@ priv native_callable_signature := func(name: Str, ctx: Context) returns FuncSig 
 }
 
 priv native_callable_slot_import := func(name: Str, source: Dynamic, ctx: Context, borrowed: Bool = false) returns Dynamic {
-    mut slot: Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+    mut slot : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
     write_ptr(slot, native_callable_import(name, deref(source), native_callable_signature(name, ctx), ctx, borrowed))
     return slot
 }
 
 priv native_callable_import_invoke := proc(box: NativeImportedCallable, mut caller: Scope, mut e: Expr,
     mut ctx: Context, mut destination: Dynamic) returns Dynamic {
-    ref native: NativeCallablePrefix = to_ptr(box.native)
+    ref native : NativeCallablePrefix = to_ptr(box.native)
     key := format("TilVm.native.", box.name, ".", word_bits(native.call).to_str())
-    ref guest: FunctionDef = funcdef_of(box.func_def)
+    ref guest : FunctionDef = funcdef_of(box.func_def)
     if ctx.ffi.entries.has(key).not() {
         mut signature := box.signature.clone()
         signature.func_type = FuncType.ExtProc
@@ -7281,15 +7281,15 @@ priv native_callable_import_invoke := proc(box: NativeImportedCallable, mut call
         // FFIEntry borrows the return spelling. Its canonical guest signature
         // lives with the Context; the temporary synthetic definition does not.
         if guest.sig.return_type.len() > 0 {
-            ref mut entry: FFIEntry = to_ptr(ctx.ffi.entries[key].value)
+            ref mut entry : FFIEntry = to_ptr(ctx.ffi.entries[key].value)
             entry.return_type = safe_ref(guest.sig.return_type)
         }
     }
     mut scope := scope_new(safe_ref(caller))
-    mut environment: Dynamic = EvalHeap.heap_alloc(Dynamic.size())
+    mut environment : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
     write_ptr(environment, native.env)
     scope_set_raw_owned(scope, "TilVm.native_environment", environment, interp_intern_type(Type.Dynamic, ctx), OwnType.Own, ctx)
-    mut kind: I64 = 0
+    mut kind : I64 = 0
     mut failure := TilVmError()
     scope_set_heap_owned(scope, "TilVm.native_kind", kind, interp_intern_type(Type.Primitive(Primitive.I64), ctx), OwnType.Ref, ctx, false, true)
     scope_set_heap_owned(scope, "TilVm.native_failure", failure, interp_intern_type(Type.Dynamic, ctx), OwnType.Ref, ctx, false, true, true)
@@ -7320,7 +7320,7 @@ priv native_callable_import_invoke := proc(box: NativeImportedCallable, mut call
         }
     }
     call.set_til_type(e.til_type())
-    mut output: Dynamic = destination
+    mut output : Dynamic = destination
     if output.is_null() { output = EvalHeap.heap_alloc(raw_type_size(e.til_type(), ctx)) }
     if ext_dispatch_ffi(key, scope, call, output, ctx).not() { panic("native callable is not registered") }
     if kind == throw_type_tag("TilVmError") {
@@ -7338,7 +7338,7 @@ priv native_callable_import_invoke := proc(box: NativeImportedCallable, mut call
         for i in 0..guest.sig.params.len() {
             if guest.sig.params[i].name == "_err_kind" {
                 mut info := raw_result_info_new()
-                mut slot: Dynamic = eval_expr_raw_info(caller, e.children[i + 1], ctx, info)
+                mut slot : Dynamic = eval_expr_raw_info(caller, e.children[i + 1], ctx, info)
                 write_i64(slot, kind)
             }
         }
@@ -7347,13 +7347,13 @@ priv native_callable_import_invoke := proc(box: NativeImportedCallable, mut call
     scope_free(own scope)
     if destination.is_null().not() { return destination }
     if box.signature.return_own_type.is(OwnType.Ref) {
-        ref borrowed: Dynamic = deref(output)
-        result: Dynamic = borrowed
+        ref borrowed : Dynamic = deref(output)
+        result : Dynamic = borrowed
         EvalHeap.heap_free(own output)
         return result
     }
     if raw_type_is_prim(e.til_type(), ctx) {
-        result: Dynamic = scalar_word_load(e.til_type(), output, ctx)
+        result : Dynamic = scalar_word_load(e.til_type(), output, ctx)
         EvalHeap.heap_free(own output)
         return result
     }
@@ -7362,14 +7362,14 @@ priv native_callable_import_invoke := proc(box: NativeImportedCallable, mut call
 
 priv native_callable_handler := proc(mut result: Dynamic, mut arguments: Dynamic, user_data: Dynamic) {
     noop_proc()
-    ref mut environment_slot: Dynamic = deref(arguments)
-    ref mut environment: Dynamic = deref(environment_slot)
-    ref mut state: NativeGuestCallable = to_ptr(environment)
+    ref mut environment_slot : Dynamic = deref(arguments)
+    ref mut environment : Dynamic = deref(environment_slot)
+    ref mut state : NativeGuestCallable = to_ptr(environment)
     operation := word_bits(user_data)
     if operation == 1 {
-        mut slot: U8 = malloc(Dynamic.size())
+        mut slot : U8 = malloc(Dynamic.size())
         write_ptr(slot, callable_storage_clone(deref(state.callable)))
-        mut copy: Dynamic = EvalHeap.heap_alloc(NativeGuestCallable.size())
+        mut copy : Dynamic = EvalHeap.heap_alloc(NativeGuestCallable.size())
         adopt(NativeGuestCallable, copy, own NativeGuestCallable(context = state.context, signature = state.signature.clone(), callable = slot))
         write_ptr(result, copy)
         return
@@ -7391,10 +7391,10 @@ priv native_callable_handler := proc(mut result: Dynamic, mut arguments: Dynamic
 priv native_callable_thunk := proc(name: Str, signature: FuncSig, operation: I64, mut ctx: Context) returns Dynamic {
     key := format(name, ":", operation.to_str())
     if ctx.ffi.callable_thunks.has(key) {
-        ref thunk: NativeCallableThunk = ctx.ffi.callable_thunks[key]
+        ref thunk : NativeCallableThunk = ctx.ffi.callable_thunks[key]
         return thunk.executable
     }
-    mut count: USize = 1 // Native closure environment.
+    mut count : USize = 1 // Native closure environment.
     if operation == 0 {
         count = count + signature.params.len()
         if signature.throw_types.len() > 0 {
@@ -7404,12 +7404,12 @@ priv native_callable_thunk := proc(name: Str, signature: FuncSig, operation: I64
             }
         }
     }
-    mut types: U8 = calloc(count, Dynamic.size())
+    mut types : U8 = calloc(count, Dynamic.size())
     write_ptr(types, ffi_type_ref("ffi_type_pointer"))
-    mut index: USize = 1
+    mut index : USize = 1
     if operation == 0 {
         for parameter: Declaration in signature.params {
-            ref mut type: ffi_type = ffi_type_ref("ffi_type_pointer")
+            ref mut type : ffi_type = ffi_type_ref("ffi_type_pointer")
             if parameter.own_type.is(OwnType.Shallow) { type = shallow_ffi_type(parameter.type_name(), ctx, true) }
             write_ptr(ptr_add(types, index.mul(Dynamic.size())), type)
             index++
@@ -7419,32 +7419,32 @@ priv native_callable_thunk := proc(name: Str, signature: FuncSig, operation: I64
             index++
         }
     }
-    ref mut result_type: ffi_type = ffi_type_ref("ffi_type_void")
+    ref mut result_type : ffi_type = ffi_type_ref("ffi_type_void")
     if operation == 1 { result_type = ffi_type_ref("ffi_type_pointer") }
     if operation.eq(0).and(signature.return_type.len() > 0) {
         if signature.return_own_type.is(OwnType.Ref) { result_type = ffi_type_ref("ffi_type_pointer") }
         else { result_type = shallow_ffi_type(signature.return_type, ctx, true) }
     }
-    mut cif_storage: U8 = malloc(ffi_cif.size())
-    ref mut cif: ffi_cif = to_ptr(cif_storage)
+    mut cif_storage : U8 = malloc(ffi_cif.size())
+    ref mut cif : ffi_cif = to_ptr(cif_storage)
     if ffi_prep_cif(cif, ffi_host_default_abi(), count.to_u32(), result_type, types) != FFI_OK {
         panic("cannot prepare native callable ABI: ", name)
     }
-    mut executable_slot: U8 = calloc(1, Dynamic.size())
-    mut allocation: Dynamic = ffi_closure_alloc(ffi_get_closure_size(), executable_slot)
+    mut executable_slot : U8 = calloc(1, Dynamic.size())
+    mut allocation : Dynamic = ffi_closure_alloc(ffi_get_closure_size(), executable_slot)
     if allocation.is_null() { panic("libffi could not allocate callable adapter") }
-    ref mut executable: Dynamic = deref(executable_slot)
-    handler: NativeFfiHandler = native_callable_handler
-    ref native_handler: Dynamic = deref(to_ptr(handler))
-    ref handler_address: Dynamic = deref(native_handler)
-    ref mut closure: ffi_closure = to_ptr(allocation)
-    mut user_data: Dynamic = bits_word(operation.cast(U64))
+    ref mut executable : Dynamic = deref(executable_slot)
+    handler : NativeFfiHandler = native_callable_handler
+    ref native_handler : Dynamic = deref(to_ptr(handler))
+    ref handler_address : Dynamic = deref(native_handler)
+    ref mut closure : ffi_closure = to_ptr(allocation)
+    mut user_data : Dynamic = bits_word(operation.cast(U64))
     if ffi_prep_closure_loc(closure, cif, handler_address, user_data, executable) != FFI_OK {
         panic("cannot prepare native callable entry: ", name)
     }
     thunk := NativeCallableThunk(cif = cif_storage, argument_types = types, executable = executable, allocation = allocation)
     ctx.ffi.callable_thunks.set(key, own thunk)
-    result: Dynamic = executable
+    result : Dynamic = executable
     free(own executable_slot)
     return result
 }
@@ -7456,26 +7456,26 @@ priv native_callable_entry := func(name: Str, operation: I64, ctx: Context) retu
 priv native_callable_export := func(name: Str, source: Dynamic, signature: FuncSig, ctx: Context,
     borrowed: Bool = false, take: Bool = false) returns Dynamic {
     if native_callable_box_is(source).and(borrowed.not()) {
-        ref imported: NativeImportedCallable = to_ptr(source)
-        mut slot: U8 = malloc(Dynamic.size())
+        ref imported : NativeImportedCallable = to_ptr(source)
+        mut slot : U8 = malloc(Dynamic.size())
         write_ptr(slot, imported.native)
-        copied_slot: Dynamic = til_closure_slot_clone(slot)
-        ref copied: Dynamic = deref(copied_slot)
-        result: Dynamic = copied
+        copied_slot : Dynamic = til_closure_slot_clone(slot)
+        ref copied : Dynamic = deref(copied_slot)
+        result : Dynamic = copied
         free(own copied_slot)
         free(own slot)
-        if take { mut released: Dynamic = source; callable_storage_free(released) }
+        if take { mut released : Dynamic = source; callable_storage_free(released) }
         return result
     }
     mut has_vm_error := false
     for error: Str in signature.throw_types { if error == "TilVmError" { has_vm_error = true } }
     if has_vm_error.not() { panic("native guest callable must declare TilVmError: ", name) }
-    mut slot: U8 = malloc(Dynamic.size())
+    mut slot : U8 = malloc(Dynamic.size())
     if borrowed.or(take) { write_ptr(slot, source) }
     else { write_ptr(slot, callable_storage_clone(source)) }
-    mut state: Dynamic = EvalHeap.heap_alloc(NativeGuestCallable.size())
+    mut state : Dynamic = EvalHeap.heap_alloc(NativeGuestCallable.size())
     adopt(NativeGuestCallable, state, own NativeGuestCallable(context = ctx, signature = signature.clone(), callable = slot, borrowed_callable = borrowed))
-    mut native: NativeCallablePrefix = malloc(NativeCallablePrefix.size())
+    mut native : NativeCallablePrefix = malloc(NativeCallablePrefix.size())
     adopt(NativeCallablePrefix, native, own NativeCallablePrefix(
         call = native_callable_entry(name, 0, ctx), env = state,
         drop = native_callable_entry(name, 2, ctx), copy = native_callable_entry(name, 1, ctx)))
@@ -7497,13 +7497,13 @@ priv native_callable_error_slot := func(signature: FuncSig, name: Str, arguments
 }
 
 priv native_callable_invoke := proc(mut state: NativeGuestCallable, mut native_result: Dynamic, arguments: Dynamic) {
-    ref mut ctx: Context = state.context
+    ref mut ctx : Context = state.context
     // A native function may invoke a guest callback before its own guest call
     // returns. Only this nested invocation's failure crosses its native error
     // slot; preserve the suspended interpreter's control flow and diagnostics.
     saved_return := ctx.eval.has_return
-    ref saved_return_value: Dynamic = ctx.eval.return_value
-    ref saved_return_source_type: U8 = ctx.eval.return_source_type_p
+    ref saved_return_value : Dynamic = ctx.eval.return_value
+    ref saved_return_source_type : U8 = ctx.eval.return_source_type_p
     saved_break := ctx.eval.has_break
     saved_continue := ctx.eval.has_continue
     saved_aborted := ctx.eval.eval_aborted
@@ -7521,28 +7521,28 @@ priv native_callable_invoke := proc(mut state: NativeGuestCallable, mut native_r
     ctx.eval.has_continue = false
     ctx.eval.eval_aborted = false
     ctx.eval.embedded = true
-    ref def: Expr = callable_raw_func_def(state.callable)
-    ref fd: FunctionDef = funcdef_of(def)
+    ref def : Expr = callable_raw_func_def(state.callable)
+    ref fd : FunctionDef = funcdef_of(def)
     ctx.path = ctx.eval.function_paths[word_bits(to_ptr(def)).to_uptr()].clone()
     ctx.eval.failure_site = SourceDiagnostic(phase = DiagnosticPhase.Runtime, path = ctx.path.clone(), line = def.line, col = def.col)
     mut temps := scope_new(ctx.eval.callback_global)
     mut call := Expr.new(own NodeType.FCall(FCallData()), def.line, def.col)
     call.add_child(own Expr.new(own ident_node(ctx.symbols.intern("TilVm.native_callable")), def.line, def.col))
-    mut source_index: USize = 0
+    mut source_index : USize = 0
     for i in 0..fd.sig.params.len() {
-        ref parameter: Declaration = fd.sig.params[i]
+        ref parameter : Declaration = fd.sig.params[i]
         mut type := declaration_resolved_type(parameter, ctx.scope, ctx.symbols)
         if i.to_i32() == fd.sig.variadic_index {
             type = type_from_name_init_name(variadic_carrier_type_name(ctx.scope, decl_type_name(parameter, ctx.symbols), ctx.symbols), ctx.scope, ctx.symbols)
         }
         name := format("TilVm.native_argument.", i.to_str())
-        mut value: Dynamic = 0
+        mut value : Dynamic = 0
         mut owned := false
         if parameter.name.starts_with("_err_") {
             value = native_callable_error_slot(state.signature, parameter.name, arguments, ctx)
             if is_aggregate(type) { ffi_borrow_place(resolved_type_name(type, ctx.symbols), value, ctx) }
         } else {
-            ref native_parameter: Declaration = state.signature.params[source_index]
+            ref native_parameter : Declaration = state.signature.params[source_index]
             value = deref(ptr_add(arguments, (source_index + 1).mul(Dynamic.size())))
             if native_parameter.own_type.is(OwnType.Shallow).not() { value = deref(value) }
             owned = native_parameter.own_type.is(OwnType.Own)
@@ -7558,7 +7558,7 @@ priv native_callable_invoke := proc(mut state: NativeGuestCallable, mut native_r
         if owned { set_own_arg(call, i + 1) }
     }
     mut result_type := Type.None
-    mut destination: Dynamic = 0
+    mut destination : Dynamic = 0
     call.set_til_type(result_type)
     if state.signature.return_type.len() > 0 {
         result_type = type_from_name_init_name(state.signature.return_type, ctx.scope, ctx.symbols)
@@ -7566,19 +7566,19 @@ priv native_callable_invoke := proc(mut state: NativeGuestCallable, mut native_r
         if state.signature.return_own_type.is(OwnType.Ref).not() { destination = EvalHeap.heap_alloc(raw_type_size(result_type, ctx)) }
     }
     mut result_info := raw_result_info_new()
-    value: Dynamic = eval_callable_call(temps, call, state.callable, ctx, result_info, destination)
-    ref returned_kind: I64 = to_ptr(native_callable_error_slot(state.signature, "_err_kind", arguments, ctx))
+    value : Dynamic = eval_callable_call(temps, call, state.callable, ctx, result_info, destination)
+    ref returned_kind : I64 = to_ptr(native_callable_error_slot(state.signature, "_err_kind", arguments, ctx))
     if ctx.eval.eval_aborted {
-        ref mut error: TilVmError = to_ptr(native_callable_error_slot(state.signature, "_err_TilVmError", arguments, ctx))
+        ref mut error : TilVmError = to_ptr(native_callable_error_slot(state.signature, "_err_TilVmError", arguments, ctx))
         mut failure := TilVmError(phase = "call", diagnostics = ctx.diagnostics.clone(), exit_status = ctx.eval.exit_status.clone())
         swap(TilVmError, error, failure)
-        ref mut kind: I64 = to_ptr(native_callable_error_slot(state.signature, "_err_kind", arguments, ctx))
+        ref mut kind : I64 = to_ptr(native_callable_error_slot(state.signature, "_err_kind", arguments, ctx))
         kind = throw_type_tag("TilVmError")
         if state.signature.return_type.len() > 0 {
             if state.signature.return_own_type.is(OwnType.Ref) { write_ptr(native_result, bits_word(0)) }
             else {
                 ctx.eval.eval_aborted = false
-                default_value: Dynamic = interp_callback_default(state.signature.return_type, temps, ctx)
+                default_value : Dynamic = interp_callback_default(state.signature.return_type, temps, ctx)
                 memcpy(native_result, default_value, interp_callback_native_size(result_type, ctx))
                 EvalHeap.heap_free(own default_value)
                 ctx.eval.eval_aborted = true
@@ -7593,7 +7593,7 @@ priv native_callable_invoke := proc(mut state: NativeGuestCallable, mut native_r
             memcpy(native_result, destination, interp_callback_native_size(result_type, ctx))
         }
         else {
-            copied: Dynamic = interp_callback_error_copy(state.signature.return_type, value, ctx)
+            copied : Dynamic = interp_callback_error_copy(state.signature.return_type, value, ctx)
             memcpy(native_result, copied, interp_callback_native_size(result_type, ctx))
             EvalHeap.heap_free(own copied)
             heap_drop_by_type(result_type, destination, ctx)
@@ -7747,9 +7747,9 @@ priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Con
         if variant.payload_type.len() > 0 {
             ref offset : U64 = ptr_add(layout.offsets, 8)
             if variant.payload_funcsig {
-                ref source_callable: Dynamic = deref(ptr_add(source, offset.to_usize()))
+                ref source_callable : Dynamic = deref(ptr_add(source, offset.to_usize()))
                 signature := func_sig_of(variant.payload_type)
-                mut converted: Dynamic = 0
+                mut converted : Dynamic = 0
                 if to_guest { converted = native_callable_import(variant.payload_type, source_callable, signature, ctx) }
                 else { converted = native_callable_export(variant.payload_type, source_callable, signature, ctx) }
                 write_ptr(ptr_add(out, offset.to_usize()), converted)
@@ -8839,15 +8839,15 @@ namespace:
 FFIEntryBox := struct {
     // Raw allocation containing exactly one FFIEntry. Its destructor/clone
     // below own the typed contents as well as this stable outer allocation.
-    own value: U8
+    own value : U8
 namespace:
     new := func(own value: FFIEntry) returns FFIEntryBox {
-        mut storage: U8 = malloc(FFIEntry.size())
+        mut storage : U8 = malloc(FFIEntry.size())
         adopt(FFIEntry, storage, own value)
         return FFIEntryBox(value = storage)
     }
     clone := func(self: FFIEntryBox) returns FFIEntryBox {
-        ref value: FFIEntry = to_ptr(self.value)
+        ref value : FFIEntry = to_ptr(self.value)
         return FFIEntryBox.new(own value.clone())
     }
     delete := func(own self: FFIEntryBox, call_free: Bool = true) {
@@ -9970,7 +9970,7 @@ priv h_struct_field_referent_mut := proc(mut s: Scope, mut e: Expr, mut r: Dynam
     index := eval_index_arg(s, e, ctx)
     def := interp_lookup_struct(s, e, name, "struct_field_referent_mut", ctx)
     if def.is_none() { return true }
-    ref sd: StructDef = structdef_of(def.unwrap())
+    ref sd : StructDef = structdef_of(def.unwrap())
     if index >= sd.fields.len() {
         interp_reflect_index_out_of_range(e, "struct_field_referent_mut", name, index, ctx)
         return true
@@ -10005,7 +10005,7 @@ priv h_enum_variant_payload_ref_mut := proc(mut s: Scope, mut e: Expr, mut r: Dy
     index := eval_index_arg(s, e, ctx)
     def := interp_lookup_enum(s, e, name, "enum_variant_payload_ref_mut", ctx)
     if def.is_none() { return true }
-    ref ed: EnumDef = enumdef_of(def.unwrap())
+    ref ed : EnumDef = enumdef_of(def.unwrap())
     if index >= ed.variants.len() {
         interp_reflect_index_out_of_range(e, "enum_variant_payload_ref_mut", name, index, ctx)
         return true
@@ -10304,7 +10304,7 @@ priv h_func_sig_return_ref_mut := proc(mut s: Scope, mut e: Expr, mut r: Dynamic
     type_name := eval_str_owned(s, e.children[1], ctx)
     node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_return_ref_mut", ctx)
     if node_o.is_none() { return true }
-    ref fd: FunctionDef = funcdef_of(node_o.unwrap())
+    ref fd : FunctionDef = funcdef_of(node_o.unwrap())
     if fd.sig.return_ref_mut { write_i64(r, 1) } else { write_i64(r, 0) }
     return true
 }
@@ -11722,14 +11722,14 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
         ref source_payload : Dynamic = ptr_add(src, source_offset.to_uptr())
         ref mut destination_payload : Dynamic = ptr_add(dst, destination_offset.to_uptr())
         if variant.payload_funcsig.and(src_host != dst_host) {
-            ref stored: Dynamic = deref(source_payload)
+            ref stored : Dynamic = deref(source_payload)
             signature := native_callable_signature(variant.payload_type, ctx)
-            mut converted: Dynamic = 0
+            mut converted : Dynamic = 0
             if dst_host { converted = native_callable_import(variant.payload_type, stored, signature, ctx) }
             else { converted = native_callable_export(variant.payload_type, stored, signature, ctx, transfer_owned.not(), transfer_owned) }
             if reuse_payload {
-                ref old: Dynamic = deref(destination_payload)
-                if dst_host { mut released: Dynamic = old; callable_storage_free(released) }
+                ref old : Dynamic = deref(destination_payload)
+                if dst_host { mut released : Dynamic = old; callable_storage_free(released) }
                 else { til_closure_delete(to_ptr(old)) }
             }
             write_ptr(destination_payload, converted)
@@ -11854,9 +11854,9 @@ priv ffi_release_conversion_storage := func(type_name: Str, mut data: Dynamic, h
         ref variant : VariantDef = ed.variants[index.to_usize()]
         if variant.payload_type.len().eq(0).or(variant.payload_ref) { return }
         if variant.payload_funcsig {
-            ref mut slot: Dynamic = ffi_enum_payload_slot(type_name, data, host_layout, ctx)
-            ref stored: Dynamic = deref(slot)
-            if host_layout { mut released: Dynamic = stored; callable_storage_free(released) }
+            ref mut slot : Dynamic = ffi_enum_payload_slot(type_name, data, host_layout, ctx)
+            ref stored : Dynamic = deref(slot)
+            if host_layout { mut released : Dynamic = stored; callable_storage_free(released) }
             else { til_closure_delete(to_ptr(stored)) }
             write_ptr(slot, bits_word(0))
             return
@@ -12854,9 +12854,9 @@ priv scalar_core_op_eval := proc(name: Str, mut scope: Scope, mut e: Expr, mut r
         av : Dynamic = scalar_read_arg(scope, ae, scalar_type, ctx)
         bv : Dynamic = scalar_read_arg(scope, be, scalar_type, ctx)
         if op_str.eq("shl").or(op_str.eq("shr")) {
-            bits:=numeric_cast_integer_bits(type_str)
-            count:=raw_to_u64(scalar_type,bv,ctx)
-            mut shifted:U64=0
+            bits := numeric_cast_integer_bits(type_str)
+            count := raw_to_u64(scalar_type,bv,ctx)
+            mut shifted : U64= 0
             if count>=bits.cast(U64) {
                 if op_str=="shr" && cat=="i" && raw_to_i64(scalar_type,av,ctx)<0 {shifted=U64.MAX}
             } else if op_str=="shl" {shifted=raw_to_u64(scalar_type,av,ctx).shl(count)}
@@ -13118,7 +13118,7 @@ priv ffi_enum_has_callable := func(type_name: Str, ctx: Context, mut visited: Se
 priv ffi_prepare_callable_payloads := proc(type_name: Str, mut visited: Set(Str), mut ctx: Context) returns Bool {
     if visited.has(type_name).or(ctx.ffi.struct_defs.has(type_name).not()) { return true }
     visited.add(own type_name.clone())
-    ref definition: Expr = ctx.ffi.struct_defs[type_name].ptr
+    ref definition : Expr = ctx.ffi.struct_defs[type_name].ptr
     switch definition.node_type {
     case .EnumDef(ed):
         for variant: VariantDef in ed.variants {
@@ -13391,7 +13391,7 @@ priv ffi_init := proc(program: Expr, fwd_path: Str, user_c_path: Str, ext_c_path
 }
 ffi_cleanup := proc(mut ctx: Context) {
     for thunk : NativeCallableThunk in ctx.ffi.callable_thunks.values {
-        mut allocation: Dynamic = thunk.allocation
+        mut allocation : Dynamic = thunk.allocation
         ffi_closure_free(allocation)
     }
     ctx.ffi.callable_thunks = Map(Str, NativeCallableThunk).new()

@@ -917,7 +917,7 @@ namespace:
 /// Carries a "file:line:col:<method>: divide by zero" msg pointing at
 /// the caller (loc defaults to the call site, like IntegerOverflow).
 DivideByZero := struct {
-    msg: Str = ""
+    msg : Str = ""
 }
 
 /// Error thrown by safe_add / safe_sub / safe_mul on the integer
@@ -925,7 +925,7 @@ DivideByZero := struct {
 /// "file:line:col:<method>: a OP b overflows/underflows" msg. One
 /// shared type for all integer widths.
 IntegerOverflow := struct {
-    msg: Str = ""
+    msg : Str = ""
 }
 
 // USize is the target-width unsigned integer used by collection APIs for

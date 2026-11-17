@@ -273,7 +273,7 @@ EnumCounter := proc() returns I64
 EnumCallable := enum { None, Value: EnumCounter }
 make_enum_callable := func(seed: I64) returns EnumCallable {
     count := seed
-    next: EnumCounter = proc() returns I64 [own mut count] { noop_proc(); count++; return count }
+    next : EnumCounter = proc() returns I64 [own mut count] { noop_proc(); count++; return count }
     return EnumCallable.Value(next)
 }
 call_enum_callable := proc(value: EnumCallable) returns I64 {
@@ -335,8 +335,8 @@ test_local_shadowing_global_is_not_an_escape := test() {
     assert_eq(I64, shadow_slot(), 0)
 }
 
-CaptureCloneCounts := struct { clones:I64=0; drops:I64=0; heap_drops:I64=0; order:I64=0 }
-CaptureCloneValue := struct { ref counts:CaptureCloneCounts; key:I64=0; number:I64=0; text:Str=""
+CaptureCloneCounts := struct { clones : I64= 0; drops : I64= 0; heap_drops : I64= 0; order : I64= 0 }
+CaptureCloneValue := struct { ref counts : CaptureCloneCounts; key : I64= 0; number : I64= 0; text : Str= ""
 namespace:
     clone := func(self:CaptureCloneValue) returns CaptureCloneValue {
         self.counts.clones++
@@ -350,14 +350,14 @@ namespace:
     }
 }
 CaptureCloneAction := proc(change:Bool) returns I64
-CaptureCloneHolder := struct { action:CaptureCloneAction }
-CaptureCloneBodyHolder := struct { body:Body }
+CaptureCloneHolder := struct { action : CaptureCloneAction }
+CaptureCloneBodyHolder := struct { body : Body }
 
 make_capture_clone_value := func(counts:CaptureCloneCounts,key:I64,number:I64) returns CaptureCloneValue {
     return CaptureCloneValue(counts=counts,key=key,number=number,text=format("a","b"))
 }
 make_capture_clone_action := func(counts:CaptureCloneCounts,number:I64) returns CaptureCloneAction {
-    value:=make_capture_clone_value(counts,1,number)
+    value := make_capture_clone_value(counts,1,number)
     return proc(change:Bool) returns I64 [own mut value] {
         noop_proc()
         if change { value.number++ }
@@ -367,11 +367,11 @@ make_capture_clone_action := func(counts:CaptureCloneCounts,number:I64) returns 
 }
 
 test_callable_field_clone_uses_custom_capture_clone := test() {
-    counts:=CaptureCloneCounts()
-    mut seed:I64=9
+    counts := CaptureCloneCounts()
+    mut seed : I64= 9
     seed++
-    original:=CaptureCloneHolder(action=make_capture_clone_action(counts,seed))
-    copy:=original.clone()
+    original := CaptureCloneHolder(action=make_capture_clone_action(counts,seed))
+    copy := original.clone()
     assert(counts.clones==1)
     assert(original.action(true)==11)
     assert(copy.action(false)==110)
@@ -381,20 +381,20 @@ test_callable_field_clone_uses_custom_capture_clone := test() {
 }
 
 run_borrowed_capture_clone := proc(counts:CaptureCloneCounts) {
-    mut value:=make_capture_clone_value(counts,1,7)
-    original:=CaptureCloneHolder(action=proc(change:Bool) returns I64 [mut value] {
+    mut value := make_capture_clone_value(counts,1,7)
+    original := CaptureCloneHolder(action=proc(change:Bool) returns I64 [mut value] {
         noop_proc()
         if change { value.number++ }
         return value.number
     })
-    copy:=original.clone()
+    copy := original.clone()
     assert(original.action(true)==8)
     assert(copy.action(false)==8)
     assert(value.number==8)
     assert(counts.clones==0)
 }
 test_callable_clone_keeps_borrowed_capture := test() {
-    counts:=CaptureCloneCounts()
+    counts := CaptureCloneCounts()
     run_borrowed_capture_clone(counts)
     assert(counts.clones==0)
     assert(counts.drops==1)
@@ -403,11 +403,11 @@ test_callable_clone_keeps_borrowed_capture := test() {
 
 run_body_capture_clone := proc(counts:CaptureCloneCounts) {
     // Declaration order deliberately differs from the binding map's key order.
-    z:=make_capture_clone_value(counts,1,10)
-    a:=make_capture_clone_value(counts,2,20)
-    mut observed:I64=0
-    original:=CaptureCloneBodyHolder(body=[own z,own a,mut observed] { observed=z.number+a.number })
-    copy:=original.clone()
+    z := make_capture_clone_value(counts,1,10)
+    a := make_capture_clone_value(counts,2,20)
+    mut observed : I64= 0
+    original := CaptureCloneBodyHolder(body=[own z,own a,mut observed] { observed=z.number+a.number })
+    copy := original.clone()
     assert(counts.clones==2)
     assert(counts.order==12)
     original.body()
@@ -416,20 +416,20 @@ run_body_capture_clone := proc(counts:CaptureCloneCounts) {
     assert(observed==230)
 }
 test_body_clone_uses_capture_declaration_order := test() {
-    counts:=CaptureCloneCounts()
+    counts := CaptureCloneCounts()
     run_body_capture_clone(counts)
     assert(counts.drops==4)
     assert(counts.heap_drops==4)
 }
 
 make_nested_capture_clone := func(counts:CaptureCloneCounts,number:I64) returns CaptureCloneAction {
-    inner:=make_capture_clone_action(counts,number)
+    inner := make_capture_clone_action(counts,number)
     return proc(change:Bool) returns I64 [own inner] { return inner(change) }
 }
 test_nested_callable_clone_runs_custom_capture_clone := test() {
-    counts:=CaptureCloneCounts()
-    original:=CaptureCloneHolder(action=make_nested_capture_clone(counts,5))
-    copy:=original.clone()
+    counts := CaptureCloneCounts()
+    original := CaptureCloneHolder(action=make_nested_capture_clone(counts,5))
+    copy := original.clone()
     assert(counts.clones==1)
     assert(original.action(false)==5)
     assert(copy.action(false)==105)
@@ -437,10 +437,10 @@ test_nested_callable_clone_runs_custom_capture_clone := test() {
     assert(counts.heap_drops==2)
 }
 
-CaptureCloneEnvelope := struct { value:CaptureCloneValue }
+CaptureCloneEnvelope := struct { value : CaptureCloneValue }
 CaptureCloneVariant := enum { Empty, Value:CaptureCloneEnvelope }
 make_enum_capture_clone := func(counts:CaptureCloneCounts,number:I64) returns Thunk295 {
-    value:=CaptureCloneVariant.Value(CaptureCloneEnvelope(value=make_capture_clone_value(counts,1,number)))
+    value := CaptureCloneVariant.Value(CaptureCloneEnvelope(value=make_capture_clone_value(counts,1,number)))
     return func() returns I64 [own value] {
         switch value {
         case .Value(payload): return payload.value.number
@@ -449,9 +449,9 @@ make_enum_capture_clone := func(counts:CaptureCloneCounts,number:I64) returns Th
     }
 }
 test_callable_clone_runs_nested_record_and_enum_clones := test() {
-    counts:=CaptureCloneCounts()
-    original:=array(Thunk295,make_enum_capture_clone(counts,3))
-    copy:=original.clone()
+    counts := CaptureCloneCounts()
+    original := array(Thunk295,make_enum_capture_clone(counts,3))
+    copy := original.clone()
     assert(counts.clones==1)
     assert(original[0]()==3)
     assert(copy[0]()==103)

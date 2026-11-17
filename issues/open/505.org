@@ -1,0 +1,145 @@
+# priority: medium
+# category: features
+** WIP #505 One enforced source format for til, built into the toolchain
+
+Requested by Jorge, 2026-11-17.
+
+*** Why
+
+- Go ships its formatter with the language (~gofmt~), and Go code looks
+  the same everywhere. Python gave up ~{}~ so that the indentation IS the
+  block structure and cannot disagree with it.
+- Jorge's experience on Java projects, some with an enforced style
+  system and one without: even when he disagreed with the concrete
+  rules, having SOME rules was good, because it saved a lot of
+  discussion. Which rules matters much less than there being exactly one
+  set, applied mechanically.
+- "Who cares after AI?" is not an argument against it:
+  - If humans stop reading the code, we are toast. The format is for
+    the human reader first.
+  - LLMs have to read it too. The less slop they read, the less slop
+    they produce: one canonical layout means no formatting noise in
+    diffs, in reviews, or in what a bot imitates.
+
+*** Where til was when this was filed
+
+- The lexer does not care about layout: spaces, tabs, ~\r~ and ~;~ are
+  all skipped as whitespace, and newlines only separate lines
+  ([[file:../../src/self/lexer.til][src/self/lexer.til]]). Nothing in the compiler rejects or
+  normalizes any layout.
+- The only formatting tool is the Emacs mode's ~til-indent-line~
+  ([[file:../../editor/til-mode.el][editor/til-mode.el]]). It indents; it does not break lines, space
+  operators, or do anything else. Commit ~6b441819~ applied it in bulk
+  to ~src/self/*.til~ once, and [[./156.org][#156]] records the results that read
+  badly (signature continuations, leading-dot chains). #156 explicitly
+  left "should til enforce a format at all" out of scope; this issue is
+  that question, answered yes.
+- The style rules that do exist are prose for bots in ~CLAUDE.md~
+  (ASCII only, no leading underscores, De Morgan over repeated
+  ~not()~). Nothing checks them, and they are not addressed to human
+  contributors.
+- CI ([[file:../../.github/workflows/tests.yml][.github/workflows/tests.yml]]) has no format step.
+
+*** What is wanted
+
+One canonical format for til source, decided once, produced by a tool
+that ships with til, and checked mechanically so that it stops being a
+topic in review. The goal is the property (one format, no discussion),
+not any particular rule.
+
+*** Progress
+
+- [X] Declaration spacing (Jorge, 2026-11-17: "let's not go too strict at
+  first"). The parser rejects a declaration whose ~:~ / ~:=~ touches the
+  name before it or what follows it, and a typed declaration whose ~=~
+  touches the initial value: ~x := 1~ and ~x : I64 = 1~, never ~x:= 1~,
+  ~x :=1~, ~x: I64 = 1~ or ~x : I64 =1~. ~mut~ / ~own~ / ~ref~ make no
+  difference. It covers statements, struct fields, namespace members
+  and interface members; a line end counts as the space, and more than
+  one space is accepted (aligned declarations). It is a hard parse
+  error (~advance_decl_op~ / ~expect_decl_eq~ in
+  [[file:../../src/self/parser.til][src/self/parser.til]]), so there is no new command or flag. Regression
+  test: ~test_declaration_spacing~ in [[file:../../test/parsing.til][test/parsing.til]].
+  The tree was brought into line in the same commit: about 2850 spaces
+  in real ~.til~ files (inserted where the new error pointed), plus the
+  til programs embedded as strings in ~test/mlir*.til~,
+  ~test/fasm_*.til~, ~test/tilvm_cases.til~ and a dozen other test
+  drivers, and two snippets in ~doc/ffi.org~.
+  Not enforced by this step: parameters and the other ~name: Type~
+  positions without an initial value of their own (generic parameters,
+  ~for x: T in~, ~catch (e: T)~, enum payloads), the space BEFORE a
+  typed declaration's ~=~, and exactly-one-space.
+- [ ] Everything under "Decisions to take" below.
+
+*** Recommended, not enforced: ~;~ and one-line bodies
+
+Jorge, 2026-11-17. ~;~ is allowed, but it is not the recommended way to
+write til:
+
+- The lexer skips ~;~ as whitespace, so it is not even a separator:
+  ~a := 1; b := 2~ and ~a := 1 b := 2~ are the same tokens. It carries
+  meaning only for the reader.
+- It makes sense for a few small actions that belong together on one
+  line. It is also used where nothing needs it, and to pack onto one
+  line what should simply be several lines:
+  #+begin_src til
+  mut operation := "fptoui";if mlir_signed(target_type){operation="fptosi"}
+  #+end_src
+  ([[file:../../src/self/codegen/mlir_codegen.til][src/self/codegen/mlir_codegen.til]]). The code generators are where
+  most of it lives: roughly 140 lines with a ~;~ in
+  ~holyc_codegen.til~, 105 in ~interpreter.til~, 85 in ~c_codegen.til~,
+  and 60 each in ~fasm_codegen.til~, ~mlir_codegen.til~ and
+  ~binder.til~, some of them over 140 columns wide.
+- The default is one statement per line. A one-line body is for the
+  short case (~if x { return y }~); when a line holds several
+  statements or grows long, split it.
+
+Whether any of this becomes a rule (a ban, a limit on statements per
+line, a line length) is one of the decisions below; for now it is
+guidance for people and bots writing til.
+
+*** Decisions to take for the rest
+
+These are Jorge's to make. Decided so far: start with hard parser errors
+for a small rule set (see Progress) and grow from there.
+
+- Where the format lives: a formatter that rewrites files (the Go
+  model), rules the compiler itself rejects (the Python model), or
+  both -- for example the formatter for layout and a hard compiler
+  error for the few things that should never appear (tabs, trailing
+  whitespace, non-ASCII is already a lexer matter).
+- The surface: a new ~til~ subcommand, a ~make~ target, a CI step.
+  Each is a new project surface and needs explicit approval.
+- The rules themselves: indentation width, line length and how long
+  signatures / call chains break, spacing around ~:=~ / ~:~ / operators,
+  brace placement, blank lines between declarations, whether ~;~
+  survives, import ordering. #156 has the open indentation cases.
+- Scope of the canonical form: layout only (whitespace and line
+  breaks), or also rewrites of the token stream (dropping ~;~, the De
+  Morgan rule, naming). Layout-only is checkable by "same tokens in,
+  same tokens out".
+- Enforcement: a check that fails the suite / CI when a file is not in
+  canonical form, and from which commit it applies.
+- The one-time reformat of the existing tree (~src/~, ~test/~,
+  ~examples/~): it touches nearly every file and every bot branch in
+  flight, so it needs a moment chosen by the human.
+
+*** Constraints an implementation has to meet
+
+- Comments must survive. The lexer drops ~//~ and ~/* */~ comments and
+  only tokenizes doc comments (~DocComment~), so the existing token
+  stream and AST are not enough to reprint a file; ~Expr.to_str~ (the
+  ~til ast~ printer) is a debug dump, not a source printer.
+- Idempotent: formatting formatted code changes nothing.
+- Deterministic and option-free, or close to it. Knobs bring the
+  discussion back.
+- Semantics-preserving, and provably so: the formatted file lexes to
+  the same tokens (or, if token rewrites are in scope, parses to the
+  same AST).
+- The editor mode has to agree with it, or call it; two formatters
+  with different opinions is worse than none. That subsumes #156.
+- ~boot/~ and other generated output are out of scope: they are C.
+
+*** Related
+
+- [[./156.org][#156]] Improve til-mode indentation rules.

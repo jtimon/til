@@ -73,7 +73,7 @@ check_binding_composition := proc(compiler: Str) {
         format("mode lib\n", File.readfile("gen/til/library_namespace_a.til")))
     File.writefile("tmp/library_namespace_layer.til", format(
         "mode lib\nimport(\"../gen/til/library_namespace_a\")\n",
-        "LayerPoint := struct { point: BindingPoint = BindingPoint() }\n",
+        "LayerPoint := struct { point : BindingPoint = BindingPoint() }\n",
         "layer_point := proc() returns LayerPoint { noop_proc(); return LayerPoint(point = library_namespace_a_point(BindingPoint(scalar = 91))) }\n",
         "layer_alias := layer_point\n",
         "layer_bump := proc() { noop_proc(); library_namespace_a_state++ }\n"))
@@ -306,7 +306,7 @@ main := proc(args: ..Str) {
     // and constructors are reached, including both tag-only and payload forms.
     File.writefile("tmp/library_namespace_enum_api.til", format(
         "mode lib\nProbeOperation := enum { Read, Write }\n",
-        "ProbeRecord := struct { count: USize = 9; text: Str = \"\" }\n",
+        "ProbeRecord := struct { count : USize = 9; text : Str = \"\" }\n",
         "ProbeTag := enum { Empty, Number: I64, Real: F64, Text: Str, Record: ProbeRecord }\n",
         "ProbeBox := enum { Absent, Value: ProbeRecord }\n",
         "mut boxed_state := ProbeBox.Absent\n",
@@ -346,7 +346,7 @@ main := proc(args: ..Str) {
         "boxed_state = ProbeBox.Value(ProbeRecord(text = \"replacement box\"))\n",
         "switch boxed_state { case .Value(value): assert(value.text == \"replacement box\"); case: assert(false) }\n",
         "boxed_state = ProbeBox.Absent\n",
-        "RefCell := struct { number: I64 = 17 }\n",
+        "RefCell := struct { number : I64 = 17 }\n",
         "mut cell := RefCell(); ref_value := ref_echo(ProbeRef.Value(cell.number)); cell.number = 23\n",
         "switch ref_value { case .Value(value): assert(value == 23); case: assert(false) }\n",
         "assert(wide_echo(ProbeWide.High).is(ProbeWide.High)); assert(wide_echo(ProbeWide.Next).is(ProbeWide.Next))\n",

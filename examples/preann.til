@@ -18,12 +18,12 @@ import("../src/std/sys")
 F4 := Simd(F32, 4)
 F2 := Simd(F32, 2)
 Kernel := func(inputs: Array(F32), weights: Array(F32), mut results: Array(F32), rows: USize)
-Variant := struct { name: Str; run: Kernel }
+Variant := struct { name : Str; run : Kernel }
 LayerCase := struct {
-    inputs: Array(F32)
-    weights: Array(F32)
-    initial: Array(F32)
-    rows: USize
+    inputs : Array(F32)
+    weights : Array(F32)
+    initial : Array(F32)
+    rows : USize
 }
 
 priv validate_layout := func(inputs: Array(F32), weights: Array(F32), results: Array(F32), rows: USize) {
@@ -61,7 +61,7 @@ priv add_result := func(mut results: Array(F32), row: USize, sum: F32) {
 
 // A local value view of the documented consecutive-scalar SIMD storage.
 // memcpy avoids aliasing type-puns and repeated checked lane lookups.
-priv Lanes4 := struct { x: F32; y: F32; z: F32; w: F32 }
+priv Lanes4 := struct { x : F32; y : F32; z : F32; w : F32 }
 priv lanes4 := func(value: F4) returns Lanes4 {
     mut lanes := Lanes4(x = 0, y = 0, z = 0, w = 0)
     memcpy(lanes, value, F4.size().to_uptr())

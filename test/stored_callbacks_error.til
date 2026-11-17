@@ -1,7 +1,7 @@
 mode lib
 
 TextEdit := proc(mut text: Str)
-Binding := struct { action: TextEdit }
+Binding := struct { action : TextEdit }
 edit := proc(mut text: Str) { print_flush(); text = format(text, "!") }
 pick := func() returns TextEdit { return edit }
 
@@ -19,7 +19,7 @@ bad_cast_mut := proc(raw: Dynamic, text: Str) { cast(raw, TextEdit)(text) }
 
 // Indirect-call arguments must be validated, not merely inferred.
 ReadInt := func(value: I64) returns I64
-Reader := struct { action: ReadInt }
+Reader := struct { action : ReadInt }
 read_int := func(value: I64) returns I64 { return value }
 pick_reader := func() returns ReadInt { return read_int }
 bad_field_type := func(reader: Reader) returns I64 { return reader.action("wrong") }
@@ -31,7 +31,7 @@ bad_redundant_mut := func(reader: Reader, mut value: I64) returns I64 { return r
 
 // A proc must not lose its effect by being stored in a func-typed slot.
 PureEdit := func(mut text: Str)
-PureBinding := struct { action: PureEdit }
+PureBinding := struct { action : PureEdit }
 bad_effect_slot := func() returns PureBinding { return PureBinding(action = edit) }
 bad_effect_local := func() {
     action : PureEdit = edit
@@ -43,7 +43,7 @@ bad_effect_local := func() {
 BorrowBox := struct { text := "" }
 BorrowText := func(BorrowBox) returns ref Str
 bad_borrow_mut := func(borrow: BorrowText, box: BorrowBox) {
-    ref mut text: Str = borrow(box)
+    ref mut text : Str = borrow(box)
     text.push_str("wrong")
 }
 bad_borrow_escape := func(borrow: BorrowText) returns ref Str {

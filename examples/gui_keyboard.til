@@ -3,9 +3,9 @@ mode gui
 // A small input/rendering proof, not a terminal parser or a shell session.
 // Type ASCII text, use Backspace and Left/Right, then Enter (or Escape) to exit.
 KeyboardDemo := struct {
-    text: Str = ""
-    column: I64 = 0
-    done: Bool = false
+    text : Str = ""
+    column : I64 = 0
+    done : Bool = false
 }
 
 keyboard_step := proc(mut state: KeyboardDemo) {

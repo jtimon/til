@@ -8,9 +8,9 @@ bump := func(mut count: I64) returns Bool {
 byte_bump := func(mut value: I8) { value.inc() }
 pointer_width := func(value: UPtr) returns UPtr { return value }
 integer_edges := func(T:Type,mut calls:I64,low:T,high:T,width:T) {
-    one:T=1
-    zero:T=0
-    minus_one:T=zero-one
+    one : T= 1
+    zero : T= 0
+    minus_one : T= zero-one
     assert(low.div(zero)==zero && high.mod(zero)==zero)
     assert(low.div(one)==low && high.mod(one)==zero)
     assert(low.div(minus_one)==low && low.mod(minus_one)==zero)
@@ -122,7 +122,7 @@ assert(bits.div(2) == 1073741823)
 mut size : USize = 0
 size = size - 1
 assert(pointer_width(size.add(1)) == 0)
-mut edge_calls:I64=0
+mut edge_calls : I64= 0
 integer_edges(I8,edge_calls,I8.MIN,I8.MAX,8)
 integer_edges(U8,edge_calls,U8.MIN,U8.MAX,8)
 integer_edges(I16,edge_calls,I16.MIN,I16.MAX,16)

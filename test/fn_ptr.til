@@ -128,11 +128,11 @@ namespace:
 DynLength := func(Str) returns USize
 
 test_local_dyn_fn := test() {
-    mut callback: DynLength = dyn_fn("DynCallbacks", "length")
+    mut callback : DynLength = dyn_fn("DynCallbacks", "length")
     assert_eq(USize, callback("initial"), 7)
     copy := callback
     assert_eq(USize, copy("copy"), 4)
-    doubled: DynLength = dyn_fn("DynCallbacks", "twice")
+    doubled : DynLength = dyn_fn("DynCallbacks", "twice")
     callback = doubled
     assert_eq(USize, callback("after"), 10)
     assert_eq(USize, copy("after"), 5)
@@ -147,18 +147,18 @@ runtime_dyn_callback := func(type_name: Str, method: Str) returns UnaryOp {
 }
 
 test_typed_dyn_fn_scalars := test() {
-    clone: UnaryOp = dyn_fn("I64", "clone")
+    clone : UnaryOp = dyn_fn("I64", "clone")
     assert_eq(I64, clone(23), 23)
-    mut callback: UnaryOp = dyn_fn("DynCallbacks", "double")
+    mut callback : UnaryOp = dyn_fn("DynCallbacks", "double")
     assert_eq(I64, callback(7), 14)
     callback = dyn_fn("DynCallbacks", "negate")
     assert_eq(I64, callback(7), -7)
     assert_eq(I64, apply_unary(dyn_fn("DynCallbacks", "double"), 9), 18)
     handler := Handler(on_click = dyn_fn("DynCallbacks", "sum"))
     assert_eq(I64, handler.on_click(3, 4), 7)
-    floats: DynFloat = dyn_fn("DynCallbacks", "float_add")
+    floats : DynFloat = dyn_fn("DynCallbacks", "float_add")
     assert_eq(F64, floats(1.25, 2.5), 3.75)
-    mutate_value: Mutator = dyn_fn("DynCallbacks", "mutate")
+    mutate_value : Mutator = dyn_fn("DynCallbacks", "mutate")
     mut n := 10
     mutate_value(n)
     assert_eq(I64, n, 19)
@@ -176,27 +176,27 @@ test_typed_dyn_fn_runtime_selection := test() {
 }
 
 test_typed_dyn_fn_owned_aggregate := test() {
-    make: ReturnBoxMaker346 = dyn_fn("DynCallbacks", "make")
-    consume: OwnedBoxValueFn346 = dyn_fn("DynCallbacks", "consume")
+    make : ReturnBoxMaker346 = dyn_fn("DynCallbacks", "make")
+    consume : OwnedBoxValueFn346 = dyn_fn("DynCallbacks", "consume")
     box := make("owned")
     assert_eq(USize, consume(own box), 5)
 }
 
 test_dyn_fn_delayed_binding := test() {
-    raw: Dynamic = dyn_fn("DynCallbacks", "double")
-    callback: UnaryOp = raw
+    raw : Dynamic = dyn_fn("DynCallbacks", "double")
+    callback : UnaryOp = raw
     assert_eq(I64, callback(7), 14)
 }
 
 test_dyn_fn_delayed_cast := test() {
-    raw: Dynamic = dyn_fn("DynCallbacks", "double")
+    raw : Dynamic = dyn_fn("DynCallbacks", "double")
     callback := cast(raw, UnaryOp)
     assert_eq(I64, callback(9), 18)
     assert_eq(I64, apply_unary(raw, 3), 6)
 }
 
 test_callable_dynamic_roundtrip := test() {
-    raw: Dynamic = fn_double
+    raw : Dynamic = fn_double
     callback := cast(raw, UnaryOp)
     assert_eq(I64, callback(5), 10)
 }
@@ -213,15 +213,15 @@ test_dyn_fn_delayed_returns := test() {
 test_dyn_fn_delayed_collection_slot := test() {
     mut values := DynVec.new(UnaryOp)
     values.push(own recover_unary(erased_double()))
-    ref raw: Dynamic = values[0]
+    ref raw : Dynamic = values[0]
     from_slot := recover_unary(raw)
     assert_eq(I64, from_slot(6), 12)
 }
 
 test_dyn_fn_delayed_ref_return := test() {
-    raw_sum: Dynamic = dyn_fn("DynCallbacks", "sum")
+    raw_sum : Dynamic = dyn_fn("DynCallbacks", "sum")
     holder := Handler(on_click = raw_sum)
-    ref borrowed: BinaryOp = borrow_handler(holder)
+    ref borrowed : BinaryOp = borrow_handler(holder)
     assert_eq(I64, borrowed(3, 4), 7)
     assert_eq(I64, borrow_handler(holder)(2, 3), 5)
 }
@@ -229,7 +229,7 @@ test_dyn_fn_delayed_ref_return := test() {
 test_callable_dynamic_capture_copy := test() {
     offset := 3
     holder := Handler(on_click = func(a: I64, b: I64) returns I64 [offset] { return a + b + offset })
-    raw: Dynamic = holder.on_click
+    raw : Dynamic = holder.on_click
     callback := cast(raw, BinaryOp)
     assert_eq(I64, callback(3, 5), 11)
     assert_eq(I64, holder.on_click(1, 2), 6)
@@ -246,7 +246,7 @@ DynUnaryAlias := UnaryOp
 DynUnaryAliasAgain := DynUnaryAlias
 
 test_typed_dyn_fn_throws := test() {
-    checked: DynChecked = dyn_fn("DynCallbacks", "checked")
+    checked : DynChecked = dyn_fn("DynCallbacks", "checked")
     assert_eq(I64, checked(4)!, 8)
     mut message := ""
     checked(-1)?
@@ -261,13 +261,13 @@ test_typed_dyn_fn_throws := test() {
 }
 
 test_typed_dyn_fn_borrowed_return := test() {
-    borrow: DynBorrow = dyn_fn("DynCallbacks", "borrow")
+    borrow : DynBorrow = dyn_fn("DynCallbacks", "borrow")
     mut box := ReturnBox346(value = Str.with_capacity(32))
-    ref mut text: Str = borrow(box)
+    ref mut text : Str = borrow(box)
     text.push_str("borrowed callback")
     assert_eq(Str, box.value, "borrowed callback")
-    checked: DynCheckedBorrow = dyn_fn("DynCallbacks", "checked_borrow")
-    ref checked_text: Str = checked(box)!
+    checked : DynCheckedBorrow = dyn_fn("DynCallbacks", "checked_borrow")
+    ref checked_text : Str = checked(box)!
     assert_eq(Str, checked_text, box.value)
     empty := ReturnBox346(value = "")
     mut message := ""
@@ -277,13 +277,13 @@ test_typed_dyn_fn_borrowed_return := test() {
 }
 
 test_typed_dyn_fn_variadic := test() {
-    join: DynJoin = dyn_fn("DynCallbacks", "join")
+    join : DynJoin = dyn_fn("DynCallbacks", "join")
     assert_eq(Str, join("prefix"), "prefix")
     assert_eq(Str, join("prefix", "-", "one", "-two"), "prefix-one-two")
 }
 
 test_typed_dyn_fn_alias := test() {
-    callback: DynUnaryAliasAgain = dyn_fn("DynCallbacks", "double")
+    callback : DynUnaryAliasAgain = dyn_fn("DynCallbacks", "double")
     assert_eq(I64, callback(7), 14)
     assert_eq(I64, apply_unary(callback, 3), 6)
 }
@@ -292,14 +292,14 @@ ErasedOwnedDelete := func(own Dynamic, Bool)
 
 test_dyn_fn_erased_and_typed := test() {
     type_name := "Str"
-    clone: ErasedCloneAlias = dyn_fn(type_name, "clone")
-    drop: ErasedOwnedDelete = dyn_fn(type_name, "delete")
+    clone : ErasedCloneAlias = dyn_fn(type_name, "clone")
+    drop : ErasedOwnedDelete = dyn_fn(type_name, "delete")
     text := "erased clone"
-    raw: Dynamic = clone(text)
-    ref copied: Str = to_ptr(raw)
+    raw : Dynamic = clone(text)
+    ref copied : Str = to_ptr(raw)
     assert_eq(Str, copied, text)
     drop(own raw, true)
-    typed_clone: UnaryOp = dyn_fn("I64", "clone")
+    typed_clone : UnaryOp = dyn_fn("I64", "clone")
     assert_eq(I64, typed_clone(23), 23)
 }
 

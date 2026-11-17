@@ -7,9 +7,9 @@ mode cli
 // landed in the copy compiled while reaching the caller interpreted. The
 // borrow summary now keeps such a parameter by-reference.
 
-Drops := struct { count: I64 = 0 }
+Drops := struct { count : I64 = 0 }
 Tracked := struct {
-    ref drops: Drops
+    ref drops : Drops
     active := false
 namespace:
     delete := func(own self: Tracked, call_free: Bool = true) {

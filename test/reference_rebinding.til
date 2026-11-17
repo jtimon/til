@@ -1,7 +1,7 @@
 mode cli
 
-Cell := struct { number: I64 = 0; text: Str = "" }
-Holder := struct { cell: Cell = Cell(); ref link: Cell }
+Cell := struct { number : I64 = 0; text : Str = "" }
+Holder := struct { cell : Cell = Cell(); ref link : Cell }
 
 make_cell := func(number: I64, text: Str) returns Cell {
     return Cell(number=number, text=text.clone())
@@ -18,9 +18,9 @@ assign_parameter := func(mut target: I64, value: I64) { target = value }
 
 // #466: assigning a namespace variant through a reference replaces the
 // referenced enum slot's value; it must not retarget the reference.
-Drops := struct { count: I64 = 0 }
+Drops := struct { count : I64 = 0 }
 Tracked := struct {
-    ref drops: Drops
+    ref drops : Drops
     active := false
     text := ""
 namespace:

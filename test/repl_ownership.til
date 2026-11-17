@@ -55,11 +55,11 @@ main := proc(compiler: Str) {
         "retain_borrow := proc(value: ReplBorrow) { noop_proc(); retained_borrow = value.clone() }\n",
         "escape_borrow := proc(n: I64) { local := vec(I64, n); retain_borrow(ReplBorrow.Some(local.unsafe_get(0))) }\n",
         "println(\"REPL_GLOBAL_ESCAPE_REJECTED\")\n",
-        "ReplHolder := struct { ref value: I64 }\n",
+        "ReplHolder := struct { ref value : I64 }\n",
         "repl_owner := vec(I64, 41)\n",
         "mut repl_holder := ReplHolder(value = repl_owner.unsafe_get(0))\n",
         "repl_target := func() returns ref ReplHolder { return repl_holder }\n",
-        "escape_getter := proc(n: I64) { noop_proc(); local := vec(I64, n); ref mut alias: ReplHolder = repl_target(); alias.value = local.unsafe_get(0) }\n",
+        "escape_getter := proc(n: I64) { noop_proc(); local := vec(I64, n); ref mut alias : ReplHolder = repl_target(); alias.value = local.unsafe_get(0) }\n",
         "println(\"REPL_GETTER_ESCAPE_REJECTED\")\n"))
     cmd := format("XDG_STATE_HOME=tmp/repl_ownership_state HOME=tmp/repl_ownership_home '",
         compiler, "' < tmp/repl_ownership_input > tmp/repl_ownership_output 2>&1")

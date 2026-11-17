@@ -10,7 +10,7 @@ make_multiplier := func(factor: I64) returns UnaryOp {
 BorrowedCallable := enum { None, Some: UnaryOp }
 make_borrowed_enum := func(factor: I64) returns BorrowedCallable {
     local_factor := factor
-    callback: UnaryOp = func(x: I64) returns I64 [local_factor] { return x.mul(local_factor) }
+    callback : UnaryOp = func(x: I64) returns I64 [local_factor] { return x.mul(local_factor) }
     return BorrowedCallable.Some(callback)
 }
 

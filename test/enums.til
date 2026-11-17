@@ -808,7 +808,7 @@ test_guard_question_propagates := test() {
 #     synthesized by the switch desugar. It still resolves to the right owning
 #     type (GuardBox.checked) so the bang short-circuits / runs correctly. ---
 GuardBox := struct {
-    val: I64 = 0
+    val : I64 = 0
 namespace:
     checked := func(self: GuardBox, d: I64) returns I64 throws DivideByZero {
         return self.val.safe_div(d)?

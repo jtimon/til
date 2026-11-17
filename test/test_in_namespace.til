@@ -52,17 +52,17 @@ test_top_level_still_works := test() {
 
 // No case refers to either containing type. Test reachability must retain
 // the containers themselves, not just their qualified member names.
-mut otherwise_unused_cases:I64=0
-OtherwiseUnusedStruct:=struct {
+mut otherwise_unused_cases : I64= 0
+OtherwiseUnusedStruct := struct {
 namespace:
-    discovered:=test() { otherwise_unused_cases++ }
+    discovered := test() { otherwise_unused_cases++ }
 }
-OtherwiseUnusedEnum:=enum {
+OtherwiseUnusedEnum := enum {
     Value,
 namespace:
-    discovered:=test() { otherwise_unused_cases++ }
+    discovered := test() { otherwise_unused_cases++ }
 }
-test_unused_namespace_tests_were_run:=test() {
+test_unused_namespace_tests_were_run := test() {
     assert_eq(I64,otherwise_unused_cases,2)
 }
 
@@ -261,11 +261,11 @@ test_borrowed_niche_nested_switch_and_continue := test() {
     assert_eq(I64, calls, 3)
 }
 
-CallFieldInner := struct { number: I64 = 0; text: Str = "" }
+CallFieldInner := struct { number : I64 = 0; text : Str = "" }
 CallFieldItem := struct {
-    name: Str = ""
-    inner: CallFieldInner = CallFieldInner()
-    words: Vec(Str) = Vec(Str).new()
+    name : Str = ""
+    inner : CallFieldInner = CallFieldInner()
+    words : Vec(Str) = Vec(Str).new()
 }
 
 priv call_field_pick := func(items: Vec(CallFieldItem), shallow index: USize, mut calls: I64) returns ref CallFieldItem {

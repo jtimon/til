@@ -94,10 +94,10 @@ run_guest := proc(uid: Str, name: Str, expected: Str, outcome: Str, input_comman
 }
 
 priv GuestCase := struct {
-    name: Str
-    file: Str
-    expected: Str
-    outcome: Str
+    name : Str
+    file : Str
+    expected : Str
+    outcome : Str
 }
 
 priv stage_guest_case := proc(mut cases: Vec(GuestCase), name: Str, expected: Str, outcome: Str = "pass") {

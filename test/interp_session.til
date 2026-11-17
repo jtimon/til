@@ -96,7 +96,7 @@ main := proc() {
     runtime_tokens := tokenize(runtime_source, "runtime.til", true, runtime_diagnostics)
     assert(runtime_tokens.len() > 0 && runtime_diagnostics.len() == 1)
     assert(runtime_diagnostics[0].render() == "runtime.til:1:1: error: unterminated string")
-    File.writefile("tmp/interp_session_type_error.til", "mode lib\nvalue: I64 = \"wrong\"\n")
+    File.writefile("tmp/interp_session_type_error.til", "mode lib\nvalue : I64 = \"wrong\"\n")
     mut bad := load_program("tmp/interp_session_type_error.til", root, cwd, Vec(Str).new())
     bad.ctx.collect_diagnostics = true
     assert(type_program_errors(bad, false) > 0)

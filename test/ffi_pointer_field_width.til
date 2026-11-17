@@ -22,7 +22,7 @@ main := proc(args: ..Str) {
     mkdir_p(WORK)
     File.writefile(format(WORK, "/ffi_width_tail.til"), format(
         "mode lib\n",
-        "ProbeTail := struct { count: USize = 3; own tail : Str = \"\" }\n",
+        "ProbeTail := struct { count : USize = 3; own tail : Str = \"\" }\n",
         "tail_make := func() returns ProbeTail { return ProbeTail(count = 4, tail = format(\"tail \", \"seven\")) }\n"))
     File.writefile(format(WORK, "/consumer.til"), format(
         "import(\"../../gen/til/ffi_width_tail\")\n",

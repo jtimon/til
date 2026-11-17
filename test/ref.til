@@ -2,30 +2,30 @@ mode test
 
 # --- ref returns with I64 ---
 
-RefFieldSteps := struct { ref byte:I8;ref half:I16;ref word:I32;ref wide:I64;ref unsigned_value:U64;ref float_value:F32;ref raw:Dynamic=0 }
-RefFieldNumber := struct { ref value:I64 }
-RefFieldRaw := struct { ref value:Dynamic=0 }
+RefFieldSteps := struct { ref byte : I8;ref half : I16;ref word : I32;ref wide : I64;ref unsigned_value : U64;ref float_value : F32;ref raw : Dynamic= 0 }
+RefFieldNumber := struct { ref value : I64 }
+RefFieldRaw := struct { ref value : Dynamic= 0 }
 increment_ref_number := func(counter: RefFieldNumber) {
-    ref mut value: I64 = counter.value
+    ref mut value : I64 = counter.value
     value++
 }
 forward_ref_number := func(counter: RefFieldNumber) { increment_ref_number(counter) }
 assign_ref_number := func(counter: RefFieldNumber, number: I64) {
-    ref mut value: I64 = counter.value
+    ref mut value : I64 = counter.value
     value = number
 }
 ref_number_value := func(counter: RefFieldNumber) returns ref I64 { return counter.value }
 increment_ref_getter := func(counter: RefFieldNumber) {
-    ref mut value: I64 = ref_number_value(counter)
+    ref mut value : I64 = ref_number_value(counter)
     value++
 }
-RefFieldPair := struct { ref first: I64; ref second: I64 }
+RefFieldPair := struct { ref first : I64; ref second : I64 }
 increment_first_ref := func(pair: RefFieldPair) { pair.first.inc() }
-RefFieldNested := struct { counter: RefFieldNumber }
+RefFieldNested := struct { counter : RefFieldNumber }
 increment_nested_ref := func(value: RefFieldNested) { forward_ref_number(value.counter) }
 
 test_indirect_scalar_write_effects := test() {
-    mut count: I64 = 0
+    mut count : I64 = 0
     counter := RefFieldNumber(value = count)
     assert(count == 0)
     increment_ref_number(counter)
@@ -34,7 +34,7 @@ test_indirect_scalar_write_effects := test() {
     assert(count == 2)
     increment_ref_getter(counter)
     assert(count == 3)
-    untouched: I64 = 19
+    untouched : I64 = 19
     pair := RefFieldPair(first = count, second = untouched)
     increment_first_ref(pair)
     assert(count == 4 && untouched == 19)
@@ -49,42 +49,42 @@ ref_field_counted := func(p:RefFieldNumber,mut calls:I64) returns ref I64 { call
 ref_field_retarget_raw := func(mut p:RefFieldRaw,value:Dynamic) { p.value=value }
 
 test_reference_field_values := test() {
-    mut byte:I8=I8.MAX;byte=byte+0
-    mut half:I16=I16.MAX;half=half+0
-    mut word:I32=I32.MAX;word=word+0
-    mut wide:I64=I64.MAX;wide=wide+0
-    mut unsigned_value:U64=U64.MAX;unsigned_value=unsigned_value+0
-    float_value:F32=1.25
-    mut fields:=RefFieldSteps(byte=byte,half=half,word=word,wide=wide,unsigned_value=unsigned_value,float_value=float_value,raw=to_ptr(wide))
-    snapshot:=fields.clone()
+    mut byte : I8= I8.MAX;byte=byte+0
+    mut half : I16= I16.MAX;half=half+0
+    mut word : I32= I32.MAX;word=word+0
+    mut wide : I64= I64.MAX;wide=wide+0
+    mut unsigned_value : U64= U64.MAX;unsigned_value=unsigned_value+0
+    float_value : F32= 1.25
+    mut fields := RefFieldSteps(byte=byte,half=half,word=word,wide=wide,unsigned_value=unsigned_value,float_value=float_value,raw=to_ptr(wide))
+    snapshot := fields.clone()
     fields.byte++;fields.half++;fields.word++;fields.wide++;fields.unsigned_value++
     assert(byte==I8.MIN && half==I16.MIN && word==I32.MIN && wide==I64.MIN && unsigned_value==0)
-    byte_value:=snapshot.byte.clone()
-    half_value:=snapshot.half.clone()
-    word_value:=snapshot.word.clone()
-    copied_float:=snapshot.float_value.clone()
+    byte_value := snapshot.byte.clone()
+    half_value := snapshot.half.clone()
+    word_value := snapshot.word.clone()
+    copied_float := snapshot.float_value.clone()
     assert_eq(I8,byte_value,I8.MIN)
     assert_eq(I16,half_value,I16.MIN)
     assert_eq(I32,word_value,I32.MIN)
     assert_eq(F32,copied_float,1.25)
     assert(ptr_eq(fields.raw,to_ptr(wide)) && ptr_eq(snapshot.wide,to_ptr(wide)))
-    mut replacement:I64=7;replacement++
+    mut replacement : I64= 7;replacement++
     fields.wide=replacement
     fields.wide--
     assert(replacement==7 && wide==I64.MIN && ptr_eq(snapshot.wide,to_ptr(wide)))
-    holder:=RefFieldNumber(value=replacement)
-    mut calls:I64=0
+    holder := RefFieldNumber(value=replacement)
+    mut calls : I64= 0
     ref_field_counted(holder,calls).inc()
     assert(calls==1 && replacement==8)
-    zero:=RefFieldRaw()
+    zero := RefFieldRaw()
     assert(zero.value.is_null())
-    mut raw:=RefFieldRaw(value=to_ptr(wide))
+    mut raw := RefFieldRaw(value=to_ptr(wide))
     ref_field_retarget_raw(raw,to_ptr(replacement))
-    saved_raw:=raw.clone()
+    saved_raw := raw.clone()
     assert(ptr_eq(raw.value,to_ptr(replacement)))
     raw.value=0
     assert(raw.value.is_null() && ptr_eq(saved_raw.value,to_ptr(replacement)))
-    null_value:Dynamic=0
+    null_value : Dynamic= 0
     ref_field_retarget_raw(raw,null_value)
     assert(raw.value.is_null())
 }
@@ -127,9 +127,9 @@ test_ref_from_param := test() {
 
 # --- ref from owned compound local ---
 
-RefOwnedCarrier := struct { label := ""; ref value: I64 }
+RefOwnedCarrier := struct { label := ""; ref value : I64 }
 copy_owned_carrier := func(own carrier: RefOwnedCarrier) returns RefOwnedCarrier { return carrier.clone() }
-RefRequiredError := struct { ref value: I64 }
+RefRequiredError := struct { ref value : I64 }
 throw_required_borrow := func(mut value: I64, fail: Bool) returns I64 throws RefRequiredError {
     if fail { throw RefRequiredError(value = value) }
     value = value + 1
@@ -138,9 +138,9 @@ throw_required_borrow := func(mut value: I64, fail: Bool) returns I64 throws Ref
 
 test_own_carrier_keeps_borrowed_referent := test() {
     mut values := vec(I64, 41)
-    ref mut n: I64 = values.unsafe_get(0)
+    ref mut n : I64 = values.unsafe_get(0)
     copied := copy_owned_carrier(own RefOwnedCarrier(label = format("owned ", "carrier"), value = n))
-    ref alias: I64 = copied.value
+    ref alias : I64 = copied.value
     assert(ptr_eq(alias, n) && copied.label == "owned carrier")
     n = 42
     assert(alias == 42)
@@ -148,7 +148,7 @@ test_own_carrier_keeps_borrowed_referent := test() {
     mut caught := false
     throw_required_borrow(n, true)?
     catch (error: RefRequiredError) {
-        ref borrowed: I64 = error.value
+        ref borrowed : I64 = error.value
         caught = ptr_eq(borrowed, n) && borrowed == 43
     }
     assert(caught && values[0] == 43)
@@ -158,13 +158,13 @@ GlobalSafeRef := enum { None, Some: ref I64 }
 global_safe_owner := vec(I64, 41)
 mut global_safe_saved := GlobalSafeRef.None
 mut global_safe_holder := RefOwnedCarrier(value = global_safe_owner.unsafe_get(0))
-mut global_safe_many: Vec(GlobalSafeRef) = Vec(GlobalSafeRef).new()
+mut global_safe_many : Vec(GlobalSafeRef) = Vec(GlobalSafeRef).new()
 store_safe_clone := proc(value: GlobalSafeRef) { noop_proc(); global_safe_saved = value.clone() }
 store_safe_owned := proc(own value: GlobalSafeRef) { noop_proc(); global_safe_saved = value }
 store_safe_number := proc(value: I64) { noop_proc(); global_safe_holder.value = value }
 global_safe_target := func() returns ref RefOwnedCarrier { return global_safe_holder }
 store_safe_getter := proc(value: GlobalSafeRef) {
-    ref mut target: RefOwnedCarrier = global_safe_target()
+    ref mut target : RefOwnedCarrier = global_safe_target()
     noop_proc()
     switch value {
     case .Some(n): target.value = n
@@ -191,7 +191,7 @@ test_global_retention_uses_referent_owner := test() {
     case .Some(value): assert(value == 41)
     case: panic("global borrow was lost")
     }
-    ref value: I64 = global_safe_holder.value
+    ref value : I64 = global_safe_holder.value
     assert(ptr_eq(value, global_safe_owner.unsafe_get(0)) && value == 41)
     assert(global_safe_many.len() == 1)
     global_safe_many.clear()
@@ -210,20 +210,20 @@ test_local_shadow_is_not_a_global_escape := test() {
 safe_holder_identity := func(value: RefOwnedCarrier) returns ref RefOwnedCarrier { return value }
 safe_global_number := func() returns ref I64 { return global_safe_owner.unsafe_get(0) }
 test_global_getter_destination := test() {
-    ref mut target: RefOwnedCarrier = safe_holder_identity(global_safe_target())
-    ref mut alias: RefOwnedCarrier = target
+    ref mut target : RefOwnedCarrier = safe_holder_identity(global_safe_target())
+    ref mut alias : RefOwnedCarrier = target
     alias.value = safe_global_number()
     store_safe_number(safe_global_number())
-    ref value: I64 = global_safe_holder.value
+    ref value : I64 = global_safe_holder.value
     assert(ptr_eq(value, global_safe_owner.unsafe_get(0)))
 
     // Copying the global's carrier creates local storage. Its ref field may
     // borrow a local owner that outlives the copy.
     local := vec(I64, 73)
     mut copy := global_safe_target().clone()
-    ref mut local_alias: RefOwnedCarrier = safe_holder_identity(copy)
+    ref mut local_alias : RefOwnedCarrier = safe_holder_identity(copy)
     local_alias.value = local.unsafe_get(0)
-    ref local_value: I64 = copy.value
+    ref local_value : I64 = copy.value
     assert(ptr_eq(local_value, local.unsafe_get(0)) && local_value == 73)
     assert(value == 41)
 }
@@ -232,19 +232,19 @@ SafeGlobalThunk := func() returns I64
 store_safe_rebound := proc(value: I64, change: Bool) {
     noop_proc()
     mut holder := RefOwnedCarrier(value = global_safe_owner.unsafe_get(0))
-    ref mut alias: RefOwnedCarrier = holder
+    ref mut alias : RefOwnedCarrier = holder
     alias.value = global_safe_owner.unsafe_get(0)
     if change { alias = global_safe_target() }
     alias.value = value
 }
 test_global_helper_rebinding := test() {
     store_safe_rebound(global_safe_owner.unsafe_get(0), true)
-    ref value: I64 = global_safe_holder.value
+    ref value : I64 = global_safe_holder.value
     assert(ptr_eq(value, global_safe_owner.unsafe_get(0)) && value == 41)
 }
 
 safe_global_zero := func() returns I64 { return 0 }
-mut safe_global_function: SafeGlobalThunk = safe_global_zero
+mut safe_global_function : SafeGlobalThunk = safe_global_zero
 stash_safe_function := func(f: SafeGlobalThunk) { safe_global_function = f }
 send_owned_capture := func(n: I64) {
     stash_safe_function(func() returns I64 [own n] { return n })

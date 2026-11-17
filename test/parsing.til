@@ -281,10 +281,10 @@ test_for_in := test() {
 test_reference_slot_and_referent_metadata := test() {
     mut symbols := SymbolPool()
     parsed := parse_src(format("Links := struct {\n",
-        "ref read: I64\nref mut write: I64\n",
-        "const ref fixed_read: I64\nconst ref mut fixed_write: I64\n}\n"), symbols)
+        "ref read : I64\nref mut write : I64\n",
+        "const ref fixed_read : I64\nconst ref mut fixed_write : I64\n}\n"), symbols)
     copied := parsed.clone()
-    ref fields: Vec(Declaration) = structdef_of(copied.children[0].children[0]).fields
+    ref fields : Vec(Declaration) = structdef_of(copied.children[0].children[0]).fields
     assert(fields.len() == 4)
     assert(fields[0].own_type.is(OwnType.Ref) && fields[0].is_mut && fields[0].referent_mut.not())
     assert(fields[1].own_type.is(OwnType.Ref) && fields[1].is_mut && fields[1].referent_mut)
@@ -296,20 +296,20 @@ test_reference_slot_and_referent_metadata := test() {
 test_reference_type_argument_permissions := test() {
     mut symbols := SymbolPool()
     parsed := parse_src(format(
-        "read: View(ref I64) = View(ref I64)(value)\n",
-        "write: View(ref mut I64) = View(ref mut I64)(value)\n"), symbols)
+        "read : View(ref I64) = View(ref I64)(value)\n",
+        "write : View(ref mut I64) = View(ref mut I64)(value)\n"), symbols)
     copied := parsed.clone()
     assert_eq(Str, decl_type_name_ref(decl_of(copied.children[0]), symbols), "View__ref_I64")
     assert_eq(Str, decl_type_name_ref(decl_of(copied.children[1]), symbols), "View__ref_mut_I64")
-    ref read_call: Expr = copied.children[0].children[0].children[0]
-    ref write_call: Expr = copied.children[1].children[0].children[0]
+    ref read_call : Expr = copied.children[0].children[0].children[0]
+    ref write_call : Expr = copied.children[1].children[0].children[0]
     assert(get_ref_arg(read_call, 1) && get_ref_arg(read_call, 1, writable = true).not())
     assert(get_ref_arg(write_call, 1) && get_ref_arg(write_call, 1, writable = true))
     // Type annotations lift calls too; they must retain the same permissions
     // as the value-position applications and remain separate instantiations.
     assert_eq(USize, copied.children.len(), 4)
-    ref read_lift: Expr = copied.children[2].children[0]
-    ref write_lift: Expr = copied.children[3].children[0]
+    ref read_lift : Expr = copied.children[2].children[0]
+    ref write_lift : Expr = copied.children[3].children[0]
     assert(get_ref_arg(read_lift, 1) && get_ref_arg(read_lift, 1, writable = true).not())
     assert(get_ref_arg(write_lift, 1) && get_ref_arg(write_lift, 1, writable = true))
 }
@@ -317,13 +317,13 @@ test_reference_type_argument_permissions := test() {
 test_reference_local_slot_metadata := test() {
     mut symbols := SymbolPool()
     parsed := parse_src(format(
-        "mut ref read: I64 = owner\nmut ref mut write: I64 = owner\n",
-        "const ref fixed_read: I64 = owner\nconst ref mut fixed_write: I64 = owner\n",
-        "ref legacy_read: I64 = owner\nref mut legacy_write: I64 = owner\n"), symbols)
-    ref read: Declaration = decl_of(parsed.children[0])
-    ref write: Declaration = decl_of(parsed.children[1])
-    ref fixed_read: Declaration = decl_of(parsed.children[2])
-    ref fixed_write: Declaration = decl_of(parsed.children[3])
+        "mut ref read : I64 = owner\nmut ref mut write : I64 = owner\n",
+        "const ref fixed_read : I64 = owner\nconst ref mut fixed_write : I64 = owner\n",
+        "ref legacy_read : I64 = owner\nref mut legacy_write : I64 = owner\n"), symbols)
+    ref read : Declaration = decl_of(parsed.children[0])
+    ref write : Declaration = decl_of(parsed.children[1])
+    ref fixed_read : Declaration = decl_of(parsed.children[2])
+    ref fixed_write : Declaration = decl_of(parsed.children[3])
     assert(read.is_mut && read.referent_mut.not() && read.ref_slot_explicit)
     assert(write.is_mut && write.referent_mut && write.ref_slot_explicit)
     assert(fixed_read.is_mut.not() && fixed_read.referent_mut.not() && fixed_read.ref_slot_explicit)
@@ -339,12 +339,12 @@ test_reference_result_and_payload_metadata := test() {
         "Read := func() returns ref I64\nWrite := func() returns ref mut I64\n",
         "Links := enum { Read: ref I64, Write: ref mut I64, const FixedRead: ref I64, const FixedWrite: ref mut I64 }\n"), symbols)
     copied := parsed.clone()
-    ref read: FunctionDef = funcdef_of(copied.children[0].children[0])
-    ref write: FunctionDef = funcdef_of(copied.children[1].children[0])
+    ref read : FunctionDef = funcdef_of(copied.children[0].children[0])
+    ref write : FunctionDef = funcdef_of(copied.children[1].children[0])
     assert(read.sig.return_own_type.is(OwnType.Ref) && read.sig.return_ref_mut.not())
     assert(write.sig.return_own_type.is(OwnType.Ref) && write.sig.return_ref_mut)
     assert(read.sig.eq(write.sig).not())
-    ref variants: Vec(VariantDef) = enumdef_of(copied.children[2].children[0]).variants
+    ref variants : Vec(VariantDef) = enumdef_of(copied.children[2].children[0]).variants
     assert(variants[0].payload_ref && variants[0].payload_ref_mut.not())
     assert(variants[1].payload_ref && variants[1].payload_ref_mut)
     assert(variants[0].payload_const.not() && variants[1].payload_const.not())
@@ -355,15 +355,15 @@ test_reference_result_and_payload_metadata := test() {
 test_reference_permissions_distinguish_anonymous_types := test() {
     mut symbols := SymbolPool()
     parsed := parse_src(format(
-        "a := struct { ref value: I64 }(value = owner)\n",
-        "b := struct { ref mut value: I64 }(value = owner)\n",
+        "a := struct { ref value : I64 }(value = owner)\n",
+        "b := struct { ref mut value : I64 }(value = owner)\n",
         "c := enum { Read, Value: ref I64 }.Read\n",
         "d := enum { Read, Value: ref mut I64 }.Read\n"), symbols)
-    ref a: Expr = parsed.children[0].children[0].children[0]
-    ref b: Expr = parsed.children[1].children[0].children[0]
+    ref a : Expr = parsed.children[0].children[0].children[0]
+    ref b : Expr = parsed.children[1].children[0].children[0]
     assert(ident_of(a).ident_sym() != ident_of(b).ident_sym())
-    ref c: Expr = parsed.children[2].children[0].children[0]
-    ref d: Expr = parsed.children[3].children[0].children[0]
+    ref c : Expr = parsed.children[2].children[0].children[0]
+    ref d : Expr = parsed.children[3].children[0].children[0]
     assert(ident_of(c).ident_sym() != ident_of(d).ident_sym())
 }
 
@@ -372,16 +372,77 @@ test_fn_reference_result_permission_identity := test() {
     parsed := parse_src(format(
         "read := func(callback: Fn() returns ref I64) {}\n",
         "write := func(callback: Fn() returns ref mut I64) {}\n"), symbols)
-    ref read: FunctionDef = funcdef_of(parsed.children[0].children[0])
-    ref write: FunctionDef = funcdef_of(parsed.children[1].children[0])
+    ref read : FunctionDef = funcdef_of(parsed.children[0].children[0])
+    ref write : FunctionDef = funcdef_of(parsed.children[1].children[0])
     assert(decl_type_name_ref(read.sig.params[0], symbols) != decl_type_name_ref(write.sig.params[0], symbols))
-    ref read_signature: FunctionDef = funcdef_of(parsed.children[2].children[0])
-    ref write_signature: FunctionDef = funcdef_of(parsed.children[3].children[0])
+    ref read_signature : FunctionDef = funcdef_of(parsed.children[2].children[0])
+    ref write_signature : FunctionDef = funcdef_of(parsed.children[3].children[0])
     assert(read_signature.sig.return_own_type.is(OwnType.Ref) && read_signature.sig.return_ref_mut.not())
     assert(write_signature.sig.return_own_type.is(OwnType.Ref) && write_signature.sig.return_ref_mut)
 }
 
 // #472 (moved from test/lexing.til, which then imports only the lexer).
+// #505: the first diagnostic of a parse, as "line:col: message"; "" when the
+// source parses.
+decl_spacing_error := proc(src: Str) returns Str {
+    tokens := tokenize(src, "test")
+    mut mode_str := ""
+    mut anon_counter : I64 = 0
+    mut symbols := SymbolPool()
+    mut errors : I32 = 0
+    mut diagnostics := Vec(SourceDiagnostic).new()
+    parse(tokens, src, "test", mode_str, anon_counter, symbols, errors, true, diagnostics)
+    if errors == 0 { return "" }
+    ref d : SourceDiagnostic = diagnostics[0]
+    return format(d.line.to_str(), ":", d.col.to_str(), ": ", d.message)
+}
+
+// #505: a declaration's `:` / `:=` stands apart from the name before it and
+// from what follows it, and a typed declaration's `=` from the initial value.
+test_declaration_spacing := test() {
+    // The canonical forms; a line end counts as the space.
+    assert_eq(Str, decl_spacing_error("x := 1"), "")
+    assert_eq(Str, decl_spacing_error("mut x : I64 = 1"), "")
+    assert_eq(Str, decl_spacing_error("x :=\n    1"), "")
+    assert_eq(Str, decl_spacing_error("x  :=  \"s\""), "")
+
+    // name := value
+    assert_eq(Str, decl_spacing_error("x:= 1"), "1:2: expected a space between 'x' and ':=' in a declaration")
+    assert_eq(Str, decl_spacing_error("x :=1"), "1:5: expected a space after ':=' in a declaration")
+    assert_eq(Str, decl_spacing_error("x :=\"s\""), "1:5: expected a space after ':=' in a declaration")
+    assert_eq(Str, decl_spacing_error("x :='c'"), "1:5: expected a space after ':=' in a declaration")
+    assert_eq(Str, decl_spacing_error("mut x:= 1"), "1:6: expected a space between 'x' and ':=' in a declaration")
+    assert_eq(Str, decl_spacing_error("own x :=f()"), "1:9: expected a space after ':=' in a declaration")
+    assert_eq(Str, decl_spacing_error("y := 1\nref r:= y"), "2:6: expected a space between 'r' and ':=' in a declaration")
+    assert_eq(Str, decl_spacing_error("y := 1\nref mut r :=y"), "2:13: expected a space after ':=' in a declaration")
+
+    // name : Type = value
+    assert_eq(Str, decl_spacing_error("x: I64 = 1"), "1:2: expected a space between 'x' and ':' in a declaration")
+    assert_eq(Str, decl_spacing_error("x :I64 = 1"), "1:4: expected a space after ':' in a declaration")
+    assert_eq(Str, decl_spacing_error("x : I64 =1"), "1:10: expected a space after '=' in a declaration")
+    assert_eq(Str, decl_spacing_error("mut x: I64 = 1"), "1:6: expected a space between 'x' and ':' in a declaration")
+    assert_eq(Str, decl_spacing_error("y := 1\nref r: I64 = y"), "2:6: expected a space between 'r' and ':' in a declaration")
+    assert_eq(Str, decl_spacing_error("y := 1\nref r : I64 =y"), "2:14: expected a space after '=' in a declaration")
+
+    // Struct fields, with and without a default.
+    assert_eq(Str, decl_spacing_error("S := struct { a : I64 = 0\n b := 1\n c : Str }"), "")
+    assert_eq(Str, decl_spacing_error("S := struct { a: I64 = 0 }"), "1:16: expected a space between 'a' and ':' in a declaration")
+    assert_eq(Str, decl_spacing_error("S := struct { a : I64 =0 }"), "1:24: expected a space after '=' in a declaration")
+    assert_eq(Str, decl_spacing_error("S := struct { a:= 0 }"), "1:16: expected a space between 'a' and ':=' in a declaration")
+    assert_eq(Str, decl_spacing_error("S := struct { a: Str }"), "1:16: expected a space between 'a' and ':' in a declaration")
+
+    // Namespace and interface members.
+    assert_eq(Str, decl_spacing_error("S := struct {\nnamespace:\n    f:= func() {}\n}"), "3:6: expected a space between 'f' and ':=' in a declaration")
+    assert_eq(Str, decl_spacing_error("S := struct {\nnamespace:\n    n : I64 =1\n}"), "3:14: expected a space after '=' in a declaration")
+    assert_eq(Str, decl_spacing_error("V := interface { f :=func(self: V) returns I64 }"), "1:22: expected a space after ':=' in a declaration")
+
+    // Not declarations with an initial value: parameters, the namespace
+    // marker and case labels keep their own spelling.
+    assert_eq(Str, decl_spacing_error("f := func(a:I64, b: I64) returns I64 { return a }"), "")
+    assert_eq(Str, decl_spacing_error("S := struct { a := 0\nnamespace:\n    f := func() {}\n}"), "")
+    assert_eq(Str, decl_spacing_error("x := 1\nswitch x { case 1: x = 2 case: }"), "")
+}
+
 // Parsing the same source with fresh state twice interns the same names
 // in source order and synthesizes the same anonymous type names.
 parse_fresh := proc(src: Str, mut symbols: SymbolPool, mut counter: I64) returns Expr {

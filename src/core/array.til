@@ -23,8 +23,8 @@ priv array_ref_store := macro(Element: Type) returns FuncDef {
 Array := macro(T: Type) returns StructDef {
     if type_arg_is_ref(T) {
         return struct {
-            own data: U8 = 0
-            const cap: USize = 0
+            own data : U8 = 0
+            const cap : USize = 0
         namespace:
             priv slot_size := func() returns USize {
                 if type_arg_is_interface(T) { return T.size() }

@@ -3,18 +3,18 @@ mode gui
 // Drag cells, wheel to scroll, middle-click to reset one pane, right-click for all.
 // Enter or Escape returns to the caller so the same loaded module can run again.
 MouseDemo := struct {
-    pane: I32 = 0
-    anchor: I32 = 0
-    head: I32 = 0
-    dragging: Bool = false
-    resets: I64 = 0
-    left_row: I64 = 0
-    right_row: I64 = 0
-    left_fraction: F32 = 0
-    right_fraction: F32 = 0
-    scrolled: Bool = false
-    done: Bool = false
-    middle_resets: I64 = 0
+    pane : I32 = 0
+    anchor : I32 = 0
+    head : I32 = 0
+    dragging : Bool = false
+    resets : I64 = 0
+    left_row : I64 = 0
+    right_row : I64 = 0
+    left_fraction : F32 = 0
+    right_fraction : F32 = 0
+    scrolled : Bool = false
+    done : Bool = false
+    middle_resets : I64 = 0
 }
 
 mouse_left := func(pane: I32) returns I32 {
@@ -148,9 +148,9 @@ mouse_draw := proc(state: MouseDemo) {
 
 mouse_count_pixels := func(image: Image, x: I32, y: I32, width: I32, height: I32, expected: Color) returns I64 {
     mut pixels := 0
-    mut row: I32 = 0
+    mut row : I32 = 0
     while row < height {
-        mut column: I32 = 0
+        mut column : I32 = 0
         while column < width {
             color := GetImageColor(image, x + column, y + row)
             if color.r == expected.r && color.g == expected.g && color.b == expected.b && color.a == expected.a { pixels++ }

@@ -32,52 +32,52 @@ check_shared := proc(compiler: Str, work: Str, source: Str, expected_exit: I64 =
 check_floating_point := proc(compiler: Str, work: Str) {
     // Reuse the existing scalar cast cases; the final SIMD case is a separate
     // backend feature. Keep their test bodies and runtime operand boundaries.
-    casts:=File.readfile("test/cast.til")
-    end:=casts.find("\nS4 :=")
+    casts := File.readfile("test/cast.til")
+    end := casts.find("\nS4 :=")
     expect(end>=0,"scalar/SIMD cast boundary missing")
-    scalar_path:=format(work,"/float_casts.til")
+    scalar_path := format(work,"/float_casts.til")
     File.writefile(scalar_path,casts.substr(0,end.to_usize()))
     check_shared(compiler,work,scalar_path)
-    format_path:=format(work,"/float_format.til")
+    format_path := format(work,"/float_format.til")
     File.writefile(format_path,format(
-        "mode cli\nraw64:=proc(bits:U64) returns F64 { noop_proc(); mut out:F64=0; memcpy(to_ptr(out),to_ptr(bits),8); return out }\n",
-        "raw32:=proc(bits:U32) returns F32 { noop_proc(); mut out:F32=0; memcpy(to_ptr(out),to_ptr(bits),4); return out }\n",
-        "bits64:=func(value:F64) returns U64 { mut bits:U64=0; memcpy(to_ptr(bits),to_ptr(value),8); return bits }\n",
-        "bits32:=func(value:F32) returns U32 { mut bits:U32=0; memcpy(to_ptr(bits),to_ptr(value),4); return bits }\n",
-        "main:=proc() { mut bits:U64=1; for _ in 0..120 { bits=bits*6364136223846793005+1442695040888963407;\n",
-        "value:=raw64(bits); repr:=value.to_repr(); println(value.to_str(),\"|\",repr); parsed:=repr.to_f64(); if value==value { assert(bits64(parsed)==bits) } else { assert(parsed!=parsed) };\n",
-        "small:=raw32(bits.to_u32()); single:=small.to_repr(); println(small.to_str(),\"|\",single); parsed32:=single.to_f32(); if small==small { assert(bits32(parsed32)==bits.to_u32()) } else { assert(parsed32!=parsed32) } };\n",
+        "mode cli\nraw64 := proc(bits:U64) returns F64 { noop_proc(); mut out : F64 = 0; memcpy(to_ptr(out),to_ptr(bits),8); return out }\n",
+        "raw32 := proc(bits:U32) returns F32 { noop_proc(); mut out : F32 = 0; memcpy(to_ptr(out),to_ptr(bits),4); return out }\n",
+        "bits64 := func(value:F64) returns U64 { mut bits : U64 = 0; memcpy(to_ptr(bits),to_ptr(value),8); return bits }\n",
+        "bits32 := func(value:F32) returns U32 { mut bits : U32 = 0; memcpy(to_ptr(bits),to_ptr(value),4); return bits }\n",
+        "main := proc() { mut bits : U64 = 1; for _ in 0..120 { bits=bits*6364136223846793005+1442695040888963407;\n",
+        "value := raw64(bits); repr := value.to_repr(); println(value.to_str(),\"|\",repr); parsed := repr.to_f64(); if value==value { assert(bits64(parsed)==bits) } else { assert(parsed!=parsed) };\n",
+        "small := raw32(bits.to_u32()); single := small.to_repr(); println(small.to_str(),\"|\",single); parsed32 := single.to_f32(); if small==small { assert(bits32(parsed32)==bits.to_u32()) } else { assert(parsed32!=parsed32) } };\n",
         "for word:U64 in array(U64,0,9223372036854775808,1,4503599627370495,4503599627370496,9218868437227405311,9218868437227405312,18442240474082181120,9221120237041090560,18444492273895866368) {\n",
-        "value:=raw64(word); repr:=value.to_repr(); println(value.to_str(),\"|\",repr); parsed:=repr.to_f64(); if value==value { assert(bits64(parsed)==word) } else { assert(parsed!=parsed) } } }\n"))
+        "value := raw64(word); repr := value.to_repr(); println(value.to_str(),\"|\",repr); parsed := repr.to_f64(); if value==value { assert(bits64(parsed)==word) } else { assert(parsed!=parsed) } } }\n"))
     check_shared(compiler,work,format_path)
-    expressions:=array(Str,"runtime(128.0)","runtime(-129.0)","runtime(256.0)","runtime(-1.0)",
+    expressions := array(Str,"runtime(128.0)","runtime(-129.0)","runtime(256.0)","runtime(-1.0)",
         "runtime(9223372036854775808.0)","runtime(18446744073709551616.0)",
         "runtime(0.0)/runtime(0.0)","runtime(1.0)/runtime(0.0)","runtime(18446744073709551616.0)")
-    targets:=array(Str,"I8","I8","U8","U8","I64","U64","U64","I32","UPtr")
+    targets := array(Str,"I8","I8","U8","U8","I64","U64","U64","I32","UPtr")
     for i in 0..expressions.len() {
-        path:=format(work,"/float_invalid_",i.to_str(),".til")
-        File.writefile(path,format("mode cli\nruntime:=proc(value:F64) returns F64 { noop_proc(); return value }\n",
-            "main:=proc() { value:=",expressions[i],"; value.cast(",targets[i],") }\n"))
+        path := format(work,"/float_invalid_",i.to_str(),".til")
+        File.writefile(path,format("mode cli\nruntime := proc(value:F64) returns F64 { noop_proc(); return value }\n",
+            "main := proc() { value := ",expressions[i],"; value.cast(",targets[i],") }\n"))
         check_shared(compiler,work,path,1)
     }
 }
 
 check_float_parsing := proc(compiler: Str, work: Str) {
-    path:=format(work,"/float_parsing.til")
+    path := format(work,"/float_parsing.til")
     File.writefile(path,format(
-        "mode cli\nbits64:=func(value:F64) returns U64 { mut bits:U64=0; memcpy(to_ptr(bits),to_ptr(value),8); return bits }\n",
-        "bits32:=func(value:F32) returns U32 { mut bits:U32=0; memcpy(to_ptr(bits),to_ptr(value),4); return bits }\n",
-        "main:=proc() { for text:Str in array(Str,\"\",\" \t\",\"-x\",\"-.x\",\"-0\",\"+.0\",\".5\",\"12e+\",\"12tail\",\"0x\",\"-0x.p1\",\"0X1.8P+2\",\"0x1e2\",\"0x1p-1074\",\"0x1p-1075\",\"1e309\",\"-1e-400\",\"1.7976931348623157e308\",\"1.7976931348623159e308\",\"2.2250738585072012e-308\",\"5e-324\",\"3.4028235677973366e38\",\"1.1754943508222875e-38\",\"1.401298464324817e-45\",\"inf\",\"-INFINITY\",\"nan\",\"-NaN(0x123)\",\"nan(0123)\",\"nan(08)\",\"nan(payload)\",\"nan(0x)\",\"nan(1_2)\",\"nan(123!bad)\",\"nan(999999999999999999999999999999999999)\",\"1_2.5e-1\",\"i_n_f\",\"1\\x00Ze99\") {\n",
+        "mode cli\nbits64 := func(value:F64) returns U64 { mut bits : U64 = 0; memcpy(to_ptr(bits),to_ptr(value),8); return bits }\n",
+        "bits32 := func(value:F32) returns U32 { mut bits : U32 = 0; memcpy(to_ptr(bits),to_ptr(value),4); return bits }\n",
+        "main := proc() { for text:Str in array(Str,\"\",\" \t\",\"-x\",\"-.x\",\"-0\",\"+.0\",\".5\",\"12e+\",\"12tail\",\"0x\",\"-0x.p1\",\"0X1.8P+2\",\"0x1e2\",\"0x1p-1074\",\"0x1p-1075\",\"1e309\",\"-1e-400\",\"1.7976931348623157e308\",\"1.7976931348623159e308\",\"2.2250738585072012e-308\",\"5e-324\",\"3.4028235677973366e38\",\"1.1754943508222875e-38\",\"1.401298464324817e-45\",\"inf\",\"-INFINITY\",\"nan\",\"-NaN(0x123)\",\"nan(0123)\",\"nan(08)\",\"nan(payload)\",\"nan(0x)\",\"nan(1_2)\",\"nan(123!bad)\",\"nan(999999999999999999999999999999999999)\",\"1_2.5e-1\",\"i_n_f\",\"1\\x00Ze99\") {\n",
         "println(bits64(str_parse_f64(text)).to_str(),\"|\",bits32(str_parse_f32(text)).to_str(),\"|\",bits64(text.to_f64()).to_str(),\"|\",bits32(text.to_f32()).to_str()) };\n",
-        "mut bits:U64=1; for _ in 0..160 { bits=bits*6364136223846793005+1442695040888963407; exponent:=bits.mod(701).to_i64()-350;\n",
-        "text:=format(bits.to_str(),\"e\",exponent.to_str()); println(bits64(text.to_f64()).to_str(),\"|\",bits32(text.to_f32()).to_str()) } }\n"))
+        "mut bits : U64 = 1; for _ in 0..160 { bits=bits*6364136223846793005+1442695040888963407; exponent := bits.mod(701).to_i64()-350;\n",
+        "text := format(bits.to_str(),\"e\",exponent.to_str()); println(bits64(text.to_f64()).to_str(),\"|\",bits32(text.to_f32()).to_str()) } }\n"))
     check_shared(compiler,work,path)
     // Regress the hexadecimal underflow correction in the shared C boundary
     // as well as the native parser, including host constant folding.
     File.writefile(format(work,"/float_hex_tie.til"),format(
-        "mode cli\nparse:=proc(text:Str) returns F32 { noop_proc(); return str_parse_f32(text) }\n",
-        "main:=proc() { value:=parse(\"0x1.000001p-150\"); mut bits:U32=0; memcpy(to_ptr(bits),to_ptr(value),4); assert(bits==1);\n",
-        "folded:=\"0x1.000001p-150\".to_f32(); memcpy(to_ptr(bits),to_ptr(folded),4); assert(bits==1) }\n"))
+        "mode cli\nparse := proc(text:Str) returns F32 { noop_proc(); return str_parse_f32(text) }\n",
+        "main := proc() { value := parse(\"0x1.000001p-150\"); mut bits : U32 = 0; memcpy(to_ptr(bits),to_ptr(value),4); assert(bits==1);\n",
+        "folded := \"0x1.000001p-150\".to_f32(); memcpy(to_ptr(bits),to_ptr(folded),4); assert(bits==1) }\n"))
     check_shared(compiler,work,format(work,"/float_hex_tie.til"))
 }
 
@@ -85,44 +85,44 @@ check_float_fma := proc(compiler: Str, work: Str) {
     // Reuse the shared scalar corpus, including argument order, receiver
     // snapshots, distant sticky bits and intermediate-overflow cancellation.
     check_shared(compiler,work,"test/templeos/holyc_float_primitives.til")
-    path:=format(work,"/float_fma.til")
+    path := format(work,"/float_fma.til")
     File.writefile(path,format(
-        "mode cli\nraw64:=proc(bits:U64) returns F64 { noop_proc(); mut out:F64=0; memcpy(to_ptr(out),to_ptr(bits),8); return out }\n",
-        "raw32:=proc(bits:U32) returns F32 { noop_proc(); mut out:F32=0; memcpy(to_ptr(out),to_ptr(bits),4); return out }\n",
-        "bits64:=func(value:F64) returns U64 { if value!=value { return 0x7ff8000000000000 }; mut bits:U64=0; memcpy(to_ptr(bits),to_ptr(value),8); return bits }\n",
-        "bits32:=func(value:F32) returns U32 { if value!=value { return 0x7fc00000 }; mut bits:U32=0; memcpy(to_ptr(bits),to_ptr(value),4); return bits }\n",
-        "main:=proc() { mut seed:U64=1; for _ in 0..512 { seed=seed*6364136223846793005+1442695040888963407; first:=seed;\n",
-        "seed=seed*6364136223846793005+1442695040888963407; second:=seed; seed=seed*6364136223846793005+1442695040888963407;\n",
-        "a:=raw64(first); b:=raw64(second); c:=raw64(seed); println(bits64(a.fma(b,c)).to_str(),\"|\",bits64(a.fma(b,0.0-a*b)).to_str());\n",
-        "x:=raw32(first.to_u32()); y:=raw32(second.to_u32()); z:=raw32(seed.to_u32()); zero:F32=0.0; println(bits32(x.fma(y,z)).to_str(),\"|\",bits32(x.fma(y,zero-x*y)).to_str()) } }\n"))
+        "mode cli\nraw64 := proc(bits:U64) returns F64 { noop_proc(); mut out : F64 = 0; memcpy(to_ptr(out),to_ptr(bits),8); return out }\n",
+        "raw32 := proc(bits:U32) returns F32 { noop_proc(); mut out : F32 = 0; memcpy(to_ptr(out),to_ptr(bits),4); return out }\n",
+        "bits64 := func(value:F64) returns U64 { if value!=value { return 0x7ff8000000000000 }; mut bits : U64 = 0; memcpy(to_ptr(bits),to_ptr(value),8); return bits }\n",
+        "bits32 := func(value:F32) returns U32 { if value!=value { return 0x7fc00000 }; mut bits : U32 = 0; memcpy(to_ptr(bits),to_ptr(value),4); return bits }\n",
+        "main := proc() { mut seed : U64 = 1; for _ in 0..512 { seed=seed*6364136223846793005+1442695040888963407; first := seed;\n",
+        "seed=seed*6364136223846793005+1442695040888963407; second := seed; seed=seed*6364136223846793005+1442695040888963407;\n",
+        "a := raw64(first); b := raw64(second); c := raw64(seed); println(bits64(a.fma(b,c)).to_str(),\"|\",bits64(a.fma(b,0.0-a*b)).to_str());\n",
+        "x := raw32(first.to_u32()); y := raw32(second.to_u32()); z := raw32(seed.to_u32()); zero : F32 = 0.0; println(bits32(x.fma(y,z)).to_str(),\"|\",bits32(x.fma(y,zero-x*y)).to_str()) } }\n"))
     check_shared(compiler,work,path)
 }
 
 check_simd := proc(compiler: Str, work: Str) {
     // Import ordinary helpers from the full shared SIMD suite. Other lane
     // sizes and wider tests stay outside this baseline backend slice.
-    path:=format(work,"/simd.til")
+    path := format(work,"/simd.til")
     File.writefile(path,format("mode cli\nimport(\"",realpath_str("test/simd.til").strip_suffix(".til").clone(),
-        "\")\nmain:=proc() { simd_baseline_checks(2); simd_baseline_integer_checks(); println(\"SIMD baseline passed\") }\n"))
+        "\")\nmain := proc() { simd_baseline_checks(2); simd_baseline_integer_checks(); println(\"SIMD baseline passed\") }\n"))
     check_shared(compiler,work,path)
 }
 
 check_simd_wide := proc(compiler: Str, work: Str) {
-    path:=format(work,"/simd_wide.til")
+    path := format(work,"/simd_wide.til")
     File.writefile(path,format("mode cli\nimport(\"",realpath_str("test/simd.til").strip_suffix(".til").clone(),
-        "\")\nmain:=proc() { simd_wide_checks(); println(\"Wide SIMD passed\") }\n"))
+        "\")\nmain := proc() { simd_wide_checks(); println(\"Wide SIMD passed\") }\n"))
     check_shared(compiler,work,path)
     // The shared generator's maximum width also exercises constructor
     // arguments beyond the qualifier bitmap and the private register budget.
-    mut source:="mode cli\nV:=Simd(F32,1024)\nruntime:=proc() returns F32 { noop_proc(); return 1.0 }\nmain:=proc() { seed:=runtime(); value:=V.new("
+    mut source := "mode cli\nV := Simd(F32,1024)\nruntime := proc() returns F32 { noop_proc(); return 1.0 }\nmain := proc() { seed := runtime(); value := V.new("
     for lane:USize in 0..1024 {
         if lane>0 { source=format(source,",") }
         source=format(source,"seed+",lane.to_str(),".0")
     }
-    source=format(source,"); sum:=value+V.splat(1.0); mask:=sum.gt(value); selected:=mask.select(sum,value);\n",
+    source=format(source,"); sum := value+V.splat(1.0); mask := sum.gt(value); selected := mask.select(sum,value);\n",
         "assert(selected[0]==2.0 && selected[1023]==1025.0); assert(mask[0] && mask[1023]);\n",
-        "assert(selected.reduce_add()==525824.0); fused:=selected.fma(V.splat(1.0),V.zero()); assert(fused[1023]==1025.0); println(\"SIMD limit passed\") }\n")
-    path_limit:=format(work,"/simd_limit.til")
+        "assert(selected.reduce_add()==525824.0); fused := selected.fma(V.splat(1.0),V.zero()); assert(fused[1023]==1025.0); println(\"SIMD limit passed\") }\n")
+    path_limit := format(work,"/simd_limit.til")
     File.writefile(path_limit,source)
     check_shared(compiler,work,path_limit,timeout="180s")
 }
@@ -136,33 +136,33 @@ check_simd_narrow := proc(compiler : Str, work : Str) {
 
 check_checked_bool_bounds := proc(compiler:Str,work:Str) {
     for operation in array(Str,"and","or") {
-        mut first:="true"
-        mut syntax:="&&"
+        mut first := "true"
+        mut syntax := "&&"
         if operation=="or" { first="false"; syntax="||" }
-        path:=format(work,"/checked_bool_",operation,".til")
-        File.writefile(path,format("mode cli\nM:=Simd(Bool,4)\nbool_bounds_index:=proc() returns USize { noop_proc(); return 4 }\n",
-            "main:=proc() { noop_proc(); mask:=M.splat(",first,"); if mask[0] ",syntax," mask[bool_bounds_index()] { panic(\"out-of-bounds call returned\") } }\n"))
+        path := format(work,"/checked_bool_",operation,".til")
+        File.writefile(path,format("mode cli\nM := Simd(Bool,4)\nbool_bounds_index := proc() returns USize { noop_proc(); return 4 }\n",
+            "main := proc() { noop_proc(); mask := M.splat(",first,"); if mask[0] ",syntax," mask[bool_bounds_index()] { panic(\"out-of-bounds call returned\") } }\n"))
         check_shared(compiler,work,path,1)
     }
 }
 
 check_test_command := proc(compiler: Str, work: Str) {
     File.writefile(format(work,"/test_library.til"),format(
-        "mode lib\nmut total:I64=0\ninitialize:=func() returns I64 { total++; return total }\ninitial:=initialize()\n",
-        "imported:=test() { assert(initial==1); assert(total==1); total++ }\n",
-        "Library:=struct {\nnamespace:\nmember:=test() { assert(total==2); total++ }\n}\n"))
+        "mode lib\nmut total : I64 = 0\ninitialize := func() returns I64 { total++; return total }\ninitial := initialize()\n",
+        "imported := test() { assert(initial==1); assert(total==1); total++ }\n",
+        "Library := struct {\nnamespace:\nmember := test() { assert(total==2); total++ }\n}\n"))
     File.writefile(format(work,"/tests.til"),format(
-        "mode test\nimport(\"./test_library\")\nroot:=test() { assert(total==3); total++ }\n",
-        "Local:=struct {\nnamespace:\nmember:=test() { assert(total==4); total++ }\n}\n",
-        "Choice:=enum { One,\nnamespace:\nmember:=test() { assert(total==5); total++ }\n}\n",
-        "last:=test() { assert(total==6) }\n"))
-    File.writefile(format(work,"/cli_tests.til"),"mode cli\nmain:=proc() { panic(\"main must not run\") }\ninline_test:=test() { assert(true) }\n")
-    File.writefile(format(work,"/library_tests.til"),"mode pure\nlibrary_test:=test() { assert(true) }\n")
-    File.writefile(format(work,"/empty_tests.til"),"mode test\nunused:=func() returns I64 { return 1 }\n")
+        "mode test\nimport(\"./test_library\")\nroot := test() { assert(total==3); total++ }\n",
+        "Local := struct {\nnamespace:\nmember := test() { assert(total==4); total++ }\n}\n",
+        "Choice := enum { One,\nnamespace:\nmember := test() { assert(total==5); total++ }\n}\n",
+        "last := test() { assert(total==6) }\n"))
+    File.writefile(format(work,"/cli_tests.til"),"mode cli\nmain := proc() { panic(\"main must not run\") }\ninline_test := test() { assert(true) }\n")
+    File.writefile(format(work,"/library_tests.til"),"mode pure\nlibrary_test := test() { assert(true) }\n")
+    File.writefile(format(work,"/empty_tests.til"),"mode test\nunused := func() returns I64 { return 1 }\n")
     File.writefile(format(work,"/failing_tests.til"),format(
-        "mode test\nbefore:=test() { assert(true) }\n",
-        "failing:=test() { panic(\"expected failure\",loc=\"native-test\") }\n",
-        "after:=test() { panic(\"must not run\",loc=\"native-test\") }\n"))
+        "mode test\nbefore := test() { assert(true) }\n",
+        "failing := test() { panic(\"expected failure\",loc=\"native-test\") }\n",
+        "after := test() { panic(\"must not run\",loc=\"native-test\") }\n"))
     report := format("  pass: imported\n  pass: Library.member\n  pass: root\n",
         "  pass: Local.member\n  pass: Choice.member\n  pass: last\n6/6 tests passed\n")
     for width in array(Str,"32","64") {
@@ -171,13 +171,13 @@ check_test_command := proc(compiler: Str, work: Str) {
                 mut expected := report.clone()
                 if name=="cli_tests" { expected="  pass: inline_test\n1/1 tests passed\n" }
                 if name=="library_tests" { expected="  pass: library_test\n1/1 tests passed\n" }
-                mut output:=format("bin/test-",backend,"-",width)
+                mut output := format("bin/test-",backend,"-",width)
                 // FASM invokes its assembler with argv; exercise its existing
                 // space-containing output support separately from C's shell.
                 if backend=="fasm" { output=format("bin/test output-",width) }
-                command:=Cmd.new(compiler,"test",format("--backend=",backend),format("--usize=",width),"-o",output,format(name,".til"))
+                command := Cmd.new(compiler,"test",format("--backend=",backend),format("--usize=",width),"-o",output,format(name,".til"))
                 command.cwd(work).capture()
-                status:=command.run()
+                status := command.run()
                 expect(status==0,name,backend,width,command.out(),command.err())
                 expect(command.err()==format("=== interpret ===\n",expected,"=== compile + run ===\n",expected),command.err())
                 expect(File.is_file(format(work,"/",output)),"test executable missing")
@@ -187,11 +187,11 @@ check_test_command := proc(compiler: Str, work: Str) {
     check_shared(compiler,work,format(work,"/tests.til"))
     check_shared(compiler,work,format(work,"/empty_tests.til"))
     check_shared(compiler,work,format(work,"/failing_tests.til"),1)
-    artifact:=format(work,"/bin/interpreter-failure")
+    artifact := format(work,"/bin/interpreter-failure")
     File.remove(artifact)
-    fail:=Cmd.new(compiler,"test","--backend=fasm","-o","bin/interpreter-failure","failing_tests.til")
+    fail := Cmd.new(compiler,"test","--backend=fasm","-o","bin/interpreter-failure","failing_tests.til")
     fail.cwd(work).capture()
-    fail_status:=fail.run()
+    fail_status := fail.run()
     expect(fail_status==1,fail.out(),fail.err())
     expect(fail.err()=="=== interpret ===\n  pass: before\n",fail.err())
     expect(fail.out()=="native-test: panic: expected failure\n",fail.out())

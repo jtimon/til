@@ -2,18 +2,18 @@ mode cli
 
 // Global retention must keep the referent alive, not just copy/move its carrier.
 GlobalEscapeRef := enum { None, Some: ref I64 }
-GlobalEscapeRecord := struct { ref value: I64 }
+GlobalEscapeRecord := struct { ref value : I64 }
 global_escape_owner := vec(I64, 0)
 mut global_escape_saved := GlobalEscapeRef.None
 mut global_escape_record := GlobalEscapeRecord(value = global_escape_owner.unsafe_get(0))
-mut global_escape_many: Vec(GlobalEscapeRef) = Vec(GlobalEscapeRef).new()
+mut global_escape_many : Vec(GlobalEscapeRef) = Vec(GlobalEscapeRef).new()
 
 forward_global := proc(value: GlobalEscapeRef) { store_global_clone(value) }
 store_global_clone := proc(value: GlobalEscapeRef) { noop_proc(); global_escape_saved = value.clone() }
 store_global_owned := proc(own value: GlobalEscapeRef) { noop_proc(); global_escape_saved = value }
 store_global_number := proc(value: I64) { noop_proc(); global_escape_record.value = value }
 store_global_alias := proc(value: GlobalEscapeRef) {
-    ref mut target: GlobalEscapeRecord = global_escape_record
+    ref mut target : GlobalEscapeRecord = global_escape_record
     noop_proc()
     switch value {
     case .Some(n): target.value = n
@@ -22,7 +22,7 @@ store_global_alias := proc(value: GlobalEscapeRef) {
 }
 global_record_target := func() returns ref GlobalEscapeRecord { return global_escape_record }
 store_global_getter := proc(value: GlobalEscapeRef) {
-    ref mut target: GlobalEscapeRecord = global_record_target()
+    ref mut target : GlobalEscapeRecord = global_record_target()
     noop_proc()
     switch value {
     case .Some(n): target.value = n
@@ -94,8 +94,8 @@ bad_global_getter_direct := proc(n: I64) {
 }
 bad_global_getter_alias := proc(n: I64) {
     local := vec(I64, n)
-    ref mut target: GlobalEscapeRecord = global_record_target()
-    ref mut alias: GlobalEscapeRecord = target
+    ref mut target : GlobalEscapeRecord = global_record_target()
+    ref mut alias : GlobalEscapeRecord = target
     noop_proc()
     alias.value = local.unsafe_get(0)
 }
@@ -103,14 +103,14 @@ global_record_identity := func(value: GlobalEscapeRecord) returns ref GlobalEsca
 bad_global_getter_wrapper := proc(n: I64) {
     noop_proc()
     local := vec(I64, n)
-    ref mut alias: GlobalEscapeRecord = global_record_identity(global_record_target())
+    ref mut alias : GlobalEscapeRecord = global_record_identity(global_record_target())
     alias.value = local.unsafe_get(0)
 }
 bad_global_getter_rebind := proc(n: I64) {
     noop_proc()
     local := vec(I64, n)
     mut holder := GlobalEscapeRecord(value = global_escape_owner.unsafe_get(0))
-    ref mut alias: GlobalEscapeRecord = holder
+    ref mut alias : GlobalEscapeRecord = holder
     alias.value = global_escape_owner.unsafe_get(0)
     alias = global_record_target()
     alias.value = local.unsafe_get(0)
@@ -120,7 +120,7 @@ bad_global_getter_assign := proc(n: I64) {
     noop_proc()
     local := vec(I64, n)
     carrier := GlobalEscapeRecord(value = local.unsafe_get(0))
-    ref mut alias: GlobalEscapeRecord = global_record_target()
+    ref mut alias : GlobalEscapeRecord = global_record_target()
     alias = carrier
 }
 bad_global_getter_container := proc(n: I64) {
@@ -129,11 +129,11 @@ bad_global_getter_container := proc(n: I64) {
     global_many_target().push(own GlobalEscapeRef.Some(local.unsafe_get(0)))
 }
 
-Cell := struct { number: I64 = 0 }
+Cell := struct { number : I64 = 0 }
 store_through_rebound_getter := proc(value: I64) {
     noop_proc()
     mut holder := GlobalEscapeRecord(value = global_escape_owner.unsafe_get(0))
-    ref mut alias: GlobalEscapeRecord = holder
+    ref mut alias : GlobalEscapeRecord = holder
     alias.value = global_escape_owner.unsafe_get(0)
     alias = global_record_target()
     alias.value = value
@@ -141,7 +141,7 @@ store_through_rebound_getter := proc(value: I64) {
 store_through_conditional_getter := proc(value: I64, change: Bool) {
     noop_proc()
     mut holder := GlobalEscapeRecord(value = global_escape_owner.unsafe_get(0))
-    ref mut alias: GlobalEscapeRecord = holder
+    ref mut alias : GlobalEscapeRecord = holder
     alias.value = global_escape_owner.unsafe_get(0)
     if change { alias = global_record_target() }
     alias.value = value
@@ -149,9 +149,9 @@ store_through_conditional_getter := proc(value: I64, change: Bool) {
 store_through_rebound_alias := proc(value: I64) {
     noop_proc()
     mut holder := GlobalEscapeRecord(value = global_escape_owner.unsafe_get(0))
-    ref mut alias: GlobalEscapeRecord = holder
+    ref mut alias : GlobalEscapeRecord = holder
     alias.value = global_escape_owner.unsafe_get(0)
-    ref mut global_alias: GlobalEscapeRecord = global_record_target()
+    ref mut global_alias : GlobalEscapeRecord = global_record_target()
     alias = global_alias
     alias.value = value
 }

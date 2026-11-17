@@ -745,8 +745,8 @@ TErrIfaceConcrete := struct implements TErrConfIface {
 namespace:
     must := func(self: TErrIfaceConcrete) returns I64 { return self.x }
 }
-TErrIfaceHolder := struct { value: TErrConfIface }
-TErrIfaceOuter := struct { inner: TErrIfaceHolder }
+TErrIfaceHolder := struct { value : TErrConfIface }
+TErrIfaceOuter := struct { inner : TErrIfaceHolder }
 
 // #432: an interface-typed local follows the aggregate rule -- a bare binding
 // owns a copy of the concrete, `ref` borrows it. A `ref` binding is a ref
@@ -755,13 +755,13 @@ TErrIfaceOuter := struct { inner: TErrIfaceHolder }
 // temporary. A bare binding cannot silently own a ref-returning result.
 terr_iface_return_ref := func() returns TErrConfIface {
     source := TErrIfaceConcrete()
-    ref view: TErrConfIface = source
+    ref view : TErrConfIface = source
     return view
 }
 
 terr_iface_own_ref := func() returns I64 {
     source := TErrIfaceConcrete()
-    ref view: TErrConfIface = source
+    ref view : TErrConfIface = source
     mut values := Vec(own TErrConfIface).new()
     values.push(own view)
     return values[0].must()
@@ -771,8 +771,8 @@ terr_iface_own_ref_aliased := func() returns I64 {
     mut values := Vec(own TErrConfIface).new()
     if true {
         source := TErrIfaceConcrete()
-        ref view: TErrConfIface = source
-        ref mut alias: Vec(own TErrConfIface) = values
+        ref view : TErrConfIface = source
+        ref mut alias : Vec(own TErrConfIface) = values
         alias.push(own view)
     }
     return values[0].must()
@@ -780,24 +780,24 @@ terr_iface_own_ref_aliased := func() returns I64 {
 
 terr_iface_reassign_ref := func() returns I64 {
     mut source := TErrIfaceConcrete()
-    ref mut view: TErrConfIface = source
+    ref mut view : TErrConfIface = source
     view = TErrIfaceConcrete()
     return view.must()
 }
 
 terr_iface_ref_mut_immutable := func() returns I64 {
     source := TErrIfaceConcrete()
-    ref mut view: TErrConfIface = source
+    ref mut view : TErrConfIface = source
     return view.must()
 }
 
 terr_iface_ref_temporary := func() returns I64 {
-    ref view: TErrConfIface = TErrIfaceConcrete()
+    ref view : TErrConfIface = TErrIfaceConcrete()
     return view.must()
 }
 
 terr_iface_own_ref_result := func(values: Vec(TErrIfaceConcrete)) returns I64 {
-    view: TErrConfIface = values[0]
+    view : TErrConfIface = values[0]
     return view.must()
 }
 
@@ -846,7 +846,7 @@ namespace:
 }
 
 terr_iface_bad_assign := func() returns I64 {
-    mut view: TErrConfIface = TErrIfaceConcrete()
+    mut view : TErrConfIface = TErrIfaceConcrete()
     view = TErrConfNotIface()
     return view.must()
 }
@@ -952,7 +952,7 @@ namespace:
 // elided), so a mutating dispatch is a write to the immutable source.
 terr_iface_dispatch_payload := func() {
     source := TErrMutValue()
-    view: TErrMutDispatch = source
+    view : TErrMutDispatch = source
     view.bump()
 }
 
@@ -960,7 +960,7 @@ TErrDefaultProc := interface { announce := proc(_self: TErrDefaultProc) { print(
 terr_iface_default_effect := func(view: TErrDefaultProc) { view.announce() }
 terr_iface_default_payload := func() {
     source := TErrMutValue()
-    view: TErrMutDispatch = source
+    view : TErrMutDispatch = source
     view.bump_default()
 }
 terr_default_cell := TErrConfNotIface()
@@ -968,7 +968,7 @@ TErrDefaultBorrow := interface {
     get := func(_self: TErrDefaultBorrow, own _text: Str) returns ref I64 { return terr_default_cell.y }
 }
 terr_iface_default_ref_mut := func(view: TErrDefaultBorrow) {
-    ref mut value: I64 = view.get(own "unused")
+    ref mut value : I64 = view.get(own "unused")
     value++
 }
 

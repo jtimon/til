@@ -19,7 +19,7 @@ priv map_store_key := macro(K: Type, V: Type) returns FuncDef {
 priv map_set := macro(K: Type, V: Type) returns FuncDef {
     if type_arg_is_ref(V) {
         return func(mut self: Map(K, V), key: K, val: V) {
-            mut lo: USize = 0
+            mut lo : USize = 0
             mut hi := self.keys.count
             mut found := false
             while lo < hi {
@@ -37,7 +37,7 @@ priv map_set := macro(K: Type, V: Type) returns FuncDef {
         }
     } else {
         return func(mut self: Map(K, V), key: K, own val: V) {
-            mut lo: USize = 0
+            mut lo : USize = 0
             mut hi := self.keys.count
             mut found := false
             while lo < hi {

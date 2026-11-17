@@ -13,7 +13,7 @@ bang_value := func(fail: Bool) returns I64 throws BangError {
 top_value := bang_value(false)!
 
 GenericError := struct {
-    message: Str = "generic failure"
+    message : Str = "generic failure"
 }
 
 generic_throw := func(T: Type, value: T, fail: Bool) returns I64 throws T {

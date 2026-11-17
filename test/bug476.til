@@ -5,8 +5,8 @@ mode cli
 // an outer one of another type was thrown as the outer type. The throw
 // annotation pre-pass now resolves the identifier lexically.
 
-Oops := struct { code: I64 = 0 }
-Other := struct { text: Str = "" }
+Oops := struct { code : I64 = 0 }
+Other := struct { text : Str = "" }
 
 inner_error_outer_scalar := proc(flag: Bool) throws Oops {
     e := 10

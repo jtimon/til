@@ -39,9 +39,9 @@ priv check_dynamic_widths := proc(compiler: Str) {
     // Match each diagnostic, rather than accepting the first error as proof
     // that the other operands were checked.
     File.writefile(format(WORK, "/dynamic_wide.til"),
-        "mode script\nx : U64 = 123\na := array(Dynamic, x)\nprintln(a.len().to_str())\ny : U64 = 456\nmut v := Vec(Dynamic).new()\nv.push(own y)\nprintln(v.len().to_str())\nPair := struct { a: UPtr; b: UPtr }\np := Pair(a = 1, b = 2)\npa := array(Dynamic, p)\nprintln(pa.len().to_str())\n")
+        "mode script\nx : U64 = 123\na := array(Dynamic, x)\nprintln(a.len().to_str())\ny : U64 = 456\nmut v := Vec(Dynamic).new()\nv.push(own y)\nprintln(v.len().to_str())\nPair := struct { a : UPtr; b : UPtr }\np := Pair(a = 1, b = 2)\npa := array(Dynamic, p)\nprintln(pa.len().to_str())\n")
     File.writefile(format(WORK, "/dynamic_shallow.til"),
-        format("mode lib\nWord := struct { bits: UPtr }\nNested := struct { word: Word }\nPair := struct { a: U32; b: U32 }\nread_word := func(x: Nested) returns UPtr { return x.word.bits }\nread_pair := func(x: Pair) returns U32 { return x.a + x.b }\nmake_words := func() returns Array(Dynamic) { x := Nested(word = Word(bits = 123)); return array(Dynamic, x) }\n",
+        format("mode lib\nWord := struct { bits : UPtr }\nNested := struct { word : Word }\nPair := struct { a : U32; b : U32 }\nread_word := func(x: Nested) returns UPtr { return x.word.bits }\nread_pair := func(x: Pair) returns U32 { return x.a + x.b }\nmake_words := func() returns Array(Dynamic) { x := Nested(word = Word(bits = 123)); return array(Dynamic, x) }\n",
         "priv make_size_count := macro() returns FuncDef {\nif USize.size() <= UPtr.size() { return func(count: USize) returns UPtr { return count.to_uptr() } }\nelse { return func(count: USize) returns UPtr { converted := count.to_uptr(); if converted.cast(U64) != count.cast(U64) { panic(\"usize_to_uptr: byte count exceeds pointer width\") }; return converted } }\n}\nconvert_count := make_size_count()\n",
         "size_is_two := macro(T: Type) returns FuncDef { if T.size() == 2 { return func() returns Bool { return true } } else { return func() returns Bool { return false } } }\n",
         "check_dynamic := proc(name: Str) {\nif Dynamic.size() != UPtr.size() { panic(\"Dynamic width\") }\nif dyn_size_of(name) != Dynamic.size() { panic(\"runtime width\") }\nx : UPtr = 123\ny : UPtr = 456\na := array(Dynamic, x, y)\nmut v := Vec(Dynamic).new()\nv.push(own x)\nv.push(own y)\nmut t := Tuple.new()\nt.push_all_dynamic(a)\nref first : UPtr = t.get(0)\nref second : UPtr = t.get(1)\nref last : UPtr = v.unsafe_get(1)\nif first != 123 || second != 456 || last != 456 { panic(\"word copy/stride\") }\nif t.size_at(0) != Dynamic.size() { panic(\"tuple width\") }\nprintln(\"dynamic widths passed\")\n}\n"))
@@ -144,7 +144,7 @@ main := proc(args: ..Str) {
     // A well-typed runtime value is not a compile-time input. Failure must
     // diagnose the unavailable value, never select the false branch.
     File.writefile(format(WORK, "/dynamic_wide.til"),
-        "mode script\nmut runtime_limit: USize = 8\nchoose := macro(T: Type) returns FuncDef { if T.size_for_target() <= runtime_limit { return func() returns I64 { return 1 } } else { return func() returns I64 { return 2 } } }\nchosen := choose(U8)\nprintln(chosen().to_str())\n")
+        "mode script\nmut runtime_limit : USize = 8\nchoose := macro(T: Type) returns FuncDef { if T.size_for_target() <= runtime_limit { return func() returns I64 { return 1 } } else { return func() returns I64 { return 2 } } }\nchosen := choose(U8)\nprintln(chosen().to_str())\n")
     reject(Cmd.new(compiler, "translate", "dynamic_wide.til"),
         "not known at compile time")
     // A condition may run an ordinary custom method that builds a container,
@@ -154,7 +154,7 @@ main := proc(args: ..Str) {
     // this replaced answered sizes for the target while the condition ran
     // and had to reject this program on a cross-width build.
     File.writefile(format(WORK, "/dynamic_wide.til"),
-        "mode script\nRecord := struct { address: UPtr; byte: U8 }\nCustom := struct { namespace:\nsize := func() returns USize { values := array(Record, Record(address = 11, byte = 3), Record(address = 22, byte = 5)); ref second: Record = values.unsafe_get(1); return second.byte.to_usize() }\n}\nchoose := macro(skip: Bool) returns FuncDef { if skip || Custom.size() == 5 { return func() returns Bool { return true } } else { return func() returns Bool { return false } } }\nselected := choose(true)\nassert(selected())\n")
+        "mode script\nRecord := struct { address : UPtr; byte : U8 }\nCustom := struct { namespace:\nsize := func() returns USize { values := array(Record, Record(address = 11, byte = 3), Record(address = 22, byte = 5)); ref second : Record = values.unsafe_get(1); return second.byte.to_usize() }\n}\nchoose := macro(skip: Bool) returns FuncDef { if skip || Custom.size() == 5 { return func() returns Bool { return true } } else { return func() returns Bool { return false } } }\nselected := choose(true)\nassert(selected())\n")
     _skipped := execute(Cmd.new(compiler, "translate", "--target=linux-x86", "--usize=64", "dynamic_wide.til"))
     source := File.readfile(format(WORK, "/dynamic_wide.til"))
     File.writefile(format(WORK, "/dynamic_wide.til"), source.replace("choose(true)", "choose(false)"))

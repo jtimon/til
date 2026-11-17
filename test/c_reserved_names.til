@@ -7,8 +7,8 @@ mode test
 // the interpreter ran the same program.
 
 Pair := struct {
-    short: I64 = 1
-    auto: I64 = 2
+    short : I64 = 1
+    auto : I64 = 2
 namespace:
     register := func(self: Pair) returns I64 { return self.short + self.auto }
     double := func(mut self: Pair) { self.short = self.short * 2 }
@@ -113,14 +113,14 @@ test_enum_variants := test() {
 
 // --- Nested fields, globals, function values, throws, variadics ---
 
-Inner := struct { long: I64 = 3 }
+Inner := struct { long : I64 = 3 }
 Outer := struct {
-    signed: Inner = Inner()
-    char: Str = "c"
-    float: Vec(I64) = Vec(I64).new()
+    signed : Inner = Inner()
+    char : Str = "c"
+    float : Vec(I64) = Vec(I64).new()
 }
 
-Err452 := struct { msg: Str = "" }
+Err452 := struct { msg : Str = "" }
 
 // Globals, a keyword and a predefined macro each.
 static := 5

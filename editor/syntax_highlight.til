@@ -33,7 +33,7 @@ test_switch_enum : proc(mut arg1: Type, mut arg2: Type, mut arg3: Type) returns 
     // darker green (test_switch_enum), yellow (to_switch), blue (mut, returns), red (ExampleEnum, Str)
     mut to_return : Str = ""
     // yellow (to_return), red (Str)
-    mut mutable_var: i64 = 42
+    mut mutable_var : i64 = 42
     // yellow (mutable_var), red (i64)
     switch to_switch {
         // blue (switch)
@@ -83,7 +83,7 @@ mut bbb := 0
 x : i64 = 42
 // purple (x), red (i64)
 mut y : i64 = 42
-mut y: i64 = 42
+mut y : i64 = 42
 // yellow (y), red (i64)
 mut string_field := ""
 // yellow (string_field), light green ("")

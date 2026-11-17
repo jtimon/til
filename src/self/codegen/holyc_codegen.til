@@ -3678,9 +3678,9 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
             }
             if method.eq("shl").or(method.eq("shr")) {
                 state.needs_integer_shift=true
-                mut right_flag:="FALSE";if method=="shr" {right_flag="TRUE"}
-                mut signed_flag:="FALSE";if owner.starts_with("I") {signed_flag="TRUE"}
-                mut shifted:=format("TilIntegerShift(",left,", ",right,", ",numeric_cast_integer_bits(owner).to_str(),", ",right_flag,", ",signed_flag,")")
+                mut right_flag := "FALSE";if method=="shr" {right_flag="TRUE"}
+                mut signed_flag := "FALSE";if owner.starts_with("I") {signed_flag="TRUE"}
+                mut shifted := format("TilIntegerShift(",left,", ",right,", ",numeric_cast_integer_bits(owner).to_str(),", ",right_flag,", ",signed_flag,")")
                 if owner.starts_with("I") {shifted=format("(",shifted,")(I64)")}
                 return holyc_narrow_wrap(shifted,owner)
             }

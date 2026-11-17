@@ -349,7 +349,7 @@ test_option_peek_borrowed_subject_still_copies := test() {
 }
 
 OwnedOptionNode := struct {
-    value: I64 = 0
+    value : I64 = 0
     next := Option(OwnedOptionNode).None
 }
 
@@ -369,9 +369,9 @@ test_option_owned_recursive_clone := test() {
     }
 }
 
-mut option_color_clones: I64 = 0
-mut option_color_drops: I64 = 0
-mut option_color_comparisons: I64 = 0
+mut option_color_clones : I64 = 0
+mut option_color_drops : I64 = 0
+mut option_color_comparisons : I64 = 0
 OptionColor := enum(U64) {
     Red = 7, Blue = 3
 namespace:

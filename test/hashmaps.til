@@ -303,7 +303,7 @@ test_hashmap_with_capacity_zero_is_lazy := test() {
 
 priv collision_hash := func(data: Dynamic, n: USize) returns U64 { return fnv1a(data,n).band(0) }
 priv hash_width := func(_: Dynamic, n: USize) returns U64 { return n.to_u64() }
-OwnedValue := struct { text: Str; number: I64 }
+OwnedValue := struct { text : Str; number : I64 }
 priv make_hasher := func(seed: U64) returns HashFn {
     return func(data: Dynamic, n: USize) returns U64 [shallow seed] { return fnv1a(data,n).bxor(seed) }
 }
@@ -407,8 +407,8 @@ test_hashmap_owned_records := test() {
 Callback := func(I64) returns I64
 DropCount := struct { closed : I64 = 0; created : I64 = 0 }
 Resource := struct {
-    text: Str
-    ref count: DropCount
+    text : Str
+    ref count : DropCount
 namespace:
     delete := func(own self: Resource, call_free: Bool = true) {
         self.count.closed++
@@ -421,7 +421,7 @@ priv make_callback := func(mut count: DropCount, label: Str) returns Callback {
     resource := Resource(text = label.clone(), count = count)
     return func(value: I64) returns I64 [own resource] { return value + resource.text.len().to_i64() }
 }
-Items := struct { words: Vec(Str) }
+Items := struct { words : Vec(Str) }
 Payload := enum { Empty, Text: Str, Items: Items, Run: Callback }
 AliasPayload := enum { Empty, Count: USize, Address: UPtr }
 

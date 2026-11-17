@@ -2428,14 +2428,14 @@ priv process_match_arms_in := proc(
                         // checks, then leave the value after those checks. The
                         // binding stays inside the arm, preserving laziness.
                         if ccn.children.len()>0 {
-                            last:=ccn.children.len()-1
-                            ref tail:Expr=ccn.children[last]
+                            last := ccn.children.len()-1
+                            ref tail : Expr= ccn.children[last]
                             if tail.node_type.is(NodeType.FCall).and(fcall_of(tail).is_bang) {
-                                line:=tail.line
-                                col:=tail.col
-                                name:=format("match_value_",synth_suffix(ctx,ctx.bang_counter.to_str()))
+                                line := tail.line
+                                col := tail.col
+                                name := format("match_value_",synth_suffix(ctx,ctx.bang_counter.to_str()))
                                 ctx.bang_counter++
-                                mut value:=Expr.new(own NodeType.Decl(Declaration(name=name.clone(),infer_call_ownership=true)),line,col)
+                                mut value := Expr.new(own NodeType.Decl(Declaration(name=name.clone(),infer_call_ownership=true)),line,col)
                                 value.children.push_take(ccn.children,last)
                                 ccn.children[last]=value
                                 ccn.add_child(own Expr.new(own ident_node(ctx.symbols.intern(name)),line,col))
@@ -3532,7 +3532,7 @@ make_switch_case_condition := func(mut scope: TypeScope, mut case_body: Expr, ma
                                         payload_const := enum_variant_payload_const(enum_def, vt_idx)
                                         bind_is_mut := source_mut.and(payload_const.not())
                                         mut referent_mut := borrow_source_is_writable(scope, sw_ref, symbols).and(payload_const.not())
-                                        ref variant: VariantDef = enumdef_of(enum_def).variants[vt_idx.to_usize()]
+                                        ref variant : VariantDef = enumdef_of(enum_def).variants[vt_idx.to_usize()]
                                         if variant.payload_ref { referent_mut = variant.payload_ref_mut }
                                         // #164: a ref-mut payload binding allows writes that
                                         // propagate back into the source's payload memory, so
@@ -4039,7 +4039,7 @@ prepend_clike_payload_binding := func(mut scope: TypeScope, enum_def: Expr, sw_e
     payload_const := enum_variant_payload_const(enum_def, vt_idx)
     bind_is_mut := source_mut.and(payload_const.not())
     mut referent_mut := borrow_source_is_writable(scope, sw_expr, symbols).and(payload_const.not())
-    ref variant: VariantDef = enumdef_of(enum_def).variants[vt_idx.to_usize()]
+    ref variant : VariantDef = enumdef_of(enum_def).variants[vt_idx.to_usize()]
     if variant.payload_ref { referent_mut = variant.payload_ref_mut }
     // Mark the scrutinee's root binding written: the case body holds a `ref`
     // into the scrutinee's payload (get_payload) and may write through it

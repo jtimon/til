@@ -32,7 +32,7 @@ shared_cell_callback_tests := proc(root: Str) returns TransformError {
     File.writefile("guest.til", format(
         "mode lib\nSharedScalar := enum { None, Some: ref I64 }\n",
         "SharedTagged := enum(U8) { Empty = 5, Cell: ref I64 = 7, Number: I64 = 9 }\n",
-        "TransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "TransformError := struct { code : I32 = 0; message := \"\" }\n",
         "mut saved := SharedScalar.None\nmut calls := 0\nother := vec(I64, 123)\n",
         "retain_cell := proc(value: SharedScalar) { noop_proc(); calls = calls + 1; saved = value.clone() }\n",
         "read_calls := proc() returns I64 { noop_proc(); return calls }\n",
@@ -71,7 +71,7 @@ shared_cell_callback_tests := proc(root: Str) returns TransformError {
     mut nested_args := Tuple.new()
     nested_args.push(SharedNested, own SharedNested(value = SharedScalar.Some(cell)))
     nested_cell.call(nested_args)!
-    ref nested_result: SharedNested = nested_args.get(0)
+    ref nested_result : SharedNested = nested_args.get(0)
     assert(nested_result.value.is(SharedScalar.None))
     mut erased := vm.lookup("dynamic", SharedDynamic)!
     mut keyword := vm.lookup("keywords", SharedKeywords)!
@@ -79,7 +79,7 @@ shared_cell_callback_tests := proc(root: Str) returns TransformError {
     erased_args.push(SharedScalar, own SharedScalar.Some(cell))
     erased.call(erased_args)!
     tail_result := tail_cell.call(erased_args)!
-    ref tail_count: I64 = tail_result.get(0)
+    ref tail_count : I64 = tail_result.get(0)
     assert(tail_count == 1)
     mut keyword_args := KwargsMap.new()
     keyword_args.set("cell", "SharedScalar", SharedScalar.size(), own SharedScalar.Some(cell))
@@ -87,18 +87,18 @@ shared_cell_callback_tests := proc(root: Str) returns TransformError {
     keyword.call(empty_args, keywords = keyword_args)!
     mut native_input := Tuple.new()
     native_input.push(I64, own 20)
-    ref mut native: I64 = native_input.get(0)
+    ref mut native : I64 = native_input.get(0)
     mut native_args := Tuple.new()
     native_args.push(SharedScalar, own SharedScalar.Some(native))
     retain.call(native_args)!
     mut other_vm := TilVm.new(root)
-    ref mut other_cell: I64 = other_vm.shared_i64()
+    ref mut other_cell : I64 = other_vm.shared_i64()
     other_cell = 30
     mut foreign := Tuple.new()
     foreign.push(SharedScalar, own SharedScalar.Some(other_cell))
     retain.call(foreign)!
     before := reader.call()!
-    ref count: I64 = before.get(0)
+    ref count : I64 = before.get(0)
     assert(count == 4 && native == 20 && other_cell == 30)
     // Guest retention survives destruction of the input Tuple and callback.
     mut input := Tuple.new()
@@ -110,7 +110,7 @@ shared_cell_callback_tests := proc(root: Str) returns TransformError {
     assert(cell == 11)
     cell = 40
     observed := tick.call()!
-    ref observed_value: I64 = observed.get(0)
+    ref observed_value : I64 = observed.get(0)
     assert(observed_value == 41 && cell == 41)
     mut kept_error := TransformError()
     for action in 0..5 {
@@ -128,7 +128,7 @@ shared_cell_callback_tests := proc(root: Str) returns TransformError {
         }
         if action == 1 || action == 2 || action == 3 { assert(caught) }
         if action == 4 {
-            ref replaced: SharedScalar = args.get(0)
+            ref replaced : SharedScalar = args.get(0)
             switch replaced {
             case .Some(n): assert(n == 123)
             case: panic("borrow replacement was lost")
@@ -139,7 +139,7 @@ shared_cell_callback_tests := proc(root: Str) returns TransformError {
     tick.call()!
     assert(cell == 52)
     borrowed_result := return_cell.call()!
-    ref borrowed: SharedScalar = borrowed_result.get(0)
+    ref borrowed : SharedScalar = borrowed_result.get(0)
     switch borrowed {
     case .Some(n): assert(ptr_eq(n, cell) && n == 52)
     case: panic("returned borrow was lost")
@@ -157,7 +157,7 @@ shared_cell_callback_tests := proc(root: Str) returns TransformError {
     mut tagged_args := Tuple.new()
     tagged_args.push(SharedTagged, own SharedTagged.Cell(cell))
     tagged_result := tagged.call(tagged_args)!
-    ref tagged_value: I64 = tagged_result.get(0)
+    ref tagged_value : I64 = tagged_result.get(0)
     assert(tagged_value == 52)
     // None has no pointer and is a normal legal input.
     mut none := Tuple.new()
@@ -186,8 +186,8 @@ shared_cell_callback_tests := proc(root: Str) returns TransformError {
     return kept_error
 }
 
-SharedRecordData := struct { text := ""; marker: I32 = 0 }
-SharedRecord := struct { label := ""; byte: U8 = 0; ref first: I64; data := SharedRecordData(); ref second: I64; count: I32 = 0 }
+SharedRecordData := struct { text := ""; marker : I32 = 0 }
+SharedRecord := struct { label := ""; byte : U8 = 0; ref first : I64; data := SharedRecordData(); ref second : I64; count : I32 = 0 }
 SharedRecordError := struct { message := "" }
 SharedRecordRetain := proc(SharedRecord)
 SharedRecordBorrow := proc(mut SharedRecord, I64) returns I64 throws SharedRecordError
@@ -195,11 +195,11 @@ SharedRecordOwned := proc(own mut SharedRecord) returns Str
 SharedRecordReturn := func() returns SharedRecord
 SharedRecordThrow := proc() throws SharedRecord
 SharedRecordTail := func(values: ..SharedRecord) returns I64
-SharedRecordNested := struct { record: SharedRecord }
+SharedRecordNested := struct { record : SharedRecord }
 SharedRecordNestedInput := proc(mut SharedRecordNested)
 
 retain_shared_record := proc(mut callback: TilVmCallback, mut vm: TilVm) {
-    ref mut cell: I64 = vm.shared_i64()
+    ref mut cell : I64 = vm.shared_i64()
     mut input := Tuple.new()
     input.push(SharedRecord, own SharedRecord(label = format("retained ", "label"), first = cell,
         data = SharedRecordData(text = format("retained ", "data")), second = cell))
@@ -207,29 +207,29 @@ retain_shared_record := proc(mut callback: TilVmCallback, mut vm: TilVm) {
 }
 
 shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
-    schema := "SharedRecordData := struct { text := \"\"; marker: I32 = 0 }\nSharedRecord := struct { label := \"\"; byte: U8 = 0; ref first: I64; data := SharedRecordData(); ref second: I64; count: I32 = 0 }\n"
+    schema := "SharedRecordData := struct { text := \"\"; marker : I32 = 0 }\nSharedRecord := struct { label := \"\"; byte : U8 = 0; ref first : I64; data := SharedRecordData(); ref second : I64; count : I32 = 0 }\n"
     File.writefile("guest.til", format("mode lib\n", schema,
         "SharedRecordError := struct { message := \"\" }\nother := vec(I64, 123)\nmut calls := 0\n",
         "mut saved := SharedRecord(first = other.unsafe_get(0), second = other.unsafe_get(0))\n",
         "retain_record := proc(value: SharedRecord) { noop_proc(); calls = calls + 1; saved = value.clone() }\n",
         "read_calls := proc() returns I64 { noop_proc(); return calls }\n",
-        "tick_record := proc() returns I64 { noop_proc(); assert(saved.label == \"retained label\" && saved.data.text == \"retained data\"); ref mut first: I64 = saved.first; ref second: I64 = saved.second; first = first + 1; return second.clone() }\n",
+        "tick_record := proc() returns I64 { noop_proc(); assert(saved.label == \"retained label\" && saved.data.text == \"retained data\"); ref mut first : I64 = saved.first; ref second : I64 = saved.second; first = first + 1; return second.clone() }\n",
         "borrow_record := proc(mut value: SharedRecord, action: I64) returns I64 throws SharedRecordError {\n",
-        "noop_proc(); calls = calls + 1; ref mut first: I64 = value.first; ref second: I64 = value.second; first = first + 2; assert(first == second);\n",
+        "noop_proc(); calls = calls + 1; ref mut first : I64 = value.first; ref second : I64 = value.second; first = first + 2; assert(first == second);\n",
         "value.label = \"updated label\"; value.data.text = \"updated data\"; value.count = 19;\n",
         "if action == 1 { throw SharedRecordError(message = \"record borrow error\") }; if action == 2 { panic(\"record borrow panic\") }; if action == 3 { exit(0) };\n",
         "if action == 4 { value = SharedRecord(label = \"replacement\", first = saved.first, second = other.unsafe_get(0)) }; return second.clone() }\n",
-        "consume_record := proc(own mut value: SharedRecord) returns Str { noop_proc(); ref mut first: I64 = value.first; first = first + 3; value.label = \"owned label\"; value.data.text = \"owned data\"; return value.label.clone() }\n",
+        "consume_record := proc(own mut value: SharedRecord) returns Str { noop_proc(); ref mut first : I64 = value.first; first = first + 3; value.label = \"owned label\"; value.data.text = \"owned data\"; return value.label.clone() }\n",
         "return_record := func() returns SharedRecord { return saved.clone() }\n",
-        "throw_record := proc() throws SharedRecord { noop_proc(); error: SharedRecord = saved.clone(); throw error }\n",
+        "throw_record := proc() throws SharedRecord { noop_proc(); error : SharedRecord = saved.clone(); throw error }\n",
         "tail_record := func(values: ..SharedRecord) returns I64 { return values.len().to_i64() }\n",
-        "SharedRecordNested := struct { record: SharedRecord }\nnested_record := proc(mut value: SharedRecordNested) { noop_proc(); value.record.count = 7 }\n",
+        "SharedRecordNested := struct { record : SharedRecord }\nnested_record := proc(mut value: SharedRecordNested) { noop_proc(); value.record.count = 7 }\n",
         "dynamic := proc(values: ..Dynamic) { noop_proc(); calls = calls + values.len().to_i64() }\n",
         "keywords := proc(options: ...) { noop_proc(); calls = calls + options.len().to_i64() }\n"))
     mut vm := TilVm.new(root)
     vm.load_file("guest.til")?
     catch (error: TilVmError) { panic(error.to_str()) }
-    ref mut cell: I64 = vm.shared_i64()
+    ref mut cell : I64 = vm.shared_i64()
     cell = 10
     mut retain := vm.lookup("retain_record", SharedRecordRetain)!
     mut borrow := vm.lookup("borrow_record", SharedRecordBorrow)!
@@ -242,9 +242,9 @@ shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
     mut nested_record := vm.lookup("nested_record", SharedRecordNestedInput)!
     mut native_values := Tuple.new()
     native_values.push(I64, own 20)
-    ref native: I64 = native_values.get(0)
+    ref native : I64 = native_values.get(0)
     mut other_vm := TilVm.new(root)
-    ref mut other_cell: I64 = other_vm.shared_i64()
+    ref mut other_cell : I64 = other_vm.shared_i64()
     other_cell = 30
     mut native_args := Tuple.new()
     native_args.push(SharedRecord, own SharedRecord(first = cell, second = native))
@@ -258,27 +258,27 @@ shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
     erased.push(SharedRecord, own SharedRecord(first = cell, second = cell))
     dynamic.call(erased)!
     tail_result := tail_record.call(erased)!
-    ref tail_count: I64 = tail_result.get(0)
+    ref tail_count : I64 = tail_result.get(0)
     assert(tail_count == 1)
     mut nested := Tuple.new()
     nested.push(SharedRecordNested, own SharedRecordNested(record = SharedRecord(first = cell, second = native)))
     nested_record.call(nested)!
-    ref nested_result: SharedRecordNested = nested.get(0)
+    ref nested_result : SharedRecordNested = nested.get(0)
     assert(nested_result.record.count == 7)
-    ref nested_first: I64 = nested_result.record.first
-    ref nested_second: I64 = nested_result.record.second
+    ref nested_first : I64 = nested_result.record.first
+    ref nested_second : I64 = nested_result.record.second
     assert(ptr_eq(nested_first, cell) && ptr_eq(nested_second, native))
     mut options := KwargsMap.new()
     options.set("record", "SharedRecord", SharedRecord.size(), own SharedRecord(first = cell, second = cell))
     mut empty := Tuple.new()
     keywords.call(empty, keywords = options)!
     before := reader.call()!
-    ref count: I64 = before.get(0)
+    ref count : I64 = before.get(0)
     assert(count == 4 && cell == 10 && native == 20 && other_cell == 30)
     retain_shared_record(retain, vm)
     own retain.delete()
     observed := tick.call()!
-    ref observed_value: I64 = observed.get(0)
+    ref observed_value : I64 = observed.get(0)
     assert(observed_value == 11 && cell == 11)
     cell = 40
     tick.call()!
@@ -299,9 +299,9 @@ shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
             caught = true
         }
         if action == 1 || action == 2 || action == 3 { assert(caught) }
-        ref updated: SharedRecord = args.get(0)
-        ref updated_first: I64 = updated.first
-        ref updated_second: I64 = updated.second
+        ref updated : SharedRecord = args.get(0)
+        ref updated_first : I64 = updated.first
+        ref updated_second : I64 = updated.second
         if action == 4 {
             assert(updated_first == 51 && updated_second == 123)
             assert(updated.label == "replacement" && updated.data.text.len() == 0 && updated.count == 0)
@@ -315,23 +315,23 @@ shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
     owned_input.push(SharedRecord, own SharedRecord(label = format("host ", "owned"), first = cell,
         data = SharedRecordData(text = format("original ", "data")), second = cell))
     owned_result := consume.call(owned_input)!
-    ref original: SharedRecord = owned_input.get(0)
+    ref original : SharedRecord = owned_input.get(0)
     assert(original.label == "host owned" && original.data.text == "original data")
-    ref original_first: I64 = original.first
-    ref original_second: I64 = original.second
+    ref original_first : I64 = original.first
+    ref original_second : I64 = original.second
     assert(original_first == 54 && original_second == 54 && cell == 54)
     tick.call()!
     assert(cell == 55)
     returned := return_record.call()!
-    ref returned_value: SharedRecord = returned.get(0)
-    ref returned_first: I64 = returned_value.first
-    ref returned_second: I64 = returned_value.second
+    ref returned_value : SharedRecord = returned.get(0)
+    ref returned_first : I64 = returned_value.first
+    ref returned_second : I64 = returned_value.second
     assert(ptr_eq(returned_first, cell) && ptr_eq(returned_second, cell))
     mut caught_record := false
     call_throwing(SharedRecordThrow)(throw_record)?
     catch (error: SharedRecord) {
-        ref first: I64 = error.first
-        ref second: I64 = error.second
+        ref first : I64 = error.first
+        ref second : I64 = error.second
         caught_record = ptr_eq(first, cell) && ptr_eq(second, cell) && error.label == "retained label"
     }
     catch (error: TilVmError) { panic(error.to_str()) }
@@ -351,12 +351,12 @@ shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
     own throw_record.delete()
     own tail_record.delete()
     own nested_record.delete()
-    ref owned_text: Str = owned_result.get(0)
+    ref owned_text : Str = owned_result.get(0)
     assert(owned_text == "owned label")
     // Each schema mismatch must be caught before the guest is invoked.
     for fields: Str in array(Str,
-        schema.replace("ref first: I64", "ref first: U64"),
-        schema.replace("ref first: I64", "first: I64 = 0")) {
+        schema.replace("ref first : I64", "ref first : U64"),
+        schema.replace("ref first : I64", "first : I64 = 0")) {
         File.writefile("guest.til", format("mode lib\n", fields,
             "retain_record := proc(value: SharedRecord) { noop_proc(); assert(value.count == 0) }\n"))
         mut bad_schema := TilVm.new(root)
@@ -366,10 +366,10 @@ shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
     return kept_error
 }
 
-BorrowedData := struct { message := ""; count: I32 = 0 }
+BorrowedData := struct { message := ""; count : I32 = 0 }
 BorrowedTextView := enum { None, Some: ref Str }
 BorrowedDataView := enum { None, Some: ref BorrowedData }
-BorrowedBundle := struct { label := ""; ref number: U64; ref text: Str; ref data: BorrowedData; view := BorrowedTextView.None }
+BorrowedBundle := struct { label := ""; ref number : U64; ref text : Str; ref data : BorrowedData; view := BorrowedTextView.None }
 TouchBorrowed := proc(own mut BorrowedBundle, I64) returns BorrowedBundle throws BorrowedBundle
 ReadBorrowed := func() returns BorrowedBundle
 InspectBorrowed := proc(values: ..Dynamic, options: ...) returns Str
@@ -378,20 +378,20 @@ ViewBorrowedData := func(BorrowedData) returns BorrowedDataView
 
 ordinary_borrow_callback_tests := proc(root: Str) {
     File.writefile("guest.til", format(
-        "mode lib\nBorrowedData := struct { message := \"\"; count: I32 = 0 }\n",
+        "mode lib\nBorrowedData := struct { message := \"\"; count : I32 = 0 }\n",
         "BorrowedTextView := enum { None, Some: ref Str }\n",
         "BorrowedDataView := enum { None, Some: ref BorrowedData }\n",
         "SharedScalar := enum { None, Some: ref I64 }\n",
-        "BorrowedBundle := struct { label := \"\"; ref number: U64; ref text: Str; ref data: BorrowedData; view := BorrowedTextView.None }\n",
+        "BorrowedBundle := struct { label := \"\"; ref number : U64; ref text : Str; ref data : BorrowedData; view := BorrowedTextView.None }\n",
         "mut saved := Option(BorrowedBundle).None\n",
         "touch_borrowed := proc(own mut value: BorrowedBundle, action: I64) returns BorrowedBundle throws BorrowedBundle {\n",
-        "noop_proc(); ref mut number: U64 = value.number; ref mut text: Str = value.text; ref mut data: BorrowedData = value.data;\n",
+        "noop_proc(); ref mut number : U64 = value.number; ref mut text : Str = value.text; ref mut data : BorrowedData = value.data;\n",
         "number = number + 1; text.push_str(\"!\"); data.count = data.count + 1; data.message = format(data.message, \"+\");\n",
         "value.label = \"guest label\"; value.view = BorrowedTextView.Some(text); saved = Option(BorrowedBundle).Some(value.clone());\n",
         "if action == 1 { throw BorrowedBundle.clone(value) }; return value.clone() }\n",
         "read_borrowed := func() returns BorrowedBundle { return saved.unwrap() }\n",
-        "inspect_borrowed := proc(values: ..Dynamic, options: ...) returns Str { noop_proc(); ref value: BorrowedBundle = values.get(0);\n",
-        "ref text: Str = value.text; ref data: BorrowedData = value.data; ref view: BorrowedTextView = options.get(\"view\");\n",
+        "inspect_borrowed := proc(values: ..Dynamic, options: ...) returns Str { noop_proc(); ref value : BorrowedBundle = values.get(0);\n",
+        "ref text : Str = value.text; ref data : BorrowedData = value.data; ref view : BorrowedTextView = options.get(\"view\");\n",
         "switch view { case .Some(other): assert(ptr_eq(other, text)); case: panic(\"borrow lost\") }; return format(text, \"/\", data.message) }\n",
         "aliased_borrowed := proc(mut number: I64, view: SharedScalar) returns I64 { noop_proc(); number = number + 1; switch view { case .Some(n): assert(n == number); return n.clone(); case: return -1 } }\n",
         "view_borrowed_data := func(value: BorrowedData) returns BorrowedDataView { return BorrowedDataView.Some(value) }\n"))
@@ -406,24 +406,24 @@ ordinary_borrow_callback_tests := proc(root: Str) {
     aliases.push(I64, own 5)
     aliases.push(SharedScalar, own SharedScalar.None)
     // Bind only after packing: growing Tuple may move its backing storage.
-    ref aliased_number: I64 = aliases.get(0)
-    ref mut view: SharedScalar = aliases.get(1)
+    ref aliased_number : I64 = aliases.get(0)
+    ref mut view : SharedScalar = aliases.get(1)
     move(SharedScalar, view, own SharedScalar.Some(aliased_number))
     alias_result := aliased.call(aliases)!
-    ref alias_value: I64 = alias_result.get(0)
+    ref alias_value : I64 = alias_result.get(0)
     assert(alias_value == 6 && aliased_number == 6)
     own aliased.delete()
     mut view_data := vm.lookup("view_borrowed_data", ViewBorrowedData)!
     mut record_packet := Tuple.new()
     record_packet.push(BorrowedData, own BorrowedData(message = format("packet", " data")))
     record_view := view_data.call(record_packet)!
-    ref mut packet_value: BorrowedData = record_packet.get(0)
+    ref mut packet_value : BorrowedData = record_packet.get(0)
     packet_value.count = 8
     mut owner := Tuple.new()
     owner.push(U64, own 4)
     owner.push(Str, own Str.with_capacity(64))
-    ref mut number: U64 = owner.get(0)
-    ref mut text: Str = owner.get(1)
+    ref mut number : U64 = owner.get(0)
+    ref mut text : Str = owner.get(1)
     number = 5
     text.push_str("host text start")
     mut data := BorrowedData(message = format("host", " data"))
@@ -434,7 +434,7 @@ ordinary_borrow_callback_tests := proc(root: Str) {
     arguments.push(I64, own 0)
     result := call_throwing(TouchBorrowed)(touch, arguments)!
     assert(number == 6 && text == "host text start!" && data.count == 2 && data.message == "host data+")
-    ref original: BorrowedBundle = arguments.get(0)
+    ref original : BorrowedBundle = arguments.get(0)
     assert(original.label == "host label") // The owned guest snapshot is distinct from the host input.
     mut errors := Tuple.new()
     errors.push(BorrowedBundle, own BorrowedBundle(label = format("second", " label"), number = number, text = text, data = data))
@@ -455,19 +455,19 @@ ordinary_borrow_callback_tests := proc(root: Str) {
     own read.delete()
     own touch.delete()
     own vm.delete()
-    ref packet_borrow: BorrowedDataView = record_view.get(0)
+    ref packet_borrow : BorrowedDataView = record_view.get(0)
     switch packet_borrow {
     case .Some(value): assert(ptr_eq(value, packet_value) && value.count == 8 && value.message == "packet data")
     case: panic("borrow of the host argument was lost")
     }
     // Host-owned referents remain live independently of the VM. Own labels
     // were copied, while the reference fields still alias their original owners.
-    ref returned: BorrowedBundle = result.get(0)
-    ref retained_value: BorrowedBundle = retained.get(0)
-    ref returned_number: U64 = returned.number
-    ref returned_text: Str = returned.text
-    ref returned_data: BorrowedData = returned.data
-    ref retained_text: Str = retained_value.text
+    ref returned : BorrowedBundle = result.get(0)
+    ref retained_value : BorrowedBundle = retained.get(0)
+    ref returned_number : U64 = returned.number
+    ref returned_text : Str = returned.text
+    ref returned_data : BorrowedData = returned.data
+    ref retained_text : Str = retained_value.text
     assert(ptr_eq(returned_number, number) && ptr_eq(returned_text, text) && ptr_eq(returned_data, data))
     assert(ptr_eq(retained_text, text) && returned.label == "guest label" && retained_value.label == "guest label")
     number = 99
@@ -476,11 +476,11 @@ ordinary_borrow_callback_tests := proc(root: Str) {
     assert(returned_number == 99 && returned_text == "host text start!! later" && returned_data.count == 123)
     switch caught {
     case .Some(error):
-        ref borrowed: Str = error.text
+        ref borrowed : Str = error.text
         assert(ptr_eq(borrowed, text) && borrowed == text && error.label == "guest label")
     case: panic("declared borrowed error was lost")
     }
-    ref snapshot: Str = summary.get(0)
+    ref snapshot : Str = summary.get(0)
     assert(snapshot == "host text start!!/host data++")
 }
 
@@ -536,10 +536,10 @@ HostRecord := struct { value := 0 }
 HostRecordCall := func(HostRecord) returns I64
 
 ReferencePermissions490 := struct {
-    ref read: I64
-    ref mut write: I64
-    const ref fixed_read: I64
-    const ref mut fixed_write: I64
+    ref read : I64
+    ref mut write : I64
+    const ref fixed_read : I64
+    const ref mut fixed_write : I64
 }
 PayloadPermissions490 := enum(U8) {
     Empty,
@@ -555,33 +555,33 @@ PayloadRead490 := func() returns PayloadPermissions490
 
 reference_permission_schema_tests := proc(root: Str) {
     record_schema := format("ReferencePermissions490 := struct {\n",
-        "ref read: I64\nref mut write: I64\nconst ref fixed_read: I64\nconst ref mut fixed_write: I64\n}\n")
+        "ref read : I64\nref mut write : I64\nconst ref fixed_read : I64\nconst ref mut fixed_write : I64\n}\n")
     enum_schema := format("PayloadPermissions490 := enum(U8) {\nEmpty,\nRead: ref I64,\nWrite: ref mut I64,\n",
         "const FixedRead: ref I64,\nconst FixedWrite: ref mut I64\n}\n")
-    functions := format("mut source: I64 = 1\n",
+    functions := format("mut source : I64 = 1\n",
         "record_round := func(value: ReferencePermissions490) returns ReferencePermissions490 { return value.clone() }\n",
         "read_record := func() returns ReferencePermissions490 { return ReferencePermissions490(read = source, write = source, fixed_read = source, fixed_write = source) }\n",
         "payload_round := func(value: PayloadPermissions490) returns PayloadPermissions490 { return value.clone() }\n",
         "read_payload := func() returns PayloadPermissions490 { return PayloadPermissions490.Empty }\n")
     // Prefix spelling is not a semantic schema difference.
-    equivalent_record := record_schema.replace("const ref fixed_read: I64", "ref const fixed_read: I64")
+    equivalent_record := record_schema.replace("const ref fixed_read : I64", "ref const fixed_read : I64")
     File.writefile("guest.til", format("mode lib\n", equivalent_record, enum_schema, functions))
     mut vm := TilVm.new(root)
     vm.load_file("guest.til")!
     mut record_round := vm.lookup("record_round", ReferenceRoundtrip490)!
     mut payload_round := vm.lookup("payload_round", PayloadRoundtrip490)!
-    mut number: I64 = 5
+    mut number : I64 = 5
     {
         mut record_arguments := Tuple.new()
         record_arguments.push(ReferencePermissions490, own ReferencePermissions490(
             read = number, write = number, fixed_read = number, fixed_write = number))
         result := record_round.call(record_arguments)!
-        ref record: ReferencePermissions490 = result.get(0)
-        const ref mut record_alias: I64 = record.fixed_write
+        ref record : ReferencePermissions490 = result.get(0)
+        const ref mut record_alias : I64 = record.fixed_write
         mut payload_arguments := Tuple.new()
         payload_arguments.push(PayloadPermissions490, own PayloadPermissions490.FixedWrite(record_alias))
         payload_result := payload_round.call(payload_arguments)!
-        ref payload: PayloadPermissions490 = payload_result.get(0)
+        ref payload : PayloadPermissions490 = payload_result.get(0)
         number = 17
         assert(record_alias == 17 && ptr_eq(record_alias, number))
         switch payload {
@@ -595,10 +595,10 @@ reference_permission_schema_tests := proc(root: Str) {
     // Each edit changes only referent permission: slot mutability, nominal
     // type, layout and ownership remain identical. Validate inputs AND results.
     for invalid : Str in array(Str,
-        record_schema.replace("ref read: I64", "ref mut read: I64"),
-        record_schema.replace("ref mut write: I64", "ref write: I64"),
-        record_schema.replace("const ref fixed_read: I64", "const ref mut fixed_read: I64"),
-        record_schema.replace("const ref mut fixed_write: I64", "const ref fixed_write: I64")) {
+        record_schema.replace("ref read : I64", "ref mut read : I64"),
+        record_schema.replace("ref mut write : I64", "ref write : I64"),
+        record_schema.replace("const ref fixed_read : I64", "const ref mut fixed_read : I64"),
+        record_schema.replace("const ref mut fixed_write : I64", "const ref fixed_write : I64")) {
         File.writefile("guest.til", format("mode lib\n", invalid, enum_schema, functions))
         mut mismatch := TilVm.new(root)
         mismatch.load_file("guest.til")!
@@ -771,8 +771,8 @@ checked_lookup := proc(root: Str) {
     borrow_text.push_str("writable return")
     borrow_arguments.push(Str, own borrow_text)
     borrow_result := call_checked(session, program, "writable_borrow", HostWritableBorrowed, borrow_arguments)
-    ref borrowed_input: Str = borrow_arguments.get(0)
-    ref borrowed_result: Str = borrow_result.get(0)
+    ref borrowed_input : Str = borrow_arguments.get(0)
+    ref borrowed_result : Str = borrow_result.get(0)
     assert(borrowed_input == "writable return!" && borrowed_result == borrowed_input)
     mut scalar_values := Tuple.new()
     scalar_values.push(Bool, own true)
@@ -924,7 +924,7 @@ expect_lookup_failure := proc(mut vm: TilVm, name: Str, detail: Str, location: S
     panic("lookup unexpectedly succeeded: ", name)
 }
 
-HostKeyBinding := struct { own callback: TilVmCallback }
+HostKeyBinding := struct { own callback : TilVmCallback }
 
 retain_callback := proc(mut vm: TilVm) returns HostKeyBinding {
     callback := vm.lookup("on_key")!
@@ -1210,13 +1210,13 @@ typed_callback_tests := proc(root: Str) {
     assert(failure.to_str().contains("call failed") && exit_error.exit_status.unwrap() == 0)
 }
 
-TransformError := struct { code: I32 = 0; message := "" }
+TransformError := struct { code : I32 = 0; message := "" }
 ThrowTransform := proc(mut Str, I64) returns Str throws TransformError
 WrongTransform := proc(mut Str, I64) returns Str throws HostThrow
 
 throwing_callback_tests := proc(root: Str) {
     File.writefile("guest.til", format(
-        "mode lib\nTransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "mode lib\nTransformError := struct { code : I32 = 0; message := \"\" }\n",
         "mut count := 0\n",
         "message := format(\"guest \", \"view payload\")\n",
         "read_count := proc() returns I64 { noop_proc(); return count }\n",
@@ -1306,8 +1306,8 @@ throwing_callback_tests := proc(root: Str) {
 throwing_schema_tests := proc(root: Str) {
     primitive_throwing_callback_tests(root)
     // Identical type names do not excuse differing field types or ownership.
-    for fields : Str in array(Str, "code: I64 = 0; message := \"\"",
-        "code: I32 = 0; ref message: Str = \"\"") {
+    for fields : Str in array(Str, "code : I64 = 0; message := \"\"",
+        "code : I32 = 0; ref message : Str = \"\"") {
         File.writefile("guest.til", format("mode lib\nTransformError := struct { ", fields, " }\n",
             "transform := proc(mut text: Str, action: I64) returns Str throws TransformError {\n",
             "noop_proc(); text = \"executed\"; if action == 1 { throw TransformError() }; return text.clone() }\n"))
@@ -1333,13 +1333,13 @@ primitive_throwing_callback_tests := proc(root: Str) {
         catch (error: Bool) { assert(action == 2 && error); caught = true }
         catch (error: TilVmError) { panic(error.to_str()) }
         if action == 0 {
-            ref value: I64 = result.get(0)
+            ref value : I64 = result.get(0)
             assert(value == 7 && caught.not())
         } else { assert(caught) }
     }
 }
 
-TransformFailed := struct { code: I32 = 0; message := "" }
+TransformFailed := struct { code : I32 = 0; message := "" }
 MultiTransform := proc(mut Str, I64) returns Str throws TransformError, TransformFailed, HostThrow
 MultiAlias := MultiTransform
 WrongOrder := proc(mut Str, I64) returns Str throws TransformFailed, TransformError, HostThrow
@@ -1347,8 +1347,8 @@ invoke_multi := call_throwing(MultiTransform)
 
 multiple_error_callback_tests := proc(root: Str) {
     File.writefile("guest.til", format(
-        "mode lib\nTransformError := struct { code: I32 = 0; message := \"\" }\n",
-        "TransformFailed := struct { code: I32 = 0; message := \"\" }\nHostThrow := struct {}\n",
+        "mode lib\nTransformError := struct { code : I32 = 0; message := \"\" }\n",
+        "TransformFailed := struct { code : I32 = 0; message := \"\" }\nHostThrow := struct {}\n",
         "mut count := 0\nmessage := format(\"guest \", \"payload\")\n",
         "read_count := proc() returns I64 { noop_proc(); return count }\n",
         "transform := proc(mut text: Str, action: I64 = 0) returns Str throws TransformError, TransformFailed, HostThrow {\n",
@@ -1411,8 +1411,8 @@ multiple_error_callback_tests := proc(root: Str) {
     assert(second.code == 22 && second.message == "payload")
     // Validate every declared schema, including an error after a valid one.
     File.writefile("guest.til", format(
-        "mode lib\nTransformError := struct { code: I32 = 0; message := \"\" }\n",
-        "TransformFailed := struct { code: I64 = 0; message := \"\" }\nHostThrow := struct {}\n",
+        "mode lib\nTransformError := struct { code : I32 = 0; message := \"\" }\n",
+        "TransformFailed := struct { code : I64 = 0; message := \"\" }\nHostThrow := struct {}\n",
         "transform := proc(mut text: Str, action: I64) returns Str throws TransformError, TransformFailed, HostThrow {\n",
         "noop_proc(); text = \"executed\"; if action == 1 { throw TransformError() };\n",
         "if action == 2 { throw TransformFailed() }; if action == 3 { throw HostThrow() }; return text.clone() }\n"))
@@ -1421,7 +1421,7 @@ multiple_error_callback_tests := proc(root: Str) {
     expect_lookup_failure(bad_schema, "transform", "shared callback error schema", signature = MultiTransform)
 }
 
-CallbackRecord := struct { number: I32 = 0; enabled := false; text := "" }
+CallbackRecord := struct { number : I32 = 0; enabled := false; text := "" }
 RecordTransform := proc(mut CallbackRecord, I64) returns CallbackRecord throws TransformError
 RecordOwned := proc(own mut CallbackRecord) returns CallbackRecord
 RecordBorrowed := func() returns ref CallbackRecord
@@ -1430,8 +1430,8 @@ RecordReader := func() returns CallbackRecord
 record_callback_tests := proc(root: Str) {
     owned_field_callback_tests(root)
     File.writefile("guest.til", format(
-        "mode lib\nCallbackRecord := struct { number: I32 = 0; enabled := false; text := \"\" }\n",
-        "TransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "mode lib\nCallbackRecord := struct { number : I32 = 0; enabled := false; text := \"\" }\n",
+        "TransformError := struct { code : I32 = 0; message := \"\" }\n",
         "stored := CallbackRecord(number = 42, enabled = true, text = \"guest literal\")\n",
         "mut calls := 0\nread_calls := proc() returns I64 { noop_proc(); return calls }\n",
         "borrowed := func() returns ref CallbackRecord { return stored }\n",
@@ -1505,9 +1505,9 @@ record_callback_tests := proc(root: Str) {
     assert(again.number == 6 && again.text == "host owned!")
 
     for fields : Str in array(Str,
-        "number: I64 = 0; enabled := false; text := \"\"",
-        "number: I32 = 0; enabled := false; ref text: Str = \"\"",
-        "number: I32 = 0; enabled := false; text := Nested()") {
+        "number : I64 = 0; enabled := false; text := \"\"",
+        "number : I32 = 0; enabled := false; ref text : Str = \"\"",
+        "number : I32 = 0; enabled := false; text := Nested()") {
         File.writefile("guest.til", format(
             "mode lib\nNested := struct { text := \"\" }\nCallbackRecord := struct { ", fields, " }\n",
             "consume := proc(own mut value: CallbackRecord) returns CallbackRecord { noop_proc(); value.number = 99; return value.clone() }\n",
@@ -1520,13 +1520,13 @@ record_callback_tests := proc(root: Str) {
 }
 
 OwnedFieldTag := enum(U8) { First = 3, Last = 7 }
-OwnedFieldLeaf := struct { own text: Str = ""; marker: I32 = 0 }
+OwnedFieldLeaf := struct { own text : Str = ""; marker : I32 = 0 }
 OwnedFieldRecord := struct {
-    byte: U8 = 11
-    own leaf: OwnedFieldLeaf = OwnedFieldLeaf()
-    own number: I64 = 0
-    own tag: OwnedFieldTag = OwnedFieldTag.First
-    last: U8 = 23
+    byte : U8 = 11
+    own leaf : OwnedFieldLeaf = OwnedFieldLeaf()
+    own number : I64 = 0
+    own tag : OwnedFieldTag = OwnedFieldTag.First
+    last : U8 = 23
 }
 OwnedFieldTransform := proc(own mut OwnedFieldRecord, I64) returns OwnedFieldRecord throws OwnedFieldRecord
 OwnedFieldBorrow := proc(mut OwnedFieldRecord)
@@ -1539,8 +1539,8 @@ OwnedFieldScalarThrow := proc() throws I64
 owned_field_callback_tests := proc(root: Str) {
     schema := format(
         "OwnedFieldTag := enum(U8) { First = 3, Last = 7 }\n",
-        "OwnedFieldLeaf := struct { own text: Str = \"\"; marker: I32 = 0 }\n",
-        "OwnedFieldRecord := struct { byte: U8 = 11; own leaf: OwnedFieldLeaf = OwnedFieldLeaf(); own number: I64 = 0; own tag: OwnedFieldTag = OwnedFieldTag.First; last: U8 = 23 }\n")
+        "OwnedFieldLeaf := struct { own text : Str = \"\"; marker : I32 = 0 }\n",
+        "OwnedFieldRecord := struct { byte : U8 = 11; own leaf : OwnedFieldLeaf = OwnedFieldLeaf(); own number : I64 = 0; own tag : OwnedFieldTag = OwnedFieldTag.First; last : U8 = 23 }\n")
     File.writefile("guest.til", format("mode lib\n", schema,
         "mut stored := OwnedFieldRecord(leaf = OwnedFieldLeaf(text = \"borrowed owned\"), number = 61, tag = OwnedFieldTag.Last)\n",
         "read_ref := func() returns ref OwnedFieldRecord { return stored }\n",
@@ -1552,7 +1552,7 @@ owned_field_callback_tests := proc(root: Str) {
         "if action == 1 { throw value }; if action == 2 { panic(\"owned field panic\") }; if action == 3 { exit(0) }; return value }\n",
         "tail := func(values: ..OwnedFieldRecord) returns OwnedFieldRecord { return values[0].clone() }\n",
         "scalar_error := proc() throws I64 { noop_proc(); throw 42 }\n",
-        "keyword := proc(options: ...) returns OwnedFieldRecord { noop_proc(); ref value: OwnedFieldRecord = options.get(\"value\"); return value.clone() }\n"))
+        "keyword := proc(options: ...) returns OwnedFieldRecord { noop_proc(); ref value : OwnedFieldRecord = options.get(\"value\"); return value.clone() }\n"))
     mut vm := TilVm.new(root)
     vm.load_file("guest.til")?
     catch (error: TilVmError) { panic(error.to_str()) }
@@ -1571,7 +1571,7 @@ owned_field_callback_tests := proc(root: Str) {
     mut scalar_payload := Tuple.new()
     scalar_error.invoke_throwing(OwnedFieldScalarThrow, scalar_arguments, scalar_payload)!
     assert(scalar_payload.len() == 1 && scalar_payload.type_at(0) == "I64")
-    ref scalar_value: I64 = scalar_payload.get(0)
+    ref scalar_value : I64 = scalar_payload.get(0)
     assert(scalar_value == 42)
     mut direct_caught := false
     call_throwing(I64)(scalar_error)?
@@ -1601,9 +1601,9 @@ owned_field_callback_tests := proc(root: Str) {
             caught = true
         }
         if action == 0 { saved = result } else { assert(caught) }
-        ref unchanged: OwnedFieldRecord = inputs.get(0)
-        ref number: I64 = unchanged.number
-        ref tag: OwnedFieldTag = unchanged.tag
+        ref unchanged : OwnedFieldRecord = inputs.get(0)
+        ref number : I64 = unchanged.number
+        ref tag : OwnedFieldTag = unchanged.tag
         assert(unchanged.leaf.text == "host owned" && unchanged.leaf.marker == 5 && number == 37 && tag == OwnedFieldTag.Last)
         assert(unchanged.byte == 11 && unchanged.last == 23)
     }
@@ -1611,8 +1611,8 @@ owned_field_callback_tests := proc(root: Str) {
     mut inputs := Tuple.new()
     inputs.push(OwnedFieldRecord, own OwnedFieldRecord(leaf = OwnedFieldLeaf(text = format("before ", "borrow"))))
     borrow.call(inputs)!
-    ref updated: OwnedFieldRecord = inputs.get(0)
-    ref updated_number: I64 = updated.number
+    ref updated : OwnedFieldRecord = inputs.get(0)
+    ref updated_number : I64 = updated.number
     assert(updated.leaf.text == "borrowed mutation" && updated.leaf.marker == 8 && updated_number == 51)
     tailed := tail.call(inputs)!
     mut options := KwargsMap.new()
@@ -1626,21 +1626,21 @@ owned_field_callback_tests := proc(root: Str) {
     own borrow.delete()
     own transform.delete()
     own vm.delete()
-    ref success: OwnedFieldRecord = saved.get(0)
-    ref guest_literal: OwnedFieldRecord = literal.get(0)
-    ref tail_value: OwnedFieldRecord = tailed.get(0)
-    ref keyword_value: OwnedFieldRecord = keyed.get(0)
-    ref first_value: OwnedFieldRecord = first_borrow.get(0)
-    ref second_value: OwnedFieldRecord = second_borrow.get(0)
-    ref first_number: I64 = first_value.number
-    ref second_number: I64 = second_value.number
-    ref first_tag: OwnedFieldTag = first_value.tag
-    ref second_tag: OwnedFieldTag = second_value.tag
+    ref success : OwnedFieldRecord = saved.get(0)
+    ref guest_literal : OwnedFieldRecord = literal.get(0)
+    ref tail_value : OwnedFieldRecord = tailed.get(0)
+    ref keyword_value : OwnedFieldRecord = keyed.get(0)
+    ref first_value : OwnedFieldRecord = first_borrow.get(0)
+    ref second_value : OwnedFieldRecord = second_borrow.get(0)
+    ref first_number : I64 = first_value.number
+    ref second_number : I64 = second_value.number
+    ref first_tag : OwnedFieldTag = first_value.tag
+    ref second_tag : OwnedFieldTag = second_value.tag
     assert(first_value.leaf.text == "borrowed owned" && first_number == 61 && first_tag == OwnedFieldTag.Last)
     assert(second_value.leaf.text == "replaced owned" && second_number == 99 && second_tag == OwnedFieldTag.Last)
-    ref number: I64 = guest_literal.number
-    ref tag: OwnedFieldTag = guest_literal.tag
-    ref success_number: I64 = success.number
+    ref number : I64 = guest_literal.number
+    ref tag : OwnedFieldTag = guest_literal.tag
+    ref success_number : I64 = success.number
     assert(success.leaf.text == "host owned!" && success.leaf.marker == 7 && success_number == 49)
     assert(saved_error.leaf.text == "host owned!" && saved_error.leaf.marker == 7)
     assert(guest_literal.leaf.text == "guest literal" && number == 42 && tag == OwnedFieldTag.Last)
@@ -1649,8 +1649,8 @@ owned_field_callback_tests := proc(root: Str) {
 
     // The pointee schema and the own qualifier both remain part of lookup.
     for invalid : Str in array(Str,
-        schema.replace("own number: I64", "own number: U64"),
-        schema.replace("own number: I64", "number: I64")) {
+        schema.replace("own number : I64", "own number : U64"),
+        schema.replace("own number : I64", "number : I64")) {
         File.writefile("guest.til", format("mode lib\n", invalid,
             "reader := func() returns OwnedFieldRecord { return OwnedFieldRecord() }\n"))
         mut mismatch := TilVm.new(root)
@@ -1668,7 +1668,7 @@ NativeActionBorrow := proc(NativeActionEnum, I64) returns I64 throws TransformEr
 NativeTextAction := proc(mut Str) returns Str throws TransformError, TilVmError
 NativeTextChoice := enum { None, Run: NativeTextAction }
 NativeTextFactory := func() returns NativeTextChoice
-NativeEnvelope := struct { own record: CallbackRecord = CallbackRecord() }
+NativeEnvelope := struct { own record : CallbackRecord = CallbackRecord() }
 NativeEnvelopeAction := proc(mut NativeEnvelope) returns Str throws TransformError, TilVmError
 NativeEnvelopeChoice := enum { None, Run: NativeEnvelopeAction }
 NativeEnvelopeFactory := func() returns NativeEnvelopeChoice
@@ -1687,24 +1687,24 @@ EarlierInvoke := proc(EarlierChoice, mut Str) returns Str throws TransformError
 
 callable_enum_callback_tests := proc(root: Str) {
     File.writefile("guest.til", format("mode lib\n",
-        "TransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "TransformError := struct { code : I32 = 0; message := \"\" }\n",
         "NativeAction := proc(I64) returns I64 throws TransformError\n",
         "NativeBorrowAction := proc(mut Str) returns ref mut Str\nNativeBorrowChoice := enum { None, Run: NativeBorrowAction }\n",
-        "make_borrow := func() returns NativeBorrowChoice { action: NativeBorrowAction = proc(mut text: Str) returns ref mut Str { noop_proc(); text.push_str(\"!\"); return text }; return NativeBorrowChoice.Run(action) }\n",
+        "make_borrow := func() returns NativeBorrowChoice { action : NativeBorrowAction = proc(mut text: Str) returns ref mut Str { noop_proc(); text.push_str(\"!\"); return text }; return NativeBorrowChoice.Run(action) }\n",
         "NativeActionEnum := enum { None, Run: NativeAction }\n",
         "NativeVoidAction := proc() throws TransformError\nNativeVoidChoice := enum { None, Run: NativeVoidAction }\nmut void_calls := 0\n",
-        "make_void := func() returns NativeVoidChoice { action: NativeVoidAction = proc() throws TransformError { noop_proc(); void_calls++; if void_calls == 2 { throw TransformError(code = 26) }; if void_calls == 3 { panic(\"void callback panic\") } }; return NativeVoidChoice.Run(action) }\n",
+        "make_void := func() returns NativeVoidChoice { action : NativeVoidAction = proc() throws TransformError { noop_proc(); void_calls++; if void_calls == 2 { throw TransformError(code = 26) }; if void_calls == 3 { panic(\"void callback panic\") } }; return NativeVoidChoice.Run(action) }\n",
         "CallbackState := enum(U16) { Idle = 400, Busy = 900 }\nNativeStateAction := proc(Bool) returns CallbackState throws TransformError\nNativeStateChoice := enum { None, Run: NativeStateAction }\n",
-        "make_state := func() returns NativeStateChoice { action: NativeStateAction = proc(fail: Bool) returns CallbackState throws TransformError { noop_proc(); if fail { throw TransformError(code = 25) }; return CallbackState.Busy }; return NativeStateChoice.Run(action) }\n",
+        "make_state := func() returns NativeStateChoice { action : NativeStateAction = proc(fail: Bool) returns CallbackState throws TransformError { noop_proc(); if fail { throw TransformError(code = 25) }; return CallbackState.Busy }; return NativeStateChoice.Run(action) }\n",
         "NativeTextAction := proc(mut Str) returns Str throws TransformError\nNativeTextChoice := enum { None, Run: NativeTextAction }\n",
-        "CallbackRecord := struct { number: I32 = 0; enabled := false; text := \"\" }\nNativeEnvelope := struct { own record: CallbackRecord = CallbackRecord() }\n",
+        "CallbackRecord := struct { number : I32 = 0; enabled := false; text := \"\" }\nNativeEnvelope := struct { own record : CallbackRecord = CallbackRecord() }\n",
         "NativeEnvelopeAction := proc(mut NativeEnvelope) returns Str throws TransformError\nNativeEnvelopeChoice := enum { None, Run: NativeEnvelopeAction }\n",
-        "make_envelope := func() returns NativeEnvelopeChoice { action: NativeEnvelopeAction = proc(mut value: NativeEnvelope) returns Str throws TransformError { noop_proc(); if value.record.number < 0 { throw TransformError() }; value.record.text = \"guest owned field\"; return value.record.text.clone() }; return NativeEnvelopeChoice.Run(action) }\n",
+        "make_envelope := func() returns NativeEnvelopeChoice { action : NativeEnvelopeAction = proc(mut value: NativeEnvelope) returns Str throws TransformError { noop_proc(); if value.record.number < 0 { throw TransformError() }; value.record.text = \"guest owned field\"; return value.record.text.clone() }; return NativeEnvelopeChoice.Run(action) }\n",
         "EarlierAction := proc(mut Str) returns Str throws TransformError\nEarlierChoice := enum { None, Run: EarlierAction }\n",
         "invoke_earlier := proc(value: EarlierChoice, mut text: Str) returns Str throws TransformError { noop_proc(); switch value { case .Run(action): return action(text)?; case: return \"\" } }\n",
-        "make_text := func() returns NativeTextChoice { action: NativeTextAction = proc(mut text: Str) returns Str throws TransformError { noop_proc(); if text.len() == 0 { throw TransformError() }; text = \"guest borrowed\"; return text.substr(6, 8) }; return NativeTextChoice.Run(action) }\n",
-        "mut shared_count := 0\nmake_shared := func() returns NativeActionEnum { action: NativeAction = proc(amount: I64) returns I64 throws TransformError { noop_proc(); if amount < 0 { throw TransformError() }; shared_count = shared_count + amount; return shared_count }; return NativeActionEnum.Run(action) }\n",
-        "make := func(seed: I64) returns NativeActionEnum { count := seed; action: NativeAction = proc(amount: I64) returns I64 throws TransformError [own mut count] { noop_proc(); count = count + amount; if amount == -1 { panic(\"native guest panic\") }; if amount == -2 { exit(9) }; if amount == -3 { throw TransformError(code = 17, message = \"native guest error\") }; return count }; return NativeActionEnum.Run(action) }\n",
+        "make_text := func() returns NativeTextChoice { action : NativeTextAction = proc(mut text: Str) returns Str throws TransformError { noop_proc(); if text.len() == 0 { throw TransformError() }; text = \"guest borrowed\"; return text.substr(6, 8) }; return NativeTextChoice.Run(action) }\n",
+        "mut shared_count := 0\nmake_shared := func() returns NativeActionEnum { action : NativeAction = proc(amount: I64) returns I64 throws TransformError { noop_proc(); if amount < 0 { throw TransformError() }; shared_count = shared_count + amount; return shared_count }; return NativeActionEnum.Run(action) }\n",
+        "make := func(seed: I64) returns NativeActionEnum { count := seed; action : NativeAction = proc(amount: I64) returns I64 throws TransformError [own mut count] { noop_proc(); count = count + amount; if amount == -1 { panic(\"native guest panic\") }; if amount == -2 { exit(9) }; if amount == -3 { throw TransformError(code = 17, message = \"native guest error\") }; return count }; return NativeActionEnum.Run(action) }\n",
         "invoke := proc(own value: NativeActionEnum, amount: I64) returns I64 throws TransformError { noop_proc(); switch value { case .Run(action): return action(amount)?; case: return 0 } }\n",
         "borrow_invoke := proc(value: NativeActionEnum, amount: I64) returns I64 throws TransformError { noop_proc(); switch value { case .Run(action): return action(amount)?; case: return 0 } }\n"))
     mut vm := TilVm.new(root)
@@ -1729,7 +1729,7 @@ callable_enum_callback_tests := proc(root: Str) {
         mut arguments := Tuple.new()
         arguments.push(I64, own 40)
         result := factory.call(arguments)!
-        ref original: NativeActionEnum = result.get(0)
+        ref original : NativeActionEnum = result.get(0)
         copy := original.clone()
         mut table := vec(NativeActionEnum, original.clone())
         copied_table := table.clone()
@@ -1767,7 +1767,7 @@ callable_enum_callback_tests := proc(root: Str) {
         // First native-call registration happens while another native call is
         // suspended. EarlierAction sorts before NativeAction and has a different
         // return ABI, so moving inline FFI entries would corrupt the outer call.
-        earlier_host: EarlierAction = proc(mut text: Str) returns Str throws TransformError, TilVmError {
+        earlier_host : EarlierAction = proc(mut text: Str) returns Str throws TransformError, TilVmError {
             noop_proc()
             if text.len() == 0 { throw TransformError() }
             if text == "vm failure" { throw TilVmError(phase = "nested native callback") }
@@ -1777,9 +1777,9 @@ callable_enum_callback_tests := proc(root: Str) {
         mut earlier_arguments := Tuple.new()
         earlier_arguments.push(EarlierChoice, own EarlierChoice.Run(earlier_host))
         earlier_arguments.push(Str, own format("nest", "ed"))
-        reenter: NativeAction = proc(amount: I64) returns I64 throws TransformError, TilVmError [mut earlier, mut earlier_arguments] {
+        reenter : NativeAction = proc(amount: I64) returns I64 throws TransformError, TilVmError [mut earlier, mut earlier_arguments] {
             value := call_throwing(TransformError)(earlier, earlier_arguments)?
-            ref text: Str = value.get(0)
+            ref text : Str = value.get(0)
             return text.len().to_i64() + amount
         }
         mut reentrant_arguments := Tuple.new()
@@ -1788,11 +1788,11 @@ callable_enum_callback_tests := proc(root: Str) {
         nested_result := call_throwing(TransformError)(borrow_invoke, reentrant_arguments)?
         catch (error: TransformError) { panic(error.message) }
         catch (error: TilVmError) { panic(error.to_str()) }
-        ref nested_value: I64 = nested_result.get(0)
+        ref nested_value : I64 = nested_result.get(0)
         assert(nested_value == 12)
 
         seed := 100
-        host_action: NativeAction = proc(amount: I64) returns I64 throws TransformError, TilVmError [own mut seed] {
+        host_action : NativeAction = proc(amount: I64) returns I64 throws TransformError, TilVmError [own mut seed] {
             noop_proc()
             if amount == -1 { throw TransformError(code = 18, message = "native application error") }
             if amount == -2 { throw TilVmError(phase = "native callback") }
@@ -1803,22 +1803,22 @@ callable_enum_callback_tests := proc(root: Str) {
         packet.push(NativeActionEnum, own NativeActionEnum.Run(host_action))
         packet.push(I64, own 5)
         invoked := call_throwing(TransformError)(invoke, packet)!
-        ref number: I64 = invoked.get(0)
+        ref number : I64 = invoked.get(0)
         assert(number == 105)
         again := call_throwing(TransformError)(invoke, packet)!
-        ref unchanged: I64 = again.get(0)
+        ref unchanged : I64 = again.get(0)
         assert(unchanged == 105)
         for expected: I64 in array(I64, 105, 110) {
             borrowed := call_throwing(TransformError)(borrow_invoke, packet)!
-            ref value: I64 = borrowed.get(0)
+            ref value : I64 = borrowed.get(0)
             assert(value == expected)
         }
-        ref live: NativeActionEnum = packet.get(0)
+        ref live : NativeActionEnum = packet.get(0)
         switch live {
         case .Run(action): assert(action(0)! == 110)
         case: panic("borrowed callback changed the enum tag")
         }
-        ref mut argument: I64 = packet.get(1)
+        ref mut argument : I64 = packet.get(1)
         for failure in -2..0 {
             argument = failure
             mut caught := false
@@ -1834,7 +1834,7 @@ callable_enum_callback_tests := proc(root: Str) {
             assert(caught)
         }
         shared_result := shared_factory.call()!
-        ref shared_action: NativeActionEnum = shared_result.get(0)
+        ref shared_action : NativeActionEnum = shared_result.get(0)
         shared_copy := shared_action.clone()
         switch shared_action {
         case .Run(action): assert(action(1)! == 1)
@@ -1845,19 +1845,19 @@ callable_enum_callback_tests := proc(root: Str) {
         case: panic("shared callback copy is absent")
         }
         text_result := text_factory.call()!
-        ref text_action: NativeTextChoice = text_result.get(0)
+        ref text_action : NativeTextChoice = text_result.get(0)
         switch text_action {
         case .Run(action): returned_text = action(host_text)!
         case: panic("text callback is absent")
         }
         envelope_result := envelope_factory.call()!
-        ref envelope_action: NativeEnvelopeChoice = envelope_result.get(0)
+        ref envelope_action : NativeEnvelopeChoice = envelope_result.get(0)
         switch envelope_action {
         case .Run(action): assert(action(envelope)! == "guest owned field")
         case: panic("record callback is absent")
         }
         state_result := state_factory.call()!
-        ref state_action: NativeStateChoice = state_result.get(0)
+        ref state_action : NativeStateChoice = state_result.get(0)
         switch state_action {
         case .Run(action):
             assert(action(false)! == CallbackState.Busy)
@@ -1869,7 +1869,7 @@ callable_enum_callback_tests := proc(root: Str) {
         case: panic("enum-result callback is absent")
         }
         void_result := void_factory.call()!
-        ref void_action: NativeVoidChoice = void_result.get(0)
+        ref void_action : NativeVoidChoice = void_result.get(0)
         switch void_action {
         case .Run(action):
             action()!
@@ -1883,10 +1883,10 @@ callable_enum_callback_tests := proc(root: Str) {
         case: panic("void callback is absent")
         }
         borrow_result := borrow_factory.call()!
-        ref borrow_choice: NativeBorrowChoice = borrow_result.get(0)
+        ref borrow_choice : NativeBorrowChoice = borrow_result.get(0)
         switch borrow_choice {
         case .Run(borrow_action):
-            ref mut alias: Str = borrow_action(borrowed_text)!
+            ref mut alias : Str = borrow_action(borrowed_text)!
             assert(ptr_eq(alias, borrowed_text) && alias == "native borrow!")
             alias.push_str(" updated")
         case: panic("borrowed-result callback is absent")
@@ -1907,7 +1907,7 @@ callable_enum_callback_tests := proc(root: Str) {
     assert(envelope.record.text == "guest owned field")
     assert(borrowed_text == "native borrow! updated")
     File.writefile("guest.til", format("mode lib\n",
-        "TransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "TransformError := struct { code : I32 = 0; message := \"\" }\n",
         "NativeAction := proc(I64) returns I64 throws TransformError\n",
         "NativeActionEnum := enum { None, Run: ref NativeAction }\n",
         "make := func() returns NativeActionEnum { return NativeActionEnum.None }\n"))
@@ -1942,7 +1942,7 @@ enum_callback_tests := proc(root: Str) {
     reference_permission_schema_tests(root)
     callable_enum_callback_tests(root)
     File.writefile("guest.til", format(
-        "mode lib\nCallbackRecord := struct { number: I32 = 0; enabled := false; text := \"\" }\n",
+        "mode lib\nCallbackRecord := struct { number : I32 = 0; enabled := false; text := \"\" }\n",
         "CallbackEnum := enum(U8) { Empty = 5, Number: I64 = 7, Text: Str = 9, Record: CallbackRecord = 11 }\n",
         "CallbackMaybe := enum { None, Some: CallbackRecord }\n",
         "CallbackState := enum(U16) { Idle = 400, Busy = 900 }\nstate := func(value: CallbackState) returns CallbackState { return value }\n",
@@ -2038,7 +2038,7 @@ enum_callback_tests := proc(root: Str) {
         "enum(U32) { Empty = 5, Number: I64 = 7, Text: Str = 9, Record: CallbackRecord = 11 }",
         "enum(U8) { Empty = 6, Number: I64 = 7, Text: Str = 9, Record: CallbackRecord = 11 }",
         "enum(U8) { Empty = 5, Number: I64 = 7, Text: ref Str = 9, Record: CallbackRecord = 11 }") {
-        File.writefile("guest.til", format("mode lib\nCallbackRecord := struct { number: I32 = 0; enabled := false; text := \"\" }\n",
+        File.writefile("guest.til", format("mode lib\nCallbackRecord := struct { number : I32 = 0; enabled := false; text := \"\" }\n",
             "CallbackEnum := ", declaration, "\nroundtrip := func(value: CallbackEnum) returns CallbackEnum { return value.clone() }\n"))
         mut invalid := TilVm.new(root)
         invalid.load_file("guest.til")!
@@ -2046,7 +2046,7 @@ enum_callback_tests := proc(root: Str) {
     }
 }
 
-NestedInner := struct { text := ""; marker: I32 = 0; state := CallbackState.Idle }
+NestedInner := struct { text := ""; marker : I32 = 0; state := CallbackState.Idle }
 NestedChoice := enum { Empty, Inner: NestedInner, State: CallbackState, Text: Str }
 NestedUnion := enum { Empty, Value: NestedChoice }
 NestedOuter := struct { left := NestedInner(); right := NestedInner(); choice := NestedChoice.Empty; maybe := NestedUnion.Empty }
@@ -2057,7 +2057,7 @@ NestedRead := func() returns ref NestedOuter
 NestedValueRead := func() returns NestedOuter
 NestedThrowOnly := func() throws NestedFailure
 CallbackLink := enum { None, Some: CallbackNode }
-CallbackNode := struct { number: I64 = 0; next := CallbackLink.None; text := "" }
+CallbackNode := struct { number : I64 = 0; next := CallbackLink.None; text := "" }
 NodeRoundtrip := func(CallbackNode) returns CallbackNode
 
 check_nested_value := func(value: NestedOuter) {
@@ -2070,12 +2070,12 @@ check_nested_value := func(value: NestedOuter) {
 nested_callback_tests := proc(root: Str) {
     schemas := format(
         "CallbackState := enum(U16) { Idle = 400, Busy = 900 }\n",
-        "NestedInner := struct { text := \"\"; marker: I32 = 0; state := CallbackState.Idle }\n",
+        "NestedInner := struct { text := \"\"; marker : I32 = 0; state := CallbackState.Idle }\n",
         "NestedChoice := enum { Empty, Inner: NestedInner, State: CallbackState, Text: Str }\n",
         "NestedUnion := enum { Empty, Value: NestedChoice }\n",
         "NestedOuter := struct { left := NestedInner(); right := NestedInner(); choice := NestedChoice.Empty; maybe := NestedUnion.Empty }\n",
         "NestedFailure := enum { Empty, Request: NestedOuter, Flag: CallbackState }\n",
-        "CallbackLink := enum { None, Some: CallbackNode }\nCallbackNode := struct { number: I64 = 0; next := CallbackLink.None; text := \"\" }\n")
+        "CallbackLink := enum { None, Some: CallbackNode }\nCallbackNode := struct { number : I64 = 0; next := CallbackLink.None; text := \"\" }\n")
     File.writefile("guest.til", format("mode lib\n", schemas,
         "message := format(\"guest \", \"payload\")\nstored := NestedOuter(left = NestedInner(text = \"stored literal\"))\n",
         "borrowed := func() returns ref NestedOuter { return stored }\n",
@@ -2146,9 +2146,9 @@ nested_callback_tests := proc(root: Str) {
     case: panic("nested owned box was not preserved")
     }
     for bad_schema : Str in array(Str,
-        schemas.replace("marker: I32", "marker: I64"),
+        schemas.replace("marker : I32", "marker : I64"),
         schemas.replace("enum(U16)", "enum(U32)"),
-        schemas.replace("text := \"\"", "ref text: Str = \"\"")) {
+        schemas.replace("text := \"\"", "ref text : Str = \"\"")) {
         File.writefile("guest.til", format("mode lib\n", bad_schema,
             "consume := proc(own mut value: NestedOuter) returns NestedOuter { noop_proc(); value.left.marker = 99; return value.clone() }\n",
             "reader := func() returns NestedOuter { return NestedOuter() }\n",
@@ -2172,7 +2172,7 @@ VariadicDynamic := proc(values: ..Dynamic) returns Str
 
 variadic_callback_tests := proc(root: Str) {
     File.writefile("guest.til", format(
-        "mode lib\nTransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "mode lib\nTransformError := struct { code : I32 = 0; message := \"\" }\n",
         "CallbackState := enum(U16) { Idle = 400, Busy = 900 }\n",
         "VariadicInner := struct { text := \"\"; state := CallbackState.Idle }\nVariadicOuter := struct { inner := VariadicInner() }\n",
         "mut calls := 0\nread_calls := proc() returns I64 { noop_proc(); return calls }\n",
@@ -2181,8 +2181,8 @@ variadic_callback_tests := proc(root: Str) {
         "noop_proc(); calls = calls + 1; prefix = format(prefix, \"+\"); action := suffix.clone(); suffix = format(suffix, \"?\"); mut out := prefix.clone(); for part: Str in parts { out = format(out, part) };\n",
         "if action == \"error\" { throw TransformError(code = 17, message = out.clone()) }; if action == \"panic\" { panic(\"variadic panic\") }; if action == \"exit\" { exit(0) }; return format(out, suffix) }\n",
         "records := func(values: ..VariadicOuter) returns VariadicOuter { if values.len() == 0 { return VariadicOuter() }; return values[0].clone() }\n",
-        "states := func(values: ..CallbackState) returns I64 { mut total: I64 = 0; for value: CallbackState in values { if value == CallbackState.Busy { total = total + 1 } }; return total }\n",
-        "dynamic := proc(values: ..Dynamic) returns Str { noop_proc(); calls = calls + 1; if values.len() == 0 { return \"empty\" }; ref n: I64 = values.get(0); ref text: Str = values.get(1); ref record: VariadicOuter = values.get(2); ref state: CallbackState = values.get(3); assert(state == CallbackState.Busy); return format(n.to_str(), text, record.inner.text) }\n"))
+        "states := func(values: ..CallbackState) returns I64 { mut total : I64 = 0; for value: CallbackState in values { if value == CallbackState.Busy { total = total + 1 } }; return total }\n",
+        "dynamic := proc(values: ..Dynamic) returns Str { noop_proc(); calls = calls + 1; if values.len() == 0 { return \"empty\" }; ref n : I64 = values.get(0); ref text : Str = values.get(1); ref record : VariadicOuter = values.get(2); ref state : CallbackState = values.get(3); assert(state == CallbackState.Busy); return format(n.to_str(), text, record.inner.text) }\n"))
     mut vm := TilVm.new(root)
     vm.load_file("guest.til")?
     catch (error: TilVmError) { panic(error.to_str()) }
@@ -2232,9 +2232,9 @@ variadic_callback_tests := proc(root: Str) {
             caught = true
         }
         if suffix == "!" { saved = result } else { assert(caught) }
-        ref prefix: Str = args.get(0)
-        ref tail: Str = args.get(1)
-        ref ending: Str = args.get(3)
+        ref prefix : Str = args.get(0)
+        ref tail : Str = args.get(1)
+        ref ending : Str = args.get(3)
         assert(prefix == "prefix+" && tail == "tail1")
         assert(ending == format(suffix, "?"))
     }
@@ -2252,11 +2252,11 @@ variadic_callback_tests := proc(root: Str) {
     state_args.push(CallbackState, own CallbackState.Busy)
     state_args.push(CallbackState, own CallbackState.Idle)
     state_result := states.call(state_args)!
-    ref state_count: I64 = state_result.get(0)
+    ref state_count : I64 = state_result.get(0)
     assert(state_count == 1)
     mut dynamic := vm.lookup("dynamic", VariadicDynamic)!
     empty_dynamic := dynamic.call()!
-    ref empty_text: Str = empty_dynamic.get(0)
+    ref empty_text : Str = empty_dynamic.get(0)
     assert(empty_text == "empty")
     mut mixed := Tuple.new()
     mixed.push(I64, own 7)
@@ -2274,8 +2274,8 @@ variadic_callback_tests := proc(root: Str) {
     unknown_error := expect_call_failure(dynamic, unknown_tail, "unsupported variadic element schema", path = "guest.til")
     assert(unknown_error.exit_status.is_none())
     after_bad := reader.call()!
-    ref before_count: I64 = before_bad.get(0)
-    ref after_count: I64 = after_bad.get(0)
+    ref before_count : I64 = before_bad.get(0)
+    ref after_count : I64 = after_bad.get(0)
     assert(before_count == after_count)
     own dynamic.delete()
     own states.delete()
@@ -2284,10 +2284,10 @@ variadic_callback_tests := proc(root: Str) {
     own join.delete()
     own sum.delete()
     own vm.delete()
-    ref text: Str = saved.get(0)
-    ref again: Str = recovered.get(0)
-    ref record: VariadicOuter = record_result.get(0)
-    ref dynamic_text: Str = mixed_result.get(0)
+    ref text : Str = saved.get(0)
+    ref again : Str = recovered.get(0)
+    ref record : VariadicOuter = record_result.get(0)
+    ref dynamic_text : Str = mixed_result.get(0)
     assert(text == "prefix+tail1tail2!?" && again == "prefix+!?")
     assert(saved_error.code == 17 && saved_error.message == "prefix+tail1tail2")
     assert(record.inner.text == "nested tail" && dynamic_text == "7 mixed nested dynamic")
@@ -2307,17 +2307,17 @@ capture_keyword_views := proc(mut callback: TilVmCallback) {
 
 kwargs_callback_tests := proc(root: Str) {
     File.writefile("guest.til", format(
-        "mode lib\nTransformError := struct { code: I32 = 0; message := \"\" }\n",
+        "mode lib\nTransformError := struct { code : I32 = 0; message := \"\" }\n",
         "CallbackState := enum(U16) { Idle = 400, Busy = 900 }\n",
         "VariadicInner := struct { text := \"\"; state := CallbackState.Idle }\nVariadicOuter := struct { inner := VariadicInner() }\n",
         "mut calls := 0\nread_calls := proc() returns I64 { noop_proc(); return calls }\n",
         "mut held := KwargsMap.new()\ncapture_keywords := proc(options: ...) { noop_proc(); held = options.clone() }\n",
-        "read_held := func() returns Str { ref value: Str = held.get(\"key\"); return value.clone() }\n",
-        "keyword_only := proc(options: ...) returns Str { noop_proc(); calls = calls + 1; if options.len() == 0 { return \"empty\" }; ref n: I64 = options.get(\"number\"); ref text: Str = options.get(\"text\"); ref record: VariadicOuter = options.get(\"record\"); ref state: CallbackState = options.get(\"state\"); assert(state == CallbackState.Busy); return format(n.to_str(), text, record.inner.text) }\n",
+        "read_held := func() returns Str { ref value : Str = held.get(\"key\"); return value.clone() }\n",
+        "keyword_only := proc(options: ...) returns Str { noop_proc(); calls = calls + 1; if options.len() == 0 { return \"empty\" }; ref n : I64 = options.get(\"number\"); ref text : Str = options.get(\"text\"); ref record : VariadicOuter = options.get(\"record\"); ref state : CallbackState = options.get(\"state\"); assert(state == CallbackState.Busy); return format(n.to_str(), text, record.inner.text) }\n",
         "keyword_mixed := proc(mut prefix: Str, parts: ..Str, mut suffix: Str = \"!\", options: ...) returns Str throws TransformError {\n",
         "noop_proc(); calls = calls + 1; prefix = format(prefix, \"+\"); suffix = format(suffix, \"?\"); mut out := prefix.clone(); for part: Str in parts { out = format(out, part) };\n",
-        "if options.has(\"prefix\") { ref named: Str = options.get(\"prefix\"); assert(named == \"map only\") };\n",
-        "if options.has(\"mode\") { ref mode: Str = options.get(\"mode\"); if mode == \"error\" { throw TransformError(code = 19, message = out.clone()) }; if mode == \"panic\" { panic(\"kwargs panic\") }; if mode == \"exit\" { exit(0) } }; return format(out, suffix) }\n"))
+        "if options.has(\"prefix\") { ref named : Str = options.get(\"prefix\"); assert(named == \"map only\") };\n",
+        "if options.has(\"mode\") { ref mode : Str = options.get(\"mode\"); if mode == \"error\" { throw TransformError(code = 19, message = out.clone()) }; if mode == \"panic\" { panic(\"kwargs panic\") }; if mode == \"exit\" { exit(0) } }; return format(out, suffix) }\n"))
     mut vm := TilVm.new(root)
     vm.load_file("guest.til")?
     catch (error: TilVmError) { panic(error.to_str()) }
@@ -2387,9 +2387,9 @@ kwargs_callback_tests := proc(root: Str) {
             caught = true
         }
         if mode == "ok" { kept = output } else { assert(caught) }
-        ref prefix: Str = args.get(0)
-        ref suffix: Str = args.get(3)
-        ref original_mode: Str = keywords.get("mode")
+        ref prefix : Str = args.get(0)
+        ref suffix : Str = args.get(3)
+        ref original_mode : Str = keywords.get("mode")
         assert(prefix == "prefix+" && suffix == "!?" && original_mode == mode)
     }
     mut fixed := Tuple.new()
@@ -2416,10 +2416,10 @@ kwargs_callback_tests := proc(root: Str) {
     own reader.delete()
     own only.delete()
     own vm.delete()
-    ref text: Str = result.get(0)
-    ref joined: Str = kept.get(0)
-    ref again: Str = recovered.get(0)
-    ref snapshot: Str = held.get(0)
+    ref text : Str = result.get(0)
+    ref joined : Str = kept.get(0)
+    ref again : Str = recovered.get(0)
+    ref snapshot : Str = held.get(0)
     assert(text == "7 keywords nested value")
     assert(joined == "prefix+ tail1 tail2!?" && again == "prefix+!?")
     assert(kept_error.code == 19 && kept_error.message == "prefix+ tail1 tail2")
@@ -2467,7 +2467,7 @@ lifecycle_tests := proc(root: Str) returns I64 {
     mut vm := TilVm.new(root)
     expect_failure(vm, "mode lib\nbroken := func( {\n", "load", "expected", 2)
     expect_failure(vm, "mode lib\n/* unterminated\n", "load", "unterminated comment", 2)
-    expect_failure(vm, "mode lib\nbad: I64 = \"wrong\"\n", "type", "I64", 2)
+    expect_failure(vm, "mode lib\nbad : I64 = \"wrong\"\n", "type", "I64", 2)
     expect_failure(vm, "mode lib\nimport(\"./missing_vm_module\")\n", "load", "could not find import", 2)
     expect_failure(vm, "mode cli\n", "load", "mode lib", 1)
     expect_failure(vm, "mode lib\nexit(0)\n", "eval", "status 0", 2)
@@ -2485,7 +2485,7 @@ lifecycle_tests := proc(root: Str) returns I64 {
     expect_failure(vm, "mode lib\nNativeState := struct { namespace: value := ext_global(I64, \"unknown_namespace_global\") }\n", "load", "external global symbol not found", 2)
     expect_failure(vm, "mode lib\nlink_c(\"missing.c\")\n", "load", "cannot compile link_c", 1)
 
-    File.writefile("guest.til", "mode lib\nmut dividend:I64=I64.MIN;dividend=dividend+0;assert(dividend.div(0)==0 && dividend.mod(0)==0);assert(dividend.div(-1)==I64.MIN && dividend.mod(-1)==0);assert(dividend.shl(-1)==0 && dividend.shr(64)==-1);message := format(\"guest \", \"loaded\")\nprintln(message)\n")
+    File.writefile("guest.til", "mode lib\nmut dividend : I64 = I64.MIN;dividend=dividend+0;assert(dividend.div(0)==0 && dividend.mod(0)==0);assert(dividend.div(-1)==I64.MIN && dividend.mod(-1)==0);assert(dividend.shl(-1)==0 && dividend.shr(64)==-1);message := format(\"guest \", \"loaded\")\nprintln(message)\n")
     vm.load_file("guest.til")!
     // A second live VM can load and die without invalidating the first.
     implicit_teardown(root)

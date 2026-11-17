@@ -101,7 +101,7 @@ namespace:
 
 // Parameter-relative places retain field identity for indirect writes.
 ParameterPlace := struct {
-    parameter: USize = 0
+    parameter : USize = 0
     field := ""
 namespace:
     eq := func(a: ParameterPlace, b: ParameterPlace) returns Bool { return a.parameter == b.parameter && a.field == b.field }
@@ -1146,7 +1146,7 @@ type_name_mentions_param := func(name: Str, pname: Str) returns Bool {
     if pname.len() == 0 { return false }
     if name.eq(pname) { return true }
     segs := name.split("_")
-    mut i:USize=0
+    mut i : USize= 0
     while i<segs.len() {
         if segs[i].eq("priv").and(i+1<segs.len()) {
             if segs[i+1].len()==0 {
@@ -1501,9 +1501,9 @@ InterpOutputEvent := struct {
 // One owned, temporary preparation frame. Nested generator evaluation swaps
 // frames without moving their boxed storage or caching a second source AST.
 ComptimeDefinition := struct {
-    name: Str
-    ref original: Expr
-    is_type: Bool
+    name : Str
+    ref original : Expr
+    is_type : Bool
 }
 
 ComptimePreparation := struct {

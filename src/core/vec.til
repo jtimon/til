@@ -24,9 +24,9 @@ priv vec_ref_store := macro(Element: Type) returns FuncDef {
 Vec := macro(T: Type) returns StructDef {
     if type_arg_is_ref(T) {
         return struct {
-            own data: U8 = 0
-            count: USize = 0
-            cap: USize = 0
+            own data : U8 = 0
+            count : USize = 0
+            cap : USize = 0
         namespace:
             priv slot_size := func() returns USize {
                 if type_arg_is_interface(T) { return T.size() }
@@ -84,9 +84,9 @@ Vec := macro(T: Type) returns StructDef {
                 self.count = n
             }
             delete_marked := func(mut self: Vec(T), marks: Dynamic) {
-                mut next: USize = 0
+                mut next : USize = 0
                 for i in 0..self.count {
-                    ref mark: Bool = ptr_add(marks, i.to_uptr())
+                    ref mark : Bool = ptr_add(marks, i.to_uptr())
                     if mark.not() {
                         if next != i { memcpy(self.slot(next), self.slot(i), Vec(T).slot_size().to_uptr()) }
                         next++
@@ -106,7 +106,7 @@ Vec := macro(T: Type) returns StructDef {
                 other.count = 0
             }
             take := func(mut self: Vec(T)) returns Vec(T) {
-                mut out: Vec(T) = malloc(Vec(T).size().to_uptr())
+                mut out : Vec(T) = malloc(Vec(T).size().to_uptr())
                 adopt_from(out, self, Vec(T).size().to_uptr())
                 return out
             }

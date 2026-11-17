@@ -684,7 +684,7 @@ BothSig := lazy_func(a: Bool, b: Bool) returns Bool
 
 get_both := func() returns BothSig { return both }
 apply_both := func(f: BothSig, p: Bool, q: Bool) returns Bool { return f(p, q) }
-BothHolder := struct { fn: BothSig }
+BothHolder := struct { fn : BothSig }
 
 test_lazysig_explicit_local := test() {
     g : BothSig = both

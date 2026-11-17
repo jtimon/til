@@ -237,7 +237,7 @@ native_config_test := proc(root: Str) {
 
 prelude_source := func(label: Str) returns Str {
     return format("import(\"vm_native\")\nimport(\"prelude_support\")\n",
-        "ApiToken := struct { value: I64 = 7 }\n",
+        "ApiToken := struct { value : I64 = 7 }\n",
         "prelude_text := \"", label, "\"\n",
         "prelude_step := proc() { native_increment(); native_buffer_insert(prelude_text) }\n",
         "native_increment()\n")
@@ -281,7 +281,7 @@ host_prelude_test := proc(root: Str) {
         "mode lib\nmut support_loads := 0\nsupport_loads++\nsupport_text := func() returns Str { assert(support_loads == 1); return \" shared\" }\n")
     helper_source := format(
         "mode lib\nimport(\"second\")\nimport(\"std/sys\")\n",
-        "HelperState := struct { token: ApiToken = ApiToken() }\n",
+        "HelperState := struct { token : ApiToken = ApiToken() }\n",
         "helper_first := proc() { state := HelperState(); assert(state.token.value == 7); assert(process_id() > 0); prelude_step() }\n")
     File.writefile(format(config_dir, "/helpers/first.til"), helper_source)
     File.writefile(format(config_dir, "/helpers/second.til"), format(
@@ -343,7 +343,7 @@ host_prelude_test := proc(root: Str) {
     syntax_error := prelude_error(candidate, path, "mode lib\nbroken := func( {\n", "host-api", base,
         "host-api", 2, "expected")
     assert(syntax_error.phase == "load")
-    type_error := prelude_error(candidate, path, "mode lib\nbad: I64 = \"wrong\"\n",
+    type_error := prelude_error(candidate, path, "mode lib\nbad : I64 = \"wrong\"\n",
         "host-api", base, "host-api", 2, "I64")
     assert(type_error.phase == "type")
     prelude_error(candidate, path, "mode lib\nimport(\"missing_prelude_dependency\")\n", "host-api", base,
@@ -361,15 +361,15 @@ host_prelude_test := proc(root: Str) {
     File.writefile(path, guest)
     helper_identity := display_path(format(config_dir, "/helpers/first.til"), cwd)
     prelude_error(candidate, path, source, helper_identity, base, helper_identity, 1, "identity collides")
-    File.writefile(path, "mode lib\n\nbad: I64 = \"wrong\"\n")
+    File.writefile(path, "mode lib\n\nbad : I64 = \"wrong\"\n")
     user_error := prelude_error(candidate, path, source, "host-api", base, path, 3, "I64")
     assert(user_error.phase == "type")
     File.writefile(path, guest)
     helper_path := format(config_dir, "/helpers/first.til")
-    File.writefile(helper_path, format(helper_source, "\nbad: I64 = \"wrong\"\n"))
+    File.writefile(helper_path, format(helper_source, "\nbad : I64 = \"wrong\"\n"))
     prelude_error(candidate, path, source, "host-api", base, display_path(helper_path, cwd), 7, "I64")
     File.writefile(helper_path, helper_source)
-    File.writefile(path, "mode lib\nApiToken := struct { different: Str = \"\" }\n")
+    File.writefile(path, "mode lib\nApiToken := struct { different : Str = \"\" }\n")
     prelude_error(candidate, path, source, "host-api", base, path, 2, "conflicts with host prelude")
     File.writefile(path, "mode lib\nprelude_text := \"user replacement\"\n")
     prelude_error(candidate, path, source, "host-api", base, path, 2, "conflicts with host prelude")
@@ -462,7 +462,7 @@ native_enum_test := proc(root: Str) {
         "NativeInteropAction := proc(I64) returns I64 throws NativeError, TilVmError\nNativeInteropChoice := enum { None, Action: NativeInteropAction }\n",
         "til_vm_x5fnative__native_action_store_bridge := ext_proc(own value: NativeInteropChoice) {}\ntil_vm_x5fnative__native_action_clear_bridge := ext_proc() {}\n",
         "til_vm_x5fnative__native_action_check_bridge := ext_proc(shallow amount: I64) throws TilVmError {}\n",
-        "install_action := proc() { count := 10; action: NativeInteropAction = proc(amount: I64) returns I64 throws NativeError, TilVmError [own mut count] { til_vm_x5fnative__native_action_check_bridge(amount)?; if amount == -1 { til_vm_x5fnative__native_action_clear_bridge() }; if amount == -2 { panic(\"retained action panic\") }; if amount == -3 { exit(7) }; if amount == -4 { throw NativeError(code = 29) }; count = count + amount; return count }; til_vm_x5fnative__native_action_store_bridge(own NativeInteropChoice.Action(action)) }\n"))
+        "install_action := proc() { count := 10; action : NativeInteropAction = proc(amount: I64) returns I64 throws NativeError, TilVmError [own mut count] { til_vm_x5fnative__native_action_check_bridge(amount)?; if amount == -1 { til_vm_x5fnative__native_action_clear_bridge() }; if amount == -2 { panic(\"retained action panic\") }; if amount == -3 { exit(7) }; if amount == -4 { throw NativeError(code = 29) }; count = count + amount; return count }; til_vm_x5fnative__native_action_store_bridge(own NativeInteropChoice.Action(action)) }\n"))
     mut action_vm := TilVm.new(root)
     action_vm.load_file("action_guest.til", prelude_source = "import(\"vm_native\")\n",
         prelude_name = "native-action-api", prelude_base = realpath_str("gen/til"))?

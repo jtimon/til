@@ -88,7 +88,7 @@ main := proc(args: ..Str) {
     mkdir_p(WORK)
     File.writefile(format(WORK, "/ffi_lib_layout_probe.til"), format(
         "mode lib\n",
-        "LayoutProbe := struct { count: USize = 3; own tail : Str = \"\" }\n",
+        "LayoutProbe := struct { count : USize = 3; own tail : Str = \"\" }\n",
         "layout_make := func() returns LayoutProbe { return LayoutProbe(count = 4, tail = format(\"tail \", \"seven\")) }\n"))
     File.writefile(format(WORK, "/consumer.til"), format(
         "import(\"../../gen/til/ffi_lib_layout_probe\")\n",

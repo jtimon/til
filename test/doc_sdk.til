@@ -56,10 +56,10 @@ main := proc(compiler_path: Str) {
     // Runtime Type parameters must not become generic just because a private
     // signature type's encoded source path contains the parameter's spelling.
     File.writefile(format(WORK,"/target.til"),format(
-        "mode lib\npriv Box:=struct { n:I64=0 }\n",
-        "priv inspect:=func(shallow source:Type,shallow target:Type,value:Box,values:Vec(Box)) returns Bool {\n",
+        "mode lib\npriv Box := struct { n : I64 = 0 }\n",
+        "priv inspect := func(shallow source:Type,shallow target:Type,value:Box,values:Vec(Box)) returns Bool {\n",
         "return source.eq(target).and(value.n==3).and(values.len()==0) }\n",
-        "runtime_type_path_probe:=func() returns Bool { t:=Type.Primitive(Primitive.F64);\n",
+        "runtime_type_path_probe := func() returns Bool { t := Type.Primitive(Primitive.F64);\n",
         "return inspect(t,t,Box(n=3),Vec(Box).new()) }\n"))
     // Use the real umbrella/import graph, but keep all output under tmp/ and
     // avoid racing REPL tests reading the checkout's generated documentation.

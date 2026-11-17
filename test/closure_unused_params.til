@@ -1,6 +1,6 @@
 mode script
 
-mut seed: I64 = 5
+mut seed : I64 = 5
 seed++
 action := func(_unused: I64) returns I64 [shallow seed] { return seed }
 mixed := func(value: I64, _unused: Str) returns I64 [shallow seed] { return seed + value }
