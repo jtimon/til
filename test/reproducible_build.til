@@ -2,6 +2,7 @@ mode cli
 
 import("../src/std/sys")
 import("../src/std/file")
+import("jni_support")
 
 // #472, level 3 (L3a): what til itself contributes to a binary does not
 // depend on where the checkout is or on when the build runs. This driver
@@ -131,6 +132,63 @@ check_layout := proc(compiler: Str, target_flag: Str, width: Str) {
     }
 }
 
+compile_apk := proc(root: Str, compiler: Str, target: Str, width: Str, source: Str,
+    binary: Str, generated: Str, sdk: Str, home: Str = "") {
+    command := Cmd.new(format("./", compiler), "build", "--force-rebuild", format("--target=", target),
+        format("--usize=", width), "-o", binary, "-c", generated, source)
+    command.cwd(root)
+    if home.len() > 0 {
+        command.env("HOME", home)
+        command.env("ANDROID_HOME", sdk)
+    }
+    command.capture()
+    if command.run() != 0 { panic(command.render(), " in ", root, ": ", command.out(), command.err()) }
+}
+
+check_apk := proc(compiler: Str, target: Str, width: Str, sdk: Str) {
+    source := format(WORK, "/case/apk_program.til")
+    binary := format(WORK, "/case/apk_program.apk")
+    generated := format(WORK, "/case/apk_program.c")
+    aligned := format(android_apk_stage(generated, target, width), "/aligned.apk")
+    program := "mode gui\nmain := proc() {\nInitWindow(320, 240, \"reproducible APK\".c_str)\nwhile WindowShouldClose().not() {\nBeginDrawing()\nEndDrawing()\n}\nCloseWindow()\n}\n"
+    for root : Str in array(Str, ".", SECOND) { File.writefile(format(root, "/", source), program) }
+    compile_apk(".", compiler, target, width, source, binary, generated, sdk)
+    compile_apk(SECOND, compiler, target, width, source, binary, generated, sdk)
+    same_file("APK checkout roots, signed", binary, format(SECOND, "/", binary))
+    same_file("APK checkout roots, unsigned/aligned", aligned, format(SECOND, "/", aligned))
+    copy_checked(format(SECOND, "/", binary), format(WORK, "/first/program.apk"))
+    copy_checked(format(SECOND, "/", aligned), format(WORK, "/first/aligned.apk"))
+    sleep_ms(1100)
+    compile_apk(SECOND, compiler, target, width, source, binary, generated, sdk)
+    same_file("APK build times, signed", format(WORK, "/first/program.apk"), format(SECOND, "/", binary))
+    same_file("APK build times, unsigned/aligned", format(WORK, "/first/aligned.apk"), format(SECOND, "/", aligned))
+    // A separate HOME gets its own debug key. The signature must change,
+    // while the exact pre-signing payload must remain byte-identical.
+    compile_apk(SECOND, compiler, target, width, source, binary, generated, sdk, realpath_str(SECOND))
+    same_file("APK signing boundary", format(WORK, "/first/aligned.apk"), format(SECOND, "/", aligned))
+    if File.readfile(format(WORK, "/first/program.apk")) == File.readfile(format(SECOND, "/", binary)) {
+        panic("APK signed with an independent debug key unexpectedly matched")
+    }
+    println("APK root/time checks passed: ", target, " U", width)
+}
+
+prepare_apk_root := proc(target: Str) {
+    archive := format("vendor/raylib/build-", target, "/libraylib.a")
+    // Refresh the first build program before copying it into the other root.
+    Cmd.new("bin/make", archive).run_checked()
+    // Use the existing build program in the second checkout, with independent
+    // archives. Copy it last so its inputs do not trigger a self-rebuild there.
+    for path : Str in array(Str, "vendor/raylib/src", "vendor/bindings", "examples/lib") {
+        copy_tree_checked(path, format(SECOND, "/", path))
+    }
+    copy_checked("make.til", format(SECOND, "/make.til"))
+    copy_checked("bin/make", format(SECOND, "/bin/make"))
+    Cmd.new("chmod", "+x", format(SECOND, "/bin/make")).run_checked()
+    second := Cmd.new("./bin/make", archive)
+    second.cwd(SECOND)
+    second.run_checked()
+}
+
 main := proc(args: ..Str) {
     if args.len() < 1 || args.len() > 2 { panic("usage: reproducible_build <compiler under test> [target]") }
     compiler := args[0].clone()
@@ -152,7 +210,17 @@ main := proc(args: ..Str) {
     if target_flag.contains("macos") { copy_tree_checked("vendor/macos", format(SECOND, "/vendor/macos")) }
     if target_flag.contains("android-") {
         copy_tree_checked("vendor/android", format(SECOND, "/vendor/android"))
-        for width : Str in array(Str, "32", "64") { check_layout(compiler, target_flag, width) }
+        sdk := android_apk_sdk()
+        if sdk.len() > 0 {
+            android_apk_inputs(sdk)
+            prepare_apk_root(args[1])
+        } else {
+            println("APK checks not run: no Android SDK; checking native artifacts only")
+        }
+        for width : Str in array(Str, "32", "64") {
+            check_layout(compiler, target_flag, width)
+            if sdk.len() > 0 { check_apk(compiler, args[1], width, sdk) }
+        }
     } else {
         check_layout(compiler, target_flag, "")
     }

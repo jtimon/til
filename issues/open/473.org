@@ -975,4 +975,7 @@ regression for both Android targets/layouts, and include Android native
 artifacts in their existing hash lists. The groups start on trial, with
 section/member diagnostics. Local evidence and the resource-path fix are
 in [[./472.org][#472]]; no real cross-host CI result is claimed yet. APK
-packaging/signing coverage is tracked separately in [[./505.org][#505]].
+packaging/signing coverage is implemented in [[../fixed/505.org][#505]]: SDK-capable
+producers add the exact aligned APK before signing to the existing trial
+lists. Local root/time checks compare final signed APKs with a shared key
+and verify that independent keys change only the signed distribution bytes.

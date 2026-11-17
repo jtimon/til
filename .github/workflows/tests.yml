@@ -1114,6 +1114,12 @@ jobs:
           grep -A 12 "DCHECK_FUNCTION_EXISTS=sem_wait" vendor/nng/build-macos-arm64/CMakeFiles/CMakeConfigureLog.yaml | head -40
           od -A d -t x1 -N 512 vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/src/platform/posix/posix_alloc.c.o
           od -A d -t x1 -N 512 vendor/libffi/build-macos-arm64/src/types.o
+          # SDK-capable x64 producer: local checks compare signed APKs with
+          # one debug key; the collector hashes the aligned unsigned payload.
+          export TMPDIR="$PWD/tmp"
+          export JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=$PWD/tmp"
+          test -d "$ANDROID_HOME"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-37.0" "build-tools;36.0.0"
           make vendor/raylib/build-android-x64/libraylib.a vendor/raylib/build-android-arm64/libraylib.a
           ./bin/til run test/reproducible_build.til bin/til android-x64
           ./bin/til run test/reproducible_build.til bin/til android-arm64
@@ -1995,6 +2001,12 @@ jobs:
           grep -A 12 "DCHECK_FUNCTION_EXISTS=sem_wait" vendor/nng/build-macos-arm64/CMakeFiles/CMakeConfigureLog.yaml | head -40
           od -A d -t x1 -N 512 vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/src/platform/posix/posix_alloc.c.o
           od -A d -t x1 -N 512 vendor/libffi/build-macos-arm64/src/types.o
+          # The macOS SDK producer compares the same unsigned APK payload as
+          # Linux x64; its independently created debug signature is excluded.
+          export TMPDIR="$PWD/tmp"
+          export JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=$PWD/tmp"
+          test -d "$ANDROID_HOME"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-37.0" "build-tools;36.0.0"
           ./bin/make vendor/raylib/build-android-x64/libraylib.a vendor/raylib/build-android-arm64/libraylib.a
           ./bin/til run test/reproducible_build.til bin/til android-x64
           ./bin/til run test/reproducible_build.til bin/til android-arm64

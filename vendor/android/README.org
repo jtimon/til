@@ -121,6 +121,20 @@ other input to raylib, so legacy Back closes the activity rather than being
 consumed without action. This hook is in til's runtime, not a vendor patch.
 Back/relaunch and Home/resume were verified on API 28/4 KB and API 35/16 KB.
 
+The existing reproducibility driver also checks APKs when this SDK is present:
+
+#+begin_src sh
+bin/til run test/reproducible_build.til bin/til android-x64
+bin/til run test/reproducible_build.til bin/til android-arm64
+#+end_src
+
+Each command covers both USize layouts, independent build roots and rebuild
+times. Signed APKs must match with the same debug key; an independent key
+must change the signed APK while preserving the exact aligned pre-signing
+payload. SDK-capable CI producers compare that payload, not their different
+debug signatures. The checks print SDK/JDK/signing inputs; absent SDK coverage
+is reported explicitly and a configured but invalid SDK fails.
+
 ** JNI libraries for Android apps
 
 #+begin_src sh

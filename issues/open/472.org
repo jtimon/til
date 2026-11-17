@@ -3155,7 +3155,7 @@ LLVM's GNU-format ar also produced identical raylib archives locally.
 A til-written scratch check verified exact signed GUI APK bytes across
 those roots/compiler architectures and rebuild times for both targets and
 layouts, using the same SDK/JDK and debug key. Maintained APK coverage and
-its CI/signing boundary are [[./505.org][#505]]. Native cross-host CI equality
+its CI/signing boundary are [[../fixed/505.org][#505]]. Native cross-host CI equality
 remains on trial until actual producer runs agree. ~make clean && make test~
 passed 588/588. Evidence: ~tmp/android_repro_compare.log~,
 ~tmp/android_repro_llvm_{x64,arm64}.log~ and ~tmp/android_repro_apk_til.log~.

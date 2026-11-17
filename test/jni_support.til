@@ -8,6 +8,40 @@ mode lib
 import("../src/std/sys")
 import("../src/std/file")
 
+// APK checks are optional on SDK-less producers. A configured SDK is not an
+// excuse to skip broken/missing tools: the ordinary build validates those.
+android_apk_sdk := proc() returns Str {
+    configured := get_env("ANDROID_HOME")
+    if configured.len() > 0 {
+        if File.is_dir(configured).not() { panic("ANDROID_HOME is not a directory: ", configured) }
+        return configured
+    }
+    mut sdk := format(get_env("HOME"), "/Android/Sdk")
+    if host_os() == "macos" { sdk = format(get_env("HOME"), "/Library/Android/sdk") }
+    if File.is_dir(sdk) { return sdk }
+    return ""
+}
+
+android_apk_stage := func(c_path: Str, target: Str, width: Str) returns Str {
+    return format(c_path.strip_suffix(".c"), "_android/", target, "/U", width)
+}
+
+android_apk_inputs := proc(sdk: Str) {
+    println("APK SDK: ", sdk)
+    for kind : Str in array(Str, "build-tools", "platforms") {
+        for name : Str in Dir.list(format(sdk, "/", kind)) {
+            properties := format(sdk, "/", kind, "/", name, "/source.properties")
+            if File.is_file(properties) { println(kind, "/", name, ":\n", File.readfile(properties)) }
+        }
+    }
+    java := Cmd.new(format(jni_java_home(), "/bin/java"), "-version")
+    java.capture()
+    if java.run() != 0 { panic("cannot record APK JDK: ", java.err()) }
+    println(java.out(), java.err())
+    println("Local signed-APK comparisons share ", get_env("HOME"), "/.android/debug.keystore")
+    println("Cross-producer APK comparison: exact aligned, unsigned payload")
+}
+
 // The JDK the checks use: $JAVA_HOME, else the one the javac on PATH belongs
 // to (on macOS, /usr/libexec/java_home's answer). The suite needs a JDK the
 // way library_namespace needs python3: without one the test fails.

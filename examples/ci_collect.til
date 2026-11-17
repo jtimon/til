@@ -3,6 +3,7 @@ mode cli
 import("../src/std/sys")
 import("../src/std/file")
 import("../src/self/targets")
+import("../test/jni_support")
 
 // CI comparison of what different producers make of the same source
 // (issue #473, decisions 2 and 3; issue #472, levels 1 and 2 across hosts).
@@ -356,7 +357,8 @@ list_members := proc(target: Str, level: Str, archive: Str, label: Str, scratch:
 
 // Android is a cross-only program/library target (#473), not a til host.
 // Compare its native corpus at both layouts, including the libraries an APK
-// or Java app actually loads. SDK packaging/signing is a separate boundary.
+// or Java app actually loads. SDK-capable producers additionally compare the
+// exact aligned APK before signing; their per-host debug keys may differ.
 produce_android_binary := proc(compiler: Str, target: Str, mut lines: Vec(Str)) {
     identity := toolchain_identity(target)
     println("toolchain for ", target, ":\n", identity)
@@ -367,6 +369,9 @@ produce_android_binary := proc(compiler: Str, target: Str, mut lines: Vec(Str)) 
     level := "binary-trial"
     archive := format("vendor/raylib/build-", target, "/libraylib.a")
     if File.is_file(archive).not() { fail(format(archive, " is not built; run bin/make ", archive, " first")) }
+    sdk := android_apk_sdk()
+    if sdk.len() > 0 { android_apk_inputs(sdk) }
+    else { println("ci_collect: ", target, " APK payload not produced: no Android SDK") }
     for width : Str in array(Str, "32", "64") {
         mut paths := vec(Str, identity_path.clone(), archive.clone())
         mut items := vec(Str, "- toolchain", "vendor libraylib.a")
@@ -420,6 +425,18 @@ produce_android_binary := proc(compiler: Str, target: Str, mut lines: Vec(Str)) 
         for path : Str in array(Str, "gen/til/jni_lib.h", "gen/til/jni_lib_jni.c", "gen/til/java/til/jni_lib/JniLib.java") {
             paths.push(own path.clone())
             items.push(own format("test/jni_lib.til ", path.strip_prefix("gen/til/")))
+        }
+        if sdk.len() > 0 {
+            apk := format(directory, "/hello_gui_", width, ".apk")
+            c_path := format(directory, "/hello_gui_", width, ".c")
+            package := build_command(compiler, target)
+            package.args(format("--usize=", width), "-o", apk, "-c", c_path, "examples/hello_gui.til")
+            package.capture()
+            if package.run() != 0 { fail(format(package.render(), " failed:\n", package.out(), package.err())) }
+            // Keep packaging output exactly as the builder made it: no
+            // extracting, stripping or ZIP rewriting before hashing.
+            paths.push(own format(android_apk_stage(c_path, target, width), "/aligned.apk"))
+            items.push(own "examples/hello_gui.til aligned.apk")
         }
         hashes := sha256_of(paths)
         for i, hash in hashes { lines.push(own format(hash, " ", level, " ", target, " c ", width, " ", items[i])) }

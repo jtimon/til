@@ -1,0 +1,57 @@
+# priority: medium
+# category: features
+** FIXED #505 Run Android APK reproducibility checks in til
+
+*** Post-mortem
+
+APK checks were an ad-hoc Python orchestration script despite til already
+having the necessary process, file and timing support. The maintained
+~test/reproducible_build.til~ now stages independent GUI build roots and
+compares signed APKs and aligned pre-signing APKs at both build locations
+and times, for both Android targets at USize32 and USize64. An independent
+HOME/debug key must change the signed APK while preserving the exact aligned
+payload. SDK inventory, JDK and signing-key location are printed explicitly.
+
+~examples/ci_collect.til~ adds that unmodified aligned APK to SDK-capable
+producers' existing trial hash lists. Linux x64 and macOS arm64 CI prepare
+Platform 37.0 and Build-Tools 36.0.0; the compiler selects its supported
+stable SDK tools and the checks log the installed inputs. SDK-less hosts
+report APK coverage absent, and malformed SDK configuration fails. No
+Python, new command/flag, hash-list format or signing secret is introduced.
+
+Regression: ~test/reproducible_build.til bin/til android-x64~ and
+~android-arm64~ passed all four target/layout combinations, including
+independent signing keys. Local collector validation matched all 520 items
+between roots and x64/AArch64 compiler architectures with different keys;
+the AArch64 compiler ran under QEMU using the same host LLVM backend, not
+on a real second host. SDK-less and invalid-SDK paths were also exercised.
+Inputs: LLVM 23.1.5, Build-Tools 36.0.0, Platform 37.0 revision 2, JDK 21.
+~make clean && make test~ passed 590/590. Real Linux/macOS equality remains
+on trial pending CI results. Local logs: ~tmp/apk505_{x64,arm64,verify}.log~.
+
+Make Android APK reproducibility a til-driven regression, extending the
+existing ~test/reproducible_build.til~ and #472/#473 comparison work.
+
+The local Android investigation used an ad-hoc Python script to orchestrate
+builds, copy fixtures, wait between builds and compare APK bytes. None of
+that requires Python: til already has Cmd, File, directory copying,
+environment handling and sleep_ms. This is missing maintained test
+coverage, not a missing language or standard-library primitive.
+
+Related: [[../open/462.org][#462]] implements Android builds; [[../open/472.org][#472]] owns
+reproducible output and [[../open/473.org][#473]] owns cross-producer CI comparisons.
+
+*** Acceptance
+
+  - [X] The maintained APK regression is written in til and needs no Python.
+  - [X] Exercise android-x64 and android-arm64 at USize32 and USize64.
+  - [X] Rebuild the same GUI program in separate checkout roots and at
+    different times, comparing exact APK bytes with identical signing inputs.
+  - [X] Cover different producer compilers at the same source revision and
+    logical compiler path; distinguish local architecture emulation from
+    actual cross-host results.
+  - [X] State the SDK/JDK and signing inputs. Where keys differ, explicitly
+    compare the agreed pre-signing payload instead of claiming signed APK
+    equality or silently rewriting outputs.
+  - [X] Integrate the applicable checks with the existing reproducibility
+    driver/collector and report failures and missing coverage clearly.
