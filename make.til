@@ -2291,6 +2291,10 @@ build_emsdk := proc(mut b: Build) {
 
 LLVM_MINGW_RELEASE := "20261104"
 LLVM_MINGW_DIR := "vendor/llvm-mingw"
+// What build_llvm_mingw does to the unpacked tree, numbered: part of the
+// stamp and of CI's cache key, so a tree laid out by an older bin/make is
+// replaced. 2: the Windows package gets x86_64-w64-mingw32/include.
+LLVM_MINGW_LAYOUT := "2"
 
 /// The release's archive built for one host, and the sha256 it must have.
 LlvmMingwArchive := struct {
@@ -2336,12 +2340,12 @@ file_sha256 := proc(host: Host, path: Str) returns Str {
 }
 
 /// Download and unpack the pinned llvm-mingw once per checkout. The stamp
-/// names the release, so a tree of another one -- an older checkout's, or
-/// a CI cache restored from one -- is removed and replaced. The archive is
-/// checked against its sha256 before anything in it is used.
+/// names the release and the layout, so a tree of another one -- an older
+/// checkout's, or a CI cache restored from one -- is removed and replaced.
+/// The archive is checked against its sha256 before anything in it is used.
 build_llvm_mingw := proc(mut b: Build) {
     if b.begin("llvm_mingw").not() { return }
-    stamp := format(LLVM_MINGW_DIR, "/.til-llvm-mingw-", LLVM_MINGW_RELEASE)
+    stamp := format(LLVM_MINGW_DIR, "/.til-llvm-mingw-", LLVM_MINGW_RELEASE, "-", LLVM_MINGW_LAYOUT)
     if File.exists(stamp) { return }
     archive := llvm_mingw_archive_for(b.host)
     File.remove_tree(LLVM_MINGW_DIR)
@@ -2359,6 +2363,20 @@ build_llvm_mingw := proc(mut b: Build) {
     if b.host.os == "windows" { tar = format(get_env("SystemRoot").replace("\\", "/"), "/System32/tar.exe") }
     run(tar, "-xf", download, "-C", LLVM_MINGW_DIR, "--strip-components=1")
     File.remove(download)
+    // Issue #472: the Windows package keeps the mingw-w64 headers in
+    // include/, the Linux and Mac ones in <arch>-w64-mingw32/include, where
+    // clang looks first. The directory's name goes into the debug info of
+    // everything compiled, so til.exe built on Windows differed from the
+    // one built on Linux in .debug_info and .debug_line and in nothing
+    // else (CI run 3142). The same name on every host; a copy, since the
+    // package's other targets still read include/.
+    if b.host.os == "windows" {
+        arch_include := format(LLVM_MINGW_DIR, "/x86_64-w64-mingw32/include")
+        if File.exists(arch_include) { panic(arch_include, " is already in the llvm-mingw package") }
+        if copy_tree(format(LLVM_MINGW_DIR, "/include"), arch_include) != 0 {
+            panic("could not copy the llvm-mingw headers to ", arch_include)
+        }
+    }
     File.writefile(stamp, "")
 }
 

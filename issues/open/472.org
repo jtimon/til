@@ -2923,3 +2923,59 @@ Fixes from this, in the same commit:
   members. Built here for macos-arm64.
 - The windows steps' printout reads the two sections that differ: the
   path-like strings of ~til.exe~'s ~.debug_line~ and ~.debug_info~.
+
+*** Run 3142: why the Windows host's til.exe differs -- the package's header directory
+
+Run 3142 (master 9dc58e6), the three windows producers' logs. ~til.exe~
+from the two Linux hosts: 7f18fafcabd7 (width 32) and 0d964c58a5dc (64),
+equal. From the Windows host: 6b444756de50 and 3eaf38435901. By section,
+~.text~, ~.data~, ~.rdata~, ~.pdata~, ~.reloc~, ~.debug_abbrev~ and
+~.debug_str~ are the same on all three; ~.debug_info~ and ~.debug_line~
+are not. The directories ~til.exe~'s line table names:
+
+| Linux hosts | Windows host |
+|-------------+--------------|
+| ./vendor/llvm-mingw/lib/clang/23/include | ./vendor/llvm-mingw/lib/clang/23/include |
+| ./vendor/llvm-mingw/x86_64-w64-mingw32/include | ./vendor/llvm-mingw/include |
+| ./vendor/llvm-mingw/x86_64-w64-mingw32/include/sys | ./vendor/llvm-mingw/include/sys |
+
+Nothing else differs: no drive letter, no backslash (clang writes forward
+slashes there, and til's map of the checkout to ~.~ works on Windows).
+The cause is the llvm-mingw package, not the host: the Linux (and Mac)
+archives carry the mingw-w64 headers as ~<arch>-w64-mingw32/include~, the
+Windows zip as ~include/~ only, and clang looks in the first, then in the
+second.
+
+Fix: ~bin/make llvm_mingw~ on a Windows host copies ~include/~ to
+~x86_64-w64-mingw32/include~ after unpacking, so clang finds the headers
+under the name every other host has. A copy, not a move: the package's
+other targets (i686, arm) still read ~include/~. The stamp and CI's cache
+key carry a layout number (~LLVM_MINGW_LAYOUT~) so that trees and caches
+laid out the old way are replaced. Not run on Windows from here; the next
+run's Windows producer shows whether ~til.exe~ is now 7f18fafcabd7-like
+equal on three hosts.
+
+Still different on the Windows host after this, and known: programs with
+a build stamp (~hello_script.exe~, the library), because the stamp names
+the compiler as ~bin/til.exe~ there and ~bin/til~ elsewhere. ~til~ itself
+carries no stamp.
+
+**** The windows objects differ from run to run on one host
+
+Comparing the collect reports of runs 3138 and 3141: every C object built
+for windows-x64 by the pinned clang (libffi's, nng's, til's own
+~ci_binary_lib.o~) has a different hash on each of the three hosts AND a
+different hash in the two runs on the same host, while the full
+~objdump -h -t -s~ of ~types.o~ is the same text everywhere and whatever
+is linked from the objects (~til.exe~, the ~.dll~) is equal between the
+Linux hosts. So the objects carry something that changes from one
+compilation to the next and that neither the dump nor the linker reads.
+A COFF file header has a time field; Ubuntu's clang 18 writes zero there
+for a mingw target (tried here: the same file compiled twice two seconds
+apart is identical), so this is not confirmed for the pinned clang 23.
+
+The three windows steps now print every byte of ~types.o~, and compile
+one small file twice two seconds apart in three ways (as is, with
+~-mno-incremental-linker-compatible~, with ~SOURCE_DATE_EPOCH~ set),
+printing both hashes and the header each time: the next run says what
+differs and which of the two makes it stop.
