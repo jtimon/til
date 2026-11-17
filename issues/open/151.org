@@ -867,7 +867,7 @@
 
   Keep ~bin/til translate --target=templeos -c tmp/til.HC src/til.til~ as a
   development pressure test, not a claim of a working TempleOS compiler.
-  The latest full attempt on ~ae1daf9eb~ plus the reference-call field changes,
+  The latest full attempt on ~d755ff8ef~ plus the shared enum-storage changes,
   at both USize widths, passes ~TypeScope_erase_binding~ and reaches
   ~cyclic inline struct dependency~ during HolyC type definition ordering.
   Dynamic Map values, nested ordered containers, scalar namespace storage and
@@ -1810,6 +1810,77 @@
   checked pointer form. Full compiler translation passes the former field-base
   rejection and reaches ~cyclic inline struct dependency~ at both widths.
 
+**** Batched native language acceptance
+
+  The existing runner stages language programs as ~tmp/templeos/CASE<n>.HC~
+  files and executes each in a fresh TempleOS task, reusing one boot per batch.
+  The script-language corpus, common ownership/collection suites and test-mode
+  checks each form a batch at each USize width. Filesystem, GUI and intentional
+  host-timeout checks retain fresh VMs and disks. This removes 40 boots without
+  dropping a case: the existing startup sleeps alone account for 20 minutes,
+  before boot and keyboard-entry work. CI still runs ~make test_templeos~;
+  there is no installed launcher, persistent VM, snapshot or cache.
+
+  Every child owns its compiler symbols, globals, heap and output document.
+  The parent waits for task termination and checks the expected pass/panic/error
+  status; the host compares every case's framed output with the same reference.
+  Each child has a 120-second guest deadline, and the batch remains bounded by
+  the existing 180-second host watchdog. The ownership ledger is checked before
+  the child exits. Test-mode acceptance runs a success after its expected panic
+  to verify that exception/compiler state does not leak into the next task.
+
+  Staging uses uppercase short filenames: mtools' lowercase 8.3 flags otherwise
+  make a short name such as maps_32.HC invisible to the guest lookup even while
+  long names work. ExeFile2 treats a missing include as an empty program, so
+  the parent rejects a missing staged input before applying a case's expected
+  outcome. The runner writes and regenerates these files; the existing Once.HC
+  harness dispatches them, and the existing CI diagnostic upload includes them.
+
+  Verification on master ~cde9e1009~: ~make clean && make test~ passes 588/588,
+  clang-clean. All 133 native cases completed at USize32/64, including the
+  ownership ledger, expected panic recovery, isolated filesystem/GUI cases,
+  compiler errors and the enforced host timeout. The full run was interrupted
+  for master rebases; two temporary continuations completed the unrun suffixes.
+  No persistent resume state or test-selection flag was added.
+
+**** Shared enum storage and common Option acceptance
+
+  C and HolyC use ~common_c.til~'s inline/boxed payload decisions for enum
+  dependencies. HolyC owned niches now store a nullable payload box in one
+  native pointer field, matching C's model instead of recursively inlining
+  the payload. Helpers restore the pointed-to type; their forward declarations
+  precede every helper definition, since redeclaring an extern after a HolyC
+  definition replaces it with an unresolved extern. Clone/delete/equality and
+  declaration-order comparison retain payload ownership and custom hooks.
+  Switches still use saved subjects and full-width conditional chains in HolyC;
+  C keeps its native switch optimization. Borrowed niche methods such as
+  unwrap_or reuse the existing core Til bodies.
+
+  The same ~test/option.til~ now runs interpreted, C-compiled, translated and
+  natively in the ownership-ledger batch. Two added common cases cover recursive
+  owned links with independent clones and enum-valued payloads with custom
+  lifecycle counters, declaration-order comparison and consuming take.
+  The latter exposed a shared initializer bug: POD enum payloads were borrowed
+  by construction and shared by cloning even when a niche owned their box.
+  Constructors now take ownership of those boxes and clones copy their payloads.
+
+  Recursive comparison eligibility walks the type graph once instead of
+  overflowing the compiler stack on an owned link. Native value returns release
+  a malloc-backed local's outer carrier after moving its contents, including the
+  temporary produced by a destructive payload match. Native enum-tag parameters
+  retain their value ABI, with caller-owned slots protected during custom delete.
+  Batch children initialize terminal documents and save exception diagnostics
+  for both native errors and unexpected Til panics.
+
+  Verification on master ~d755ff8ef~: ~make clean && make test_two_pass~ passes
+  590/590, clang-clean. All 20 common Option cases pass interpreted and C/ASAN
+  at O0/O2 with USize32/64, and in native TempleOS with zero outstanding Til
+  allocations at each width. The other ownership/collection suites, the complete
+  script-language corpus and test-mode panic recovery also pass at both widths.
+  The native runner gains these cases without extra VM boots or source wrappers.
+  Full compiler translation still reaches a remaining declaration dependency
+  cycle at both widths; native compiler hosting is not yet complete.
+
 **** Manual GUI testing in one VM
 
   The task worktree already has the existing ~til-templeos-test~ Docker image,
@@ -1818,7 +1889,7 @@
   needs the setup at the start of ~test/templeos/templeos.til~ first.
 
   Stop the VM before staging files. The test runner recreates ~guest.raw~ for
-  each case, so it is test storage, not a place to keep personal files. Re-stage
+  each VM, so it is test storage, not a place to keep personal files. Re-stage
   after native tests if they replaced the program. Hosted manual testing is just
   ~bin/til run examples/gui_mouse.til~.
 
@@ -1877,12 +1948,12 @@ HC
 
 *** QEMU validation
 
-  The repository driver formats an isolated FAT32 data disk per case and
+  The repository driver formats an isolated FAT32 data disk per VM and
   boots the checksum-pinned live ISO. It injects the Linux-generated HolyC
   file and ~test/templeos/templeos.HC~ as ~C:/Home/Once.HC~.
   The runner mounts the data disk in the first user task and executes
-  ~Once.HC~, which compiles and executes the generated file with ~ExeFile2~,
-  catches exceptions, reports
+  ~Once.HC~, which compiles and executes a standalone file or dispatches a
+  batch of private tasks through ~ExeFile2~, catches exceptions, reports
   framed output and the result token over ~isa-debugcon~, and exit QEMU
   through ~isa-debug-exit~. The host requires the guest exit status, result
   token, and expected output to agree and applies a hard timeout.

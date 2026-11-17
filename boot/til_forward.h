@@ -1885,6 +1885,7 @@ typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCLocalState {
     Str continue_label;
     Set__Str param_pointer_names;
     Set__Str caller_slot_params;
+    Set__Str owned_heap_names;
     Map__Str_Str payload_names;
     Map__Str_Str pointer_types;
     Set__Str str_names;

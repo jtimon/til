@@ -79,6 +79,7 @@ priv HolyCLocalState := struct {
     continue_label := ""
     param_pointer_names := Set(Str).new()
     caller_slot_params := Set(Str).new()
+    owned_heap_names := Set(Str).new()
     payload_names := Map(Str, Str).new()
     pointer_types := Map(Str, Str).new()
     str_names := Set(Str).new()
@@ -120,6 +121,7 @@ priv holyc_local_name := func(name: Str, locals: HolyCLocalState) returns Str {
 priv holyc_bind_name := func(name: Str, emitted_name: Str, mut locals: HolyCLocalState) {
     locals.param_pointer_names.remove(name)
     locals.caller_slot_params.remove(name)
+    locals.owned_heap_names.remove(name)
     locals.payload_names.remove(name)
     locals.str_names.remove(name)
     locals.str_pointer_names.remove(name)
@@ -201,6 +203,10 @@ priv holyc_payload_ref := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
     ref def : Expr = ctx.scope.get_struct(enum_name, ctx.symbols).unwrap()
     ref ed : EnumDef = enumdef_of(def)
     value := holyc_struct_ref(e.children[1], ctx, state, locals, error)
+    if c_enum_niche_owns_payload(def) {
+        return format("((", value, ")->data)(",
+            holyc_value_ctype(enum_variant_type(def, enum_niche_some_index(def)), state), " *)")
+    }
     for variant : VariantDef in ed.variants {
         // Every union member has the same address. The binding supplies the
         // selected payload type; no runtime tag-to-pointer lookup is needed.
@@ -225,7 +231,7 @@ priv holyc_enum_tag_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitStat
             ref def : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
             variant := codegen_enum_variant_index(e, owner, def, ctx.symbols)
             if variant >= 0 {
-                if state.niche_ref_types.has(owner) { return c_niche_case_value(def, variant).to_str() }
+                if enum_is_niche(def) { return c_niche_case_value(def, variant).to_str() }
                 return enum_variant_tag_at(def, variant).to_str()
             }
         }
@@ -237,6 +243,8 @@ priv holyc_enum_tag_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitStat
     }
     if state.payload_enum_names.has(type_name) {
         value := holyc_struct_ref(e, ctx, state, locals, error)
+        ref definition : Expr = ctx.scope.get_struct(type_name, ctx.symbols).unwrap()
+        if c_enum_niche_owns_payload(definition) { return format("((", value, ")->data != NULL)") }
         return format("(", value, ")->tag")
     }
     return holyc_expr(e, ctx, state, locals, error)
@@ -247,6 +255,7 @@ priv holyc_clone_locals := func(locals: HolyCLocalState) returns HolyCLocalState
         continue_label = locals.continue_label.clone(),
         param_pointer_names = locals.param_pointer_names.clone(),
         caller_slot_params = locals.caller_slot_params.clone(),
+        owned_heap_names = locals.owned_heap_names.clone(),
         payload_names = locals.payload_names.clone(),
         pointer_types = locals.pointer_types.clone(),
         str_names = locals.str_names.clone(),
@@ -302,6 +311,11 @@ priv holyc_decl_pointer_type := func(decl: Declaration, rhs: Expr,
     symbols: SymbolPool, state: HolyCEmitState) returns Str {
     type_name := holyc_storage_type_name(til_type_name_c(decl.til_type, symbols), state)
     if type_name == "Dynamic" { return "Dynamic" }
+    if state.enum_types.has(type_name).and(state.payload_enum_names.has(type_name).not()) {
+        if decl.own_type.is(OwnType.Ref).or(rhs_is_allocator_call(rhs, symbols)) {
+            return state.enum_types[type_name].clone()
+        }
+    }
     if decl.own_type.is(OwnType.Ref) { return type_name }
     if rhs_is_allocator_call(rhs, symbols) { return type_name }
     return ""
@@ -485,6 +499,16 @@ priv holyc_struct_method_is_generated := func(type_name: Str, method: Str,
 
 priv holyc_struct_eq_supported := func(type_name: Str, ctx: Context,
     state: HolyCEmitState) returns Bool {
+    mut visited := Set(Str).new()
+    return holyc_struct_eq_walk(type_name, ctx, state, visited)
+}
+
+priv holyc_struct_eq_walk := func(type_name: Str, ctx: Context,
+    state: HolyCEmitState, mut visited: Set(Str)) returns Bool {
+    // Recursive owned/borrowed links are ordinary back-edges in the type
+    // graph. Each definition's methods and fields need checking only once.
+    if visited.has(type_name) { return true }
+    visited.add(own type_name.clone())
     def_o := ctx.scope.get_struct(type_name, ctx.symbols)
     if def_o.is_none() { return false }
     ref def : Expr = def_o.unwrap()
@@ -506,12 +530,12 @@ priv holyc_struct_eq_supported := func(type_name: Str, ctx: Context,
                 ref target : Str = state.niche_ref_types[field_type]
                 if target == type_name { continue }
                 if holyc_scalar_type_name(target).or(target.eq("Str")) { continue }
-                if holyc_aggregate_type(target, state).and(holyc_struct_eq_supported(target, ctx, state)) { continue }
+                if holyc_aggregate_type(target, state).and(holyc_struct_eq_walk(target, ctx, state, visited)) { continue }
                 return false
             }
             if holyc_plain_value_type(field_type, state).or(field_type.eq("Str")) { continue }
             if holyc_aggregate_type(field_type, state)
-                .and(holyc_struct_eq_supported(field_type, ctx, state)) { continue }
+                .and(holyc_struct_eq_walk(field_type, ctx, state, visited)) { continue }
             return false
         }
         return true
@@ -528,8 +552,8 @@ priv holyc_struct_eq_supported := func(type_name: Str, ctx: Context,
         }
         for variant : VariantDef in ed.variants {
             type_name := holyc_storage_type_name(variant.payload_type, state)
-            if type_name.len().eq(0).or(holyc_scalar_type_name(type_name)).or(type_name.eq("Str")) { continue }
-            if holyc_aggregate_type(type_name, state).and(holyc_struct_eq_supported(type_name, ctx, state)) { continue }
+            if type_name.len().eq(0).or(holyc_plain_value_type(type_name, state)).or(type_name.eq("Str")) { continue }
+            if holyc_aggregate_type(type_name, state).and(holyc_struct_eq_walk(type_name, ctx, state, visited)) { continue }
             return false
         }
         return true
@@ -966,6 +990,21 @@ priv holyc_delete_free_flag := func(receiver: Expr, flag: Expr, ctx: Context,
     return holyc_expr(flag, ctx, state, locals, error)
 }
 
+priv holyc_return_outer_release := func(value: Expr, prefix: Str,
+    locals: HolyCLocalState, symbols: SymbolPool) returns Str {
+    switch value.node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name(symbols.names)
+        if locals.owned_heap_names.has(name) {
+            // The result owns the moved contents, not the malloc-backed
+            // local's now-unneeded outer slot.
+            return format(prefix, "    TilFree(", holyc_local_name(name, locals), ");\n")
+        }
+    case:
+    }
+    return ""
+}
+
 priv holyc_struct_copy := func(type_name: Str, dest: Str, dest_sep: Str,
     src: Str, src_sep: Str, depth: USize, ctx: Context, state: HolyCEmitState,
     mut error: Str) returns Str {
@@ -1356,6 +1395,20 @@ priv holyc_enum_init := func(type_name: Str, dest: Str, e: Expr, depth: USize,
     index := enum_variant_index(def, variant_name)
     if index >= 0 {
         ref variant : VariantDef = ed.variants[index.to_usize()]
+        if c_enum_niche_owns_payload(def) {
+            if variant.payload_type.len() == 0 { return format(prefix, dest, ".data = NULL;\n") }
+            if e.children.len() != 2 { error = "invalid boxed niche constructor"; return "" }
+            payload_type := holyc_storage_type_name(variant.payload_type, state)
+            ref value : Expr = e.children[1]
+            if value.node_type.is(NodeType.Ident).or(value.node_type.is(NodeType.FieldAccess)) {
+                pointer := holyc_owned_dynamic_arg(value, payload_type, ctx, state, locals, error)
+                return format(prefix, dest, ".data = ", pointer, ";\n")
+            }
+            pointer := holyc_temp("niche_payload", state)
+            init := holyc_owned_field_init(payload_type, pointer, value, depth, ctx, state, locals, error)
+            return format(prefix, payload_type, " *", pointer, ";\n", init,
+                prefix, dest, ".data = ", pointer, ";\n")
+        }
         out := format(prefix, dest, ".tag = ", variant.tag_value.to_str(), ";\n")
         if variant.payload_type.len() == 0 { return out }
         if e.children.len() != 2 { error = "invalid payload constructor"; return "" }
@@ -1655,6 +1708,16 @@ priv holyc_register_runtime_type := func(name: Str, ctx: Context,
                 holyc_register_runtime_type(variant.payload_type, ctx, state, error)
             }
         }
+        if c_enum_niche_owns_payload(def) {
+            payload := enum_variant_type(def, enum_niche_some_index(def))
+            if state.enum_types.has(payload).and(state.payload_enum_names.has(payload).not()) {
+                for method : Str in "clone delete eq".split(" ") {
+                    if holyc_struct_method_is_generated(payload, method, ctx).not() {
+                        holyc_register_method(payload, method, ctx, state, error)
+                    }
+                }
+            }
+        }
     case .StructDef(sd):
         state.struct_names.add(own name.clone())
         holyc_register_collection(name, ctx, state, error)
@@ -1716,19 +1779,7 @@ priv holyc_prepare_state := func(program: Expr, ctx: Context,
                         holyc_register_runtime_type(holyc_storage_type_name(decl_type_name_ref(field, ctx.symbols), state), ctx, state, error)
                     }
                 case .EnumDef:
-                    ref def : Expr = stmt.children[0]
-                    if enum_has_payloads(def) {
-                        ref ed : EnumDef = enumdef_of(def)
-                        if enum_is_niche(def) {
-                            ref payload : VariantDef = ed.variants[enum_niche_some_index(def).to_usize()]
-                            if payload.payload_ref.and(payload.payload_funcsig.not()) {
-                                state.niche_ref_types.set(decl.name, own payload.payload_type.clone())
-                                continue
-                            }
-                        }
-                        state.payload_enum_names.add(own decl.name.clone())
-                    }
-                    state.enum_types.set(decl.name, own enum_tag_type(def))
+                    holyc_register_runtime_type(decl.name, ctx, state, error)
                 case:
                 }
             }
@@ -2538,7 +2589,7 @@ priv holyc_register_method := func(owner: Str, method: Str, ctx: Context,
     if holyc_scalar_type_name(owner).and(method.eq("to_str").or(method.eq("size"))
         .or(method.eq("delete")).or(method.eq("from_i64")).or(method.eq("cmp"))) { return }
     if state.struct_names.has(owner).or(state.enum_types.has(owner)).or(owner.eq("Str"))
-        .or(holyc_scalar_type_name(owner)).not() { return }
+        .or(state.niche_ref_types.has(owner)).or(holyc_scalar_type_name(owner)).not() { return }
     if state.needed_methods.has(owner).not() {
         state.needed_methods.set(owner, own Map(Str, Bool).new())
     }
@@ -2567,6 +2618,14 @@ priv holyc_register_method := func(owner: Str, method: Str, ctx: Context,
     // their shared Til bodies. Core/ext operations are lowered below instead.
     if holyc_scalar_type_name(owner).and(funcdef_of(body).sig.func_type.is_plain().not()) { return }
     state.needed_methods[owner].set(method, own true)
+    if method == "cmp" {
+        if def.node_type.is(NodeType.EnumDef).and(c_enum_niche_owns_payload(def)) {
+            payload := enum_variant_type(def, enum_niche_some_index(def))
+            if state.enum_types.has(payload).and(state.payload_enum_names.has(payload).not()) {
+                holyc_register_method(payload, "cmp", ctx, state, error)
+            }
+        }
+    }
     holyc_collect_callable_sigs(body, ctx, state)
     holyc_collect_collection_types(body, ctx, state, error)
     if error.len() > 0 { return }
@@ -2664,7 +2723,7 @@ priv holyc_scan_method_calls := func(e: Expr, ctx: Context,
                 holyc_register_method(owner, method, ctx, state, error)
                 if error.len() > 0 { return }
             }
-            if state.struct_names.has(owner).or(state.enum_types.has(owner))
+            if state.struct_names.has(owner).or(state.enum_types.has(owner)).or(state.niche_ref_types.has(owner))
                 .and(state.collection_elements.has(owner).or(state.map_keys.has(owner))
                     .or(state.set_elements.has(owner)).not()) {
                 ref def : Expr = ctx.scope.get_struct(owner, ctx.symbols).unwrap()
@@ -2673,12 +2732,20 @@ priv holyc_scan_method_calls := func(e: Expr, ctx: Context,
                     if method.eq("is").or(method.eq("size")).or(method.eq("clone"))
                         .or(method.eq("delete")).or(method.eq("eq")).or(method.eq("neq")) {
                         handled = holyc_struct_method_is_generated(owner, method, ctx)
+                        if state.niche_ref_types.has(owner)
+                            .and(method.eq("is").or(method.eq("eq")).or(method.eq("neq"))) { handled = false }
+                        if method.eq("neq").and(holyc_struct_method_is_generated(owner, "eq", ctx).not()) {
+                            handled = false
+                        }
                     }
+                    if state.niche_ref_types.has(owner)
+                        .and(method.eq("is_some").or(method.eq("is_none")).or(method.eq("unwrap"))) { handled = true }
                     if owner.eq("File").and(method.eq("exists").or(method.eq("is_file"))
                         .or(method.eq("is_dir")).or(method.eq("readfile")).or(method.eq("writefile"))) {
                         handled = true
                     }
-                    if state.enum_types.has(owner).and(enum_variant_index(def, method) >= 0) {
+                    if state.enum_types.has(owner).or(state.niche_ref_types.has(owner))
+                        .and(enum_variant_index(def, method) >= 0) {
                         handled = true
                     }
                     if handled.not() {
@@ -3172,6 +3239,17 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 error = format("unsupported collection call '", owner, ".", method, "' for '", elem, "'")
                 return ""
             }
+            if state.needed_methods.has(owner).and(state.needed_methods[owner].has(method)) {
+                args := holyc_call_args(e, 1, ctx, state, locals, error)
+                function_name := holyc_method_name(owner, method)
+                if method.eq("delete").and(e.children.len() == 3)
+                    .and(holyc_aggregate_type(owner, state).or(owner.eq("Str"))) {
+                    self_ref := holyc_struct_ref(e.children[1], ctx, state, locals, error)
+                    call_free := holyc_delete_free_flag(e.children[1], e.children[2], ctx, state, locals, error)
+                    return format(function_name, "(", self_ref, ", ", call_free, ")")
+                }
+                return format(function_name, "(", args, ")")
+            }
             if state.niche_ref_types.has(owner) {
                 if method == "size" {
                     if e.children.len() != 1 { error = "invalid borrowed niche size call"; return "" }
@@ -3197,16 +3275,6 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
                 if method == "clone" { return value }
                 error = format("unsupported borrowed niche call '", owner, ".", method, "'")
                 return ""
-            }
-            if state.needed_methods.has(owner).and(state.needed_methods[owner].has(method)) {
-                args := holyc_call_args(e, 1, ctx, state, locals, error)
-                function_name := holyc_method_name(owner, method)
-                if method.eq("delete").and(e.children.len() == 3) {
-                    self_ref := holyc_struct_ref(e.children[1], ctx, state, locals, error)
-                    call_free := holyc_delete_free_flag(e.children[1], e.children[2], ctx, state, locals, error)
-                    return format(function_name, "(", self_ref, ", ", call_free, ")")
-                }
-                return format(function_name, "(", args, ")")
             }
             if state.enum_types.has(owner) {
                 if method == "size" {
@@ -4145,6 +4213,7 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
                 out = format(out, prefix, decl_type, " *", decl_name, " = (", value, ")(", decl_type, " *);\n")
                 holyc_bind_name(decl.name, decl_name, locals)
                 locals.struct_pointer_types.set(decl.name, own decl_type)
+                if decl.own_type.is(OwnType.Ref).not() { locals.owned_heap_names.add(own decl.name.clone()) }
             } else if decl.own_type.is(OwnType.Ref).and(decl_type.eq("Str").or(holyc_aggregate_type(decl_type, state))) {
                 value := holyc_pointer_expr(stmt.children[0], ctx, state, locals, error)
                 if error.len() > 0 { return "" }
@@ -4196,6 +4265,10 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
                     if storage_type == "Dynamic" { storage_type = "U8" }
                     out = format(out, prefix, storage_type, " *", decl_name, " = ", value, ";\n")
                     holyc_bind_name(decl.name, decl_name, locals)
+                    if pointer_type.neq("Dynamic").and(decl.own_type.is(OwnType.Ref).not())
+                        .and(rhs_is_allocator_call(stmt.children[0], ctx.symbols)) {
+                        locals.owned_heap_names.add(own decl.name.clone())
+                    }
                     locals.pointer_types.set(decl.name, own pointer_type)
                 } else {
                     scalar_type := decl_type
@@ -4580,7 +4653,9 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
                             if c_niche_case_value(definition, variant) != 0 { comparison = " != NULL)" }
                             pattern_test = format("(", switch_value, comparison)
                         } else {
-                            pattern_test = format("(", switch_value, " == ", enum_variant_tag_at(definition, variant).to_str(), ")")
+                            mut tag := enum_variant_tag_at(definition, variant)
+                            if c_enum_niche_owns_payload(definition) { tag = c_niche_case_value(definition, variant) }
+                            pattern_test = format("(", switch_value, " == ", tag.to_str(), ")")
                         }
                     } else if is_range_new_call(pattern, ctx.symbols) {
                         lo := holyc_expr(pattern.children[1], ctx, state, locals, error)
@@ -4646,15 +4721,26 @@ priv holyc_body := func(body: Expr, depth: USize, top_level: Bool,
                     install := holyc_struct_copy(aggregate_return_type, "return_out", "->",
                         return_value, ".", depth + 1, ctx, state, error)
                     if error.len() > 0 { return "" }
+                    release := holyc_return_outer_release(stmt.children[0], prefix, locals, ctx.symbols)
                     out = format(out, prefix, "{\n",
                         prefix, "    ", aggregate_return_type, " ", return_value, ";\n",
-                        value, install,
+                        value, install, release,
                         prefix, "    return;\n",
                         prefix, "}\n")
                 } else {
                     value := holyc_expr(stmt.children[0], ctx, state, locals, error)
                     if error.len() > 0 { return "" }
-                    out = format(out, prefix, "return ", value, ";\n")
+                    release := holyc_return_outer_release(stmt.children[0], prefix, locals, ctx.symbols)
+                    if release.len() > 0 {
+                        result := holyc_temp("return_value", state)
+                        mut ctype := ""
+                        switch stmt.children[0].node_type {
+                        case .Ident(id): ctype = locals.pointer_types[id.ident_name(ctx.symbols.names)].clone()
+                        case: UNREACHABLE("owned scalar return is not a local")
+                        }
+                        out = format(out, prefix, "{ ", ctype, " ", result, " = ", value, ";\n",
+                            release, prefix, "    return ", result, "; }\n")
+                    } else { out = format(out, prefix, "return ", value, ";\n") }
                 }
             } else {
                 error = "invalid return statement"
@@ -4697,8 +4783,77 @@ priv holyc_struct_field_ctype := func(owner: Str, field_name: Str,
     return ""
 }
 
+priv holyc_owned_niche_definition := func(name: Str, def: Expr, ctx: Context,
+    mut state: HolyCEmitState) returns Str {
+    ref ed : EnumDef = enumdef_of(def)
+    some := enum_niche_some_index(def).to_usize()
+    ref payload : Str = ed.variants[some].payload_type
+    ctype := holyc_value_ctype(payload, state)
+    compound := holyc_aggregate_type(payload, state)
+    last : USize = 1
+    ref empty : Str = ed.variants[last.sub(some)].name
+    // A one-pointer value, as in C. Erasing the stored pointer's type lets
+    // recursive payload classes be declared later; helpers restore the type.
+    if compound {
+        state.method_prototypes = format(state.method_prototypes,
+            "extern U0 ", payload, "_Clone(", payload, " *out,", payload, " *src);\n",
+            "extern U0 ", payload, "_Delete(", payload, " *self,Bool call_free);\n")
+    }
+    mut out := format("class ", name, " {\n  U8 *data;\n};\n\n",
+        name, " ", name, "_Literal_", empty, ";\n",
+        name, "_Literal_", empty, ".data = NULL;\n\n",
+        "U0 ", name, "_CopyValue(", name, " *out,", name, " *src)\n{\n",
+        "  out->data = src->data;\n}\n\n")
+    mut custom_clone := false
+    mut custom_delete := false
+    if state.needed_methods.has(name) {
+        custom_clone = state.needed_methods[name].has("clone")
+        custom_delete = state.needed_methods[name].has("delete")
+    }
+    if custom_clone.not() {
+        mut clone := format("TilMemCpy(out->data,src->data,sizeof(", ctype, "));")
+        if compound {
+            clone = format(payload, "_Clone(out->data(", ctype, " *),src->data(", ctype, " *));")
+        } else if state.needed_methods.has(payload).and(state.needed_methods[payload].has("clone")) {
+            clone = format("*(out->data(", ctype, " *)) = ", payload, "_Clone(",
+                holyc_checked_load("src->data", ctype), ");")
+        }
+        out = format(out, "U0 ", name, "_Clone(", name, " *out,", name, " *src)\n{\n",
+            "  out->data = NULL;\n  if (src->data) {\n",
+            "    out->data = TilMAlloc(sizeof(", ctype, "));\n",
+            "    ", clone, "\n",
+            "  }\n}\n\n")
+    }
+    if custom_delete.not() {
+        mut drop := "TilFree(self->data);"
+        if compound { drop = format(payload, "_Delete(self->data(", ctype, " *),TRUE);") }
+        else if state.needed_methods.has(payload).and(state.needed_methods[payload].has("delete")) {
+            drop = format(payload, "_Delete(", holyc_checked_load("self->data", ctype), ",TRUE); TilFree(self->data);")
+        }
+        out = format(out, "U0 ", name, "_Delete(", name, " *self,Bool call_free)\n{\n",
+            "  if (self->data) { ", drop, " }\n",
+            "  if (call_free) TilFree(self);\n}\n\n")
+    }
+    if holyc_struct_eq_supported(name, ctx, state) {
+        mut comparison := format("(", holyc_checked_load("a->data", ctype), " == ", holyc_checked_load("b->data", ctype), ")")
+        if compound {
+            state.method_prototypes = format(state.method_prototypes,
+                "extern Bool ", payload, "_Eq(", payload, " *a,", payload, " *b);\n")
+            comparison = format(payload, "_Eq(a->data(", ctype, " *),b->data(", ctype, " *))")
+        } else if state.needed_methods.has(payload).and(state.needed_methods[payload].has("eq")) {
+            comparison = format(holyc_method_name(payload, "eq"), "(",
+                holyc_checked_load("a->data", ctype), ",", holyc_checked_load("b->data", ctype), ")")
+        }
+        out = format(out, "Bool ", name, "_Eq(", name, " *a,", name, " *b)\n{\n",
+            "  if (!a->data || !b->data) return a->data == b->data;\n",
+            "  return ", comparison, ";\n}\n\n")
+    }
+    return out
+}
+
 priv holyc_enum_definition := func(name: Str, def: Expr, ctx: Context,
-    state: HolyCEmitState, mut error: Str) returns Str {
+    mut state: HolyCEmitState, mut error: Str) returns Str {
+    if c_enum_niche_owns_payload(def) { return holyc_owned_niche_definition(name, def, ctx, state) }
     ref ed : EnumDef = enumdef_of(def)
     mut out := format("class ", name, " {\n  ", state.enum_types[name], " tag;\n  union {\n")
     for variant : VariantDef in ed.variants {
@@ -5279,9 +5434,31 @@ priv holyc_namespace_methods := func(name: Str, def: Expr, ctx: Context,
     return ""
 }
 
-priv holyc_enum_cmp_definition := func(name: Str, def: Expr, state: HolyCEmitState,
+priv holyc_enum_cmp_definition := func(name: Str, def: Expr, mut state: HolyCEmitState,
     mut error: Str) returns Str {
     ref ed : EnumDef = enumdef_of(def)
+    if c_enum_niche_owns_payload(def) {
+        some := enum_niche_some_index(def).to_usize()
+        ref payload : Str = ed.variants[some].payload_type
+        ctype := holyc_value_ctype(payload, state)
+        mut param_type := ctype.clone()
+        mut left := holyc_checked_load("a->data", ctype)
+        mut right := holyc_checked_load("b->data", ctype)
+        if holyc_aggregate_type(payload, state) {
+            param_type = format(ctype, " *")
+            left = format("a->data(", ctype, " *)")
+            right = format("b->data(", ctype, " *)")
+        }
+        mut empty_order := "-1"
+        mut some_order := "1"
+        if some == 0 { empty_order = "1"; some_order = "-1" }
+        state.method_prototypes = format(state.method_prototypes,
+            "extern I64 ", payload, "_Cmp(", param_type, " a,", param_type, " b);\n")
+        return format("I64 ", name, "_Cmp(", name, " *a,", name, " *b)\n{\n",
+            "  if (!a->data) { if (!b->data) return 0; return ", empty_order, "; }\n",
+            "  if (!b->data) return ", some_order, ";\n",
+            "  return ", payload, "_Cmp(", left, ",", right, ");\n}\n\n")
+    }
     mut a_type := format(name, " *")
     if state.payload_enum_names.has(name).not() {
         a_type = format(holyc_value_ctype(name, state), " ")
@@ -5373,7 +5550,10 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, mut state: HolyCEmit
                 switch def.node_type {
                 case .EnumDef(ed):
                     mut deps_ready := true
-                    for variant : VariantDef in ed.variants {
+                    for vi, variant in ed.variants {
+                        // Tagged ref fields still need a HolyC type name; a
+                        // boxed niche uses an opaque pointer until its helpers.
+                        if c_enum_payload_is_inline(def, vi.to_i32()).or(variant.payload_ref).not() { continue }
                         if holyc_aggregate_type(variant.payload_type, state).and(emitted.has(variant.payload_type).not()) {
                             deps_ready = false
                         }
@@ -5614,7 +5794,7 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, mut state: HolyCEmit
         if error.len() > 0 { return }
     }
     for name : Str in state.needed_methods.keys {
-        if holyc_scalar_type_name(name) {
+        if holyc_scalar_type_name(name).or(state.niche_ref_types.has(name)) {
             ref def : Expr = lp.ctx.scope.get_struct(name, lp.ctx.symbols).unwrap()
             holyc_namespace_methods(name, def, lp.ctx, state, error)
             if error.len() > 0 { return }
@@ -5674,7 +5854,8 @@ priv holyc_emit_function := func(name: Str, func_expr: Expr, ctx: Context,
             mut param_type := holyc_storage_type_name(decl_type_name_ref(param, ctx.symbols), state)
             if param.own_type.is(OwnType.Own)
                 .and(func_param_passes_c_value(fdef, i, true, ctx.scope, ctx.symbols)
-                    .or(func_param_has_stack_outer(fdef, i, true, ctx.scope, ctx.symbols))) {
+                    .or(func_param_has_stack_outer(fdef, i, true, ctx.scope, ctx.symbols))
+                    .or(state.enum_types.has(param_type).and(state.payload_enum_names.has(param_type).not()).and(param.is_mut.not()))) {
                 locals.caller_slot_params.add(own param.name.clone())
             }
             if fdef.sig.variadic_index == i.to_i32() {

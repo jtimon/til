@@ -347,3 +347,69 @@ test_option_peek_borrowed_subject_still_copies := test() {
     assert_eq(Str, second.name, "kept")
     assert_eq(I64, second.n, 5)
 }
+
+OwnedOptionNode := struct {
+    value: I64 = 0
+    next := Option(OwnedOptionNode).None
+}
+
+test_option_owned_recursive_clone := test() {
+    mut first := OwnedOptionNode(value = 1,
+        next = Option(OwnedOptionNode).Some(OwnedOptionNode(value = 2)))
+    second := first.clone()
+    assert(first.eq(second))
+    switch first.next {
+    case .Some(node): node.value = 9
+    case: panic("missing original owned node")
+    }
+    assert(first.eq(second).not())
+    switch second.next {
+    case .Some(node): assert_eq(I64, node.value, 2)
+    case: panic("missing cloned owned node")
+    }
+}
+
+mut option_color_clones: I64 = 0
+mut option_color_drops: I64 = 0
+mut option_color_comparisons: I64 = 0
+OptionColor := enum(U64) {
+    Red = 7, Blue = 3
+namespace:
+    clone := func(self: OptionColor) returns OptionColor {
+        option_color_clones++
+        if self.is(OptionColor.Red) { return OptionColor.Red }
+        return OptionColor.Blue
+    }
+    eq := func(a: OptionColor, b: OptionColor) returns Bool {
+        option_color_comparisons++
+        return a.is(OptionColor.Red).and(b.is(OptionColor.Red))
+            .or(a.is(OptionColor.Blue).and(b.is(OptionColor.Blue)))
+    }
+    delete := func(own self: OptionColor, call_free: Bool = true) {
+        option_color_drops++
+        if call_free { free(own self) }
+    }
+}
+
+test_option_enum_payload_lifecycle := test() {
+    option_color_clones = 0
+    option_color_drops = 0
+    option_color_comparisons = 0
+    first := Option(OptionColor).Some(OptionColor.Red)
+    before_clone := option_color_clones.clone()
+    second := first.clone()
+    assert_eq(I64, option_color_clones, before_clone + 1)
+    assert_eq(OptionColor, second.unwrap(), OptionColor.Red)
+    before_compare := option_color_comparisons.clone()
+    assert(first.eq(second))
+    assert_eq(I64, option_color_comparisons, before_compare + 1)
+    assert_eq(I64, Option(OptionColor).cmp(first, Option(OptionColor).Some(OptionColor.Blue)), -1)
+    taken := Option(OptionColor).take(own first)
+    assert_eq(OptionColor, taken, OptionColor.Red)
+    before_drop := option_color_drops.clone()
+    {
+        scoped := Option(OptionColor).Some(OptionColor.Blue)
+        assert(scoped.is_some())
+    }
+    assert_eq(I64, option_color_drops, before_drop + 1)
+}

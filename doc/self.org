@@ -260,8 +260,9 @@
     FASM use these queries; other backends can use the same semantic facts.
   - ~common_c.til~ holds C-family decisions used by C and HolyC: scalar operator
     spelling, namespace-versus-instance member classification, reference-returning
-    call signatures, call-based field receivers, and enum-switch lookup/pointer-
-    presence case values. The emitters supply receiver and
+    call signatures, call-based field receivers, inline-versus-boxed enum
+    payload storage, and enum-switch lookup/pointer-presence case values.
+    The emitters supply receiver and
     representation information and emit their own storage accesses and syntax.
 
   Shared language rules and lowering stay in ~context.til~, ~typer.til~ and the
@@ -269,6 +270,13 @@
   is snapshotted there once, with its carried borrow provenance retained; each
   backend consumes the same lowered subject and payload bindings. These modules
   are compiler source, built and installed with the existing source tree.
+
+  Owned niche enums use a nullable payload box in both C and HolyC. C retains
+  its target-specific own-slot compression; HolyC uses a native pointer field
+  and restores the payload type in helpers, allowing recursive class declarations.
+  HolyC lowers enum switches to full-width conditional tests over a saved subject;
+  C can retain its native switch optimization. Core enum method bodies and the
+  initializer's payload ownership decisions are shared.
 
 ** USize defaults and source-level configuration direction
 

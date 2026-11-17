@@ -709,7 +709,11 @@ priv generate_enum_variant_constructors := func(mut enum_def: Expr, ename: Str, 
             if vtype == "Dynamic" { payload_own_type = OwnType.Ref }
             if resolved.is_funcptr().or(resolved.is(Type.Body)) { payload_own_type = OwnType.Ref }
             if vtype.starts_with("_Fn_") { payload_own_type = OwnType.Ref }
-            if init_payload_is_pod_enum(vtype, scope, symbols) { payload_own_type = OwnType.Ref }
+            // A tagged value can copy a POD enum inline; a niche must own its
+            // escaping box even when that box contains only an enum tag.
+            if init_payload_is_pod_enum(vtype, scope, symbols).and(enum_is_niche(enum_def).not()) {
+                payload_own_type = OwnType.Ref
+            }
             // #320: a `ref Type` payload is a borrow -- the ctor takes
             // the arg borrowed (no ownership transfer at call sites).
             if enum_variant_payload_ref(enum_def, j.to_i32()) { payload_own_type = OwnType.Ref }
@@ -1305,7 +1309,7 @@ priv generate_enum_clone_method := func(mut enum_def: Expr, ename: Str, line: U3
                                       resolved_pc.is_funcptr(),
                                       resolved_pc.is(Type.Body),
                                       vtype.starts_with("_Fn_"),
-                                      init_payload_is_pod_enum(vtype, scope, symbols),
+                                      init_payload_is_pod_enum(vtype, scope, symbols).and(enum_is_niche(enum_def).not()),
                                       payload_is_borrowed).not()
             if payload_needs_clone {
                 mut clone_call := make_method_call_fcall(own p_id, "clone", line, col, symbols)

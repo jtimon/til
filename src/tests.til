@@ -1360,7 +1360,7 @@ main := proc(args: ..Str) returns I64 {
             format(til_bin," test/templeos/numeric_cast_errors.til ",bits, driver_asan_arg))
         // Run the common test-mode sources directly. Their normal Both rows
         // already provide interpreter/C coverage; no CLI reference wrappers.
-        for fixture : Str in array(Str, "maps", "hashmaps", "hashsets", "test_in_namespace") {
+        for fixture : Str in array(Str, "maps", "hashmaps", "hashsets", "test_in_namespace", "option") {
             name := format("holyc_", fixture, "_", bits)
             source := format("test/", fixture, ".til")
             add_counts(tests, format(name, "_translate"), "build",
@@ -1741,9 +1741,9 @@ main := proc(args: ..Str) returns I64 {
     // ...and the bodies that DO need it keep it: test/option.til's
     // Option arms return from every branch of an exhaustive switch, which
     // is exactly the CFG GCC stops following under -finstrument-functions.
-    // 16: Option's generated clone is now a switch whose every arm
-    // returns, so it keeps one too.
-    option_checks = option_checks.concat(array(CountCheck, CountCheck(needle = "__builtin_unreachable", expected_count = 16)))
+    // Generated clones and the recursive/enum-valued payload specializations
+    // also return from every switch arm.
+    option_checks = option_checks.concat(array(CountCheck, CountCheck(needle = "__builtin_unreachable", expected_count = 21)))
     // dladdr sees exported symbols only. The profiler's Linux ELF fallback
     // must recover translation-unit-local generated functions such as
     // adopt__Str; TIL_PROF_TOP=0 puts every called function in both tables.

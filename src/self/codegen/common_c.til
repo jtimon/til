@@ -71,6 +71,19 @@ c_switch_enum_definition := func(subject: Expr, ctx: Context) returns Option(ref
     return codegen_enum_definition(subject.til_type(), ctx)
 }
 
+// A niche stores one nullable payload pointer. Its ownership follows the
+// variant declaration; ordinary tagged payloads remain inline values.
+c_enum_niche_owns_payload := func(definition: Expr) returns Bool {
+    if enum_is_niche(definition).not() { return false }
+    return enum_variant_payload_ref(definition, enum_niche_some_index(definition)).not()
+}
+
+c_enum_payload_is_inline := func(definition: Expr, variant: I32) returns Bool {
+    return enum_variant_type(definition, variant).len().gt(0)
+        .and(enum_variant_payload_ref(definition, variant)
+            .or(c_enum_niche_owns_payload(definition)).not())
+}
+
 // A pointer-represented niche switches on presence, independent of declaration
 // order or explicit tag values. The caller selects its actual representation.
 c_niche_case_value := func(definition: Expr, variant: I32) returns U64 {

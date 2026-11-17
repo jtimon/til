@@ -53,10 +53,13 @@ guest_driver := func(input_commands: Str = "") returns Str {
         "expect eof\nafter cancel $deadline\nexit [lindex [wait] 3]\n")
 }
 
-run_guest := proc(uid: Str, name: Str, expected: Str, outcome: Str, input_commands: Str = "") {
-    // Every case gets a fresh writable disk, including failure cases.
+run_guest := proc(uid: Str, name: Str, expected: Str, outcome: Str, input_commands: Str = "",
+    files: Vec(Str) = Vec(Str).new()) {
+    // Every VM gets a fresh writable disk, including failure cases.
     setup := container(uid, "sh", "-ec",
-        "truncate -s 0 guest.raw; truncate -s 64M guest.raw; printf 'label: dos\nstart=2048,type=c\n' | sfdisk --quiet guest.raw; mformat -F -i guest.raw@@1048576 ::; mmd -i guest.raw@@1048576 ::/Home; mcopy -o -i guest.raw@@1048576 Once.HC ::/Home/Once.HC; mcopy -o -i guest.raw@@1048576 Ext.HC ::/Home/Ext.HC; mcopy -o -i guest.raw@@1048576 TILTEST.HC ::/Home/TILTEST.HC")
+        "truncate -s 0 guest.raw; truncate -s 64M guest.raw; printf 'label: dos\nstart=2048,type=c\n' | sfdisk --quiet guest.raw; mformat -F -i guest.raw@@1048576 ::; mmd -i guest.raw@@1048576 ::/Home; mcopy -o -i guest.raw@@1048576 Once.HC ::/Home/Once.HC; mcopy -o -i guest.raw@@1048576 Ext.HC ::/Home/Ext.HC; mcopy -o -i guest.raw@@1048576 TILTEST.HC ::/Home/TILTEST.HC; for file do mcopy -o -i guest.raw@@1048576 \"$file\" ::/Home/; done",
+        "stage")
+    for file: Str in files { setup.arg(file) }
     setup.stdout_to(format(WORK, "/setup.log"))
     setup.stderr_to_stdout()
     if setup.run() != 0 { panic("guest disk setup failed; see ", WORK, "/setup.log") }
@@ -88,6 +91,47 @@ run_guest := proc(uid: Str, name: Str, expected: Str, outcome: Str, input_comman
         panic(name, ": guest output mismatch; expected '", framed, "', got '", actual, "'")
     }
     println("TempleOS: ", name, " passed")
+}
+
+priv GuestCase := struct {
+    name: Str
+    file: Str
+    expected: Str
+    outcome: Str
+}
+
+priv stage_guest_case := proc(mut cases: Vec(GuestCase), name: Str, expected: Str, outcome: Str = "pass") {
+    // Uppercase 8.3 names avoid FAT's lowercase short-name flags, which the
+    // guest's filename lookup does not interpret as mtools does.
+    file := format("CASE", cases.len().to_str(), ".HC")
+    File.writefile(format(WORK, "/", file), File.readfile(format(WORK, "/TILTEST.HC")))
+    cases.push(own GuestCase(name = name.clone(), file = file.clone(),
+        expected = expected.clone(), outcome = outcome.clone()))
+}
+
+priv run_guest_batch := proc(uid: Str, name: Str, cases: Vec(GuestCase)) {
+    mut program := ""
+    mut expected := ""
+    mut files := Vec(Str).new()
+    for item: GuestCase in cases {
+        mut status := "33"
+        mut end := "PASS"
+        switch item.outcome {
+        case "pass":
+        case "panic": status = "35"; end = "PANIC"
+        case "error": status = "37"; end = "ERROR"
+        case: panic("unsupported batch outcome: ", item.outcome)
+        }
+        program = format(program, "GuestRunCase(\"", item.name, "\",\"", item.file, "\",", status, ");\n")
+        expected = format(expected, "TILCASE:", item.name, ":BEGIN\n", item.expected,
+            "TILCASE:", item.name, ":", end, "\n")
+        files.push(own item.file.clone())
+    }
+    File.writefile(format(WORK, "/TILTEST.HC"), program)
+    // The normal setup creates the disk. Copy the queued modules in the same
+    // setup command, before QEMU opens it; never modify a mounted guest image.
+    run_guest(uid, name, expected, "pass", "", files)
+    for item: GuestCase in cases { println("TempleOS: ", item.name, " passed") }
 }
 
 width_checks := func(bits: Str) returns Str {
@@ -459,6 +503,7 @@ priv test_reference_output := proc(source: Str, bits: Str) returns Str {
 }
 
 test_mode_checks := proc(identity: Str, bits: Str) {
+    mut cases := Vec(GuestCase).new()
     File.writefile(format(WORK, "/test_mode_dep.til"), format(
         "mode lib\nmut visits := 0\n",
         "test_imported := test() { visits++; assert_eq(1, visits) }\n",
@@ -487,13 +532,8 @@ test_mode_checks := proc(identity: Str, bits: Str) {
                 panic("native test command output: ", translate.out())
             }
         }
-        run_guest(identity, format("test_mode_", mode, "_", bits), expected, "pass")
+        stage_guest_case(cases, format("test_mode_", mode, "_", bits), expected)
     }
-    path := format(WORK, "/test_mode_empty.til")
-    File.writefile(path, "mode test\n")
-    Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
-        "-c", format(WORK, "/TILTEST.HC"), path).run_checked()
-    run_guest(identity, format("test_mode_empty_", bits), "no tests found\n", "pass")
     failure := format(WORK, "/test_mode_failure.til")
     File.writefile(failure, format("mode test\n",
         "test_before := test() {}\n",
@@ -505,8 +545,15 @@ test_mode_checks := proc(identity: Str, bits: Str) {
     Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
         "-c", format(WORK, "/TILTEST.HC"), failure).run_checked()
     // The native panic facade omits the interpreter's "panic: " label.
-    run_guest(identity, format("test_mode_failure_", bits),
+    stage_guest_case(cases, format("test_mode_failure_", bits),
         reference.out().replace(": panic: test mode stopped\n", ": test mode stopped\n"), "panic")
+    // Run a success after the expected panic to check task/compiler isolation.
+    path := format(WORK, "/test_mode_empty.til")
+    File.writefile(path, "mode test\n")
+    Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+        "-c", format(WORK, "/TILTEST.HC"), path).run_checked()
+    stage_guest_case(cases, format("test_mode_empty_", bits), "no tests found\n")
+    run_guest_batch(identity, format("test_modes_", bits), cases)
 }
 
 owned_collection_checks := proc(identity: Str, bits: Str) {
@@ -522,8 +569,9 @@ owned_collection_checks := proc(identity: Str, bits: Str) {
             .replace("=CAlloc(", "=TilTestCAlloc(").replace(" Free(", " TilTestFree("))
     File.writefile(format(WORK, "/Ext.HC"), ledger)
     sources := array(Str, "test/templeos/holyc_owned_primitives.til", "test/maps.til", "test/hashmaps.til",
-        "test/hashsets.til", "test/test_in_namespace.til")
-    names := array(Str, "owned_primitives", "maps", "hashmaps", "hashsets", "namespace_tests")
+        "test/hashsets.til", "test/test_in_namespace.til", "test/option.til")
+    names := array(Str, "owned_primitives", "maps", "hashmaps", "hashsets", "namespace_tests", "options")
+    mut cases := Vec(GuestCase).new()
     for i, source in sources {
         expected := test_reference_output(source, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
@@ -532,8 +580,9 @@ owned_collection_checks := proc(identity: Str, bits: Str) {
         File.writefile(format(WORK, "/TILTEST.HC"), program.replace("\nTilMain;\n", "\n"))
         File.appendfile(format(WORK, "/TILTEST.HC"),
             "\nTilMain; if (TilTestLiveAllocs) TilPanicZ(\"owned allocation ledger not empty\\n\");\n")
-        run_guest(identity, format(names[i], "_", bits), expected, "pass")
+        stage_guest_case(cases, format(names[i], "_", bits), expected)
     }
+    run_guest_batch(identity, format("owned_collections_", bits), cases)
     File.writefile(format(WORK, "/Ext.HC"), runtime)
 }
 
@@ -561,6 +610,7 @@ main := proc() {
         "test/templeos/script_raw_alloc.expected", "test/templeos/script_dynamic_free.expected",
         "test/templeos/script_str_runtime.expected", "test/templeos/script_struct_runtime.expected", "", "", "", "", "")
     for bits : Str in array(Str, "32", "64") {
+        mut cases := Vec(GuestCase).new()
         for i, source in sources {
             host := Cmd.new("timeout", "120", "bin/til", "interpret", format("--usize=", bits), source)
             mut expected := captured(host)
@@ -572,8 +622,12 @@ main := proc() {
             Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
                 "-c", format(WORK, "/TILTEST.HC"), source).run_checked()
             File.appendfile(format(WORK, "/TILTEST.HC"), width_checks(bits))
-            run_guest(identity, format("corpus_", i.to_str(), "_", bits), expected, "pass")
+            name := format("corpus_", i.to_str(), "_", bits)
+            if source == "test/templeos/script_str_runtime.til" {
+                run_guest(identity, name, expected, "pass")
+            } else { stage_guest_case(cases, name, expected) }
         }
+        run_guest_batch(identity, format("language_corpus_", bits), cases)
         numeric_cast_checks(identity,bits)
         owned_collection_checks(identity, bits)
         test_mode_checks(identity, bits)

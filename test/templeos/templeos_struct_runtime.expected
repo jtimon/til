@@ -65,6 +65,10 @@ class StructNamedPoint {
   TilStr name;
 };
 
+class PayloadEnvelope {
+  U8 *data;
+};
+
 class PayloadRecord {
   I64 number;
   TilStr name;
@@ -308,13 +312,6 @@ class Vec__PayloadValue {
   U64 cap;
 };
 
-class PayloadEnvelope {
-  U8 tag;
-  union {
-    PayloadValue payload_Wrapped;
-  };
-};
-
 extern U0 DynVec_clear(DynVec *self);
 extern U0 DynVec_Clone(DynVec *return_out, DynVec *self);
 extern U0 DynVec_Delete(DynVec *self, Bool call_free);
@@ -323,6 +320,9 @@ extern U0 DynVec_new(DynVec *return_out, Type *T);
 extern U0 DynVec_new_type_name_kind(DynVec *return_out, TilStr *elem_type, U64 elem_kind);
 extern U0 DynVec_push(DynVec *self, U8 *val);
 extern U8 * DynVec_unsafe_get(DynVec *self, U64 *i);
+extern U0 PayloadValue_Clone(PayloadValue *out,PayloadValue *src);
+extern U0 PayloadValue_Delete(PayloadValue *self,Bool call_free);
+extern Bool PayloadValue_Eq(PayloadValue *a,PayloadValue *b);
 extern I64 OrderedKey_Cmp(OrderedKey *a, OrderedKey *b);
 extern I64 OrderedNestedKey_Cmp(OrderedNestedKey *a, OrderedNestedKey *b);
 extern I64 CustomOrderedKey_Cmp(CustomOrderedKey *a, CustomOrderedKey *b);
@@ -1035,6 +1035,64 @@ U0 Type_Delete(Type *src, Bool call_free)
   TilPanicZ("invalid Type tag");
 }
 
+Bool Type_Eq(Type *a, Type *b)
+{
+  if (a->tag != b->tag) return FALSE;
+  if (a->tag == 0) {
+    return TRUE;
+  }
+  if (a->tag == 1) {
+    return TRUE;
+  }
+  if (a->tag == 2) {
+    return TilStrEq(&a->payload_Struct, &b->payload_Struct);
+  }
+  if (a->tag == 3) {
+    return TRUE;
+  }
+  if (a->tag == 4) {
+    return TilStrEq(&a->payload_Enum, &b->payload_Enum);
+  }
+  if (a->tag == 5) {
+    return TRUE;
+  }
+  if (a->tag == 6) {
+    return TRUE;
+  }
+  if (a->tag == 7) {
+    return TRUE;
+  }
+  if (a->tag == 8) {
+    return TRUE;
+  }
+  if (a->tag == 9) {
+    return TilStrEq(&a->payload_Custom, &b->payload_Custom);
+  }
+  if (a->tag == 10) {
+    return a->payload_Primitive == b->payload_Primitive;
+  }
+  if (a->tag == 11) {
+    return TilStrEq(&a->payload_FuncPtrSig, &b->payload_FuncPtrSig);
+  }
+  if (a->tag == 12) {
+    return TRUE;
+  }
+  if (a->tag == 13) {
+    return a->payload_StructSym == b->payload_StructSym;
+  }
+  if (a->tag == 14) {
+    return a->payload_EnumSym == b->payload_EnumSym;
+  }
+  if (a->tag == 15) {
+    return a->payload_CustomSym == b->payload_CustomSym;
+  }
+  if (a->tag == 16) {
+    return a->payload_FuncPtrSigSym == b->payload_FuncPtrSigSym;
+  }
+  TilPanicZ("invalid Type tag");
+  return FALSE;
+}
+
 U0 StructPoint_Clone(StructPoint *out, StructPoint *src)
 {
   out->x = src->x;
@@ -1071,6 +1129,35 @@ Bool StructNamedPoint_Eq(StructNamedPoint *a, StructNamedPoint *b)
   if (!StructPoint_Eq(&a->point, &b->point)) return FALSE;
   if (!TilStrEq(&a->name, &b->name)) return FALSE;
   return TRUE;
+}
+
+PayloadEnvelope PayloadEnvelope_Literal_Empty;
+PayloadEnvelope_Literal_Empty.data = NULL;
+
+U0 PayloadEnvelope_CopyValue(PayloadEnvelope *out,PayloadEnvelope *src)
+{
+  out->data = src->data;
+}
+
+U0 PayloadEnvelope_Clone(PayloadEnvelope *out,PayloadEnvelope *src)
+{
+  out->data = NULL;
+  if (src->data) {
+    out->data = TilMAlloc(sizeof(PayloadValue));
+    PayloadValue_Clone(out->data(PayloadValue *),src->data(PayloadValue *));
+  }
+}
+
+U0 PayloadEnvelope_Delete(PayloadEnvelope *self,Bool call_free)
+{
+  if (self->data) { PayloadValue_Delete(self->data(PayloadValue *),TRUE); }
+  if (call_free) TilFree(self);
+}
+
+Bool PayloadEnvelope_Eq(PayloadEnvelope *a,PayloadEnvelope *b)
+{
+  if (!a->data || !b->data) return a->data == b->data;
+  return PayloadValue_Eq(a->data(PayloadValue *),b->data(PayloadValue *));
 }
 
 U0 PayloadRecord_Clone(PayloadRecord *out, PayloadRecord *src)
@@ -5054,62 +5141,6 @@ U0 Vec__PayloadValue_DeleteMarked(Vec__PayloadValue *self, U8 *marks)
   self->count = w;
 }
 
-PayloadEnvelope PayloadEnvelope_Literal_Empty;
-PayloadEnvelope_Literal_Empty.tag = 0;
-
-U0 PayloadEnvelope_CopyValue(PayloadEnvelope *out, PayloadEnvelope *src)
-{
-  out->tag = src->tag;
-  if (src->tag == 0) {
-    return;
-  }
-  if (src->tag == 1) {
-    PayloadValue_CopyValue(&out->payload_Wrapped, &src->payload_Wrapped);
-    return;
-  }
-  TilPanicZ("invalid PayloadEnvelope tag");
-}
-
-U0 PayloadEnvelope_Clone(PayloadEnvelope *out, PayloadEnvelope *src)
-{
-  out->tag = src->tag;
-  if (src->tag == 0) {
-    return;
-  }
-  if (src->tag == 1) {
-    PayloadValue_Clone(&out->payload_Wrapped, &src->payload_Wrapped);
-    return;
-  }
-  TilPanicZ("invalid PayloadEnvelope tag");
-}
-
-U0 PayloadEnvelope_Delete(PayloadEnvelope *src, Bool call_free)
-{
-  if (src->tag == 0) {
-    if (call_free) TilFree(src);
-    return;
-  }
-  if (src->tag == 1) {
-    PayloadValue_Delete(&src->payload_Wrapped, FALSE);
-    if (call_free) TilFree(src);
-    return;
-  }
-  TilPanicZ("invalid PayloadEnvelope tag");
-}
-
-Bool PayloadEnvelope_Eq(PayloadEnvelope *a, PayloadEnvelope *b)
-{
-  if (a->tag != b->tag) return FALSE;
-  if (a->tag == 0) {
-    return TRUE;
-  }
-  if (a->tag == 1) {
-    return PayloadValue_Eq(&a->payload_Wrapped, &b->payload_Wrapped);
-  }
-  TilPanicZ("invalid PayloadEnvelope tag");
-  return FALSE;
-}
-
 class closure_callable_add_0_Env {
   I64 *callable_total;
 };
@@ -5251,6 +5282,7 @@ extern U0 priv__test_templeos_script_struct_runtime_til__callable_CallableUnary_
 
 extern U8 * default_clone(U8 *v);
 extern U0 default_delete(U8 *_v, Bool _cf);
+extern U8 *TilBox_PayloadValue(PayloadValue *value);
 extern I64 TilDynTyped_CallableRuntimeGetter_CallableRuntime_read(CallableRuntime *arg0);
 extern I64 TilDynTyped_CallableRuntimeGetter_CallableRuntime_twice(CallableRuntime *arg0);
 extern TilClosure *closure_callable_add_0_New(I64 *capture0);
@@ -9852,6 +9884,13 @@ U0 default_delete(U8 *_v, Bool _cf)
 {
 }
 
+U8 *TilBox_PayloadValue(PayloadValue *value)
+{
+  PayloadValue *result=TilMAlloc(sizeof(PayloadValue))(PayloadValue *);
+  TilMemCpy(result,value,sizeof(PayloadValue));
+  return result;
+}
+
 I64 TilDynTyped_CallableRuntimeGetter_CallableRuntime_read(CallableRuntime *arg0)
 {
     return CallableRuntime_read(arg0);
@@ -11334,8 +11373,7 @@ I64 TilMain()
     PayloadValue hoisted__PayloadValue_g454_642;
     PayloadValue_Clone(&hoisted__PayloadValue_g454_642, &record_payload_copy_628);
     PayloadEnvelope envelope_643;
-    envelope_643.tag = 1;
-    PayloadValue_CopyValue(&envelope_643.payload_Wrapped, &hoisted__PayloadValue_g454_642);
+    envelope_643.data = TilBox_PayloadValue(&hoisted__PayloadValue_g454_642);
     PayloadEnvelope envelope_copy_644;
     PayloadEnvelope_Clone(&envelope_copy_644, &envelope_643);
     Bool hoisted__Bool_g455_645 = PayloadEnvelope_Eq(&envelope_643, &envelope_copy_644);
@@ -11351,9 +11389,9 @@ I64 TilMain()
         TilPrintln(&_va_Array_g30_647);
     }
     do {
-        U8 enum_switch_9 = (&envelope_643)->tag;
+        U8 enum_switch_9 = ((&envelope_643)->data != NULL);
         if ((enum_switch_9 == 1)) {
-            PayloadValue *payload_653 = ((&(&envelope_643)->payload_Wrapped))(PayloadValue *);
+            PayloadValue *payload_653 = (((&envelope_643)->data)(PayloadValue *))(PayloadValue *);
             do {
                 U8 enum_switch_10 = (payload_653)->tag;
                 if ((enum_switch_10 == 4)) {
