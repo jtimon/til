@@ -317,7 +317,11 @@ static int til_msvcrt_snprintf(char *buffer, size_t count, const char *format, .
     va_end(args);
     return written;
 }
-int (*__imp__snprintf)(char *, size_t, const char *, ...) = til_msvcrt_snprintf;
+// Weak: a program and the til library archive it links each carry this
+// runtime, and the linker can pull the archive's copy in for another
+// symbol; two strong definitions failed the link (CI run 3139,
+// ffi_lib_layout). Either copy serves.
+int (*__imp__snprintf)(char *, size_t, const char *, ...) __attribute__((weak)) = til_msvcrt_snprintf;
 #endif
 
 #ifdef _WIN32
@@ -4384,8 +4388,10 @@ static char *win_quote_arg(const char *arg) {
         // every UNQUOTED argument itself, as its missing shell would have:
         // Cmd.new("echo", "*") printed the directory listing (CI run 3133,
         // test/process.til). Quoted, the argument arrives as written; a
-        // native program's argv is the same either way.
-        if (*p == '*' || *p == '?' || *p == '[') needs = 1;
+        // native program's argv is the same either way. Such a program
+        // also takes ' for a quote: an unquoted c'd opened one that took
+        // the rest of the line (CI run 3139); inside "..." it is literal.
+        if (*p == '*' || *p == '?' || *p == '[' || *p == '\'') needs = 1;
     }
     size_t len = strlen(arg);
     char *out = malloc(len * 2 + 3);
