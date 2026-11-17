@@ -273,6 +273,11 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     // reads ZERO_AR_DATE instead.
     mut archive := format("ar rcsD ", a_tmp_path)
     if host_os() == "macos" { archive = format("ZERO_AR_DATE=1 ar rcs ", a_tmp_path) }
+    // A mac target built the SDK-less way is archived by llvm-ar on every
+    // host: GNU ar on Linux and Apple's ar on a Mac wrote two different
+    // archives of the same objects (CI run 3138). llvm-ar takes the format
+    // from the Mach-O members, not from the host.
+    if target_links_named_objects(target) { archive = format("llvm-ar rcsD ", a_tmp_path) }
     cmd = format(archive,
         " ", obj_path, " ", ext_obj,
         user_objs)

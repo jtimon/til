@@ -2840,3 +2840,86 @@ difference from the next run.
 Reading the comparison: a continue-on-error step reads as successful in
 the jobs list, and the collect job starts only after the Mac suites, two
 hours after the push.
+
+*** Run 3138: til is the same from both Linux hosts for the windows and mac targets
+
+Run 3138 (master f0acf43), read from the producers' own logs (the til
+lines they print now), toolchains at ~vendor/llvm-mingw~ and
+~vendor/llvm~ on every host:
+
+| target | width | Linux x64 | Linux arm64 |
+|--------+-------+-----------+-------------|
+| windows-x64 | 32 | e924231464d5 | e924231464d5 |
+| windows-x64 | 64 | 993afa733534 | 993afa733534 |
+| macos-arm64 | 32 | 824894a1ae81 | 824894a1ae81 |
+| macos-arm64 | 64 | cf43f2f395f8 | cf43f2f395f8 |
+| macos-x64 | 32 | ee1e3106e4b4 | ee1e3106e4b4 |
+| macos-x64 | 64 | 444f5e2ec764 | 444f5e2ec764 |
+
+So ~til.exe~ and the mac ~til~, whole files, at both widths, are the
+same bytes from an x64 and an arm64 Linux host with the pinned
+compilers: llvm-mingw 20261104 for windows-x64, LLVM 23.1.5 for the mac
+targets. ~bin/make llvm~ ran for the first time on both and worked
+(download, sha256, unpack patterns; 246 mac lines each).
+
+The run-3130 differences between the Linux hosts are gone, the vendored
+objects included: the full dump of libffi's ~types.o~ is identical on
+both. What differed then was only where the toolchain sat (a directory
+named after the host's architecture). A windows object built by this
+clang carries a ~.debug$S~ section with the compiler's version record
+even without ~-g~; nothing in it is host specific once the directory is
+the same.
+
+The Windows host, same run: its libffi ~types.o~ dump is identical to
+the Linux hosts' too, so the vendored objects are the same on all three.
+Its ~til.exe~ is not: 78bba1ea36d3 at width 32 and 19d1d59befb3 at 64,
+against the Linux hosts' e924231464d5 and 993afa733534. Run 3130 had
+~.text~ equal on all three and the debug sections different, and on
+Windows the checkout is ~D:\a\til\til~, so the paths in the debug
+information are the suspect. The three windows steps now print til's
+lines by section and the strings of ~til.exe~'s ~.debug_line_str~ (the
+directories and files its line table names), to read the difference from
+the next run's logs. (The Windows job's ~make test~ step hit its 75
+minute limit in this run; that is the #483 session's bring-up.)
+
+Still to come from this run: the arm64 Mac's ~til~ (waiting for a Mac
+runner).
+
+*** Run 3138, complete: the arm64 Mac's own til equals the Linux hosts'
+
+The collect job of run 3138, with the arm64 Mac's list (its trial step's
+first working run: the pinned LLVM first on PATH, til building the
+SDK-less way on a Mac, libffi and nng rebuilt by ~bin/make~):
+
+- macos-arm64, three producers (Linux x64, Linux arm64, the arm64 Mac):
+  ~til~ is the same bytes from all three, at both widths, and so are its
+  generated C, every listed section, the two programs, the library's
+  object and dylib, and ~libffi.a~ with every member: 35 items at width
+  32. This is the equality the plan is about for one target: the Mac's
+  own build is the build every other host makes.
+  Different on the Mac only: every object of ~libnng.a~, and the
+  library's ~.a~ (til does not link nng's objects into itself, or it
+  could not be equal).
+- macos-x64: the two Linux hosts equal on everything (122 items); no
+  third producer (no pinned LLVM for an Intel Mac).
+- windows-x64: the two Linux hosts equal on ~til.exe~ and the programs;
+  the Windows host differs in ~.debug_info~ and ~.debug_line~ of ~til.exe~
+  and ~hello_script.exe~ only (not in ~.text~, not in a string section),
+  plus the stamped programs' ~.rdata~ (known). The C objects of libffi and
+  nng still differ between all three in THIS run's collect, although the
+  full ~types.o~ dump printed by the same jobs is identical on all three;
+  not resolved, to be reread from the next run.
+- linux-arm64 and linux-x64: unchanged, debug information only (#504).
+
+Fixes from this, in the same commit:
+- ~make.til~ passes ~-DCMAKE_OSX_SYSROOT=~ for an SDK-less mac nng build.
+  On a Mac host cmake finds Apple's SDK and compiles with ~-isysroot~,
+  and a Mach-O object records the SDK it was built against; libffi, built
+  by configure with no SDK, was equal. A hypothesis until the next run:
+  the objects were not looked into.
+- til archives an SDK-less mac library with ~llvm-ar rcsD~ on every host
+  (~compile_lib~). GNU ar on Linux and Apple's ar on a Mac wrote two
+  archives of the same objects; llvm-ar takes the format from the Mach-O
+  members. Built here for macos-arm64.
+- The windows steps' printout reads the two sections that differ: the
+  path-like strings of ~til.exe~'s ~.debug_line~ and ~.debug_info~.

@@ -1696,6 +1696,11 @@ build_nng_target := proc(mut b: Build, target: Str) {
             // the default FILEPATH cmake resolves them against the cwd.
             argv.push(own "-DCMAKE_AR:STRING=llvm-ar")
             argv.push(own "-DCMAKE_RANLIB:STRING=llvm-ranlib")
+            // No SDK: on a Mac host cmake finds Apple's and compiles with
+            // -isysroot, and every object then differed from the ones the
+            // other hosts build (CI run 3138; a Mach-O object records the
+            // SDK it was built against). Empty on every host.
+            argv.push(own "-DCMAKE_OSX_SYSROOT=")
         }
     }
     if t.mingw {
