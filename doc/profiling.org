@@ -26,6 +26,28 @@ changes. Read the CSV when comparing particular changes.
 - ~peak-mem~: sampled maximum of summed RSS across active non-self test
   process trees, at 10 Hz. Concurrency affects this value.
 
+** Test-suite scheduling triage
+
+Start with the latest successful ~doc/totals.csv~ row and its suite log:
+~tmp/build.log~ for the merge script, or the captured ~tmp/test.log~ locally.
+The log gives completion order; ~gen/out/results/*.txt~ gives each runner's
+duration, memory and, for Both rows, interpret/compile/run times. Match labels
+to registered suite rows: scheduler regression tests also create result files.
+~gen/benchmark.csv~ contains Both phases only. These generated files are
+overwritten, so record dated findings in [[./optimizations.org][Optimization measurements]].
+
+Find the jobs that finish last, not just those with the longest durations.
+A long test queued near the end can determine wall even when a longer build
+started immediately. Result-file times minus reported durations can estimate
+start offsets, but include wrapper/measurement uncertainty. Individual runs
+help rank cases; their durations do not directly predict the concurrent suite.
+Repeat them sequentially, and force rebuilds when measuring compilation.
+
+First consider scheduling late independent jobs earlier. Split serial groups
+only when their cases can run independently with separate scratch files; keep
+dependencies in the central scheduler. Recheck the resulting parallel tail
+and preserve case coverage when splitting or reuniting tests.
+
 ** Compare changes under controlled conditions
 
 - Use one source base, varying only the intended change. Record the revision,

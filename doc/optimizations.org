@@ -5,6 +5,39 @@ test runner, or chart generator. Keep the profiling workflow in
 [[./profiling.org][Profiling]], and put dated measurements and decisions here.
 ~doc/totals.csv~ remains the generated source for the per-commit chart.
 
+** Start long interpreted tests in the first batch (2026-11-14)
+
+Base: ~16bd8dade~. The saved merge run (totals label ~0e41f91c6~) passed
+576/576 with 60.00 seconds wall and 31.526 seconds self. Install-rebuild was
+no longer the final critical path: three ordinary Both rows started late.
+Offsets below are approximate, inferred from result-file modification times
+minus reported durations, relative to the first scheduled phase. They are
+not directly recorded scheduler timestamps.
+
+| Job             | Before start | Before finish | After start | After finish |
+|-----------------+--------------+---------------+-------------+--------------|
+| simd            |        29.48 |         59.52 |        0.00 |        46.75 |
+| tilvm_empty     |        30.47 |         53.43 |        0.00 |        31.43 |
+| hashsets        |        31.74 |         49.38 |        0.00 |        24.66 |
+| install_rebuild |         0.00 |         47.04 |        0.00 |        50.42 |
+| observe         |         0.00 |         44.60 |        0.00 |        48.87 |
+
+Individual interpretation was measured sequentially in three rotating orders,
+using this base's freshly built ~bin/til~, native USize32, no ASAN. Seconds:
+
+| Source          | Run 1  | Run 2  | Run 3  | Median |
+|-----------------+--------+--------+--------+--------|
+| simd            | 20.063 | 20.002 | 19.704 | 20.002 |
+| tilvm_empty     |  8.383 |  8.526 |  8.183 |  8.383 |
+| hashsets        | 11.728 | 11.799 | 11.567 | 11.728 |
+
+Move these three registrations beside unicode in the early batch. Their
+commands, cases and output paths are the same. The candidate clean suite
+passed 576/576, with 50.91 seconds wall and 32.136 seconds self, using 32 jobs.
+The observed late tail disappeared despite longer individual durations under
+the initial batch's contention. Other sessions were active, so the wall-time
+difference is not an isolated A/B result; the merge run remains the check.
+
 ** FASM byte/word integer SIMD allocation checks (2026-11-13, #453)
 
 Base: ~22169738f~. I8/U8 start at 16 lanes and I16/U16 at 8; wider supported
