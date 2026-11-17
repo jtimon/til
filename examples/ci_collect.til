@@ -321,9 +321,13 @@ list_members := proc(target: Str, level: Str, archive: Str, label: Str, scratch:
     File.remove_tree(scratch)
     mkdir_p(scratch)
     // REM Apple's ar has no --output; a mac host uses llvm-ar (see the
-    // workflow's mac jobs for where it comes from).
+    // workflow's mac jobs for where it comes from). A mac target's archive
+    // is read with llvm-ar on every host: GNU ar extracts its symbol table
+    // (__.SYMDEF) as one more member and llvm-ar does not, so the Mac's
+    // list lacked a line the Linux hosts had (CI run 3142). The table is
+    // still compared, in the hash of the whole archive.
     mut archiver := "ar"
-    if host_os() == "macos" { archiver = "llvm-ar" }
+    if host_os() == "macos" || target.starts_with("macos-") { archiver = "llvm-ar" }
     extract := Cmd.new(archiver, "x", format("--output=", scratch), archive)
     extract.capture()
     if extract.run() != 0 { fail(format(extract.render(), " failed: ", extract.err())) }

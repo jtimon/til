@@ -401,6 +401,20 @@ jobs:
           rm -rf vendor/libffi/build-macos-arm64 vendor/libffi/build-macos-x64 vendor/nng/build-macos-arm64 vendor/nng/build-macos-x64
           make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
           make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
+          # Run 3142: on the arm64 Mac every object of libnng.a still differs
+          # from the two Linux hosts' (equal), with the same cmake command
+          # and no SDK named, and cmake finds sem_wait, pthread_atfork and
+          # pthread_setname_np "in pthread" there and not on Linux. What
+          # cmake compiles with, how that check links, and the header and
+          # load commands of one nng object beside one of libffi (equal on
+          # all three), to read from the three logs.
+          env | grep -E "^(SDKROOT|MACOSX_DEPLOYMENT_TARGET|DEVELOPER_DIR)=" || true
+          cmake --version | head -1
+          cat vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/flags.make
+          grep -E "OSX|SYSROOT|DEPLOYMENT|MAKE_PROGRAM" vendor/nng/build-macos-arm64/CMakeCache.txt
+          grep -A 12 "DCHECK_FUNCTION_EXISTS=sem_wait" vendor/nng/build-macos-arm64/CMakeFiles/CMakeConfigureLog.yaml | head -40
+          od -A d -t x1 -N 512 vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/src/platform/posix/posix_alloc.c.o
+          od -A d -t x1 -N 512 vendor/libffi/build-macos-arm64/src/types.o
           mkdir -p tmp/hashes-binary-mac
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary-mac/linux-arm64.txt bin/til macos-arm64 macos-x64
       - name: Upload the mac binary hash lists
@@ -1181,6 +1195,20 @@ jobs:
           rm -rf vendor/libffi/build-macos-arm64 vendor/libffi/build-macos-x64 vendor/nng/build-macos-arm64 vendor/nng/build-macos-x64
           make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
           make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
+          # Run 3142: on the arm64 Mac every object of libnng.a still differs
+          # from the two Linux hosts' (equal), with the same cmake command
+          # and no SDK named, and cmake finds sem_wait, pthread_atfork and
+          # pthread_setname_np "in pthread" there and not on Linux. What
+          # cmake compiles with, how that check links, and the header and
+          # load commands of one nng object beside one of libffi (equal on
+          # all three), to read from the three logs.
+          env | grep -E "^(SDKROOT|MACOSX_DEPLOYMENT_TARGET|DEVELOPER_DIR)=" || true
+          cmake --version | head -1
+          cat vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/flags.make
+          grep -E "OSX|SYSROOT|DEPLOYMENT|MAKE_PROGRAM" vendor/nng/build-macos-arm64/CMakeCache.txt
+          grep -A 12 "DCHECK_FUNCTION_EXISTS=sem_wait" vendor/nng/build-macos-arm64/CMakeFiles/CMakeConfigureLog.yaml | head -40
+          od -A d -t x1 -N 512 vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/src/platform/posix/posix_alloc.c.o
+          od -A d -t x1 -N 512 vendor/libffi/build-macos-arm64/src/types.o
           mkdir -p tmp/hashes-binary-mac
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-mac/linux-x64.txt bin/til macos-arm64 macos-x64
       - name: Upload the mac binary hash lists
@@ -2030,6 +2058,20 @@ jobs:
           ld64.lld --version
           rm -rf vendor/libffi/build-macos-arm64 vendor/nng/build-macos-arm64
           ./bin/make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/nng/build-macos-arm64/libnng.a
+          # Run 3142: on the arm64 Mac every object of libnng.a still differs
+          # from the two Linux hosts' (equal), with the same cmake command
+          # and no SDK named, and cmake finds sem_wait, pthread_atfork and
+          # pthread_setname_np "in pthread" there and not on Linux. What
+          # cmake compiles with, how that check links, and the header and
+          # load commands of one nng object beside one of libffi (equal on
+          # all three), to read from the three logs.
+          env | grep -E "^(SDKROOT|MACOSX_DEPLOYMENT_TARGET|DEVELOPER_DIR)=" || true
+          cmake --version | head -1
+          cat vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/flags.make
+          grep -E "OSX|SYSROOT|DEPLOYMENT|MAKE_PROGRAM" vendor/nng/build-macos-arm64/CMakeCache.txt
+          grep -A 12 "DCHECK_FUNCTION_EXISTS=sem_wait" vendor/nng/build-macos-arm64/CMakeFiles/CMakeConfigureLog.yaml | head -40
+          od -A d -t x1 -N 512 vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/src/platform/posix/posix_alloc.c.o
+          od -A d -t x1 -N 512 vendor/libffi/build-macos-arm64/src/types.o
           mkdir -p tmp/hashes-binary
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary/macos-arm64.txt bin/til macos-arm64
       - name: Upload the binary hash list

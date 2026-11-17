@@ -2979,3 +2979,47 @@ one small file twice two seconds apart in three ways (as is, with
 ~-mno-incremental-linker-compatible~, with ~SOURCE_DATE_EPOCH~ set),
 printing both hashes and the header each time: the next run says what
 differs and which of the two makes it stop.
+
+*** Run 3142, complete: llvm-ar fixed the mac library; nng on the Mac is not explained yet
+
+The collect job of run 3142 (master 9dc58e6):
+
+- macos-arm64, three producers: 36 items equal at width 32 (35 in run
+  3138). The library's ~.a~ is now the same from the Mac and the two
+  Linux hosts: ~llvm-ar rcsD~ on every host was the fix.
+- ~-DCMAKE_OSX_SYSROOT=~ was not: every object of ~libnng.a~ still
+  differs on the Mac, and the two Linux hosts are still equal. The
+  hypothesis recorded in the run-3138 section is wrong or incomplete.
+  The cmake command is the same text on the three hosts (checked in the
+  logs), and so are its configure results but three:
+
+  | check | Linux hosts | arm64 Mac |
+  |-------+-------------+-----------|
+  | sem_wait in pthread | not found | found |
+  | pthread_atfork in pthread | not found | found |
+  | pthread_setname_np in pthread | not found | found |
+
+  The check links with ~-lpthread~. ~vendor/macos~ has no libpthread, so
+  on Linux lld fails with "library not found for -lpthread" (read in the
+  local ~CMakeConfigureLog.yaml~); on the Mac something supplies one, so
+  the Mac's build is reading the host there, and nng is configured
+  differently (thread names, atfork). That changes a few objects, not
+  all of them. A Mach-O object's load commands name the platform, the
+  minimum version and the SDK version; a local macos-arm64 nng object
+  has platform 1, minos 11.0, sdk 0 at offset 264. An SDK or deployment
+  target reaching clang only under cmake on the Mac would change that in
+  every object and explain the library too; libffi, built by configure
+  in the same step, is equal on all three, so it does not reach clang
+  there.
+- The three mac steps now print, after building: SDKROOT and
+  MACOSX_DEPLOYMENT_TARGET if set, cmake's version, nng's ~flags.make~,
+  the OSX and make-program entries of ~CMakeCache.txt~, the link line and
+  output of the sem_wait check, and the first 512 bytes of one nng
+  object and one libffi object.
+- The Mac's list lacked ~__.SYMDEF~ of both vendored archives: GNU ar
+  (the Linux hosts) extracts a Mach-O archive's symbol table as a member,
+  llvm-ar (the Mac) does not. The collector reads a mac target's archive
+  with llvm-ar on every host now; the table stays compared in the whole
+  archive's hash.
+- windows-x64: 28 items equal at width 32; the Windows host as in the
+  section above.
