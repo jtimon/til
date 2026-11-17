@@ -350,7 +350,11 @@ target_link_extra_args := proc(target: Target) returns Str {
     // #472: mingw's ld writes the link time into the PE header (and the
     // export table, and the checksum over them) unless told not to, so no
     // two builds of one program were the same bytes.
-    if is_windows_target(target) { return " -Wl,--no-insert-timestamp" }
+    // #483: the main thread's stack is the 8MB a Linux or macOS one gets,
+    // not a PE's default 1MB: til.exe built by llvm-mingw's clang ran out
+    // typing make.til (CI run 3150, the bootstrap's exit 127; reproduced
+    // under wine as a stack overflow), where the same build on Linux runs.
+    if is_windows_target(target) { return " -Wl,--no-insert-timestamp -Wl,--stack,8388608" }
     if macos_is_cross(target).not() { return "" }
     return " -fuse-ld=lld -Lvendor/macos"
 }

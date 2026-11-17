@@ -113,8 +113,10 @@ ifeq ($(HOST_OS),windows)
 # What every til program links on Windows (targets.til
 # target_system_libs, and the export of its symbols the interpreter's
 # DLL twins import from the running til.exe); MinGW has no libdl, and
-# its libm and pthreads come with the C runtime.
-BOOT_LD_FLAGS := -Wl,--export-all-symbols -lpsapi
+# its libm and pthreads come with the C runtime. The 8MB stack is the
+# one every til program gets on Windows (targets.til
+# target_link_extra_args), a Linux main thread's.
+BOOT_LD_FLAGS := -Wl,--export-all-symbols -Wl,--stack,8388608 -lpsapi
 BOOT_CC := gcc
 EXE := .exe
 endif
