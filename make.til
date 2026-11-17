@@ -1370,8 +1370,7 @@ build_android_raylib := proc(mut b: Build, name: Str) {
     File.remove(temporary)
     mut archive := Cmd.new("ar", "rcsD", temporary)
     if b.host.is_mac() {
-        archive = Cmd.new("ar", "rcs", temporary)
-        archive.env("ZERO_AR_DATE", "1")
+        archive = Cmd.new("llvm-ar", "--format=gnu", "rcsD", temporary)
     }
     for object : Str in objects { archive.arg(object) }
     archive.run_checked()

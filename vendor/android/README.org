@@ -54,6 +54,11 @@ driver from injecting host libgcc or looking for an Android compiler-rt
 under its own resource directory. The host clang still uses its own
 builtin headers (stddef, stdarg, intrinsics); they are compiler-specific.
 The initial host check used clang/LLD 18.1.3.
+The reproducibility producers use the project's existing pinned LLVM
+release. Clang's resource-header directory is mapped to ~clang-resource~
+in Android debug info, independently of its installation location. On
+macOS, Android static archives use ~llvm-ar --format=gnu~ from that LLVM
+toolchain so the archive format matches Linux's GNU ar output.
 Executable freshness checks track the selected vendored headers, startup
 objects, linker stubs and builtins archive, so upgrading them invalidates
 an existing output.

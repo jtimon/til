@@ -3129,3 +3129,33 @@ Run 3146's Linux x64 job got as far as the nng printout: cmake 4.4.5,
 -fno-omit-frame-pointer -O3 -DNDEBUG -std=gnu99 -fPIC~, and the object's
 build-version load command at offset 264: platform 1 (macOS), minimum
 11.0, SDK 0, no tools. The Mac's printout is what is still missing.
+
+**** Android native artifacts enter the binary comparison (base bedff9fee)
+
+~ci_collect produce-binary~ now accepts both Android targets at both
+layouts: hello/layout programs, a JNI library's object/static/shared forms,
+runtime/core, JNI bridge/binding source, and raylib's archive and members.
+Android is a cross-only target, so this is a program/library corpus, not a
+claim that til itself is an Android host. The existing LLVM 23.1.5 producer
+steps on Linux x64, Linux arm64 and macOS arm64 include these trial groups.
+
+The extended ~test/reproducible_build.til~ exposed clang's resource-header
+install path in Android DWARF when two roots shared the pinned LLVM.
+Compilation now maps that resource tree to ~clang-resource~. This changes
+the produced debug info, not a post-build comparison. macOS Android archives
+use llvm-ar's GNU format, matching ELF archives produced on Linux.
+
+Local checks: both targets/layouts pass two-root/two-time comparisons,
+including shared runtime/core and JNI. All 516 collector items agree between
+independently built roots and with an AArch64 til running under QEMU at the
+same logical ~bin/til~ path. Both compiler architectures used the same
+host-native LLVM backend; this is not a real second build host. GNU ar and
+LLVM's GNU-format ar also produced identical raylib archives locally.
+
+A til-written scratch check verified exact signed GUI APK bytes across
+those roots/compiler architectures and rebuild times for both targets and
+layouts, using the same SDK/JDK and debug key. Maintained APK coverage and
+its CI/signing boundary are [[./505.org][#505]]. Native cross-host CI equality
+remains on trial until actual producer runs agree. ~make clean && make test~
+passed 588/588. Evidence: ~tmp/android_repro_compare.log~,
+~tmp/android_repro_llvm_{x64,arm64}.log~ and ~tmp/android_repro_apk_til.log~.

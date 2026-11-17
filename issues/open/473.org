@@ -1,6 +1,6 @@
 # priority: medium
 # category: backends
-** OPEN #473 Expand native and cross-platform CI, then enforce per-target reproducibility
+** WIP #473 Expand native and cross-platform CI, then enforce per-target reproducibility
 
 CURRENT PLAN AND DECISIONS: the last section, "Plan to close". Where an
 earlier section differs from it, that section wins; the earlier ones are
@@ -966,3 +966,13 @@ as it had then: its run skips every job and must neither wait behind a
 code run nor replace the waiting code push.
 Runs queued before this commit have no group and still run in full; the
 rule holds from the first push that carries it.
+
+*** Android binary producers (base bedff9fee)
+
+The existing pinned-LLVM binary producers on Linux x64, Linux arm64 and
+macOS arm64 now build both Android raylib archives, run the two-root/time
+regression for both Android targets/layouts, and include Android native
+artifacts in their existing hash lists. The groups start on trial, with
+section/member diagnostics. Local evidence and the resource-path fix are
+in [[./472.org][#472]]; no real cross-host CI result is claimed yet. APK
+packaging/signing coverage is tracked separately in [[./505.org][#505]].

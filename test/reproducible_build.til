@@ -32,22 +32,26 @@ copy_tree_checked := proc(source: Str, destination: Str) {
 }
 
 // Run the compiler at its path relative to `root`, from `root`.
-compile := proc(root: Str, compiler: Str, target_flag: Str, what: Str, arguments: ..Str) {
+compile := proc(root: Str, compiler: Str, target_flag: Str, width: Str, jni: Bool, what: Str, arguments: ..Str) returns Str {
     command := Cmd.new(format("./", compiler))
     for argument : Str in arguments { command.arg(argument) }
     if target_flag.len() > 0 { command.arg(target_flag) }
+    if width.len() > 0 { command.arg(format("--usize=", width)) }
+    if jni { command.arg("--jni") }
     command.arg(what)
     command.cwd(root)
     command.capture()
     if command.run() != 0 {
         panic(command.render(), " in ", root, ": ", command.out(), command.err())
     }
+    return command.out()
 }
 
 // What the compiler holds for `source` just before a backend (#472 level 1).
-observation := proc(root: Str, compiler: Str, target_flag: Str, source: Str) returns Str {
+observation := proc(root: Str, compiler: Str, target_flag: Str, width: Str, source: Str) returns Str {
     command := Cmd.new(format("./", compiler), "ast", "--phase=prepared")
     if target_flag.len() > 0 { command.arg(target_flag) }
+    if width.len() > 0 { command.arg(format("--usize=", width)) }
     command.arg(source)
     command.cwd(root)
     command.capture()
@@ -62,6 +66,68 @@ same_file := proc(what: Str, first: Str, second: Str) {
     if File.is_file(second).not() { panic("not built: ", second) }
     if File.readfile(first) != File.readfile(second) {
         panic(what, ": ", first, " and ", second, " differ")
+    }
+}
+
+check_layout := proc(compiler: Str, target_flag: Str, width: Str) {
+    android := target_flag.contains("android-")
+    program := "mode script\nwords := vec(Str, \"same\", \"bytes\")\nprintln(words[0], \" \", words[1])\n"
+    library := "mode lib\nreproducible_sum := func(a: I64, b: I64) returns I64 { return a + b }\n"
+    for root : Str in array(Str, ".", SECOND) {
+        mkdir_p(format(root, "/", WORK, "/case"))
+        File.writefile(format(root, "/", WORK, "/case/program.til"), program)
+        File.writefile(format(root, "/", WORK, "/case/reproducible_lib.til"), library)
+    }
+    program_source := format(WORK, "/case/program.til")
+    library_source := format(WORK, "/case/reproducible_lib.til")
+    binary := format(WORK, "/case/program.bin")
+    generated := format(WORK, "/case/program.c")
+    mut shared_extension := ".so"
+    if target_flag.contains("macos") { shared_extension = ".dylib" }
+    if target_flag.contains("windows") { shared_extension = ".dll" }
+    mut library_outputs := vec(Str, "gen/lib/libreproducible_lib.a", "gen/lib/reproducible_lib.o",
+        format("gen/lib/libreproducible_lib", shared_extension))
+
+    // Here, then twice in the second root with a pause between: file
+    // times are whole seconds on some file systems.
+    compile(".", compiler, target_flag, width, false, program_source, "build", "-o", binary, "-c", generated)
+    built := compile(".", compiler, target_flag, width, android, library_source, "build")
+    if android {
+        // Read this build's exact dependency names, not stale revisions left
+        // in gen/lib by previous builds. The jar's ZIP metadata is separate
+        // from the native-library comparison exercised here.
+        mut dependencies : USize = 0
+        for line : Str in built.split("\n") {
+            if line.starts_with("Generated: gen/lib/libtilrt-").or(line.starts_with("Generated: gen/lib/libtilcore-")) {
+                library_outputs.push(own line.strip_prefix("Generated: ").clone())
+                dependencies++
+            }
+        }
+        if dependencies != 2 { panic("Android library did not report its runtime and core:\n", built) }
+        library_outputs.push(own "gen/lib/libreproducible_lib_jni.so")
+        library_outputs.push(own "gen/til/reproducible_lib_jni.c")
+        library_outputs.push(own "gen/til/java/til/reproducible_lib/ReproducibleLib.java")
+    }
+    compile(SECOND, compiler, target_flag, width, false, program_source, "build", "-o", binary, "-c", generated)
+    compile(SECOND, compiler, target_flag, width, android, library_source, "build")
+    mkdir_p(format(WORK, "/first"))
+    copy_checked(format(SECOND, "/", binary), format(WORK, "/first/program.bin"))
+    for output : Str in library_outputs {
+        copy_checked(format(SECOND, "/", output), format(WORK, "/first/", output.replace("/", "_")))
+    }
+    sleep_ms(1100)
+    compile(SECOND, compiler, target_flag, width, false, program_source, "build", "--force-rebuild", "-o", binary, "-c", generated)
+    compile(SECOND, compiler, target_flag, width, android, library_source, "build", "--force-rebuild")
+
+    if observation(".", compiler, target_flag, width, program_source) != observation(SECOND, compiler, target_flag, width, program_source) {
+        panic("two checkout roots: the observations of ", program_source, " before a backend differ")
+    }
+    same_file("two checkout roots", binary, format(SECOND, "/", binary))
+    same_file("two checkout roots", generated, format(SECOND, "/", generated))
+    same_file("two build times", format(WORK, "/first/program.bin"), format(SECOND, "/", binary))
+    for output : Str in library_outputs {
+        same_file("two checkout roots", output, format(SECOND, "/", output))
+        same_file("two build times", format(WORK, "/first/", output.replace("/", "_")), format(SECOND, "/", output))
     }
 }
 
@@ -82,51 +148,13 @@ main := proc(args: ..Str) {
     copy_tree_checked("src", format(SECOND, "/src"))
     mkdir_p(format(SECOND, "/boot"))
     copy_checked("boot/til_forward.h", format(SECOND, "/boot/til_forward.h"))
-    // REM The SDK-less mac toolchain reads its headers and libSystem stub
-    // from the checkout.
+    // REM Cross toolchains read their headers/stubs/builtins from the checkout.
     if target_flag.contains("macos") { copy_tree_checked("vendor/macos", format(SECOND, "/vendor/macos")) }
-
-    program := "mode script\nwords := vec(Str, \"same\", \"bytes\")\nprintln(words[0], \" \", words[1])\n"
-    library := "mode lib\nreproducible_sum := func(a: I64, b: I64) returns I64 { return a + b }\n"
-    for root : Str in array(Str, ".", SECOND) {
-        mkdir_p(format(root, "/", WORK, "/case"))
-        File.writefile(format(root, "/", WORK, "/case/program.til"), program)
-        File.writefile(format(root, "/", WORK, "/case/reproducible_lib.til"), library)
-    }
-    program_source := format(WORK, "/case/program.til")
-    library_source := format(WORK, "/case/reproducible_lib.til")
-    binary := format(WORK, "/case/program.bin")
-    generated := format(WORK, "/case/program.c")
-    mut shared_extension := ".so"
-    if target_flag.contains("macos") { shared_extension = ".dylib" }
-    if target_flag.contains("windows") { shared_extension = ".dll" }
-    library_outputs := array(Str, "gen/lib/libreproducible_lib.a", "gen/lib/reproducible_lib.o",
-        format("gen/lib/libreproducible_lib", shared_extension))
-
-    // Here, then twice in the second root with a pause between: file
-    // times are whole seconds on some file systems.
-    compile(".", compiler, target_flag, program_source, "build", "-o", binary, "-c", generated)
-    compile(".", compiler, target_flag, library_source, "build")
-    compile(SECOND, compiler, target_flag, program_source, "build", "-o", binary, "-c", generated)
-    compile(SECOND, compiler, target_flag, library_source, "build")
-    mkdir_p(format(WORK, "/first"))
-    copy_checked(format(SECOND, "/", binary), format(WORK, "/first/program.bin"))
-    for output : Str in library_outputs {
-        copy_checked(format(SECOND, "/", output), format(WORK, "/first/", output.replace("/", "_")))
-    }
-    sleep_ms(1100)
-    compile(SECOND, compiler, target_flag, program_source, "build", "--force-rebuild", "-o", binary, "-c", generated)
-    compile(SECOND, compiler, target_flag, library_source, "build", "--force-rebuild")
-
-    if observation(".", compiler, target_flag, program_source) != observation(SECOND, compiler, target_flag, program_source) {
-        panic("two checkout roots: the observations of ", program_source, " before a backend differ")
-    }
-    same_file("two checkout roots", binary, format(SECOND, "/", binary))
-    same_file("two checkout roots", generated, format(SECOND, "/", generated))
-    same_file("two build times", format(WORK, "/first/program.bin"), format(SECOND, "/", binary))
-    for output : Str in library_outputs {
-        same_file("two checkout roots", output, format(SECOND, "/", output))
-        same_file("two build times", format(WORK, "/first/", output.replace("/", "_")), format(SECOND, "/", output))
+    if target_flag.contains("android-") {
+        copy_tree_checked("vendor/android", format(SECOND, "/vendor/android"))
+        for width : Str in array(Str, "32", "64") { check_layout(compiler, target_flag, width) }
+    } else {
+        check_layout(compiler, target_flag, "")
     }
     println("reproducible build passed")
 }

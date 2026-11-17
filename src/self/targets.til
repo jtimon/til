@@ -336,6 +336,23 @@ windows_toolchain_map_args := proc(target: Target, compiler: Str) returns Str {
     return ""
 }
 
+// Android keeps clang's builtin headers alongside the vendored NDK sysroot.
+// Their install directory reached .debug_line when two checkouts shared one
+// LLVM installation. Map only that resource tree, not installed til sources.
+android_toolchain_map_args := proc(target: Target, compiler: Str) returns Str {
+    if is_android_target(target).not() { return "" }
+    probe := Cmd.new()
+    for word : Str in compiler.split(" ") {
+        if word.len() > 0 { probe.arg(word) }
+    }
+    probe.arg("-print-resource-dir")
+    probe.capture()
+    if probe.run() != 0 { panic("cannot locate Android clang's builtin headers: ", probe.err()) }
+    resource := probe.out().trim()
+    if resource.len() == 0 { panic("Android clang reported an empty resource directory") }
+    return format(" -ffile-prefix-map=", shell_path(resource), "=clang-resource")
+}
+
 // Link-only companion to macos_cross_args: -fuse-ld=lld and -L mean
 // nothing on -c compiles and clang -Werror rejects them as unused
 // arguments there, so the builder appends these only to command lines

@@ -355,7 +355,7 @@ jobs:
         with:
           path: vendor/llvm
           key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
-      - name: Write the mac binary hash lists with the pinned LLVM
+      - name: Write the mac and Android binary hash lists with the pinned LLVM
         continue-on-error: true
         run: |
           make llvm
@@ -380,8 +380,11 @@ jobs:
           grep -A 12 "DCHECK_FUNCTION_EXISTS=sem_wait" vendor/nng/build-macos-arm64/CMakeFiles/CMakeConfigureLog.yaml | head -40
           od -A d -t x1 -N 512 vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/src/platform/posix/posix_alloc.c.o
           od -A d -t x1 -N 512 vendor/libffi/build-macos-arm64/src/types.o
+          make vendor/raylib/build-android-x64/libraylib.a vendor/raylib/build-android-arm64/libraylib.a
+          ./bin/til run test/reproducible_build.til bin/til android-x64
+          ./bin/til run test/reproducible_build.til bin/til android-arm64
           mkdir -p tmp/hashes-binary-mac
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary-mac/linux-arm64.txt bin/til macos-arm64 macos-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary-mac/linux-arm64.txt bin/til macos-arm64 macos-x64 android-x64 android-arm64
       - name: Upload the mac binary hash lists
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -1086,7 +1089,7 @@ jobs:
         with:
           path: vendor/llvm
           key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
-      - name: Write the mac binary hash lists with the pinned LLVM
+      - name: Write the mac and Android binary hash lists with the pinned LLVM
         continue-on-error: true
         run: |
           make llvm
@@ -1111,8 +1114,11 @@ jobs:
           grep -A 12 "DCHECK_FUNCTION_EXISTS=sem_wait" vendor/nng/build-macos-arm64/CMakeFiles/CMakeConfigureLog.yaml | head -40
           od -A d -t x1 -N 512 vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/src/platform/posix/posix_alloc.c.o
           od -A d -t x1 -N 512 vendor/libffi/build-macos-arm64/src/types.o
+          make vendor/raylib/build-android-x64/libraylib.a vendor/raylib/build-android-arm64/libraylib.a
+          ./bin/til run test/reproducible_build.til bin/til android-x64
+          ./bin/til run test/reproducible_build.til bin/til android-arm64
           mkdir -p tmp/hashes-binary-mac
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-mac/linux-x64.txt bin/til macos-arm64 macos-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-mac/linux-x64.txt bin/til macos-arm64 macos-x64 android-x64 android-arm64
       - name: Upload the mac binary hash lists
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -1965,7 +1971,7 @@ jobs:
         with:
           path: vendor/llvm
           key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
-      - name: Write the binary hash list with the pinned LLVM
+      - name: Write the mac and Android binary hash list with the pinned LLVM
         continue-on-error: true
         run: |
           make llvm
@@ -1989,8 +1995,11 @@ jobs:
           grep -A 12 "DCHECK_FUNCTION_EXISTS=sem_wait" vendor/nng/build-macos-arm64/CMakeFiles/CMakeConfigureLog.yaml | head -40
           od -A d -t x1 -N 512 vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/src/platform/posix/posix_alloc.c.o
           od -A d -t x1 -N 512 vendor/libffi/build-macos-arm64/src/types.o
+          ./bin/make vendor/raylib/build-android-x64/libraylib.a vendor/raylib/build-android-arm64/libraylib.a
+          ./bin/til run test/reproducible_build.til bin/til android-x64
+          ./bin/til run test/reproducible_build.til bin/til android-arm64
           mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary/macos-arm64.txt bin/til macos-arm64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary/macos-arm64.txt bin/til macos-arm64 android-x64 android-arm64
       - name: Upload the binary hash list
         continue-on-error: true
         uses: actions/upload-artifact@v4
