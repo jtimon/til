@@ -1,0 +1,128 @@
+# priority: low
+# category: experiments
+** OPEN #506 Explore proving til itself with til's own checker
+
+Brainstorm state, split out of [[505.org][#505]]. Nothing here is approved or
+actionable, and nothing can start before #505 produces a checker at all.
+
+*** The wish
+
+  The ideal end state of #505 is that til uses it on itself: properties of
+  the compiler and of core are proved by til's own checker, not only
+  tested. It is a separate issue because it is probably very hard, if it
+  is even possible to maintain: every change to the compiler would have to
+  keep its proofs alive. The #505 constraints carry over: our own thing,
+  nothing vendored, an external tool at most as a temporary cross-check.
+
+*** Precedents
+
+  From memory, not re-checked; sizes are orders of magnitude.
+
+  - CompCert: a C compiler written and proved in Rocq. Each pass is proved
+    to preserve the meaning of the program. Several person-years, and the
+    proofs are a few times larger than the compiler.
+  - CakeML: an ML compiler proved in HOL4 that compiles itself, so the
+    verified compiler binary comes out of the proof. The closest precedent
+    for a self-hosting language.
+  - seL4: an operating system kernel. Roughly twenty lines of proof per
+    line of C, and keeping the proofs up to date is reported as the
+    dominant cost of every later change. This is the maintenance worry in
+    numbers.
+  - Lean 4 and Rocq are NOT proved by themselves. Lean's compiler is
+    written in Lean but unverified; what is trusted is a small kernel,
+    re-checked by independent checkers. Separate projects verify a model
+    of each kernel. The tools everyone trusts settled for a small kernel
+    instead of a proved compiler.
+  - Translation validation: do not prove the pass; check, on every run,
+    that this particular output means the same as this particular input.
+    CompCert does it for register allocation, Alive2 for LLVM
+    optimizations. Far cheaper to maintain, because the pass can change
+    freely as long as the checker still accepts its output.
+
+*** A limit that does not go away
+
+  A checker that proves its own kernel sound proves little by that alone:
+  an unsound kernel can accept a false proof of its own soundness. Trust
+  has to bottom out in something else -- a kernel small enough to read, or
+  a second, independent checker. That is exactly the role the "temporary
+  external cross-check" of #505 would play.
+
+*** What could be proved, cheapest first
+
+  1. Core containers and numbers (~src/core~, about 5k lines): no panic,
+     ~safe_*~ really report every overflow, ~Vec~ / ~Map~ / ~Str~ behave
+     as their mathematical models. Ordinary library verification; nothing
+     compiler-specific.
+  2. The checking kernel itself (direction 6 of #505), subject to the
+     limit above.
+  3. Structural invariants of single passes, not their full correctness:
+     the desugarer leaves no sugar behind, the typer leaves no untyped
+     node, the garbager destroys every owned value exactly once. The last
+     is what ASAN samples today ([[464.org][#464]]); a proof would cover every
+     program, not the test corpus.
+  4. Meaning preservation of one pass. The constfolder is the natural
+     first: it replaces a call by the value the compile-time evaluation
+     gave, so the claim is "folding does not change the result".
+  5. The whole compiler, down to the binary. ~src/self~ is about 76k
+     lines, there are several backends that must agree, and the C backend
+     ends in an unverified C compiler.
+
+  Each rung needs the previous ones much less than it needs a written
+  definition of what a til program MEANS. That definition does not exist
+  (also an open question of #505) and from rung 4 on it is the first
+  deliverable.
+
+*** Specific to til
+
+  - Bootstrap. The compiler that would check the proofs is built from
+    ~boot/til.c~ by the previous compiler (doc/self.org). A proof about
+    the source says nothing about a boot artifact produced by an
+    unproved earlier compiler; CakeML's answer was to bootstrap inside
+    the prover.
+  - Several execution paths (interpreter, C, MLIR, FASM). A proof about
+    one says nothing about the others unless they are shown to agree.
+  - Rate of change. The compiler changes daily and much of it is written
+    by bots. Proofs that break on unrelated edits would stop that, unless
+    the proofs are also produced mechanically and only CHECKED by the
+    kernel (the Bend 2 bet recorded in #505).
+
+*** Ways to keep it maintainable (none chosen)
+
+  - Stop at rungs 1-3: invariants and the library, never full
+    correctness.
+  - Translation validation instead of proved passes, where a checker for
+    the pass output is simpler than the pass.
+  - Proofs as generated artifacts: search, decision procedures or an LLM
+    produce them, the kernel checks them, a failed proof is a failed
+    build like a failed test.
+  - Freeze and prove only what rarely changes (core, the kernel), and
+    keep testing the rest.
+
+*** Open questions
+
+  - Is any rung worth its upkeep compared with what tests, ASAN and the
+    reproducible two-pass build already give?
+  - Which single property would be the first target, to measure the real
+    cost before committing to more?
+  - Where would proofs live, and would a broken proof fail ~make test~?
+    (Any new file kind or build step needs approval.)
+  - Does the trusted base end at the C compiler, or is a path without
+    one a goal?
+
+*** Possibly related issues
+
+  Candidates only; none is confirmed as a dependency except #505.
+
+  - [[505.org][#505]]: the checker itself. Hard prerequisite.
+  - [[383.org][#383]] backend conformance: the backends agreeing is what makes one
+    semantics meaningful.
+  - [[272.org][#272]] garbager and [[461.org][#461]] last-use destruction: the pass whose
+    invariant (destroy exactly once) is the most valuable to prove.
+  - [[464.org][#464]] ASAN by default: the sampling evidence a proof of that
+    invariant would replace or back up.
+  - [[472.org][#472]] / [[473.org][#473]] deterministic and reproducible builds: evidence about
+    the step from source to binary that no source-level proof covers.
+  - [[453.org][#453]] FASM backend: a path to a binary without a C compiler in
+    the trusted base.
+  - [[474.org][#474]] native JIT: one more execution path that would have to agree
+    with the others.

@@ -1,0 +1,221 @@
+# priority: low
+# category: experiments
+** OPEN #505 Explore proving properties of til programs without learning a proof assistant
+
+Brainstorm state. Nothing here is approved or actionable: no syntax, mode,
+dependency or file format is decided. The purpose is to collect what exists,
+what til already has that helps, and which open issues may turn out to be
+prerequisites.
+
+*** The wish
+
+  Some tools prove properties of software mathematically: not "the tests
+  passed" but "this holds for every input". Ideally til offers that too,
+  WITHOUT its users having to learn Rocq or Lean. Having users learn LaTeX
+  math notation seems more acceptable (the human's stated, admittedly biased,
+  opinion): many people already read and write it, and it is what the
+  property would look like on paper anyway.
+
+*** Constraints (from the human)
+
+  - The whole point is to do our own thing. In principle NOTHING is
+    vendored for this: no solver, no prover, no foreign checker. The
+    tools below are precedents to learn from, not dependencies.
+  - An external tool may be brought in TEMPORARILY, as extra verification
+    of our own checker once it is close to ready, and removed again.
+  - Using it on til itself (the compiler and core proved by til's own
+    checker) would be the ideal end state. That is a separate issue,
+    [[506.org][#506]], since it is probably very hard, if it is even possible to
+    maintain: every compiler change would have to keep its proofs alive.
+
+*** What exists
+
+  Roughly ordered from most manual to most automatic.
+
+  - [[https://rocq-prover.org][Rocq]] (called Coq until the rename completed with release 9.0): an
+    interactive proof assistant. Programs are either written in its own
+    language and extracted (CompCert, a verified C compiler), or modelled
+    inside it and proved there. The proofs are written by hand as tactic
+    scripts. Highest assurance, highest cost, a separate language to learn.
+  - [[https://lean-lang.org][Lean 4]]: the "built in" case. One dependently typed language is both the
+    programming language and the proof language, so a theorem about a
+    function sits next to the function. Started at Microsoft Research, now
+    maintained by the Lean FRO. Still a proof assistant: the user writes
+    the proofs.
+  - [[https://github.com/bendlang/bend][Bend 2]] (HigherOrderCO, Victor Taelin; released September 2026). Known
+    here only from secondary reports, not checked first-hand: Python-like
+    syntax plus dependent types, the type checker doubles as the proof
+    checker, proofs live beside the program in their own file, and the
+    compiler refuses to build when a proof no longer holds. Its pitch is
+    that an AI writes the code AND the proofs while humans read only the
+    specification and trust a small audited checking kernel. Reported as
+    young and buggy. Same family as Lean, but the "who writes the proof"
+    answer is relevant to the wish above.
+  - [[https://lamport.azurewebsites.net/tla/tla.html][TLA+]]: probably the "Microsoft thing from LaTeX math" (my reading; a web
+    search turned up no other Microsoft tool that takes LaTeX). Written by
+    Leslie Lamport, the author of LaTeX, at Microsoft Research. Its ASCII
+    notation is LaTeX commands (~\in~, ~\cup~, ~\A~ for forall, ~\E~ for
+    exists) and specifications are typeset through LaTeX. Important limit:
+    TLA+ describes a DESIGN (a state machine, typically a concurrent or
+    distributed protocol) and checks it exhaustively with the TLC model
+    checker or proves it with TLAPS. It says nothing about the code that
+    later implements the design.
+  - Auto-active verifiers: [[https://dafny.org][Dafny]] and [[https://fstar-lang.org][F*]] (both started at Microsoft
+    Research), [[https://github.com/verus-lang/verus][Verus]] / Prusti / Creusot for Rust, SPARK for Ada,
+    Frama-C (ACSL annotations) for C, [[https://www.why3.org][Why3]] as a shared middle layer. The
+    programmer writes preconditions, postconditions and loop invariants in
+    (nearly) the programming language itself, and an SMT solver (usually
+    [[https://github.com/Z3Prover/z3][Z3]], also Microsoft Research) proves them or returns a counterexample.
+    This family is the closest existing answer to "without learning a
+    proof assistant".
+  - Not proofs, but the same specification surface: bounded model checkers
+    (CBMC for C, Kani for Rust) prove a property up to a bound; property
+    based testing (QuickCheck and descendants) samples it.
+
+  So there is a ladder: tests -> property tests -> bounded checking ->
+  solver-proved contracts -> hand-written proofs. A property written once
+  could in principle be reused on every rung.
+
+*** What til already has that points this way
+
+  - The ~func~ / ~proc~ split is enforced by the typer in both directions
+    (doc/concepts/functions.org): a func hides no effect. Pure functions
+    are what a specification may call and what can be reasoned about as
+    equations. Most languages have to add this ("ghost"/"spec" functions,
+    purity annotations) before they can add verification.
+  - ~mut~ and ~own~ in signatures already declare what a call may write or
+    consume. Verifiers call that the frame condition and normally make the
+    user write it.
+  - Single ownership and borrow checking. Verus and Prusti are tractable
+    because Rust rules out mutation through aliases, which otherwise needs
+    separation logic. til is heading the same way.
+  - ~throws~ in signatures and the ~safe_*~ family: overflow, bounds and
+    division by zero are named, explicit failures. "This function never
+    panics" is the classic first property to prove and it needs exactly
+    that inventory.
+  - Modes are typer-enforced dialects (~mode pure~, the planned
+    ~mode const_time~). A restricted, more provable dialect fits the
+    existing pattern rather than needing a new mechanism.
+  - ~test~ blocks with ~assert~ / ~assert_eq~ are where properties are
+    stated today, and the interpreter / constfolder can already run a
+    func at compile time, so a property is executable before it is
+    provable.
+  - The lexer is ASCII only. LaTeX commands are ASCII; Lean's and Agda's
+    Unicode notation is not. That is a small point in favour of the
+    LaTeX preference.
+
+*** Directions (none chosen)
+
+  Shapes only; the snippets are NOT proposed syntax.
+
+  1. Contracts as til expressions. Pre/postconditions and invariants are
+     ordinary Bool-valued func expressions attached to a declaration.
+     First they are checked at run time in tests; later a solver tries to
+     discharge them statically. The Dafny / Verus / SPARK shape, and the
+     user learns no second language at all.
+  2. A LaTeX-math surface for the same contracts, eg for an integer
+     square root:
+
+     #+begin_example
+     \forall n \in U64:\; isqrt(n)^2 \le n < (isqrt(n) + 1)^2
+     #+end_example
+
+     It reads like the paper statement and the generated documentation
+     could typeset it. But LaTeX describes how math LOOKS, not what it
+     means (juxtaposition, overloaded symbols), so it would have to be a
+     restricted subset resolved against til names and types, as TLA+
+     did. It is a second expression syntax to parse and type check; (1)
+     and (2) could share everything behind the parser.
+  3. Export instead of prove: translate a pure til subset to Why3, Lean
+     or Rocq definitions. Whoever proves anything is back to learning
+     the foreign tool, and it is not our own thing, so under the
+     constraints above this is at most the temporary cross-check: export
+     what our checker accepted and see whether an established tool
+     agrees.
+  4. Design-level model checking in the TLA+ style, for the concurrency
+     work: specify the protocol, enumerate its states. Separate from
+     verifying code.
+  5. Exhaustive or bounded checking with the existing interpreter: run a
+     func over a whole small domain (every U8, every pair of U8) or up
+     to a bound. No solver, no new dependency, honest about being a
+     proof only for the domain covered. A possible first rung.
+  6. A small checking kernel, written in til, that accepts or rejects a
+     proof object and does nothing else. Where the proof comes from is
+     then untrusted and replaceable: our own search or decision
+     procedure, a person, or an LLM (the Bend 2 bet). Only the kernel
+     has to be right, and it is the natural first thing to prove with
+     itself.
+
+*** What "our own" costs
+
+  Without a vendored solver, whatever automation exists is written in
+  til. Rough sizes, to judge the ladder by:
+
+  - Exhaustive / bounded evaluation (direction 5): the interpreter
+    already exists.
+  - A SAT solver plus bit-blasting of fixed-width integers: small and
+    well understood, and it decides exactly the machine-integer
+    questions (overflow, bounds on small widths). 64-bit multiplication
+    and division blow it up.
+  - Linear integer arithmetic, arrays, quantifiers: this is what makes Z3
+    large. Decades of engineering; not something to match, only to pick
+    fragments from.
+  - A proof-checking kernel (direction 6): small by design, but it moves
+    the work to whoever produces the proofs.
+
+*** Open questions
+
+  - Which properties first? Candidates: no panic (overflow, bounds, null
+    deref), functional correctness of pure funcs, termination, the
+    constant-time rules, concurrency properties.
+  - Math integers or machine integers in a specification? The isqrt
+    statement above overflows U64 for the largest inputs if ~(r + 1)^2~
+    is computed in U64. Dafny-style tools give specifications unbounded
+    integers; that makes the spec type system differ from the code's.
+  - til has no formal semantics. A proof is about SOME definition of
+    what a til program means, and the interpreter, C, MLIR and FASM
+    paths must all agree with it. What is trusted: the til compiler, the
+    C compiler, hand-written ext.c, every ~ext_func~ (those can only be
+    axioms).
+  - No vendored solver (see Constraints), so how much automation is
+    worth writing ourselves, and for which fragment? Solver-backed
+    proofs are also known to be brittle elsewhere: timeouts, proofs that
+    break on unrelated edits.
+  - Proving til itself is tracked separately in [[506.org][#506]].
+  - Loops need invariants and recursion needs a termination measure.
+    Somebody writes those. This is where "without learning a proof
+    assistant" gets strained in practice: Dafny and Verus users end up
+    writing lemmas and hints when the solver gives up. How much of that
+    is acceptable, and in which notation?
+  - Generics, closures, ~Dynamic~, reflection and macros: in or out of
+    the provable subset?
+  - Where do properties live: on the declaration, in ~test~ blocks, in
+    doc comments, in a separate file? (Any new surface needs approval.)
+
+*** Possibly related issues
+
+  Candidates noticed while reading the open set; none is confirmed as a
+  dependency.
+
+  - [[490.org][#490]] / [[491.org][#491]] reference-slot mutability and writable reference
+    contracts: who may write what is the basis of any frame reasoning.
+  - [[272.org][#272]] garbager (single ownership authority) and [[461.org][#461]] borrow-aware
+    last-use analysis: the aliasing guarantees a verifier would lean on.
+  - [[329.org][#329]] / [[478.org][#478]] borrowed slices: bounds reasoning wants one typed view
+    with a known length, not ad hoc Str views.
+  - [[201.org][#201]] error types and ~safe_*~: the inventory of ways an operation
+    can fail, which "never panics" is stated against.
+  - [[419.org][#419]] ~mode const_time~: a restricted dialect (fixed trip counts, no
+    data-dependent branches or indexing) that is unusually easy to
+    verify, and whose cryptographic primitives ([[339.org][#339]]) are the code
+    most worth proving.
+  - [[215.org][#215]] ~mode safe_script~ and [[439.org][#439]] the user-defined mode promise:
+    whether a provable dialect could be an ordinary mode.
+  - [[310.org][#310]] expr_macro / str_macro: contracts handled as AST, or a LaTeX
+    spec parsed at compile time.
+  - [[482.org][#482]] concurrency: the natural customer of direction 4.
+  - [[383.org][#383]] backend conformance: several backends agreeing on one
+    semantics is the precondition for a proof meaning anything about the
+    binary.
+  - [[474.org][#474]] native JIT: faster compile-time evaluation makes direction 5
+    reach larger domains.

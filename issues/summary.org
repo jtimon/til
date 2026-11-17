@@ -83,6 +83,8 @@
 *** [[./open/215.org][#215]] Investigate mode safe_script (port from rstil)
 *** [[./open/412.org][#412]] End-to-end til GPU kernel prototype and portability check
 *** [[./open/482.org][#482]] Explore concurrency: Go channels, NNG, ZeroMQ, Jai and semaphores
+*** [[./open/505.org][#505]] Explore proving properties of til programs without learning a proof assistant
+*** [[./open/506.org][#506]] Explore proving til itself with til's own checker
 * Examples
 ** Low
 *** [[./open/24.org][#24]] Music theory examples: ongoing improvements
