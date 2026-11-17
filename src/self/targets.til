@@ -190,8 +190,8 @@ priv validate_lang_for_target := func(lang: Lang, target: Target) {
 
 // ---------- Toolchain commands
 
-// proc, not func: the LinuxX64 and WindowsX64 cases are host-dependent
-// (host_os() is a proc), so the whole thing must be a proc. Its two callers (compile_c,
+// proc, not func: the LinuxX64 case is host-dependent
+// (detect_current_target() is a proc), so the whole thing must be a proc. Its callers (compile_c,
 // compile_lib) are already procs.
 toolchain_command := proc(target: Target, lang: Lang) returns Str {
     validate_lang_for_target(lang, target)
@@ -210,15 +210,13 @@ toolchain_command := proc(target: Target, lang: Lang) returns Str {
     case .LinuxX86:     return "gcc"
     case .LinuxArm32:   return "arm-linux-gnueabihf-gcc"
     case .LinuxRiscv32: return "riscv32-linux-gnu-gcc"
-    // mingw's gcc is the cross-prefixed x86_64-w64-mingw32-gcc when
-    // building windows FROM another host, but plain "gcc" when running
-    // natively ON windows (mingw installs it unprefixed in PATH).
-    case .WindowsX64:
-        if host_os() == "windows" { return "gcc" }
-        return "x86_64-w64-mingw32-gcc"
-    case .WindowsX86:
-        if host_os() == "windows" { return "gcc" }
-        return "i686-w64-mingw32-gcc"
+    // The pinned llvm-mingw's drivers (make.til LLVM_MINGW_RELEASE; bin/make
+    // llvm_mingw, then vendor/llvm-mingw/bin first on PATH), by the same
+    // name on every host, a Windows one included (issue #483): one
+    // compiler, so every host builds the same bytes (#472). Each is clang
+    // for its target, with lld.
+    case .WindowsX64:   return "x86_64-w64-mingw32-gcc"
+    case .WindowsX86:   return "i686-w64-mingw32-gcc"
     case .MacosX64, .MacosArm64, .AndroidX64, .AndroidArm64: return "clang"
     // emscripten (issue #424): every til program includes src/self/codegen/ext.c,
     // which needs a libc, and bare clang --target=wasm32 has none. emcc

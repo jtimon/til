@@ -9183,11 +9183,11 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
         // A PE module resolves every name when it is linked, so those same
         // runtime names cannot stay undefined until load. The bridge imports
         // them from this executable: its exports, written as a module
-        // definition, become an import library. dlltool comes with the gcc
-        // a Windows host already needs to build anything (toolchain_command
-        // names it "gcc" there; no "cc" is installed). All PE code is
-        // position independent, so no -fPIC.
-        compiler = "gcc"
+        // definition, become an import library, made by the dlltool of the
+        // pinned llvm-mingw that compiles everything for windows
+        // (toolchain_command). All PE code is position independent, so no
+        // -fPIC.
+        compiler = toolchain_command(Target.WindowsX64, Lang.C)
         link_kind = " -shared"
         definitions := format("tmp/ffi_", process_id().to_str(), ".def")
         host_imports = format("tmp/ffi_", process_id().to_str(), "_host.a")
@@ -9195,7 +9195,7 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
             eprint_single(format("error: cannot list this executable's exports in '", definitions, "': ", ffi_last_error(), "\n"))
             return 1
         }
-        made := system_cmd(format("dlltool -d ", definitions, " -l ", host_imports))
+        made := system_cmd(format(compiler.strip_suffix("gcc"), "dlltool -d ", definitions, " -l ", host_imports))
         File.remove(definitions)
         if made != 0 {
             eprint_single(format("error: dlltool could not make the import library '", host_imports, "' that '", user_c_path, "' links against\n"))

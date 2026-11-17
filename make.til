@@ -44,12 +44,13 @@ ASAN := format("bin/til_asan", EXE)
 DEBUG := format("bin/til_debug", EXE)
 USIZE64 := format("bin/til_usize64", EXE)
 
-/// GNU make, the host C compiler, and the prefix of the MinGW tools that
-/// build for windows-x64, as a host names them. On Windows (issue #483)
-/// a bare `make` would be this program: CreateProcess searches the
+/// GNU make and the host C compiler, as a host names them, and the prefix
+/// of the tools that build for windows-x64: the pinned llvm-mingw's, by
+/// the same names on every host (LLVM_MINGW_RELEASE; issue #483). On
+/// Windows a bare `make` would be this program: CreateProcess searches the
 /// running program's directory before PATH, and bin/make.exe is here, so
-/// GNU make goes by MinGW's own name for it; the C compiler is MinGW's
-/// gcc, and the windows-x64 tools are the host's own, unprefixed.
+/// GNU make goes by MinGW's own name for it; the C compiler is
+/// llvm-mingw's gcc, which the Makefile requires there.
 gnu_make_for := func(os: Str) returns Str {
     if os == "windows" { return "mingw32-make" }
     return "make"
@@ -58,13 +59,16 @@ host_cc_for := func(os: Str) returns Str {
     if os == "windows" { return "gcc" }
     return "cc"
 }
-mingw64_prefix_for := func(os: Str) returns Str {
-    if os == "windows" { return "" }
-    return "x86_64-w64-mingw32-"
-}
 GNU_MAKE := gnu_make_for(host_os())
 HOST_CC := host_cc_for(host_os())
-MINGW64 := mingw64_prefix_for(host_os())
+MINGW64 := "x86_64-w64-mingw32-"
+// #472: llvm-mingw's clang writes the compile time into every object's
+// COFF header (TimeDateStamp) unless told not to, so no two builds of a
+// vendored windows archive were the same bytes (CI run 3146; linked
+// executables and DLLs are not affected). Every windows compile here is
+// that clang, cross and on a Windows host; til passes the same flag for
+// its own (targets.til).
+WINDOWS_CFLAGS := "-mno-incremental-linker-compatible"
 SELF_SRC := "make.til"
 
 // raylib and tinyfd are built per --target into
@@ -466,9 +470,6 @@ build_ffi_twins := proc(mut b: Build) {
     if b.host.os == "windows" {
         build_win_twin(raylib_lib("windows-x64"), RAYLIB_WIN64_DLL, "-lgdi32 -lopengl32 -lwinmm")
         build_win_twin(tinyfd_lib("windows-x64"), TINYFD_WIN64_DLL, "-lole32 -lcomdlg32 -luuid")
-        // No runtime import here: this host builds against the universal
-        // C runtime, which has timespec_get; only a cross build's msvcrt
-        // archive takes it from til.exe (ext.c's shim, off under _UCRT).
         build_win_twin(nng_lib("windows-x64"), NNG_WIN64_DLL, "-lws2_32 -lmswsock -ladvapi32")
         build_win_twin(secp256k1_lib("windows-x64"), SECP256K1_WIN64_DLL, "")
         require_libffi(b)
@@ -1213,9 +1214,11 @@ gui_targets := proc(b: Build) returns Vec(GuiTarget) {
     // mingw supplies the win32 GL/GDI backend, so the windows builds
     // need no sysroot and no X11 headers.
     out.push(own GuiTarget(target = "windows-x64", platform_os = "WINDOWS",
-        cc = "x86_64-w64-mingw32-gcc", ar = "x86_64-w64-mingw32-ar"))
+        cc = "x86_64-w64-mingw32-gcc", ar = "x86_64-w64-mingw32-ar",
+        raylib_cflags = WINDOWS_CFLAGS, tinyfd_cflags = WINDOWS_CFLAGS))
     out.push(own GuiTarget(target = "windows-x86", platform_os = "WINDOWS",
-        cc = "i686-w64-mingw32-gcc", ar = "i686-w64-mingw32-ar"))
+        cc = "i686-w64-mingw32-gcc", ar = "i686-w64-mingw32-ar",
+        raylib_cflags = WINDOWS_CFLAGS, tinyfd_cflags = WINDOWS_CFLAGS))
     // A mac host builds its own arch natively, against the vendored X11
     // headers like before; anything else is build_mac_raylib/tinyfd.
     for arch : Str in MAC_ARCHES.split(" ") {
@@ -1490,8 +1493,10 @@ libffi_cross_targets := proc(b: Build) returns Vec(LibffiCross) {
         ar = cross_ar(b.riscv32_cc), ranlib = riscv32_ranlib))
     // mingw: windows AS A HOST (til.exe links libffi for its ext_func
     // dispatch) and any windows program that calls ext_func at run time.
-    out.push(own LibffiCross(name = "windows-x64", host = "x86_64-w64-mingw32", cc = "x86_64-w64-mingw32-gcc"))
-    out.push(own LibffiCross(name = "windows-x86", host = "i686-w64-mingw32", cc = "i686-w64-mingw32-gcc"))
+    out.push(own LibffiCross(name = "windows-x64", host = "x86_64-w64-mingw32",
+        cc = format("x86_64-w64-mingw32-gcc ", WINDOWS_CFLAGS)))
+    out.push(own LibffiCross(name = "windows-x86", host = "i686-w64-mingw32",
+        cc = format("i686-w64-mingw32-gcc ", WINDOWS_CFLAGS)))
     for arch : Str in MAC_ARCHES.split(" ") {
         // The deployment targets til links mac programs for (targets.til's
         // target_prefix_args), as for the mac libsecp256k1 archives.
@@ -1585,14 +1590,8 @@ NngTarget := struct {
     // Mac archives from a non-mac host: the vendored SDK-less headers,
     // lld and libSystem.tbd for cmake's probe links, llvm's binutils.
     sdkless_mac := false
-    // mingw: nng's cmake rejects "legacy mingw" unless three C11 symbols
-    // probe true, and mingw only exposes timespec_get under the UCRT. We
-    // do NOT build against the UCRT: a UCRT nng imports ucrtbase.dll, and
-    // since mingw's startup is msvcrt the program ends up importing both,
-    // which real Windows refuses to load (wine tolerated it, which hid the
-    // bug). So the three probes are forced true, TIME_UTC is defined so
-    // nng compiles, and the one genuinely missing function is supplied by
-    // ext.c's msvcrt shim.
+    // A windows cross build: the C++ and resource compilers beside cc
+    // (llvm-mingw's, like cc).
     mingw := false
 
 namespace:
@@ -1619,9 +1618,9 @@ nng_targets := proc(b: Build) returns Vec(NngTarget) {
     out.push(own NngTarget(target = "linux-riscv32", system = "Linux", processor = "riscv32",
         cc = b.riscv32_cc.clone(), cc_option = "--riscv32-cc=<path> (or RISCV32_CC)"))
     out.push(own NngTarget(target = "windows-x64", system = "Windows", processor = "x86_64",
-        cc = "x86_64-w64-mingw32-gcc", mingw = true))
+        cc = "x86_64-w64-mingw32-gcc", mingw = true, cflags = WINDOWS_CFLAGS))
     out.push(own NngTarget(target = "windows-x86", system = "Windows", processor = "i686",
-        cc = "i686-w64-mingw32-gcc", mingw = true))
+        cc = "i686-w64-mingw32-gcc", mingw = true, cflags = WINDOWS_CFLAGS))
     for arch : Str in MAC_ARCHES.split(" ") {
         // til's mac deployment targets (targets.til's target_prefix_args).
         mut t := NngTarget(target = format("macos-", arch), system = "Darwin", processor = "x86_64",
@@ -1677,7 +1676,7 @@ build_nng_target := proc(mut b: Build, target: Str) {
     argv.push(own "-DNNG_ENABLE_TLS=OFF")
     argv.push(own "-DCMAKE_POSITION_INDEPENDENT_CODE=ON")
     if is_host { argv.append(own host_cmake_generator(b.host)) }
-    mut cflags := t.cflags.clone()
+    cflags := t.cflags.clone()
     if is_host.not() {
         argv.push(own format("-DCMAKE_SYSTEM_NAME=", t.system))
         argv.push(own format("-DCMAKE_SYSTEM_PROCESSOR=", t.processor))
@@ -1702,13 +1701,6 @@ build_nng_target := proc(mut b: Build, target: Str) {
             // SDK it was built against). Empty on every host.
             argv.push(own "-DCMAKE_OSX_SYSROOT=")
         }
-    }
-    if t.mingw {
-        if cflags.is_empty() { cflags = "-DTIME_UTC=1" }
-        else { cflags = format(cflags, " -DTIME_UTC=1") }
-        argv.push(own "-DNNG_HAVE_TIMESPEC_GET=1")
-        argv.push(own "-DNNG_HAVE_CONDVAR=1")
-        argv.push(own "-DNNG_HAVE_SNPRINTF=1")
     }
     if cflags.is_empty().not() { argv.push(own format("-DCMAKE_C_FLAGS=", cflags)) }
     run_argv(argv)
@@ -1765,9 +1757,9 @@ secp256k1_targets := proc(b: Build) returns Vec(SecpTarget) {
         system = "Linux", processor = "x86_64", cc = b.linux_x64_cc.clone(),
         cc_option = "--linux-x64-cc=<path> (or LINUX_X64_CC)"))
     out.push(own SecpTarget(target = "windows-x64",
-        system = "Windows", processor = "x86_64", cc = "x86_64-w64-mingw32-gcc"))
+        system = "Windows", processor = "x86_64", cc = "x86_64-w64-mingw32-gcc", cflags = WINDOWS_CFLAGS))
     out.push(own SecpTarget(target = "windows-x86",
-        system = "Windows", processor = "i686", cc = "i686-w64-mingw32-gcc"))
+        system = "Windows", processor = "i686", cc = "i686-w64-mingw32-gcc", cflags = WINDOWS_CFLAGS))
     out.push(own SecpTarget(target = "linux-arm64",
         system = "Linux", processor = "aarch64", cc = "aarch64-linux-gnu-gcc"))
     out.push(own SecpTarget(target = "linux-riscv64",
@@ -1839,6 +1831,8 @@ build_secp256k1_target := proc(mut b: Build, target: Str) {
     if is_host {
         argv.push(own "-DCMAKE_POSITION_INDEPENDENT_CODE=ON")
         argv.append(own host_cmake_generator(b.host))
+        // A host's own entry has flags only on Windows (WINDOWS_CFLAGS).
+        if t.cflags.is_empty().not() { argv.push(own format("-DCMAKE_C_FLAGS=", t.cflags)) }
     } else if t.emscripten {
         if b.emcc.ends_with("/emcc").not() {
             panic("cannot find emscripten's cmake toolchain next to EMCC=", b.emcc)
@@ -1895,13 +1889,11 @@ build_gui_win_twins := proc(mut b: Build) {
 /// The windows-host twin of the windows-x64 nng archive (issue #482): what
 /// til.exe's interpreter loads for a program that links nng, and what an
 /// interpreted link_c bridge of such a program links against, so both see
-/// one nng. The archive calls timespec_get, which the msvcrt it is built
-/// against does not have and every til program's runtime (ext.c) supplies;
-/// in this DLL that name is imported from the interpreter, til.exe.
+/// one nng.
 build_nng_win_twin := proc(mut b: Build) {
     if b.begin("nng_win_twin").not() { return }
     build_nng_target(b, "windows-x64")
-    build_win_twin(nng_lib("windows-x64"), NNG_WIN64_DLL, "-lws2_32 -lmswsock -ladvapi32", "timespec_get")
+    build_win_twin(nng_lib("windows-x64"), NNG_WIN64_DLL, "-lws2_32 -lmswsock -ladvapi32")
 }
 
 NNG_WIN64_DLL := "vendor/nng/build-windows-x64/libnng.dll"
@@ -1910,30 +1902,10 @@ NNG_WIN64_DLL := "vendor/nng/build-windows-x64/libnng.dll"
 /// the system libraries it needs (space-separated -l flags). The static
 /// archives carry no dllexport annotations, so --export-all-symbols is
 /// what exports them; spelled out rather than left to ld's default.
-///
-/// `runtime_names` (space-separated, usually empty) are functions the
-/// archive expects from the til runtime of the program it is linked into.
-/// A DLL must resolve everything at link time, so they are imported from
-/// til.exe, the one process that loads a twin: an import library made from
-/// a module definition naming them.
-build_win_twin := proc(archive: Str, dll: Str, sys_libs: Str, runtime_names: Str = "") {
+build_win_twin := proc(archive: Str, dll: Str, sys_libs: Str) {
     mut inputs := Vec(Str).new()
     inputs.push(own archive.clone())
     if needs_rebuild(dll, inputs).not() { return }
-    mut runtime_imports := ""
-    if runtime_names.is_empty().not() {
-        slash := dll.rfind("/").to_usize()
-        stem := dll.substr(slash + 1, dll.len() - slash - 1).strip_suffix(".dll")
-        definitions := format("tmp/", stem, "-windows-x64-runtime.def")
-        runtime_imports = format("tmp/", stem, "-windows-x64-runtime.a")
-        mut text := "LIBRARY \"til.exe\"\nEXPORTS\n"
-        for name : Str in runtime_names.split(" ") {
-            if name.is_empty().not() { text = format(text, name, "\n") }
-        }
-        mkdir_p("tmp")
-        File.writefile(definitions, text)
-        run(format(MINGW64, "dlltool"), "-d", definitions, "-l", runtime_imports)
-    }
     mut argv := Vec(Str).new()
     argv.push(own format(MINGW64, "gcc"))
     argv.push(own "-shared")
@@ -1946,7 +1918,6 @@ build_win_twin := proc(archive: Str, dll: Str, sys_libs: Str, runtime_names: Str
     for lib : Str in sys_libs.split(" ") {
         if lib.is_empty().not() { argv.push(own lib.clone()) }
     }
-    if runtime_imports.is_empty().not() { argv.push(own runtime_imports.clone()) }
     run_argv(argv)
 }
 

@@ -112,22 +112,35 @@ Decided in issue #473, not implemented yet: one pinned ~clang~ and ~lld~
 host, so that a cross-built binary has the same hash as the natively
 built one. ~--cc~ stays as the override.
 - ~xvfb~ (for GUI tests)
+- for the windows targets, on any host: the pinned llvm-mingw, from
+  ~make llvm_mingw~, with ~vendor/llvm-mingw/bin~ first on ~PATH~
 
 ** Windows host
 
 Build from an [[https://www.msys2.org/][MSYS2]] UCRT64 shell, which supplies ~make~, ~sh~ and the
-coreutils the build runs. Install its gcc, GNU make and cmake, and its
-clang for ~make test~ (another clang on ~PATH~, such as Visual Studio's,
-targets MSVC and its headers instead):
+coreutils the build runs. Install its GNU make and cmake, and its gcc,
+which only builds ~bin/make~ once, to download the pinned llvm-mingw:
 
 #+begin_src sh
-pacman -S --needed make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-make mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-clang
+pacman -S --needed make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-make mingw-w64-ucrt-x86_64-cmake
 #+end_src
 
-Then ~make~ and ~make install~ as on the other hosts; the default prefix
-is ~C:/Program Files/til~, which needs an administrator shell. The
-universal C runtime is required (nng uses it), so the Makefile stops when
-the ~gcc~ on ~PATH~ is another MSYS2 environment's, e.g. MINGW64's.
+Then, in the checkout:
+
+#+begin_src sh
+make llvm_mingw
+rm -rf bin tmp/boot vendor/libffi/build-windows-x64
+export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
+make
+make install
+#+end_src
+
+llvm-mingw (clang, lld and the mingw-w64 universal C runtime) builds til
+and everything for the windows targets, on every host (make.til
+~LLVM_MINGW_RELEASE~); its ~clang~ is also the one ~make test~ uses. The
+second line removes what MSYS2's gcc built for the download, and the
+Makefile stops when the ~gcc~ on ~PATH~ is not llvm-mingw's. The default
+prefix is ~C:/Program Files/til~, which needs an administrator shell.
 
 ** Optional: a JDK
 

@@ -294,9 +294,10 @@ jobs:
       # release, which is published for Linux x64 and arm64, macOS and
       # Windows hosts. Its bin directory goes first on PATH: it carries the
       # x86_64-w64-mingw32-gcc, -ar, -windres and -dlltool names til and
-      # bin/make already run, as clang and the llvm tools. On trial and
-      # continue-on-error until a run shows the three hosts' til.exe equal;
-      # the other windows jobs keep Ubuntu's and MSYS2's gcc until then.
+      # bin/make already run, as clang and the llvm tools. Every windows
+      # build in this workflow uses it (issue #483); this list is on trial
+      # and continue-on-error until a run shows the three hosts' til.exe
+      # equal.
       # The pinned llvm-mingw (make.til LLVM_MINGW_RELEASE and _LAYOUT), unpacked by
       # `make llvm_mingw` into vendor/llvm-mingw, kept between runs: one
       # cache entry per release and runner kind.
@@ -943,9 +944,34 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri mingw-w64 cmake
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
+      # Issue #483: the pinned llvm-mingw (make.til LLVM_MINGW_RELEASE and
+      # _LAYOUT) builds everything for the windows targets, on every host:
+      # its bin goes first on PATH before anything is built. It carries the
+      # x86_64-w64-mingw32-gcc, -ar, -windres and -dlltool names til and
+      # bin/make run, as clang and the llvm tools. `make llvm_mingw` unpacks
+      # it into vendor/llvm-mingw, kept between runs: one cache entry per
+      # release and runner kind.
+      - name: The pinned llvm-mingw release
+        id: llvm-mingw
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
+          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          test -n "$layout"
+          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned llvm-mingw
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm-mingw
+          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      - name: The pinned llvm-mingw first on PATH
+        run: |
+          make llvm_mingw
+          echo "$PWD/vendor/llvm-mingw/bin" >> "$GITHUB_PATH"
       - name: Record the C toolchain
         run: |
           for tool in gcc x86_64-w64-mingw32-gcc i686-w64-mingw32-gcc x86_64-w64-mingw32-ld; do
@@ -1062,41 +1088,15 @@ jobs:
             bin/ffi_prep-x86.exe
             bin/nng_pair.exe
             bin/nng_pair-x86.exe
-      # Issue #472: windows-x64 with the one compiler every host uses for it,
-      # llvm-mingw (clang, lld and the mingw-w64 UCRT runtime) at one pinned
-      # release, which is published for Linux x64 and arm64, macOS and
-      # Windows hosts. Its bin directory goes first on PATH: it carries the
-      # x86_64-w64-mingw32-gcc, -ar, -windres and -dlltool names til and
-      # bin/make already run, as clang and the llvm tools. On trial and
-      # continue-on-error until a run shows the three hosts' til.exe equal;
-      # the other windows steps keep Ubuntu's and MSYS2's gcc until then.
-      # Last in this job: it rebuilds the windows libffi and nng with clang.
-      # The pinned llvm-mingw (make.til LLVM_MINGW_RELEASE and _LAYOUT), unpacked by
-      # `make llvm_mingw` into vendor/llvm-mingw, kept between runs: one
-      # cache entry per release and runner kind.
-      - name: The pinned llvm-mingw release
-        id: llvm-mingw
-        shell: bash
-        run: |
-          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
-          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
-          test -n "$release"
-          test -n "$layout"
-          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
-      - name: Cache the pinned llvm-mingw
-        uses: actions/cache@v4
-        with:
-          path: vendor/llvm-mingw
-          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      # Issue #472: this host's windows-x64 binary hash list, with the
+      # pinned llvm-mingw every windows step of this job uses (see the top
+      # of the job). On trial and continue-on-error until a run shows the
+      # three hosts' til.exe equal.
       - name: Write the windows binary hash list with the pinned llvm-mingw
         continue-on-error: true
         run: |
-          make llvm_mingw
-          export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
           x86_64-w64-mingw32-gcc --version
           x86_64-w64-mingw32-gcc --version | grep -q clang
-          rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
-          make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
           # Run 3130: til.exe's code was the same from all three hosts, but
           # every C object of libffi and nng differed between each pair of
           # them. One small object in full, to read what differs from the
@@ -1244,8 +1244,7 @@ jobs:
   # prove the interpreter and codegen run natively on windows -- neither
   # needs a C toolchain, and the win64 libffi is statically linked so
   # ext_func dispatch works. sender.exe is the nng mode-server example,
-  # cross-built against the win64 nng (msvcrt, with ext.c's timespec_get
-  # shim -- never the UCRT, see examples/lib/custom_modes/nng_base.til); running it
+  # cross-built against the win64 nng; running it
   # here proves nng works on real winsock -- wine's winsock is incomplete
   # and cannot, so this job IS the nng-on-windows proof.
   windows-x64-host-build:
@@ -1256,9 +1255,29 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri mingw-w64 cmake
+        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri cmake
       - name: Create test tmp directory
         run: mkdir -p tmp
+      # Issue #483: the pinned llvm-mingw builds til.exe and everything else
+      # here, as in windows-x64-build.
+      - name: The pinned llvm-mingw release
+        id: llvm-mingw
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
+          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          test -n "$layout"
+          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned llvm-mingw
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm-mingw
+          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      - name: The pinned llvm-mingw first on PATH
+        run: |
+          make llvm_mingw
+          echo "$PWD/vendor/llvm-mingw/bin" >> "$GITHUB_PATH"
       - name: Record the C toolchain
         run: |
           for tool in gcc x86_64-w64-mingw32-gcc x86_64-w64-mingw32-ld; do
@@ -1396,6 +1415,30 @@ jobs:
             fi
           done
           exit $status
+      # Issue #483: the pinned llvm-mingw, which every til.exe build below
+      # compiles with, as in windows-x64-native. This job has no bin/make:
+      # the til.exe under test interprets make.til's llvm_mingw goal (well
+      # under a minute; the compiled bin/make needs a C compiler first). Its
+      # bin goes first on PATH for the bash steps.
+      - name: The pinned llvm-mingw release
+        id: llvm-mingw
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
+          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          test -n "$layout"
+          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned llvm-mingw
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm-mingw
+          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      - name: The pinned llvm-mingw first on PATH
+        shell: bash
+        run: |
+          ./winhost/til.exe interpret make.til llvm_mingw
+          cygpath -w "$PWD/vendor/llvm-mingw/bin" >> "$GITHUB_PATH"
       - name: Interpret and translate on windows
         shell: bash
         run: |
@@ -1597,22 +1640,15 @@ jobs:
           exit $status
       # Full compiler on windows: til.exe BUILDS (compiles + links) a
       # program natively, the last host capability beyond interpret/
-      # translate. It needs a C toolchain -- `til.exe build` invokes
-      # `gcc` (toolchain_command picks plain gcc on a windows host), so
-      # ensure mingw's gcc is present. get_bin_dir walks up from
+      # translate. It needs a C toolchain -- `til.exe build` invokes the
+      # pinned llvm-mingw's x86_64-w64-mingw32-gcc (toolchain_command), on
+      # PATH since the step above. get_bin_dir walks up from
       # winhost/ to the checkout root, so src/self/codegen/ext.c and boot/ resolve
       # there; hello_script uses no runtime ext_func, so no libffi.
       - name: Build programs and check link_c isolation on windows
         shell: bash
         run: |
-          if ! command -v gcc >/dev/null 2>&1; then
-            choco install mingw -y --no-progress >/dev/null
-          fi
-          if ! command -v gcc >/dev/null 2>&1; then
-            gcc_exe=$(find /c/ProgramData/chocolatey/lib/mingw /c/ProgramData/mingw64 /c/mingw64 -name gcc.exe 2>/dev/null | head -1)
-            export PATH="$(dirname "$gcc_exe"):$PATH"
-          fi
-          gcc --version
+          x86_64-w64-mingw32-gcc --version
           ./winhost/til.exe build -o hello_native.exe examples/hello_script.til
           ./hello_native.exe
           ./hello_native.exe | grep -q "Hello World"
@@ -1620,13 +1656,9 @@ jobs:
           # including its compiled compiler wrapper and both linked fixtures.
           # Its last part (#482) builds and then INTERPRETS a program that
           # links nng and a link_c bridge: the archive and its DLL twin from
-          # the step above, and for the interpreted bridge the dlltool that
-          # comes with gcc (interpreter.til, ffi_init_user_so).
-          dlltool --version | head -1
-          # Which C runtime this gcc links by default. The nng archive is
-          # built against msvcrt (make.til's NngTarget), and nothing else
-          # links it with this compiler.
-          gcc -v 2>&1 | tr ' ' '\n' | grep -- '--with-default-msvcrt' || echo "gcc -v names no default C runtime"
+          # the step above, and for the interpreted bridge llvm-mingw's
+          # dlltool (interpreter.til, ffi_init_user_so).
+          x86_64-w64-mingw32-dlltool --version | head -1
           mkdir -p tmp
           compiler=$(cygpath -w "$PWD/winhost/til.exe")
           if ! ./winhost/til.exe run --force-rebuild -o tmp/link_objects_driver.exe -c tmp/link_objects_driver.c test/link_objects.til "$compiler" > tmp/link_objects.out 2>&1; then
@@ -1636,7 +1668,7 @@ jobs:
           cat tmp/link_objects.out
           grep -q "link_objects PASS" tmp/link_objects.out
       # Issue #473 (C3): this host's hash list for the collect job. til.exe
-      # BUILDS the collector with the runner's gcc (interpreting it takes
+      # BUILDS the collector with the pinned llvm-mingw (interpreting it takes
       # hours); the hashes come from the sha256sum of Git for Windows, which
       # a bash step has on its PATH. A Windows process ends the lines it
       # prints with CR LF; the collector reads observations as text.
@@ -1662,17 +1694,16 @@ jobs:
   # Issue #483: make and make install natively on Windows, from the
   # repository alone -- no compiler or library imported from another host.
   # The runner's MSYS2 (C:\msys64) supplies make, sh, coreutils and, from
-  # pacman, the MinGW gcc, cmake and GNU make (mingw32-make, the name
-  # make.til uses on Windows, where a bare `make` would find bin/make.exe
-  # itself); MSYSTEM=UCRT64 selects that toolchain -- the universal C
-  # runtime, which nng requires (MINGW64 links msvcrt) -- and
-  # CHERE_INVOKING keeps the checkout as the directory. The
-  # runner's user is an administrator, so the default prefix
-  # (C:/Program Files/til) is writable. The suite's clang (make.til
-  # check_clang, the linux jobs' apt clang) is UCRT64's too: the runner's
-  # PATH also holds Visual Studio's clang, which targets MSVC and its
-  # headers (run 3125: -Werror on their getenv deprecation), and UCRT64's
-  # bin comes first in that shell.
+  # pacman, cmake and GNU make (mingw32-make, the name make.til uses on
+  # Windows, where a bare `make` would find bin/make.exe itself);
+  # MSYSTEM=UCRT64 and CHERE_INVOKING keep the checkout as the directory.
+  # The compiler is the pinned llvm-mingw, as for the windows targets on
+  # every host (README.org, "Windows host"): its bin goes first on PATH in
+  # every step that builds, and its clang is the suite's too. MSYS2's gcc
+  # only builds the bootstrap bin/make that downloads it, when the cache
+  # has none; that bootstrap is removed before anything is built with
+  # llvm-mingw. The runner's user is an administrator, so the default
+  # prefix (C:/Program Files/til) is writable.
   windows-x64-native:
     needs: doc-gate
     if: needs.doc-gate.outputs.code == 'true'
@@ -1690,20 +1721,42 @@ jobs:
       GALLIUM_DRIVER: llvmpipe
     steps:
       - uses: actions/checkout@v5
-      - name: Install the MinGW toolchain into MSYS2
+      - name: Install make, cmake and the bootstrap gcc into MSYS2
         shell: cmd
-        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed make mingw-w64-ucrt-x86_64-make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-clang && uname -s && gcc --version && command -v clang && clang --version"
+        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed make mingw-w64-ucrt-x86_64-make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake && uname -s && gcc --version"
+      # The pinned llvm-mingw (make.til LLVM_MINGW_RELEASE and _LAYOUT), unpacked by
+      # `make llvm_mingw` into vendor/llvm-mingw, kept between runs: one
+      # cache entry per release and runner kind.
+      - name: The pinned llvm-mingw release
+        id: llvm-mingw
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
+          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          test -n "$layout"
+          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned llvm-mingw
+        id: llvm-mingw-cache
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm-mingw
+          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Download the pinned llvm-mingw with a bootstrap bin/make
+        if: steps.llvm-mingw-cache.outputs.cache-hit != 'true'
+        shell: cmd
+        run: C:\msys64\usr\bin\bash.exe -lc "make llvm_mingw && rm -rf bin tmp/boot vendor/libffi/build-windows-x64"
       - name: make
         shell: cmd
-        run: C:\msys64\usr\bin\bash.exe -lc "make"
+        run: C:\msys64\usr\bin\bash.exe -lc "export PATH=$PWD/vendor/llvm-mingw/bin:$PATH && gcc --version && make"
       - name: make install
         shell: cmd
-        run: C:\msys64\usr\bin\bash.exe -lc "make install"
+        run: C:\msys64\usr\bin\bash.exe -lc "export PATH=$PWD/vendor/llvm-mingw/bin:$PATH && make install"
       # The installed compiler, from a directory outside the checkout: it
       # finds its support tree through its own location.
       - name: The installed til builds and runs a program elsewhere
         shell: cmd
-        run: C:\msys64\usr\bin\bash.exe -lc "mkdir -p ../elsewhere && cp examples/hello_script.til ../elsewhere/ && cd ../elsewhere && '/c/Program Files/til/bin/til.exe' interpret hello_script.til && '/c/Program Files/til/bin/til.exe' run hello_script.til | grep -q 'Hello World'"
+        run: C:\msys64\usr\bin\bash.exe -lc "export PATH=$PWD/vendor/llvm-mingw/bin:$PATH && mkdir -p ../elsewhere && cp examples/hello_script.til ../elsewhere/ && cd ../elsewhere && '/c/Program Files/til/bin/til.exe' interpret hello_script.til && '/c/Program Files/til/bin/til.exe' run hello_script.til | grep -q 'Hello World'"
       # The runner has no GPU, so no OpenGL driver: raylib's OpenGL 3.3
       # build stops at "WGL: The driver does not appear to support OpenGL"
       # (CI run 3129). The linux jobs get a software OpenGL from Mesa
@@ -1728,47 +1781,23 @@ jobs:
         shell: cmd
         continue-on-error: true
         timeout-minutes: 75
-        run: C:\msys64\usr\bin\bash.exe -lc "make test"
+        run: C:\msys64\usr\bin\bash.exe -lc "export PATH=$PWD/vendor/llvm-mingw/bin:$PATH && make test"
       # Issue #472: this host's own windows-x64 build -- til.exe, two
       # programs, a library, the vendored archives -- with the pinned
       # llvm-mingw, the third producer beside the two Linux hosts' cross
-      # builds (see the windows-x64-build job), which it has to equal. This
-      # replaces the list this job wrote with MSYS2's gcc: one host cannot
-      # list one target twice, and gcc 15 against the Linux hosts' compiler
-      # could never be the same bytes. After the suite, because it
-      # rebuilds the host's libffi and nng with clang. bin/til.exe, built
-      # above with MSYS2's gcc, only drives the build: what it builds must
-      # not depend on what built it. The small stamped programs differ from
-      # the Linux hosts' by the stamp alone here (the compiler is named
-      # bin/til.exe); til.exe carries no stamp.
-      # The pinned llvm-mingw (make.til LLVM_MINGW_RELEASE and _LAYOUT), unpacked by
-      # `make llvm_mingw` into vendor/llvm-mingw, kept between runs: one
-      # cache entry per release and runner kind.
-      - name: The pinned llvm-mingw release
-        id: llvm-mingw
-        shell: bash
-        run: |
-          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
-          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
-          test -n "$release"
-          test -n "$layout"
-          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
-      - name: Cache the pinned llvm-mingw
-        uses: actions/cache@v4
-        with:
-          path: vendor/llvm-mingw
-          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      # builds (see the windows-x64-build job), which it has to equal.
+      # bin/til.exe only drives the build: what it builds must not depend
+      # on what built it. The small stamped programs differ from the Linux
+      # hosts' by the stamp alone here (the compiler is named bin/til.exe);
+      # til.exe carries no stamp.
       - name: Write the windows binary hash list with the pinned llvm-mingw
         continue-on-error: true
         shell: C:\msys64\usr\bin\bash.exe -leo pipefail {0}
         run: |
-          make llvm_mingw
           export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
           gcc --version
           gcc --version | grep -q clang
           x86_64-w64-mingw32-gcc --version | grep -q clang
-          rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
-          make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
           # Run 3130: til.exe's code was the same from all three hosts, but
           # every C object of libffi and nng differed between each pair of
           # them. One small object in full, to read what differs from the
@@ -1907,8 +1936,9 @@ jobs:
         run: make build_mac
       # Issue #25: macOS as a HOST cross-compiling to the OTHER OSes (the
       # last two matrix cells), with the bin/til the suite step built.
-      # Windows uses the brew mingw-w64 cross-gcc, which toolchain_command
-      # already selects for a windows target from any non-windows host.
+      # Windows uses the pinned llvm-mingw, as on every host (issue #483),
+      # its bin on PATH in the windows step only: it carries a clang too,
+      # which must not replace Apple's for the mac builds.
       # Linux uses a prebuilt cross-gcc (messense tap) via --cc, the same
       # override the riscv32 job uses. Compiled programs bind ext_func to
       # direct C symbols and never reference libffi, so no cross libffi is
@@ -1916,15 +1946,34 @@ jobs:
       # (macos-host-cross-win-run / -linux-run below).
       - name: Install cross toolchains (host cross)
         run: |
-          brew install mingw-w64
           brew tap messense/macos-cross-toolchains
           # Homebrew's tap-trust check blocks third-party formulae until
           # the tap is explicitly trusted; the linux cross-gcc lives in
           # this tap (homebrew-core ships no linux cross-gcc).
           brew trust messense/macos-cross-toolchains
           brew install x86_64-unknown-linux-gnu
+      # The pinned llvm-mingw (make.til LLVM_MINGW_RELEASE and _LAYOUT), unpacked by
+      # `make llvm_mingw` into vendor/llvm-mingw, kept between runs: one
+      # cache entry per release and runner kind.
+      - name: The pinned llvm-mingw release (host cross)
+        id: llvm-mingw
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
+          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          test -n "$layout"
+          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned llvm-mingw (host cross)
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm-mingw
+          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: Cross-compile hello_script for windows-x64 (host cross)
         run: |
+          make llvm_mingw
+          export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
+          x86_64-w64-mingw32-gcc --version | grep -q clang
           ./bin/til build --target=windows-x64 -o bin/hello_script-from-mac.exe examples/hello_script.til
           file bin/hello_script-from-mac.exe | grep -q "PE32+"
       - name: Cross-compile hello_script for linux-x64 (host cross)

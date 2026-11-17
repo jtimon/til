@@ -277,51 +277,13 @@ void til_android_init_window(int width, int height, const char *title) {
 }
 #endif
 
-// nng's win_clock.c calls the C11 timespec_get(&ts, TIME_UTC), which mingw only
-// declares under the universal CRT (_UCRT). We deliberately build nng against
-// the default msvcrt instead (see make.til's NngTarget): a UCRT nng
-// pulls ucrtbase.dll in alongside mingw's msvcrt.dll startup, and Windows
-// refuses to load the resulting dual-CRT binary (issue #25 -- the exit-127 the
-// windows-host runner hit; wine tolerated it). So supply timespec_get here for
-// nng to link against. Guarded off under _UCRT, where the real one exists.
+// Every Windows build is the pinned llvm-mingw's (make.til
+// LLVM_MINGW_RELEASE, on every host; issue #483), which has the universal C
+// runtime only. The msvcrt that Ubuntu's and older MinGW gccs default to is
+// not supported: til's runtime and the vendored archives are all UCRT, and
+// a program mixing the two runtimes does not load on real Windows.
 #if defined(_WIN32) && !defined(_UCRT)
-#include <time.h>
-int timespec_get(struct timespec *ts, int base) {
-    FILETIME ft;
-    ULARGE_INTEGER u;
-    GetSystemTimeAsFileTime(&ft);
-    u.LowPart = ft.dwLowDateTime;
-    u.HighPart = ft.dwHighDateTime;
-    // FILETIME counts 100ns ticks from 1601-01-01; shift to the Unix epoch.
-    unsigned long long t = u.QuadPart - 116444736000000000ULL;
-    ts->tv_sec = (time_t)(t / 10000000ULL);
-    ts->tv_nsec = (long)((t % 10000000ULL) * 100);
-    return base;
-}
-#endif
-
-// The mirror case, under the universal CRT. That nng archive, built against
-// msvcrt, calls _snprintf (win_file.c) through msvcrt.dll's import pointer,
-// and the UCRT exports no _snprintf: there it is an inline in the headers. A
-// gcc that defaults to the UCRT -- MinGW-Builds on a Windows host, as on the
-// CI runner -- then cannot link a program with nng: "undefined reference to
-// `__imp__snprintf'" (CI run 3067). It is the only C-runtime name the
-// archive imports that the UCRT lacks, so supply that pointer here. Same
-// contract as msvcrt's: -1 when the text does not fit, and then no NUL.
-#if defined(_WIN32) && defined(_UCRT)
-#include <stdarg.h>
-static int til_msvcrt_snprintf(char *buffer, size_t count, const char *format, ...) {
-    va_list args;
-    va_start(args, format);
-    int written = _vsnprintf(buffer, count, format, args);
-    va_end(args);
-    return written;
-}
-// Weak: a program and the til library archive it links each carry this
-// runtime, and the linker can pull the archive's copy in for another
-// symbol; two strong definitions failed the link (CI run 3139,
-// ffi_lib_layout). Either copy serves.
-int (*__imp__snprintf)(char *, size_t, const char *, ...) __attribute__((weak)) = til_msvcrt_snprintf;
+#error "til's Windows runtime needs the universal C runtime: compile with the pinned llvm-mingw (bin/make llvm_mingw, then vendor/llvm-mingw/bin first on PATH)"
 #endif
 
 #ifdef _WIN32

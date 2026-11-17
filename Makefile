@@ -50,14 +50,19 @@ else ifeq ($(UNAME_S),Darwin)
 HOST_OS := macos
 else ifneq ($(filter MINGW% MSYS% UCRT%,$(UNAME_S)),)
 # Windows, from an MSYS2 shell (issue #483): its make, sh and coreutils
-# run this file, and its gcc builds til. That gcc must target the
-# universal C runtime: nng requires it (its CMakeLists rejects "the
-# legacy MinGW environments": timespec_get). MSYS2's uname says MINGW64
-# in its UCRT64 shell too, so the compiler is asked, not the shell's
-# name: UCRT MinGW headers define _UCRT.
+# run this file. til is built by the pinned llvm-mingw, as the windows
+# targets are on every host: `make llvm_mingw` downloads it into
+# vendor/llvm-mingw, whose bin then goes first on PATH, where its gcc is
+# clang. Getting it needs bin/make, so that one goal runs with any gcc
+# for the universal C runtime (MSYS2 UCRT64's); its bootstrap outputs
+# are then removed (README.org, "Windows host").
 HOST_OS := windows
+ifeq ($(MAKECMDGOALS),llvm_mingw)
 ifeq ($(shell echo 'int x;' | gcc -dM -E -x c -include stdio.h - 2>/dev/null | grep -cw _UCRT),0)
-$(error the gcc on PATH does not target the universal C runtime: on Windows, build til from an MSYS2 UCRT64 shell (pacman -S mingw-w64-ucrt-x86_64-gcc))
+$(error the gcc on PATH does not target the universal C runtime: run make llvm_mingw from an MSYS2 UCRT64 shell (pacman -S mingw-w64-ucrt-x86_64-gcc))
+endif
+else ifneq ($(shell command -v gcc),$(CURDIR)/vendor/llvm-mingw/bin/gcc)
+$(error the gcc on PATH is not the pinned llvm-mingw's: run make llvm_mingw, then put $(CURDIR)/vendor/llvm-mingw/bin first on PATH)
 endif
 else
 $(error unsupported build host '$(UNAME_S)': til builds on Linux, macOS and Windows (an MSYS2 UCRT64 shell))
@@ -194,6 +199,15 @@ ifeq ($(UNAME_M),arm64)
 LIBFFI_ENV := MACOSX_DEPLOYMENT_TARGET=11.0
 else
 LIBFFI_ENV := MACOSX_DEPLOYMENT_TARGET=10.12
+endif
+endif
+# llvm-mingw's clang writes the compile time into every object unless
+# told not to (make.til WINDOWS_CFLAGS, #472). Not for the bootstrap
+# `make llvm_mingw`, whose gcc has no such flag and whose libffi is
+# removed afterwards (README.org, "Windows host").
+ifeq ($(HOST_OS),windows)
+ifneq ($(MAKECMDGOALS),llvm_mingw)
+LIBFFI_ENV := CC="gcc -mno-incremental-linker-compatible"
 endif
 endif
 $(LIBFFI_HOST_DIR)/.built:
