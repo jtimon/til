@@ -98,8 +98,24 @@ checked TilVm lookup and native callable-enum schema comparisons can reject
 read-only results where the host requires a writable contract. This does not
 change pointer layout, ownership, or referent lifetime.
 
-This is not yet full enforcement of the permission table: writable-return
-source paths, direct writable aliases of plain-ref call results, collection
+Writable-return definitions now check each return in its lexical scope.
+~returns ref mut T~ requires a writable source path: read-only parameters,
+reference fields, aliases, captures and getter/callable views cannot grant it
+merely because some ultimate owner is mutable. Alias metadata retains the
+declaration's permission AND its initializer/rebinding sources. Borrowed enum
+payload bindings retain their variant permission independently of the carrier's
+slot; a const payload slot can still carry a writable borrow. Known pointer
+operations preserve, rather than increase, typed source permission.
+
+A parameter whose storage must be writable to grant the result has a necessary
+~mut~, even if the body never writes it. That grant is tracked separately from
+actual writes; it does not pretend to mutate storage for folding or lifetime
+analysis. A read-only result alone does not justify ~mut~, nor does returning
+an independently writable ref field justify a mutable carrier parameter.
+Existing return-borrow lifetime and closure-escape restrictions still apply.
+
+This is not yet full enforcement of the permission table. Direct writable-alias
+creation/rebinding checks, general access-path/defaults migration, collection
 accessors, remaining reference-permission metadata and C-header bindings still
 need work.
 Legacy local ~ref mut~ and plain ref-field behavior remain during migration.

@@ -158,9 +158,9 @@ Initial implementation work addresses callable contract compatibility and
 metadata loss: reject read-only results where a writable-return signature is
 required, permit writable results to satisfy read-only result contracts with
 the same borrow ABI, preserve the result bit in inferred/typed functions and
-generic-generator twins, and emit it in Til-library bindings. This does not
-yet enforce all returned source paths or direct writable-alias creation from
-plain-ref call results, or migrate collection accessors. Return-permission
+generic-generator twins, and emit it in Til-library bindings. At that
+checkpoint returned source-path checks, direct writable-alias creation and
+collection migration remained pending. Return-permission
 reflection and boundary coverage are implemented in the use step above;
 other reference-permission metadata and the C-header translator changes remain
 required. Do not close the issue on signature/reflection work alone.
@@ -176,7 +176,59 @@ restriction, inferred signatures and generic-generator result metadata. Its
 declarations, wrappers and named FuncSig declarations, with the existing
 native library/consumer suite passing.
 
-- Check writable return sources and writable alias creation at call sites;
+**** Writable return-source enforcement
+
+Each lexical return in a ~returns ref mut T~ definition now requires a
+writable access path. Scope bindings retain referent permission separately
+from slot ~is_mut~, combining the declaration's grant with its initializer
+and rebind sources. Read-only parameters/fields, aliases, getter results,
+typed callable views and captures cannot launder a mutable owner into a
+writable result. Known pointer operations preserve typed provenance.
+
+Forwarded writable-return calls must also receive writable sources for their
+mutable borrowed inputs; a writable callee contract is not a way to upgrade
+a read-only argument. Generic substitution preserves ref-mut type arguments'
+parameter permission as well as their result permission (needed by methods
+such as Option(ref mut T).unwrap_or). Compiler-inferred call temporaries and
+enum payload aliases carry their actual permission, including a fixed slot
+holding a writable borrow.
+
+Necessary mutable result grants are recorded separately from writes for
+redundant-mut diagnostics. A direct/owned-field borrow or forwarding alias
+can justify the source parameter's ~mut~ without falsely marking a write.
+Returning an independently writable carried ref field does not justify a
+mutable carrier, and a read-only result does not justify a mutable input.
+Explicit mutable reference SLOTS still need a replacement use, independently
+of the referent grant. Existing owned-input/local-borrow and returned-closure
+lifetime restrictions remain in force.
+
+This step deliberately does not flip ordinary plain-ref defaults or reject
+every bad writable alias at its declaration/rebind site. Those remaining
+#490/#491 checks and the collection accessor/C-header migrations are still
+required. Alias metadata prevents such a source from granting a writable
+return in the meantime. ~writable_return_source_checks~ in
+~test/type_arg_qualifiers.til~ exercises direct/nested returns, aliases and
+rebinding, fields/payloads, captures, typed views, pointer operations, scalar
+returns and throwing-result temporaries.
+
+The callable-field case also exposed a shared return-classification hole:
+the backend copied a ref-returning callback result into an owned local and
+returned that local's address (C's ~return-local-addr~ diagnostic). The common
+owned/ref result classifier now resolves callable-field and returned-callable
+signatures, so lowering keeps the actual borrow rather than a local copy.
+This is a resolver fix, not a C-only cast or a skipped ownership check.
+
+Verification: ~make clean && make test_two_pass~ passed 588/588, including
+native self-translation and installed SDK/library consumers. The standalone
+~generics~ family of ~test/type_arg_qualifiers.til~ also passed with compiled
+ASAN programs. Accepted cases cover write-free mutable getters, primitive and
+aggregate aliases, owned/ref fields, nested returns, fixed writable payloads,
+shadowed payload bindings, local captures, typed callback fields and throwing
+result forwarding. Rejections cover read-only inputs/views/fields/aliases,
+rebind laundering, captures, pointer-operation forwarding, and redundant
+carrier/input/explicit-slot qualifiers.
+
+- Check writable alias creation at call sites;
   preserve read-only paths through getters, forwarding and cloning.
 - Carry result permission through direct/indirect calls, closures, named and
   inline signatures, generic instantiations, and borrowed container elements.

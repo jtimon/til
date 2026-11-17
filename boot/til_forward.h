@@ -1043,18 +1043,6 @@ struct ScopeFind {
     TIL_OWN_PTR(TypeBinding) data;
 };
 
-typedef struct TyperFuncState {
-    Str current_top_func_name;
-    Str typer_return_type_name;
-    I32 proc_calls_count;
-    I32 proc_def_depth;
-    I32 auto_gen_depth;
-    Set__Str throw_used_local_names;
-    Map__Str_Str lowering_param_types;
-    Bool deferred_dependent_throw;
-} TyperFuncState;
-
-
 typedef struct GenericFuncSource {
     Str name;
     Str path;
@@ -2442,7 +2430,23 @@ typedef struct TypeBinding {
     Vec__BorrowRoot borrow_roots;
     Bool is_external_global;
     Bool aliases_global_storage;
+    Bool referent_mut;
+    Bool ref_slot_explicit;
+    Bool mutable_ref_return;
 } TypeBinding;
+
+
+typedef struct TyperFuncState {
+    Str current_top_func_name;
+    Str typer_return_type_name;
+    I32 proc_calls_count;
+    I32 proc_def_depth;
+    I32 auto_gen_depth;
+    Set__Str throw_used_local_names;
+    Map__Str_Str lowering_param_types;
+    Bool deferred_dependent_throw;
+    Map__Str_Bool capture_permissions;
+} TyperFuncState;
 
 
 typedef struct ImportUnit {

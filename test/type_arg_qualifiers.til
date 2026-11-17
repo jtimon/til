@@ -647,6 +647,92 @@ return_signature_checks := proc(compiler: Str, root: Str, asan: Bool) {
     expect(saw_generic, "missing inferred writable-return generic instance")
 }
 
+writable_return_source_checks := proc(compiler: Str, root: Str, asan: Bool) {
+    prelude := format("mode cli\nItem491 := struct { n := 0 }\n",
+        "ReadHolder491 := struct { ref value: Item491 }\n",
+        "WriteHolder491 := struct { const ref mut value: Item491 }\n",
+        "OwnedHolder491 := struct { value := Item491() }\n",
+        "ConstHolder491 := struct { const value := Item491() }\n",
+        "ReadMaybe491 := enum { None, Some: ref Item491 }\n",
+        "WriteMaybe491 := enum { None, const Some: ref mut Item491 }\n",
+        "WriteZero491 := func() returns ref mut Item491\n",
+        "ReadView491 := func(mut Item491) returns ref Item491\n",
+        "WriteView491 := func(mut Item491) returns ref mut Item491\n",
+        "CallbackHolder491 := struct { action: WriteView491 }\n",
+        "read491 := func(value: Item491) returns ref Item491 { return value }\n",
+        "write491 := func(mut value: Item491) returns ref mut Item491 { return value }\n")
+    for definition : Str in array(Str,
+        "bad := func(value: Item491) returns ref mut Item491 { return value }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { ref alias: Item491 = value; return alias }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { const ref mut alias: Item491 = read491(value); return alias }\n",
+        "bad := func(mut holder: ReadHolder491) returns ref mut Item491 { return holder.value }\n",
+        "bad := func(mut holder: ReadHolder491) returns ref mut Item491 { ref mut alias: Item491 = holder.value; return alias }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { return read491(value) }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { mut ref alias: Item491 = value; return alias }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { mut ref alias: Item491 = value; return write491(alias) }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { ref mut alias: Item491 = write491(value); alias = read491(value); return alias }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { ref mut alias: Item491 = read491(value); alias = write491(value); return alias }\n",
+        "bad := func(mut holder: ReadHolder491, flag: Bool) returns ref mut Item491 { if flag { return holder.value }; while flag { return holder.value }; return holder.value }\n",
+        "bad := func(mut holder: ConstHolder491) returns ref mut Item491 { return holder.value }\n",
+        "bad := func(mut value: ReadMaybe491) returns ref mut Item491 { switch value { case .Some(data): return data; case: panic(\"empty\") } }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { view: ReadView491 = write491; return view(value) }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { callback: WriteZero491 = func() returns ref mut Item491 [value] { return value }; return callback() }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { return ptr_add(to_ptr(read491(value)), 0) }\n") {
+        reject_generic(compiler, root, format(prelude, definition, "main := proc() {}\n"), "cannot return a writable reference")
+    }
+    reject_generic(compiler, root, format(prelude,
+        "global_read := Item491()\nbad := func() returns ref mut Item491 { return global_read }\nmain := proc() {}\n"),
+        "cannot return a writable reference")
+    reject_generic(compiler, root, format(prelude,
+        "ReadError491 := struct {}\nread_throw := func(value: Item491) returns ref Item491 throws ReadError491 { return value }\n",
+        "bad := func(mut value: Item491) returns ref mut Item491 { return read_throw(value)! }\nmain := proc() {}\n"),
+        "cannot return a writable reference")
+    reject_generic(compiler, root, format("mode cli\nItem491 := struct { n := 0 }\n",
+        "read := func(mut value: Item491) returns ref Item491 { return value }\nmain := proc() {}\n"),
+        "redundant 'mut' on parameter 'value'")
+    reject_generic(compiler, root, format(prelude,
+        "redundant := func(mut holder: WriteHolder491) returns ref mut Item491 { return holder.value }\nmain := proc() {}\n"),
+        "redundant 'mut' on parameter 'holder'")
+    reject_generic(compiler, root, format(prelude,
+        "redundant_slot := func(mut value: Item491) returns ref mut Item491 { mut ref mut alias: Item491 = value; return alias }\nmain := proc() {}\n"),
+        "redundant 'mut' on local 'alias'")
+    File.writefile(format(root, "/writable_returns.til"), format(prelude,
+        "ReturnError491 := struct {}\n",
+        "primitive491 := func(mut value: I64) returns ref mut I64 { return value }\n",
+        "throwing491 := func(mut value: Item491, fail: Bool) returns ref mut Item491 throws ReturnError491 { if fail { throw ReturnError491() }; return value }\n",
+        "forward_throw491 := func(mut value: Item491) returns ref mut Item491 { return throwing491(value, false)! }\n",
+        "owned_field := func(mut holder: OwnedHolder491) returns ref mut Item491 { return holder.value }\n",
+        "ref_field := func(holder: WriteHolder491) returns ref mut Item491 { return holder.value }\n",
+        "callback_field491 := func(holder: CallbackHolder491, mut value: Item491) returns ref mut Item491 { return holder.action(value) }\n",
+        "alias491 := func(mut value: Item491) returns ref mut Item491 { ref mut alias: Item491 = value; return alias }\n",
+        "fixed491 := func(mut value: Item491) returns ref mut Item491 { const ref mut alias: Item491 = write491(value); return alias }\n",
+        "nested491 := func(mut value: Item491, flag: Bool) returns ref mut Item491 { if flag { const ref mut alias: Item491 = value; return alias }; return value }\n",
+        "payload491 := func(value: WriteMaybe491) returns ref mut Item491 { switch value { case .Some(data): return data; case: panic(\"empty\") } }\n",
+        "shadow491 := func(value: WriteMaybe491) returns ref mut Item491 { switch value { case .Some(value): return value; case: panic(\"empty\") } }\n",
+        "capture491 := func(mut value: Item491) returns ref mut Item491 { callback: WriteZero491 = func() returns ref mut Item491 [mut value] { return value }; return callback() }\n",
+        "mut global491 := Item491()\nglobal_ref491 := func() returns ref mut Item491 { return global491 }\n",
+        "const ref mut global_alias491: Item491 = global491\n",
+        "global_alias_ref491 := func() returns ref mut Item491 { return global_alias491 }\n",
+        "main := proc() {\nmut item := Item491()\n",
+        "mut number: I64 = 0\nref mut scalar: I64 = primitive491(number)\nscalar = 9\nassert_eq(I64, number, 9)\n",
+        "ref mut direct: Item491 = write491(item)\ndirect.n = 1\n",
+        "ref mut alias: Item491 = alias491(item)\nalias.n = 2\n",
+        "ref fixed: Item491 = fixed491(item)\nassert_eq(I64, fixed.n, 2)\n",
+        "ref nested: Item491 = nested491(item, true)\nassert_eq(I64, nested.n, 2)\n",
+        "ref throwing: Item491 = forward_throw491(item)\nassert_eq(I64, throwing.n, 2)\n",
+        "holder := WriteHolder491(value = item)\nref field: Item491 = ref_field(holder)\nassert_eq(I64, field.n, 2)\n",
+        "callback_holder := CallbackHolder491(action = write491)\nref callback_value: Item491 = callback_field491(callback_holder, item)\nassert_eq(I64, callback_value.n, 2)\n",
+        "mut owned := OwnedHolder491()\nref mut inner: Item491 = owned_field(owned)\ninner.n = 3\n",
+        "maybe := WriteMaybe491.Some(item)\nref payload: Item491 = payload491(maybe)\nassert_eq(I64, payload.n, 2)\n",
+        "ref shadow: Item491 = shadow491(maybe)\nassert_eq(I64, shadow.n, 2)\n",
+        "ref captured: Item491 = capture491(item)\nassert_eq(I64, captured.n, 2)\n",
+        "ref mut global: Item491 = global_ref491()\nglobal.n = 4\n",
+        "ref fixed_global: Item491 = global_alias_ref491()\nassert_eq(I64, fixed_global.n, 4)\n",
+        "println(\"writable returns passed\")\n}\n"))
+    check(Cmd.new(compiler, "interpret", format(root, "/writable_returns.til")), "writable returns passed\n")
+    check_run(compiler, root, "writable_returns", "writable returns passed\n", asan)
+}
+
 main := proc(args: ..Str) {
     if args.len() > 3 { panic("expected compiler, optional family, and optional --asan") }
     ref compiler: Str = args[0]
@@ -677,6 +763,7 @@ main := proc(args: ..Str) {
         interface_argument_checks(compiler, root)
         generic_call_checks(compiler, root, asan)
         return_signature_checks(compiler, root, asan)
+        writable_return_source_checks(compiler, root, asan)
     case "success":
         query_checks(compiler, root, asan)
         reference_permission_checks(compiler, root, asan)
@@ -689,6 +776,7 @@ main := proc(args: ..Str) {
         interface_argument_checks(compiler, root)
         generic_call_checks(compiler, root, asan)
         return_signature_checks(compiler, root, asan)
+        writable_return_source_checks(compiler, root, asan)
     }
     println("type argument qualifiers passed")
 }

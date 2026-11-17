@@ -2981,6 +2981,11 @@ priv init_subst_enum_params := func(mut edef: EnumDef, subs: Map(Str, Expr), ref
 
 priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr), ref_params: Map(Str, Bool), mut symbols: SymbolPool) {
     for mut pd : Declaration in fdd.sig.params {
+        // T can itself carry a writable-borrow qualifier. Preserve that
+        // capability on parameters as well as fields, payloads and results.
+        if ref_params.has(decl_type_name_ref(pd, symbols)) {
+            pd.referent_mut = pd.referent_mut.or(ref_params[decl_type_name_ref(pd, symbols)])
+        }
         new_type := init_subst_ident_name(subs, ref_params, decl_type_name_ref(pd, symbols), symbols)
         if new_type.len() > 0 {
             pd.til_type = decl_type_from_name(new_type, symbols)
@@ -2990,8 +2995,7 @@ priv init_subst_func_params := func(mut fdd: FunctionDef, subs: Map(Str, Expr), 
         }
     }
     // #320: `returns T` under a ref-qualified T is a borrowed return
-    // (`returns ref X`); params need no flag -- aggregates are borrowed
-    // by default.
+    // (`returns ref X`); parameter borrow ownership already defaults to Ref.
     if ref_params.has(fdd.sig.return_type).and(fdd.sig.return_own_type.is(OwnType.Ref).not()) {
         fdd.sig.return_own_type = OwnType.Ref
         fdd.sig.return_ref_mut = ref_params[fdd.sig.return_type]

@@ -258,6 +258,11 @@ TypeBinding := struct {
     // parameter-relative BorrowRoot names that storage. Union on rebinding,
     // just like borrow_roots, so conditional aliases retain every destination.
     aliases_global_storage := false
+    // Referent permission is independent of a stored reference's slot.
+    referent_mut := false
+    ref_slot_explicit := false
+    // Granting a writable result needs permission, but is not a write.
+    mutable_ref_return := false
 namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns Bool {
         return a.name == b.name
@@ -437,6 +442,7 @@ TyperFuncState := struct {
     // catch in the function is not judged against them -- one focused
     // diagnostic, no cascade.
     deferred_dependent_throw := false
+    capture_permissions := Map(Str, Bool).new()
 }
 
 // A Sym-keyed registry: the dense `keys`/`values` pair every scope walker
@@ -991,7 +997,8 @@ namespace:
                 is_mut = is_mut,
                 path = path.clone(),
                 line = line, col = col,
-                is_param = is_param, own_type = own_type)
+                is_param = is_param, own_type = own_type,
+                referent_mut = own_type.is(OwnType.Ref).and(is_mut))
             self.bindings.insert_absent(sym, own nb)
         }
 }
@@ -2609,9 +2616,9 @@ make_is_tag_check_fcall := func(arg_name: Str, ename: Str, vname: Str, tag_size:
     return is_call
 }
 
-make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool, mut symbols: SymbolPool, is_ref_payload: Bool = false, used: Bool = false) returns Expr {
+make_payload_ref_decl := func(own arg: Expr, bind_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool, mut symbols: SymbolPool, is_ref_payload: Bool = false, used: Bool = false, referent_mut: Bool = false) returns Expr {
     mut gc := make_get_payload_fcall(own arg, decl_type_from_name(vtype, symbols), line, col, symbols)
-    mut decl := Expr.new(own NodeType.Decl(decl_typed(symbols, name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
+    mut decl := Expr.new(own NodeType.Decl(decl_typed(symbols, name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used, referent_mut = referent_mut)), line, col)
     // REM: gc must be consumed in BOTH branches of a symmetric if/else --
     // an if-with-return plus fall-through consumption is a two-site
     // conditional transfer the garbager miscompiles (double free, found
@@ -2656,16 +2663,16 @@ priv expr_contains_ident_named := func(e: Expr, name: Str, symbols: SymbolPool) 
 // outer binding/param), then alias the user name to that ref -- a ref-to-ref,
 // so the arm body's uses of `bind_name` need no rewriting. `fresh_name` must be
 // unique (callers derive it from the binding's source location).
-make_payload_ref_decls := func(own arg: Expr, bind_name: Str, fresh_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool, mut symbols: SymbolPool, is_ref_payload: Bool = false, used: Bool = false) returns Vec(Expr) {
+make_payload_ref_decls := func(own arg: Expr, bind_name: Str, fresh_name: Str, vtype: Str, line: U32, col: U32, is_mut: Bool, mut symbols: SymbolPool, is_ref_payload: Bool = false, used: Bool = false, referent_mut: Bool = false) returns Vec(Expr) {
     mut out := Vec(Expr).new()
     if expr_contains_ident_named(arg, bind_name, symbols) {
-        out.push(own make_payload_ref_decl(own arg, fresh_name, vtype, line, col, is_mut, symbols, is_ref_payload, used))
+        out.push(own make_payload_ref_decl(own arg, fresh_name, vtype, line, col, is_mut, symbols, is_ref_payload, used, referent_mut))
         mut alias_rhs := Expr.new(own ident_node(symbols.intern(fresh_name)), line, col)
-        mut alias_decl := Expr.new(own NodeType.Decl(decl_typed(symbols, name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used)), line, col)
+        mut alias_decl := Expr.new(own NodeType.Decl(decl_typed(symbols, name = bind_name, type_name = vtype, own_type = OwnType.Ref, is_mut = is_mut, used = used, referent_mut = referent_mut)), line, col)
         alias_decl.add_child(own alias_rhs)
         out.push(own alias_decl)
     } else {
-        out.push(own make_payload_ref_decl(own arg, bind_name, vtype, line, col, is_mut, symbols, is_ref_payload, used))
+        out.push(own make_payload_ref_decl(own arg, bind_name, vtype, line, col, is_mut, symbols, is_ref_payload, used, referent_mut))
     }
     return out
 }

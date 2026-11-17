@@ -2082,7 +2082,7 @@ priv hoist_throwing_store_call := proc(
     col := child.col
     tmp_name := format("_bang_ret_", synth_suffix(ctx, ctx.bang_counter.to_str()))
     ctx.bang_counter = ctx.bang_counter + 1
-    mut tmp_decl_data := Declaration(name = tmp_name.clone())
+    mut tmp_decl_data := Declaration(name = tmp_name.clone(), infer_call_ownership = true)
     tmp_decl_data.own_type = OwnType.Ref
     mut tmp_decl := Expr.new(own NodeType.Decl(tmp_decl_data), line, col)
     // The parent slot is replaced immediately below; move its owned subtree
@@ -3047,6 +3047,7 @@ priv process_throw_catch_in_body := proc(
                     // diagnostic on the synthesized temp.
                     if return_own_type.is(OwnType.Ref) {
                         tmp_decl_data.own_type = return_own_type
+                        tmp_decl_data.infer_call_ownership = true
                     }
                 }
                 mut tmp_decl := Expr.new(own NodeType.Decl(tmp_decl_data), stmt_line, stmt_col)
@@ -3530,6 +3531,9 @@ make_switch_case_condition := func(mut scope: TypeScope, mut case_body: Expr, ma
                                         }
                                         payload_const := enum_variant_payload_const(enum_def, vt_idx)
                                         bind_is_mut := source_mut.and(payload_const.not())
+                                        mut referent_mut := borrow_source_is_writable(scope, sw_ref, symbols).and(payload_const.not())
+                                        ref variant: VariantDef = enumdef_of(enum_def).variants[vt_idx.to_usize()]
+                                        if variant.payload_ref { referent_mut = variant.payload_ref_mut }
                                         // #164: a ref-mut payload binding allows writes that
                                         // propagate back into the source's payload memory, so
                                         // treat the source as conservatively written.
@@ -3547,7 +3551,7 @@ make_switch_case_condition := func(mut scope: TypeScope, mut case_body: Expr, ma
                                         bind_ln := match_expr.children[1].line
                                         bind_cl := match_expr.children[1].col
                                         fresh := format("_pl_", binding_name, "_", bind_ln.to_str(), "_", bind_cl.to_str())
-                                        mut bind_decls := make_payload_ref_decls(own sw_id2, binding_name, fresh, payload_type, sw_line, sw_col, bind_is_mut, symbols, enum_payload_is_pointer_slot(enum_def, vt_idx))
+                                        mut bind_decls := make_payload_ref_decls(own sw_id2, binding_name, fresh, payload_type, sw_line, sw_col, bind_is_mut, symbols, enum_payload_is_pointer_slot(enum_def, vt_idx), referent_mut = referent_mut)
 
                                         mut old := case_body.children.take()
 
@@ -4034,6 +4038,9 @@ prepend_clike_payload_binding := func(mut scope: TypeScope, enum_def: Expr, sw_e
     }
     payload_const := enum_variant_payload_const(enum_def, vt_idx)
     bind_is_mut := source_mut.and(payload_const.not())
+    mut referent_mut := borrow_source_is_writable(scope, sw_expr, symbols).and(payload_const.not())
+    ref variant: VariantDef = enumdef_of(enum_def).variants[vt_idx.to_usize()]
+    if variant.payload_ref { referent_mut = variant.payload_ref_mut }
     // Mark the scrutinee's root binding written: the case body holds a `ref`
     // into the scrutinee's payload (get_payload) and may write through it
     // (e.g. set_own_arg's `fcd.own_args = ...`). The desugar marks the source
@@ -4051,7 +4058,7 @@ prepend_clike_payload_binding := func(mut scope: TypeScope, enum_def: Expr, sw_e
     bind_ln := pat.children[1].line
     bind_cl := pat.children[1].col
     fresh := format("_pl_", binding_name, "_", bind_ln.to_str(), "_", bind_cl.to_str())
-    mut bind_decls := make_payload_ref_decls(own sw_expr.clone(), binding_name, fresh, payload_type, case_node.line, case_node.col, bind_is_mut, symbols, enum_payload_is_pointer_slot(enum_def, vt_idx))
+    mut bind_decls := make_payload_ref_decls(own sw_expr.clone(), binding_name, fresh, payload_type, case_node.line, case_node.col, bind_is_mut, symbols, enum_payload_is_pointer_slot(enum_def, vt_idx), referent_mut = referent_mut)
     ref mut body : Expr = case_node.children[1]
     mut old := body.children.take()
     // Exact final size: bind decls + old stmts.

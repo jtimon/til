@@ -79,7 +79,15 @@ return-side ~mut~.
   rather than accepting equal pointer layouts as equal contracts.
 - Prepared: HolyC emission for that private query. Full AST-valued
   ~func_sig_of~ still needs recursive owned-niche schema support in that backend.
-- Pending: complete source-path and writable-alias checks, the plain-ref
+- Implemented: writable-return definitions validate each lexical return source,
+  following declaration/source permission through aliases and rebindings,
+  captures, fields, typed callable views and known pointer operations. Mutable
+  inputs required by a forwarded writable-return contract must also provide
+  writable access. Enum payload aliases retain the selected variant's permission;
+  compiler-inferred call temporaries preserve their callee's result permission.
+  Return-only mutable grants justify the necessary parameter qualifier without
+  recording an actual write. Lifetime/closure-escape checks are unchanged.
+- Pending: general source-path and writable-alias creation checks, the plain-ref
   defaults migration, collection accessors, remaining reference-permission
   metadata and the C-header binding translator.
   Existing accepted local/ref-field programs
@@ -116,8 +124,9 @@ permission check is implemented.
    ~test/qualifier_mut_field_error.til~, and
    ~test/qualifier_mut_payload_error.til~.
 
-   A ~mut~ local or ~mut~ parameter that the body never writes
-   through is also flagged as redundant (#164). Writes are: a direct
+   A ~mut~ local or ~mut~ parameter is redundant when its body neither writes
+   through it nor needs its permission to grant a writable returned borrow
+   (#164/#491). Writes are: a direct
    assignment (~name = ...~), a field-chain assignment
    (~name.f = ...~), passing the name (or one of its fields) to a
    callee parameter declared ~mut~ -- which includes a UFCS method
@@ -127,6 +136,13 @@ permission check is implemented.
    ~move~/~memcpy~/~write_ptr~), and the collection of a
    ~for mut x in coll~ loop. Taking a ~ref mut~ alias of a name is
    not by itself a write; a write through the alias is.
+
+   A writable result grant is separate bookkeeping, not a fake write. A
+   parameter returning its own storage through ~returns ref mut~ therefore
+   needs ~mut~; merely returning ~ref~ does not. The legacy local ~ref mut~
+   referent qualifier can likewise be needed to return that borrow. Explicit
+   leading ~mut ref~ / ~mut ref mut~ grants SLOT replacement: returning a
+   writable referent does not by itself justify that replaceable slot.
 
    Write tracking follows borrows (#344). A write does not have to
    be spelled on the binding it lands in: a ~returns ref T~ function

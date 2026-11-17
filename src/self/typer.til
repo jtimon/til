@@ -630,6 +630,10 @@ fcall_returns_own := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) re
     if fcall.node_type.is(NodeType.FCall).not() { return false }
     if fcall.children.len() == 0 { return false }
     ref callee : Expr = fcall.children[0]
+    if callee.node_type.is(NodeType.FCall).or(callee.node_type.is(NodeType.FieldAccess).and(fa_is_ns(callee, scope, symbols).not())) {
+        signature := resolve_fn_sig(fcall, scope, symbols)
+        if signature.is_some() { return fdef_returns_unborrowable(funcdef_of(signature.unwrap()), scope, symbols) }
+    }
     switch callee.node_type {
     case .Ident(cn):
         // Struct/enum constructor: `Foo(...)` where Foo is a registered
@@ -5395,6 +5399,8 @@ priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_type
             }
             field_semantic_type := declaration_resolved_type(fd, inner, ctx.symbols)
             inner.set(tc_fname, field_semantic_type, fd.is_mut, ctx.path, expr.line, expr.col, false, fd.own_type, ctx.symbols)
+            ref mut field_binding: TypeBinding = inner.get_binding_name(tc_fname, ctx.symbols).unwrap()
+            field_binding.referent_mut = fd.referent_mut
             if field_semantic_type.is_funcptr() {
                 // Registered by the inner.set on the line above.
                 ref fb : TypeBinding = inner.get_binding_name(tc_fname, ctx.symbols).unwrap()
@@ -5971,6 +5977,168 @@ priv check_ref_function_returns := proc(func_scope: TypeScope, mut expr: Expr, m
     }
 }
 
+// -1 is an ordinary miss: this name is not a capture of the active function.
+priv capture_borrow_permission := func(scope: TypeScope, name: Str) returns I32 {
+    if scope.is_func_root {
+        if scope.typer_func.capture_permissions.has(name) {
+            if scope.typer_func.capture_permissions[name] { return 1 }
+            return 0
+        }
+        return -1
+    }
+    switch scope.parent {
+    case .Some(parent): return capture_borrow_permission(parent, name)
+    case .None: return -1
+    }
+}
+
+priv borrow_call_contract := func(value: Expr, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
+    if value.children.len() > 0 {
+        ref callee: Expr = value.children[0]
+        if is_funcptr_sig(callee.til_type()) {
+            return scope.lookup_func_name(type_name_ref(callee.til_type(), symbols), symbols)
+        }
+        if callee.node_type.is(NodeType.FieldAccess).and(fa_is_ns(callee, scope, symbols).not()) {
+            signature := resolve_fn_sig(value, scope, symbols)
+            if signature.is_some() { return signature }
+        }
+    }
+    return fcall_callee_fdef(value, scope, symbols)
+}
+
+priv borrow_call_argument := func(value: Expr, index: USize, scope: TypeScope, symbols: SymbolPool) returns Option(ref Expr) {
+    // A callable field has no implicit self argument; UFCS methods do.
+    if value.children.len() > 0 {
+        if is_funcptr_sig(value.children[0].til_type()) {
+            if index + 1 < value.children.len() { return safe_ref(value.children[index + 1]) }
+            return Option(ref Expr).None
+        }
+        ref callee: Expr = value.children[0]
+        if callee.node_type.is(NodeType.FieldAccess).and(fa_is_ns(callee, scope, symbols).not()) {
+            if resolve_fn_sig(value, scope, symbols).is_some() {
+                if index + 1 < value.children.len() { return safe_ref(value.children[index + 1]) }
+                return Option(ref Expr).None
+            }
+        }
+    }
+    return fcall_arg_for_param(value, index, scope, symbols)
+}
+
+// Permission belongs to the access path, not just its ultimate storage owner.
+// Empty means writable; a nonempty result explains the missing capability.
+priv writable_borrow_problem := func(scope: TypeScope, value: Expr, symbols: SymbolPool) returns Str {
+    switch value.node_type {
+    case .Ident(id):
+        binding := scope.get_binding_sym(id.ident_sym())
+        if binding.is_none() { return "source has no storage binding" }
+        ref b: TypeBinding = binding.unwrap()
+        if reference_binding_in_frame(scope, b.name, symbols).is_none() {
+            if capture_borrow_permission(scope, b.name) == 0 { return format("capture '", b.name, "' grants read-only access") }
+        }
+        if b.own_type.is(OwnType.Ref).or(b.iface_borrow_explicit) {
+            if b.referent_mut { return "" }
+            return format("reference '", b.name, "' does not carry writable access from its declaration and source")
+        }
+        if b.is_mut.or(b.own_type.is(OwnType.Own)) { return "" }
+        return format("binding '", b.name, "' is read-only; declare it 'mut' to grant writable access")
+    case .FieldAccess(access):
+        if value.children.len() != 1 { return "field access has no storage receiver" }
+        owner_name := expr_type_name_ref(value.children[0], symbols)
+        if owner_name.is_none() { return "field receiver has no resolved type" }
+        definition := scope.get_struct(owner_name.unwrap(), symbols)
+        if definition.is_none() { return "field receiver has no definition" }
+        ref name: Str = access.field_access_name(symbols.names)
+        if fa_is_ns(value, scope, symbols) {
+            member := def_ns_get(definition.unwrap(), name)
+            if member.is_none() { return "namespace member has no storage declaration" }
+            ref d: Declaration = member.unwrap()
+            if d.own_type.is(OwnType.Ref) {
+                if d.referent_mut { return "" }
+            } else if d.is_mut.or(d.own_type.is(OwnType.Own)) { return "" }
+            return format("namespace member '", name, "' grants read-only access")
+        }
+        switch definition.unwrap().node_type {
+        case .StructDef(sd):
+            field := member_get(sd.fields_index, sd.fields, name)
+            if field.is_none() { return "access does not name a stored field" }
+            ref d: Declaration = field.unwrap()
+            if d.own_type.is(OwnType.Ref) {
+                if d.referent_mut { return "" }
+                return format("field '", name, "' is a read-only reference; add 'mut' after 'ref' to grant writable access")
+            }
+            if d.own_type.is(OwnType.Shallow).and(d.is_mut.not()) {
+                return format("inline field '", name, "' is const")
+            }
+            return writable_borrow_problem(scope, value.children[0], symbols)
+        case: return "access does not name a stored field"
+        }
+    case .FCall:
+        raw := raw_borrow_source(value, symbols)
+        if raw.is_some() { return writable_borrow_problem(scope, raw.unwrap(), symbols) }
+        // A typed callable view can deliberately restrict its implementation.
+        // Consult that declared view before the implementation's effect summary.
+        definition := borrow_call_contract(value, scope, symbols)
+        if definition.is_none() { return "call has no resolved writable-reference contract" }
+        if definition.unwrap().node_type.is(NodeType.FuncDef).not() { return "call has no writable-reference contract" }
+        ref fd: FunctionDef = funcdef_of(definition.unwrap())
+        if fd.sig.return_ref_mut.not() { return "call has no 'returns ref mut' contract" }
+        for pi in 0..fd.sig.params.len() {
+            ref param: Declaration = fd.sig.params[pi]
+            if param.own_type.is(OwnType.Ref).and(param.is_mut.or(param.referent_mut)) {
+                argument := borrow_call_argument(value, pi, scope, symbols)
+                if argument.is_none() { return "call is missing a writable argument" }
+                problem := writable_borrow_problem(scope, argument.unwrap(), symbols)
+                if problem.len() > 0 { return format("argument to writable parameter '", param.name, "': ", problem) }
+            }
+        }
+        return ""
+    case: return "expression does not provide a writable borrow"
+    }
+}
+
+// Shared with enum lowering, which knows the selected payload declaration.
+borrow_source_is_writable := func(scope: TypeScope, value: Expr, symbols: SymbolPool) returns Bool {
+    return writable_borrow_problem(scope, value, symbols).is_empty()
+}
+
+priv credit_mutable_return := func(mut scope: TypeScope, value: Expr, symbols: SymbolPool) {
+    switch value.node_type {
+    case .Ident(id):
+        ref mut b: TypeBinding = scope.get_binding_sym(id.ident_sym()).unwrap()
+        b.mutable_ref_return = true
+        if b.own_type.is(OwnType.Ref).or(b.iface_borrow_explicit) {
+            for root: BorrowRoot in b.borrow_roots {
+                // Carried references grant their own permission: the carrier's
+                // mutable slot is not needed merely to return its ref field.
+                if root.carried.and(b.iface_borrow_explicit.not()) { continue }
+                mut source := lookup_binding_at(scope, root, symbols)
+                if source.is_some() {
+                    ref mut source_binding: TypeBinding = source.unwrap()
+                    source_binding.mutable_ref_return = true
+                }
+            }
+        }
+    case .FieldAccess:
+        if fa_is_ns(value, scope, symbols).not().and(fa_own_type(value, scope, symbols).is(OwnType.Ref).not()) {
+            credit_mutable_return(scope, value.children[0], symbols)
+        }
+    case .FCall:
+        raw := raw_borrow_source(value, symbols)
+        if raw.is_some() {
+            credit_mutable_return(scope, raw.unwrap(), symbols)
+        } else {
+            ref fd: FunctionDef = funcdef_of(borrow_call_contract(value, scope, symbols).unwrap())
+            for pi in 0..fd.sig.params.len() {
+                ref param: Declaration = fd.sig.params[pi]
+                if param.own_type.is(OwnType.Ref).and(param.is_mut.or(param.referent_mut)) {
+                    credit_mutable_return(scope, borrow_call_argument(value, pi, scope, symbols).unwrap(), symbols)
+                }
+            }
+        }
+    case:
+    }
+}
+
 priv first_borrowed_capture_name := func(e: Expr) returns Str {
     switch e.node_type {
     case .FuncDef(fd):
@@ -6411,12 +6579,16 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             if pb_o.is_some() {
                 ref mut pb : TypeBinding = pb_o.unwrap()
                 pb.declared_type_name = ptype_name.clone()
+                pb.referent_mut = param.own_type.is(OwnType.Ref).and(param.is_mut.or(param.referent_mut))
             }
         }
         mut in_func_val : I32 = 0
         if is_func { in_func_val = 1 }
         mut returns_ref_val : I32 = 0
         if fdef.sig.return_own_type.is(OwnType.Ref) { returns_ref_val = 1 }
+        // 0 = owned/value, 1 = read-only ref, 2 = writable ref. All body
+        // lowering keeps testing zero/nonzero for the shared borrow ABI.
+        if fdef.sig.return_ref_mut { returns_ref_val = 2 }
         is_proc := fdef.sig.func_type.is(FuncType.Proc)
         // #321: a PROC declaring `returns Dynamic` also carries that return
         // name in its function-root state so `return 0` becomes null.
@@ -6465,6 +6637,14 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             mut capture_source_muts := Vec(Bool).new()
             mut capture_source_written := Vec(Bool).new()
             if fdef.captures.len() > 0 {
+                for cap: Declaration in fdef.captures {
+                    mut allowed := cap.is_mut
+                    if cap.own_type.is(OwnType.Ref) {
+                        source := Expr.new(own ident_node(ctx.symbols.intern(cap.name)), expr.line, expr.col)
+                        allowed = cap.referent_mut.and(borrow_source_is_writable(scope, source, ctx.symbols))
+                    }
+                    func_scope.typer_func.capture_permissions.set(cap.name, own allowed)
+                }
                 validate_captures(scope, fdef.captures, expr, ctx)
                 capture_private_mut_begin(scope, fdef.captures, capture_source_muts, capture_source_written, ctx.symbols)
             }
@@ -6600,6 +6780,7 @@ priv check_unused_mut_params := proc(func_scope: TypeScope, expr: Expr, path: St
         if pb_o.is_none() { continue }
         ref pb : TypeBinding = pb_o.unwrap()
         if pb.written { continue }
+        if pb.mutable_ref_return { continue }
         type_error_at(path, pb.line, pb.col,
             format("redundant 'mut' on parameter '", param.name, "': never written through; drop the 'mut'"), ctx)
     }
@@ -6656,6 +6837,7 @@ check_unused_mut_locals := proc(scope: TypeScope, path: Str, mut ctx: Context) {
         if b.is_alias { continue }
         if b.mut_explicit.not() { continue }
         if b.written { continue }
+        if b.mutable_ref_return.and(b.own_type.is(OwnType.Ref)).and(b.ref_slot_explicit.not()) { continue }
         type_error_at(path, b.line, b.col,
             format("redundant 'mut' on local '", b.name, "': never written through; drop the 'mut'"), ctx)
     }
@@ -7137,6 +7319,14 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
                 // its summary instead of treating the ref qualifier itself
                 // as proof that the returned storage outlives this frame.
                 check_carried_borrow_of_local_return(scope, stmt, true, ctx)
+                if returns_ref == 2 && ret_expr.node_type.is_literal_null().not() {
+                    problem := writable_borrow_problem(scope, ret_expr, ctx.symbols)
+                    if problem.len() > 0 {
+                        stmt.type_error(format("cannot return a writable reference: ", problem), ctx)
+                    } else {
+                        credit_mutable_return(scope, ret_expr, ctx.symbols)
+                    }
+                }
             }
         }
     } else {
@@ -7836,6 +8026,8 @@ priv bind_ext_global_decl := func(mut scope: TypeScope, decl: Declaration,
         decl.own_type, ctx.symbols)
     ref mut binding : TypeBinding = scope.get_binding_name(decl.name, ctx.symbols).unwrap()
     binding.mut_explicit = decl.is_mut
+    binding.referent_mut = decl.referent_mut
+    binding.ref_slot_explicit = decl.ref_slot_explicit
     binding.is_priv = decl.is_priv
     binding.orig_name = decl.orig_name.clone()
     // #418: keep a use recorded before this Decl was typed.
@@ -8414,6 +8606,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
         // later typer machinery (array/vec literal rewrite, alias
         // promotion etc.) auto-promotes is_mut.
         decl_b.mut_explicit = sdecl.is_mut
+        decl_b.ref_slot_explicit = sdecl.ref_slot_explicit
         // #328: declared-spelling provenance. An annotated local keeps its
         // own annotation; an inferred one inherits the RHS's provenance
         // when the RHS is a plain Ident that has some, so
@@ -8530,6 +8723,12 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
             sdecl.own_type = OwnType.Shallow
             decl_b.iface_payload_borrowed = true
             decl_b.iface_borrow_explicit = true
+            ref payload: Expr = rhs.children[2]
+            if payload.node_type.is(NodeType.NamedArg) {
+                decl_b.referent_mut = sdecl.referent_mut.and(borrow_source_is_writable(scope, payload.children[0], ctx.symbols))
+            } else {
+                decl_b.referent_mut = sdecl.referent_mut.and(borrow_source_is_writable(scope, payload, ctx.symbols))
+            }
             mut explicit_roots := expr_borrow_roots(scope, rhs, ctx.symbols)
             for mut xrr : BorrowRoot in explicit_roots {
                 xrr.carried = true
@@ -8541,6 +8740,13 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
             decl_b.iface_payload_borrowed = true
         } else if sdecl.own_type.is(OwnType.Ref) {
             decl_b.own_type = OwnType.Ref
+            // Remember the permission actually carried, not just requested.
+            // This records a bad alias without changing the legacy alias
+            // acceptance rules before #490's full declaration migration.
+            decl_b.referent_mut = sdecl.referent_mut
+            if rhs_is_payload_binding(rhs, ctx.symbols).not() {
+                decl_b.referent_mut = decl_b.referent_mut.and(borrow_source_is_writable(scope, rhs, ctx.symbols))
+            }
             // #211: payload binding `ref T = get_payload(<ident>)` is the
             // typer-emitted shape produced by make_switch_case_condition.
             // Mark its TypeBinding as an alias so the subsequent Assign
@@ -8786,7 +8992,10 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
     ref mut sdecl : Declaration = decl_of(stmt)
     if sdecl.infer_call_ownership {
         sdecl.own_type = OwnType.Shallow
-        if fcall_returns_ref(stmt.children[0], scope, ctx.symbols) != 0 { sdecl.own_type = OwnType.Ref }
+        if fcall_returns_ref(stmt.children[0], scope, ctx.symbols) != 0 {
+            sdecl.own_type = OwnType.Ref
+            sdecl.referent_mut = borrow_source_is_writable(scope, stmt.children[0], ctx.symbols)
+        }
         sdecl.infer_call_ownership = false
     }
     if sdecl.annotated.is(Type.Unknown).not() {
@@ -9005,7 +9214,7 @@ priv validate_captures := proc(mut scope: TypeScope, mut captures: Vec(Declarati
                 // the capture's OWN storage -- the source is never written, so
                 // its mutability is irrelevant. Issue #54.
                 if cap.own_type.is(OwnType.Ref) {
-                    if b.is_mut.not() {
+                    if b.is_mut.or(b.own_type.is(OwnType.Ref).and(b.referent_mut)).not() {
                         errnode.type_error(format("cannot capture immutable '", cap.name,
                             "' as 'mut'"), ctx)
                     }
@@ -9824,6 +10033,8 @@ priv comptime_prepare_value := proc(name: Str, path: Str, stmt: Expr, mut prep: 
     if b_o.is_some() {
         ref b : TypeBinding = b_o.unwrap()
         ctx.scope.set(name, b.type, b.is_mut, path, stmt.line, stmt.col, false, b.own_type, ctx.symbols)
+        ref mut exported_binding: TypeBinding = ctx.scope.get_binding_name(name, ctx.symbols).unwrap()
+        exported_binding.referent_mut = b.referent_mut
         ref mut global_binding : TypeBinding = ctx.scope.get_binding_name(name, ctx.symbols).unwrap()
         global_binding.is_priv = decl.is_priv
         global_binding.orig_name = decl.orig_name.clone()
@@ -10580,6 +10791,9 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         roots := expr_borrow_roots(scope, rhs, ctx.symbols)
         ref mut target : TypeBinding = scope.get_binding_name(aname, ctx.symbols).unwrap()
         check_reference_rebind_lifetime(scope, target, roots, stmt, ctx)
+        // A writable declaration cannot gain permission by rebinding after a
+        // read-only source. Such a rebind itself needs #490's eventual error.
+        target.referent_mut = target.referent_mut.and(borrow_source_is_writable(scope, rhs, ctx.symbols))
         target.written = true
         target.aliases_global_storage = target.aliases_global_storage.or(expr_names_global_storage(scope, rhs, ctx))
         // Rebinding changes the borrow, not either pointee. Retain the union
@@ -15784,6 +15998,13 @@ fcall_returns_ref := func(fcall: Expr, scope: TypeScope, symbols: SymbolPool) re
     if fcall.node_type.is(NodeType.FCall).not() { return 0 }
     if fcall.children.len() == 0 { return 0 }
     ref callee : Expr = fcall.children[0]
+    // Callable fields and calls returning callables use their declared
+    // signature too. Treating them as owned copies would hoist a borrowed
+    // result into a local value and return that local's address.
+    if callee.node_type.is(NodeType.FCall).or(callee.node_type.is(NodeType.FieldAccess).and(fa_is_ns(callee, scope, symbols).not())) {
+        signature := resolve_fn_sig(fcall, scope, symbols)
+        if signature.is_some() { return funcdef_of(signature.unwrap()).sig.return_own_type.is(OwnType.Ref) }
+    }
     switch callee.node_type {
     case .Ident(cn):
         cb_fd_o := scope.lookup_func_by_sym(cn.ident_sym(), symbols)
