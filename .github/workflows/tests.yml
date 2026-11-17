@@ -1340,10 +1340,13 @@ jobs:
           done
           exit $status
       # Issue #483: the pinned llvm-mingw, which every til.exe build below
-      # compiles with, as in windows-x64-native. This job has no bin/make:
-      # the til.exe under test interprets make.til's llvm_mingw goal (well
-      # under a minute; the compiled bin/make needs a C compiler first). Its
-      # bin goes first on PATH for the bash steps.
+      # compiles with, got as on any Windows host (README.org, "Windows
+      # host"; the windows-x64-native job): when the cache has none, MSYS2's
+      # gcc builds a bootstrap bin/make for `make llvm_mingw`, and the
+      # bootstrap is removed. Not by the til.exe under test interpreting
+      # make.til (run 3153): it rebuilds a missing bin/make with a
+      # bin/til_boot first, and loads libffi's twin, neither of which is here.
+      # Its bin goes first on PATH for the bash steps.
       - name: The pinned llvm-mingw release
         id: llvm-mingw
         shell: bash
@@ -1354,15 +1357,28 @@ jobs:
           test -n "$layout"
           echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
       - name: Cache the pinned llvm-mingw
+        id: llvm-mingw-cache
         uses: actions/cache@v4
         with:
           path: vendor/llvm-mingw
           key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Install make and the bootstrap gcc into MSYS2
+        if: steps.llvm-mingw-cache.outputs.cache-hit != 'true'
+        shell: cmd
+        env:
+          MSYSTEM: UCRT64
+        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed make mingw-w64-ucrt-x86_64-gcc && gcc --version"
+      - name: Download the pinned llvm-mingw with a bootstrap bin/make
+        if: steps.llvm-mingw-cache.outputs.cache-hit != 'true'
+        shell: cmd
+        env:
+          MSYSTEM: UCRT64
+          CHERE_INVOKING: 1
+          MSYS2_PATH_TYPE: inherit
+        run: C:\msys64\usr\bin\bash.exe -lc "make llvm_mingw && rm -rf bin tmp/boot vendor/libffi/build-windows-x64"
       - name: The pinned llvm-mingw first on PATH
         shell: bash
-        run: |
-          ./winhost/til.exe interpret make.til llvm_mingw
-          cygpath -w "$PWD/vendor/llvm-mingw/bin" >> "$GITHUB_PATH"
+        run: cygpath -w "$PWD/vendor/llvm-mingw/bin" >> "$GITHUB_PATH"
       - name: Interpret and translate on windows
         shell: bash
         run: |

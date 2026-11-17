@@ -2643,6 +2643,15 @@ priv emit_stmt_decl := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         if builder_needs_unused_cast(dd, ctx) {
             emit_indent(f, depth); f.write("(void)").write(builder_resolve_c_ident_name(dd.name, ctx)).write(";\n")
         }
+        // #483: a script global nothing reads is set for its initializer's
+        // effect alone (`f := dyn_fn(...)`, a `ref x : I64 = v.get(9)?`):
+        // clang 23 rejects that as "set but not used"
+        // (-Wunused-but-set-global), so it is discarded the way a
+        // deliberately unused local is.
+        top_global := is_value_global(decl_sym, ctx).or(is_ref_global(decl_sym, ctx))
+        if ctx.builder_func.in_func_def.not().and(top_global).and(ctx.builder_global_mentions.has(decl_sym).not()) {
+            emit_indent(f, depth); f.write("(void)").write(c_ident(dd.name)).write(";\n")
+        }
     }
     case:
         UNREACHABLE("expected Decl, got ", e.node_type.head_str(ctx.symbols.names))
@@ -14264,6 +14273,7 @@ priv emit_global_declarations := proc(f: File, mut lp: LoadedProgram) {
         }
     }
     emit_ns_const_global_defs(f, lp)
+    lp.ctx.builder_global_mentions = egd_mentioned.clone()
     f.write("\n")
 }
 

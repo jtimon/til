@@ -1839,6 +1839,11 @@ Context := struct {
     closure_value_names := Set(Sym).new()
     script_globals := Set(Sym).new()
     ref_globals := Set(Sym).new()
+    // Every global some code left after the scavenger mentions (reads), as
+    // emit_global_declarations collects it. A script global outside it is
+    // initialized for its initializer's effect and never read: the C gets
+    // the `(void)` a deliberately unused local gets (#483).
+    builder_global_mentions := Set(Sym).new()
 
     // Issue #198: typer-owned error-type registries, moved off
     // module-level globals so they live on the same Context that

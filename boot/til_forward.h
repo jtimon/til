@@ -2954,6 +2954,7 @@ typedef struct Context {
     Set__U32 closure_value_names;
     Set__U32 script_globals;
     Set__U32 ref_globals;
+    Set__U32 builder_global_mentions;
     Vec__Str throw_type_registry;
     Map__Str_Vec__Str throws_global;
     I64 bang_counter;

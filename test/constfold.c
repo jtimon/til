@@ -726,25 +726,6 @@ static void til_loc_lits_init(void) {
 #define hoisted__Str_test_variadic_fold_3 (_til_loc_lits_cage->hoisted__Str_test_variadic_fold_3)
 #define hoisted__Str_test_variadic_fold_8 (_til_loc_lits_cage->hoisted__Str_test_variadic_fold_8)
 
-static TilCPtr _til_precomputed_sequence_22_data_cptr(void) {
-    static TilCPtr built;
-    if (built.off == 0) {
-        I64 *a = calloc(4ULL, sizeof(I64));
-        a[0] = (I64)(11);
-        a[1] = (I64)(22);
-        built = TIL_OWN_ENC(a);
-    }
-    return built;
-}
-static Vec__I64 *_til_precomputed_sequence_22_get(void) {
-    static Vec__I64 t;
-    static Bool built;
-    if (built == 0) {
-        t = (Vec__I64){.data = _til_precomputed_sequence_22_data_cptr(), .count = 2ULL, .cap = 4ULL};
-        built = 1;
-    }
-    return &t;
-}
 static TilCPtr _til_precomputed_sequence_23_data_cptr(void) {
     static TilCPtr built;
     if (built.off == 0) {
@@ -935,7 +916,6 @@ static CfVec2 STATIC_POINT = {.x = 42, .y = 99};
 static Color STATIC_COLOR = {.tag = Color_TAG_Green};
 static Token STATIC_TOKEN = {.tag = Token_TAG_Num, .data = {.Num = 13}};
 static NestedToken STATIC_NICHE;
-static Vec__I64 CF_COMPOSED_VALUES;
 static U32 CF_COMPOSED_COUNT = 2;
 I64 CfVec2_forward = 43;
 I64 CfVec2_answer = 42;
@@ -2796,7 +2776,6 @@ int main(void) {
     til_stdio_binary();
     STATIC_STR = (Str){.c_str = TIL_OWN_LIT("static-folded", 13ULL), .count=13ULL, .cap=TIL_CAP_LIT};
     STATIC_NICHE = NestedToken_Inner(({ WideToken *_oa = malloc(TIL_BOX(WideToken)); *_oa = WideToken_Num(&(I64){9}); _oa; }));
-    CF_COMPOSED_VALUES = Vec__I64_clone(_til_precomputed_sequence_22_get());
     test_simple_add();
     fprintf(stderr, "  pass: %s\n", "test_simple_add");
     test_nested_arithmetic();
