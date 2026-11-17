@@ -3087,23 +3087,39 @@ second root, so its program named ~/home/runner/work/til/til/vendor/...~.
 With Ubuntu's mingw gcc the headers were in ~/usr~ for both roots and the
 question never came up.
 
-Fixed in the test, which was the unfaithful part: a second checkout has
-its own ~vendor/llvm-mingw~. When the windows compiler on PATH is this
-checkout's, the second root gets a copy (~cp -a~: the package is full of
-symlinks) and builds with it first on PATH. Reproduced here with a
-stand-in compiler under ~vendor/llvm-mingw~ that writes its own
-directory, as ~-ffile-prefix-map~ renames it, into its output: the old
-test fails as in CI (the second root's file holds the checkout's absolute
-path), the new one passes (both hold ~./vendor/llvm-mingw/bin~).
+First fix, a00988a: the test gave its second root a copy of
+~vendor/llvm-mingw~ and built with it first on PATH, as a second checkout
+would have its own. That made the roots agree and left til's output
+depending on where the toolchain stands.
 
-What this leaves, stated plainly: til's output for a windows target
-names the C compiler's directory, so two builds agree when the toolchain
-stands at the same place relative to the build's directory (every CI
-host: ~vendor/llvm-mingw~ of the checkout) or at the same absolute path.
-A program built from another directory with the toolchain somewhere else
-names that place. It is the question #504 asks about the host's C
-library on linux targets, for the compiler's own directory; no map of the
-toolchain's directory is added here.
+Second fix, d755ff8 (the #483 session), which supersedes the first: til
+itself maps llvm-mingw's install prefix (clang's InstalledDir less
+~/bin~) to ~llvm-mingw~ in debug info, after the map of the build
+directory to ~.~ (~windows_toolchain_map_args~). Where the toolchain is
+installed no longer reaches a windows binary: the headers are recorded as
+~llvm-mingw/x86_64-w64-mingw32/include~ from any directory. The test is
+back to using the one toolchain on PATH from both roots, which is the
+stronger statement, and no longer copies it. Checked here with a stand-in
+compiler under ~vendor/llvm-mingw~ that prints an InstalledDir and writes
+its own directory, as the last matching ~-ffile-prefix-map~ renames it,
+into its output: both roots write ~llvm-mingw/bin~.
+
+This is the answer #504 asks for, given for the windows targets only:
+the toolchain's paths are rewritten (what Rust does). ~til.exe~'s hashes
+change with it (the directory names in its line table do), on every host
+alike.
+
+**** Runs 3150 and 3151: the Windows host cannot run its own til_boot
+
+Both runs passed the reproducibility step and were cancelled by the
+"windows-x64 native" job's ~make~: after the bootstrap with MSYS2's gcc
+(which works) the Makefile builds ~bin/til_boot.exe~ with the pinned
+clang, and ~bin/til_boot build -o bin/make.exe make.til~ ends seven
+seconds later with no output and "Error 127". Nothing in the runtime
+returns 127 on Windows; MSYS2 reports 127 for a native program the
+loader could not start (a DLL or an entry point not found). Not
+verified. The job is the #483 session's and it has the log; until it is
+green no run reaches the Windows producer's list or the Mac jobs.
 
 **** nng for macos-arm64 from a Linux host, for reference
 
