@@ -87,6 +87,11 @@ return-side ~mut~.
   compiler-inferred call temporaries preserve their callee's result permission.
   Return-only mutable grants justify the necessary parameter qualifier without
   recording an actual write. Lifetime/closure-escape checks are unchanged.
+- Prepared: private compile-time writable-ref type-argument inspection for
+  container generators. It retains the writable bit through forwarding and
+  nested type applications without exposing a public qualifier query. Explicit
+  writable accessors and writable SDK getters belong to the bootstrap use step;
+  their source contracts have not changed in this preparation.
 - Pending: general source-path and writable-alias creation checks, the plain-ref
   defaults migration, collection accessors, remaining reference-permission
   metadata and the C-header binding translator.

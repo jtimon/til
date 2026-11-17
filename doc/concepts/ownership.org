@@ -114,6 +114,13 @@ analysis. A read-only result alone does not justify ~mut~, nor does returning
 an independently writable ref field justify a mutable carrier parameter.
 Existing return-borrow lifetime and closure-escape restrictions still apply.
 
+The next library step uses explicit writable collection accessors. The compiler
+now prepares private compile-time inspection of a type argument's writable-ref
+bit, preserving it through forwarded and nested template arguments. This lets
+container generators distinguish ~ref T~ from ~ref mut T~ without a new public
+query API. The accessor bodies and writable SDK getter contracts still require
+the following bootstrap use step; this preparation grants no new element access.
+
 This is not yet full enforcement of the permission table. Direct writable-alias
 creation/rebinding checks, general access-path/defaults migration, collection
 accessors, remaining reference-permission metadata and C-header bindings still

@@ -2332,6 +2332,25 @@ priv_c_name := func(path: Str, name: Str) returns Str {
     return buf
 }
 
+// Writable type-argument inspection is an internal template intrinsic, not
+// another public core query. Match the declaring module's private identity so
+// installed paths and renamed/copied container templates work identically.
+type_arg_query_name := func(name: Str, scope: TypeScope, symbols: SymbolPool) returns Str {
+    if name == "type_arg_is_ref" || name == "type_arg_is_interface" { return name.clone() }
+    if name.ends_with("__type_arg_is_ref_mut") {
+        binding := scope.get_binding_name(name, symbols)
+        if binding.is_some() {
+            if name == priv_c_name(binding.unwrap().path, "type_arg_is_ref_mut") {
+                definition := scope.lookup_func_name(name, symbols)
+                if definition.is_some() {
+                    if funcdef_of(definition.unwrap()).sig.func_type.is_core() { return "type_arg_is_ref_mut" }
+                }
+            }
+        }
+    }
+    return ""
+}
+
 align_up := func(offset: USize, align: USize) returns USize {
     return offset.add(align).sub(1).band(align.sub(1).bnot())
 }

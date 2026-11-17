@@ -4690,7 +4690,7 @@ priv infer_type_arg_query := proc(mut scope: TypeScope, mut e: Expr, name: Str, 
         e.type_error(format(name, " requires a compile-time type argument, not a value"), ctx)
         return
     }
-    mut result := get_ref_arg(e, 1)
+    mut result := get_ref_arg(e, 1, name == "type_arg_is_ref_mut")
     if name == "type_arg_is_interface" { result = is_interface }
     e.node_type = NodeType.Literal(Literal.Bool(result))
     e.children.clear()
@@ -4835,9 +4835,10 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
         check_priv_access(e, name, callee_bind, scope, ctx)
         callee_fdef_o = scope.lookup_func_by_sym(callee_sym, ctx.symbols)
         if callee_fdef_o.is_some() {
-            if name.eq("type_arg_is_ref").or(name == "type_arg_is_interface")
+            query := type_arg_query_name(name, scope, ctx.symbols)
+            if query.is_empty().not()
                 .and(funcdef_of(callee_fdef_o.unwrap()).sig.func_type.is_core()) {
-                infer_type_arg_query(scope, e, name, ctx)
+                infer_type_arg_query(scope, e, query, ctx)
                 return
             }
             if init_func_is_generic(callee_fdef_o.unwrap(), ctx.symbols) {

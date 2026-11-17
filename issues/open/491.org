@@ -53,23 +53,24 @@ referent access. Top-level const on a pointer returned by value (~T *const~)
 does not fix the caller's pointer slot; it receives a copy. Native declarations
 must describe the actual foreign contract, including read-only pointer results.
 
-*** Accessor decisions still open
+*** Accessor direction and remaining decisions
 
 The existing Vec/Array ~get~ and ~unsafe_get~, and Map ~get~, return plain
 ~ref~. Once that means read-only, writable element access needs an explicit
-contract. No new public accessor/query API has been approved yet.
+contract. Downstream review approved explicit Vec/Array ~get_mut~ and
+~unsafe_get_mut~, Map ~get_mut~, and writable contracts for genuinely writable
+SDK getters, including ~TilVm.shared_i64()~. The implementation is staged below;
+these names are not yet provided by the preparation commit.
 
-- Decide between separate writable getters (~get_mut~, ~unsafe_get_mut~ where
-  applicable) and a permission-dependent getter signature. Separate getters
-  make contracts explicit but add methods/migration; permission-dependent
-  getters reduce duplication but require a further signature rule/notation.
-  Read-only getters plus setters alone cannot provide writable element aliases.
+- Use the approved separate writable getters. Read-only getters plus setters
+  alone cannot provide writable element aliases. Stored read-only ~ref T~
+  elements must not become writable through a mutable container.
 - Separately decide whether indexing/iteration stays read-only with explicit
   mutable accessor calls, or selects a writable accessor in explicitly mutable
   contexts. The latter is convenient but adds context-sensitive lowering.
 - Separately decide whether generators get a public ~type_arg_is_ref_mut(T)~
-  query or permission inspection remains internal. A mutable container must
-  never upgrade an element stored as read-only ~ref T~.
+  query or permission inspection remains internal. This implementation prepares
+  an internal-only query; no public qualifier query has been approved.
 
 *** C-to-Til draft binding generator impact
 
@@ -151,6 +152,57 @@ and compiled tests, including a compiled ASAN run. The installed TilVm host
 also passed its complete case set under ASAN at USize 32 and 64, with an empty
 runtime PATH. The writable native callback returns the original argument's
 address; mutation through that alias reaches the host owner.
+
+**** Downstream acceptance and accessor preparation
+
+Nostril and Tiled/tilminal verified installed ~0.0.1-ca8c7b1a3~ with a matching
+SDK, including ~cf71e846b~ (the merged counterpart of ~ab493d457~). Nostril
+reported 41/41 interpreted, compiled and leak-detecting ASAN tests plus normal
+and private-Xvfb ASAN GUI workflows. Tiled at ~80af42f~ reported native-host
+rebuilds, U32/U64 ASAN embedding/schema/callback coverage, VM capture teardown,
+reload/command/init workflows, qualifier generics and relocated applications.
+Neither required production qualifier/callback adaptation. These are downstream
+reports, not additional local runs, and their legacy plain-ref fixtures do not
+prove the pending defaults/alias migration. Tiled's outer-interpreted bare
+callback transfer still segfaults independently (see #370).
+
+Tiled confirmed write-free ~mut owner~ getters and fixed-slot
+~const ref mut counts~ capture fields. It needs writable live-state getters and
+~TilVm.shared_i64()~, plus element aliases for fold ranges, editor buffers,
+terminal cells, undo/frame/font pools. Rendering/selection queries remain
+read-only; some view aliases need replaceable slots. Explicit mutable getters
+fit these examples; whole-element setters do not. Its ~items[index]~ writable
+return rejection currently names ~_bang_ret_0~ instead of the originating
+getter/indexing operation; improving that diagnostic is a follow-up.
+
+Accessor generators need to distinguish read-only and writable borrowed type
+arguments. This preparation recognizes a module-private core intrinsic named
+~type_arg_is_ref_mut~, folds it at template/typer time, and preserves both
+qualifier bits when marking forwarded query arguments. Private identity follows
+the declaring module's path, including renamed/copied templates and installed
+SDK paths; ordinary same-named functions are not intrinsics. No public core
+query or runtime emission is added.
+
+Introducing accessor bodies and their private queries together failed pass 1
+while building ~bin/make~ with HEAD's compiler:
+
+#+begin_example
+./src/core/ast.til:12:31: error: 'type_arg_is_ref_mut' is private to './src/core/map.til'; remove 'priv' to expose it
+#+end_example
+
+Apply ~doc/self.org~ "When a preparation commit is needed": land the query
+recognition/folding preparation before the core templates call it. The accessor
+bodies and SDK getter contract changes belong to that use step. Regression
+~private_permission_query_checks~ covers owned/read-only/writable arguments,
+aliases, forwarding, nested type applications, generated functions and two
+independent private module identities, and rejects runtime Type values and
+unqualified access from outside the declaring module.
+
+Preparation verification: ~make clean && make test_two_pass~ passed 590/590,
+including native self-translation. The qualifier ~generics~ family also passed
+with compiled ASAN fixtures. Generated function-body queries are folded before
+their definitions move to the caller's unit, preserving template privacy rather
+than relaxing cross-file private access checks.
 
 **** Initial signature implementation
 

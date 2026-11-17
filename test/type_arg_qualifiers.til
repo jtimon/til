@@ -647,6 +647,47 @@ return_signature_checks := proc(compiler: Str, root: Str, asan: Bool) {
     expect(saw_generic, "missing inferred writable-return generic instance")
 }
 
+private_permission_query_checks := proc(compiler: Str, root: Str, asan: Bool) {
+    helpers := format("mode lib\npriv type_arg_is_ref_mut := core_func(type: Type) returns Bool {}\n",
+        "PermissionProbe := macro(T: Type) returns StructDef {\n",
+        "if type_arg_is_ref_mut(T) { return struct { writable := true } }\n",
+        "else { return struct { writable := false } }\n}\n",
+        "PermissionForward := macro(T: Type) returns StructDef { return struct { probe := PermissionProbe(T)() } }\n",
+        "PermissionQuery := macro(T: Type) returns FuncDef { return func() returns Bool { return type_arg_is_ref_mut(T) } }\n",
+        "PermissionReadQuery := macro(T: Type) returns FuncDef { return func() returns Bool { return type_arg_is_ref(T) } }\n")
+    File.writefile(format(root, "/permission_helpers.til"), helpers)
+    File.writefile(format(root, "/permission_helpers_copy.til"), helpers.replace("Permission", "OtherPermission"))
+    File.writefile(format(root, "/private_permission.til"), format("mode cli\nimport(\"permission_helpers\")\nimport(\"permission_helpers_copy\")\n",
+        "Alias := I64\n",
+        "writable_query := PermissionQuery(ref mut Alias)\n",
+        "read_query := PermissionQuery(ref Alias)\n",
+        "owned_query := PermissionQuery(Alias)\n",
+        "nested_query := PermissionQuery(ref mut Vec(Str))\n",
+        "ordinary_ref_query := PermissionReadQuery(ref mut Alias)\n",
+        "main := proc() {\n",
+        "assert(writable_query())\nassert(read_query().not())\nassert(owned_query().not())\nassert(nested_query())\nassert(ordinary_ref_query())\n",
+        "writable := PermissionProbe(ref mut Alias)()\nassert(writable.writable)\n",
+        "readonly := PermissionProbe(ref Alias)()\nassert(readonly.writable.not())\n",
+        "owned := PermissionProbe(Alias)()\nassert(owned.writable.not())\n",
+        "forward_writable := PermissionForward(ref mut Alias)()\nassert(forward_writable.probe.writable)\n",
+        "forward_readonly := PermissionForward(ref Alias)()\nassert(forward_readonly.probe.writable.not())\n",
+        "other_writable := OtherPermissionProbe(ref mut Alias)()\nassert(other_writable.writable)\n",
+        "other_readonly := OtherPermissionProbe(ref Alias)()\nassert(other_readonly.writable.not())\n",
+        "println(\"private permissions passed\")\n}\n"))
+    check(Cmd.new(compiler, "interpret", format(root, "/private_permission.til")), "private permissions passed\n")
+    check_run(compiler, root, "private_permission", "private permissions passed\n", asan)
+    File.writefile(format(root, "/private_permission_shadow.til"), format("mode cli\n",
+        "priv type_arg_is_ref_mut := func(type: Type) returns Bool { return type.is(Type.Unknown).not() }\n",
+        "main := proc() { assert(type_arg_is_ref_mut(I64)); println(\"ordinary private function passed\") }\n"))
+    check(Cmd.new(compiler, "interpret", format(root, "/private_permission_shadow.til")), "ordinary private function passed\n")
+    check_run(compiler, root, "private_permission_shadow", "ordinary private function passed\n", asan)
+    reject_generic(compiler, root, format("mode cli\nimport(\"permission_helpers\")\n",
+        "main := proc() { assert(type_arg_is_ref_mut(I64)) }\n"), "undefined function 'type_arg_is_ref_mut'")
+    reject_generic(compiler, root, format("mode cli\npriv type_arg_is_ref_mut := core_func(type: Type) returns Bool {}\n",
+        "bad := func(value: Type) returns Bool { return type_arg_is_ref_mut(value) }\nmain := proc() {}\n"),
+        "type_arg_is_ref_mut requires a compile-time type argument")
+}
+
 writable_return_source_checks := proc(compiler: Str, root: Str, asan: Bool) {
     prelude := format("mode cli\nItem491 := struct { n := 0 }\n",
         "ReadHolder491 := struct { ref value: Item491 }\n",
@@ -763,6 +804,7 @@ main := proc(args: ..Str) {
         interface_argument_checks(compiler, root)
         generic_call_checks(compiler, root, asan)
         return_signature_checks(compiler, root, asan)
+        private_permission_query_checks(compiler, root, asan)
         writable_return_source_checks(compiler, root, asan)
     case "success":
         query_checks(compiler, root, asan)
@@ -776,6 +818,7 @@ main := proc(args: ..Str) {
         interface_argument_checks(compiler, root)
         generic_call_checks(compiler, root, asan)
         return_signature_checks(compiler, root, asan)
+        private_permission_query_checks(compiler, root, asan)
         writable_return_source_checks(compiler, root, asan)
     }
     println("type argument qualifiers passed")

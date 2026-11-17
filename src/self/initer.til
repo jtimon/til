@@ -3123,7 +3123,8 @@ priv init_macro_lower_type_tests := func(mut e: Expr, scope: TypeScope, symbols:
         switch e.children[0].node_type {
         case .Ident(callee):
             ref name : Str = callee.ident_name(symbols.names)
-            if name.eq("type_arg_is_ref").or(name == "type_arg_is_interface") {
+            query := type_arg_query_name(name, scope, symbols)
+            if query.len() > 0 {
                 def_o := scope.lookup_func_by_sym(callee.ident_sym(), symbols)
                 if def_o.is_some() {
                     if funcdef_of(def_o.unwrap()).sig.func_type.is_core() {
@@ -3132,8 +3133,8 @@ priv init_macro_lower_type_tests := func(mut e: Expr, scope: TypeScope, symbols:
                             binding_o := scope.get_binding_sym(arg.ident_sym())
                             if binding_o.is_some() {
                                 if type_binding_is_type_token(scope, binding_o.unwrap(), symbols) {
-                                    mut value := get_ref_arg(e, 1)
-                                    if name == "type_arg_is_interface" {
+                                    mut value := get_ref_arg(e, 1, query == "type_arg_is_ref_mut")
+                                    if query == "type_arg_is_interface" {
                                         ref resolved : Str = resolve_type_alias(scope, arg.ident_name(symbols.names), symbols)
                                         value = type_name_is_interface(scope, resolved, symbols)
                                     }
@@ -3162,20 +3163,38 @@ priv init_macro_lower_type_tests := func(mut e: Expr, scope: TypeScope, symbols:
 // Qualifier queries are resolved from the macro argument before the parameter
 // name is substituted. Other uses of a Type value do not acquire a ref bit.
 priv init_mark_qualifier_queries := func(mut e: Expr, ref_params: Map(Str, Bool), type_params: Set(Str), scope: TypeScope, symbols: SymbolPool) {
+    // Definitions keep defaults/methods in payloads, not ordinary children.
+    // Resolve formal-argument queries before those methods move to the
+    // instantiation's unit; the private intrinsic belongs to the template.
+    switch e.node_type {
+    case .StructDef(sd):
+        for mut field: Declaration in sd.fields {
+            if field.default_value.is_some() { init_mark_qualifier_queries(field.default_expr(), ref_params, type_params, scope, symbols) }
+        }
+        for mut member: Declaration in sd.ns_decls {
+            if member.default_value.is_some() { init_mark_qualifier_queries(member.default_expr(), ref_params, type_params, scope, symbols) }
+        }
+    case .EnumDef(ed):
+        for mut member: Declaration in ed.ns_decls {
+            if member.default_value.is_some() { init_mark_qualifier_queries(member.default_expr(), ref_params, type_params, scope, symbols) }
+        }
+    case:
+    }
     if e.node_type.is(NodeType.FCall).and(e.children.len() == 2) {
         switch e.children[0].node_type {
         case .Ident(callee):
-            if callee.ident_name(symbols.names) == "type_arg_is_ref" {
+            query := type_arg_query_name(callee.ident_name(symbols.names), scope, symbols)
+            if query == "type_arg_is_ref" || query == "type_arg_is_ref_mut" {
                 switch e.children[1].node_type {
                 case .Ident(arg):
-                    if ref_params.has(arg.ident_name(symbols.names)) { set_ref_arg(e, 1) }
+                    if ref_params.has(arg.ident_name(symbols.names)) { set_ref_arg(e, 1, ref_params[arg.ident_name(symbols.names)]) }
                     // The qualifier belongs to the formal type argument, not
                     // to its substituted expression (which can be Vec(Str)).
                     if type_params.has(arg.ident_name(symbols.names)) {
                         def_o := scope.lookup_func_by_sym(callee.ident_sym(), symbols)
                         if def_o.is_some() {
                             if funcdef_of(def_o.unwrap()).sig.func_type.is_core() {
-                                value := get_ref_arg(e, 1)
+                                value := get_ref_arg(e, 1, query == "type_arg_is_ref_mut")
                                 e.node_type = NodeType.Literal(Literal.Bool(value))
                                 e.children.clear()
                                 return
@@ -5476,6 +5495,7 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
         ctx.type_instance_args.set(decl_of(stmt).name, own type_args)
     }
     mut cloned := ret_val.clone()
+    init_mark_qualifier_queries(cloned, ref_params, type_params, scope, ctx.symbols)
     init_substitute_type_params(cloned, subs, ref_params, ctx.symbols)
     init_expand_member_generators(cloned, macros, scope, ctx, mark_ctx, nested_synthesized)
     init_hoist_walk(cloned, macros, scope, ctx, nested_synthesized, mark_ctx)
