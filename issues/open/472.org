@@ -3068,3 +3068,48 @@ output directory, ~bin/til.exe~ there and ~bin/til~ elsewhere. The stamp
 now names the compiler without a trailing ~.exe~ (~set_reuse_stamps~).
 On every other host the stamp is unchanged. Not run on Windows from
 here.
+
+*** Run 3148: the reproducibility test with the toolchain inside the checkout
+
+a773e44 (#483) moved every windows build to the pinned llvm-mingw, and
+run 3148 stopped in "Build for windows-x64 and windows-x86 reproducibly":
+~test/reproducible_build.til~ found the program built in its second root
+different from the one built in the checkout.
+
+The test's second root stands for a second checkout: a copy of the
+compiler, ~src/~, the forward header, and for a mac target
+~vendor/macos~. A windows program's headers are the C compiler's own, and
+the debug info names their directory as seen from the build's directory:
+~./vendor/llvm-mingw/...~ from the checkout, where til's map of the
+build directory to ~.~ covers it. The second root was built with the
+first checkout's compiler (it is the one on PATH), which is not under the
+second root, so its program named ~/home/runner/work/til/til/vendor/...~.
+With Ubuntu's mingw gcc the headers were in ~/usr~ for both roots and the
+question never came up.
+
+Fixed in the test, which was the unfaithful part: a second checkout has
+its own ~vendor/llvm-mingw~. When the windows compiler on PATH is this
+checkout's, the second root gets a copy (~cp -a~: the package is full of
+symlinks) and builds with it first on PATH. Reproduced here with a
+stand-in compiler under ~vendor/llvm-mingw~ that writes its own
+directory, as ~-ffile-prefix-map~ renames it, into its output: the old
+test fails as in CI (the second root's file holds the checkout's absolute
+path), the new one passes (both hold ~./vendor/llvm-mingw/bin~).
+
+What this leaves, stated plainly: til's output for a windows target
+names the C compiler's directory, so two builds agree when the toolchain
+stands at the same place relative to the build's directory (every CI
+host: ~vendor/llvm-mingw~ of the checkout) or at the same absolute path.
+A program built from another directory with the toolchain somewhere else
+names that place. It is the question #504 asks about the host's C
+library on linux targets, for the compiler's own directory; no map of the
+toolchain's directory is added here.
+
+**** nng for macos-arm64 from a Linux host, for reference
+
+Run 3146's Linux x64 job got as far as the nng printout: cmake 4.4.5,
+~CMAKE_OSX_SYSROOT~ empty, make program ~/usr/bin/gmake~, flags
+~-nostdlibinc -isystem <checkout>/vendor/macos/include -Wall -Wextra
+-fno-omit-frame-pointer -O3 -DNDEBUG -std=gnu99 -fPIC~, and the object's
+build-version load command at offset 264: platform 1 (macOS), minimum
+11.0, SDK 0, no tools. The Mac's printout is what is still missing.

@@ -31,13 +31,15 @@ copy_tree_checked := proc(source: Str, destination: Str) {
     if copy_tree(source, destination) != 0 { panic("cannot copy ", source, " to ", destination) }
 }
 
-// Run the compiler at its path relative to `root`, from `root`.
-compile := proc(root: Str, compiler: Str, target_flag: Str, what: Str, arguments: ..Str) {
+// Run the compiler at its path relative to `root`, from `root`, with `path`
+// as its PATH.
+compile := proc(root: Str, path: Str, compiler: Str, target_flag: Str, what: Str, arguments: ..Str) {
     command := Cmd.new(format("./", compiler))
     for argument : Str in arguments { command.arg(argument) }
     if target_flag.len() > 0 { command.arg(target_flag) }
     command.arg(what)
     command.cwd(root)
+    command.env("PATH", path)
     command.capture()
     if command.run() != 0 {
         panic(command.render(), " in ", root, ": ", command.out(), command.err())
@@ -45,16 +47,45 @@ compile := proc(root: Str, compiler: Str, target_flag: Str, what: Str, arguments
 }
 
 // What the compiler holds for `source` just before a backend (#472 level 1).
-observation := proc(root: Str, compiler: Str, target_flag: Str, source: Str) returns Str {
+observation := proc(root: Str, path: Str, compiler: Str, target_flag: Str, source: Str) returns Str {
     command := Cmd.new(format("./", compiler), "ast", "--phase=prepared")
     if target_flag.len() > 0 { command.arg(target_flag) }
     command.arg(source)
     command.cwd(root)
+    command.env("PATH", path)
     command.capture()
     if command.run() != 0 {
         panic(command.render(), " in ", root, ": ", command.err())
     }
     return command.out()
+}
+
+// The PATH the second root builds with. A windows target is built by the
+// x86_64-/i686-w64-mingw32-gcc on PATH, and that compiler's own directory
+// holds the headers a program includes: the debug info names it as seen
+// from the build's directory. The pinned llvm-mingw stands inside the
+// checkout (vendor/llvm-mingw, `bin/make llvm_mingw`), so a second checkout
+// has its own, at the same place; with this checkout's one the second
+// root's program named the first root's absolute path (CI run 3148). A
+// compiler outside the checkout is the same one from both roots.
+second_root_path := proc(target_flag: Str) returns Str {
+    path := get_env("PATH")
+    if target_flag.contains("windows").not() { return path }
+    mut cc := "x86_64-w64-mingw32-gcc"
+    if target_flag.contains("windows-x86") { cc = "i686-w64-mingw32-gcc" }
+    for entry : Str in path.split(":") {
+        if File.is_file(format(entry, "/", cc)).not() { continue }
+        // REM The first one on PATH is the one til runs.
+        if File.is_dir("vendor/llvm-mingw/bin").not() { return path }
+        if realpath_str(entry) != realpath_str("vendor/llvm-mingw/bin") { return path }
+        mkdir_p(format(SECOND, "/vendor"))
+        // REM cp, not copy_tree: the package is full of symlinks, which
+        // copy_tree refuses.
+        Cmd.new("cp", "-a", "vendor/llvm-mingw", format(SECOND, "/vendor/llvm-mingw")).run_checked()
+        return format(realpath_str(format(SECOND, "/vendor/llvm-mingw/bin")), ":", path)
+    }
+    panic("no ", cc, " on PATH")
+    return ""
 }
 
 same_file := proc(what: Str, first: Str, second: Str) {
@@ -86,6 +117,9 @@ main := proc(args: ..Str) {
     // from the checkout.
     if target_flag.contains("macos") { copy_tree_checked("vendor/macos", format(SECOND, "/vendor/macos")) }
 
+    here_path := get_env("PATH")
+    second_path := second_root_path(target_flag)
+
     program := "mode script\nwords := vec(Str, \"same\", \"bytes\")\nprintln(words[0], \" \", words[1])\n"
     library := "mode lib\nreproducible_sum := func(a: I64, b: I64) returns I64 { return a + b }\n"
     for root : Str in array(Str, ".", SECOND) {
@@ -105,20 +139,20 @@ main := proc(args: ..Str) {
 
     // Here, then twice in the second root with a pause between: file
     // times are whole seconds on some file systems.
-    compile(".", compiler, target_flag, program_source, "build", "-o", binary, "-c", generated)
-    compile(".", compiler, target_flag, library_source, "build")
-    compile(SECOND, compiler, target_flag, program_source, "build", "-o", binary, "-c", generated)
-    compile(SECOND, compiler, target_flag, library_source, "build")
+    compile(".", here_path, compiler, target_flag, program_source, "build", "-o", binary, "-c", generated)
+    compile(".", here_path, compiler, target_flag, library_source, "build")
+    compile(SECOND, second_path, compiler, target_flag, program_source, "build", "-o", binary, "-c", generated)
+    compile(SECOND, second_path, compiler, target_flag, library_source, "build")
     mkdir_p(format(WORK, "/first"))
     copy_checked(format(SECOND, "/", binary), format(WORK, "/first/program.bin"))
     for output : Str in library_outputs {
         copy_checked(format(SECOND, "/", output), format(WORK, "/first/", output.replace("/", "_")))
     }
     sleep_ms(1100)
-    compile(SECOND, compiler, target_flag, program_source, "build", "--force-rebuild", "-o", binary, "-c", generated)
-    compile(SECOND, compiler, target_flag, library_source, "build", "--force-rebuild")
+    compile(SECOND, second_path, compiler, target_flag, program_source, "build", "--force-rebuild", "-o", binary, "-c", generated)
+    compile(SECOND, second_path, compiler, target_flag, library_source, "build", "--force-rebuild")
 
-    if observation(".", compiler, target_flag, program_source) != observation(SECOND, compiler, target_flag, program_source) {
+    if observation(".", here_path, compiler, target_flag, program_source) != observation(SECOND, second_path, compiler, target_flag, program_source) {
         panic("two checkout roots: the observations of ", program_source, " before a backend differ")
     }
     same_file("two checkout roots", binary, format(SECOND, "/", binary))
