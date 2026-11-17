@@ -1213,12 +1213,17 @@ gui_targets := proc(b: Build) returns Vec(GuiTarget) {
         cc_option = "--riscv32-cc=<path> (or RISCV32_CC)", raylib_cflags = x11_cflags()))
     // mingw supplies the win32 GL/GDI backend, so the windows builds
     // need no sysroot and no X11 headers.
+    // tinyfd 2.9.3 takes __GNUC__ < 5 for a gcc without C99's swprintf,
+    // and clang reports gcc 4.2.1 unless told otherwise: its two-argument
+    // call does not compile. A flag, not an edit: the vendored source
+    // stays upstream's (issue #488's rule).
+    tinyfd_windows := format(WINDOWS_CFLAGS, " -fgnuc-version=5")
     out.push(own GuiTarget(target = "windows-x64", platform_os = "WINDOWS",
         cc = "x86_64-w64-mingw32-gcc", ar = "x86_64-w64-mingw32-ar",
-        raylib_cflags = WINDOWS_CFLAGS, tinyfd_cflags = WINDOWS_CFLAGS))
+        raylib_cflags = WINDOWS_CFLAGS, tinyfd_cflags = tinyfd_windows.clone()))
     out.push(own GuiTarget(target = "windows-x86", platform_os = "WINDOWS",
         cc = "i686-w64-mingw32-gcc", ar = "i686-w64-mingw32-ar",
-        raylib_cflags = WINDOWS_CFLAGS, tinyfd_cflags = WINDOWS_CFLAGS))
+        raylib_cflags = WINDOWS_CFLAGS, tinyfd_cflags = tinyfd_windows.clone()))
     // A mac host builds its own arch natively, against the vendored X11
     // headers like before; anything else is build_mac_raylib/tinyfd.
     for arch : Str in MAC_ARCHES.split(" ") {
@@ -1409,7 +1414,9 @@ build_gui_tinyfd := proc(mut b: Build, target: Str) {
         argv.push(own "-Wextra")
         argv.push(own "-fPIC")
     }
-    if t.tinyfd_cflags.is_empty().not() { argv.push(own t.tinyfd_cflags.clone()) }
+    for flag : Str in t.tinyfd_cflags.split(" ") {
+        if flag.is_empty().not() { argv.push(own flag.clone()) }
+    }
     argv.push(own "-c")
     argv.push(own "-o")
     argv.push(own obj.clone())

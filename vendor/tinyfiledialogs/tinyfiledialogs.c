@@ -588,8 +588,7 @@ static void RGB2HexW(
 	{
 		if (aRGB)
 		{
-/* til (issue #483): clang reports __GNUC__ 4, and has the C99 swprintf. */
-#if defined(__GNUC__) && __GNUC__ < 5 && !defined(__clang__)
+#if defined(__GNUC__) && __GNUC__ < 5
 swprintf(aoResultHexRGB, L"#%02hhx%02hhx%02hhx", aRGB[0], aRGB[1], aRGB[2]);
 #else
 swprintf(aoResultHexRGB, 8, L"#%02hhx%02hhx%02hhx", aRGB[0], aRGB[1], aRGB[2]);
