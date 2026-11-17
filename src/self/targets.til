@@ -283,6 +283,34 @@ priv macos_cross_args := proc(target: Target) returns Str {
     return " -nostdlibinc -isystem vendor/macos/include"
 }
 
+// #472: clang puts the time of the compile in the header of every COFF
+// object it writes (TimeDateStamp), so no two compiles of one file gave
+// the same object: a til library's .o and .a for a windows target
+// differed from run to run on one host, while everything linked from the
+// objects was equal (CI run 3146: one file compiled twice two seconds
+// apart). -mno-incremental-linker-compatible writes zero there;
+// SOURCE_DATE_EPOCH does not change it. mingw's gcc writes zero already
+// and rejects the flag, so the compiler is asked which one it is.
+windows_object_args := proc(target: Target, compiler: Str) returns Str {
+    if is_windows_target(target).not() { return "" }
+    if compiler_is_clang(compiler).not() { return "" }
+    return " -mno-incremental-linker-compatible"
+}
+
+// `compiler` may carry flags after the program's name, as a --cc can.
+priv compiler_is_clang := proc(compiler: Str) returns Bool {
+    probe := Cmd.new()
+    for word : Str in compiler.split(" ") {
+        if word.len() > 0 { probe.arg(word) }
+    }
+    probe.arg("--version")
+    probe.capture()
+    if probe.run() != 0 {
+        panic("cannot run ", compiler, " --version to tell clang from gcc: ", probe.err())
+    }
+    return probe.out().contains("clang")
+}
+
 // Link-only companion to macos_cross_args: -fuse-ld=lld and -L mean
 // nothing on -c compiles and clang -Werror rejects them as unused
 // arguments there, so the builder appends these only to command lines

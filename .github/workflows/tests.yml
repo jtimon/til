@@ -330,26 +330,6 @@ jobs:
           mkdir -p tmp/probe
           (cd tmp/probe && x86_64-w64-mingw32-ar x ../../vendor/libffi/build-windows-x64/.libs/libffi.a types.o)
           x86_64-w64-mingw32-objdump -h -t -s tmp/probe/types.o
-          # Runs 3138 and 3141: that dump is the same from the three hosts,
-          # and the object's hash still differs between them and between two
-          # runs on one host, while what is linked from the objects is equal.
-          # The dump leaves out the file header, which has a time field, the
-          # relocations and the string table: every byte of the object, and
-          # one file compiled twice two seconds apart, as is and in the two
-          # ways that could fix the time.
-          od -A d -t x1 tmp/probe/types.o
-          printf 'int f(int a) { return a + 1; }\n' > tmp/probe/twice.c
-          for name in plain flag epoch; do
-            flag=""
-            if [ "$name" = flag ]; then flag="-mno-incremental-linker-compatible"; fi
-            if [ "$name" = epoch ]; then export SOURCE_DATE_EPOCH=1; fi
-            x86_64-w64-mingw32-gcc $flag -c tmp/probe/twice.c -o tmp/probe/${name}_1.o
-            sleep 2
-            x86_64-w64-mingw32-gcc $flag -c tmp/probe/twice.c -o tmp/probe/${name}_2.o
-            unset SOURCE_DATE_EPOCH
-            sha256sum tmp/probe/${name}_1.o tmp/probe/${name}_2.o
-            od -A d -t x1 -N 20 tmp/probe/${name}_2.o
-          done
           mkdir -p tmp/hashes-binary-windows
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary-windows/linux-arm64.txt bin/til windows-x64
           # Run 3138: the two Linux hosts write the same til.exe and the
@@ -1124,26 +1104,6 @@ jobs:
           mkdir -p tmp/probe
           (cd tmp/probe && x86_64-w64-mingw32-ar x ../../vendor/libffi/build-windows-x64/.libs/libffi.a types.o)
           x86_64-w64-mingw32-objdump -h -t -s tmp/probe/types.o
-          # Runs 3138 and 3141: that dump is the same from the three hosts,
-          # and the object's hash still differs between them and between two
-          # runs on one host, while what is linked from the objects is equal.
-          # The dump leaves out the file header, which has a time field, the
-          # relocations and the string table: every byte of the object, and
-          # one file compiled twice two seconds apart, as is and in the two
-          # ways that could fix the time.
-          od -A d -t x1 tmp/probe/types.o
-          printf 'int f(int a) { return a + 1; }\n' > tmp/probe/twice.c
-          for name in plain flag epoch; do
-            flag=""
-            if [ "$name" = flag ]; then flag="-mno-incremental-linker-compatible"; fi
-            if [ "$name" = epoch ]; then export SOURCE_DATE_EPOCH=1; fi
-            x86_64-w64-mingw32-gcc $flag -c tmp/probe/twice.c -o tmp/probe/${name}_1.o
-            sleep 2
-            x86_64-w64-mingw32-gcc $flag -c tmp/probe/twice.c -o tmp/probe/${name}_2.o
-            unset SOURCE_DATE_EPOCH
-            sha256sum tmp/probe/${name}_1.o tmp/probe/${name}_2.o
-            od -A d -t x1 -N 20 tmp/probe/${name}_2.o
-          done
           mkdir -p tmp/hashes-binary-windows
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-windows/linux-x64.txt bin/til windows-x64
           # Run 3138: the two Linux hosts write the same til.exe and the
@@ -1816,26 +1776,6 @@ jobs:
           mkdir -p tmp/probe
           (cd tmp/probe && x86_64-w64-mingw32-ar x ../../vendor/libffi/build-windows-x64/.libs/libffi.a types.o)
           x86_64-w64-mingw32-objdump -h -t -s tmp/probe/types.o
-          # Runs 3138 and 3141: that dump is the same from the three hosts,
-          # and the object's hash still differs between them and between two
-          # runs on one host, while what is linked from the objects is equal.
-          # The dump leaves out the file header, which has a time field, the
-          # relocations and the string table: every byte of the object, and
-          # one file compiled twice two seconds apart, as is and in the two
-          # ways that could fix the time.
-          od -A d -t x1 tmp/probe/types.o
-          printf 'int f(int a) { return a + 1; }\n' > tmp/probe/twice.c
-          for name in plain flag epoch; do
-            flag=""
-            if [ "$name" = flag ]; then flag="-mno-incremental-linker-compatible"; fi
-            if [ "$name" = epoch ]; then export SOURCE_DATE_EPOCH=1; fi
-            x86_64-w64-mingw32-gcc $flag -c tmp/probe/twice.c -o tmp/probe/${name}_1.o
-            sleep 2
-            x86_64-w64-mingw32-gcc $flag -c tmp/probe/twice.c -o tmp/probe/${name}_2.o
-            unset SOURCE_DATE_EPOCH
-            sha256sum tmp/probe/${name}_1.o tmp/probe/${name}_2.o
-            od -A d -t x1 -N 20 tmp/probe/${name}_2.o
-          done
           mkdir -p tmp/hashes-binary-windows
           ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary windows-x64 tmp/hashes-binary-windows/windows-x64.txt bin/til.exe windows-x64
           # Run 3138: the two Linux hosts write the same til.exe and the

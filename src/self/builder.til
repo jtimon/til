@@ -63,7 +63,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
 
     mut compiler := cc_override
     if compiler.len() == 0 { compiler = toolchain_command(target, Lang.C) }
-    extra := toolchain_extra_args(target).format(build_flags)
+    extra := toolchain_extra_args(target).format(build_flags, windows_object_args(target, compiler))
 
     // ASAN builds run under the same full -Werror as non-ASAN. Historically
     // -fsanitize=address inserted __asan_* hooks that mutated the CFG enough
@@ -343,7 +343,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         if wasm_gui { compiler = "emcc" }
         else { compiler = toolchain_command(target, Lang.C) }
     }
-    mut extra := toolchain_extra_args(target)
+    mut extra := toolchain_extra_args(target).format(windows_object_args(target, compiler))
     if wasm_gui {
         // emcc (clang-based) needs the emscripten -s link/runtime flags on
         // top of the warning flags; no -Wno-* suppressions here either.
@@ -1990,7 +1990,11 @@ set_reuse_stamps := proc(mut lp: LoadedProgram, command: Str, custom_bin: Str, c
     translation.push(own "translation")
     translation.push(own backend.clone())
     translation.push(own lp.compiler_revision.clone())
-    translation.push(own path_from_dir(realpath_str(compiler), out_dir))
+    // The compiler by its name without the host's executable suffix: a
+    // Windows host runs bin/til.exe where the others run bin/til, and the
+    // stamp of the same program for the same target differed by that alone
+    // (CI run 3142: a program built on Windows differed in .rdata).
+    translation.push(own path_from_dir(realpath_str(compiler), out_dir).strip_suffix(".exe").clone())
     translation.push(own path_from_dir(realpath_str(lp.path), out_dir))
     translation.push(own c_abs.substr(c_slash + 1, c_abs.len() - c_slash - 1).clone())
     translation.push(own target_to_str(target))

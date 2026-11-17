@@ -3023,3 +3023,48 @@ The collect job of run 3142 (master 9dc58e6):
   archive's hash.
 - windows-x64: 28 items equal at width 32; the Windows host as in the
   section above.
+
+*** Run 3146: the windows objects carry the compile time; fixed in til
+
+Run 3146 (master b4662d0) was cancelled after ten minutes by a failing
+job that is not this issue's (~__imp__snprintf~ undefined in the
+"windows-x64 host (run til.exe + nng on windows)" job since 11d497e; the
+#483 session has the log), as run 3145 was. Its Linux x64 job had
+finished the windows trial step by then, with the object probe:
+
+| compile of one file, twice, 2 s apart | header bytes 4..7 | the two objects |
+|----------------------------------------+-------------------+-----------------|
+| as is | 61 43 fc 6a, then 65 43 fc 6a | differ |
+| -mno-incremental-linker-compatible | 00 00 00 00 | identical |
+| SOURCE_DATE_EPOCH=1 | the time again | differ |
+
+Bytes 4..7 of a COFF file header are TimeDateStamp: llvm-mingw's clang
+23.1.5 writes the time of the compile there. That is the whole
+run-to-run difference of the windows objects, and why their dump (which
+prints no header) and everything linked from them (the linker does not
+read it) were equal. Ubuntu's clang 18 writes zero for a mingw target by
+default, mingw's GNU gcc writes zero and rejects the flag.
+
+Fixed in til: ~windows_object_args~ (~src/self/targets.til~) adds
+~-mno-incremental-linker-compatible~ for a windows target when the
+compiler's ~--version~ says clang; ~compile_lib~ and ~compile_c~ use it.
+Checked here with Ubuntu's clang as ~--cc~ and
+~-mincremental-linker-compatible~ forced on: the library's object has a
+zero time with the change and the compile time without it. The probe is
+out of the windows steps again.
+
+Not done here: the vendored windows archives (libffi, nng, raylib,
+secp256k1) are built by ~make.til~ with the same clang and need the same
+flag, cross and native. The #483 session is moving those builds to
+llvm-mingw in ~make.til~ right now and has been sent this finding, so
+that the two changes do not collide; until then ~libffi.a~ and
+~libnng.a~ for windows-x64 stay different from run to run.
+
+**** The build stamp named the compiler with the host's suffix
+
+A program built on the Windows host differed from the Linux hosts' in
+~.rdata~: its build stamp hashes the compiler's path as seen from the
+output directory, ~bin/til.exe~ there and ~bin/til~ elsewhere. The stamp
+now names the compiler without a trailing ~.exe~ (~set_reuse_stamps~).
+On every other host the stamp is unchanged. Not run on Windows from
+here.
