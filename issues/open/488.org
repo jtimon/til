@@ -1,6 +1,46 @@
 # priority: medium
 # category: cleanups
-** OPEN #488 Restore pristine upstream raylib and upstream the Android lifecycle fixes
+** WIP #488 Restore pristine upstream raylib and upstream the Android lifecycle fixes
+
+*** Investigation (2026-11-17)
+
+The imported upstream revision is ~f9ea60738547fed4e9a2e16af6c5b83b08475281~,
+recorded by subtree import ~c988ff2c2~ and its squashed source tree
+~7bef6031f6093abc0d51408c0ac8b75080495efc~. Comparing that complete tree with
+the tracked ~vendor/raylib/~ tree identifies exactly two modified files:
+~src/platforms/rcore_android.c~ and ~src/shell.html~. The latter is til's
+custom browser UI from ~d7ab3d31c~, so restoring pristine vendor sources
+also requires preserving that UI in a first-party source location.
+
+The paused-destroy polling fix is already upstream:
+[[https://github.com/raysan5/raylib/pull/6040][PR #6040]], commit
+~7ee0b08647b9d11185b106614087eb68ef44c65a~ (2026-08-07). It adds the same
+break after ~destroyRequested~ that the downstream fix added.
+
+Current upstream master ~476557af33e3d01dbf03690298e3c2cd31cc0fa1~
+(2026-11-17, header version ~6.5-dev~) still lacks the EGL cleanup fix.
+Verified with an unmodified archive of that revision, the reference NDK
+r30 clang, upstream native-app glue, and a minimal C-only NativeActivity
+program calling InitWindow, a draw loop and CloseWindow. No til compiler,
+runtime or patched raylib source participates in that reproducer.
+
+On API 35 / 16384-byte pages: launch, Home, resume, then remove the app's
+identified root task with ~am stack remove~. Native teardown returns, so
+the polling fix works, but the native thread logs:
+
+#+begin_example
+APP_CMD_DESTROY
+REPRO: before CloseWindow, context=0x0 surface=0x0
+E libEGL: call to OpenGL ES API with no current context (logged once per thread)
+Window closed successfully
+REPRO: CloseWindow returned
+#+end_example
+
+Local evidence is in ~tmp/raylib488_native.c~, ~tmp/raylib488_build.py~,
+~tmp/raylib488_run.py~, ~tmp/raylib488_run.log~ and
+~tmp/raylib488_upstream.logcat~. The owned SDK-managed emulator was
+stopped after the check. A pristine vendor replacement must retain correct
+EGL cleanup as well as the already-upstream polling fix.
 
 *** Decision
 
