@@ -23,7 +23,8 @@ checkers_acceptance_source := func(game: Str) returns Str {
         "  mut count : I64 = 0\n  for column in 0..8 { if checkers_red(checkers_pixel(image, column*80+40, row*80+120)) { count++ } }\n  return count\n}\n",
         "checkers_click := proc(x: I32, y: I32) { gui_mouse_move(x,y); gui_mouse_button(0,1) }\n",
         "checkers_frame := proc() {\n  EndDrawing(); checkers_frames++\n",
-        "  if checkers_frames == 1 {\n    image := LoadImageFromScreen()\n",
+        // REM: frame 2, not 1 -- see the frame 1 read in examples/gui_rectangle.til.
+        "  if checkers_frames == 2 {\n    image := LoadImageFromScreen()\n",
         "    if GetScreenWidth() != 720 || GetScreenHeight() != 800 { panic(\"checkers window size\") }\n",
         "    if checkers_red_row(image,5) != 4 || checkers_red_row(image,4) != 0 { panic(\"checkers initial board\") }\n",
         "    UnloadImage(image)\n  }\n",

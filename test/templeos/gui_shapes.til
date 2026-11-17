@@ -23,19 +23,25 @@ main := proc() {
     blue := Color(r=0, g=0, b=170, a=255)
     red := Color(r=170, g=0, b=0, a=255)
     white := Color(r=255, g=255, b=255, a=255)
-    BeginDrawing()
-    ClearBackground(black)
-    DrawRectangle(20, 20, 80, 80, blue)
-    DrawRectangle(30, 30, 20, 20, Color(r=255, g=255, b=255, a=0))
-    DrawRectangle(340, 20, 20, 20, Color(r=255, g=255, b=255, a=128))
-    DrawCircle(140, 100, 20, Color(r=255, g=255, b=255, a=128))
-    BeginScissorMode(120, 90, 15, 20)
-    DrawCircle(140, 100, 20, red)
-    EndScissorMode()
-    DrawCircle(260, 100, 10.5, white)
-    DrawText("X".c_str, 200, 200, 20, white)
-    DrawText("X".c_str, 240, 200, 14, white)
-    EndDrawing()
+    // REM: read after the scene's second frame. GL leaves the back buffer
+    // undefined after a swap; Mesa on Windows exchanges buffers, so a read
+    // right after the first EndDrawing returned the never-drawn one (CI run
+    // 3141). Two identical frames make the read the drawn scene either way.
+    for _ in 0..2 {
+        BeginDrawing()
+        ClearBackground(black)
+        DrawRectangle(20, 20, 80, 80, blue)
+        DrawRectangle(30, 30, 20, 20, Color(r=255, g=255, b=255, a=0))
+        DrawRectangle(340, 20, 20, 20, Color(r=255, g=255, b=255, a=128))
+        DrawCircle(140, 100, 20, Color(r=255, g=255, b=255, a=128))
+        BeginScissorMode(120, 90, 15, 20)
+        DrawCircle(140, 100, 20, red)
+        EndScissorMode()
+        DrawCircle(260, 100, 10.5, white)
+        DrawText("X".c_str, 200, 200, 20, white)
+        DrawText("X".c_str, 240, 200, 14, white)
+        EndDrawing()
+    }
     image := LoadImageFromScreen()
     if same_color(GetImageColor(image, 40, 40), blue).not() { panic("GUI transparent rectangle") }
     check_gray(GetImageColor(image, 350, 30))

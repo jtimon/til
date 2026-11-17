@@ -11,7 +11,11 @@ main := proc() {
         ClearBackground(background)
         DrawRectangle(160, 120, 320, 240, foreground)
         EndDrawing()
-        if frame == 0 {
+        // REM: read after the scene's second frame. GL leaves the back buffer
+        // undefined after a swap; Mesa on Windows exchanges buffers, so a read
+        // right after the first EndDrawing returned the never-drawn one (CI run
+        // 3141). Two identical frames make the read the drawn scene either way.
+        if frame == 1 {
             image := LoadImageFromScreen()
             inside := GetImageColor(image, 200, 200)
             outside := GetImageColor(image, 20, 20)

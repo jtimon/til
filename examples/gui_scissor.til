@@ -155,7 +155,11 @@ main := proc() {
         DrawRectangle(296, 48, 8, 8, white)
         scissor_edges()
         EndDrawing()
-        if frame == 0 {
+        // REM: read after the scene's second frame. GL leaves the back buffer
+        // undefined after a swap; Mesa on Windows exchanges buffers, so a read
+        // right after the first EndDrawing returned the never-drawn one (CI run
+        // 3141). Two identical frames make the read the drawn scene either way.
+        if frame == 1 {
             image := LoadImageFromScreen()
             scissor_check_pane(image, 40, blue)
             scissor_check_pane(image, 320, green)
