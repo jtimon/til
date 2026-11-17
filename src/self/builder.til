@@ -63,7 +63,8 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
 
     mut compiler := cc_override
     if compiler.len() == 0 { compiler = toolchain_command(target, Lang.C) }
-    extra := toolchain_extra_args(target).format(build_flags, windows_object_args(target, compiler))
+    extra := toolchain_extra_args(target).format(build_flags, windows_object_args(target, compiler),
+        windows_toolchain_map_args(target, compiler))
 
     // ASAN builds run under the same full -Werror as non-ASAN. Historically
     // -fsanitize=address inserted __asan_* hooks that mutated the CFG enough
@@ -349,7 +350,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         // top of the warning flags; no -Wno-* suppressions here either.
         extra = " -Wall -Wextra -sUSE_GLFW=3 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1"
     }
-    extra = extra.format(build_flags)
+    extra = extra.format(build_flags, windows_toolchain_map_args(target, compiler))
 
     // ASAN builds run under the same full -Werror as non-ASAN (single cc
     // invocation, so the flags cover compile and link in one go).

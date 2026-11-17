@@ -295,8 +295,13 @@ windows_object_args := proc(target: Target, compiler: Str) returns Str {
     return " -mno-incremental-linker-compatible"
 }
 
-// `compiler` may carry flags after the program's name, as a --cc can.
 priv compiler_is_clang := proc(compiler: Str) returns Bool {
+    return compiler_version(compiler).contains("clang")
+}
+
+// What `compiler --version` prints. `compiler` may carry flags after the
+// program's name, as a --cc can.
+priv compiler_version := proc(compiler: Str) returns Str {
     probe := Cmd.new()
     for word : Str in compiler.split(" ") {
         if word.len() > 0 { probe.arg(word) }
@@ -306,7 +311,29 @@ priv compiler_is_clang := proc(compiler: Str) returns Bool {
     if probe.run() != 0 {
         panic("cannot run ", compiler, " --version to tell clang from gcc: ", probe.err())
     }
-    return probe.out().contains("clang")
+    return probe.out()
+}
+
+// #472/#483: debug info names the windows toolchain's own headers (the
+// mingw-w64 ones, clang's) by their path, so where llvm-mingw is installed
+// reached the binary: a second checkout using the first one's
+// vendor/llvm-mingw built another program (CI run 3148, reproducible_build
+// for windows-x64). Its install prefix -- clang's InstalledDir less /bin,
+// spelled as clang spells its header paths -- is recorded as "llvm-mingw"
+// instead. It has to come after the working-directory map
+// (c_path_map_flags): of two maps that match, the last one wins. A gcc
+// prints no InstalledDir; its headers are at fixed system paths.
+windows_toolchain_map_args := proc(target: Target, compiler: Str) returns Str {
+    if is_windows_target(target).not() { return "" }
+    marker := "InstalledDir: "
+    for line : Str in compiler_version(compiler).split("\n") {
+        if line.starts_with(marker) {
+            bin := line.substr(marker.len(), line.len() - marker.len()).trim().replace("\\", "/")
+            if bin.ends_with("/bin").not() { panic("clang's InstalledDir is not a bin directory: ", bin) }
+            return format(" -ffile-prefix-map=", shell_path(bin.strip_suffix("/bin")), "=llvm-mingw")
+        }
+    }
+    return ""
 }
 
 // Link-only companion to macos_cross_args: -fuse-ld=lld and -L mean
