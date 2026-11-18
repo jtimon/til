@@ -77,7 +77,11 @@ test_cmd_reports_exit_code := test() {
 
 // A signal is not an exit code: the status comes back negated so a
 // killed child cannot be mistaken for one that exited with 128+n.
+// REM Windows has no signals: a process ends with an exit code, and MSYS2's
+// sh that kills itself ends with 9<<8 (2304, CI run 3159), which is that
+// shell's encoding, not a signal til could report.
 test_cmd_reports_signal_death := test() {
+    if host_os() == "windows" { return }
     c := Cmd.new("sh", "-c", "kill -9 $$")
     assert_eq(I64, c.run(), -9)
 }

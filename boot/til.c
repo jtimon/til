@@ -8151,6 +8151,7 @@ static Option__ref_ffi_type safe_ref__ffi_type(ffi_type * value);
 static Str priv___src_self_builder_til__runtime_link_identity_args(Target * target, Str * basename, Str * import_path);
 static Str priv___src_self_builder_til__runtime_dependency_args(Target * target, Str * shared_path, Str * import_path);
 static Str priv___src_self_builder_til__core_gc_link_args(Target * target);
+static void priv___src_self_builder_til__place_staged(Str * staged, Str * final);
 static I32 priv___src_self_builder_til__compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags, Target * target, Str * cc_override, Bool asan, Bool usize64, Bool shared_runtime, Str * runtime_stem, Str * runtime_basename, Str * core_stem, Str * core_basename, Str * build_flags, Str * build_stamp);
 static Bool priv___src_self_builder_til__loads_gui_module(LoadedProgram * lp);
 static Str priv___src_self_builder_til__resolve_target_archive(Str * arg, Str * root);
@@ -19862,100 +19863,100 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_binder_walk_header_293), "./src/self/binder.til:1553:25", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_binder_walk_header_361), "./src/self/binder.til:1602:17", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_binder_walk_header_5), "./src/self/binder.til:1309:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_build_tools_21), "./src/self/builder.til:1354:26", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_build_tools_3), "./src/self/builder.til:1344:33", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_debug_key_3), "./src/self/builder.til:1381:26", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_debug_key_9), "./src/self/builder.til:1383:28", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_platform_jar_20), "./src/self/builder.til:1372:44", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_platform_jar_3), "./src/self/builder.til:1360:33", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_platform_jar_66), "./src/self/builder.til:1375:30", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_sdk_root_28), "./src/self/builder.til:1338:34", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_sdk_root_3), "./src/self/builder.til:1334:30", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_version_rank_28), "./src/self/builder.til:1327:17", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_version_rank_33), "./src/self/builder.til:1327:47", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_version_rank_38), "./src/self/builder.til:1327:74", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_body_21), "./src/self/builder.til:3022:34", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_11), "./src/self/builder.til:2864:28", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_17), "./src/self/builder.til:2865:27", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_23), "./src/self/builder.til:2868:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_29), "./src/self/builder.til:2872:30", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_35), "./src/self/builder.til:2873:28", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_5), "./src/self/builder.til:2860:18", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_sidebar_group_8), "./src/self/builder.til:3182:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_sidebar_page_4), "./src/self/builder.til:3151:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_verbatim_block_15), "./src/self/builder.til:2984:26", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_build_jni_44), "./src/self/builder.til:1558:30", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_build_jni_51), "./src/self/builder.til:1575:41", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_build_jni_56), "./src/self/builder.til:1575:35", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_build_program_58), "./src/self/builder.til:1621:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_check_generated_sizes_for_target_in_20), "./src/self/builder.til:827:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_check_generated_sizes_for_target_in_35), "./src/self/builder.til:820:12", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_check_generated_sizes_for_target_in_41), "./src/self/builder.til:824:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_check_generated_sizes_for_target_in_6), "./src/self/builder.til:814:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_collect_unit_doc_catalog_11), "./src/self/builder.til:2506:41", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_collect_unit_doc_catalog_18), "./src/self/builder.til:2500:36", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_collect_unit_doc_catalog_4), "./src/self/builder.til:2496:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_android_apk_26), "./src/self/builder.til:1413:31", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_android_apk_41), "./src/self/builder.til:1417:73", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_android_apk_52), "./src/self/builder.til:1430:32", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_android_apk_56), "./src/self/builder.til:1432:29", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_ast_11), "./src/self/builder.til:1014:11", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_c_41), "./src/self/builder.til:428:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_lib_327), "./src/self/builder.til:224:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_derive_build_paths_13), "./src/self/builder.til:594:32", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_derive_build_paths_89), "./src/self/builder.til:643:11", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_catalog_lookup_16), "./src/self/builder.til:2535:5", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_catalog_page_first_11), "./src/self/builder.til:3140:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_catalog_page_first_4), "./src/self/builder.til:3138:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_expand_til_links_27), "./src/self/builder.til:2605:32", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_expand_til_links_33), "./src/self/builder.til:2606:31", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_find_link_end_13), "./src/self/builder.til:2549:5", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_html_path_5), "./src/self/builder.til:2835:43", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_html_sidebar_capacity_17), "./src/self/builder.til:3219:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_ensure_parent_dir_5), "./src/self/builder.til:3481:28", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_expand_doc_catalog_links_12), "./src/self/builder.til:2620:17", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_expand_doc_catalog_links_17), "./src/self/builder.til:2621:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_fold_generated_sizes_in_11), "./src/self/builder.til:756:44", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_fold_generated_sizes_in_6), "./src/self/builder.til:753:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_fold_generated_sizes_to_target_11), "./src/self/builder.til:787:53", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_fold_generated_sizes_to_target_16), "./src/self/builder.til:788:60", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_fold_generated_sizes_to_target_6), "./src/self/builder.til:786:48", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_holyc_size_for_target_is_size_6), "./src/self/builder.til:904:54", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_make_build_dirs_16), "./src/self/builder.til:670:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_make_build_dirs_20), "./src/self/builder.til:674:40", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_make_build_dirs_30), "./src/self/builder.til:677:38", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_make_build_dirs_34), "./src/self/builder.til:678:38", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_make_build_dirs_40), "./src/self/builder.til:680:37", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_make_build_dirs_5), "./src/self/builder.til:653:38", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_make_build_dirs_60), "./src/self/builder.til:688:35", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_path_from_dir_33), "./src/self/builder.til:1927:69", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_path_from_dir_38), "./src/self/builder.til:1927:91", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_path_from_dir_73), "./src/self/builder.til:1933:32", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_path_from_dir_92), "./src/self/builder.til:1933:32", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_program_declares_value_macro_21), "./src/self/builder.til:1718:33", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_program_declares_value_macro_6), "./src/self/builder.til:1715:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_require_doc_output_9), "./src/self/builder.til:3074:42", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_generated_hashes_in_15), "./src/self/builder.til:858:25", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_generated_hashes_in_20), "./src/self/builder.til:862:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_generated_hashes_in_35), "./src/self/builder.til:871:16", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_generated_hashes_in_47), "./src/self/builder.til:859:22", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_hash_byte_count_11), "./src/self/builder.til:840:23", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_hash_byte_count_6), "./src/self/builder.til:836:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_size_for_target_calls_to_size_31), "./src/self/builder.til:892:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_size_for_target_calls_to_size_36), "./src/self/builder.til:897:42", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_size_for_target_calls_to_size_41), "./src/self/builder.til:898:15", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_size_for_target_calls_to_size_44), "./src/self/builder.til:891:8", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_size_for_target_calls_to_size_51), "./src/self/builder.til:894:8", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_target_size_literal_20), "./src/self/builder.til:714:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_target_size_literal_4), "./src/self/builder.til:703:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_target_size_literal_42), "./src/self/builder.til:708:32", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_target_size_literal_51), "./src/self/builder.til:737:26", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_til_doc_out_path_7), "./src/self/builder.til:3461:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_translate_ast_12), "./src/self/builder.til:932:11", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_translate_ast_25), "./src/self/builder.til:937:47", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_translate_ast_32), "./src/self/builder.til:939:37", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_translation_stamp_line_21), "./src/self/builder.til:1950:11", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_verify_doc_html_body_renderer_5), "./src/self/builder.til:3089:75", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_build_tools_21), "./src/self/builder.til:1372:26", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_build_tools_3), "./src/self/builder.til:1362:33", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_debug_key_3), "./src/self/builder.til:1399:26", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_debug_key_9), "./src/self/builder.til:1401:28", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_platform_jar_20), "./src/self/builder.til:1390:44", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_platform_jar_3), "./src/self/builder.til:1378:33", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_platform_jar_66), "./src/self/builder.til:1393:30", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_sdk_root_28), "./src/self/builder.til:1356:34", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_sdk_root_3), "./src/self/builder.til:1352:30", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_version_rank_28), "./src/self/builder.til:1345:17", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_version_rank_33), "./src/self/builder.til:1345:47", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_version_rank_38), "./src/self/builder.til:1345:74", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_body_21), "./src/self/builder.til:3040:34", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_11), "./src/self/builder.til:2882:28", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_17), "./src/self/builder.til:2883:27", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_23), "./src/self/builder.til:2886:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_29), "./src/self/builder.til:2890:30", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_35), "./src/self/builder.til:2891:28", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_5), "./src/self/builder.til:2878:18", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_sidebar_group_8), "./src/self/builder.til:3200:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_sidebar_page_4), "./src/self/builder.til:3169:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_verbatim_block_15), "./src/self/builder.til:3002:26", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_build_jni_44), "./src/self/builder.til:1576:30", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_build_jni_51), "./src/self/builder.til:1593:41", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_build_jni_56), "./src/self/builder.til:1593:35", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_build_program_58), "./src/self/builder.til:1639:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_check_generated_sizes_for_target_in_20), "./src/self/builder.til:845:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_check_generated_sizes_for_target_in_35), "./src/self/builder.til:838:12", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_check_generated_sizes_for_target_in_41), "./src/self/builder.til:842:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_check_generated_sizes_for_target_in_6), "./src/self/builder.til:832:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_collect_unit_doc_catalog_11), "./src/self/builder.til:2524:41", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_collect_unit_doc_catalog_18), "./src/self/builder.til:2518:36", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_collect_unit_doc_catalog_4), "./src/self/builder.til:2514:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_android_apk_26), "./src/self/builder.til:1431:31", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_android_apk_41), "./src/self/builder.til:1435:73", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_android_apk_52), "./src/self/builder.til:1448:32", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_android_apk_56), "./src/self/builder.til:1450:29", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_ast_11), "./src/self/builder.til:1032:11", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_c_41), "./src/self/builder.til:446:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_lib_327), "./src/self/builder.til:242:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_derive_build_paths_13), "./src/self/builder.til:612:32", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_derive_build_paths_89), "./src/self/builder.til:661:11", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_catalog_lookup_16), "./src/self/builder.til:2553:5", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_catalog_page_first_11), "./src/self/builder.til:3158:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_catalog_page_first_4), "./src/self/builder.til:3156:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_expand_til_links_27), "./src/self/builder.til:2623:32", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_expand_til_links_33), "./src/self/builder.til:2624:31", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_find_link_end_13), "./src/self/builder.til:2567:5", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_html_path_5), "./src/self/builder.til:2853:43", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_html_sidebar_capacity_17), "./src/self/builder.til:3237:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_ensure_parent_dir_5), "./src/self/builder.til:3499:28", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_expand_doc_catalog_links_12), "./src/self/builder.til:2638:17", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_expand_doc_catalog_links_17), "./src/self/builder.til:2639:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_fold_generated_sizes_in_11), "./src/self/builder.til:774:44", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_fold_generated_sizes_in_6), "./src/self/builder.til:771:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_fold_generated_sizes_to_target_11), "./src/self/builder.til:805:53", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_fold_generated_sizes_to_target_16), "./src/self/builder.til:806:60", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_fold_generated_sizes_to_target_6), "./src/self/builder.til:804:48", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_holyc_size_for_target_is_size_6), "./src/self/builder.til:922:54", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_make_build_dirs_16), "./src/self/builder.til:688:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_make_build_dirs_20), "./src/self/builder.til:692:40", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_make_build_dirs_30), "./src/self/builder.til:695:38", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_make_build_dirs_34), "./src/self/builder.til:696:38", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_make_build_dirs_40), "./src/self/builder.til:698:37", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_make_build_dirs_5), "./src/self/builder.til:671:38", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_make_build_dirs_60), "./src/self/builder.til:706:35", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_path_from_dir_33), "./src/self/builder.til:1945:69", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_path_from_dir_38), "./src/self/builder.til:1945:91", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_path_from_dir_73), "./src/self/builder.til:1951:32", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_path_from_dir_92), "./src/self/builder.til:1951:32", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_program_declares_value_macro_21), "./src/self/builder.til:1736:33", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_program_declares_value_macro_6), "./src/self/builder.til:1733:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_require_doc_output_9), "./src/self/builder.til:3092:42", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_generated_hashes_in_15), "./src/self/builder.til:876:25", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_generated_hashes_in_20), "./src/self/builder.til:880:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_generated_hashes_in_35), "./src/self/builder.til:889:16", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_generated_hashes_in_47), "./src/self/builder.til:877:22", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_hash_byte_count_11), "./src/self/builder.til:858:23", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_hash_byte_count_6), "./src/self/builder.til:854:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_size_for_target_calls_to_size_31), "./src/self/builder.til:910:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_size_for_target_calls_to_size_36), "./src/self/builder.til:915:42", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_size_for_target_calls_to_size_41), "./src/self/builder.til:916:15", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_size_for_target_calls_to_size_44), "./src/self/builder.til:909:8", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_size_for_target_calls_to_size_51), "./src/self/builder.til:912:8", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_target_size_literal_20), "./src/self/builder.til:732:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_target_size_literal_4), "./src/self/builder.til:721:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_target_size_literal_42), "./src/self/builder.til:726:32", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_target_size_literal_51), "./src/self/builder.til:755:26", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_til_doc_out_path_7), "./src/self/builder.til:3479:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_translate_ast_12), "./src/self/builder.til:950:11", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_translate_ast_25), "./src/self/builder.til:955:47", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_translate_ast_32), "./src/self/builder.til:957:37", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_translation_stamp_line_21), "./src/self/builder.til:1968:11", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_verify_doc_html_body_renderer_5), "./src/self/builder.til:3107:75", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_c_codegen_binding_mark_imports_4), "./src/self/codegen/c_codegen.til:8819:9", 39ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_c_codegen_binding_relative_import_15), "./src/self/codegen/c_codegen.til:8797:52", 40ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_c_codegen_binding_relative_import_29), "./src/self/codegen/c_codegen.til:8802:24", 40ULL},
@@ -458865,6 +458866,22 @@ static Str priv___src_self_builder_til__core_gc_link_args(Target * target) {
     __builtin_unreachable();
 }
 
+static void priv___src_self_builder_til__place_staged(Str * staged, Str * final) {
+    Bool hoisted__Bool_3 = File_is_file(final);
+    if (hoisted__Bool_3) {
+        Str hoisted__Str_self_builder_place_staged_0 = File_readfile(final);
+        Str hoisted__Str_self_builder_place_staged_1 = File_readfile(staged);
+        Bool hoisted__Bool_2 = Str_eq(&hoisted__Str_self_builder_place_staged_0, &hoisted__Str_self_builder_place_staged_1);
+        Str_delete(&hoisted__Str_self_builder_place_staged_0, 0);
+        Str_delete(&hoisted__Str_self_builder_place_staged_1, 0);
+        if (hoisted__Bool_2) {
+            File_remove(staged);
+            return;
+        }
+    }
+    File_rename(staged, final);
+}
+
 static I32 priv___src_self_builder_til__compile_lib(Str * c_path, Str * lib_name, Str * ext_c_path, Str * user_c_path, Str * link_flags, Str * include_flags, Target * target, Str * cc_override, Bool asan, Bool usize64, Bool shared_runtime, Str * runtime_stem, Str * runtime_basename, Str * core_stem, Str * core_basename, Str * build_flags, Str * build_stamp) {
     I64 _err_kind = 0;
     Str uc = Str_clone(user_c_path);
@@ -459281,7 +459298,7 @@ static I32 priv___src_self_builder_til__compile_lib(Str * c_path, Str * lib_name
         U32 hoisted__U32_148 = 2;
         Array__Str_set(&_va_Array_15, hoisted__U32_148, &_til_str_lits.h0000005970a2, &_va_Array_15_ek);
         { Str _new = format(&_va_Array_15); Str_delete(&ext_obj, (Bool){0}); ext_obj = _new; }
-        File_rename(&runtime_obj_tmp, &ext_obj);
+        priv___src_self_builder_til__place_staged(&runtime_obj_tmp, &ext_obj);
         Bool _m_Bool_20 = 0;
         {
             Bool _sw_Bool_21 = ((Bool)((((Target *)(target))->tag) == Target_TAG_WindowsX64));
@@ -459296,9 +459313,9 @@ static I32 priv___src_self_builder_til__compile_lib(Str * c_path, Str * lib_name
             }
         }
         if (_m_Bool_20) {
-            File_rename(&runtime_import_tmp, &runtime_import_path);
+            priv___src_self_builder_til__place_staged(&runtime_import_tmp, &runtime_import_path);
         }
-        File_rename(&runtime_shared_tmp, &runtime_shared_path);
+        priv___src_self_builder_til__place_staged(&runtime_shared_tmp, &runtime_shared_path);
         U32 hoisted__U32_150 = 2;
         Array__Str _va_Array_16 = Array__Str_new(hoisted__U32_150);
         I64 _va_Array_16_ek = 0;
@@ -459538,7 +459555,7 @@ static I32 priv___src_self_builder_til__compile_lib(Str * c_path, Str * lib_name
         U32 hoisted__U32_250 = 2;
         Array__Str_set(&_va_Array_23, hoisted__U32_250, &_til_str_lits.h0000005970a2, &_va_Array_23_ek);
         Str core_obj = format(&_va_Array_23);
-        File_rename(&core_obj_tmp, &core_obj);
+        priv___src_self_builder_til__place_staged(&core_obj_tmp, &core_obj);
         Str_delete(&core_obj, 0);
         Bool _m_Bool_34 = 0;
         {
@@ -459554,9 +459571,9 @@ static I32 priv___src_self_builder_til__compile_lib(Str * c_path, Str * lib_name
             }
         }
         if (_m_Bool_34) {
-            File_rename(&core_import_tmp, &core_import_path);
+            priv___src_self_builder_til__place_staged(&core_import_tmp, &core_import_path);
         }
-        File_rename(&core_shared_tmp, &core_shared_path);
+        priv___src_self_builder_til__place_staged(&core_shared_tmp, &core_shared_path);
         File_remove_tree(&stage);
         Str_delete(&stage, 0);
         U32 hoisted__U32_252 = 3;
@@ -489480,8 +489497,8 @@ int main(int argc, char **argv) {
     C_LIB_ABI_LAYOUT = (Str){.c_str = TIL_OWN_LIT("_til_abi_layout", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-055b53471", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("055b53471cb5d31389c6bcc778fc506279681193", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-e18828743", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("e18828743d8d89aca01abfac3aac5aa625b23cb0", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

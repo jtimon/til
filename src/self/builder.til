@@ -49,6 +49,24 @@ priv core_gc_link_args := func(target: Target) returns Str {
     }
 }
 
+// #483: move a file this build made in its stage directory to its place
+// in gen/lib. A concurrent build of the same revision may have put the same
+// bytes there first and be linking against it or running it, and Windows
+// does not replace a file in use, where a POSIX rename does (CI run 3159:
+// Win32 error 5 on libtilcore-...dll.a, failing library_namespace and
+// ffi_lib_layout). Then the bytes in place are already this build's, and
+// the staged copy goes; different bytes are still moved, and still fail
+// loudly if Windows refuses.
+priv place_staged := proc(staged: Str, final: Str) {
+    if File.is_file(final) {
+        if File.readfile(final) == File.readfile(staged) {
+            File.remove(staged)
+            return
+        }
+    }
+    File.rename(staged, final)
+}
+
 priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
         user_c_path: Str, link_flags: Str, include_flags: Str, target: Target,
         cc_override: Str, asan: Bool, usize64: Bool, shared_runtime: Bool,
@@ -153,11 +171,11 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
             return 1
         }
         ext_obj = format("gen/lib/", runtime_stem, ".o")
-        File.rename(runtime_obj_tmp, ext_obj)
+        place_staged(runtime_obj_tmp, ext_obj)
         if target.is(Target.WindowsX64).or(target.is(Target.WindowsX86)) {
-            File.rename(runtime_import_tmp, runtime_import_path)
+            place_staged(runtime_import_tmp, runtime_import_path)
         }
-        File.rename(runtime_shared_tmp, runtime_shared_path)
+        place_staged(runtime_shared_tmp, runtime_shared_path)
 
         core_shared_path = format("gen/lib/", core_basename)
         core_import_path = format("gen/lib/lib", core_stem, ".dll.a")
@@ -187,11 +205,11 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
             return 1
         }
         core_obj := format("gen/lib/", core_stem, ".o")
-        File.rename(core_obj_tmp, core_obj)
+        place_staged(core_obj_tmp, core_obj)
         if target.is(Target.WindowsX64).or(target.is(Target.WindowsX86)) {
-            File.rename(core_import_tmp, core_import_path)
+            place_staged(core_import_tmp, core_import_path)
         }
-        File.rename(core_shared_tmp, core_shared_path)
+        place_staged(core_shared_tmp, core_shared_path)
         File.remove_tree(stage)
 
         shared_obj_path = format("gen/lib/", lib_name, "_shared.o")
