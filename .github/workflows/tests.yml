@@ -366,23 +366,21 @@ jobs:
           rm -rf vendor/libffi/build-macos-arm64 vendor/libffi/build-macos-x64 vendor/nng/build-macos-arm64 vendor/nng/build-macos-x64
           make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
           make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
-          # Run 3142: on the arm64 Mac every object of libnng.a still differs
-          # from the two Linux hosts' (equal), with the same cmake command
-          # and no SDK named, and cmake finds sem_wait, pthread_atfork and
-          # pthread_setname_np "in pthread" there and not on Linux. What
-          # cmake compiles with, how that check links, and the header and
-          # load commands of one nng object beside one of libffi (equal on
-          # all three), to read from the three logs.
-          env | grep -E "^(SDKROOT|MACOSX_DEPLOYMENT_TARGET|DEVELOPER_DIR)=" || true
-          cmake --version | head -1
-          cat vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/flags.make
-          grep -E "OSX|SYSROOT|DEPLOYMENT|MAKE_PROGRAM" vendor/nng/build-macos-arm64/CMakeCache.txt
-          grep -A 12 "DCHECK_FUNCTION_EXISTS=sem_wait" vendor/nng/build-macos-arm64/CMakeFiles/CMakeConfigureLog.yaml | head -40
-          od -A d -t x1 -N 512 vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/src/platform/posix/posix_alloc.c.o
-          od -A d -t x1 -N 512 vendor/libffi/build-macos-arm64/src/types.o
+          # Run 3162: this Mac's libffi.a for macos-arm64 and the til linked
+          # with it differed from the two Linux hosts' in the lists, where
+          # runs 3158 and 3159 had them equal, with the same configure and
+          # compile lines in all three logs. Run 3163: the Mac's members are
+          # the ones of run 3162 and the archive is another file again. The
+          # archive's hash and members, and the two headers configure
+          # writes, where the archive is built and again where it is
+          # listed: is it replaced in between, or built from other headers?
+          for f in .libs/libffi.a fficonfig.h include/ffi.h; do sha256sum "vendor/libffi/build-macos-arm64/$f" 2>/dev/null || shasum -a 256 "vendor/libffi/build-macos-arm64/$f"; done
+          llvm-ar tv vendor/libffi/build-macos-arm64/.libs/libffi.a
           make vendor/raylib/build-android-x64/libraylib.a vendor/raylib/build-android-arm64/libraylib.a
           ./bin/til run test/reproducible_build.til bin/til android-x64
           ./bin/til run test/reproducible_build.til bin/til android-arm64
+          for f in .libs/libffi.a fficonfig.h include/ffi.h; do sha256sum "vendor/libffi/build-macos-arm64/$f" 2>/dev/null || shasum -a 256 "vendor/libffi/build-macos-arm64/$f"; done
+          llvm-ar tv vendor/libffi/build-macos-arm64/.libs/libffi.a
           mkdir -p tmp/hashes-binary-mac
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary-mac/linux-arm64.txt bin/til macos-arm64 macos-x64 android-x64 android-arm64
       - name: Upload the mac binary hash lists
@@ -1100,20 +1098,16 @@ jobs:
           rm -rf vendor/libffi/build-macos-arm64 vendor/libffi/build-macos-x64 vendor/nng/build-macos-arm64 vendor/nng/build-macos-x64
           make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
           make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
-          # Run 3142: on the arm64 Mac every object of libnng.a still differs
-          # from the two Linux hosts' (equal), with the same cmake command
-          # and no SDK named, and cmake finds sem_wait, pthread_atfork and
-          # pthread_setname_np "in pthread" there and not on Linux. What
-          # cmake compiles with, how that check links, and the header and
-          # load commands of one nng object beside one of libffi (equal on
-          # all three), to read from the three logs.
-          env | grep -E "^(SDKROOT|MACOSX_DEPLOYMENT_TARGET|DEVELOPER_DIR)=" || true
-          cmake --version | head -1
-          cat vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/flags.make
-          grep -E "OSX|SYSROOT|DEPLOYMENT|MAKE_PROGRAM" vendor/nng/build-macos-arm64/CMakeCache.txt
-          grep -A 12 "DCHECK_FUNCTION_EXISTS=sem_wait" vendor/nng/build-macos-arm64/CMakeFiles/CMakeConfigureLog.yaml | head -40
-          od -A d -t x1 -N 512 vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/src/platform/posix/posix_alloc.c.o
-          od -A d -t x1 -N 512 vendor/libffi/build-macos-arm64/src/types.o
+          # Run 3162: this Mac's libffi.a for macos-arm64 and the til linked
+          # with it differed from the two Linux hosts' in the lists, where
+          # runs 3158 and 3159 had them equal, with the same configure and
+          # compile lines in all three logs. Run 3163: the Mac's members are
+          # the ones of run 3162 and the archive is another file again. The
+          # archive's hash and members, and the two headers configure
+          # writes, where the archive is built and again where it is
+          # listed: is it replaced in between, or built from other headers?
+          for f in .libs/libffi.a fficonfig.h include/ffi.h; do sha256sum "vendor/libffi/build-macos-arm64/$f" 2>/dev/null || shasum -a 256 "vendor/libffi/build-macos-arm64/$f"; done
+          llvm-ar tv vendor/libffi/build-macos-arm64/.libs/libffi.a
           # SDK-capable x64 producer: local checks compare signed APKs with
           # one debug key; the collector hashes the aligned unsigned payload.
           export TMPDIR="$PWD/tmp"
@@ -1123,8 +1117,38 @@ jobs:
           make vendor/raylib/build-android-x64/libraylib.a vendor/raylib/build-android-arm64/libraylib.a
           ./bin/til run test/reproducible_build.til bin/til android-x64
           ./bin/til run test/reproducible_build.til bin/til android-arm64
+          for f in .libs/libffi.a fficonfig.h include/ffi.h; do sha256sum "vendor/libffi/build-macos-arm64/$f" 2>/dev/null || shasum -a 256 "vendor/libffi/build-macos-arm64/$f"; done
+          llvm-ar tv vendor/libffi/build-macos-arm64/.libs/libffi.a
           mkdir -p tmp/hashes-binary-mac
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-mac/linux-x64.txt bin/til macos-arm64 macos-x64 android-x64 android-arm64
+          # The Intel Mac cannot build its own target with the pinned LLVM:
+          # LLVM publishes no build for it. llvm-mingw's macOS package is
+          # universal and carries the same clang 23.1.5, but no ld64.lld and
+          # no dsymutil. Asked here, where both toolchains are: does
+          # llvm-mingw's clang, with its lld under the name ld64.lld, write
+          # the til for macos-x64 that the pinned LLVM just wrote, at the
+          # same paths? Whole files, and the code and data sections in case
+          # the files differ. An answer for the log; it fails nothing.
+          mkdir -p tmp/mingw-as-mac tmp/mingw-as-mac-out
+          for tool in clang llvm-ar llvm-ranlib; do ln -sf "$PWD/vendor/llvm-mingw/bin/$tool" "tmp/mingw-as-mac/$tool"; done
+          ln -sf "$PWD/vendor/llvm-mingw/bin/lld" tmp/mingw-as-mac/ld64.lld
+          ln -sf "$PWD/vendor/llvm/bin/dsymutil" tmp/mingw-as-mac/dsymutil
+          ls -l vendor/llvm-mingw/bin/clang vendor/llvm-mingw/bin/lld || true
+          cp tmp/ci_collect/binary_macos-x64/til tmp/mingw-as-mac-out/til.llvm
+          if (export PATH="$PWD/tmp/mingw-as-mac:$PATH" && clang --version && ld64.lld --version &&
+              ./bin/til build --force-rebuild --target=macos-x64 -o tmp/ci_collect/binary_macos-x64/til -c tmp/ci_collect/binary_macos-x64/til.c src/til.til); then
+            cp tmp/ci_collect/binary_macos-x64/til tmp/mingw-as-mac-out/til.mingw
+            sha256sum tmp/mingw-as-mac-out/til.llvm tmp/mingw-as-mac-out/til.mingw
+            for section in __TEXT,__text __TEXT,__const __TEXT,__cstring __DATA,__data __DATA_CONST,__const; do
+              for built in llvm mingw; do
+                llvm-objcopy --dump-section "$section=tmp/mingw-as-mac-out/section" "tmp/mingw-as-mac-out/til.$built" tmp/mingw-as-mac-out/copy || true
+                echo "$built $section $(sha256sum < tmp/mingw-as-mac-out/section | cut -c1-16)"
+                rm -f tmp/mingw-as-mac-out/section
+              done
+            done
+          else
+            echo "llvm-mingw's clang and lld did not build macos-x64's til"
+          fi
       - name: Upload the mac binary hash lists
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -1610,7 +1634,9 @@ jobs:
           # links nng and a link_c bridge: the archive and its DLL twin from
           # the step above, and for the interpreted bridge llvm-mingw's
           # dlltool (interpreter.til, ffi_init_user_so).
-          x86_64-w64-mingw32-dlltool --version | head -1
+          # REM llvm-dlltool has no --version: it printed its usage and
+          # failed the step (CI run 3159). Where it is, then.
+          command -v x86_64-w64-mingw32-dlltool
           mkdir -p tmp
           compiler=$(cygpath -w "$PWD/winhost/til.exe")
           if ! ./winhost/til.exe run --force-rebuild -o tmp/link_objects_driver.exe -c tmp/link_objects_driver.c test/link_objects.til "$compiler" > tmp/link_objects.out 2>&1; then
@@ -1985,22 +2011,19 @@ jobs:
           clang --version
           clang --version | grep -q "clang version 23.1.5"
           ld64.lld --version
-          rm -rf vendor/libffi/build-macos-arm64 vendor/nng/build-macos-arm64
+          rm -rf vendor/libffi/build-macos-arm64 vendor/nng/build-macos-arm64 vendor/libffi/build-macos-x64 vendor/nng/build-macos-x64
           ./bin/make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/nng/build-macos-arm64/libnng.a
-          # Run 3142: on the arm64 Mac every object of libnng.a still differs
-          # from the two Linux hosts' (equal), with the same cmake command
-          # and no SDK named, and cmake finds sem_wait, pthread_atfork and
-          # pthread_setname_np "in pthread" there and not on Linux. What
-          # cmake compiles with, how that check links, and the header and
-          # load commands of one nng object beside one of libffi (equal on
-          # all three), to read from the three logs.
-          env | grep -E "^(SDKROOT|MACOSX_DEPLOYMENT_TARGET|DEVELOPER_DIR)=" || true
-          cmake --version | head -1
-          cat vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/flags.make
-          grep -E "OSX|SYSROOT|DEPLOYMENT|MAKE_PROGRAM" vendor/nng/build-macos-arm64/CMakeCache.txt
-          grep -A 12 "DCHECK_FUNCTION_EXISTS=sem_wait" vendor/nng/build-macos-arm64/CMakeFiles/CMakeConfigureLog.yaml | head -40
-          od -A d -t x1 -N 512 vendor/nng/build-macos-arm64/CMakeFiles/nng.dir/src/platform/posix/posix_alloc.c.o
-          od -A d -t x1 -N 512 vendor/libffi/build-macos-arm64/src/types.o
+          ./bin/make vendor/libffi/build-macos-x64/.libs/libffi.a vendor/nng/build-macos-x64/libnng.a
+          # Run 3162: this Mac's libffi.a for macos-arm64 and the til linked
+          # with it differed from the two Linux hosts' in the lists, where
+          # runs 3158 and 3159 had them equal, with the same configure and
+          # compile lines in all three logs. Run 3163: the Mac's members are
+          # the ones of run 3162 and the archive is another file again. The
+          # archive's hash and members, and the two headers configure
+          # writes, where the archive is built and again where it is
+          # listed: is it replaced in between, or built from other headers?
+          for f in .libs/libffi.a fficonfig.h include/ffi.h; do sha256sum "vendor/libffi/build-macos-arm64/$f" 2>/dev/null || shasum -a 256 "vendor/libffi/build-macos-arm64/$f"; done
+          llvm-ar tv vendor/libffi/build-macos-arm64/.libs/libffi.a
           # The macOS SDK producer compares the same unsigned APK payload as
           # Linux x64; its independently created debug signature is excluded.
           export TMPDIR="$PWD/tmp"
@@ -2010,14 +2033,41 @@ jobs:
           ./bin/make vendor/raylib/build-android-x64/libraylib.a vendor/raylib/build-android-arm64/libraylib.a
           ./bin/til run test/reproducible_build.til bin/til android-x64
           ./bin/til run test/reproducible_build.til bin/til android-arm64
+          for f in .libs/libffi.a fficonfig.h include/ffi.h; do sha256sum "vendor/libffi/build-macos-arm64/$f" 2>/dev/null || shasum -a 256 "vendor/libffi/build-macos-arm64/$f"; done
+          llvm-ar tv vendor/libffi/build-macos-arm64/.libs/libffi.a
           mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary/macos-arm64.txt bin/til macos-arm64 android-x64 android-arm64
+          # macos-x64 too: the Intel Mac has no pinned LLVM to build its own
+          # target with, so this Mac is the third host that builds it.
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary/macos-arm64.txt bin/til macos-arm64 macos-x64 android-x64 android-arm64
       - name: Upload the binary hash list
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-macos-arm64
           path: tmp/hashes-binary/macos-arm64.txt
+      # Issue #472: windows-x64 from this Mac, with the pinned llvm-mingw the
+      # host-cross step above unpacked: the fourth host that builds
+      # til.exe. Last on PATH, not first: til finds the windows compiler by
+      # its prefixed name, and a `clang` ahead of Apple's would make til
+      # build this Mac's own programs (the collector here) without the SDK
+      # and with a linker llvm-mingw does not have. On trial and
+      # continue-on-error.
+      - name: Write the windows binary hash list with the pinned llvm-mingw
+        continue-on-error: true
+        run: |
+          export PATH="$PATH:$PWD/vendor/llvm-mingw/bin"
+          x86_64-w64-mingw32-gcc --version
+          x86_64-w64-mingw32-gcc --version | grep -q clang
+          rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
+          ./bin/make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
+          mkdir -p tmp/hashes-binary-windows
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary-windows/macos-arm64.txt bin/til windows-x64
+      - name: Upload the windows binary hash list
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-windows-macos-arm64
+          path: tmp/hashes-binary-windows/macos-arm64.txt
       # Guard Malloc puts every allocation on its own guarded page, so
       # an out-of-bounds or use-after-free write faults AT THE CULPRIT
       # INSTRUCTION (even from uninstrumented code like libffi asm) and

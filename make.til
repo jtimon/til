@@ -1701,11 +1701,16 @@ build_nng_target := proc(mut b: Build, target: Str) {
             // the default FILEPATH cmake resolves them against the cwd.
             argv.push(own "-DCMAKE_AR:STRING=llvm-ar")
             argv.push(own "-DCMAKE_RANLIB:STRING=llvm-ranlib")
-            // No SDK: on a Mac host cmake finds Apple's and compiles with
-            // -isysroot, and every object then differed from the ones the
-            // other hosts build (CI run 3138; a Mach-O object records the
-            // SDK it was built against). Empty on every host.
-            argv.push(own "-DCMAKE_OSX_SYSROOT=")
+            // The SDK is named, as vendor/macos, on every host. Left
+            // empty, cmake 4 on a Mac host finds Apple's for a compiler
+            // that names none itself and passes -isysroot with it: every
+            // object then recorded that SDK's version (26.5 where the
+            // other hosts' say none), and the configure checks that link
+            // -lpthread found the host's (CI runs 3142 and 3158, read from
+            // flags.make and the configure log). vendor/macos has no
+            // SDKSettings.json and no usr/, so naming it changes nothing in
+            // what a host without an SDK builds.
+            argv.push(own format("-DCMAKE_OSX_SYSROOT=", get_cwd_str(), "/vendor/macos"))
         }
     }
     if cflags.is_empty().not() { argv.push(own format("-DCMAKE_C_FLAGS=", cflags)) }
@@ -1857,6 +1862,9 @@ build_secp256k1_target := proc(mut b: Build, target: Str) {
             argv.push(own "-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
             argv.push(own "-DCMAKE_AR=llvm-ar")
             argv.push(own "-DCMAKE_RANLIB=llvm-ranlib")
+            // REM vendor/macos as the SDK on every host, as for nng
+            // (build_nng_target): a Mac's cmake otherwise adds Apple's.
+            argv.push(own format("-DCMAKE_OSX_SYSROOT=", get_cwd_str(), "/vendor/macos"))
         }
     }
     run_argv(argv)

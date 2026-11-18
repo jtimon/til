@@ -63,6 +63,8 @@ Entry := struct {
     trial := false
 }
 
+realpath_str := ext_proc(path: Str) returns Str {}
+
 fail := proc(message: Str) {
     println("ci_collect: ", message)
     exit(1)
@@ -445,6 +447,49 @@ produce_android_binary := proc(compiler: Str, target: Str, mut lines: Vec(Str)) 
     }
 }
 
+// #472/#473: the til a host builds with `make` and runs the suite on is
+// bin/til, and a host that cross-builds til for that target has to write
+// those bytes: then the cross build needs no test of its own. The
+// generated C's path and the sources' are in the debug info as seen from
+// the build's directory, so the cross build is made the way make makes it
+// (make.til, build_til) -- the same command at the same relative paths --
+// in a root of its own: a copy of src/, the forward header and this
+// compiler as bin/til_boot, and the checkout's vendor/. Measured on one
+// host: a build in such a root is bin/til byte for byte. On the target's
+// own host nothing is built: the file listed is the one the suite ran.
+// Returns the binary's path.
+make_til := proc(compiler: Str, target: Str, directory: Str, extension: Str) returns Str {
+    name := format("bin/til", extension)
+    if target_to_str(detect_current_target()) == target {
+        if File.is_file(name).not() { fail(format(name, " is not built; run make first")) }
+        return name
+    }
+    root := format(directory, "/root")
+    mkdir_p(format(root, "/bin"))
+    mkdir_p(format(root, "/boot"))
+    if copy_tree("src", format(root, "/src")) != 0 { fail(format("cannot copy src to ", root)) }
+    if copy_file("boot/til_forward.h", format(root, "/boot/til_forward.h")) != 0 { fail("cannot copy boot/til_forward.h") }
+    // REM bin/til_boot is the compiler make builds bin/til with; its name
+    // is not in til, which carries no build stamp.
+    own_extension := executable_extension(detect_current_target())
+    boot := format("bin/til_boot", own_extension)
+    if copy_file(compiler, format(root, "/", boot)) != 0 { fail(format("cannot copy ", compiler)) }
+    // REM A copy does not carry the executable bit.
+    executable := Cmd.new("chmod", "+x", format(root, "/", boot))
+    executable.capture()
+    if executable.run() != 0 { fail(format(executable.render(), " failed: ", executable.err())) }
+    // REM The target's archives, headers and stubs: read, not written.
+    link := Cmd.new("ln", "-s", realpath_str("vendor"), format(root, "/vendor"))
+    link.capture()
+    if link.run() != 0 { fail(format(link.render(), " failed: ", link.err())) }
+    build := Cmd.new(format("./", boot), "build", format("--target=", target), "--usize=32", "-o", name,
+        "-c", "gen/til/til.c", "src/til.til")
+    build.cwd(root)
+    build.capture()
+    if build.run() != 0 { fail(format(build.render(), " in ", root, " failed:\n", build.out(), build.err())) }
+    return format(root, "/", name)
+}
+
 // Level "binary": artifacts a run has shown equal between producers; a
 // difference fails the collect job. Level "binary-trial": artifacts being
 // tried; compared and printed the same way, never failing. An artifact
@@ -535,6 +580,11 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         levels.push(own target_level.clone())
         items.push(own "src/til.til til")
         paths.push(own format(til_binary, extension))
+        // The til make builds: the tested file on this target's own host,
+        // the same build in a root of its own on every other.
+        levels.push(own "binary-trial")
+        items.push(own "make bin/til")
+        paths.push(own make_til(compiler, target, directory, extension))
 
         hashes := sha256_of(paths)
         for i, hash in hashes { lines.push(own format(hash, " ", levels[i], " ", target, " c 32 ", items[i])) }
@@ -581,7 +631,7 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
     // matters can be compared between hosts as soon as their jobs end,
     // without waiting for the collect job (which waits for every producer).
     for line : Str in lines {
-        if line.ends_with(" src/til.til til") { println("ci_collect: ", producer, " ", line) }
+        if line.ends_with(" src/til.til til") || line.ends_with(" make bin/til") { println("ci_collect: ", producer, " ", line) }
     }
     println("ci_collect: ", producer, " wrote ", lines.len().to_str(), " lines to ", list)
 }

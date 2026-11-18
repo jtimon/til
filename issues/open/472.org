@@ -3159,3 +3159,178 @@ its CI/signing boundary are [[../fixed/505.org][#505]]. Native cross-host CI equ
 remains on trial until actual producer runs agree. ~make clean && make test~
 passed 588/588. Evidence: ~tmp/android_repro_compare.log~,
 ~tmp/android_repro_llvm_{x64,arm64}.log~ and ~tmp/android_repro_apk_til.log~.
+
+*** The tested bin/til itself goes into the lists (measured 2026-11-17)
+
+Until now the lists compared a SECOND build of til on each host, at
+~tmp/ci_collect/binary_<target>/til~: every producer builds it there, the
+native host included. That shows the toolchains agree. It does not show
+what #473 needs, which is that a cross build equals the ~bin/til~ that
+~make~ built on the target's own host and that the suite ran: that file
+is built at other paths (~-o bin/til -c gen/til/til.c~), and the paths
+are in it.
+
+Measured here, linux-x64: ~make~'s command, run in a root of its own
+that holds a copy of ~src/~, ~boot/til_forward.h~ and the compiler as
+~bin/til_boot~, with the checkout's ~vendor/~ linked in, writes a
+~bin/til~ that is ~make~'s own byte for byte (21364144 bytes, same
+sha256; the generated C too). So the tested file can be reproduced
+elsewhere, and the comparison the plan is about can be made directly.
+
+New item ~make bin/til~ (trial), per target, in ~produce-binary~:
+- on the target's own host: the hash of ~bin/til~ (~bin/til.exe~) as it
+  stands, the file the suite ran; nothing is built;
+- on every other host: ~bin/til_boot build --target=T --usize=32 -o
+  bin/til -c gen/til/til.c src/til.til~ in such a root under
+  ~tmp/ci_collect/binary_T/root~ (~examples/ci_collect.til~, ~make_til~).
+Run here for linux-x64 (lists ~bin/til~), linux-arm64 and macos-arm64
+(built in their roots).
+
+What each target's line will say on the next run:
+- windows-x64: the Windows host's tested ~bin/til.exe~ against the two
+  Linux hosts' builds, and the arm64 Mac's (below). This is the first
+  target where native and cross both use the pinned compiler.
+- linux-x64, linux-arm64: native against cross between the two Linux
+  hosts; the known debug-information difference (#504) is expected.
+- macos-arm64: the Mac's tested ~bin/til~ is built by Apple's toolchain,
+  so it will differ from the Linux hosts' until the Mac's ~make~ uses the
+  pinned LLVM. ~src/til.til til~ stays as the line that shows the pinned
+  build equal on the three hosts.
+
+More producers in the same commit, both on trial:
+- the arm64 Mac lists macos-x64 too, with the pinned LLVM: the third
+  host for that target (the Intel Mac has no pinned LLVM);
+- the arm64 Mac lists windows-x64 with the pinned llvm-mingw (macOS
+  universal build, already unpacked there by the host-cross step): the
+  fourth host for ~til.exe~. llvm-mingw goes last on PATH there, since
+  its ~clang~ ahead of Apple's would turn the Mac's own builds SDK-less.
+
+And one question for the Intel Mac, asked on Linux x64 where both
+toolchains are: llvm-mingw's macOS package is universal and has the same
+clang 23.1.5; it lacks ~ld64.lld~ and ~dsymutil~. The mac step rebuilds
+macos-x64's til with llvm-mingw's clang and its ~lld~ under the name
+~ld64.lld~, at the same paths, and prints both files' hashes and their
+code and data sections. If they are equal, the Intel Mac can build its
+own target with llvm-mingw and become the native producer of macos-x64.
+
+*** Run 3158, complete: why nng differed on the Mac, and the windows library's archive
+
+Run 3158 (master c78c9c6) is the first run that ran every job to the end
+after two Windows jobs had failed (fixed since in f6150b4), and the first
+red one: 2h40 from push to result.
+
+~til~ from the two Linux hosts, whole files, with d755ff8's map of the
+toolchain's directory in: equal for windows-x64 (102f4d803308 at width
+32, b43150765eae at 64), macos-arm64 (e91a1b8e59f5, 0da6fc10f5be) and
+macos-x64 (3a2deee1c810, 2a3a7e82e1c6). The collect job:
+
+| target | producers | equal | different |
+|--------+-----------+-------+-----------|
+| macos-arm64 | Linux x64, Linux arm64, arm64 Mac | 34 + 2 | ~libnng.a~ and its members |
+| macos-x64 | Linux x64, Linux arm64 | 120 + 2 | none |
+| windows-x64 | Linux x64, Linux arm64 | 128 + 2 | ~libci_binary_lib.a~ |
+| linux-arm64, linux-x64 | the two Linux hosts | 125, 127 | debug information (#504) |
+
+The Mac's list has no ~__.SYMDEF~ line any more (llvm-ar on every host).
+
+**** nng on the Mac: cmake adds Apple's SDK by itself
+
+The printout from the arm64 Mac, beside the Linux one:
+
+| | Linux x64 | arm64 Mac |
+|-+-----------+-----------|
+| cmake | 4.4.5 | 4.4.5 |
+| ~CMAKE_OSX_SYSROOT~ in the cache | empty | empty |
+| compile flags | ~... -std=gnu99 -fPIC~ | ~... -std=gnu99 -isysroot /Applications/Xcode_26.6.app/.../MacOSX.sdk -fPIC~ |
+| the object's build version | macOS, min 11.0, SDK 0 | macOS, min 11.0, SDK 26.5 |
+| the ~-lpthread~ checks | not found | found (linked with the same ~-isysroot~) |
+
+No SDKROOT or MACOSX_DEPLOYMENT_TARGET is set there. cmake 4 on a Mac
+host looks up Apple's SDK for a compiler that names none and passes it,
+whatever the cache says; an empty ~CMAKE_OSX_SYSROOT~ (9dc58e6) does not
+stop it. That one flag explains both symptoms: the SDK's version in
+every object, and the three configure checks.
+
+Fixed: ~make.til~ names the SDK, ~<checkout>/vendor/macos~, for the
+SDK-less mac builds of nng and libsecp256k1, so cmake has nothing to
+look up on any host. ~vendor/macos~ has no ~SDKSettings.json~ and no
+~usr/~: built here with and without it, ~libnng.a~ and ~libsecp256k1.a~
+for macos-arm64 are the same bytes, and the configure results are the
+same lines. Whether the Mac then writes those bytes is for the next run;
+the printout is out of the three mac steps.
+
+**** The windows library's .a
+
+~ci_binary_lib.o~ is the same from both Linux hosts now (the object
+flag) and ~libci_binary_lib.a~ is not. til archived a windows library
+with the host's ~ar~: binutils on an x64 host knows the windows object
+format and writes a symbol index, on an arm64 host it does not. Fixed as
+for the mac targets: the target's own archiver on every host,
+~x86_64-w64-mingw32-ar~ / ~i686-w64-mingw32-ar~ (the pinned llvm-mingw's
+llvm-ar; ~windows_archiver~, used in ~compile_lib~). Built here with
+clang standing in for the compiler.
+
+*** Run 3159: til.exe is the same from the Windows host and from Linux
+
+Run 3159 (master f6150b4) is the first in which the native Windows job
+builds with the pinned llvm-mingw and gets to its hash list (make, make
+install and the suite ran; 581 of 584 tests passed there, ~process.til~
+failing twice, which is #483's).
+
+| ~til.exe~ | width 32 | width 64 |
+|-----------+----------+----------|
+| built on the Windows host | 5a51736a7ee2 | 10e7f7a718dc |
+| built on Linux x64 | 5a51736a7ee2 | 10e7f7a718dc |
+
+Whole files. The header-directory copy on Windows (21c7257), the map of
+the toolchain's directory (d755ff8) and the object flag were the three
+things between them. This is the second target, after macos-arm64, whose
+own host writes the bytes the other hosts write, and the first where the
+native build that is TESTED uses the pinned compiler too: the item
+~make bin/til~ in the next run compares that tested file itself.
+
+The run's one failing job, "windows-x64 host (run til.exe + nng on
+windows)", failed on a line of the workflow, not on til:
+~x86_64-w64-mingw32-dlltool --version~. llvm-dlltool has no such option,
+prints its usage and exits 1. The step asks ~command -v~ for it instead.
+
+*** Runs 3159 and 3162: windows-x64 equal on three hosts; the Mac's libffi regressed in the lists
+
+Run 3159 (master f6150b4), collect: windows-x64 has three producers
+(Linux x64, Linux arm64, the Windows host) and 127 items equal at width
+32, 2 at width 64: ~til.exe~ is the same file from all three. What
+differs there is the toolchain item and ~libci_binary_lib.a~ (the
+archiver, fixed above). macos-arm64: 34 items equal on three hosts,
+~libnng.a~ apart.
+
+Run 3162 (master 3618c2c, after the two Android commits c18e10a and
+01034b6), collect: the four Android lines are new and equal on three
+hosts (129 items each). macos-arm64 went from 34 equal items to 20: on
+the arm64 Mac six members of ~libffi.a~ (every C file; the assembly and
+the empty ~tramp.o~ are equal) and with them ~til~ differ from the two
+Linux hosts', which still agree. Read so far, without the cause:
+- the Mac's configure and compile lines for libffi are the same text in
+  runs 3158 and 3162 (69 lines), and so are Linux x64's (79 lines);
+- the first 512 bytes of ~types.o~, printed where it is built, are the
+  same on the Mac and on Linux x64 in run 3162, and the same as in 3158;
+- nothing in the Mac's log rebuilds libffi after that, and no SDKROOT or
+  deployment target is set there;
+- the commits between the two runs change nothing in how til or
+  ~bin/make~ build a mac target; they add, in the same step and before
+  the list is written, an Android SDK install, the Android raylib
+  archives and ~test/reproducible_build.til~ for the two Android
+  targets, with ~TMPDIR~ and ~JAVA_TOOL_OPTIONS~ exported.
+So the file that is listed is not the file that was built, or differs
+past its first 512 bytes.
+
+Run 3163 (master 055b534) repeats it, and adds one fact: the Mac's six
+members have the hashes they had in run 3162 (~types.o~ fd57a7036869 in
+both), while the archive as a whole is another file in each run
+(17086d21c790, then 5299251d8adf); the Linux hosts' archive is
+6696d187006f in both. A member set that is stable and an archive that
+is not is what an archiver that records times writes, and the log shows
+libtool archiving with ~llvm-ar cr~, which records none. The three mac
+steps now print, right after the archive is built and again right before
+the list is written: the sha256 of the archive and of the two headers
+configure writes (~fficonfig.h~, ~include/ffi.h~), and the archive's
+member table with its times.

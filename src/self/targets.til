@@ -353,6 +353,21 @@ android_toolchain_map_args := proc(target: Target, compiler: Str) returns Str {
     return format(" -ffile-prefix-map=", shell_path(resource), "=clang-resource")
 }
 
+// #472: a windows target's static library is archived by the target's own
+// archiver, the pinned llvm-mingw's llvm-ar under its prefixed name, on
+// every host. The host's `ar` wrote two different archives of the same
+// objects on an x64 and an arm64 Linux host (CI run 3158: the library's
+// object equal, its .a not): a host's binutils does not everywhere know
+// the windows object format, and then writes no symbol index.
+windows_archiver := func(target: Target) returns Str {
+    switch target {
+    case .WindowsX64: return "x86_64-w64-mingw32-ar"
+    case .WindowsX86: return "i686-w64-mingw32-ar"
+    case: UNREACHABLE("not a windows target: ", target_to_str(target))
+    }
+    return ""
+}
+
 // Link-only companion to macos_cross_args: -fuse-ld=lld and -L mean
 // nothing on -c compiles and clang -Werror rejects them as unused
 // arguments there, so the builder appends these only to command lines

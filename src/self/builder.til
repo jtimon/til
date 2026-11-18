@@ -299,6 +299,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     if target_links_named_objects(target) { archive = format("llvm-ar rcsD ", a_tmp_path) }
     // Android archives are GNU ELF archives on every host, including macOS.
     if is_android_target(target).and(host_os() == "macos") { archive = format("llvm-ar --format=gnu rcsD ", a_tmp_path) }
+    if is_windows_target(target) { archive = format(windows_archiver(target), " rcsD ", a_tmp_path) }
     cmd = format(archive,
         " ", obj_path, " ", ext_obj,
         user_objs)
