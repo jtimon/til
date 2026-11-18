@@ -44,6 +44,39 @@ test_variadic_str := test() {
     assert_eq(Str, variadic_concat(), "")
 }
 
+priv variadic_ordered_part := proc(mut trace : I64, digit : I64) returns Str {
+    noop_proc()
+    trace = trace * 10 + digit
+    return format("part", digit.to_str())
+}
+
+priv VariadicViewNames := namespace {
+    trim_end := proc(value : Str) returns Str { noop_proc(); return format(value, "!") }
+    strip_suffix := proc(value : Str) returns Str { noop_proc(); return format(value, "!") }
+}
+
+test_variadic_argument_lifetimes := test() {
+    mut trace : I64 = 0
+    source := format("borrowed", " text")
+    result := variadic_concat(source, variadic_ordered_part(trace, 1),
+        variadic_ordered_part(trace, 2), source)
+    assert_eq(I64, trace, 12)
+    assert_eq(Str, result, "borrowed textpart1part2borrowed text")
+    assert_eq(Str, source, "borrowed text")
+    // Nested results and views of hoisted temporaries must stay live through
+    // the collecting call, alongside the original borrowed arguments.
+    nested := format("[", variadic_concat(source, variadic_ordered_part(trace, 3)),
+        "]", variadic_ordered_part(trace, 4))
+    assert_eq(I64, trace, 1234)
+    assert_eq(Str, nested, "[borrowed textpart3]part4")
+    assert_eq(Str, source, "borrowed text")
+    chain := format("[", variadic_ordered_part(trace, 5).strip_suffix("5"), "]")
+    assert_eq(I64, trace, 12345)
+    assert_eq(Str, chain, "[part]")
+    assert_eq(Str, format(VariadicViewNames.trim_end(source)), "borrowed text!")
+    assert_eq(Str, format(VariadicViewNames.strip_suffix(source)), "borrowed text!")
+}
+
 // #157: ..Str varargs auto-wrap non-Str args via T.to_str(). Allows
 // `print(1+1)` etc. to work like Python while keeping types honest --
 // types without a to_str method still error at the typer.

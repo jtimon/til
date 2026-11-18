@@ -7,6 +7,121 @@ and SIMD on the CPU by default. Reuse [[../fixed/318.org][#318]]'s value and
 elementwise-operation semantics inside device code where supported. An APU's
 integrated GPU is still a distinct execution target, even with shared memory.
 
+*** Concrete first-slice proposal (base ae1daf9eb; pending approval)
+
+The programmer writes til kernels and a til host memory/launch API. CUDA is
+the first backend implementation, not the source language or public API.
+Keep the first slice Linux x86-64 host + the available NVIDIA RTX 5090.
+
+- Proposed new public names: ~gpu_kernel~ marks an ordinary til function AST;
+  ~GpuSlice(T)~ describes device-address/count arguments; ~gpu_global_id()~
+  provides a one-dimensional global thread index. The compiler produces a
+  typed host launch wrapper from that SAME function declaration, rather than
+  a separately maintained signature or manifest. Kernel declarations/helpers
+  are checked/prepared by the shared frontend and then validated for the
+  restricted device subset.
+- ~GpuContext.open(index)~, owned ~GpuBuffer(T)~ values, context upload/allocate,
+  buffer readback and the kernel wrapper's explicit grid/block launch are new
+  til APIs requiring approval. Host buffers and device buffers are different
+  types. Open/upload/allocate/launch/readback report an ordinary ~GpuError~;
+  requesting a missing device never silently executes on the CPU.
+- Initially, launch waits for completion before returning. It borrows its
+  input/output device buffers only during that synchronous call. The owner
+  frees each device allocation before closing its context. No event, stream,
+  asynchronous borrow, mapped host memory or unified-memory contract is added
+  in this first slice. Keep the host implementation ordinary C-backed til
+  plus a small driver bridge, independent of the CPU optimizing backend.
+- A SIMD value remains N lanes in ONE thread. The first two demonstrations
+  use one scalar element per thread and an explicit til SIMD group per thread.
+  Kernels explicitly handle tails; partial SIMD groups use scalar til code.
+  Device slices expose unchecked element access whose range the kernel proves.
+  Unsupported host I/O, allocation, exceptions/panic, owning objects, indirect
+  calls and checked operations are compile-time errors at their source sites.
+  No barriers/shared-memory API is needed for vector addition.
+- Reuse frontend preparation/type identities and arithmetic/CFG lowering;
+  do not reuse the CPU SysV callable ABI or link the host C-core/runtime into
+  the kernel. Introduce device address-space handling, NVPTX entry metadata,
+  thread-index intrinsics and a kernel ABI with explicit device pointers and
+  64-bit lengths. Preserve unfused multiply/add, halving reduction order and
+  normalized mask storage rather than enabling fast math.
+
+Proposed artifacts/dependencies, also pending approval: the device emitter
+writes ~gen/gpu/<module>__<kernel>.ptx~ using the existing LLVM 18 NVPTX tools;
+CUDA 13 ~ptxas~ reads it and writes the corresponding ~.cubin~ for sm_120.
+A Linux binary-object embedding step writes ~gen/lib/<module>_gpu.o~; the
+ordinary C link reads that object, and the driver bridge loads its embedded
+cubin through ~libcuda.so.1~. This deliberately retains intermediate PTX and
+cubin PLUS their embedded object representation as ordinary rebuildable
+compiler outputs; no cache, manifest or alternate source of truth is added.
+The build regenerates them from the til AST on request. Existing CPU C output
+cannot supply GPU instructions or kernel metadata. The executable carries its
+device payload, so no separate runtime artifact install layout is required.
+Tradeoff: NVIDIA-specific tool/driver ABI, an extra embedding/link step and
+an explicit initial device architecture. Normal builds must not require CUDA.
+
+Before implementation, approval must cover these exact public names/contracts,
+the ~gen/gpu/~ paths and PTX/cubin formats, embedded object, CUDA 13 tool/header
+dependency and Linux driver bridge. No new CLI flag is proposed here; the
+existing explicit kernel declaration determines device compilation.
+
+*** Source/module and build detail for approval (base d4ead4aec)
+
+The earlier API/artifact proposal leaves its source-module layout implicit.
+Before implementation, explicitly approve these concrete additions as well:
+
+- src/std/gpu.til: the public til API named above, imported as std/gpu.
+  Developers maintain it; the ordinary til loader/typechecker reads it.
+- src/std/gpu.c: the optional Linux NVIDIA driver bridge, compiled through
+  the existing link_c mechanism only when gpu.til is imported. It loads
+  libcuda.so.1 and reports its driver errors. Normal compiler/runtime builds
+  do not compile this file or require a CUDA header/library. The minimal
+  driver ABI declarations live in this bridge; maintaining them is an explicit
+  tradeoff instead of adding a mandatory CUDA header search-path assumption.
+- src/self/codegen/gpu_codegen.til: compiler-side validation/device emission
+  and typed host-wrapper generation from the same marked kernel AST. It is
+  compiled into til; GPU tools are invoked only for explicit kernel builds.
+- gen/gpu/<module>__<kernel>.ptx and .cubin: the emitter and CUDA 13 ptxas
+  write these respectively. Existing CPU C output cannot encode device
+  instructions/kernel metadata. LLVM 18 emits baseline NVPTX; ptxas 13
+  assembles for the initial sm_120 device. Tool-version checks fail explicitly.
+- gen/lib/<module>_gpu.o: a Linux GNU-ld binary embedding step reads cubin
+  and writes this object; the existing host C link consumes it. The resulting
+  executable carries the device payload, and the bridge loads those bytes.
+
+These are ordinary regenerated compiler outputs: PTX and cubin are retained
+in addition to their embedded object representation, not installed caches or
+alternate sources of truth. Rebuilding the kernel regenerates all three.
+The existing installer copies the entire src/std support tree, so the til
+module and optional C source travel together at their source-relative paths;
+there is no new system runtime-library or device-file installation layout.
+The maintenance costs are a NVIDIA driver ABI subset, NVPTX emission and the
+optional ptxas/GNU-ld steps. No new CLI flag, environment variable, persistent
+cache or manifest is proposed. This refines the earlier toolkit/header
+proposal to need the CUDA 13 assembler, not CUDA headers for ordinary builds.
+
+Proposed source usage (illustrative until the exact API is approved):
+
+#+begin_src til
+import("std/gpu")
+add := gpu_kernel(func(a: GpuSlice(F32), b: GpuSlice(F32), mut out: GpuSlice(F32), n: U64) {
+    i := gpu_global_id()
+    if i < n { out.unsafe_set(i, own (a.unsafe_get(i) + b.unsafe_get(i))) }
+})
+main := proc() {
+    ctx := GpuContext.open(0)!
+    a := array(F32, 1, 2, 3)
+    b := array(F32, 4, 5, 6)
+    device_a := ctx.upload(a)!
+    device_b := ctx.upload(b)!
+    device_out := ctx.allocate(F32, a.len())!
+    add.launch(ctx, device_a, device_b, device_out, a.len().to_u64(), grid = 1, block = 128)!
+    result := device_out.readback()!
+    assert_eq(F32, result[2], 9)
+}
+#+end_src
+
+No implementation files or device artifacts have been added by this proposal.
+
 *** Design questions
 
 - Device-function/kernel entry points: what makes code device-callable, what

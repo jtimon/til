@@ -9,6 +9,31 @@ code generated from til and the corresponding host launch/runtime path.
 
 *** Staged experiment
 
+**** Available first target and unverified route (base ae1daf9eb)
+
+Environment research found an NVIDIA RTX 5090 (compute capability 12.0),
+driver 580.196.07 and CUDA 13.0.88 at ~/usr/local/cuda-13.0/bin/nvcc~.
+PATH may select an older CUDA installation, so use the explicit
+CUDA 13 tool location when an approved probe is run. The existing LLVM/MLIR
+toolchain is 18.1.3 and predates sm_120 support.
+
+The candidate route is til -> LLVM/NVPTX baseline PTX -> CUDA 13 ptxas sm_120
+cubin -> embedded host object -> driver launch. This is a DESIGN candidate:
+no PTX/cubin generation, assembler compatibility, device launch or correctness
+has been demonstrated by this research. In particular, LLVM 18 cannot simply
+be told it supports the new GPU. Prove its older PTX output is accepted by
+ptxas 13 before implementing a larger device emitter. See #411's concrete
+pending-approval API/artifact proposal.
+
+After approval, first run the smallest generated til vector addition with
+scalar threads, then the same operation with explicit per-thread SIMD and
+scalar tails. Compare raw finite/zero bits to CPU/interpreter references at
+sizes 0,1,N-1,N,N+1 and larger nonmultiples. Separate compilation, transfers,
+launch/wait and device execution costs. Deliberately exercise unavailable
+devices and bad launch dimensions, and inspect the generated device code.
+Matrix multiplication, a second vendor and an APU remain later acceptance
+items, not evidence supplied by this host/tool inventory.
+
 - Identify an available device and record its vendor/model, driver, compiler
   tools and versions. Propose one code-generation/runtime route and obtain
   approval before installing dependencies or introducing output artifacts.

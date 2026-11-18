@@ -5223,11 +5223,21 @@ priv init_expand_simd := proc(mut stmt: Expr, scope: TypeScope, mut ctx: Context
     }
     if elem == "Bool" {
         for reduction : Str in array(Str, "all", "any") {
-            mut expression := "self.lane0"
             mut op := "and"
             if reduction == "any" { op = "or" }
-            for i in 1..width { expression = format(expression, ".", op, "(self.lane", i.to_str(), ")") }
-            source = format(source, reduction, " := func(self: ", name, ") returns Bool { return ", expression, " }\n")
+            // Keep adjacent lanes in source order, but balance the lazy tree.
+            // A left chain repeatedly clones/types its entire preceding match
+            // subtree during lowering, making wide generated masks quadratic.
+            mut expressions := Vec(Str).new()
+            for i in 0..width { expressions.push(own format("self.lane", i.to_str())) }
+            while expressions.len() > 1 {
+                mut pairs := Vec(Str).new()
+                for i in 0..expressions.len() / 2 {
+                    pairs.push(own format(expressions[i * 2], ".", op, "(", expressions[i * 2 + 1], ")"))
+                }
+                expressions = pairs
+            }
+            source = format(source, reduction, " := func(self: ", name, ") returns Bool { return ", expressions[0], " }\n")
         }
         for bit_op : Str in array(Str, "band", "bor", "bxor") {
             mut bool_op := "and"
@@ -5259,18 +5269,23 @@ priv init_expand_simd := proc(mut stmt: Expr, scope: TypeScope, mut ctx: Context
             source = format(source, "lane", i.to_str(), " = ", name, ".div_lane(a.lane", i.to_str(), ", b.lane", i.to_str(), ")")
         }
         source = format(source, ") }\nreduce_add := func(self: ", name, ") returns ", elem, " {\n")
+        mut sums := Vec(Str).new()
         for i in 0..width {
-            if i < width / 2 { source = format(source, "mut ") }
-            source = format(source, "r", i.to_str(), " := self.lane", i.to_str())
-            if elem.starts_with("I") { source = format(source, ".cast(U", elem.substr(1, elem.len() - 1), ")") }
-            source = format(source, "\n")
+            mut lane := format("self.lane", i.to_str())
+            if elem.starts_with("I") { lane = format(lane, ".cast(U", elem.substr(1, elem.len() - 1), ")") }
+            sums.push(own lane)
         }
         mut half := width / 2
         while half > 0 {
-            for i in 0..half { source = format(source, "r", i.to_str(), " = r", i.to_str(), " + r", (i + half).to_str(), "\n") }
+            for i in 0..half {
+                // The same halving tree, expressed without hundreds of live
+                // mutable reduction locals and reassignment flow queries.
+                sum := format("(", sums[i], " + ", sums[i + half], ")")
+                sums.set(i, own sum)!
+            }
             half = half / 2
         }
-        source = format(source, "return r0")
+        source = format(source, "return ", sums[0])
         if elem.starts_with("I") { source = format(source, ".cast(", elem, ")") }
         source = format(source, "\n}\n")
         if elem.starts_with("F").not() {

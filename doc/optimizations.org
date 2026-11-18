@@ -38,6 +38,222 @@ The observed late tail disappeared despite longer individual durations under
 the initial batch's contention. Other sessions were active, so the wall-time
 difference is not an isolated A/B result; the merge run remains the check.
 
+** Combined MLIR/Preann rebase verification (2026-11-17, #317)
+
+Base: ~d4ead4aec~, combining the retained wide-SIMD preparation correction
+below with owned arrays, managed records and first-class capture-free kernels.
+The clean two-pass suite took 60.93s wall, mlir_options 57.21s and
+self-translation 31.49s. It passed 589/590; the remaining HolyC struct golden
+needed the core Str-view clone introduced by the lifetime fix. After test-runner
+regeneration, the full suite passed 590/590 in 52.75s with warm build outputs
+(mlir_options 50.02s, self-translation 32.89s). A final clean two-pass run after
+golden regeneration passed 590/590 in 58.88s (mlir_options 55.21s,
+self-translation 31.15s). These samples retain all six
+width checks, including 1024, and do not reproduce the earlier 133.350s wall.
+They are not exclusive-host or matched-base speedup measurements.
+
+Full ASAN: 593/593, 220.47s wall. Both normal and ASAN-compiler optional MLIR
+integration passed. The original unmodified examples/preann.til completed its
+correctness checks and all four benchmark shapes. A separate manual LLVM-level
+ASAN build also passed; its instrumented timings are not performance evidence.
+Logs: tmp/mlir-preann-final-verified-two-pass.log,
+tmp/mlir-preann-final-two-pass.log, tmp/mlir-preann-final-suite.log,
+tmp/mlir-preann-final-asan-suite.log, tmp/mlir-preann-final-integration.log,
+tmp/mlir-preann-final-integration-asan.log and
+tmp/mlir-preann-final-native-asan.log. #317 records the sanitizer method and
+remaining callback/ownership boundaries. The exact-four-lane GCC/Clang/MLIR
+comparison below remains the comparative CPU experiment.
+
+** Wide SIMD preparation and suite wall correction (2026-11-14, #317)
+
+Base: ~bef13c0b4~, retaining the complete width-independent SIMD change and
+all six LLVM-independent width checks, including 1024. The old isolated
+1024-lane F32/Bool add/compare fixture took 92.300s. Widths 1,2,8,16,32,128
+took 0.294,0.293,0.294,0.315,0.351,1.459s. The ordinary-suite regression was
+mlir_options 42.03 -> 140.84s, making it the critical path; the integration
+totals row rose from 58.892 to 133.350s wall.
+The baseline executable identified itself as 0.0.1-28123834c; the final
+candidate is self-applied from bef13c0b4 plus this change.
+
+Profile evidence: a 128-lane fixture caused 12,767,381 Expr.clone calls and
+about 2.2 GiB of Vec(Expr) clone allocation traffic. Balancing generated
+Bool all/any trees removed repeated cloning/typing of the preceding lazy
+match subtree while preserving adjacent-lane order. Generated reduce_add now
+expresses the SAME halving tree directly, retaining unsigned intermediates
+for signed integers; it no longer creates hundreds of mutable reduction
+locals whose reassignments all need ownership flow queries.
+
+The remaining large cost was ownership analysis of the generated to_str
+methods, even though the MLIR fixture never calls them. Temporary phase
+timing attributed roughly 23--25s per 1024-lane formatter to the GC walk.
+The retained general ownership fixes are:
+
+- Record flow states only for queried exit/compound columns. A per-body
+  private GcFlowTable maps source statement positions to those columns;
+  an unexpected query at an unrecorded statement panics. This is ephemeral
+  analysis storage, not a persistent cache or generated artifact.
+- Compose straight-line transfer/reassignment facts 64 bindings per word,
+  publishing states only at queried exits. Preserve declaration/reassignment
+  precedence over a same-statement transfer and the existing no-transfer
+  closed form. Branch/loop lattice solving retains its established semantics.
+- A straight-line view cannot produce Mixed ownership, so it cannot need a
+  conditional-delete graft. Do not rebuild/solve its CFG once per formatted
+  argument. Variadic evaluation order and scope boundaries remain unchanged.
+
+An attempted per-element variadic scope optimization reached 2.119s, but
+self-hosting rejected it: a view of an owned argument temporary can need its
+base until the enclosing call. That attempt and its CFG ordering changes
+were discarded, along with unrelated helper-body experiments. The 2.119s
+number is NOT a result for the retained implementation. The new mode-test
+regression test_variadic_argument_lifetimes exercises ordered runtime
+arguments, nested owned results, a view of an owned temporary and retained
+borrowed input. Making that last case run dynamically also reproduced an
+existing dangling-view bug in the baseline bin/til_boot: the collector moved
+a core Str view descriptor without copying its temporary receiver's bytes.
+Variadic packing now clone-wraps recognized core view results just like
+ref-returning arguments. Actual declaration identity excludes same-named user
+methods. The two affected existing HolyC translation goldens were regenerated.
+
+After a clean self-applied build, the retained implementation measured:
+
+| Lanes | Forced translation seconds |
+|-------+----------------------------|
+|     1 |                      0.291 |
+|     2 |                      0.295 |
+|     8 |                      0.303 |
+|    16 |                      0.313 |
+|    32 |                      0.333 |
+|   128 |                      0.532 |
+|  1024 |                      7.931 |
+
+The standalone mlir_options driver passed in 32.97s including its compilation.
+A final clean make test_two_pass passed 576/576 with mlir_options 52.63s,
+wall 60.56s and self-translation 30.33s. The full ASAN suite passed 579/579; the
+ASAN-compiler MLIR integration passed as well. No width check was removed or
+moved out of the ordinary suite, and no compiler/test mode/default changed.
+The MLIR orchestration drivers remain mode cli because they accept a compiler
+path and invoke translation/build subprocesses; ordinary semantic regressions
+such as the new variadic case use mode test. The mode was not the cause.
+
+These were not exclusive-host runs. Another unchanged all-pass two-pass run
+measured 117.39s wall, mlir_options 110.32s and self-translation 80.71s; the
+repeat returned to 62.88/55.47/30.82s before the final 60.56s verification.
+Preserve these samples rather than
+attributing that host-wide variation to the 1024-lane compiler algorithm.
+
+Reproduction/evidence in the retained worktree:
+tmp/mlir_width_cost.py writes the five-line fixture per width and invokes
+translate --backend=mlir --force-rebuild sequentially. Original results are
+tmp/mlir-width-cost-before.log; the self-applied results are
+tmp/mlir-width-cost-final.log (the earlier self-applied sample is
+tmp/mlir-width-cost-self-applied.log). Function profiles are
+tmp/mlir-width-profile-all.log and tmp/mlir-width-profile-balanced.log.
+Clean suite logs: tmp/mlir-wall-two-pass.log (117.39s) and
+tmp/mlir-wall-two-pass-repeat.log (62.88s), and the final
+tmp/mlir-wall-verified-two-pass.log (60.56s). Final sanitizer logs:
+tmp/mlir-wall-self-applied-asan-suite.log (579/579) and
+tmp/mlir-wall-verified-integration-asan.log (MLIR PASS).
+For this unmerged emit-side change, make test_asan restarted pass 1 and
+overwrote boot/ with old-emitter output; its two self-translation byte checks
+then failed, without sanitizer errors. The final ASAN compiler was built
+directly from the self-applied bin/til after make two_pass, and the existing
+full runner invoked with --til-bin bin/til_asan --asan. See doc/self.org.
+Sampling perf was unavailable (perf_event_paranoid=4); function profiling
+used the existing --prof facility. No system settings or dependencies changed.
+
+** Exact four-lane MLIR/Preann comparison (2026-11-14, #409/#317)
+
+Base: ~ae1daf9eb~, with scalar-array data/unchecked access lowering and the
+subsequent width-independent MLIR SIMD lowering. Compare the reference,
+four-row scalar-output, four-row packed-output and interleaved eight-row
+packed-output kernels extracted from ~examples/preann.til~. All retain four
+ascending input-lane accumulators, separate multiply/add and exactly
+~(a0+a2)+(a1+a3)~, followed by addition to the previous output. This is the
+float accumulation stage, not the full external Preann application.
+
+The scratch library materializes the macro-produced callable specializations
+as ordinary functions: runtime function-pointer aliases and the full example's
+Variant/CLI driver remain outside MLIR's subset. The B8 source keeps the same
+0,4,1,5,2,6,3,7 row-use order and cross-row reductions. B4 entrypoints spell
+their constant specialization directly. No external Preann files were edited.
+
+Host: Ryzen 9 9950X3D, Linux x86-64, CPU 7 affinity (SMT sibling 23), boost
+enabled. GCC 13.3.0; Clang/LLVM/MLIR 18.1.3. All libraries use USize64,
+baseline/x86-64-v3/x86-64-v4 and O2/O3, contraction off and standard excess
+precision. The C harness uses GCC O2, contraction off and no tree vectorization
+for its independent scalar oracle. Each library is loaded locally; one native
+function-pointer call per iteration keeps Python and allocation out of timing.
+
+Correctness: 69,120 bitwise cases per 18-library matrix, covering logical
+widths 1,2,3,4,5,7,8,9,31,127,128,129, four float-aligned start offsets,
+zero padding, rows 0..19, nonzero initial outputs and surrounding guards.
+Every timed shape also passes the independent bitwise oracle before timing.
+Timing shapes: rows x padded stride = 4x4, 31x12, 128x128, 511x1028,
+2049x4096 and 8193x4096. The last two weight matrices are about 32 and 128 MiB.
+Timed starts are offset by one float. Seven rotated rounds per shape;
+each function's repetition count is doubled until a calibration lasts >=15 ms.
+Report median monotonic-raw elapsed ns/call, retaining all sample ranges.
+
+Important control: ordinary GCC shared-library builds retain PLT calls to
+generated SIMD helpers, including empty destructors IN the accumulation loop.
+At 128x128 their B8 medians are about 26 us versus 0.62--0.70 us with local
+optimization. This is a shared-library interposition/inlining cost, not a
+40x arithmetic-throughput advantage for MLIR. A separate diagnostic C rebuild
+adds ~-fno-semantic-interposition~ to BOTH GCC and Clang, keeping the original
+til build results separate. No project flag/default/linkage was changed.
+
+Final O2 B8 medians below use that diagnostic C control and the generalized
+MLIR backend. Units are us/call; this is the SAME kernel in each cell, not
+selection of a different best kernel for each backend.
+
+| Backend/profile | 128x128 | 511x1028 | 2049x4096 | 8193x4096 |
+|-----------------+---------+----------+-----------+-----------|
+| GCC baseline    | 0.6245  | 23.204   | 378.887   | 2855.199  |
+| GCC v3          | 0.6455  | 22.996   | 378.138   | 2684.903  |
+| GCC v4          | 0.6342  | 23.117   | 381.794   | 2683.669  |
+| Clang baseline  | 0.6485  | 23.653   | 380.625   | 2858.418  |
+| Clang v3        | 0.6768  | 23.394   | 381.422   | 2725.631  |
+| Clang v4        | 0.6755  | 23.388   | 376.771   | 2714.941  |
+| MLIR baseline   | 0.6979  | 23.395   | 384.194   | 2895.293  |
+| MLIR v3         | 0.6302  | 23.038   | 381.966   | 2705.155  |
+| MLIR v4         | 0.6310  | 23.174   | 381.900   | 2690.294  |
+
+O3 is not uniformly better: MLIR B8 128x128 v3/v4 measured 0.6708/0.6738 us,
+against O2's 0.6302/0.6310. Four-row packed updates generally win the tiny
+cases; B8 wins the 128x128 and larger streaming cases, but four-row variants
+often edge it in the 32 MiB case. These are shape-dependent costs.
+
+Assembly: all three locally optimized O2 B8 inner loops have 8 packed muls,
+8 packed adds, no calls, no stack operands and no FMA. Baseline has 28 static
+loop instructions; v3/v4 have 20. The wider ISA removes SSE two-operand copies
+without widening these four-lane accumulators. Wider logical SIMD support
+therefore is not presented as an explanation for this exact-four-lane result.
+
+Desktop work remained active; this was NOT an exclusive/isolated-host run.
+The final 128 MiB baseline MLIR samples ranged 2.850--3.758 ms, versus GCC
+2.839--3.027 and Clang 2.825--3.065. Tiny-case times changed by roughly 2x
+between sweeps across ALL backends. Do not attribute small differences to
+compiler improvements from these samples. Native AArch64 timing remains open.
+
+Local reproduction in the mojo-simd-review worktree (scratch files, not new
+installed/compiler artifacts): ~tmp/preann409_kernels.til~,
+~tmp/preann409_harness.c~, ~tmp/preann409_build.py~,
+~tmp/preann409_local.py~, ~tmp/preann409_report.py~ and
+~tmp/preann409_assembly.py~. The first script builds the 18 combinations;
+the second rebuilds the two C controls without semantic interposition.
+~tmp/preann409-results.log~ retains the ordinary-build sweep,
+~tmp/preann409-local-results.log~ the first control, and
+~tmp/preann409-wide-results.log~ the final width-independent sweep.
+~make clean~ removes bin/gen and tmp/boot, not these experiment files.
+
+#+begin_src sh
+python3 tmp/preann409_build.py
+python3 tmp/preann409_local.py
+taskset -c 7 tmp/preann409_harness ./tmp/preann409/*-local-*/gen/lib/libpreann409_kernels.so ./tmp/preann409/mlir-*/gen/lib/libpreann409_kernels.so > tmp/preann409-wide-results.log 2>&1
+python3 tmp/preann409_report.py preann409-wide-results.log
+python3 tmp/preann409_assembly.py
+#+end_src
+
 ** FASM byte/word integer SIMD allocation checks (2026-11-13, #453)
 
 Base: ~22169738f~. I8/U8 start at 16 lanes and I16/U16 at 8; wider supported

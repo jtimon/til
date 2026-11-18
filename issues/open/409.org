@@ -6,6 +6,47 @@ Follow up [[../fixed/318.org][#318]] with explicit CPU-feature targeting and
 measurements of useful vector loops. Ordinary til SIMD remains CPU code;
 choosing an ISA is not choosing a GPU or enabling automatic offload.
 
+*** MLIR exact-four-lane comparison (base ae1daf9eb)
+
+The extracted reference/B4/packed-B4/interleaved-B8 kernels now compile through
+MLIR and C/GCC/Clang. Each 18-library profile/O2/O3 matrix passed 69,120
+bitwise cases plus all timed larger cases. Paired affinity-pinned timings
+and assembly distinguish GCC's default shared-library helper/PLT costs from
+actual vector throughput: a separate no-semantic-interposition C control
+lands close to MLIR, with identical 28/20-instruction baseline/v3-v4 B8 loops.
+All retain the exact four-lane arithmetic, without FMA or reassociation.
+The host was not exclusive; small timing differences are not speedup claims.
+Results, ranges, controls and local reproduction commands are in
+[[../../doc/optimizations.org::*Exact four-lane MLIR/Preann comparison (2026-11-14, #409/#317)][Optimization measurements]].
+
+MLIR now handles the existing F32/I32/U32/Bool vector widths independently of
+the selected ISA. That is separately verified functionality, not a wider
+accumulator substituted into the four-lane performance comparison. Remaining
+cross-architecture/native AArch64 measurements keep this issue open.
+
+*** Native AArch64 measurement route (base d4ead4aec)
+
+The current machine is x86_64, so a local cross-build/QEMU run would not be
+a native ARM timing result. The existing .github/workflows/tests.yml job
+linux-arm64-native runs on ubuntu-24.04-arm and already installs clang,
+records the C toolchain and runs the full suite. The separate linux-arm64
+job is cross-compilation/QEMU correctness, not native performance evidence.
+
+Proposed next measurement, pending approval for the CI runtime/output change:
+add sequential unmodified examples/preann.til main runs to the EXISTING native
+ARM job after its suite, using the normal bin/til, --usize=64, --opt=2 and
+--cpu=baseline, once with GCC and once with Clang. Record lscpu, compiler
+versions and the example's existing sample/median CSV on the job's ordinary
+stdout. The job writes temporary executables under tmp/; humans read the
+existing CI log. There is no new artifact upload, file format, cache, manifest,
+dependency, performance threshold or CLI knob. Each run rebuilds the example
+from the checked-out sources. Expected cost is tens of seconds of extra job
+time; runner sharing/noise must remain visible in the report.
+
+This step is proposed, not installed or dispatched here. No native ARM timing
+has been collected by this session. MLIR currently supports Linux x86-64
+only; these first native ARM comparisons would exercise the C backends.
+
 *** Scope
 
 - Model the compilation target's enabled CPU features separately from its

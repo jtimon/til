@@ -849,8 +849,8 @@ priv gc_flow_kill_at := func(kills: GcFlowKills, block: USize, bit: USize) retur
 // in one table, so the insertion loop can ASK the dataflow instead of
 // approximating it by statement order.
 //
-// table[l * body.children.len() + i] is local l's state on ENTRY to
-// top-level statement i: the containing root block's IN, advanced
+// The table records local l's state on ENTRY to each queried top-level
+// statement i: the containing root block's IN, advanced
 // through that block's earlier statements. Statements the CFG never
 // reaches (code after a terminator) stay FLOW_UNREACHED.
 //
@@ -859,16 +859,42 @@ priv gc_flow_kill_at := func(kills: GcFlowKills, block: USize, bit: USize) retur
 // predecessor lists and the fixpoint scaffolding are per-body. Transfer
 // effects are collected for all names together; only the state solve is
 // per-name.
-priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state: U8, has_exit: Bool, scope: TypeScope, ctx: Context, facts: BodyFacts, fi: FactIndex) returns Array(U8) {
+priv GcFlowTable := struct {
+    columns := Vec(USize).new()
+    positions := Array(I64).new(0)
+    states := Array(U8).new(0)
+namespace:
+    get := func(self : GcFlowTable, local : USize, stmt : USize) returns U8 {
+        ref position : I64 = self.positions[stmt]
+        if position < 0 { panic("ownership flow queried a non-exit/non-compound statement") }
+        return self.states[local * self.columns.len() + position.to_usize()].clone()
+    }
+}
+
+priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state: U8, has_exit: Bool, scope: TypeScope, ctx: Context, facts: BodyFacts, fi: FactIndex) returns GcFlowTable {
     // Nothing in this view can query the table: its exits, if any, live
     // inside nested views, and each of those builds its own. Bodies
     // with nested compounds but no exit of their own are the common
     // case, so building unconditionally would pay for a CFG, a
     // predecessor map and a name sweep per recursion level.
-    if has_exit.not() { return Array(U8).new(0) }
+    mut table := GcFlowTable()
+    if has_exit.not() { return table }
     stmts := body.children.len()
-    mut table := Array(U8).new(locals.len().mul(stmts))
-    for t in 0..locals.len().mul(stmts) { table[t] = FLOW_UNREACHED }
+    table.positions = Array(I64).new(stmts)
+    // Only exits and compound statements have consumers below. Retaining
+    // every intervening hoist/setter column makes large variadic collectors
+    // allocate and fill a quadratic table whose entries are never queried.
+    for s in 0..stmts {
+        ref stmt : Expr = body.children[s]
+        if stmt_is_conditional_container(stmt) || stmt.node_type.is(NodeType.Return)
+            || stmt.node_type.is(NodeType.Break) || stmt.node_type.is(NodeType.Continue) {
+            table.positions[s] = table.columns.len().to_i64()
+            table.columns.push(own s.clone())
+        } else { table.positions[s] = -1 }
+    }
+    columns := table.columns.len()
+    // Array.new is zero-initialized, which is FLOW_UNREACHED.
+    table.states = Array(U8).new(locals.len() * columns)
     // No binding here can ever leave Owned, so no graph is needed: each
     // row is Uninit up to its Decl and Owned after, in closed form.
     // This is the majority of bodies, and building a CFG plus a
@@ -880,12 +906,13 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
     if any_transfer.not() {
         for li in 0..locals.len() {
             ref local : LocalInfo = locals[li]
-            for s in 0..stmts {
+            for column in 0..columns {
+                ref s : USize = table.columns[column]
                 if entry_state.eq(FLOW_UNINIT).and(local.decl_index.gte(0))
                     .and(s.to_i64().lte(local.decl_index)) {
-                    table[li.mul(stmts).add(s)] = FLOW_UNINIT
+                    table.states[li * columns + column] = FLOW_UNINIT
                 } else {
-                    table[li.mul(stmts).add(s)] = FLOW_OWNED
+                    table.states[li * columns + column] = FLOW_OWNED
                 }
             }
         }
@@ -908,24 +935,44 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
         }
     }
     if any_compound.not() {
-        for li in 0..locals.len() {
-            ref local : LocalInfo = locals[li]
-            mut cur := entry_state
-            if local.decl_index < 0 { cur = FLOW_OWNED }
-            bit := fact_bit_req(fi, local.name)
-            for s in 0..stmts {
-                if first_exit.gte(0).and(s.to_i32().gt(first_exit)) { break }
-                table[li.mul(stmts).add(s)] = cur
-                if local.has_transfer.not() {
-                    // Cannot leave Owned: the only question is whether
-                    // its Decl has run.
-                    if cur.eq(FLOW_UNINIT).and(s.to_i64().gte(local.decl_index)) { cur = FLOW_OWNED }
-                    continue
+        // Compose all bindings together, 64 per word, just like block
+        // effects. Only publish states at queried exits. No branch can
+        // introduce Mixed in a straight-line view.
+        mut owned := zeroed_words(facts.words)
+        mut moved := zeroed_words(facts.words)
+        if entry_state == FLOW_OWNED {
+            for w in 0..facts.words { ref mut word : U64 = owned.unsafe_get(w); word = U64.MAX }
+        } else {
+            for local : LocalInfo in locals {
+                if local.decl_index < 0 { fact_record_name(fi, local.name, 0, owned) }
+            }
+        }
+        mut bits := Vec(USize).new()
+        for local : LocalInfo in locals { bits.push(own fact_bit_req(fi, local.name)) }
+        for s in 0..stmts {
+            if first_exit.gte(0).and(s.to_i32().gt(first_exit)) { break }
+            ref position : I64 = table.positions[s]
+            if position >= 0 {
+                for li in 0..locals.len() {
+                    ref local : LocalInfo = locals[li]
+                    mut state := FLOW_UNINIT
+                    if local.has_transfer.not() {
+                        if entry_state == FLOW_OWNED || local.decl_index < 0 || s.to_i64() > local.decl_index { state = FLOW_OWNED }
+                    } else if fact_bit_test(owned, 0, bits[li]) { state = FLOW_OWNED }
+                    else if fact_bit_test(moved, 0, bits[li]) { state = FLOW_MOVED }
+                    table.states[li * columns + position.to_usize()] = state
                 }
-                if facts.directives.unsafe_get(s).not() {
-                    c := gc_flow_stmt_const(facts, s, bit)
-                    if c.neq(FLOW_ID) { cur = c }
-                }
+            }
+            if facts.directives.unsafe_get(s) { continue }
+            base := s * facts.words
+            for w in 0..facts.words {
+                at := base + w
+                definitions := facts.decls.unsafe_get(at).bor(facts.reassigns.unsafe_get(at))
+                ref transfers : U64 = facts.transfers.unsafe_get(at)
+                ref mut owned_word : U64 = owned.unsafe_get(w)
+                ref mut moved_word : U64 = moved.unsafe_get(w)
+                owned_word = owned_word.band(transfers.bnot()).bor(definitions)
+                moved_word = moved_word.bor(transfers).band(definitions.bnot())
             }
         }
         return table
@@ -982,12 +1029,13 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
             if entry.eq(FLOW_UNINIT).and(decl_is_top.not()) {
                 // fall through to the full solve
             } else {
-                for s in 0..stmts {
+                for column in 0..columns {
+                    ref s : USize = table.columns[column]
                     if reachable[s].not() { continue }
                     if entry.eq(FLOW_UNINIT).and(s.to_i64().lte(local.decl_index)) {
-                        table[li.mul(stmts).add(s)] = FLOW_UNINIT
+                        table.states[li * columns + column] = FLOW_UNINIT
                     } else {
-                        table[li.mul(stmts).add(s)] = FLOW_OWNED
+                        table.states[li * columns + column] = FLOW_OWNED
                     }
                 }
                 continue
@@ -1006,7 +1054,8 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
                 st = ins[bi]
                 mut j := b.start
                 while j < b.end {
-                    table[li.mul(stmts).add(j.to_usize())] = st
+                    ref position : I64 = table.positions[j.to_usize()]
+                    if position >= 0 { table.states[li * columns + position.to_usize()] = st.clone() }
                     // No later entry in this block observes the final
                     // statement's outgoing state; the CFG kill owns it.
                     if j.add(1).lt(b.end).and(facts.directives.unsafe_get(j.to_usize()).not()) {
@@ -3177,7 +3226,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
                 // distinction itself: such a branch meets to Mixed, not
                 // Moved.
                 mut st : U8 = FLOW_UNREACHED
-                st = flow_table[li.mul(old.len()).add(i)]
+                st = flow_table.get(li, i)
                 if st.eq(FLOW_OWNED).not() { continue }
                 if operand_uses {
                     panic(__LOC__, ctx.path, ":", stmt.line.to_str(), ": return operand reads owned local '", local.name,
@@ -3205,7 +3254,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
     body.children.move_from(own new_ch)
 }
 
-priv insert_nested_exit_deletes := proc(mut stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, root_flow: Array(U8), root_stmts: USize, scope: TypeScope, mut ctx: Context) {
+priv insert_nested_exit_deletes := proc(mut stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, root_flow: GcFlowTable, scope: TypeScope, mut ctx: Context) {
     if stmt.node_type.is(NodeType.If).not() {
         if stmt.node_type.is(NodeType.While).not() {
             if stmt.node_type.is(NodeType.Body).not() {
@@ -3250,7 +3299,7 @@ priv insert_nested_exit_deletes := proc(mut stmt: Expr, locals: Vec(LocalInfo), 
         // reaches that return, and invisible because the pass-diff
         // referee used to compare the wrong files.)
         mut st : U8 = FLOW_UNREACHED
-        st = root_flow[li.mul(root_stmts).add(stmt_idx)]
+        st = root_flow.get(li, stmt_idx)
         if st.eq(FLOW_OWNED).not() { continue }
         if local.last_use.gte(stmt_idx.to_i64()).or(local.last_use.eq(-1)) {
             live_vec.push(own local.clone())
@@ -3290,7 +3339,7 @@ priv insert_nested_exit_deletes := proc(mut stmt: Expr, locals: Vec(LocalInfo), 
     }
 }
 
-priv insert_exit_deletes_into_stmt := func(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, root_flow: Array(U8), root_stmts: USize, mut new_ch: Vec(Expr), mut symbols: SymbolPool) {
+priv insert_exit_deletes_into_stmt := func(stmt: Expr, locals: Vec(LocalInfo), stmt_idx: USize, root_flow: GcFlowTable, mut new_ch: Vec(Expr), mut symbols: SymbolPool) {
     if stmt.node_type.is(NodeType.Return).not() {
         if stmt.node_type.is(NodeType.Break).not() {
             if stmt.node_type.is(NodeType.Continue).not() { return }
@@ -3321,7 +3370,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, locals: Vec(LocalInfo), s
         // there: an unconditional free where only some paths still own
         // the binding double-frees the others.
         mut st : U8 = FLOW_UNREACHED
-        st = root_flow[li.mul(root_stmts).add(stmt_idx)]
+        st = root_flow.get(li, stmt_idx)
         if st.eq(FLOW_OWNED).not() { continue }
         if local.last_use.gte(stmt_idx.to_i64()).or(local.last_use.eq(-1)) {
             if local.raw_alloc.not().and(type_to_name_ref(local.type, symbols).len().gt(0)) {
@@ -3828,6 +3877,15 @@ priv sink_nontransfer_paths := proc(mut node: Expr, local: LocalInfo, scope: Typ
 // and it almost never is: 22 grafts per 8,154 fact computations on a
 // test/first_class.til translate.
 priv sink_conditional_transfer_deletes := proc(mut body: Expr, locals: Vec(LocalInfo), scope: TypeScope, mut ctx: Context, mut facts: BodyFacts, fi: FactIndex) returns Bool {
+    // Mixed ownership requires a control-flow join. A straight-line view
+    // starts concrete and only applies constant transfers/reassignments, so
+    // none of its bindings can need a conditional-delete graft. In particular,
+    // do not rebuild/solve the same collector CFG for every formatted field.
+    mut has_compound := false
+    for stmt : Expr in body.children {
+        if stmt_is_conditional_container(stmt) { has_compound = true; break }
+    }
+    if has_compound.not() { return false }
     mut grafted := false
     for local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
@@ -4708,7 +4766,6 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
         }
     }
     root_flow := gc_flow_stmt_table(body, locals_vec, FLOW_UNINIT, wants_flow, scope, ctx, facts, fidx)
-    root_stmts := body.children.len()
     // #302 stage 3: the view-taint relation, built once here rather
     // than rescanned per query. The two consumers below used to walk
     // the already-emitted statement list on every (statement, name)
@@ -4734,8 +4791,8 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
         }
 
         if rebuilding {
-            insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, root_stmts, new_ch, ctx.symbols)
-            insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, root_stmts, scope, ctx)
+            insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, new_ch, ctx.symbols)
+            insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, scope, ctx)
             insert_assign_delete(stmt, locals_vec, new_ch, taint_facts, fidx, i, consumed_assigns, scope, ctx.symbols)
             mut post_deletes := Vec(Expr).new()
             insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, new_ch)
@@ -4748,8 +4805,8 @@ priv insert_free_calls := proc(mut ctx: Context, mut body: Expr, scope: TypeScop
         // sibling. Nested-body edits mutate stmt in place and need no parent
         // rebuild.
         mut pre_deletes := Vec(Expr).new()
-        insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, root_stmts, pre_deletes, ctx.symbols)
-        insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, root_stmts, scope, ctx)
+        insert_exit_deletes_into_stmt(stmt, locals_vec, i, root_flow, pre_deletes, ctx.symbols)
+        insert_nested_exit_deletes(stmt, locals_vec, i, root_flow, scope, ctx)
         insert_assign_delete(stmt, locals_vec, pre_deletes, taint_facts, fidx, i, consumed_assigns, scope, ctx.symbols)
         mut post_deletes := Vec(Expr).new()
         insert_post_stmt_deletes(ctx, stmt, locals_vec, i, post_deletes, scope, pre_deletes)

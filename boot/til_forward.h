@@ -414,12 +414,14 @@ typedef struct Vec__PendingRefBinding Vec__PendingRefBinding;
 typedef struct priv___src_self_garbager_til__LocalInfo priv___src_self_garbager_til__LocalInfo;
 typedef struct priv___src_self_garbager_til__GcCfgBlock priv___src_self_garbager_til__GcCfgBlock;
 typedef struct priv___src_self_garbager_til__GcFlowKills priv___src_self_garbager_til__GcFlowKills;
+typedef struct priv___src_self_garbager_til__GcFlowTable priv___src_self_garbager_til__GcFlowTable;
 typedef struct priv___src_self_garbager_til__GcAssignVerdicts priv___src_self_garbager_til__GcAssignVerdicts;
 typedef struct priv___src_self_garbager_til__BodyFacts priv___src_self_garbager_til__BodyFacts;
 typedef struct priv___src_self_garbager_til__GcBorrowEdge priv___src_self_garbager_til__GcBorrowEdge;
 typedef struct priv___src_self_garbager_til__ReferenceNameChange priv___src_self_garbager_til__ReferenceNameChange;
 typedef struct priv___src_self_garbager_til__ReferenceLoans priv___src_self_garbager_til__ReferenceLoans;
 typedef struct priv___src_self_garbager_til__GcDeposit priv___src_self_garbager_til__GcDeposit;
+typedef struct Array__I64 Array__I64;
 typedef struct Array__Bool Array__Bool;
 typedef struct Vec__priv___src_self_garbager_til__ReferenceNameChange Vec__priv___src_self_garbager_til__ReferenceNameChange;
 enum {
@@ -1508,6 +1510,12 @@ typedef struct priv___src_self_garbager_til__GcDeposit {
 } priv___src_self_garbager_til__GcDeposit;
 
 
+typedef struct Array__I64 {
+    TIL_OWN_PTR(U8) data;
+    USize cap;
+} Array__I64;
+
+
 typedef struct Array__Bool {
     TIL_OWN_PTR(U8) data;
     USize cap;
@@ -1760,6 +1768,7 @@ typedef struct priv___src_self_codegen_mlir_codegen_til__MlirBinding {
     Str reference_slot;
     Bool owns_wrapper;
     U64 native_definition_id;
+    U64 callable_signature_id;
 } priv___src_self_codegen_mlir_codegen_til__MlirBinding;
 
 
@@ -2626,6 +2635,13 @@ typedef struct Map__Str_priv___src_self_typer_til__ParameterPlaces {
     Vec__Str keys;
     Vec__priv___src_self_typer_til__ParameterPlaces values;
 } Map__Str_priv___src_self_typer_til__ParameterPlaces;
+
+
+typedef struct priv___src_self_garbager_til__GcFlowTable {
+    Vec__USize columns;
+    Array__I64 positions;
+    Array__U8 states;
+} priv___src_self_garbager_til__GcFlowTable;
 
 
 typedef struct priv___src_self_garbager_til__GcAssignVerdicts {

@@ -596,15 +596,16 @@
   initial MLIR ABI supports Linux x86-64 hosts and targets only.
 
   This is a restricted value/control-flow backend, not GPU execution or a
-  replacement for the general C backend. It supports F32/F64, ~Simd(F32,4)~,
-  ~Simd(I32,4)~, ~Simd(U32,4)~,
-  ~Simd(Bool,4)~ masks,
+  replacement for the general C backend. It supports F32/F64, ~Simd(F32,N)~,
+  ~Simd(I32,N)~, ~Simd(U32,N)~ and ~Simd(Bool,N)~ masks for the existing
+  power-of-two lane counts 1..1024,
   Bool and all I8/U8, I16/U16, I32/U32 and I64/U64 scalar values, including USize/UPtr aliases resolved
   through the existing target configuration. Scalar/nested POD structs support
   construction, field access/update and value returns as described below.
   Value parameters are immutable;
-  locals may be mutable. Borrowed arrays of all supported scalar types provide
-  read-only inputs and ~mut~ outputs. Arithmetic includes addition, subtraction and
+  locals may be mutable. Arrays support owned values and borrowed/mut inputs,
+  including nested arrays and managed value records described below.
+  Arithmetic includes addition, subtraction and
   multiplication (integer operations wrap), integer increment/decrement,
   integer bitwise operations, scalar division/remainder/shifts, scalar comparisons/cmp,
   Boolean logic, cloning, literals, cross-unit direct calls and returns.
@@ -615,6 +616,31 @@
   source-located errors. Generated compile-time core helpers are not treated
   as exported source functions. A runnable program needs a no-argument,
   void ~main~; its native entry returns zero. CLI arguments are unsupported.
+
+  Lane count is independent of target ISA: baseline lowering may split a wide
+  logical vector, while the explicit CPU profile permits wider instructions.
+  SIMD storage remains N consecutive scalar fields. Values up to 16 bytes use
+  the ordinary SysV aggregate classification (F32 SSE chunks, integer/Bool
+  INTEGER chunks); larger values use scalar-layout byval/sret memory. Masks
+  always store N normalized bytes, including at those memory boundaries.
+  Four-lane ABI examples below remain unchanged. F32 sum/extrema reductions
+  use core's halving tree for every width, including the one-lane identity;
+  neither an extra +0 nor reassociation is introduced. Integration tests cover
+  widths 1,2,8,16,32 at O0/O2/O3 with native C callers, internal forwarding,
+  mixed masks, casts, a last-lane invalid cast, zero signs, signaling-NaN
+  payloads, scalar-aligned memory and failed/maximal bounds checks. The
+  LLVM-independent options test also translates 1024-lane signatures.
+
+  Wide generated helpers keep preparation bounded: Bool all/any use balanced
+  adjacent-lane lazy trees, and reduce_add expresses the same halving tree
+  directly instead of maintaining one mutable local per lane. Shared ownership
+  analysis stores only queried exit/compound columns, composes straight-line
+  transfer facts by bit words and avoids conditional-delete graft solving
+  when no control-flow join exists. This preserves variadic argument scopes
+  and view-base lifetimes; it does not shorten their storage lifetime.
+  An owned variadic collector clone-wraps core Str view results as well as
+  ref-returning arguments, so a view of a temporary receiver cannot outlive
+  that receiver's bytes while the collecting call reads them.
 
   ~if~/~else~ and ~while~, including nested loops, ~break~, ~continue~ and
   early returns, lower to explicit LLVM-dialect blocks and branches. Lazy
@@ -643,8 +669,9 @@
   Public namespace symbols use the C spelling Owner_member; collisions with
   another source callable are diagnosed. Imported unsupported bodies that are
   not reachable in an executable need not be emitted. Retained namespace values
-  and indirect callable values remain unsupported; a FuncSig declaration alone
-  is type metadata, not an executable body. Existing core/runtime entries still
+  remain unsupported. Typed callable values and indirect calls use the existing
+  closure ABI described below; a FuncSig declaration alone is type metadata,
+  not an executable body. Existing core/runtime entries still
   use the temporary C-core bridge where they are not emitted as concrete bodies.
 
   Scalar-aligned four-F32 storage retains the C backend's Linux SysV ABI:
@@ -656,9 +683,9 @@
   followed by add remains unfused. Arguments beyond the register budget use
   the SysV stack ABI described below.
   Borrowed/mutable scalar and SIMD parameters retain their pointer ABI.
-  Ownership-transferring numeric-buffer parameters remain outside the subset;
-  strings, borrowed buffers and the error-out parameter are
-  described below.
+  Owned numeric buffers and accepted managed records retain the native
+  heap-outer transfer convention; strings, buffers and the error-out parameter
+  are described below.
 
   F32, F64 and F32x4 division use IEEE floating-point semantics, including zero
   divisors, signed zeros, infinities and NaNs, through ~arith.divf~. Explicit
@@ -717,7 +744,7 @@
   limits without changing register-passed values or return conventions.
 
   Definitions and direct calls share one allocation calculation. Stack
-  aggregates use LLVM byval pointers to four-scalar structs with alignment 8,
+  aggregates use LLVM byval pointers to scalar-member structs with alignment 8,
   not native-vector parameter types. Each call site's source snapshot has an
   aligned entry-block slot, so repeated loop calls do not grow local storage.
   LLVM 18 exports byval/sret and integer extension attributes on declarations
@@ -725,7 +752,8 @@
   The export adapter described below restores those attributes BEFORE any
   optimization. Instruction selection consulting the callee is not sufficient:
   padded POD forwarding passed O0 but failed O2 until the call was annotated.
-  Indirect calls remain unsupported.
+  Indirect calls requiring byval, sret or narrow scalar extension attributes
+  are diagnosed until the exporter/adapter can preserve those attributes too.
 
   Tests exercise register exhaustion and rollback, subsequent scalar/mask
   arguments, mixed-bank spills, stack scalars, sret and error-out pointers,
@@ -776,7 +804,7 @@
   same representation conversions as exported functions.
 
   F32x4, I32x4, U32x4 and Boolx4 lane reads and local updates accept runtime indices.
-  Unsigned USize comparison against 4 precedes extraction/insertion, with no
+  Unsigned USize comparison against the lane count precedes extraction/insertion, with no
   truncation that could turn an invalid wide index into a valid one. Failure
   writes OutOfBounds tag 1 and leaves the vector unchanged; preceding writes
   remain visible. The shared lowered guards handle propagation, catch and !.
@@ -789,9 +817,10 @@
   Borrowed buffers retain the existing C Array ABI: a pointer to a descriptor
   containing a data pointer followed by a USize capacity. The capacity field
   uses the selected USize width; the data pointer stays pointer-sized.
-  ~len~ and checked scalar ~get/set~ support I8/U8, I16/U16, I32/U32,
+  ~len~, the borrowed ~data~ field, checked scalar ~get/set~ and unchecked
+  ~unsafe_get/unsafe_set~ support I8/U8, I16/U16, I32/U32,
   I64/U64, F32/F64 and Bool, including USize/UPtr and user scalar aliases.
-  Four-lane ~load/store~ support F32, I32 and U32 buffers. Borrowed integer
+  SIMD ~load/store~ support F32, I32 and U32 buffers at every supported lane count. Borrowed integer
   element reads retain their declared width and sign/zero extension when widened.
   Element address stride follows native storage: Bool/I8/U8 occupy one byte,
   I16/U16 two, F32/I32/U32 four and F64/I64/U64 eight. Bool loads/stores convert
@@ -803,9 +832,13 @@
   for dense scalar arrays.
   Element references may be read or, when declared mutable, written through.
   Buffer aliases and borrowed array returns use the same descriptor address.
-  Allocation, cloning, destruction, value array returns and descriptor
-  replacement stay in the host; passing an array
-  as ~own~ or ~shallow~ is rejected rather than changing its ABI.
+  Array allocation, cloning, destruction and value returns are emitted through
+  the prepared ordinary Array bodies. Arrays of supported value records and
+  nested arrays use the same descriptor layout and element stride/cleanup.
+  An ~own~ parameter consumes its heap outer and contents; explicit ~shallow~
+  Array parameters and ref-element arrays remain outside this slice.
+  Compiler-built literals carry an independent explicit bounds-error slot,
+  which does not invalidate an unrelated enclosing error-slot proof.
 
   Native C and ASAN til/C consumers test all scalar types and aliases at
   O0/O2/O3: returned element/descriptor identity, mutable references, full-width
@@ -830,7 +863,7 @@
   SIMD lane reads after a successful load; possibly throwing calls invalidate
   that proof, including at loop exits.
 
-  Vector bounds checks test ~start <= count~ before ~count-start >= 4~.
+  Vector bounds checks test ~start <= count~ before ~count-start >= N~.
   The emitter forms the data address only in the successful block, uses
   scalar alignment (4 bytes), and zero-extends 32-bit indices to the 64-bit
   pointer domain. It does not attach ~inbounds~ or ~noalias~ assumptions.
@@ -872,8 +905,9 @@
   Concrete raw-allocation locals and cleanup follow the prepared AST.
   Returning a value releases its consumed allocation wrapper after loading it;
   a Dynamic pointer return transfers the address. Returning a reference never
-  releases its backing storage. General owning user aggregates remain outside
-  this increment, and the temporary C-core bridge is still used for core bodies.
+  releases its backing storage. Explicit owning pointer fields remain outside
+  this increment; accepted managed value records are described below. The
+  temporary C-core bridge is still used for remaining unsupported core bodies.
 
   Native C and ASAN til/C tests cover pointer identity/mutation, all scalar
   widths, numeric/mask SIMD storage, nested fields, Str/array references,
@@ -893,8 +927,38 @@
   empty runtime structs are not yet supported in this increment.
   Source-defined clone functions can be emitted through the normal namespace
   callable path when their bodies use the supported subset. Heap-outer owning
-  user parameters remain outside this slice; borrowed returns preserve the
-  original struct address as described above.
+  user parameters use the native pointer-to-owned-outer convention; borrowed
+  returns preserve the original struct address as described above.
+
+  Additional managed value records may embed Str and Array descriptors,
+  nested accepted value records and ordinary callable fields. Explicit owning
+  pointer fields and ref-callable slots remain unsupported. Prepared clone and
+  delete bodies provide the lifecycle, including nested container cleanup.
+  Whole-value and field replacement honor saved-old-value deletion. Only the
+  descriptor/object contents are destroyed for embedded stack/field storage;
+  prepared free/keep-outer decisions remain authoritative for outer wrappers.
+  Callable constructor fields clone borrowed descriptors when ownership is not
+  transferred; field replacement follows the prepared transfers_own flag.
+
+  First-class capture-free definitions, including macro-produced function
+  specializations, use static TilClosure-compatible descriptors containing
+  call/env/drop/clone pointers. The hidden environment consumes an INTEGER
+  argument slot, and generated ABI trampolines marshal to the ordinary body
+  symbol. Taking an address roots that body in the callable graph, with lexical
+  shadowing respected. Incoming C callbacks may carry environments and their
+  existing clone/drop functions; record copies and cleanup honor those hooks.
+  Capturing til literals, callable slot aliases, mutable callable locals/params
+  and borrowed callable returns are not yet supported. Indirect scalar and
+  register-aggregate calls work when no lost call-site ABI attributes are
+  needed; unsupported indirect byval/sret/narrow cases fail during translation.
+  The LLVM adapter also distinguishes indirect calls with global operands from
+  named direct calls, rather than misreading an argument as the callee.
+
+  test/mlir.til covers owning/nested containers, consumed outer wrappers,
+  replacement, callback environments and balanced clone/drop counters with
+  ASAN/UBSAN C clients at O0/O2/O3. It additionally builds/runs the unmodified
+  examples/preann.til, including its macro-generated aliases, runtime-selected
+  kernels, correctness checks and four complete timing shapes.
 
   The existing typer decides whether an ordinary parameter borrows or is an
   auto-shallowed small value. Borrowed/mut parameters use pointers, and explicit
@@ -1052,8 +1116,8 @@
 
   Str constructors store c_str as its native owned pointer and count/cap inline;
   native calls return the descriptor by sret. This supports non-owning view
-  construction and owning capacity/clone bodies without adding general owning
-  user-struct support. push_str writes the inline count after its ordinary
+  construction and owning capacity/clone bodies. Managed user value records
+  can embed these descriptors as described above. push_str writes the inline count after its ordinary
   capacity/view checks. Direct replacement of an owning c_str field remains
   unsupported. Core immutable scalar literals and literal numeric conversions
   (including CAP_VIEW/CAP_LIT) are emitted from their prepared initializers at
@@ -1986,6 +2050,17 @@
   procedure (the merging procedure in
   ~doc/bots/merging_from_remote.org~ runs ~make test~ by default and
   needs to switch to ~make test_two_pass~ for these).
+
+  While an emit-side change is still unmerged, ~make test_asan~ starts the
+  ordinary pass-1 build again and can replace self-applied boot/ output with
+  the old emitter's output. To add ASAN verification after ~make test_two_pass~,
+  retain the self-applied compiler and use the existing build/runner directly:
+
+  : bin/til build --usize=32 --asan --force-rebuild -o bin/til_asan src/til.til
+  : xvfb-run --auto-servernum bin/tests --til-bin bin/til_asan --asan
+
+  If pass 1 already replaced boot/, run ~make two_pass~ first. This keeps the
+  native and ASAN self-translation byte comparisons against the same emitter.
 
   Choosing between the two approaches:
 

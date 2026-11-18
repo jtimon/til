@@ -12,6 +12,103 @@ priv checked := proc(command: Cmd, work: Str) {
     expect(status == 0, command.render(), "\n", command.out(), command.err())
 }
 
+priv check_owned_arrays_callables := proc(compiler : Str, work : Str) {
+    File.writefile(format(work, "/containers_callbacks.til"), format("mode lib\n",
+        "Task := func(x:I64) returns I64\nRelay := func(task:Task,x:I64) returns I64\n",
+        "priv plus_seven := func(x:I64) returns I64{return x+7}\n",
+        "make_task := func() returns Task{return plus_seven}\ncall_task := func(task:Task,x:I64) returns I64{return task(x)}\n",
+        "drop_task := func(own task:Task){ptr_eq(task,task)}\n",
+        "call_relay := func(relay:Relay,x:I64) returns I64{return relay(plus_seven,x)}\n",
+        "Holder := struct{task:Task}\nmake_holder := func(task:Task) returns Holder{return Holder(task=task)}\n",
+        "copy_holder := func(value:Holder) returns Holder{return value.clone()}\n",
+        "replace_holder := func(mut value:Holder){value.task=plus_seven}\ndrop_holder := func(own value:Holder){ptr_eq(value,value)}\n",
+        "Container := struct{text:Str;values:Array(F32);task:Task}\n",
+        "make_numbers := func(n:USize) returns Array(F32){mut values:=Array(F32).new(n);for i in 0..n{values.unsafe_set(i,own (i+1).to_f32())};return values}\n",
+        "sum_owned := func(own values:Array(F32)) returns F32{mut total:F32=0;for i in 0..values.len(){total=total+values.unsafe_get(i)};return total}\n",
+        "echo_owned := func(own values:Array(F32)) returns Array(F32){return values}\n",
+        "make_container := func(n:USize) returns Container{values:=make_numbers(n);return Container(text=format(\"own\",n.to_str()),values=values,task=plus_seven)}\n",
+        "copy_container := func(value:Container) returns Container{return value.clone()}\n",
+        "replace_numbers := func(mut value:Container,n:USize){value.values=Array(F32).new(n)}\n",
+        "call_container := func(value:Container,x:I64) returns I64{return value.task(x)}\ndrop_container := func(own value:Container){ptr_eq(value,value)}\n",
+        "Wrap := struct{values:Array(F32)}\nwrap_owned := func(own values:Array(F32)) returns Wrap{return Wrap(values=values)}\ndrop_wrap := func(own value:Wrap){ptr_eq(value,value)}\n",
+        "own_float := func(own value:F32) returns F32{return value.clone()+1}\n"))
+    File.writefile(format(work, "/containers_callbacks_caller.c"), format(
+        "#include <assert.h>\n#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n",
+        "typedef struct Closure{void*call;void*env;void(*drop)(void*);void*(*clone)(void*);}Closure;typedef struct{void*data;uint64_t cap;}Buffer;typedef struct{char*data;uint64_t count,cap;}Text;typedef struct{Closure*task;}Holder;typedef struct{Text text;Buffer values;Closure*task;}Container;typedef struct{Buffer values;}Wrap;_Static_assert(sizeof(Container)==48,\"Container ABI\");\n",
+        "extern Closure*make_task(void);extern int64_t call_task(Closure*,int64_t),call_relay(Closure*,int64_t),call_container(const Container*,int64_t);extern void drop_task(Closure*);extern Holder make_holder(Closure*),copy_holder(const Holder*);extern void replace_holder(Holder*),drop_holder(Holder*);extern Buffer make_numbers(uint64_t),echo_owned(Buffer*);extern float sum_owned(Buffer*),own_float(float*);extern Container make_container(uint64_t),copy_container(const Container*);extern void replace_numbers(Container*,uint64_t),drop_container(Container*);extern Wrap wrap_owned(Buffer*);extern void drop_wrap(Wrap*);\n",
+        "typedef struct{int64_t bias;}Env;static int living=0;static int64_t external_call(void*p,int64_t x){return ((Env*)p)->bias+x;}static void external_drop(void*p){living--;free(p);}static void*external_clone(void*p){Env*copy=malloc(sizeof*copy);assert(copy);*copy=*(Env*)p;living++;return copy;}static Closure*external_task(int64_t bias){Closure*c=malloc(sizeof*c);Env*env=malloc(sizeof*env);assert(c&&env);env->bias=bias;living++;*c=(Closure){(void*)external_call,env,external_drop,external_clone};return c;}\n",
+        "static int64_t relay_call(void*env,Closure*task,int64_t x){(void)env;return ((int64_t(*)(void*,int64_t))task->call)(task->env,x)+2;}\n",
+        "int main(void){Closure*plain=make_task();assert(plain && !plain->env && !plain->drop && !plain->clone);assert(call_task(plain,5)==12);drop_task(plain);assert(call_task(plain,8)==15);Closure relay={(void*)relay_call,0,0,0};assert(call_relay(&relay,5)==14);\n",
+        "for(unsigned round=0;round<64;round++){Closure*original=external_task(40);assert(living==1 && call_task(original,2)==42);Holder first=make_holder(original);assert(living==2 && first.task!=original && call_task(first.task,4)==44);Holder*second=malloc(sizeof*second);assert(second);*second=copy_holder(&first);assert(living==3 && second->task!=first.task);replace_holder(&first);assert(living==2 && call_task(first.task,5)==12);Holder*first_box=malloc(sizeof*first_box);assert(first_box);*first_box=first;drop_holder(first_box);drop_holder(second);assert(living==1);drop_task(original);assert(living==0);}\n",
+        "for(uint64_t n=0;n<18;n++){Container first=make_container(n);assert(first.text.count>=4 && !memcmp(first.text.data,\"own\",3) && first.values.cap==n && call_container(&first,5)==12);for(uint64_t i=0;i<n;i++)assert(((float*)first.values.data)[i]==(float)(i+1));Container*copy=malloc(sizeof*copy);assert(copy);*copy=copy_container(&first);assert(copy->text.data!=first.text.data && copy->text.count==first.text.count && !memcmp(copy->text.data,first.text.data,first.text.count));assert(copy->values.cap==n && !memcmp(copy->values.data,first.values.data,n*4));if(n)assert(copy->values.data!=first.values.data);replace_numbers(&first,n+3);assert(first.values.cap==n+3 && copy->values.cap==n);for(uint64_t i=0;i<n+3;i++)assert(((float*)first.values.data)[i]==0);Container*first_box=malloc(sizeof*first_box);assert(first_box);*first_box=first;drop_container(first_box);drop_container(copy);Buffer*values=malloc(sizeof*values);assert(values);*values=make_numbers(n);assert(sum_owned(values)==(float)(n*(n+1)/2));Buffer*echo=malloc(sizeof*echo);assert(echo);*echo=make_numbers(n);Buffer moved=echo_owned(echo);assert(moved.cap==n);free(moved.data);Buffer*wrapped=malloc(sizeof*wrapped);assert(wrapped);*wrapped=make_numbers(n);Wrap*owner=malloc(sizeof*owner);assert(owner);*owner=wrap_owned(wrapped);assert(owner->values.cap==n);drop_wrap(owner);float*scalar=malloc(sizeof*scalar);assert(scalar);*scalar=2.5f;assert(own_float(scalar)==3.5f);}\nreturn 0;}\n"))
+    for level in array(Str, "0", "2", "3") {
+        build := Cmd.new(compiler, "build", "--backend=mlir", "--usize=64", format("--opt=", level), "containers_callbacks.til")
+        checked(build, work)
+        cc := Cmd.new("clang-18", "-O2", "-Wall", "-Wextra", "-Werror", "-fsanitize=address,undefined", "-fno-sanitize-recover=all", "containers_callbacks_caller.c", "gen/lib/libcontainers_callbacks.a", "-lm", "-o", "containers_callbacks_caller")
+        checked(cc, work)
+        native := Cmd.new("./containers_callbacks_caller")
+        checked(native, work)
+    }
+}
+
+priv check_preann_example := proc(compiler : Str, work : Str) {
+    source := realpath_str("examples/preann.til")
+    build := Cmd.new(compiler, "build", "--backend=mlir", "--usize=64", "--opt=2", "--force-rebuild", "-o", "preann_example", source)
+    checked(build, work)
+    native := Cmd.new("./preann_example")
+    checked(native, work)
+    expect(native.out().starts_with("correctness: passed\n"), native.out())
+    for shape in array(Str, "17,33", "512,512", "4097,513", "8193,4096") {
+        expect(native.out().contains(format("median,", shape, ",blocked8_packed,")), native.out())
+    }
+}
+
+priv check_vector_widths := proc(compiler : Str, work : Str) {
+    mut source := "mode lib\n"
+    mut declarations := "#include <assert.h>\n#include <stdint.h>\n#include <stdbool.h>\n#include <string.h>\n#include <math.h>\ntypedef struct{void*data;uint64_t cap;}Buffer;\n"
+    mut checks := "int main(int argc,char**argv){(void)argv;if(argc>1){F16 bad;for(unsigned i=0;i<16;i++)bad.v[i]=1;bad.v[15]=2147483648.0f;cast16(bad);return 77;}\n"
+    for width in array(USize, 1, 2, 8, 16, 32) {
+        n := width.to_str()
+        f := format("WideF", n)
+        s := format("WideS", n)
+        m := format("WideM", n)
+        source = format(source, "priv ", f, " := Simd(F32,", n, ")\npriv ", s, " := Simd(I32,", n, ")\npriv ", m, " := Simd(Bool,", n, ")\n",
+            "add", n, " := func(a:", f, ",b:", f, ") returns ", f, "{return a+b}\nforward", n, " := func(a:", f, ",b:", f, ") returns ", f, "{return add", n, "(a,b)}\n",
+            "sum", n, " := func(a:", f, ") returns F32{return a.reduce_add()}\nmin", n, " := func(a:", f, ") returns F32{return a.reduce_min()}\nmax", n, " := func(a:", f, ") returns F32{return a.reduce_max()}\n",
+            "divide", n, " := func(a:", s, ",b:", s, ") returns ", s, "{return a/b}\nmask", n, " := func(a:", f, ",b:", f, ") returns ", m, "{return a.lt(b)}\n",
+            "choose", n, " := func(mask:", m, ",a:", f, ",b:", f, ") returns ", f, "{return ", f, ".select(mask,a,b)}\ninvert", n, " := func(mask:", m, ") returns ", m, "{return mask.bnot()}\nall", n, " := func(mask:", m, ") returns Bool{return mask.all()}\n",
+            "cast", n, " := func(a:", f, ") returns ", s, "{return a.cast(I32)}\nfloat", n, " := func(a:", s, ") returns ", f, "{return a.cast(F32)}\n",
+            "lane", n, " := func(a:", f, ",i:USize) returns F32 throws OutOfBounds{return a.get(i)?}\nload", n, " := func(a:Array(F32),i:USize) returns ", f, " throws OutOfBounds{return ", f, ".load(a,i)?}\nstore", n, " := func(a:", f, ",mut b:Array(F32),i:USize) throws OutOfBounds{a.store(b,i)?}\n",
+            "zero", n, " := func() returns ", f, "{return ", f, ".zero()}\nsplat", n, " := func(a:F32) returns ", f, "{return ", f, ".splat(a)}\n")
+        mut arguments := ""
+        for i in 0..width {
+            if i > 0 { arguments = format(arguments, ",") }
+            arguments = format(arguments, (i + 1).to_str())
+        }
+        source = format(source, "construct", n, " := func() returns ", f, "{return ", f, ".new(", arguments, ")}\n")
+        declarations = format(declarations, "typedef struct{float v[", n, "];}F", n, ";typedef struct{int32_t v[", n, "];}S", n, ";typedef struct{bool v[", n, "];}M", n, ";\n",
+            "extern F", n, " forward", n, "(F", n, ",F", n, "),choose", n, "(M", n, ",F", n, ",F", n, "),float", n, "(S", n, "),load", n, "(const Buffer*,uint64_t,int64_t*),zero", n, "(void),splat", n, "(float),construct", n, "(void);\n",
+            "extern S", n, " divide", n, "(S", n, ",S", n, "),cast", n, "(F", n, ");extern M", n, " mask", n, "(F", n, ",F", n, "),invert", n, "(M", n, ");extern bool all", n, "(M", n, ");\nextern float sum", n, "(F", n, "),min", n, "(F", n, "),max", n, "(F", n, "),lane", n, "(F", n, ",uint64_t,int64_t*);extern void store", n, "(F", n, ",Buffer*,uint64_t,int64_t*);\n")
+        checks = format(checks, "{enum{N=", n, "};F", n, " a,b;S", n, " s,t;for(unsigned i=0;i<N;i++){a.v[i]=(float)((int)i-8)/4;b.v[i]=(float)(i+1);s.v[i]=i%2?INT32_MIN:INT32_MAX;t.v[i]=i%3?-1:0;}F", n, " r=forward", n, "(a,b),z=zero", n, "(),sp=splat", n, "(-0.0f),ct=construct", n, "();M", n, " m=mask", n, "(a,b),im=invert", n, "(m);F", n, " selected=choose", n, "(m,a,b);S", n, " d=divide", n, "(s,t),c=cast", n, "(a);F", n, " f=float", n, "(c);bool every=true;float tree[N];for(unsigned i=0;i<N;i++){assert(r.v[i]==a.v[i]+b.v[i] && z.v[i]==0 && ct.v[i]==(float)(i+1));assert(signbit(sp.v[i]));bool less=a.v[i]<b.v[i];every=every&&less;assert(m.v[i]==less && im.v[i]!=less && selected.v[i]==(less?a.v[i]:b.v[i]));int32_t expected=!t.v[i]?0:(s.v[i]==INT32_MIN?INT32_MIN:-s.v[i]);assert(d.v[i]==expected && c.v[i]==(int32_t)a.v[i] && f.v[i]==(float)c.v[i]);tree[i]=a.v[i];}assert(all", n, "(m)==every);for(unsigned half=N/2;half;half/=2)for(unsigned i=0;i<half;i++)tree[i]=tree[i]+tree[i+half];float total=sum", n, "(a);assert(!memcmp(&total,tree,4));float negative=sum", n, "(sp);assert(signbit(negative));assert(min", n, "(a)==a.v[0] && max", n, "(a)==a.v[N-1]);\n",
+            "float input[N+1],output[N+3];for(unsigned i=0;i<N+1;i++)input[i]=(float)i;for(unsigned i=0;i<N+3;i++)output[i]=-99;Buffer in={input,N+1},out={output,N+3};int64_t error=0;F", n, " loaded=load", n, "(&in,1,&error);assert(!error && !memcmp(loaded.v,input+1,N*4));store", n, "(loaded,&out,1,&error);assert(!error && !memcmp(output+1,input+1,N*4) && output[0]==-99 && output[N+1]==-99);for(unsigned i=0;i<N;i++)assert(lane", n, "(loaded,i,&error)==input[i+1] && !error);error=0;lane", n, "(loaded,N,&error);assert(error==1);error=0;load", n, "(&in,2,&error);assert(error==1);error=0;load", n, "(&in,UINT64_MAX,&error);assert(error==1);error=0;store", n, "(loaded,&out,UINT64_MAX,&error);assert(error==1 && output[0]==-99 && output[N+1]==-99);}\n")
+        checks = format(checks, "{enum{N=", n, "};F", n, " a,b;for(unsigned i=0;i<N;i++){a.v[i]=(float)i;b.v[i]=(float)i+(i%2?-1:1);}M", n, " m=mask", n, "(a,b),im=invert", n, "(m);F", n, " chosen=choose", n, "(m,a,b);for(unsigned i=0;i<N;i++)assert(m.v[i]==!(i%2) && im.v[i]==(i%2) && chosen.v[i]==(i%2?b.v[i]:a.v[i]));for(unsigned i=0;i<N;i++)a.v[i]=i%2?0.0f:-0.0f;float lo=min", n, "(a),hi=max", n, "(a);assert(signbit(lo) && (!!signbit(hi)==(N==1)));uint32_t payload=0x7f800123;memcpy(a.v+N-1,&payload,4);lo=min", n, "(a);hi=max", n, "(a);assert(!memcmp(&lo,&payload,4) && !memcmp(&hi,&payload,4));}\n")
+    }
+    File.writefile(format(work, "/vector_widths.til"), source)
+    File.writefile(format(work, "/vector_width_caller.c"), format(declarations, checks, "return 0;}\n"))
+    for level in array(Str, "0", "2", "3") {
+        build := Cmd.new(compiler, "build", "--backend=mlir", format("--opt=", level), "vector_widths.til")
+        checked(build, work)
+        cc := Cmd.new("clang-18", "-O2", "-ffp-contract=off", "-fsanitize=address,undefined", "-Wall", "-Wextra", "-Werror", "vector_width_caller.c", "gen/lib/libvector_widths.a", "-lm", "-o", "vector_width_caller")
+        checked(cc, work)
+        native := Cmd.new("./vector_width_caller")
+        checked(native, work)
+        invalid := Cmd.new("./vector_width_caller", "invalid")
+        invalid.cwd(work).capture()
+        invalid_status := invalid.run()
+        expect(invalid_status == 1 && invalid.err().len() == 0 && invalid.out().contains(": panic: invalid numeric cast\n"), invalid.out(), invalid.err())
+    }
+}
+
 priv check_core_bodies := proc(compiler:Str,work:Str) {
     types:=array(Str,"I8","I16","I32","I64","U8","U16","U32","U64")
     ctypes:=array(Str,"int8_t","int16_t","int32_t","int64_t","uint8_t","uint16_t","uint32_t","uint64_t")
@@ -778,6 +875,12 @@ priv check_scalar_arrays := proc(compiler:Str,work:Str) {
             "recover_",t,":=func(a:Array(",t,")) returns ",t,"{ref first:",t,"=a.get(0)!;mut result:",t,"=",zero,";mut i:USize=0;while i<3{result=read_",t,"(a,USize.MAX)? catch(err:OutOfBounds){result=first.clone()};ref again:",t,"=a.get(0)!;result=again.clone();i++};return result}\n",
             "bang_",t,":=func(a:Array(",t,"),i:USize) returns ",t,"{ref v:",t,"=a.get(i)!;return v.clone()}\n")
         declarations=format(declarations,"extern uint64_t length_",t,"(const Buffer*);extern const Buffer*borrow_",t,"(const Buffer*);extern const ",ct,"*element_",t,"(const Buffer*,uint64_t,long long*),*forward_",t,"(const Buffer*,uint64_t,long long*);extern ",ct," read_",t,"(const Buffer*,uint64_t,long long*),recover_",t,"(const Buffer*),bang_",t,"(const Buffer*,uint64_t);extern void write_",t,"(Buffer*,uint64_t,",ct,",long long*),alias_",t,"(Buffer*,uint64_t,",ct,",long long*),copy_",t,"(const Buffer*,Buffer*,uint64_t,long long*);\n")
+        source = format(source,
+            "data_", t, " := func(a:Array(", t, ")) returns ref U8{return a.data}\n",
+            "unsafe_read_", t, " := func(a:Array(", t, "),i:USize) returns ", t, "{ref v:", t, "=a.unsafe_get(i);return v.clone()}\n",
+            "unsafe_write_", t, " := func(mut a:Array(", t, "),i:USize,v:", t, "){a.unsafe_set(i,own v.clone())}\n")
+        declarations = format(declarations, "extern void*data_", t, "(const Buffer*);extern ", ct, " unsafe_read_", t, "(const Buffer*,uint64_t);extern void unsafe_write_", t, "(Buffer*,uint64_t,", ct, ");\n")
+        native_checks = format(native_checks, "{", ct, " a[3]={0},b[3]={0};Buffer left={a,3},right={b,3};assert(data_", t, "(&left)==(void*)a);for(unsigned i=0;i<3;i++){", ct, " value=(", ct, ")(i+1);unsafe_write_", t, "(&left,i,value);assert(!memcmp(a+i,&value,sizeof value));", ct, " got=unsafe_read_", t, "(&left,i);assert(!memcmp(&got,&value,sizeof value));unsafe_write_", t, "(&right,i,got);assert(!memcmp(b+i,&value,sizeof value));}}\n")
         mut init:=format(ct," v=(",ct,")(i*37+129);memcpy(raw+1+i*sizeof v,&v,sizeof v);")
         if t=="Bool" {init="bool v=(i%2)!=0;memcpy(raw+1+i,&v,1);"}
         if t=="F32" {init="const uint32_t patterns[]={0x7f800001,0xffc12345,0x80000000,1,0x7f800000,0xff800000,0,0x3f800000};memcpy(raw+1+i*4,patterns+i,4);"}
@@ -1786,6 +1889,9 @@ main := proc(compiler_arg: Str) {
     compiler := realpath_str(compiler_arg)
     work := "tmp/mlir_integration"
     mkdir_p(work)
+    check_owned_arrays_callables(compiler, work)
+    check_preann_example(compiler, work)
+    check_vector_widths(compiler, work)
     check_core_dependency(compiler, work)
     check_swap_format_cleanup(compiler,work)
     check_diagnostics(compiler,work)

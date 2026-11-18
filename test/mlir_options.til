@@ -40,6 +40,17 @@ main := proc(compiler_arg: Str) {
         expect(ir.contains("arith.addf"), ir)
         expect(ir.contains("vector<4xf32>"), ir)
         expect(ir.contains("llvm.insertvalue"), ir)
+        for lanes in array(Str, "1", "2", "8", "16", "32", "1024") {
+            File.writefile(format(work, "/width.til"), format("mode pure\nF := Simd(F32,", lanes, ")\nM := Simd(Bool,", lanes, ")\nadd := func(a:F,b:F) returns F{return a+b}\ncompare := func(a:F,b:F) returns M{return a<b}\n"))
+            wide := Cmd.new(compiler, "translate", "--backend=mlir", "width.til")
+            wide.cwd(work).capture()
+            wide_status := wide.run()
+            expect(wide_status == 0, wide.out(), wide.err())
+            wide_ir := File.readfile(format(work, "/gen/mlir/width.mlir"))
+            expect(wide_ir.contains(format("vector<", lanes, "xf32>")) && wide_ir.contains(format("vector<", lanes, "xi1>")), wide_ir)
+            if lanes.to_i64() >= 8 { expect(wide_ir.contains("llvm.byval") && wide_ir.contains("llvm.sret"), wide_ir) }
+            expect(wide_ir.contains("fastmath").or(wide_ir.contains("inbounds")).not(), wide_ir)
+        }
         library_run := Cmd.new(compiler, "run", "--backend=mlir", "add.til")
         library_run.cwd(work).capture()
         expect(library_run.run() != 0, "MLIR library was run")
@@ -141,8 +152,35 @@ main := proc(compiler_arg: Str) {
         File.writefile(format(work, "/buffer_own.til"), "mode pure\nconsume := func(own a: Array(F32)) returns USize { return a.len() }\n")
         buffer_own := Cmd.new(compiler, "translate", "--backend=mlir", "buffer_own.til")
         buffer_own.cwd(work).capture()
-        expect(buffer_own.run() != 0, "unsupported buffer ownership accepted")
-        expect(buffer_own.out().contains("parameters must be borrowed"), buffer_own.out(), buffer_own.err())
+        buffer_own_status := buffer_own.run()
+        expect(buffer_own_status == 0, buffer_own.out(), buffer_own.err())
+        owned_ir := File.readfile(format(work, "/gen/mlir/buffer_own.mlir"))
+        expect(owned_ir.contains("til.mlir.core.Array__F32.delete") && owned_ir.contains("llvm.call @free"), owned_ir)
+        File.writefile(format(work, "/container_callback.til"), format("mode pure\n",
+            "Callback := func(x:I64) returns I64\nHolder := struct{name:Str;values:Array(F32);callback:Callback}\n",
+            "priv plus := func(x:I64) returns I64{return x+1}\n",
+            "make := func(n:USize) returns Holder{values:=Array(F32).new(n);return Holder(name=\"holder\",values=values,callback=plus)}\n",
+            "invoke := func(value:Holder,x:I64) returns I64{return value.callback(x)}\n",
+            "copy := func(value:Holder) returns Holder{return value.clone()}\n"))
+        callback := Cmd.new(compiler, "translate", "--backend=mlir", "container_callback.til")
+        callback.cwd(work).capture()
+        callback_status := callback.run()
+        expect(callback_status == 0, callback.out(), callback.err())
+        callback_ir := File.readfile(format(work, "/gen/mlir/container_callback.mlir"))
+        expect(callback_ir.contains("til.mlir.closure.") && callback_ir.contains("llvm.call %") && callback_ir.contains("til.mlir.pod.Holder"), callback_ir)
+        expect(callback_ir.contains("llvm.sret") && callback_ir.contains("til_closure_slot_clone"), callback_ir)
+        rejected_callbacks := array(Str,
+            "mode pure\nCallback:=func(x:I8) returns I64\ninvoke:=func(callback:Callback,x:I8) returns I64{return callback(x)}\n",
+            "mode pure\nWide:=Simd(F32,8)\nCallback:=func(shallow x:Wide) returns F32\ninvoke:=func(callback:Callback,shallow x:Wide) returns F32{return callback(x)}\n",
+            "mode pure\nLarge:=struct{a:I64=0;b:I64=0;c:I64=0}\nCallback:=func() returns Large\ninvoke:=func(callback:Callback) returns Large{return callback()}\n")
+        callback_errors := array(Str, "indirect narrow scalar arguments", "indirect aggregate stack arguments", "indirect result requires unsupported call-site ABI attributes")
+        for i in 0..rejected_callbacks.len() {
+            File.writefile(format(work, "/callback_rejected.til"), rejected_callbacks[i])
+            rejected := Cmd.new(compiler, "translate", "--backend=mlir", "callback_rejected.til")
+            rejected.cwd(work).capture()
+            rejected_status := rejected.run()
+            expect(rejected_status != 0 && rejected.out().contains(callback_errors[i]), rejected.out(), rejected.err())
+        }
         File.writefile(format(work, "/bad_lane.til"), "mode pure\nF4 := Simd(F32,4)\nbad_lane := func(a: F4) returns F32 { return a[4] }\n")
         bad_lane := Cmd.new(compiler, "translate", "--backend=mlir", "bad_lane.til")
         bad_lane.cwd(work).capture()

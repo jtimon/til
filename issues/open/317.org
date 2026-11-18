@@ -18,6 +18,253 @@ the C backend stays the default and the bootstrap path.
   and second-vendor portability. It need not wait for this entire backend;
   MLIR infrastructure alone does not implement the device execution model.
 
+*** Unmodified Preann and owned containers/callbacks (base d4ead4aec)
+
+The retained width/wall correction and this next slice are combined on
+d4ead4aec after the requested checkpoint/rebase/soft-reset workflow.
+examples/preann.til is unchanged: the MLIR build now runs its correctness
+checks and all four complete timing shapes, including runtime-selected
+macro-produced kernels, managed Variant/LayerCase records and nested arrays.
+
+Array allocation/clone/delete/value returns and managed record lifecycle use
+their prepared ordinary bodies. Numeric memory intrinsics borrow descriptor
+addresses; own parameters consume the native heap outer. Saved-old whole/field
+replacement roots and invokes the appropriate destructor without freeing
+embedded storage. Constructor transfer and explicit prepared free decisions
+remain authoritative, avoiding both replaced-buffer leaks and duplicate frees.
+
+Capture-free function values use the existing TilClosure call/env/drop/clone
+layout and ABI trampolines. Address-taking roots the concrete body, including
+macro specializations, with local shadowing respected. Incoming C callbacks
+may carry environments; borrowed constructor fields clone their descriptors,
+and managed record copy/replacement/deletion honors the existing lifecycle
+hooks. Unsupported indirect byval/sret/narrow-extension signatures are rejected
+because LLVM 18's export loses the required call-site attributes. Capturing
+til literals, mutable callable locals/parameters, callable slot/field aliases
+and borrowed callable returns remain outside this slice.
+
+Regression: test/mlir.til check_owned_arrays_callables covers independent
+container copies, replacement/destruction, consumed scalar/array outers,
+returning a consumed array, constructor transfer and exact callback clone/drop
+counters with ASAN/UBSAN native clients at O0/O2/O3. check_preann_example builds
+and runs the original source. test/mlir_options.til checks ownership/callback
+emission and unsupported indirect ABI diagnostics without LLVM tools.
+
+Post-rebase verification on this combined source:
+
+- Clean make test_two_pass: 589/590, 60.93s wall, mlir_options 57.21s,
+  self-translation 31.49s. The only failure was the existing HolyC struct
+  golden's new core Str-view clone; regenerated it through the test runner.
+  The subsequent full runner passed 590/590, 52.75s wall (warm build outputs).
+  Final clean make test_two_pass after that regeneration passed 590/590:
+  58.88s wall, mlir_options 55.21s, self-translation 31.15s.
+- Full self-applied ASAN compiler suite: 593/593, 220.47s wall. Complete
+  test/mlir.til integration passed with both normal and ASAN compilers.
+- Original Preann also passed with its generated LLVM definitions marked
+  sanitize_address and compiled/linked by clang-18 -fsanitize=address.
+  Correctness and all four timing shapes completed without ASAN/LSan errors;
+  disassembly of layer_reference confirms instrumented MLIR memory accesses.
+  This manual check does not add CLI MLIR --asan support. Sanitized timings
+  are correctness evidence, not performance comparisons.
+
+Evidence under tmp/: mlir-preann-final-verified-two-pass.log,
+mlir-preann-final-two-pass.log,
+mlir-preann-final-suite.log, mlir-preann-final-asan-build.log,
+mlir-preann-final-asan-suite.log, mlir-preann-final-integration.log,
+mlir-preann-final-integration-asan.log, mlir-preann-final-native-asan.log and
+mlir-preann-final-sanitized-assembly.log. The manual sanitizer helper is
+mlir_sanitize_ir.til; it applies the existing direct-call ABI adapter before
+adding sanitize_address to definition headers. Lower with mlir-opt-18's
+convert-vector-to-llvm, convert-arith-to-llvm and reconcile-unrealized-casts,
+then mlir-translate-18 --mlir-to-llvmir; link the current revision's native
+U64 runtime object. No new persistent compiler artifact or runtime API exists.
+
+#409 records the proposed native AArch64 CI measurement step; #411/#412 retain
+the explicit GPU API/artifact/toolchain proposals. Neither follow-up was
+implemented or executed here. The general MLIR backend remains incomplete.
+
+*** Wall-time correction after unmerge (base bef13c0b4)
+
+Rebased the retained worktree onto bef13c0b4. The original implementation,
+handoff and this correction are being folded into one self-applied Two-pass
+commit, with generated boot artifacts rebuilt from that base.
+
+The 1024-lane check remains in the ordinary suite. Profiling identified a
+left-deep generated Bool reduction tree and repeated ownership work on huge
+generated to_str collectors. Balanced Bool trees/direct halving sums and
+sparse, word-parallel ownership flow reduce the forced 1024-lane translation
+from 92.300s to 7.931s. Straight-line bodies cannot need Mixed-path delete
+grafts, so their per-local CFG rebuild/solve is avoided. Existing argument
+scopes are retained; view copying is corrected as described below. A rejected per-element scoping
+experiment was caught by self-hosting borrow checks and is not retained.
+
+Clean make test_two_pass passed 576/576. The final measured run was
+60.56s wall, mlir_options 52.63s, self-translation 30.33s, versus the original
+133.350s integration wall. One unchanged run was 117.39s with a corresponding
+host-wide self-translation increase; both samples are retained. Full ASAN:
+579/579, plus the complete ASAN-compiler MLIR integration PASS. Measurements,
+profiles, discarded experiments and log paths are recorded in
+doc/optimizations.org under "Wide SIMD preparation and suite wall correction".
+
+test/variadic.til adds the mode-test regression
+test_variadic_argument_lifetimes. The two MLIR subprocess-orchestration
+drivers remain mode cli; their entrypoints accept the compiler-under-test
+path. Mode choice did not cause the width preparation cost. No coverage was
+removed and no new CLI/configuration/artifact surface was introduced.
+
+The stronger runtime lifetime test also failed with the baseline bin/til_boot:
+a Str view of an owned temporary was moved into a variadic collector while
+its receiver buffer was deleted. Packing now copies recognized core view
+results, matching ref-returning argument handling, with declaration-identity
+checks for user method name collisions. The affected HolyC goldens were
+regenerated. Final ASAN verification used the self-applied compiler/boot pair;
+make test_asan alone resets pass 1 during an unmerged emit change, so the
+documented direct full-runner sequence was used after make two_pass.
+
+*** Worktree handoff before master cleanup (2026-11-14)
+
+The human requested preservation here before cleaning up master. Continue in
+the existing mojo-simd-review worktree; the human's planned master cleanup is
+NOT an instruction to reset, revert, cherry-pick or otherwise change master.
+
+**** Commits and retained implementation
+
+- Original implementation: 88e7766f2, based on ae1daf9eb.
+- Rebased onto master 0e41f91c6 as 28123834c. The only conflict was generated
+  boot/til.c; kept master's artifact under the explicit next-to-merge exception.
+  The source/test/documentation changes survived. No regeneration or tests
+  were repeated during that rebase/integration turn.
+- Cherry-picked to master as 0a30493c3; master was subsequently observed at
+  3ab421a3e. This worktree still has 28123834c and base 0e41f91c6, preserving
+  the implementation independently of the human's next master operation.
+- Implemented source is src/self/codegen/mlir_codegen.til. Tests are
+  test/mlir.til and test/mlir_options.til. Supported semantics/ABI are in
+  doc/self.org. The progress section below describes the implementation.
+- At this checkpoint no wall-time fix or test-mode conversion has been made.
+- The documentation-only handoff was checked with make summary. That target
+  rebuilt the compiler in this rebased worktree and regenerated boot/til.c;
+  the generated artifact is included with the handoff. This is not a repeat
+  of the full test suite on the rebased implementation.
+
+**** Wall regression: established evidence and unfinished diagnosis
+
+Master's img/totals.svg was inspected together with its source doc/totals.csv.
+The latest rows observed there were:
+
+| Recorded commit | Wall ms | Passed |
+|-----------------+---------+--------|
+| ae1daf9eb       |   59649 | 575/575 |
+| 26d866942       |   58963 | 575/575 |
+| b2f9c118d       |   58892 | 575/575 |
+| 0e41f91c6       |  133350 | 575/575 |
+
+The totals row names the base measured by the next build; the 0e41f91c6 row
+is the integration measurement, not evidence that the preceding Android
+change alone caused the jump. The increase over the previous row is 74.458s.
+
+The worktree's own logs independently identify the critical path:
+
+| Log                                  | mlir_options | Suite wall |
+|--------------------------------------+--------------+------------|
+| tmp/mlir-core-optional-suite.log       |       42.03s |     58.32s |
+| tmp/preann409-suite.log                |      140.84s |    142.31s |
+
+Both test/mlir_options.til and test/mlir.til are mode cli orchestration
+drivers, not mode test. src/tests.til registers mlir_options as one build
+test, running the driver with til run and the compiler path argument.
+The full LLVM integration driver is opt-in, not part of make test.
+Changing the driver's mode by itself does not explain or remove the added
+translation work. The human explicitly pointed this distinction out.
+
+The new ordinary-suite block in test/mlir_options.til launches six separate
+MLIR translations for lane counts 1,2,8,16,32,1024. Its generated width.til
+contains F32 and Bool vector types, add and compare. The 1024-lane frontend
+expansion is the leading hypothesis for the increase, but individual-width
+costs have NOT yet been isolated. Do not claim a measured 1024-lane cost or
+a proven frontend-versus-emitter breakdown.
+
+The attempted isolated command was run from tmp/mlir_options:
+
+#+begin_src sh
+/usr/bin/time -f 'elapsed=%e maxrss_kb=%M' ../../bin/til translate --backend=mlir width.til > ../preann409-width1024-time.log 2>&1
+#+end_src
+
+The human aborted it before a result was obtained. A subsequent process check
+found no til/time process remaining. The fixture at tmp/mlir_options/width.til
+still spells width 1024. Resume by measuring widths separately and correcting
+the actual test/compiler cost, retaining meaningful coverage. The correctness
+pass alone was insufficient: the wall regression must be addressed before
+presenting this change as ready for integration again.
+
+The earlier failed clean-suite attempt had a separate driver sequencing
+problem: querying wide.out()/err() inside the assertion could run before
+wide.run(). The retained test uses an explicit wide_status := wide.run()
+before inspecting captures. The successful 575/575 log includes that fix;
+it did not solve the runtime regression.
+
+**** Verification, benchmark reproduction and GPU status
+
+- Before rebase, make clean && make test passed 575/575, but with the wall
+  regression above. tmp/preann409-suite.log is the successful full log.
+  The full ASAN-compiler MLIR integration passed in
+  tmp/preann409-integration-asan.log; the compiler build log is
+  tmp/preann409-asan-build.log. The normal opt-in integration and options
+  results are tmp/preann409-wide-integration.log and tmp/preann409-options.log.
+- Exact four-lane measurements and their limitations are recorded in
+  doc/optimizations.org, section "Exact four-lane MLIR/Preann comparison";
+  #409 links it. Original source extraction and harness remain at
+  tmp/preann409_kernels.til and tmp/preann409_harness.c. Reproduction scripts:
+  tmp/preann409_build.py, tmp/preann409_local.py, tmp/preann409_report.py and
+  tmp/preann409_assembly.py. Matrix artifacts/logs are under tmp/preann409/.
+- Each 18-library matrix passed 69,120 small/tail/offset bitwise cases plus
+  the large timed shapes. Retained raw sweeps are tmp/preann409-results.log,
+  tmp/preann409-local-results.log and tmp/preann409-wide-results.log. The last
+  uses the generalized MLIR emitter. GCC's default shared-library SIMD helper
+  calls caused a large gap; the separate no-semantic-interposition GCC/Clang
+  controls isolate that cost. No project compiler/linkage default changed.
+- Larger exact-four-lane throughput was similar across locally optimized C
+  and MLIR. All three O2 B8 loops had 28 baseline/20 v3-v4 instructions,
+  eight muls/eight adds, no hot-loop calls/spills/FMA. Desktop load remained
+  active: the timings were not exclusive, and small differences are not
+  speedup claims. Native AArch64 timing is still unmeasured.
+- #411 contains the concrete til-native GPU proposal and the exact API,
+  generated PTX/cubin/embedded-object, toolchain and driver surfaces awaiting
+  approval. #412 records RTX 5090/driver580/CUDA13 availability and the proposed
+  LLVM18 baseline-PTX -> ptxas13 sm_120 route. No device artifact generation,
+  assembler compatibility, device execution or GPU correctness was proven.
+  The human's integration request did not approve implementing those surfaces.
+- make clean removes bin/, gen/ and tmp/boot, not these scratch experiment
+  files. Keep this worktree and its tmp/ evidence available for the follow-up.
+
+*** Width-independent SIMD and Preann baseline (base ae1daf9eb)
+
+F32/I32/U32/Bool SIMD lowering now uses the existing power-of-two lane count,
+not hard-coded four-lane types. Scalar-layout SysV classification handles
+small register aggregates and larger byval/sret values; masks retain normalized
+byte storage. Constructors, arithmetic, selection, casts, reductions, checked
+lanes and numeric-buffer memory use that same width. F32 sum/extrema keep the
+core halving tree, including one-lane identity, signed zeros and NaN payloads.
+Numeric Array descriptors expose their borrowed data field and unchecked
+get/set without changing their pointer ABI; operands execute once in order.
+
+Regression: test/mlir.til check_vector_widths covers widths 1,2,8,16,32 with
+native C callers/internal forwarding, masks, signed exceptional division,
+casts/last-lane cast failure, constructors, scalar-aligned load/store and
+out-of-range/maximal indices at O0/O2/O3. Existing scalar-array tests also
+cover data/unsafe access for all scalar types and aliases. mlir_options
+translates widths through 1024 without the optional toolchain. The existing
+four-lane ABI/control/runtime tests still pass.
+
+Verification: clean make test passed 575/575. The full test/mlir.til run
+using bin/til_asan also passed, including ASAN/UBSAN native callers. Logs:
+tmp/preann409-suite.log and tmp/preann409-integration-asan.log.
+
+The exact four-lane performance comparison is recorded in #409 and
+doc/optimizations.org. GCC helper interposition is isolated as a separate
+diagnostic build control; project linkage/defaults are unchanged. #411/#412
+now contain a concrete pending-approval til-native GPU model and the
+unverified LLVM18 PTX -> CUDA13 sm_120 probe route.
+
 *** Why MLIR
 
 - MLIR is organized around "dialects" (func, arith, scf/cf, memref,

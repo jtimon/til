@@ -4405,11 +4405,39 @@ priv narrow_literal_to_elem := func(mut val: Expr, elem_t: Type) {
 // zero, shredding the source string. Deciding the shape BEFORE building the
 // expression is what keeps the wrap path from cloning the argument twice and
 // throwing the first copy away.
+priv variadic_arg_is_str_view := func(value : Expr, scope : TypeScope, symbols : SymbolPool) returns Bool {
+    if value.node_type.is(NodeType.FCall).not() { return false }
+    mut method := ""
+    switch value.children[0].node_type {
+    case .FieldAccess(field):
+        ref name : Str = field.field_access_name(symbols.names)
+        if str_method_returns_view(name).not() { return false }
+        method = name.clone()
+    case .Ident(id):
+        ref name : Str = id.ident_name(symbols.names)
+        if name.starts_with("Str_") { method = name.strip_prefix("Str_").clone() }
+    case:
+    }
+    if str_method_returns_view(method).not() { return false }
+    target := resolve_direct_fcall(value, scope, symbols)
+    if target.is_none() { return false }
+    ref str_def : Expr = scope.get_struct("Str", symbols).unwrap()
+    member := def_ns_get(str_def, method)
+    // A same-named user method need not have a corresponding Str member.
+    if member.is_none() { return false }
+    // Compare the actual declaration, not just a user method's spelling.
+    return ptr_eq(target.unwrap(), member.unwrap().default_expr())
+}
+
 priv build_variadic_arg_value := func(val_in: Expr, scope: TypeScope, mut symbols: SymbolPool) returns Expr {
     mut is_borrow_arg := val_in.node_type.is(NodeType.Ident).or(val_in.node_type.is(NodeType.FieldAccess))
     if val_in.node_type.is(NodeType.FCall).and(fcall_returns_ref(val_in, scope, symbols).neq(0)) {
         is_borrow_arg = true
     }
+    // A core Str view returns a value descriptor but still borrows its base.
+    // The collector owns its elements: copy the bytes before an owned
+    // receiver temporary dies, just as for a ref-returning argument.
+    if variadic_arg_is_str_view(val_in, scope, symbols) { is_borrow_arg = true }
     if is_borrow_arg {
         tname := type_to_name(val_in.til_type(), symbols)
         // Issue #58 / #147 step 5: don't clone-wrap a FuncPtr/FuncPtrSig.
