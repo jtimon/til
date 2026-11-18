@@ -278,6 +278,14 @@
   C can retain its native switch optimization. Core enum method bodies and the
   initializer's payload ownership decisions are shared.
 
+  HolyC collection descriptors use the core Array/Vec/Set byte-buffer schema.
+  Element pointers are typed views at access sites, rebuilt after growth; the
+  descriptor declaration does not depend on its element class being complete.
+  All classes precede helper prototypes and bodies. Map's inline vector fields
+  remain real declaration dependencies. Collection element names come from the
+  frontend's canonical specializations and Map's prepared vector fields, rather
+  than a second parser for nested type applications.
+
 ** USize defaults and source-level configuration direction
 
   ~USize~ describes counts, lengths, capacities and indices; ~UPtr~ describes

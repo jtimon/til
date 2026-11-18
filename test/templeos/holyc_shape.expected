@@ -5,14 +5,13 @@
 #include "/Home/Ext.HC"
 
 
-extern U0 noop_proc();
 extern I64 get_external_value();
 extern U0 get_external_text(TilStr *return_out);
 extern U0 unsupported();
 
 U0 unsupported()
 {
-    noop_proc();
+    0;
     U64 hoisted__U64_0_0 = 2;
     TilStrArray _va_Array_0_1;
     TilStrArrayNew(&_va_Array_0_1, hoisted__U64_0_0);

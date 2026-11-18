@@ -3152,6 +3152,7 @@ typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState {
     Str extra_function_prototypes;
     Str extra_function_definitions;
     Set__Str boxed_types;
+    Set__Str enum_literal_names;
     Map__Str_Str inline_call_sigs;
     Map__Str_Set__USize inline_cleanup;
     Set__Str inline_indirect;

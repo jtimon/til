@@ -867,9 +867,9 @@
 
   Keep ~bin/til translate --target=templeos -c tmp/til.HC src/til.til~ as a
   development pressure test, not a claim of a working TempleOS compiler.
-  The latest full attempt on ~d755ff8ef~ plus the shared enum-storage changes,
-  at both USize widths, passes ~TypeScope_erase_binding~ and reaches
-  ~cyclic inline struct dependency~ during HolyC type definition ordering.
+  The latest full attempt on ~3618c2c95~ plus the byte-buffer collection changes,
+  at both USize widths, passes the recursive declaration graph and reaches
+  ~spawn_cmd: unsupported function return type 'I64'~ at the host boundary.
   Dynamic Map values, nested ordered containers, scalar namespace storage and
   custom nested lifecycle hooks pass shared native regressions.
   General Dynamic-to-typed casts, the remaining
@@ -1880,6 +1880,43 @@
   The native runner gains these cases without extra VM boots or source wrappers.
   Full compiler translation still reaches a remaining declaration dependency
   cycle at both widths; native compiler hosting is not yet complete.
+
+**** Core collection storage and unchanged common language suites
+
+  HolyC Array/Vec/Set descriptors now use the same byte-buffer storage schema
+  as the core templates. Typed views occur only at element accesses, so helpers
+  preserve stride and ownership without making Vec(Expr) wait for Expr's class
+  declaration. This removes the Expr -> Vec(Expr) -> Expr cycle. Map's inline
+  vector descriptors remain dependencies; helper calls and Array-to-Vec capacity
+  initialization get forward declarations before all helper bodies.
+
+  Specialization discovery uses canonical frontend names and Map's prepared
+  key/value vector fields, removing the backend's duplicate type-argument parser.
+  Nested applications such as Set(Option(ref Str)) consequently use the same
+  concrete types as C. Generated equality bodies with custom field/payload
+  methods reuse their shared Til implementations; borrowed niche keys use their
+  generated comparison bodies rather than comparing pointer addresses.
+
+  The unchanged test/asting.til, test/enums.til and test/ref.til now run in a
+  common native batch at each width: 6, 107 and 39 tests respectively. Their
+  existing interpreter/C rows remain the reference. Acceptance also covers bare
+  tagged variant values, stable storage for retained core enum constants such
+  as TYPE_NONE, aggregate-ref rebinding, borrowed niche field assignment and
+  declaration-typed raw scalar stores. UNREACHABLE uses its shared core body;
+  noop_proc keeps its explicitly empty core semantics.
+
+  Verification on master ~3618c2c95~: ~make clean && make test_two_pass~ passes
+  596/596, clang-clean. All 152 common language cases pass at USize32/64 in the
+  guest, alongside the ownership-ledger suites and complete script-language
+  corpus. The three common sources translate cleanly through an ASAN compiler.
+  Full compiler translation gets beyond the former type-declaration cycle at
+  both widths and reaches the spawn_cmd return-ABI diagnostic recorded above.
+
+  CI measurement for the preceding batching change: Tests run 3158's TempleOS
+  job succeeded in 78m15s; its native acceptance step took 78m07s. This is a real
+  completed run, not an estimate from the removed startup sleeps. The newly
+  shared suites add two guest boots for 304 additional test executions.
+  [[https://github.com/jtimon/til/actions/runs/44168655723/job/134345564432][TempleOS job and step timings]].
 
 **** Manual GUI testing in one VM
 

@@ -586,6 +586,18 @@ owned_collection_checks := proc(identity: Str, bits: Str) {
     File.writefile(format(WORK, "/Ext.HC"), runtime)
 }
 
+common_language_checks := proc(identity: Str, bits: Str) {
+    mut cases := Vec(GuestCase).new()
+    for suite : Str in array(Str, "asting", "enums", "ref") {
+        source := format("test/", suite, ".til")
+        expected := test_reference_output(source, bits)
+        Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
+            "-c", format(WORK, "/TILTEST.HC"), source).run_checked()
+        stage_guest_case(cases, format("common_", suite, "_", bits), expected)
+    }
+    run_guest_batch(identity, format("common_language_", bits), cases)
+}
+
 main := proc() {
     if mkdir_p(WORK) != 0 { panic("could not create ", WORK) }
     uid := captured(Cmd.new("id", "-u")).replace("\n", "")
@@ -630,6 +642,7 @@ main := proc() {
         run_guest_batch(identity, format("language_corpus_", bits), cases)
         numeric_cast_checks(identity,bits)
         owned_collection_checks(identity, bits)
+        common_language_checks(identity, bits)
         test_mode_checks(identity, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), "test/templeos/holyc_terminal_model_support.til").run_checked()

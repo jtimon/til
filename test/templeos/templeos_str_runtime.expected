@@ -15,7 +15,7 @@ extern U8 *TilCheckPtr(U8 *ptr);
 #include "/Home/Ext.HC"
 
 class Vec__Str {
-  TilStr *data;
+  U8 *data;
   U64 count;
   U64 cap;
 };
@@ -58,12 +58,12 @@ class FloatPayload {
 };
 
 class Array__I64 {
-  I64 *data;
+  U8 *data;
   U64 cap;
 };
 
 class Set__F32 {
-  F32 *data;
+  U8 *data;
   U64 count;
   U64 cap;
 };
@@ -124,20 +124,20 @@ U0 Vec__Str_Clone(Vec__Str *out, Vec__Str *src)
   out->cap = src->cap;
   U64 i = 0;
   while (i < src->count) {
-    TilStrClone(&out->data[i], &src->data[i]);
+    TilStrClone(&((out->data)(TilStr *))[i], &((src->data)(TilStr *))[i]);
     i++;
   }
 }
 
 TilStr *Vec__Str_UnsafeGet(Vec__Str *self, U64 i)
 {
-  return &self->data[i];
+  return &((self->data)(TilStr *))[i];
 }
 
 U0 Vec__Str_UnsafeSet(Vec__Str *self, U64 i, TilStr *value)
 {
-  TilStrDelete(&self->data[i], FALSE);
-  TilMemCpy(&self->data[i], value, sizeof(TilStr));
+  TilStrDelete(&((self->data)(TilStr *))[i], FALSE);
+  TilMemCpy(&((self->data)(TilStr *))[i], value, sizeof(TilStr));
   TilMemSet(value, 0, sizeof(TilStr));
 }
 
@@ -173,7 +173,7 @@ U0 Vec__Str_Push(Vec__Str *self, TilStr *value)
     self->data = (TilReAlloc(self->data, new_cap * sizeof(TilStr)))(TilStr *);
     self->cap = new_cap;
   }
-  TilMemCpy(&self->data[self->count], value, sizeof(TilStr));
+  TilMemCpy(&((self->data)(TilStr *))[self->count], value, sizeof(TilStr));
   TilMemSet(value, 0, sizeof(TilStr));
   self->count++;
 }
@@ -183,15 +183,15 @@ U0 Vec__Str_Pop(TilStr *out, Vec__Str *self)
   if (!self->count) TilPanicZ("Vec.pop: empty vec
 ");
   self->count--;
-  TilMemCpy(out, &self->data[self->count], sizeof(TilStr));
-  TilMemSet(&self->data[self->count], 0, sizeof(TilStr));
+  TilMemCpy(out, &((self->data)(TilStr *))[self->count], sizeof(TilStr));
+  TilMemSet(&((self->data)(TilStr *))[self->count], 0, sizeof(TilStr));
 }
 
 U0 Vec__Str_Clear(Vec__Str *self)
 {
   U64 i = 0;
   while (i < self->count) {
-    TilStrDelete(&self->data[i], FALSE);
+    TilStrDelete(&((self->data)(TilStr *))[i], FALSE);
     i++;
   }
   self->count = 0;
@@ -237,7 +237,7 @@ U0 Vec__Str_Append(Vec__Str *self, Vec__Str *other)
     self->data = (TilReAlloc(self->data, next_cap * sizeof(TilStr)))(TilStr *);
     self->cap = next_cap;
   }
-  TilMemCpy(&self->data[self->count], other->data, other->count * sizeof(TilStr));
+  TilMemCpy(&((self->data)(TilStr *))[self->count], other->data, other->count * sizeof(TilStr));
   self->count = needed;
   other->count = 0;
   Vec__Str_Delete(other, FALSE);
@@ -255,7 +255,7 @@ U0 Vec__Str_Truncate(Vec__Str *self, U64 n)
 ");
   U64 i = n;
   while (i < self->count) {
-    TilStrDelete(&self->data[i], FALSE);
+    TilStrDelete(&((self->data)(TilStr *))[i], FALSE);
     i++;
   }
   self->count = n;
@@ -265,11 +265,11 @@ U0 Vec__Str_RemoveAt(Vec__Str *self, U64 i, I64 *err_kind)
 {
   *err_kind = 0;
   if (i >= self->count) { *err_kind = 1; return; }
-  TilStrDelete(&self->data[i], FALSE);
+  TilStrDelete(&((self->data)(TilStr *))[i], FALSE);
   U64 last = self->count - 1;
-  if (i < last) TilMemMove(&self->data[i], &self->data[i+1], (last-i)*sizeof(TilStr));
+  if (i < last) TilMemMove(&((self->data)(TilStr *))[i], &((self->data)(TilStr *))[i+1], (last-i)*sizeof(TilStr));
   self->count = last;
-  TilMemSet(&self->data[last], 0, sizeof(TilStr));
+  TilMemSet(&((self->data)(TilStr *))[last], 0, sizeof(TilStr));
 }
 
 U0 Vec__Str_PushTake(Vec__Str *self, Vec__Str *src, U64 i)
@@ -286,8 +286,8 @@ U0 Vec__Str_PushTake(Vec__Str *self, Vec__Str *src, U64 i)
     self->data = (TilReAlloc(self->data, next_cap*sizeof(TilStr)))(TilStr *);
     self->cap = next_cap;
   }
-  TilMemCpy(&self->data[self->count], &src->data[i], sizeof(TilStr));
-  TilMemSet(&src->data[i], 0, sizeof(TilStr));
+  TilMemCpy(&((self->data)(TilStr *))[self->count], &((src->data)(TilStr *))[i], sizeof(TilStr));
+  TilMemSet(&((src->data)(TilStr *))[i], 0, sizeof(TilStr));
   self->count++;
 }
 
@@ -304,8 +304,8 @@ U0 Vec__Str_TakePrefix(Vec__Str *out, Vec__Str *self, U64 n)
   out->cap = cap;
   if (n) TilMemCpy(out->data, self->data, n*sizeof(TilStr));
   U64 tail = self->count - n;
-  if (tail) TilMemMove(self->data, &self->data[n], tail*sizeof(TilStr));
-  if (n) TilMemSet(&self->data[tail], 0, n*sizeof(TilStr));
+  if (tail) TilMemMove(self->data, &((self->data)(TilStr *))[n], tail*sizeof(TilStr));
+  if (n) TilMemSet(&((self->data)(TilStr *))[tail], 0, n*sizeof(TilStr));
   self->count = tail;
 }
 
@@ -314,8 +314,8 @@ U0 Vec__Str_DeleteMarked(Vec__Str *self, U8 *marks)
   U64 i = 0;
   while (i < self->count) {
     if (marks[i]) {
-      TilStrDelete(&self->data[i], FALSE);
-      TilMemSet(&self->data[i], 0, sizeof(TilStr));
+      TilStrDelete(&((self->data)(TilStr *))[i], FALSE);
+      TilMemSet(&((self->data)(TilStr *))[i], 0, sizeof(TilStr));
     }
     i++;
   }
@@ -323,7 +323,7 @@ U0 Vec__Str_DeleteMarked(Vec__Str *self, U8 *marks)
   U64 r = 0;
   while (r < self->count) {
     if (!marks[r]) {
-      if (w != r) TilMemCpy(&self->data[w], &self->data[r], sizeof(TilStr));
+      if (w != r) TilMemCpy(&((self->data)(TilStr *))[w], &((self->data)(TilStr *))[r], sizeof(TilStr));
       w++;
     }
     r++;
@@ -461,19 +461,19 @@ U0 Array__I64_Clone(Array__I64 *out, Array__I64 *src)
   out->cap = src->cap;
   U64 i = 0;
   while (i < src->cap) {
-    out->data[i] = src->data[i];
+    ((out->data)(I64 *))[i] = ((src->data)(I64 *))[i];
     i++;
   }
 }
 
 I64 *Array__I64_UnsafeGet(Array__I64 *self, U64 i)
 {
-  return &self->data[i];
+  return &((self->data)(I64 *))[i];
 }
 
 U0 Array__I64_UnsafeSet(Array__I64 *self, U64 i, I64 value)
 {
-  self->data[i] = value;
+  ((self->data)(I64 *))[i] = value;
 }
 
 I64 *Array__I64_Get(Array__I64 *self, U64 i, I64 *err_kind)
@@ -511,12 +511,12 @@ U0 Array__I64_Concat(Array__I64 *out, Array__I64 *a, Array__I64 *b)
   Array__I64_New(out, a->cap + b->cap);
   U64 i = 0;
   while (i < a->cap) {
-    out->data[i] = a->data[i];
+    ((out->data)(I64 *))[i] = ((a->data)(I64 *))[i];
     i++;
   }
   U64 j = 0;
   while (j < b->cap) {
-    out->data[a->cap+j] = b->data[j];
+    ((out->data)(I64 *))[a->cap+j] = ((b->data)(I64 *))[j];
     j++;
   }
 }
@@ -549,7 +549,7 @@ U0 Set__F32_Clone(Set__F32 *out, Set__F32 *src)
   Set__F32_WithCapacity(out, src->cap);
   U64 i = 0;
   while (i < src->count) {
-    out->data[i] = src->data[i];
+    ((out->data)(F32 *))[i] = ((src->data)(F32 *))[i];
     i++;
   }
   out->count = src->count;
@@ -579,7 +579,7 @@ Bool Set__F32_Find(Set__F32 *self, F32 value, U64 *index)
   U64 hi = self->count;
   while (lo < hi) {
     U64 mid = lo + (hi-lo)/2;
-    I64 cmp = TilF64Compare(TilF32Load(self->data[mid]), TilF32Load(value), 6);
+    I64 cmp = TilF64Compare(TilF32Load(((self->data)(F32 *))[mid]), TilF32Load(value), 6);
     if (cmp < 0) lo = mid+1;
     else if (cmp > 0) hi = mid;
     else { *index = mid; return TRUE; }
@@ -609,8 +609,8 @@ U0 Set__F32_Add(Set__F32 *self, F32 value)
     self->cap = cap;
   }
   U64 tail = self->count-i;
-  if (tail) TilMemMove(&self->data[i+1], &self->data[i], tail*sizeof(F32));
-  self->data[i] = value;
+  if (tail) TilMemMove(&((self->data)(F32 *))[i+1], &((self->data)(F32 *))[i], tail*sizeof(F32));
+  ((self->data)(F32 *))[i] = value;
   self->count++;
 }
 
@@ -619,9 +619,9 @@ Bool Set__F32_Remove(Set__F32 *self, F32 value)
   U64 i;
   if (!Set__F32_Find(self, value, &i)) return FALSE;
   U64 last = self->count-1;
-  if (i < last) TilMemMove(&self->data[i], &self->data[i+1], (last-i)*sizeof(F32));
+  if (i < last) TilMemMove(&((self->data)(F32 *))[i], &((self->data)(F32 *))[i+1], (last-i)*sizeof(F32));
   self->count = last;
-  TilMemSet(&self->data[last], 0, sizeof(F32));
+  TilMemSet(&((self->data)(F32 *))[last], 0, sizeof(F32));
   return TRUE;
 }
 
