@@ -1969,10 +1969,10 @@ jobs:
       # til.exe. Last on PATH, not first: til finds the windows compiler by
       # its prefixed name, and a `clang` ahead of Apple's would make til
       # build this Mac's own programs (the collector here) without the SDK
-      # and with a linker llvm-mingw does not have. On trial and
-      # continue-on-error.
+      # and with a linker llvm-mingw does not have. Strict since CI run
+      # 3173, where both Macs wrote the Linux hosts' til.exe: bin/make takes
+      # the windows side of llvm-mingw from its Linux package on a Mac.
       - name: Write the windows binary hash list with the pinned llvm-mingw
-        continue-on-error: true
         run: |
           export PATH="$PATH:$PWD/vendor/llvm-mingw/bin"
           x86_64-w64-mingw32-gcc --version
@@ -1980,13 +1980,13 @@ jobs:
           rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
           ./bin/make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
           mkdir -p tmp/hashes-binary-windows
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial macos-arm64 tmp/hashes-binary-windows/macos-arm64.txt bin/til windows-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary-windows/macos-arm64.txt bin/til windows-x64
       - name: Upload the windows binary hash list
-        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-windows-macos-arm64
           path: tmp/hashes-binary-windows/macos-arm64.txt
+          if-no-files-found: error
       # Guard Malloc puts every allocation on its own guarded page, so
       # an out-of-bounds or use-after-free write faults AT THE CULPRIT
       # INSTRUCTION (even from uninstrumented code like libffi asm) and
@@ -2095,11 +2095,28 @@ jobs:
           rm -rf vendor/libffi/build-macos-arm64
           ./bin/make vendor/libffi/build-macos-arm64/.libs/libffi.a
           echo "$PWD/vendor/llvm/bin" >> "$GITHUB_PATH"
-      - name: Build and run tests (no gui)
+      # One step per stage, each run whatever the one before did: a trial
+      # round is an hour, so it reports every stage that fails, not the
+      # first.
+      - name: This Mac's vendored archives, the SDK-less way
         run: |
-          make bin/til bin/test_runner bin/plot bin/tests
+          status=0
+          for archive in vendor/raylib/build-macos-arm64/libraylib.a vendor/tinyfiledialogs/build-macos-arm64/libtinyfd.a vendor/nng/build-macos-arm64/libnng.a vendor/secp256k1/build-macos-arm64/lib/libsecp256k1.a; do
+            ./bin/make "$archive" || status=1
+          done
+          ./bin/make vendor || status=1
+          exit $status
+      - name: make bin/til
+        if: always()
+        run: |
+          make bin/til
           shasum -a 256 bin/til
-          bin/tests --no-gui -j2
+      - name: The test programs
+        if: always()
+        run: make bin/test_runner bin/plot bin/tests
+      - name: Run tests (no gui)
+        if: always()
+        run: bin/tests --no-gui -j2
       - name: Write the binary hash list
         if: always()
         run: |
@@ -2154,11 +2171,28 @@ jobs:
           rm -rf vendor/libffi/build-macos-x64
           ./bin/make vendor/libffi/build-macos-x64/.libs/libffi.a
           echo "$PWD/tmp/mac-tools" >> "$GITHUB_PATH"
-      - name: Build and run tests (no gui)
+      # One step per stage, each run whatever the one before did: a trial
+      # round is an hour, so it reports every stage that fails, not the
+      # first.
+      - name: This Mac's vendored archives, the SDK-less way
         run: |
-          make bin/til bin/test_runner bin/plot bin/tests
+          status=0
+          for archive in vendor/raylib/build-macos-x64/libraylib.a vendor/tinyfiledialogs/build-macos-x64/libtinyfd.a vendor/nng/build-macos-x64/libnng.a vendor/secp256k1/build-macos-x64/lib/libsecp256k1.a; do
+            ./bin/make "$archive" || status=1
+          done
+          ./bin/make vendor || status=1
+          exit $status
+      - name: make bin/til
+        if: always()
+        run: |
+          make bin/til
           shasum -a 256 bin/til
-          bin/tests --no-gui -j2
+      - name: The test programs
+        if: always()
+        run: make bin/test_runner bin/plot bin/tests
+      - name: Run tests (no gui)
+        if: always()
+        run: bin/tests --no-gui -j2
       - name: Write the binary hash list
         if: always()
         run: |
@@ -2299,9 +2333,8 @@ jobs:
           path: tmp/hashes-binary/macos-x64.txt
       # Issue #472: windows-x64 from this Mac too, as on the arm64 Mac:
       # llvm-mingw last on PATH, so that Apple's clang stays this Mac's
-      # own compiler. On trial and continue-on-error.
+      # own compiler. Strict, like there.
       - name: Write the windows binary hash list with the pinned llvm-mingw
-        continue-on-error: true
         run: |
           export PATH="$PATH:$PWD/vendor/llvm-mingw/bin"
           x86_64-w64-mingw32-gcc --version
@@ -2309,13 +2342,13 @@ jobs:
           rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
           ./bin/make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
           mkdir -p tmp/hashes-binary-windows
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial macos-x64 tmp/hashes-binary-windows/macos-x64.txt bin/til windows-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-x64 tmp/hashes-binary-windows/macos-x64.txt bin/til windows-x64
       - name: Upload the windows binary hash list
-        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-windows-macos-x64
           path: tmp/hashes-binary-windows/macos-x64.txt
+          if-no-files-found: error
       # See the macos-arm64 job for what the probe and the dump step
       # are for and why they look like this.
       - name: Guard Malloc probe

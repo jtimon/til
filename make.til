@@ -1224,8 +1224,10 @@ gui_targets := proc(b: Build) returns Vec(GuiTarget) {
     out.push(own GuiTarget(target = "windows-x86", platform_os = "WINDOWS",
         cc = "i686-w64-mingw32-gcc", ar = "i686-w64-mingw32-ar",
         raylib_cflags = WINDOWS_CFLAGS, tinyfd_cflags = tinyfd_windows.clone()))
-    // A mac host builds its own arch natively, against the vendored X11
-    // headers like before; anything else is build_mac_raylib/tinyfd.
+    // A mac host with Apple's clang builds its own arch natively, against
+    // the vendored X11 headers like before; anything else -- a mac whose
+    // clang is the pinned one too (builds_as_host) -- is
+    // build_mac_raylib/tinyfd.
     for arch : Str in MAC_ARCHES.split(" ") {
         out.push(own GuiTarget(target = format("macos-", arch), mac_arch = arch.clone(),
             raylib_cflags = x11_cflags()))
@@ -1268,7 +1270,7 @@ require_gui_cc := proc(t: GuiTarget) {
 /// target's objects stay apart.
 build_gui_raylib := proc(mut b: Build, target: Str) {
     t := gui_target(b, target)
-    is_host := target == b.host.target_name()
+    is_host := builds_as_host(b, target)
     if t.android {
         build_android_raylib(b, target)
         return
@@ -1384,7 +1386,7 @@ build_android_raylib := proc(mut b: Build, name: Str) {
 build_gui_tinyfd := proc(mut b: Build, target: Str) {
     t := gui_target(b, target)
     if t.android { panic("tinyfiledialogs has no Android backend") }
-    is_host := target == b.host.target_name()
+    is_host := builds_as_host(b, target)
     if t.web { panic("tinyfd has no wasm32 build: a browser page gets no native file dialogs") }
     if t.mac_arch.is_empty().not().and(is_host.not()) {
         build_mac_tinyfd(b, t.mac_arch)
@@ -1811,9 +1813,10 @@ secp256k1_targets := proc(b: Build) returns Vec(SecpTarget) {
             t.processor = "arm64"
             t.clang_target = "arm64-apple-macos11"
         }
-        // On a mac the real SDK serves the other arch too; elsewhere the
-        // vendored SDK-less headers, like the mac gui archives.
-        if b.host.is_mac().not() {
+        // On a mac with Apple's clang the real SDK serves the other arch
+        // too; elsewhere the vendored SDK-less headers, like the mac gui
+        // archives.
+        if mac_sdkless(b) {
             t.cflags = format("-nostdlibinc -isystem ", get_cwd_str(), "/vendor/macos/include")
             t.sdkless_mac = true
         }
@@ -1838,7 +1841,7 @@ build_secp256k1_target := proc(mut b: Build, target: Str) {
         }
     }
     if found.not() { panic("no libsecp256k1 build for --target=", target) }
-    is_host := target == b.host.target_name()
+    is_host := builds_as_host(b, target)
     if t.emscripten { build_emsdk(b) }
     else if is_host.not().and(t.cc.is_empty()) {
         panic("pass --riscv32-cc=<path to riscv32 gcc> (or set RISCV32_CC), e.g. the Bootlin toolchain")

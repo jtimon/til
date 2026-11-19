@@ -3557,3 +3557,58 @@ missing/changed APKs, native differences and singleton reporting. Local strict
 producers completed for both targets/layouts, and the explicit trial override
 preserved the same hashes at trial levels. ~make clean && make test~ passed
 596/596. Logs: ~tmp/android_strict_ci.log~, ~tmp/android_producer_policy.log~.
+
+*** Run 3173: til.exe is one file from four hosts; the Macs' make built raylib natively
+
+Run 3173 (master f30a141) is red for two reasons outside the lists: the
+Windows host's ~make test~ failed in ~library_namespace~ (duplicate
+~tilrt~ symbols linking ~tmp/library_namespace_layer.til~; #483's area,
+and 743f148 landed right after), so that host wrote no list, and collect
+stops at "Producer results" when a producer failed. Its report still ran:
+2282 equal, 0 different, 0 missing.
+
+| target | producers | equal (32 + 64) | different |
+|--------+-----------+-----------------+-----------|
+| windows-x64 | Linux x64, Linux arm64, arm64 Mac, Intel Mac | 130 + 2 | none |
+| macos-arm64 | the same four | 117 + 2 | toolchain item; the arm64 Mac's tested ~bin/til~ (Apple's) |
+| macos-x64 | the same four | 119 + 2 | toolchain item; the Intel Mac's tested ~bin/til~ (Apple's) |
+
+**** til.exe from the Macs
+
+~bin/make llvm_mingw~ ran on both Macs for the first time (layout 3: the
+target side of the package taken from the Linux x64 one). Both Macs'
+~til.exe~, ~make bin/til~ and width-64 ~til.exe~ are the Linux hosts'
+files, debug sections included. With the Windows host's own equal lists
+in runs 3166 and 3167, ~til.exe~ is the same file from the five hosts.
+The Macs' two windows steps are strict from here (~produce-binary~, no
+~continue-on-error~, the upload must find the file).
+
+**** The trial jobs: the host's raylib went to raylib's own Makefile
+
+Both ~-pinned~ jobs failed in ~make bin/til~ at the same place:
+
+: clang -c rcore.c ... -DPLATFORM_DESKTOP_GLFW ...
+: rcore.c:109:10: fatal error: 'stdlib.h' file not found
+
+~build_gui_raylib~, ~build_gui_tinyfd~ and ~build_secp256k1_target~ asked
+"is this the host's target" by name, where libffi and nng ask
+~builds_as_host~: a Mac whose ~clang~ is the pinned one builds its own
+target the SDK-less way, like every other host. So the host's raylib was
+handed to raylib's Makefile, with a clang that has no SDK. The three now
+ask ~builds_as_host~, and the secp256k1 table sets the SDK-less flags
+when ~mac_sdkless~ says so, not when the host is not a Mac.
+
+The trial jobs' one build step became four that all run (the host's
+vendored archives and twins; ~make bin/til~; the test programs; the
+suite): a round is an hour, and the first failure used to hide the rest.
+
+**** The bar, after run 3173
+
+| target | Linux x64 | Linux arm64 | Windows | arm64 Mac | Intel Mac |
+|--------+-----------+-------------+---------+-----------+-----------|
+| windows-x64 | equal | equal | equal, tested | equal | equal |
+| macos-x64 | equal | equal | not built | equal | equal; tested is Apple's |
+| macos-arm64 | equal | equal | not built | equal; tested is Apple's | equal |
+
+Left: the Macs' tested ~bin/til~ (the trial jobs), then the Windows host
+building the two mac targets.
