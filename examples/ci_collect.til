@@ -34,6 +34,10 @@ import("../test/jni_support")
 //       any difference they explain and never fail by themselves. Also at
 //       "binary-trial": every artifact of a target not yet shown equal.
 //
+//   ci_collect produce-binary-trial <producer> <list file> <compiler> <target>...
+//       The same list with every line at "binary-trial": for a host whose
+//       build of a target is not (yet) the other hosts'.
+//
 //   ci_collect collect <directory> [report]
 //       Read every *.txt hash list under the directory; the file's name is
 //       the producer's. Items are compared between the producers that
@@ -494,7 +498,7 @@ make_til := proc(compiler: Str, target: Str, directory: Str, extension: Str) ret
 // difference fails the collect job. Level "binary-trial": artifacts being
 // tried; compared and printed the same way, never failing. An artifact
 // moves from trial to binary in the commit after a run showed it equal.
-produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str)) {
+produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str), trial: Bool) {
     File.remove_tree(WORK)
     mkdir_p(WORK)
     mut lines := Vec(Str).new()
@@ -511,13 +515,15 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         // relative to the checkout, is in the binary's debug info.
         directory := format(WORK, "/binary_", target)
         mkdir_p(directory)
-        // Everything is on trial: each target is moving to its one pinned
-        // compiler (#472, "Clang, one release, on every host"), and no run
-        // has shown a target equal from every host with it yet. The mac
-        // targets were equal between the two Linux hosts with Ubuntu's
-        // clang 18.1.3 (strict from run 3115 to 3130); they come back to
-        // "binary" when the pinned LLVM has shown the same.
-        target_level := "binary-trial"
+        // A target is strict once a run has shown it equal from its own
+        // host and from the others, with its pinned compiler (#472).
+        // windows-x64: the Windows host's tested bin/til.exe, til.exe at
+        // both widths, the programs, the library and the vendored archives
+        // are the two Linux hosts' (CI runs 3159 to 3166). The mac and
+        // linux targets are still on trial, and so is any host that lists
+        // with produce-binary-trial.
+        mut target_level := "binary-trial"
+        if trial.not() && target == "windows-x64" { target_level = "binary" }
         mut levels := Vec(Str).new()
         mut items := Vec(Str).new()
         mut paths := Vec(Str).new()
@@ -582,7 +588,7 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         paths.push(own format(til_binary, extension))
         // The til make builds: the tested file on this target's own host,
         // the same build in a root of its own on every other.
-        levels.push(own "binary-trial")
+        levels.push(own target_level.clone())
         items.push(own "make bin/til")
         paths.push(own make_til(compiler, target, directory, extension))
 
@@ -603,7 +609,6 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
 
         // til again in the native layout (--usize=64): the other width a
         // user can build, and it has to be the same from every host too.
-        // On trial for every target until a run has shown it equal.
         wide_binary := format(directory, "/til64")
         wide_build := build_command(compiler, target)
         wide_build.args("--usize=64", "-o", wide_binary, "-c", format(directory, "/til64.c"), "src/til.til")
@@ -615,8 +620,8 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         wide_paths.push(own format(wide_binary, extension))
         wide_paths.push(own wide_generated)
         wide_hashes := sha256_of(wide_paths)
-        lines.push(own format(wide_hashes[0], " binary-trial ", target, " c 64 src/til.til til"))
-        lines.push(own format(wide_hashes[1], " binary-trial ", target, " c 64 src/til.til til.c"))
+        lines.push(own format(wide_hashes[0], " ", target_level, " ", target, " c 64 src/til.til til"))
+        lines.push(own format(wide_hashes[1], " ", target_level, " ", target, " c 64 src/til.til til.c"))
 
         list_sections(target, target_level, format(til_binary, extension), "src/til.til til", format(directory, "/til_section"), lines)
         list_sections(target, target_level, format(directory, "/hello_script", extension), "examples/hello_script.til hello_script",
@@ -803,10 +808,10 @@ main := proc(args: ..Str) {
         produce(args[1], args[2], args[3])
         return
     }
-    if args.len() >= 5 && args[0] == "produce-binary" {
+    if args.len() >= 5 && (args[0] == "produce-binary" || args[0] == "produce-binary-trial") {
         mut targets := Vec(Str).new()
         for i in 4..args.len() { targets.push(own args[i].clone()) }
-        produce_binary(args[1], args[2], args[3], targets)
+        produce_binary(args[1], args[2], args[3], targets, args[0] == "produce-binary-trial")
         return
     }
     if args.len() == 2 && args[0] == "collect" {
@@ -817,5 +822,5 @@ main := proc(args: ..Str) {
         collect(args[1], true)
         return
     }
-    fail("usage: ci_collect produce <producer> <list file> <compiler> | ci_collect produce-binary <producer> <list file> <compiler> <target>... | ci_collect collect <directory> [report]")
+    fail("usage: ci_collect produce <producer> <list file> <compiler> | ci_collect produce-binary[-trial] <producer> <list file> <compiler> <target>... | ci_collect collect <directory> [report]")
 }

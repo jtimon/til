@@ -1571,6 +1571,16 @@ build_libffi_out_of_tree := proc(mut b: Build, name: Str) {
     configure.cwd(t.dir())
     configure.run_checked()
     run(GNU_MAKE, "-C", t.dir())
+    // A Mac with the pinned clang builds its own target's archive here,
+    // in the directory the Makefile uses for the host's libffi. The
+    // Makefile's stamp says that archive is built: without it the next
+    // `make` of anything configured and built it again with Apple's cc
+    // and ar, over this one (CI runs 3162 to 3166: til's Android APK
+    // packaging runs `make` for raylib, and the Mac's list then had
+    // Apple's libffi and a til linked with it).
+    if name == b.host.target_name() {
+        File.writefile(format(t.dir(), "/.built"), "")
+    }
 }
 
 /// nng, one archive per --target (issue #422): vendor/nng/build-<target>/

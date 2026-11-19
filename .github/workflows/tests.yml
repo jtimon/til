@@ -279,9 +279,9 @@ jobs:
       # Windows hosts. Its bin directory goes first on PATH: it carries the
       # x86_64-w64-mingw32-gcc, -ar, -windres and -dlltool names til and
       # bin/make already run, as clang and the llvm tools. Every windows
-      # build in this workflow uses it (issue #483); this list is on trial
-      # and continue-on-error until a run shows the three hosts' til.exe
-      # equal.
+      # build in this workflow uses it (issue #483). Strict since CI runs
+      # 3159 to 3166 showed the three hosts' til.exe equal, the Windows
+      # host's tested bin/til.exe included: a difference fails collect.
       # The pinned llvm-mingw (make.til LLVM_MINGW_RELEASE and _LAYOUT), unpacked by
       # `make llvm_mingw` into vendor/llvm-mingw, kept between runs: one
       # cache entry per release and runner kind.
@@ -300,7 +300,6 @@ jobs:
           path: vendor/llvm-mingw
           key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: Write the windows binary hash list with the pinned llvm-mingw
-        continue-on-error: true
         run: |
           make llvm_mingw
           export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
@@ -327,7 +326,6 @@ jobs:
           x86_64-w64-mingw32-strings -a tmp/probe/debug_line | grep -E '[/\\]|\.[ch]$' | sort -u | head -80
           x86_64-w64-mingw32-strings -a tmp/probe/debug_info | grep -E '[/\\]|\.[ch]$' | sort -u | head -20
       - name: Upload the windows binary hash list
-        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-windows-linux-arm64
@@ -366,21 +364,9 @@ jobs:
           rm -rf vendor/libffi/build-macos-arm64 vendor/libffi/build-macos-x64 vendor/nng/build-macos-arm64 vendor/nng/build-macos-x64
           make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
           make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
-          # Run 3162: this Mac's libffi.a for macos-arm64 and the til linked
-          # with it differed from the two Linux hosts' in the lists, where
-          # runs 3158 and 3159 had them equal, with the same configure and
-          # compile lines in all three logs. Run 3163: the Mac's members are
-          # the ones of run 3162 and the archive is another file again. The
-          # archive's hash and members, and the two headers configure
-          # writes, where the archive is built and again where it is
-          # listed: is it replaced in between, or built from other headers?
-          for f in .libs/libffi.a fficonfig.h include/ffi.h; do sha256sum "vendor/libffi/build-macos-arm64/$f" 2>/dev/null || shasum -a 256 "vendor/libffi/build-macos-arm64/$f"; done
-          llvm-ar tv vendor/libffi/build-macos-arm64/.libs/libffi.a
           make vendor/raylib/build-android-x64/libraylib.a vendor/raylib/build-android-arm64/libraylib.a
           ./bin/til run test/reproducible_build.til bin/til android-x64
           ./bin/til run test/reproducible_build.til bin/til android-arm64
-          for f in .libs/libffi.a fficonfig.h include/ffi.h; do sha256sum "vendor/libffi/build-macos-arm64/$f" 2>/dev/null || shasum -a 256 "vendor/libffi/build-macos-arm64/$f"; done
-          llvm-ar tv vendor/libffi/build-macos-arm64/.libs/libffi.a
           mkdir -p tmp/hashes-binary-mac
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary-mac/linux-arm64.txt bin/til macos-arm64 macos-x64 android-x64 android-arm64
       - name: Upload the mac binary hash lists
@@ -1033,10 +1019,8 @@ jobs:
             bin/nng_pair-x86.exe
       # Issue #472: this host's windows-x64 binary hash list, with the
       # pinned llvm-mingw every windows step of this job uses (see the top
-      # of the job). On trial and continue-on-error until a run shows the
-      # three hosts' til.exe equal.
+      # of the job). Strict: see the linux-arm64-native job's step.
       - name: Write the windows binary hash list with the pinned llvm-mingw
-        continue-on-error: true
         run: |
           x86_64-w64-mingw32-gcc --version
           x86_64-w64-mingw32-gcc --version | grep -q clang
@@ -1059,7 +1043,6 @@ jobs:
           x86_64-w64-mingw32-strings -a tmp/probe/debug_line | grep -E '[/\\]|\.[ch]$' | sort -u | head -80
           x86_64-w64-mingw32-strings -a tmp/probe/debug_info | grep -E '[/\\]|\.[ch]$' | sort -u | head -20
       - name: Upload the windows binary hash list
-        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-windows-linux-x64
@@ -1098,16 +1081,6 @@ jobs:
           rm -rf vendor/libffi/build-macos-arm64 vendor/libffi/build-macos-x64 vendor/nng/build-macos-arm64 vendor/nng/build-macos-x64
           make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
           make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
-          # Run 3162: this Mac's libffi.a for macos-arm64 and the til linked
-          # with it differed from the two Linux hosts' in the lists, where
-          # runs 3158 and 3159 had them equal, with the same configure and
-          # compile lines in all three logs. Run 3163: the Mac's members are
-          # the ones of run 3162 and the archive is another file again. The
-          # archive's hash and members, and the two headers configure
-          # writes, where the archive is built and again where it is
-          # listed: is it replaced in between, or built from other headers?
-          for f in .libs/libffi.a fficonfig.h include/ffi.h; do sha256sum "vendor/libffi/build-macos-arm64/$f" 2>/dev/null || shasum -a 256 "vendor/libffi/build-macos-arm64/$f"; done
-          llvm-ar tv vendor/libffi/build-macos-arm64/.libs/libffi.a
           # SDK-capable x64 producer: local checks compare signed APKs with
           # one debug key; the collector hashes the aligned unsigned payload.
           export TMPDIR="$PWD/tmp"
@@ -1117,38 +1090,8 @@ jobs:
           make vendor/raylib/build-android-x64/libraylib.a vendor/raylib/build-android-arm64/libraylib.a
           ./bin/til run test/reproducible_build.til bin/til android-x64
           ./bin/til run test/reproducible_build.til bin/til android-arm64
-          for f in .libs/libffi.a fficonfig.h include/ffi.h; do sha256sum "vendor/libffi/build-macos-arm64/$f" 2>/dev/null || shasum -a 256 "vendor/libffi/build-macos-arm64/$f"; done
-          llvm-ar tv vendor/libffi/build-macos-arm64/.libs/libffi.a
           mkdir -p tmp/hashes-binary-mac
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-mac/linux-x64.txt bin/til macos-arm64 macos-x64 android-x64 android-arm64
-          # The Intel Mac cannot build its own target with the pinned LLVM:
-          # LLVM publishes no build for it. llvm-mingw's macOS package is
-          # universal and carries the same clang 23.1.5, but no ld64.lld and
-          # no dsymutil. Asked here, where both toolchains are: does
-          # llvm-mingw's clang, with its lld under the name ld64.lld, write
-          # the til for macos-x64 that the pinned LLVM just wrote, at the
-          # same paths? Whole files, and the code and data sections in case
-          # the files differ. An answer for the log; it fails nothing.
-          mkdir -p tmp/mingw-as-mac tmp/mingw-as-mac-out
-          for tool in clang llvm-ar llvm-ranlib; do ln -sf "$PWD/vendor/llvm-mingw/bin/$tool" "tmp/mingw-as-mac/$tool"; done
-          ln -sf "$PWD/vendor/llvm-mingw/bin/lld" tmp/mingw-as-mac/ld64.lld
-          ln -sf "$PWD/vendor/llvm/bin/dsymutil" tmp/mingw-as-mac/dsymutil
-          ls -l vendor/llvm-mingw/bin/clang vendor/llvm-mingw/bin/lld || true
-          cp tmp/ci_collect/binary_macos-x64/til tmp/mingw-as-mac-out/til.llvm
-          if (export PATH="$PWD/tmp/mingw-as-mac:$PATH" && clang --version && ld64.lld --version &&
-              ./bin/til build --force-rebuild --target=macos-x64 -o tmp/ci_collect/binary_macos-x64/til -c tmp/ci_collect/binary_macos-x64/til.c src/til.til); then
-            cp tmp/ci_collect/binary_macos-x64/til tmp/mingw-as-mac-out/til.mingw
-            sha256sum tmp/mingw-as-mac-out/til.llvm tmp/mingw-as-mac-out/til.mingw
-            for section in __TEXT,__text __TEXT,__const __TEXT,__cstring __DATA,__data __DATA_CONST,__const; do
-              for built in llvm mingw; do
-                llvm-objcopy --dump-section "$section=tmp/mingw-as-mac-out/section" "tmp/mingw-as-mac-out/til.$built" tmp/mingw-as-mac-out/copy || true
-                echo "$built $section $(sha256sum < tmp/mingw-as-mac-out/section | cut -c1-16)"
-                rm -f tmp/mingw-as-mac-out/section
-              done
-            done
-          else
-            echo "llvm-mingw's clang and lld did not build macos-x64's til"
-          fi
       - name: Upload the mac binary hash lists
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -1759,11 +1702,9 @@ jobs:
       # llvm-mingw, the third producer beside the two Linux hosts' cross
       # builds (see the windows-x64-build job), which it has to equal.
       # bin/til.exe only drives the build: what it builds must not depend
-      # on what built it. The small stamped programs differ from the Linux
-      # hosts' by the stamp alone here (the compiler is named bin/til.exe);
-      # til.exe carries no stamp.
+      # on what built it. Strict since CI runs 3159 to 3166 showed this
+      # host's files equal to theirs, its tested bin/til.exe included.
       - name: Write the windows binary hash list with the pinned llvm-mingw
-        continue-on-error: true
         shell: C:\msys64\usr\bin\bash.exe -leo pipefail {0}
         run: |
           export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
@@ -1789,7 +1730,6 @@ jobs:
           x86_64-w64-mingw32-strings -a tmp/probe/debug_line | grep -E '[/\\]|\.[ch]$' | sort -u | head -80
           x86_64-w64-mingw32-strings -a tmp/probe/debug_info | grep -E '[/\\]|\.[ch]$' | sort -u | head -20
       - name: Upload the windows binary hash list
-        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-windows-windows-x64
@@ -2014,16 +1954,6 @@ jobs:
           rm -rf vendor/libffi/build-macos-arm64 vendor/nng/build-macos-arm64 vendor/libffi/build-macos-x64 vendor/nng/build-macos-x64
           ./bin/make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/nng/build-macos-arm64/libnng.a
           ./bin/make vendor/libffi/build-macos-x64/.libs/libffi.a vendor/nng/build-macos-x64/libnng.a
-          # Run 3162: this Mac's libffi.a for macos-arm64 and the til linked
-          # with it differed from the two Linux hosts' in the lists, where
-          # runs 3158 and 3159 had them equal, with the same configure and
-          # compile lines in all three logs. Run 3163: the Mac's members are
-          # the ones of run 3162 and the archive is another file again. The
-          # archive's hash and members, and the two headers configure
-          # writes, where the archive is built and again where it is
-          # listed: is it replaced in between, or built from other headers?
-          for f in .libs/libffi.a fficonfig.h include/ffi.h; do sha256sum "vendor/libffi/build-macos-arm64/$f" 2>/dev/null || shasum -a 256 "vendor/libffi/build-macos-arm64/$f"; done
-          llvm-ar tv vendor/libffi/build-macos-arm64/.libs/libffi.a
           # The macOS SDK producer compares the same unsigned APK payload as
           # Linux x64; its independently created debug signature is excluded.
           export TMPDIR="$PWD/tmp"
@@ -2033,12 +1963,22 @@ jobs:
           ./bin/make vendor/raylib/build-android-x64/libraylib.a vendor/raylib/build-android-arm64/libraylib.a
           ./bin/til run test/reproducible_build.til bin/til android-x64
           ./bin/til run test/reproducible_build.til bin/til android-arm64
-          for f in .libs/libffi.a fficonfig.h include/ffi.h; do sha256sum "vendor/libffi/build-macos-arm64/$f" 2>/dev/null || shasum -a 256 "vendor/libffi/build-macos-arm64/$f"; done
-          llvm-ar tv vendor/libffi/build-macos-arm64/.libs/libffi.a
           mkdir -p tmp/hashes-binary
           # macos-x64 too: the Intel Mac has no pinned LLVM to build its own
           # target with, so this Mac is the third host that builds it.
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary/macos-arm64.txt bin/til macos-arm64 macos-x64 android-x64 android-arm64
+          # The Mac's tested bin/til is built by Apple's toolchain, so it is
+          # not the file the other hosts build for this target. Before the
+          # Mac's make and suite move to the pinned compiler: does make,
+          # with that compiler first on PATH, write the other hosts' file?
+          # bin/til rebuilt that way and its hash, to set beside their
+          # "make bin/til" lines for macos-arm64; then the tested one goes back.
+          cp -p bin/til tmp/til.tested
+          rm -f bin/til
+          make bin/til
+          shasum -a 256 bin/til
+          ./bin/til run examples/hello_script.til
+          cp -p tmp/til.tested bin/til
       - name: Upload the binary hash list
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -2061,7 +2001,15 @@ jobs:
           rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
           ./bin/make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
           mkdir -p tmp/hashes-binary-windows
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary-windows/macos-arm64.txt bin/til windows-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial macos-arm64 tmp/hashes-binary-windows/macos-arm64.txt bin/til windows-x64
+          # Run 3166: this Mac's til.exe has the other three hosts' code
+          # and data and differs in .debug_info, .debug_line and .debug_str.
+          # The path-like strings of the last two, to read what it names
+          # differently.
+          mkdir -p tmp/probe
+          x86_64-w64-mingw32-objcopy --dump-section .debug_line=tmp/probe/debug_line --dump-section .debug_str=tmp/probe/debug_str tmp/ci_collect/binary_windows-x64/til.exe tmp/probe/til_copy.exe
+          x86_64-w64-mingw32-strings -a tmp/probe/debug_line | grep -E '[/\\]|\.[ch]$' | sort -u | head -60
+          x86_64-w64-mingw32-strings -a tmp/probe/debug_str | grep -E '[/\\]|clang|\.[ch]$' | sort -u | head -40
       - name: Upload the windows binary hash list
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -2208,10 +2156,88 @@ jobs:
           name: hashes-macos-x64
           path: tmp/hashes/macos-x64.txt
           if-no-files-found: error
-      # Issue #472: no binary hash list from this host. LLVM publishes no
-      # release for Intel macOS, so this Mac cannot run the pinned compiler
-      # the other hosts build the mac targets with; it runs and tests the
-      # macos-x64 binaries they build (the steps marked "cross run").
+      # Issue #472: this Mac's own build of its target. LLVM publishes no
+      # release for Intel macOS, so the pinned LLVM cannot run here; the
+      # pinned llvm-mingw can (its macOS package is universal), and its
+      # clang 23.1.5 with its lld under the name ld64.lld writes the
+      # macos-x64 til the pinned LLVM writes, byte for byte (CI run 3166,
+      # asked on Linux x64 where both are). llvm-mingw ships lld without
+      # the mac names and no dsymutil: the two lld names are links made
+      # here, and clang finds Apple's dsymutil, whose .dSYM is not part of
+      # the program. With that clang first on PATH til and bin/make build
+      # the mac targets here as every other host does (targets.til,
+      # macos_is_cross; make.til, builds_as_host). On trial and
+      # continue-on-error.
+      - name: The pinned llvm-mingw release
+        id: llvm-mingw
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
+          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          test -n "$layout"
+          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned llvm-mingw
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm-mingw
+          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Write the binary hash list with llvm-mingw's clang
+        continue-on-error: true
+        run: |
+          make llvm_mingw
+          mkdir -p tmp/mac-tools
+          for tool in clang llvm-ar llvm-ranlib llvm-nm llvm-objcopy; do ln -sf "$PWD/vendor/llvm-mingw/bin/$tool" "tmp/mac-tools/$tool"; done
+          ln -sf "$PWD/vendor/llvm-mingw/bin/lld" tmp/mac-tools/ld64.lld
+          ln -sf "$PWD/vendor/llvm-mingw/bin/lld" tmp/mac-tools/ld.lld
+          export PATH="$PWD/tmp/mac-tools:$PATH"
+          clang --version
+          clang --version | grep -q "clang version 23.1.5"
+          ld64.lld --version
+          rm -rf vendor/libffi/build-macos-x64 vendor/nng/build-macos-x64 vendor/libffi/build-macos-arm64 vendor/nng/build-macos-arm64
+          ./bin/make vendor/libffi/build-macos-x64/.libs/libffi.a vendor/nng/build-macos-x64/libnng.a
+          ./bin/make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/nng/build-macos-arm64/libnng.a
+          mkdir -p tmp/hashes-binary
+          # Its own target and the other Mac's: til has to be the same file
+          # from every host that builds it (Jorge, 2026-11-19).
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial macos-x64 tmp/hashes-binary/macos-x64.txt bin/til macos-x64 macos-arm64
+          # The Mac's tested bin/til is built by Apple's toolchain, so it is
+          # not the file the other hosts build for this target. Before the
+          # Mac's make and suite move to the pinned compiler: does make,
+          # with that compiler first on PATH, write the other hosts' file?
+          # bin/til rebuilt that way and its hash, to set beside their
+          # "make bin/til" lines for macos-x64; then the tested one goes back.
+          cp -p bin/til tmp/til.tested
+          rm -f bin/til
+          make bin/til
+          shasum -a 256 bin/til
+          ./bin/til run examples/hello_script.til
+          cp -p tmp/til.tested bin/til
+      - name: Upload the binary hash list
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-macos-x64
+          path: tmp/hashes-binary/macos-x64.txt
+      # Issue #472: windows-x64 from this Mac too, as on the arm64 Mac:
+      # llvm-mingw last on PATH, so that Apple's clang stays this Mac's
+      # own compiler. On trial and continue-on-error.
+      - name: Write the windows binary hash list with the pinned llvm-mingw
+        continue-on-error: true
+        run: |
+          export PATH="$PATH:$PWD/vendor/llvm-mingw/bin"
+          x86_64-w64-mingw32-gcc --version
+          x86_64-w64-mingw32-gcc --version | grep -q clang
+          rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
+          ./bin/make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
+          mkdir -p tmp/hashes-binary-windows
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial macos-x64 tmp/hashes-binary-windows/macos-x64.txt bin/til windows-x64
+      - name: Upload the windows binary hash list
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-windows-macos-x64
+          path: tmp/hashes-binary-windows/macos-x64.txt
       # See the macos-arm64 job for what the probe and the dump step
       # are for and why they look like this.
       - name: Guard Malloc probe

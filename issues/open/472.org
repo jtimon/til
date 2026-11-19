@@ -3334,3 +3334,143 @@ steps now print, right after the archive is built and again right before
 the list is written: the sha256 of the archive and of the two headers
 configure writes (~fficonfig.h~, ~include/ffi.h~), and the archive's
 member table with its times.
+
+*** Run 3166: the tested bin/til.exe is the cross-built one; llvm-mingw builds the mac targets too
+
+Run 3166 (master ec5d73c), from the producers' own logs. Every Linux
+and Windows job passed, the "windows-x64 host (run til.exe + nng on
+windows)" job included (the ~dlltool~ line).
+
+**** windows-x64: native and tested equals cross
+
+| ~til.exe~ | Linux x64 | Linux arm64 | Windows host |
+|-----------+-----------+-------------+--------------|
+| ~make bin/til~ | 6f2781030310 | 6f2781030310 | 6f2781030310 |
+| ~src/til.til til~, width 32 | fb79b6950df2 | fb79b6950df2 | fb79b6950df2 |
+| ~src/til.til til~, width 64 | 959fc44d65a1 | 959fc44d65a1 | 959fc44d65a1 |
+
+The first row is the point of #473: on the Windows host it is the hash
+of ~bin/til.exe~ as ~make~ built it and as the suite ran it (588 of 590
+there); on the two Linux hosts it is ~make~'s command run in a root of
+its own for ~--target=windows-x64~. Three hosts, one file. A cross-built
+~til.exe~ is the tested one.
+
+The two Linux hosts also agree on ~make bin/til~ for macos-arm64
+(3b3d9a0b2225) and macos-x64 (11b317dbb62f); the Macs' own lines come
+with their jobs.
+
+**** llvm-mingw's clang writes the pinned LLVM's til for a mac target
+
+On Linux x64, after the list: macos-x64's til rebuilt at the same paths
+with llvm-mingw's clang 23.1.5 and its ~lld~ under the name ~ld64.lld~
+(InstalledDir ~vendor/llvm-mingw/bin~) is c97ebf389f2a, the file the
+pinned LLVM had just written, whole. The code and data sections agree
+one by one as well. So the Intel Mac, for which LLVM publishes no build,
+can build its own target with the pinned llvm-mingw, whose macOS package
+is universal.
+
+The Intel Mac job gets that step, on trial: ~make llvm_mingw~, a
+directory of links to its clang, llvm-ar, llvm-ranlib, llvm-nm and
+llvm-objcopy and to its ~lld~ as ~ld64.lld~ and ~ld.lld~, first on PATH,
+then libffi and nng for macos-x64 and ~produce-binary macos-x64~.
+~dsymutil~ is Apple's there (clang finds it on PATH); it writes a
+~.dSYM~ beside the program and does not change the program. Expected to
+differ on that host until more is done: its ~make bin/til~ (the tested
+file is still Apple's build), and objects that keep their debug
+information, which names clang's own header directory
+(~vendor/llvm-mingw~ there, ~vendor/llvm~ elsewhere).
+
+**** Run 3166, complete: green, and what the Mac jobs and collect add
+
+Run 3166 is the first run in which every job passed, collect included.
+
+| target | producers | equal items (width 32 + 64) | different |
+|--------+-----------+------------------------------+-----------|
+| windows-x64 | Linux x64, Linux arm64, Windows host, arm64 Mac | 118 + 1 | the arm64 Mac only: debug sections |
+| macos-x64 | Linux x64, Linux arm64, arm64 Mac | 121 + 2 | none |
+| macos-arm64 | Linux x64, Linux arm64, arm64 Mac | 104 + 1 | the Mac: ~libffi.a~, ~til~, ~make bin/til~ |
+| android (4 lines) | Linux x64, Linux arm64, arm64 Mac | 129 each | the toolchain item |
+| linux-x64, linux-arm64 | the two Linux hosts | 127, 125 | debug information (#504) |
+
+- windows-x64, the three hosts of before: equal on everything, the
+  library's ~.a~ now too (~windows_archiver~). ~make bin/til~ is
+  6f2781030310 on the Windows host (the tested file) and on both Linux
+  hosts.
+- macos-x64: the arm64 Mac's first list for it equals the Linux hosts'
+  on every item, ~make bin/til~ (11b317dbb62f) and both widths included.
+- macos-arm64: ~libnng.a~ and its members are equal on the Mac now. Naming
+  ~vendor/macos~ as cmake's SDK was the fix.
+- The arm64 Mac's first windows-x64 list: code and data are the other
+  hosts'; ~.debug_info~, ~.debug_line~ and ~.debug_str~ of ~til.exe~ and
+  the programs are not. Not read yet: the step prints the path-like
+  strings of two of them from the next run on. That list is written with
+  ~produce-binary-trial~ until it is equal.
+
+**** The Mac's libffi "regression" was the step, not the build
+
+The check printed twice in the Mac's step settles it. Right after the
+pinned build the archive is 6696d187006f, the Linux hosts' file, with
+zero times. Right before the list is written it is another archive:
+members dated 21:54 that day, owner 501/20, other sizes -- Apple's cc
+and ar. In between the step runs ~test/reproducible_build.til~ for the
+Android targets, and til's Android APK packaging runs ~make~ for raylib
+(~builder.til~). On a Mac the directory of the host's libffi is the
+macos-arm64 target's; the step had removed it with its ~.built~ stamp
+and rebuilt it with ~bin/make~, which writes none; so that ~make~ built
+the host's libffi again, natively, over the pinned one, and the list
+and the til linked afterwards had Apple's. Since the Android commits
+(runs 3162 to 3166); never a difference in what the pinned compiler
+builds.
+
+Fixed in ~make.til~: when ~bin/make~ builds the libffi of the host's own
+target (a Mac with the pinned clang), it writes the Makefile's stamp
+too. The check is out of the three mac steps, and so is the llvm-mingw
+question from the Linux x64 one.
+
+**** windows-x64 is strict
+
+Four runs (3159, 3162, 3163, 3166) have the Windows host and the two
+Linux hosts equal on every windows-x64 item, and 3166 adds the tested
+~bin/til.exe~. From this commit:
+- ~produce-binary~ writes windows-x64's lines at level ~binary~ (all but
+  the toolchain item), so any difference between those hosts fails
+  ~collect~; ~produce-binary-trial~ writes the same list all on trial,
+  for a host that is not there yet (the arm64 Mac's windows-x64 list,
+  the Intel Mac's own);
+- the three "Write the windows binary hash list" steps and their uploads
+  are no longer ~continue-on-error~.
+What is left for windows-x64 is S7: removing the jobs that only carry a
+Linux-built ~.exe~ to a Windows runner and run it there
+(~windows-x64-run~, ~windows-x64-host-run~, ~macos-host-cross-win-run~),
+which waits for Jorge's word.
+
+*** The bar for removing a "build here, run there" job (Jorge, 2026-11-19)
+
+Nothing is removed for a target until til for that target is the same
+file from every host that builds it: ~til.exe~, and both mac ~til~s.
+"Equal between the hosts that happen to list it" is not enough.
+
+Where that stands after run 3166 ("tested" is the ~bin/til~ make built
+and the suite ran):
+
+| target | Linux x64 | Linux arm64 | Windows | arm64 Mac | Intel Mac |
+|--------+-----------+-------------+---------+-----------+-----------|
+| windows-x64 | equal | equal | equal, tested | debug sections differ | not built |
+| macos-x64 | equal | equal | not built | equal (one run) | not built; tested is Apple's |
+| macos-arm64 | equal | equal | not built | equal unless clobbered; tested is Apple's | not built |
+
+What is missing, in the order it is being done:
+1. The arm64 Mac's ~til.exe~: its debug sections. The step prints their
+   paths from the next run on.
+2. The Intel Mac lists all three targets, on trial: its own and
+   macos-arm64 with llvm-mingw's clang and lld under the mac names,
+   windows-x64 with llvm-mingw as it is.
+3. The Macs' tested ~bin/til~. ~make~ there uses Apple's toolchain. Both
+   Mac steps now rebuild ~bin/til~ with ~make~ while the pinned compiler
+   is first on PATH, print its hash and put the tested file back: if
+   that hash is the other hosts' ~make bin/til~ line, the Macs' ~make~
+   and suite can move to the pinned compiler, and the tested file is
+   then the cross-built one.
+4. The Windows host building the mac targets. til runs ~dsymutil~ for a
+   mac build and the Windows llvm-mingw package has none, so this needs
+   the pinned LLVM for Windows first. Last.
