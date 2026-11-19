@@ -6349,21 +6349,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         // condition up front so every subsequent body-walk and param-
         // resolution skip cleanly -- references to the type-params can't
         // be resolved until expansion. Mirrors rstil typer.rs:1090-1097.
-        mut macro_is_template := false
-        if is_macro {
-            mtg_ret := fdef.sig.return_type.eq("StructDef")
-                .or(fdef.sig.return_type.eq("EnumDef"))
-                .or(fdef.sig.return_type.eq("FuncDef"))
-                .or(fdef.sig.return_type.eq("FunctionDef"))
-            if mtg_ret { macro_is_template = true }
-            if macro_is_template.not() {
-                for tmp_param : Declaration in fdef.sig.params {
-                    if generic_param_is_type(tmp_param, ctx.symbols) {
-                        macro_is_template = true
-                    }
-                }
-            }
-        }
+        macro_is_template := function_is_template_macro(fdef, ctx.symbols)
         // Issue #223 step 1: auto-shallow applies to ordinary til
         // func/proc definitions only. ext_func/ext_proc qualifiers map
         // directly to a hand-written C signature (e.g. U64_clone takes a

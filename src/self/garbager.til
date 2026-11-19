@@ -5098,6 +5098,7 @@ priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: Typ
         }
     case .FuncDef(fd):
         if fd.sig.func_type.is_bodyless() { return }
+        if function_is_template_macro(fd, ctx.symbols) { return }
         if expr.children.len() == 0 { return }
         ref mut func_body : Expr = expr.children[0]
         binding_capacity := fd.sig.params.len() + garbager_body_binding_count(func_body)

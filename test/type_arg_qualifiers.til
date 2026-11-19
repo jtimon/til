@@ -647,6 +647,30 @@ return_signature_checks := proc(compiler: Str, root: Str, asan: Bool) {
     expect(saw_generic, "missing inferred writable-return generic instance")
 }
 
+template_ownership_checks := proc(compiler: Str, root: Str, asan: Bool) {
+    File.writefile(format(root, "/template_ownership_helpers.til"), format("mode lib\n",
+        "make_read := macro(T: Type) returns FuncDef { return func(items: Array(T)) returns ref T { index: USize = items.len().sub(1); if index < items.len() { return items.unsafe_get(index) }; panic(\"empty\") } }\n",
+        "make_write := macro(T: Type) returns FuncDef { return func(mut items: Array(T)) returns ref mut T { index: USize = items.len().sub(1); if index < items.len() { return ptr_add(items.data, index.to_uptr().mul(T.size().to_uptr())) }; panic(\"empty\") } }\n",
+        "make_value := macro(T: Type) returns FuncDef { return func() returns I64 { local := T(); return local.n } }\n",
+        "Namespace := macro(T: Type) returns StructDef { return struct { namespace:\nfirst := func(items: Array(T)) returns ref T { index: USize = items.len().sub(1); return items.unsafe_get(index) } } }\n",
+        "EnumNamespace := macro(T: Type) returns EnumDef { return enum { None\nnamespace:\nfirst := func(items: Array(T)) returns ref T { index: USize = items.len().sub(1); return items.unsafe_get(index) } } }\n"))
+    File.writefile(format(root, "/template_ownership.til"), format("mode cli\nimport(\"template_ownership_helpers\")\n",
+        "Item := struct { n: I64 = 7; label := format(\"owned\") }\n",
+        "read := make_read(Item)\nwrite := make_write(Item)\nowned_reader := make_value(Item)\n",
+        "ItemNamespace := Namespace(Item)\nItemEnumNamespace := EnumNamespace(Item)\n",
+        "main := proc() {\nmut items := Array(Item).new(1)\nitems.set(0, own Item())!\n",
+        "ref before: Item = read(items)\nassert_eq(I64, before.n, 7)\n",
+        "ref mut selected: Item = write(items)\nselected.n = 9\nassert_eq(I64, items[0].n, 9)\n",
+        "ref struct_result: Item = ItemNamespace.first(items)\nassert_eq(I64, struct_result.n, 9)\n",
+        "ref enum_result: Item = ItemEnumNamespace.first(items)\nassert_eq(I64, enum_result.n, 9)\n",
+        "assert_eq(I64, owned_reader(), 7)\nprintln(\"template ownership passed\")\n}\n"))
+    check(Cmd.new(compiler, "interpret", format(root, "/template_ownership.til")), "template ownership passed\n")
+    check_run(compiler, root, "template_ownership", "template ownership passed\n", asan)
+    reject_generic(compiler, root, format("mode cli\nItem := struct { label := format(\"owned\") }\n",
+        "make_bad := macro(T: Type) returns FuncDef { return func(own local: T) returns ref T { return local } }\n",
+        "bad := make_bad(Item)\nmain := proc() {}\n"), "cannot return a reference into owned parameter")
+}
+
 private_permission_query_checks := proc(compiler: Str, root: Str, asan: Bool) {
     helpers := format("mode lib\npriv type_arg_is_ref_mut := core_func(type: Type) returns Bool {}\n",
         "PermissionProbe := macro(T: Type) returns StructDef {\n",
@@ -805,6 +829,7 @@ main := proc(args: ..Str) {
         generic_call_checks(compiler, root, asan)
         return_signature_checks(compiler, root, asan)
         private_permission_query_checks(compiler, root, asan)
+        template_ownership_checks(compiler, root, asan)
         writable_return_source_checks(compiler, root, asan)
     case "success":
         query_checks(compiler, root, asan)
@@ -819,6 +844,7 @@ main := proc(args: ..Str) {
         generic_call_checks(compiler, root, asan)
         return_signature_checks(compiler, root, asan)
         private_permission_query_checks(compiler, root, asan)
+        template_ownership_checks(compiler, root, asan)
         writable_return_source_checks(compiler, root, asan)
     }
     println("type argument qualifiers passed")

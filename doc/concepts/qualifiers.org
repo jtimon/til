@@ -92,6 +92,11 @@ return-side ~mut~.
   nested type applications without exposing a public qualifier query. Explicit
   writable accessors and writable SDK getters belong to the bootstrap use step;
   their source contracts have not changed in this preparation.
+- Prepared: typing and ownership analysis share template-macro classification.
+  Unexpanded definition templates are syntax, not executable function bodies;
+  only their concrete expansions receive ownership analysis and destruction.
+  Ordinary value macros still receive the normal checks. This fixes an
+  ownership-pass failure exposed by the planned writable Map accessor factory.
 - Pending: general source-path and writable-alias creation checks, the plain-ref
   defaults migration, collection accessors, remaining reference-permission
   metadata and the C-header binding translator.

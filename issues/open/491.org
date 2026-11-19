@@ -204,6 +204,47 @@ with compiled ASAN fixtures. Generated function-body queries are folded before
 their definitions move to the caller's unit, preserving template privacy rather
 than relaxing cross-file private access checks.
 
+**** Template ownership preparation
+
+After the private-query preparation landed as ~3618c2c95~, introducing the
+accessor bodies exposed a separate ownership-pass defect during pass 1's
+~bin/make~ build:
+
+#+begin_example
+./src/core/map.til:22: return operand reads owned local 'mid' without moving it; the desugarer must hoist it (hoist_return_expr)
+#+end_example
+
+The concrete getter was correctly typed and its return call was hoisted. The
+ownership walker instead entered the retained, UNEXPANDED function-generator
+template. Its body still had source ownership/type metadata and had never run
+the desugarer. A computed local used by a nested return was consequently treated
+as live owned storage, tripping the return-hoist invariant. A reduced imported
+function factory with a computed index and nested borrowed return reproduces
+the same panic without any new accessor or qualifier query.
+
+Typing already excludes these syntax templates. Move that exact classification
+to ~function_is_template_macro~ in context and use it in both typing and the
+ownership walker. Skip the retained template itself, rather than weakening the
+return invariant or inserting cleanup into quoted syntax. Concrete generated
+functions and ordinary value macros still receive their normal checks and
+destruction.
+
+~template_ownership_checks~ in ~test/type_arg_qualifiers.til~ exercises imported
+read-only/writable function generators with computed indices and nested returns,
+struct/enum namespace generators, and a generated function with an owned local
+containing allocated string storage. Interpretation and compiled ASAN exercise
+the generated code; rejection of a generated reference into an owned parameter
+confirms that concrete ownership checks still run. As with the query stage,
+~doc/self.org~ "When a preparation commit is needed" applies: the bootstrap's
+ownership walker needs this fix before the core accessor factory is introduced.
+Accessor/SDK bodies and the indexing diagnostic improvement remain pending.
+
+Verification: ~make clean && make test_two_pass~ passed 590/590, including
+native self-translation. The qualifier ~generics~ family passed separately with
+compiled ASAN fixtures. HEAD's ~bin/til_boot~ reproduces the reduced imported
+factory's return-hoist panic; the fixed compiler interprets and compiles the
+corresponding regression successfully.
+
 **** Initial signature implementation
 
 Initial implementation work addresses callable contract compatibility and

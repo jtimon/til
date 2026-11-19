@@ -118,8 +118,12 @@ The next library step uses explicit writable collection accessors. The compiler
 now prepares private compile-time inspection of a type argument's writable-ref
 bit, preserving it through forwarded and nested template arguments. This lets
 container generators distinguish ~ref T~ from ~ref mut T~ without a new public
-query API. The accessor bodies and writable SDK getter contracts still require
-the following bootstrap use step; this preparation grants no new element access.
+query API. Typing and ownership analysis now also share the template-macro
+classification: retained source templates are syntax, while their expanded
+concrete functions receive normal ownership checks and destruction. Ordinary
+value-macro bodies still receive ownership analysis. The accessor bodies and
+writable SDK getter contracts still require the bootstrap use step; these
+preparations grant no new element access.
 
 This is not yet full enforcement of the permission table. Direct writable-alias
 creation/rebinding checks, general access-path/defaults migration, collection

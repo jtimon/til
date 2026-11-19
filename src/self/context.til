@@ -1054,6 +1054,19 @@ generic_param_is_type := func(param: Declaration, symbols: SymbolPool) returns B
     return param.runtime_type_param.not().and(decl_type_name_ref(param, symbols) == "Type")
 }
 
+// These bodies are syntax templates. Only their expanded concrete definitions
+// are executable code, so typing and ownership walks must agree to leave the
+// retained source untouched. Ordinary value macros still have executable bodies.
+function_is_template_macro := func(fd: FunctionDef, symbols: SymbolPool) returns Bool {
+    if fd.sig.func_type.is(FuncType.Macro).not() { return false }
+    if fd.sig.return_type == "StructDef" || fd.sig.return_type == "EnumDef"
+        || fd.sig.return_type == "FuncDef" || fd.sig.return_type == "FunctionDef" { return true }
+    for param: Declaration in fd.sig.params {
+        if generic_param_is_type(param, symbols) { return true }
+    }
+    return false
+}
+
 init_func_is_generic := func(rhs: Expr, symbols: SymbolPool) returns Bool {
     switch rhs.node_type {
     case .FuncDef(fd): return function_has_generic_params(fd, symbols)
