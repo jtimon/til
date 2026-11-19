@@ -288,6 +288,67 @@ PATH. General alias creation/rebinding enforcement, plain-ref defaults,
 indexing/iteration selection, remaining library migrations and C-header
 qualifiers remain open work; this is not completion of #490/#491.
 
+**** Downstream accessor acceptance and capture forwarding
+
+Both downstreams verified installed ~0.0.1-f30a14102~ with the matching SDK,
+including accessor use ~dcd51cf01~. Tiled baseline ~3c98654~ / validation
+~cf2c643~ passed real fold/buffer/node/history/terminal accessor migrations,
+14 read-only forwarding rejections, fixed-slot VM capture teardown, U32/U64
+ASAN embedding/callback/reload/rollback coverage and relocated GUI workflows.
+Nostril at base ~a52a317388a23f93b3fa51c44bb8305145ad3377~ reported adaptations
+and regressions still uncommitted: WebSocket sessions and image-cache mutation
+use writable accessors, eight real-init read-only forwarding cases reject,
+43/43 interpreted/compiled/leak-detecting ASAN canonical tests pass, and U32/U64
+accessor, empty-PATH account/init ASAN and GUI/image workflows pass. Its existing
+Mesa/GLX leak exception remains specific to graphical ASAN. These are reported
+downstream results, not additional local runs or proof of general alias/default
+enforcement. The optional outer-interpreted bare-callback crash still persists.
+
+Tiled also supplied a real remaining failure: a getter returning the independently
+writable ~Capture.counts~ field produces an alias whose subsequent mutation
+incorrectly demands ~mut~ on unrelated ~const ref cell: I64~ storage. Installed
+~f30a14102~ reproduces it in interpretation:
+
+#+begin_example
+cannot pass this to the 'mut' parameter 'self': 'cell' is an immutable binding; declare it 'mut'
+#+end_example
+
+The parameter-level return masks retained only "reaches what capture carries".
+Write provenance then included every carried root despite the existing
+~ParameterEffects.returned~ summary retaining the exact ~counts~ field path.
+Use that field-sensitive summary for typed call-result lvalue roots, alias
+initialization and write checks/credit. Crossing a selected reference produces
+an alias of its pointee: discard the old carrier-relative path before another
+reference-field crossing. Fixed-slot writable aliases use ~referent_mut~ for
+write permission, independently of their replaceable-slot flag.
+
+Opaque calls contribute explicit unknown return places so a known sibling
+return cannot narrow an unresolved branch away. Raw storage and recursive or
+otherwise unprojectable paths keep the established conservative parameter-mask
+provenance; raw-pointer lint write credit remains conservative too. No new AST
+permission bit, public API or persistent summary representation is introduced.
+An explicitly unknown input remains a possible origin even when the older
+parameter masks failed to name it, including when a known return uses a different
+input; a partial precise summary must not erase that input's roots.
+
+~capture_forwarding_checks~ in ~test/type_arg_qualifiers.til~ covers Tiled's
+two-reference minimal carrier and larger mixed-permission carriers, two-step
+forwarding, a read-only carrier alias, direct getter writes, fixed
+aliases, alternative same-typed writable fields, inline and referenced nested
+carriers, readonly-field rejection, immutable actual-owner rejection, redundant
+~mut~ on an unrelated cell, and mixed known/opaque returns over the same or
+different inputs that must retain conservative roots. Both language guides
+describe the implemented scope.
+
+Verification: ~make clean && make test_two_pass~ passed 596/596, including
+native self-translation. The qualifier ~generics~ family passed with compiled
+ASAN fixtures, and the capture-forwarding fixture passed separately with
+~--usize=64 --asan~. The complete installed TilVm host case set passed under
+clang ASAN at the default compact layout with an empty runtime PATH. The existing
+~niche_enum_ctor_keeps_heap_payload~ inventory increases from 80 to 81 for the
+new projection helper's owned ~Option(Expr)~ result; its heap-allocation check is
+retained, not disabled.
+
 **** Initial signature implementation
 
 Initial implementation work addresses callable contract compatibility and

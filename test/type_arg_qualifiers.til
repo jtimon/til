@@ -647,6 +647,69 @@ return_signature_checks := proc(compiler: Str, root: Str, asan: Bool) {
     expect(saw_generic, "missing inferred writable-return generic instance")
 }
 
+capture_forwarding_checks := proc(compiler: Str, root: Str, asan: Bool) {
+    prelude := format("mode cli\nCounts := struct { drops: I64 = 0 }\n",
+        "SimpleCapture := struct { const ref cell: I64; const ref mut counts: Counts }\n",
+        "simple_counts := func(capture: SimpleCapture) returns ref mut Counts { return capture.counts }\n",
+        "Capture := struct { const ref cell: I64; const ref read: Counts; const ref mut counts: Counts; const ref mut other: Counts }\n",
+        "Nested := struct { capture: Capture }\nLinked := struct { const ref mut capture: Capture }\n",
+        "capture_counts := func(capture: Capture) returns ref mut Counts { return capture.counts }\n",
+        "identity_capture := func(capture: Capture) returns ref Capture { return capture }\n",
+        "forward_counts := func(capture: Capture) returns ref mut Counts { return capture_counts(capture) }\n",
+        "choose_counts := func(capture: Capture, first: Bool) returns ref mut Counts { if first { return capture.counts }; return capture.other }\n",
+        "nested_counts := func(value: Nested) returns ref mut Counts { return value.capture.counts }\n",
+        "linked_counts := func(value: Linked) returns ref mut Counts { return value.capture.counts }\n")
+    File.writefile(format(root, "/capture_forwarding.til"), format(prelude,
+        "main := proc() {\ncell: I64 = 123\nread := Counts()\nmut counts := Counts()\nmut other := Counts()\n",
+        "simple := SimpleCapture(cell = cell, counts = counts)\nref mut original: Counts = simple_counts(simple)\noriginal.drops++\n",
+        "capture := Capture(cell = cell, read = read, counts = counts, other = other)\n",
+        "ref mut target: Counts = capture_counts(capture)\ntarget.drops++\n",
+        "const ref mut fixed: Counts = forward_counts(capture)\nfixed.drops++\n",
+        "capture_counts(capture).drops++\nforward_counts(capture).drops++\n",
+        "ref whole: Capture = identity_capture(capture)\nref mut through_whole: Counts = capture_counts(whole)\nthrough_whole.drops++\n",
+        "ref mut selected: Counts = choose_counts(capture, true)\nselected.drops++\n",
+        "ref mut alternative: Counts = choose_counts(capture, false)\nalternative.drops++\n",
+        "nested := Nested(capture = capture.clone())\nref mut inner: Counts = nested_counts(nested)\ninner.drops++\n",
+        "linked := Linked(capture = capture)\nref mut indirect: Counts = linked_counts(linked)\nindirect.drops++\n",
+        "assert(cell == 123 && read.drops == 0 && counts.drops == 9 && other.drops == 1)\n",
+        "println(\"capture forwarding passed\")\n}\n"))
+    check(Cmd.new(compiler, "interpret", format(root, "/capture_forwarding.til")), "capture forwarding passed\n")
+    check_run(compiler, root, "capture_forwarding", "capture forwarding passed\n", asan)
+    reject_generic(compiler, root, format(prelude,
+        "bad := func(capture: Capture) returns ref mut Counts { return capture.read }\nmain := proc() {}\n"),
+        "cannot return a writable reference")
+    reject_generic(compiler, root, format(prelude,
+        "main := proc() { cell: I64 = 123; read := Counts(); counts := Counts(); mut other := Counts();\n",
+        "capture := Capture(cell = cell, read = read, counts = counts, other = other);\n",
+        "ref mut target: Counts = capture_counts(capture); target.drops++; other.drops++ }\n"),
+        "'counts' is an immutable binding")
+    reject_generic(compiler, root, format(prelude,
+        "main := proc() { cell: I64 = 123; read := Counts(); mut counts := Counts(); other := Counts();\n",
+        "capture := Capture(cell = cell, read = read, counts = counts, other = other);\n",
+        "ref mut target: Counts = choose_counts(capture, true); target.drops++ }\n"),
+        "'other' is an immutable binding")
+    reject_generic(compiler, root, format(prelude,
+        "main := proc() { mut cell: I64 = 123; read := Counts(); mut counts := Counts(); mut other := Counts();\n",
+        "capture := Capture(cell = cell, read = read, counts = counts, other = other);\n",
+        "ref mut target: Counts = forward_counts(capture); target.drops++; other.drops++; println(cell) }\n"),
+        "redundant 'mut' on local 'cell'")
+    reject_generic(compiler, root, format(prelude,
+        "Opaque := func(Capture) returns ref mut Counts\n",
+        "mixed := func(action: Opaque, capture: Capture, known: Bool) returns ref mut Counts { if known { return capture_counts(capture) }; return action(capture) }\n",
+        "main := proc() { cell: I64 = 123; read := Counts(); mut counts := Counts(); mut other := Counts();\n",
+        "capture := Capture(cell = cell, read = read, counts = counts, other = other);\n",
+        "ref mut target: Counts = mixed(capture_counts, capture, true); target.drops++; other.drops++ }\n"),
+        "'cell' is an immutable binding")
+    reject_generic(compiler, root, format(prelude,
+        "Opaque := func(Capture) returns ref mut Counts\n",
+        "mixed := func(action: Opaque, known: Capture, unknown: Capture, first: Bool) returns ref mut Counts { if first { return known.counts }; return action(unknown) }\n",
+        "main := proc() { left_cell: I64 = 1; right_cell: I64 = 2; read := Counts(); mut counts := Counts(); mut other := Counts();\n",
+        "left := Capture(cell = left_cell, read = read, counts = counts, other = other);\n",
+        "right := Capture(cell = right_cell, read = read, counts = counts, other = other);\n",
+        "ref mut target: Counts = mixed(capture_counts, left, right, true); target.drops++; other.drops++ }\n"),
+        "'right_cell' is an immutable binding")
+}
+
 writable_accessor_checks := proc(compiler: Str, root: Str, asan: Bool) {
     prelude := format("mode cli\n",
         "MutableItem := interface { value := func(self: MutableItem) returns I64\nset_value := func(mut self: MutableItem, n: I64) }\n",
@@ -926,6 +989,7 @@ main := proc(args: ..Str) {
         private_permission_query_checks(compiler, root, asan)
         template_ownership_checks(compiler, root, asan)
         writable_accessor_checks(compiler, root, asan)
+        capture_forwarding_checks(compiler, root, asan)
         writable_return_source_checks(compiler, root, asan)
     case "success":
         query_checks(compiler, root, asan)
@@ -942,6 +1006,7 @@ main := proc(args: ..Str) {
         private_permission_query_checks(compiler, root, asan)
         template_ownership_checks(compiler, root, asan)
         writable_accessor_checks(compiler, root, asan)
+        capture_forwarding_checks(compiler, root, asan)
         writable_return_source_checks(compiler, root, asan)
     }
     println("type argument qualifiers passed")

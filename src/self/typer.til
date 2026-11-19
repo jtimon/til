@@ -1829,7 +1829,7 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
             // Dynamic dests), so treat those conservatively as writes too.
             // That arm is a LINT, not proof of a typed mutable borrow.
             if param1.is_mut.or(ptype_t.is(Type.Dynamic)) {
-                mark_written_through(scope, e.children[ci], ctx.symbols)
+                mark_written_through(scope, e.children[ci], ctx.symbols, safe_ref(ctx.parameter_effects))
             }
             if param1.is_mut {
                 check_write_roots_mut(scope, e.children[ci], e.children[ci],
@@ -2969,7 +2969,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
                 mut payload := Expr.new(own field_access_node(ctx.symbols.intern("iface_val")), e.line, e.col)
                 payload.add_child(own e.children[pi + 1].clone())
                 payload.set_til_type(Type.Dynamic)
-                mark_written_through(scope, payload, ctx.symbols)
+                mark_written_through(scope, payload, ctx.symbols, safe_ref(ctx.parameter_effects))
                 check_write_roots_mut(scope, e, payload, "mutate the interface payload", ctx)
             }
             if ns_fdef.sig.params.len() == 0 {
@@ -7537,7 +7537,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
     // #164 / #344: walk to the root identifier of the obj chain and mark
     // it written. `a.b.c = ...` writes the root `a` (transitively), and
     // when `a` is a borrow, the storage `a` aliases.
-    mark_written_through(scope, obj, ctx.symbols)
+    mark_written_through(scope, obj, ctx.symbols, safe_ref(ctx.parameter_effects))
     check_write_roots_mut(scope, stmt, obj, format("assign to '", fname, "' here"), ctx)
     // #393: a borrow-carrying value assigned into a field parks its
     // borrows in the base binding's storage -- the direct-assign form of
@@ -8761,7 +8761,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
             // #351: the WRITE walk, not the value walk: a `ref` into one
             // field aliases that field's storage, not every borrow the
             // whole value happens to carry through its other fields.
-            decl_b.borrow_roots = lvalue_write_roots(scope, rhs, ctx.symbols)
+            decl_b.borrow_roots = lvalue_write_roots(scope, rhs, ctx.symbols, safe_ref(ctx.parameter_effects))
             decl_b.aliases_global_storage = expr_names_global_storage(scope, rhs, ctx)
             if sdecl.is_mut {
                 switch rhs.node_type {
@@ -13768,7 +13768,32 @@ priv capture_borrow_roots := func(scope: TypeScope, captures: Vec(Declaration), 
 // base binding; writing through a ref field (or a field whose type
 // carries a borrow) lands in the storage the borrow points at -- the
 // base's carried roots -- and does not write the base itself.
-priv lvalue_write_roots := func(scope: TypeScope, obj: Expr, symbols: SymbolPool) returns Vec(BorrowRoot) {
+// None means the return place crosses an opaque/raw or recursive boundary,
+// whose existing parameter-mask provenance must remain conservative.
+priv project_return_place := func(scope: TypeScope, argument: Expr, path: Str, symbols: SymbolPool) returns Option(Expr) {
+    mut target := argument.clone()
+    for field: Str in path.split(".") {
+        if field.len() == 0 { continue }
+        if field == "*" { return Option(Expr).None }
+        definition := scope.get_struct(type_name_ref(target.til_type(), symbols), symbols)
+        if definition.is_none() { return Option(Expr).None }
+        if definition.unwrap().node_type.is(NodeType.StructDef).not() { return Option(Expr).None }
+        ref sd: StructDef = structdef_of(definition.unwrap())
+        member := member_get(sd.fields_index, sd.fields, field)
+        if member.is_none() { return Option(Expr).None }
+        type := declaration_resolved_type(member.unwrap(), scope, symbols)
+        if type_is_null_quarantine(type).or(type.is(Type.Unknown)) { return Option(Expr).None }
+        mut access := Expr.new(own field_access_node(symbols.lookup(field).unwrap()), argument.line, argument.col)
+        access.set_til_type(type)
+        access.add_child(own target)
+        target = access
+    }
+    if type_is_null_quarantine(target.til_type()).or(target.til_type().is(Type.Unknown)) { return Option(Expr).None }
+    return Option(Expr).Some(own target)
+}
+
+priv lvalue_write_roots := func(scope: TypeScope, obj: Expr, symbols: SymbolPool,
+    effects: Option(ref Map(UPtr, ParameterEffects)) = Option(ref Map(UPtr, ParameterEffects)).None) returns Vec(BorrowRoot) {
     mut out := Vec(BorrowRoot).new()
     switch obj.node_type {
     case .Ident(id):
@@ -13793,10 +13818,32 @@ priv lvalue_write_roots := func(scope: TypeScope, obj: Expr, symbols: SymbolPool
         if fieldaccess_crosses_borrow(scope, obj, symbols) {
             // The write lands in whatever the borrow points at: the
             // roots THIS field carries (#355) -- plus every untagged one.
-            return carried_roots_of(scope, expr_borrow_roots(scope, obj.children[0], symbols),
+            if effects.is_none() {
+                return carried_roots_of(scope, expr_borrow_roots(scope, obj.children[0], symbols),
+                    fieldaccess_path(obj, symbols), symbols)
+            }
+            mut carriers := Vec(BorrowRoot).new()
+            for root: BorrowRoot in lvalue_write_roots(scope, obj.children[0], symbols, effects) {
+                binding := lookup_binding_at(scope, root, symbols)
+                if root.carried.not().and(binding.is_some()) {
+                    // An alias slot is not a borrow carried by its pointee.
+                    // Its flattened underlying storage roots are in this same
+                    // set and supply the actual carrier's field provenance.
+                    if binding.unwrap().own_type.is(OwnType.Ref) { continue }
+                }
+                push_root_unique(carriers, root)
+            }
+            roots := carried_roots_of(scope, carriers,
                 fieldaccess_path(obj, symbols), symbols)
+            for root: BorrowRoot in roots {
+                mut alias := root.clone()
+                alias.carried = false
+                alias.field = ""
+                push_root_unique(out, alias)
+            }
+            return out
         }
-        return lvalue_write_roots(scope, obj.children[0], symbols)
+        return lvalue_write_roots(scope, obj.children[0], symbols, effects)
     case .FCall:
         // A compiler-created pointer op returns a pointer INTO argument 0,
         // so writing through it writes whatever writing argument 0 writes
@@ -13821,7 +13868,7 @@ priv lvalue_write_roots := func(scope: TypeScope, obj: Expr, symbols: SymbolPool
                     }
                 }
             }
-            return lvalue_write_roots(scope, source, symbols)
+            return lvalue_write_roots(scope, source, symbols, effects)
         }
         // A raw accessor that aliases parameter storage has the same write
         // roots as ptr_add: writing a buffer slot does not write the values
@@ -13829,13 +13876,74 @@ priv lvalue_write_roots := func(scope: TypeScope, obj: Expr, symbols: SymbolPool
         def_o := fcall_callee_fdef(obj, scope, symbols)
         if def_o.is_some() {
             ref fd : FunctionDef = funcdef_of(def_o.unwrap())
+            key := word_bits(to_ptr(fd)).to_uptr()
+            if fd.sig.return_own_type.is(OwnType.Ref).and(effects.is_some()) {
+                ref summaries: Map(UPtr, ParameterEffects) = effects.unwrap()
+                if summaries.has(key) {
+                    mut handled := Vec(USize).new()
+                    for pi in 0..fd.sig.params.len() {
+                        argument := summary_fcall_arg_for_param(obj, fd, pi, scope, symbols)
+                        if argument.is_none() { continue }
+                        mut targets := Vec(Expr).new()
+                        mut precise := true
+                        for place: ParameterPlace in summaries[key].returned {
+                            if place.parameter != pi { continue }
+                            projected := project_return_place(scope, argument.unwrap(), place.field, symbols)
+                            if projected.is_none() { precise = false; break }
+                            targets.push(own Option(Expr).take(own projected))
+                        }
+                        if precise.not() {
+                            // An explicit unknown/raw place is still a real
+                            // possible origin, even when the older bit-mask
+                            // summary could not resolve this parameter.
+                            related := fd.ref_return_params.bor(fd.ref_return_into_params).bor(fd.ref_return_carried_params)
+                            if related.band(summary_param_bit(pi)) != 0 { continue }
+                            handled.push(own pi.clone())
+                            for root: BorrowRoot in expr_borrow_roots(scope, argument.unwrap(), symbols) { push_root_unique(out, root) }
+                            continue
+                        }
+                        if targets.len() == 0 { continue }
+                        handled.push(own pi.clone())
+                        for target: Expr in targets {
+                            for root: BorrowRoot in lvalue_write_roots(scope, target, symbols, effects) {
+                                mut alias := root.clone()
+                                // The selected storage IS the result. Its old
+                                // carrier-relative field tag no longer applies.
+                                alias.carried = false
+                                alias.field = ""
+                                push_root_unique(out, alias)
+                            }
+                        }
+                    }
+                    if handled.len() > 0 {
+                        for pi in 0..fd.sig.params.len() {
+                            bit := summary_param_bit(pi)
+                            mut already_handled := false
+                            for index: USize in handled { if index == pi { already_handled = true; break } }
+                            if already_handled { continue }
+                            argument := summary_fcall_arg_for_param(obj, fd, pi, scope, symbols)
+                            if argument.is_none() { continue }
+                            if fd.ref_return_params.band(bit) != 0 {
+                                for root: BorrowRoot in expr_borrow_roots(scope, argument.unwrap(), symbols) { push_root_unique(out, root) }
+                            }
+                            if fd.ref_return_into_params.band(bit) != 0 {
+                                for root: BorrowRoot in lvalue_write_roots(scope, argument.unwrap(), symbols, effects) { push_root_unique(out, root) }
+                            }
+                            if fd.ref_return_carried_params.band(bit) != 0 {
+                                for root: BorrowRoot in carried_roots_of(scope, expr_borrow_roots(scope, argument.unwrap(), symbols), "", symbols) { push_root_unique(out, root) }
+                            }
+                        }
+                        return out
+                    }
+                }
+            }
             if fd.sig.return_type.eq("Dynamic").and(fd.sig.return_own_type.is(OwnType.Ref))
                 .and(fd.ref_return_into_params.eq(0)).and(fd.ref_return_carried_params == 0) {
                 for pi in 0..fd.sig.params.len() {
                     if fd.ref_return_params.band(summary_param_bit(pi)) == 0 { continue }
                     arg_o := fcall_arg_for_param(obj, pi, scope, symbols)
                     if arg_o.is_some() {
-                        for root : BorrowRoot in lvalue_write_roots(scope, arg_o.unwrap(), symbols) { push_root_unique(out, root) }
+                        for root : BorrowRoot in lvalue_write_roots(scope, arg_o.unwrap(), symbols, effects) { push_root_unique(out, root) }
                     }
                 }
                 return out
@@ -13889,6 +13997,7 @@ priv mark_roots_written := func(scope: TypeScope, roots: Vec(BorrowRoot), symbol
 // would depend on which files happened to be compiled.
 priv root_is_writable := func(scope: TypeScope, b: TypeBinding, r: BorrowRoot, symbols: SymbolPool) returns Bool {
     if b.is_mut { return true }
+    if b.own_type.is(OwnType.Ref).and(b.referent_mut) { return true }
     if b.own_type.is(OwnType.Own) { return true }
     return root_is_global(scope, r, symbols)
 }
@@ -13918,7 +14027,7 @@ priv root_carries_own_qualifier := func(b: TypeBinding, r: BorrowRoot) returns B
 // handing a raw pointer to a callee is a guess about what the callee does
 // with it, and a guess must not produce a rejection.
 priv check_write_roots_mut := proc(mut scope: TypeScope, site: Expr, obj: Expr, what: Str, mut ctx: Context) {
-    check_writable_root_set(scope, site, lvalue_write_roots(scope, obj, ctx.symbols), what, ctx)
+    check_writable_root_set(scope, site, lvalue_write_roots(scope, obj, ctx.symbols, safe_ref(ctx.parameter_effects)), what, ctx)
 }
 
 priv check_writable_root_set := proc(mut scope: TypeScope, site: Expr, roots: Vec(BorrowRoot), what: Str, mut ctx: Context) {
@@ -13975,17 +14084,24 @@ priv mark_name_written_sym := func(mut scope: TypeScope, sym: Sym, symbols: Symb
 // here too, and its guess about what a callee does with a raw pointer is
 // deliberately generous on the write side; it is NOT proof of a typed
 // mutable borrow, so a rejection must never be derived from it.
-priv mark_written_through := func(mut scope: TypeScope, obj: Expr, symbols: SymbolPool) {
+priv mark_written_through := func(mut scope: TypeScope, obj: Expr, symbols: SymbolPool,
+    effects: Option(ref Map(UPtr, ParameterEffects)) = Option(ref Map(UPtr, ParameterEffects)).None) {
     switch obj.node_type {
     case .Ident(root_id):
         mark_name_written_sym(scope, root_id.ident_sym(), symbols)
     case .FieldAccess:
-        if obj.children.len() > 0 { mark_written_through(scope, obj.children[0], symbols) }
+        if obj.children.len() > 0 { mark_written_through(scope, obj.children[0], symbols, effects) }
     case .FCall:
         // `inner_of(o).n = 1`, `adopt(T, self.unsafe_get(i), own v)`: no
         // binding is involved at all, so the callee summary is the only
         // record of where the write lands.
-        mark_roots_written(scope, expr_borrow_roots(scope, obj, symbols), symbols)
+        if raw_borrow_source(obj, symbols).is_some() {
+            // Raw-pointer writes retain the existing conservative lint credit;
+            // only typed call-return places justify the narrower write set.
+            mark_roots_written(scope, expr_borrow_roots(scope, obj, symbols), symbols)
+        } else {
+            mark_roots_written(scope, lvalue_write_roots(scope, obj, symbols, effects), symbols)
+        }
     case:
     }
 }
@@ -15687,6 +15803,8 @@ priv expression_places := func(e: Expr, aliases: Map(Str, ParameterPlaces), para
     case .Ident(id):
         ref name: Str = id.ident_name(ctx.symbols.names)
         if aliases.has(name) { return aliases[name].values.clone() }
+    case .NamedArg:
+        return expression_places(e.children[0], aliases, params, scope, self_type, ctx)
     case .FieldAccess(fa):
         if e.children.len() == 0 || fa_is_ns(e, scope, ctx.symbols) { return result }
         for base: ParameterPlace in expression_places(e.children[0], aliases, params, scope, self_type, ctx) {
@@ -15700,8 +15818,30 @@ priv expression_places := func(e: Expr, aliases: Map(Str, ParameterPlaces), para
             ref fd: FunctionDef = funcdef_of(callee.unwrap())
             if fd.sig.return_own_type.is(OwnType.Ref).not() { return result }
             key := word_bits(to_ptr(fd)).to_uptr()
-            if ctx.parameter_effects.has(key) {
+            if ctx.parameter_effects.has(key).and(ctx.parameter_effects[key].returned.len() > 0) {
                 return map_places(e, fd, ctx.parameter_effects[key].returned, aliases, params, scope, self_type, ctx)
+            }
+            if fd.sig.func_type.is_bodyless().or(callee.unwrap().children.len() == 0) {
+                // An opaque borrowed result may select any storage reachable
+                // through its borrowed inputs. Keep an explicit unknown place
+                // so a known sibling return cannot narrow this branch away.
+                for pi in 0..fd.sig.params.len() {
+                    if fd.sig.params[pi].own_type.is(OwnType.Ref).not() { continue }
+                    argument := summary_fcall_arg_for_param(e, fd, pi, scope, ctx.symbols)
+                    if argument.is_none() { continue }
+                    for base: ParameterPlace in expression_places(argument.unwrap(), aliases, params, scope, self_type, ctx) {
+                        _ := place_add(result, place_field(base, "*"))
+                    }
+                }
+            }
+        } else {
+            // A callable parameter may have a signature without a concrete
+            // callee definition in this pre-typing walk. Its inputs remain
+            // possible origins, not evidence that a known sibling is unique.
+            for ai in 1..e.children.len() {
+                for base: ParameterPlace in expression_places(e.children[ai], aliases, params, scope, self_type, ctx) {
+                    _ := place_add(result, place_field(base, "*"))
+                }
             }
         }
     case:
@@ -15844,7 +15984,7 @@ priv check_indirect_call_writes := proc(mut scope: TypeScope, call: Expr, fd: Fu
             access.add_child(own target)
             target = access
         }
-        mut roots := lvalue_write_roots(scope, target, ctx.symbols)
+        mut roots := lvalue_write_roots(scope, target, ctx.symbols, safe_ref(ctx.parameter_effects))
         if recursive { roots = carried_roots_of(scope, expr_borrow_roots(scope, target, ctx.symbols), "", ctx.symbols) }
         mark_roots_written(scope, roots, ctx.symbols)
         check_writable_root_set(scope, call, roots, format("write through borrowed field '", place.field, "' in this call"), ctx)
@@ -17816,7 +17956,7 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
     // `mut coll` as "never written through", forcing the user to drop a
     // `mut` that actually reflects the loop's intent.
     if forin_is_mut {
-        mark_written_through(scope, iter, ctx.symbols)
+        mark_written_through(scope, iter, ctx.symbols, safe_ref(ctx.parameter_effects))
         check_write_roots_mut(scope, stmt, iter, "mutate the elements of this collection", ctx)
     }
     ref for_body : Expr = stmt.children[1]
@@ -18073,7 +18213,7 @@ priv desugar_for_in_kv_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_i
         forin_is_mut = false
     }
     if forin_is_mut2 {
-        mark_written_through(scope, iter, ctx.symbols)
+        mark_written_through(scope, iter, ctx.symbols, safe_ref(ctx.parameter_effects))
         check_write_roots_mut(scope, stmt, iter, "mutate the entries of this map", ctx)
     }
 

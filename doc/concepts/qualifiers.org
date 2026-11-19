@@ -106,6 +106,11 @@ return-side ~mut~.
 - Implemented: ~TilVm.shared_i64()~ explicitly returns ~ref mut I64~. The scalar
   remains VM-owned. Denied writable-return paths retain their source explanation
   across aliases/temporaries, naming getters instead of compiler temporary slots.
+- Implemented: known getters' parameter-relative return-field summaries select
+  the actual write owners through forwarding/nested carriers. A writable field
+  does not make unrelated read-only captured fields write destinations. Fixed
+  ~const ref mut~ aliases are writable through their referent grant. Opaque/raw
+  and recursively widened return origins remain conservative.
 - Pending: general source-path and writable-alias creation checks, the plain-ref
   defaults migration, remaining library accessor/reference-permission
   metadata and the C-header binding translator.
