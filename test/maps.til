@@ -41,6 +41,10 @@ test_str_map := test() {
     assert_eq(I64, sb, 2)
 }
 
+test_map_size := test() {
+    assert_eq(USize, Map(Str, I64).size(), Vec(Str).size() + Vec(I64).size())
+}
+
 test_map_remove := test() {
     mut m := Map(Str, I64).new()
     m.set("a", own 1)

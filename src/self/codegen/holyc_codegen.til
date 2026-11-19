@@ -3044,7 +3044,12 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
         case .FieldAccess(fa):
             ref method : Str = fa.field_access_name(ctx.symbols.names)
             owner := holyc_storage_type_name(codegen_field_owner_name(callee, ctx.symbols), state)
-            if state.map_keys.has(owner).or(state.set_elements.has(owner)) {
+            is_ordered_collection := state.map_keys.has(owner).or(state.set_elements.has(owner))
+            if method.eq("size").and(is_ordered_collection.or(state.collection_elements.has(owner))) {
+                if e.children.len() != 1 { error = "invalid collection size call"; return "" }
+                return format("sizeof(", owner, ")")
+            }
+            if is_ordered_collection {
                 is_map := state.map_keys.has(owner)
                 if e.children.len() < 2 {
                     error = format("invalid ordered collection call '", owner, ".", method, "'")
@@ -3109,10 +3114,6 @@ priv holyc_expr := func(e: Expr, ctx: Context, mut state: HolyCEmitState,
             }
             if state.collection_elements.has(owner) {
                 ref elem : Str = state.collection_elements[owner]
-                if method == "size" {
-                    if e.children.len() != 1 { error = "invalid collection size call"; return "" }
-                    return format("sizeof(", owner, ")")
-                }
                 if method == "len" {
                     if e.children.len() != 2 { error = "invalid collection length call"; return "" }
                     self_ref := holyc_struct_ref(e.children[1], ctx, state, locals, error)
