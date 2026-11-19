@@ -274,6 +274,15 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     if target.is(Target.MacosX64).or(target.is(Target.MacosArm64)).or(is_android_target(target)) {
         lib_identity = runtime_link_identity_args(target, format("lib", lib_name, shared_lib_extension(target)), "")
     }
+    // #483: on Windows a consumer's -l<name> links the DLL through its
+    // import library, lib<name>.dll.a, which the linker prefers to the
+    // static lib<name>.a. Without one, -l<name> took the static archive and
+    // its own copy of the runtime beside the shared runtime's import
+    // library: duplicate symbols (CI run 3170, a til library linking
+    // another one in test/library_namespace.til).
+    if is_windows_target(target) {
+        lib_identity = runtime_link_identity_args(target, "", format("gen/lib/lib", lib_name, ".dll.a"))
+    }
     if is_android_target(target) { lf = format(lf, " ", target_system_libs(target)) }
     cmd = compiler.format(extra, asan_flags, target_link_extra_args(target), " -shared -o ", so_path, lib_identity,
         " ", shared_obj_path, core_dependency, runtime_dependency, user_objs, lf)
