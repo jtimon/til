@@ -135,6 +135,11 @@ payload. SDK-capable CI producers compare that payload, not their different
 debug signatures. The checks print SDK/JDK/signing inputs; absent SDK coverage
 is reported explicitly and a configured but invalid SDK fails.
 
+After equal cross-host results in CI run 3167, native Android artifacts are
+enforced at the collector's ~binary~ level. SDK producers' aligned APKs and
+native libraries are enforced in a separate ~apk~ group, so SDK-less hosts
+are not required to supply APKs. Toolchain metadata remains informational.
+
 ** JNI libraries for Android apps
 
 #+begin_src sh

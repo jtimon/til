@@ -3532,3 +3532,28 @@ architectures and ~lib/clang/*/lib/windows~). Those are data, not
 programs: one set of them on every host. Layout 3. Not run on a Mac
 from here; the Macs' windows lists stay on trial until a run shows them
 equal.
+
+*** Android native and APK comparisons become strict (base f30a14102)
+
+Verified the actual hash-list artifacts from successful run 3167 (master
+9f0de8240), checking downloaded ZIP digests against GitHub's artifact API.
+Both Android targets at both layouts have 128 native comparison items equal
+between Linux x64, Linux arm64 and macOS arm64. The four exact aligned APKs
+agree between Linux x64 and macOS arm64; Linux arm64 explicitly has no SDK
+payload. Only toolchain identity hashes differ in these Android groups.
+
+~produce-binary~ now lists native Android artifacts at strict ~binary~,
+keeping toolchain metadata at ~binary-trial~. SDK producers list aligned
+APKs and their embedded native libraries at strict ~apk~, in the existing
+seven-field format. That group excludes SDK-less producers. The native
+library record also anchors SDK membership when an APK record is missing.
+~produce-binary-trial~ keeps both kinds on trial for future qualification.
+The three producer/upload steps are blocking; other platforms' artifact
+equality policies are unchanged.
+
+Verification: original run 3167 hashes pass the promoted policy; deliberately
+altered native/APK hashes fail. ~test/ci_collect.til~ checks SDK-less scope,
+missing/changed APKs, native differences and singleton reporting. Local strict
+producers completed for both targets/layouts, and the explicit trial override
+preserved the same hashes at trial levels. ~make clean && make test~ passed
+596/596. Logs: ~tmp/android_strict_ci.log~, ~tmp/android_producer_policy.log~.

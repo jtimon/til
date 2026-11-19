@@ -979,3 +979,13 @@ packaging/signing coverage is implemented in [[../fixed/505.org][#505]]: SDK-cap
 producers add the exact aligned APK before signing to the existing trial
 lists. Local root/time checks compare final signed APKs with a shared key
 and verify that independent keys change only the signed distribution bytes.
+
+*** Android comparisons are enforced after run 3167
+
+Native Android artifacts are strict across the three existing producers.
+APK payloads and their native libraries use a strict ~apk~ comparison group
+containing only SDK-capable producers; toolchain identities stay informational.
+The three producer steps and uploads now fail the run on failure or absent
+hash lists. Cross-host evidence and local failure checks are in [[./472.org][#472]],
+"Android native and APK comparisons become strict". Other targets retain
+their existing strict/trial policies.

@@ -335,8 +335,8 @@ jobs:
       # at one pinned version, published for Linux x64 and arm64 and macOS
       # arm64 hosts. `make llvm` downloads it, checks its sha256 and unpacks
       # only the tools til and bin/make run; they go first on PATH. Headers and libSystem are vendor/macos, as
-      # before. On trial and continue-on-error until a run shows the three
-      # hosts equal; the mac binaries the Macs RUN are still built by
+      # before. Mac equality remains on trial; Android producer failures are
+      # blocking after run 3167. The mac binaries the Macs RUN are built by
       # macos-cross-build with Ubuntu's clang.
       # The pinned LLVM (make.til LLVM_RELEASE), unpacked by `make llvm` into
       # vendor/llvm, kept between runs: one cache entry per release and
@@ -354,7 +354,6 @@ jobs:
           path: vendor/llvm
           key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: Write the mac and Android binary hash lists with the pinned LLVM
-        continue-on-error: true
         run: |
           make llvm
           export PATH="$PWD/vendor/llvm/bin:$PATH"
@@ -370,7 +369,6 @@ jobs:
           mkdir -p tmp/hashes-binary-mac
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary-mac/linux-arm64.txt bin/til macos-arm64 macos-x64 android-x64 android-arm64
       - name: Upload the mac binary hash lists
-        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-mac-linux-arm64
@@ -1052,8 +1050,8 @@ jobs:
       # at one pinned version, published for Linux x64 and arm64 and macOS
       # arm64 hosts. `make llvm` downloads it, checks its sha256 and unpacks
       # only the tools til and bin/make run; they go first on PATH. Headers and libSystem are vendor/macos, as
-      # before. On trial and continue-on-error until a run shows the three
-      # hosts equal; the mac binaries the Macs RUN are still built by
+      # before. Mac equality remains on trial; Android producer failures are
+      # blocking after run 3167. The mac binaries the Macs RUN are built by
       # macos-cross-build with Ubuntu's clang.
       # The pinned LLVM (make.til LLVM_RELEASE), unpacked by `make llvm` into
       # vendor/llvm, kept between runs: one cache entry per release and
@@ -1071,7 +1069,6 @@ jobs:
           path: vendor/llvm
           key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: Write the mac and Android binary hash lists with the pinned LLVM
-        continue-on-error: true
         run: |
           make llvm
           export PATH="$PWD/vendor/llvm/bin:$PATH"
@@ -1093,11 +1090,11 @@ jobs:
           mkdir -p tmp/hashes-binary-mac
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-mac/linux-x64.txt bin/til macos-arm64 macos-x64 android-x64 android-arm64
       - name: Upload the mac binary hash lists
-        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-mac-linux-x64
           path: tmp/hashes-binary-mac/linux-x64.txt
+          if-no-files-found: error
 
   windows-x64-run:
     name: windows-x64/x86 (run .exe on windows)
@@ -1921,8 +1918,8 @@ jobs:
       # macos_is_cross), and bin/make builds this host's own libffi and nng
       # the same way (make.til, builds_as_host). They are rebuilt here by
       # bin/make directly: through the Makefile, the missing stamp of the
-      # host's libffi would have it rebuilt with Apple's cc. On trial and
-      # continue-on-error.
+      # host's libffi would have it rebuilt with Apple's cc. Mac equality
+      # remains on trial; Android producer failures are blocking after 3167.
       # The pinned LLVM (make.til LLVM_RELEASE), unpacked by `make llvm` into
       # vendor/llvm, kept between runs: one cache entry per release and
       # runner kind.
@@ -1939,7 +1936,6 @@ jobs:
           path: vendor/llvm
           key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: Write the mac and Android binary hash list with the pinned LLVM
-        continue-on-error: true
         run: |
           make llvm
           export PATH="$PWD/vendor/llvm/bin:$PATH"
@@ -1963,11 +1959,11 @@ jobs:
           # target with, so this Mac is the third host that builds it.
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary/macos-arm64.txt bin/til macos-arm64 macos-x64 android-x64 android-arm64
       - name: Upload the binary hash list
-        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-macos-arm64
           path: tmp/hashes-binary/macos-arm64.txt
+          if-no-files-found: error
       # Issue #472: windows-x64 from this Mac, with the pinned llvm-mingw the
       # host-cross step above unpacked: the fourth host that builds
       # til.exe. Last on PATH, not first: til finds the windows compiler by

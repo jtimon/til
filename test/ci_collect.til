@@ -159,6 +159,42 @@ main := proc(args: ..Str) {
     collect(collector, other_tools_binary, "", 1, "DIFFERENT binary macos-arm64 c 32: hello.til hello",
         "0 equal, 1 different, 0 missing, 0 not compared, 1 different on trial")
 
+    // Proven Android binaries are strict even when toolchain identities
+    // differ. APK groups contain only SDK producers, not every native host.
+    android_tools := format(HASH_A, " binary-trial android-x64 c 32 - toolchain")
+    android_native := format(HASH_A, " binary android-x64 c 32 hello.til hello")
+    apk_payload := format(HASH_B, " apk android-x64 c 32 gui.til aligned.apk")
+    apk_library := format(HASH_C, " apk android-x64 c 32 gui.til libgui.so")
+    android := fixture("android")
+    list(android, "linux", android_tools, android_native, apk_payload, apk_library)
+    list(android, "mac", format(HASH_B, " binary-trial android-x64 c 32 - toolchain"), android_native, apk_payload, apk_library)
+    list(android, "arm", android_tools, android_native)
+    collect(collector, android, "", 0, "apk android-x64 c 32: 2 producers", "binary android-x64 c 32: 3 producers",
+        "3 equal, 0 different, 0 missing, 0 not compared, 1 different on trial", "!MISSING")
+
+    android_changed := fixture("android_changed")
+    list(android_changed, "linux", android_tools, android_native)
+    list(android_changed, "arm", android_tools, format(HASH_C, " binary android-x64 c 32 hello.til hello"))
+    collect(collector, android_changed, "", 1, "DIFFERENT binary android-x64 c 32: hello.til hello", "1 different")
+
+    apk_changed := fixture("apk_changed")
+    list(apk_changed, "linux", android_native, apk_payload, apk_library)
+    list(apk_changed, "mac", android_native, format(HASH_A, " apk android-x64 c 32 gui.til aligned.apk"), apk_library)
+    list(apk_changed, "arm", android_native)
+    collect(collector, apk_changed, "", 1, "DIFFERENT apk android-x64 c 32: gui.til aligned.apk", "!MISSING")
+
+    apk_missing := fixture("apk_missing")
+    list(apk_missing, "linux", android_native, apk_payload, apk_library)
+    list(apk_missing, "mac", android_native, apk_library)
+    list(apk_missing, "arm", android_native)
+    collect(collector, apk_missing, "", 1, "MISSING apk android-x64 c 32: mac has no gui.til aligned.apk",
+        "2 equal, 0 different, 1 missing", "!arm has no")
+
+    apk_alone := fixture("apk_alone")
+    list(apk_alone, "linux", android_native, apk_payload, apk_library)
+    list(apk_alone, "arm", android_native)
+    collect(collector, apk_alone, "", 0, "apk android-x64 c 32: 1 producers", "1 equal, 0 different, 0 missing, 2 not compared")
+
     // An artifact on trial: a difference is printed and does not fail.
     trial_tools := format(HASH_A, " binary-trial linux-arm64 c 32 - toolchain")
     trial := fixture("trial")

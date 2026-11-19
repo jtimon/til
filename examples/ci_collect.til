@@ -33,9 +33,12 @@ import("../test/jni_support")
 //       "binary-trial" only, so that different toolchains show up next to
 //       any difference they explain and never fail by themselves. Also at
 //       "binary-trial": every artifact of a target not yet shown equal.
+//       Android's proven native artifacts use "binary"; SDK producers list
+//       the aligned unsigned APK and its native library in a separate "apk"
+//       group, so SDK-less hosts do not participate in that comparison.
 //
 //   ci_collect produce-binary-trial <producer> <list file> <compiler> <target>...
-//       The same list with every line at "binary-trial": for a host whose
+//       The same list with binary/APK lines at "binary-trial"/"apk-trial": for a host whose
 //       build of a target is not (yet) the other hosts'.
 //
 //   ci_collect collect <directory> [report]
@@ -365,14 +368,21 @@ list_members := proc(target: Str, level: Str, archive: Str, label: Str, scratch:
 // Compare its native corpus at both layouts, including the libraries an APK
 // or Java app actually loads. SDK-capable producers additionally compare the
 // exact aligned APK before signing; their per-host debug keys may differ.
-produce_android_binary := proc(compiler: Str, target: Str, mut lines: Vec(Str)) {
+produce_android_binary := proc(compiler: Str, target: Str, mut lines: Vec(Str), trial: Bool) {
     identity := toolchain_identity(target)
     println("toolchain for ", target, ":\n", identity)
     identity_path := format(WORK, "/toolchain_", target)
     File.writefile(identity_path, identity)
     directory := format(WORK, "/binary_", target)
     mkdir_p(directory)
-    level := "binary-trial"
+    // CI run 3167: native artifacts agree on Linux x64/arm64 and macOS
+    // arm64; the exact unsigned APK agrees on both SDK-capable producers.
+    mut level := "binary"
+    mut apk_level := "apk"
+    if trial {
+        level = "binary-trial"
+        apk_level = "apk-trial"
+    }
     archive := format("vendor/raylib/build-", target, "/libraylib.a")
     if File.is_file(archive).not() { fail(format(archive, " is not built; run bin/make ", archive, " first")) }
     sdk := android_apk_sdk()
@@ -441,11 +451,25 @@ produce_android_binary := proc(compiler: Str, target: Str, mut lines: Vec(Str)) 
             if package.run() != 0 { fail(format(package.render(), " failed:\n", package.out(), package.err())) }
             // Keep packaging output exactly as the builder made it: no
             // extracting, stripping or ZIP rewriting before hashing.
-            paths.push(own format(android_apk_stage(c_path, target, width), "/aligned.apk"))
-            items.push(own "examples/hello_gui.til aligned.apk")
+            stage := android_apk_stage(c_path, target, width)
+            mut abi := "x86_64"
+            if target == "android-arm64" { abi = "arm64-v8a" }
+            // The library is part of the proven APK payload. Its record also
+            // keeps an SDK producer in the group if its APK record is lost,
+            // so missing APKs fail rather than becoming single-producer data.
+            apk_paths := vec(Str, format(stage, "/aligned.apk"), format(stage, "/lib/", abi, "/libhello_gui.so"))
+            apk_items := array(Str, "aligned.apk", "libhello_gui.so")
+            apk_hashes := sha256_of(apk_paths)
+            for i, hash in apk_hashes {
+                lines.push(own format(hash, " ", apk_level, " ", target, " c ", width, " examples/hello_gui.til ", apk_items[i]))
+            }
         }
         hashes := sha256_of(paths)
-        for i, hash in hashes { lines.push(own format(hash, " ", level, " ", target, " c ", width, " ", items[i])) }
+        for i, hash in hashes {
+            mut item_level := level.clone()
+            if i == 0 { item_level = "binary-trial" }
+            lines.push(own format(hash, " ", item_level, " ", target, " c ", width, " ", items[i]))
+        }
         list_members(target, level, archive, "vendor libraylib.a", format(directory, "/raylib_members"), lines, width)
         list_members(target, level, "gen/lib/libjni_lib.a", "test/jni_lib.til libjni_lib.a", format(directory, "/library_members"), lines, width)
     }
@@ -504,7 +528,7 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
     mut lines := Vec(Str).new()
     for target : Str in targets {
         if target.starts_with("android-") {
-            produce_android_binary(compiler, target, lines)
+            produce_android_binary(compiler, target, lines, trial)
             continue
         }
         identity := toolchain_identity(target)
