@@ -258,10 +258,91 @@ static void stdio_capture_fail(const char *op) {
 // raylib consumes them without requesting activity destruction.
 #undef InitWindow
 #include <android_native_app_glue.h>
+#include <android/log.h>
+#include <EGL/egl.h>
 extern void InitWindow(int width, int height, const char *title);
+extern bool IsWindowReady(void);
 extern struct android_app *GetAndroidApp(void);
 
 static int32_t (*til_android_raylib_input)(struct android_app *, AInputEvent *);
+static void (*til_android_raylib_command)(struct android_app *, int32_t);
+static __thread bool til_android_initializing_window;
+static EGLDisplay til_android_display;
+static EGLContext til_android_context;
+static EGLConfig til_android_config;
+// No GUI activity is registered on other threads, before initialization, or
+// after its final poll. API 28 uses the runtime's existing emulated TLS.
+static __thread struct android_app *til_android_poll_app;
+
+static void til_android_egl_fail(const char *operation) {
+    __android_log_print(ANDROID_LOG_FATAL, "til", "Android GUI %s failed (EGL error 0x%x)", operation, eglGetError());
+    exit(1);
+}
+
+// Linker interposition belongs to the application, not the upstream archive.
+// The ABI spellings are fixed by --wrap; C identifiers stay descriptive.
+extern EGLBoolean EGLAPIENTRY til_android_real_choose_config(EGLDisplay display, const EGLint *attributes,
+    EGLConfig *configs, EGLint capacity, EGLint *count) __asm__("__real_eglChooseConfig");
+EGLBoolean EGLAPIENTRY til_android_choose_config(EGLDisplay display, const EGLint *attributes,
+    EGLConfig *configs, EGLint capacity, EGLint *count) __asm__("__wrap_eglChooseConfig");
+extern int til_android_real_poll_once(int timeout, int *fd, int *events, void **data) __asm__("__real_ALooper_pollOnce");
+int til_android_poll_once(int timeout, int *fd, int *events, void **data) __asm__("__wrap_ALooper_pollOnce");
+
+int til_android_poll_once(int timeout, int *fd, int *events, void **data) {
+    // Destruction has completed event delivery for this GUI activity. Its
+    // loop must return to CloseWindow rather than wait again while paused.
+    // Timeout ends the ordinary poll loop without inventing an input event.
+    if (til_android_poll_app != NULL && til_android_poll_app->destroyRequested) {
+        til_android_poll_app = NULL;
+        return ALOOPER_POLL_TIMEOUT;
+    }
+    return til_android_real_poll_once(timeout, fd, events, data);
+}
+
+EGLBoolean EGLAPIENTRY til_android_choose_config(EGLDisplay display, const EGLint *attributes,
+    EGLConfig *configs, EGLint capacity, EGLint *count) {
+    // Calls outside the primary window's initialization retain EGL's normal
+    // contract; raylib's initialization supplies an attribute list and outputs.
+    if (!til_android_initializing_window) return til_android_real_choose_config(display, attributes, configs, capacity, count);
+    int size = 0;
+    while (attributes[size] != EGL_NONE) size += 2;
+    EGLint augmented[size + 3];
+    bool surface_type = false;
+    for (int i = 0; i < size; i += 2) {
+        augmented[i] = attributes[i];
+        augmented[i + 1] = attributes[i + 1];
+        if (attributes[i] == EGL_SURFACE_TYPE) {
+            augmented[i + 1] |= EGL_PBUFFER_BIT;
+            surface_type = true;
+        }
+    }
+    if (!surface_type) {
+        augmented[size++] = EGL_SURFACE_TYPE;
+        augmented[size++] = EGL_WINDOW_BIT | EGL_PBUFFER_BIT;
+    }
+    augmented[size] = EGL_NONE;
+    EGLBoolean result = til_android_real_choose_config(display, augmented, configs, capacity, count);
+    if (result != EGL_TRUE || *count == 0) til_android_egl_fail("window/pbuffer configuration");
+    return result;
+}
+
+static void til_android_command(struct android_app *app, int32_t command) {
+    til_android_raylib_command(app, command);
+    // A program may already have called CloseWindow before finishing its
+    // activity. Only a live window still owns GL resources to unload.
+    if (command == APP_CMD_DESTROY && IsWindowReady()) {
+        const EGLint attributes[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
+        EGLSurface surface = eglCreatePbufferSurface(til_android_display, til_android_config, attributes);
+        if (surface == EGL_NO_SURFACE) til_android_egl_fail("cleanup surface creation");
+        if (!eglMakeCurrent(til_android_display, surface, surface, til_android_context)) til_android_egl_fail("cleanup context binding");
+        // EGL defers deletion of a current surface until it is unbound.
+        // CloseWindow can unload GL objects, then ClosePlatform unbinds and
+        // releases it before destroying the context/display. No extra owner
+        // or downstream raylib surface-field patch is required.
+        if (!eglDestroySurface(til_android_display, surface)) til_android_egl_fail("cleanup surface release");
+        __android_log_print(ANDROID_LOG_DEBUG, "til", "Android GUI cleanup context restored");
+    }
+}
 
 static int32_t til_android_input(struct android_app *app, AInputEvent *event) {
     if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_KEY &&
@@ -270,10 +351,27 @@ static int32_t til_android_input(struct android_app *app, AInputEvent *event) {
 }
 
 void til_android_init_window(int width, int height, const char *title) {
-    InitWindow(width, height, title);
     struct android_app *app = GetAndroidApp();
+    til_android_poll_app = app;
+    til_android_initializing_window = true;
+    InitWindow(width, height, title);
+    til_android_initializing_window = false;
     til_android_raylib_input = app->onInputEvent;
     app->onInputEvent = til_android_input;
+    // Failed initialization is part of InitWindow's contract. There is no
+    // GL ownership to capture until the platform reports a ready window.
+    if (IsWindowReady()) {
+        til_android_display = eglGetCurrentDisplay();
+        til_android_context = eglGetCurrentContext();
+        EGLint id, count;
+        if (!eglQueryContext(til_android_display, til_android_context, EGL_CONFIG_ID, &id)) til_android_egl_fail("context configuration query");
+        const EGLint attributes[] = { EGL_CONFIG_ID, id, EGL_NONE };
+        if (!til_android_real_choose_config(til_android_display, attributes, &til_android_config, 1, &count) || count != 1) {
+            til_android_egl_fail("context configuration lookup");
+        }
+        til_android_raylib_command = app->onAppCmd;
+        app->onAppCmd = til_android_command;
+    }
 }
 #endif
 

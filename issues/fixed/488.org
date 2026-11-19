@@ -1,6 +1,55 @@
 # priority: medium
 # category: cleanups
-** WIP #488 Restore pristine upstream raylib and upstream the Android lifecycle fixes
+** FIXED #488 Restore pristine raylib and keep GUI adaptations in til
+
+*** Post-mortem
+
+Two downstream edits lived in raylib: til's browser presentation replaced
+~src/shell.html~, and its Android backend carried polling/EGL shutdown fixes.
+Both would be lost on an upstream update. Following the user's direction to
+own GUI customizations in til, the complete tracked vendor tree now matches
+the original upstream revision ~f9ea60738547fed4e9a2e16af6c5b83b08475281~
+(subtree tree ~7bef6031f6093abc0d51408c0ac8b75080495efc~), byte for byte.
+
+The browser shell moved verbatim to ~src/modes/gui.html~. The C builder
+finds it through the compiler support root, and template edits invalidate
+the linked browser output. The existing modes-tree installation includes it.
+~test/build_outputs.til::check_browser_shell~ tests an independent support
+tree with spaces in its path, unchanged-build reuse, and template-only relink.
+A real Emscripten 6.0.0 Shootil build rendered in headless Chromium after a
+canvas click, without JavaScript exceptions; the toolbar initialized too.
+
+Android adaptation is in the existing first-party GUI boundary in
+~src/self/codegen/ext.c~, enabled only for APK builds. Linker interposition
+adds pbuffer capability during the owned window's EGL configuration and
+ends polling once its activity is destroyed. The lifecycle callback binds
+a tiny current pbuffer for GL cleanup, marking it for EGL's deferred
+deletion on unbind. Thread-local phase/activity state leaves other threads'
+EGL and looper calls alone. An already-closed window needs no cleanup surface.
+Neither upstream source nor source copies are patched during builds.
+
+The newer upstream polling fix (#6040) was identified, but that snapshot also
+changes public APIs such as ChangeDirectory's return semantics. Restoring
+the existing revision avoids that upgrade. The upstream EGL defect remains
+upstream; this resolution follows the first-party GUI ownership direction,
+not a claim that both bugs were merged upstream. The earlier plan below is
+retained as investigation history.
+
+Regression: ~examples/checkers.til~ on API 28/4 KB and API 35/16 KB passed
+2P moves, Restart, Home/surface resume and four Back teardowns with repeated
+same-process relaunch. Each teardown restored its GL cleanup context and
+logs contain no contextless GL call or native crash. A bounded USize64 GUI
+app also closed its window before activity destruction and relaunched twice.
+The device driver was written in til (~tmp/raylib488_device.til~); all owned
+SDK-managed devices were stopped. ARM64 and x64 APK root/time/signing checks
+passed both layouts through ~test/reproducible_build.til~. No ARM execution
+is claimed. ~make clean && make test~ passed 596/596.
+
+The APK comparison exposed stale Android raylib archives after switching
+clang 18 -> 23. ~make.til~ now checks the compiler producer string already
+embedded in the ELF archive before reuse, without a new stamp/cache file.
+Switching compilers rebuilds; an unchanged compiler remains a cache hit.
+Local logs/screenshots are ~tmp/raylib488_*~.
 
 *** Investigation (2026-11-17)
 
@@ -49,7 +98,7 @@ Do not maintain a til-specific raylib fork, local source edits, or patches
 applied to copied sources during the build. A raylib upgrade should not
 require rediscovering and reapplying downstream fixes.
 
-The Android lifecycle changes from [[./462.org][#462]] were merged as-is for
+The Android lifecycle changes from [[../open/462.org][#462]] were merged as-is for
 now. This issue tracks removing that exception through an upstream fix;
 it is not an instruction to immediately revert the working demo.
 
@@ -90,13 +139,13 @@ The original reproduction used Android Emulator 37.2.13, API 37, x86_64,
 and ~examples/checkers.til~ through ~NativeActivity~. The detailed logs
 and reproduction are in #462.
 
-  - [ ] ~vendor/raylib~ matches the selected upstream source revision;
+  - [X] ~vendor/raylib~ matches the selected upstream source revision;
     neither the checked-in source nor the build applies downstream fixes.
-  - [ ] Record upstream provenance and the revisions fixing both bugs.
-  - [ ] Launch, play, Restart and 1P/2P controls work.
-  - [ ] Home, wait for ~APP_CMD_TERM_WINDOW~, and resume through
+  - [X] Record upstream provenance and where both lifecycle adaptations live.
+  - [X] Launch, play, Restart and 1P/2P controls work.
+  - [X] Home, wait for ~APP_CMD_TERM_WINDOW~, and resume through
     ~APP_CMD_INIT_WINDOW~ preserve rendering and the game position.
-  - [ ] Repeated Back/relaunch completes without the paused-poll hang;
+  - [X] Repeated Back/relaunch completes without the paused-poll hang;
     logs show native destruction completing and no contextless GL cleanup.
 
 The earlier host-emulator SIGSEGV remains a separate observation: the

@@ -287,8 +287,8 @@ redirects InitWindow through a til-owned runtime hook, which installs an
 input callback after raylib initializes. Back events are left unhandled
 for the OS; other input is forwarded to raylib's callback. This fixes the
 event-consumption cause without editing raylib or native-app glue. The
-existing lifecycle fixes still provide native/GL teardown; [[./488.org][#488]]
-continues to track their upstream replacement.
+first-party lifecycle boundary now provides native/GL teardown while raylib
+stays pristine; [[../fixed/488.org][#488]] records its ownership and verification.
 
 Verified the generated Checkers APK on API 28/4096-byte pages and API
 35/16384-byte pages, measured by sysconf/getpagesize/auxv:

@@ -75,6 +75,8 @@ SELF_SRC := "make.til"
 // vendor/{raylib,tinyfiledialogs}/build-<target> (issue #422);
 // raylib_lib and tinyfd_lib name the archives, the paths
 // src/modes/gui.til's link()s name.
+// raylib is pristine upstream f9ea60738547fed4e9a2e16af6c5b83b08475281.
+// Browser presentation and Android lifecycle adaptations belong to til (#488).
 RAYLIB_DIR := "vendor/raylib"
 TINYFD_DIR := "vendor/tinyfiledialogs"
 TINYFD_SRC := "vendor/tinyfiledialogs/tinyfiledialogs.c"
@@ -1340,9 +1342,20 @@ build_android_raylib := proc(mut b: Build, name: Str) {
     android_source_inputs(inputs, "vendor/raylib/src")
     android_source_inputs(inputs, "vendor/android/native_app_glue")
     android_source_inputs(inputs, "vendor/android/sysroot/usr/include")
-    if needs_rebuild(output, inputs).not() { return }
     target := target_from_str(name)
     compiler := toolchain_command(target, Lang.C)
+    if needs_rebuild(output, inputs).not() {
+        // ELF members already carry clang's producer string in .comment.
+        // A PATH/toolchain change must not reuse another compiler's archive;
+        // use that existing metadata rather than a second stamp/cache file.
+        version := Cmd.new(compiler, "--version")
+        version.capture()
+        if version.run() != 0 { panic("cannot identify Android raylib compiler: ", version.err()) }
+        lines := version.out().split("\n")
+        ref producer : Str = lines[0]
+        if producer.len() == 0 { panic("Android raylib compiler reported an empty version") }
+        if File.readfile(output).contains(producer) { return }
+    }
     require_cross_cc(compiler, "", name)
     stage := format("tmp/raylib-", name)
     mkdir_p(stage)

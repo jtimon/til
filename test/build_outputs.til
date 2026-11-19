@@ -94,6 +94,41 @@ have_tool := proc(tool: Str) returns Bool {
     return probe.run() == 0
 }
 
+// The browser template belongs to the compiler's GUI support tree, not cwd
+// or the vendor snapshot. A shell edit must relink without retranslating C.
+check_browser_shell := proc(compiler: Str) {
+    root := realpath_str(".")
+    support := format(WORK, "/browser support")
+    mkdir_p(format(support, "/bin"))
+    if copy_tree("src", format(support, "/src")) != 0 { panic("copy GUI support sources failed") }
+    if copy_tree("vendor/bindings", format(support, "/vendor/bindings")) != 0 { panic("copy GUI bindings failed") }
+    mkdir_p(format(support, "/boot"))
+    if copy_file("boot/til_forward.h", format(support, "/boot/til_forward.h")) != 0 { panic("copy forward header failed") }
+    placed := format(support, "/bin/til")
+    if copy_file(compiler, placed) != 0 { panic("copy compiler failed") }
+    Cmd.new("chmod", "+x", placed).run_checked()
+    mkdir_p(format(support, "/vendor/raylib/build-wasm32"))
+    File.writefile(format(support, "/vendor/raylib/build-wasm32/libraylib.a"), "")
+    File.writefile(format(WORK, "/browser.til"), "mode gui\nmain := proc() { InitWindow(320, 240, \"browser\".c_str) }\n")
+    script := format(WORK, "/browser-cc.sh")
+    File.writefile(script, "#!/bin/sh\nwhile [ \"$#\" -gt 0 ]; do\ncase \"$1\" in\n-o) out=$2; shift 2;;\n--shell-file) shell=$2; shift 2;;\n-DTIL_BUILD_STAMP=*) stamp=${1#*=}; shift;;\n*) shift;;\nesac\ndone\ncp \"$shell\" \"$out\" || exit 1\nprintf '\\n<!--til-build-stamp:%s;-->\\n' \"$stamp\" >> \"$out\"\n")
+    cc := format("--cc=sh ", root, "/", script)
+    placed_abs := format(root, "/", placed)
+    check_command(Cmd.new(placed_abs, "build", "--target=wasm32", cc, "-o", "browser.html", "browser.til"), "")
+    template := format(support, "/src/modes/gui.html")
+    if File.readfile(format(WORK, "/browser.html")).contains(File.readfile(template)).not() { panic("browser did not use its GUI template") }
+    next_tick()
+    html_time := mtime("browser.html")
+    c_time := mtime("gen/til/browser.c")
+    check_command(Cmd.new(placed_abs, "build", "--target=wasm32", cc, "-o", "browser.html", "browser.til"), "")
+    expect_same("browser.html", html_time, "unchanged browser template")
+    edit(template, format(File.readfile(template), "\n<!-- GUI template edit -->\n"))
+    check_command(Cmd.new(placed_abs, "build", "--target=wasm32", cc, "-o", "browser.html", "browser.til"), "")
+    expect_newer("browser.html", html_time, "GUI template edit")
+    expect_same("gen/til/browser.c", c_time, "GUI template edit retranslated program")
+    if File.readfile(format(WORK, "/browser.html")).contains("GUI template edit").not() { panic("browser template edit was not linked") }
+}
+
 main := proc(args: ..Str) {
     compiler := realpath_str(args[0])
     File.remove_tree(WORK)
@@ -121,6 +156,8 @@ main := proc(args: ..Str) {
     // Make every later output strictly newer than its .til dependencies, so
     // the old timestamp shortcut really would take the wrong fast path.
     next_tick()
+
+    if host_os().eq("linux").or(host_os().eq("macos")) { check_browser_shell(compiler) }
 
     check_command(Cmd.new(compiler, "run", "foo/main.til"), "first406\n")
     check_command(Cmd.new(compiler, "run", "bar/main.til"), "second406\n")

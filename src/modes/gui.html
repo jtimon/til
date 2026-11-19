@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#080b0a">
+    <meta name="description" content="A til program running in the browser">
+    <title>til browser</title>
+
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
+        background: #080b0a;
+        color: #d8e0da;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 50% 120%, #15332d 0, transparent 45%),
+          #080b0a;
+      }
+
+      body {
+        display: grid;
+        grid-template-rows: 3.5rem minmax(0, 1fr);
+      }
+
+      #toolbar {
+        position: relative;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: env(safe-area-inset-top) max(1rem, env(safe-area-inset-right)) 0 max(1rem, env(safe-area-inset-left));
+        border-bottom: 1px solid #27312c;
+        background: rgba(8, 11, 10, 0.92);
+        backdrop-filter: blur(12px);
+      }
+
+      #identity {
+        display: flex;
+        align-items: baseline;
+        min-width: 0;
+        gap: 0.75rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      #til-mark {
+        color: #63e6be;
+        font-weight: 800;
+        font-size: 0.78rem;
+        letter-spacing: 0.2em;
+      }
+
+      #app-title {
+        overflow: hidden;
+        color: #f2f5f3;
+        font-size: 0.95rem;
+        font-weight: 600;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      #controls {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      button, summary {
+        border: 1px solid #34443c;
+        border-radius: 0.2rem;
+        background: #111713;
+        color: #c8d2cc;
+        font: inherit;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      button {
+        min-height: 2rem;
+        padding: 0 0.8rem;
+        cursor: pointer;
+      }
+
+      button:hover, button:focus-visible, summary:hover, summary:focus-visible {
+        border-color: #63e6be;
+        color: #63e6be;
+        outline: none;
+      }
+
+      #stage {
+        position: relative;
+        display: grid;
+        min-width: 0;
+        min-height: 0;
+        place-items: center;
+        padding: clamp(0rem, 2vw, 1.25rem);
+      }
+
+      canvas.emscripten {
+        display: block;
+        width: auto;
+        height: auto;
+        max-width: 100%;
+        max-height: 100%;
+        border: 0;
+        background: #000;
+        outline: none;
+        box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, 0.45);
+      }
+
+      #loading {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 0.9rem;
+        background: #080b0a;
+        transition: opacity 180ms ease;
+      }
+
+      #loading[hidden] { display: none; }
+
+      #spinner {
+        width: 1.7rem;
+        height: 1.7rem;
+        border: 2px solid #26352e;
+        border-top-color: #63e6be;
+        border-radius: 50%;
+        animation: spin 700ms linear infinite;
+      }
+
+      #status {
+        color: #91a299;
+        font-size: 0.72rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      #progress {
+        width: min(16rem, 70vw);
+        height: 0.2rem;
+        border: 0;
+        accent-color: #63e6be;
+      }
+
+      #console-panel {
+        position: fixed;
+        z-index: 5;
+        right: max(0.75rem, env(safe-area-inset-right));
+        bottom: max(0.75rem, env(safe-area-inset-bottom));
+      }
+
+      #console-panel summary {
+        width: max-content;
+        margin-left: auto;
+        padding: 0.55rem 0.75rem;
+        cursor: pointer;
+        list-style: none;
+      }
+
+      #console-panel summary::-webkit-details-marker { display: none; }
+
+      #output {
+        display: block;
+        width: min(42rem, calc(100vw - 1.5rem));
+        height: min(14rem, 35vh);
+        margin-top: 0.5rem;
+        padding: 0.8rem;
+        resize: none;
+        border: 1px solid #34443c;
+        border-radius: 0.2rem;
+        background: rgba(6, 9, 8, 0.96);
+        color: #8dd9bf;
+        font: 0.72rem/1.5 ui-monospace, "Cascadia Code", monospace;
+        outline: none;
+      }
+
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      @media (max-width: 40rem) {
+        body { grid-template-rows: 3rem minmax(0, 1fr); }
+        #toolbar { gap: 0.5rem; padding-inline: 0.65rem; }
+        #identity { gap: 0.45rem; }
+        #til-mark { letter-spacing: 0.1em; }
+        #app-title { max-width: 32vw; font-size: 0.75rem; }
+        button { min-height: 1.8rem; padding-inline: 0.55rem; font-size: 0.62rem; }
+        #stage { padding: 0; }
+        canvas.emscripten { box-shadow: none; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #spinner { animation-duration: 1.5s; }
+        #loading { transition: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <header id="toolbar">
+      <div id="identity">
+        <span id="til-mark">til</span>
+        <span id="app-title">browser</span>
+      </div>
+      <div id="controls">
+        <button type="button" id="fullscreen">Fullscreen</button>
+        <button type="button" id="audio">Mute</button>
+      </div>
+    </header>
+
+    <main id="stage">
+      <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex="0"></canvas>
+      <div id="loading" aria-live="polite">
+        <span id="spinner" aria-hidden="true"></span>
+        <span id="status">Loading</span>
+        <progress id="progress" value="0" max="100" hidden></progress>
+      </div>
+    </main>
+
+    <details id="console-panel">
+      <summary>Console</summary>
+      <textarea id="output" rows="8" readonly></textarea>
+    </details>
+
+    <script>
+      const canvas = document.querySelector('#canvas');
+      const output = document.querySelector('#output');
+      const loading = document.querySelector('#loading');
+      const statusElement = document.querySelector('#status');
+      const progressElement = document.querySelector('#progress');
+      const spinnerElement = document.querySelector('#spinner');
+      const audioButton = document.querySelector('#audio');
+      const fileName = decodeURIComponent(location.pathname.split('/').pop() || 'til');
+      const appName = fileName.replace(/\.html?$/i, '').replace(/[-_]+/g, ' ');
+
+      document.title = appName + ' / til';
+      document.querySelector('#app-title').textContent = appName;
+      canvas.addEventListener('pointerdown', () => canvas.focus());
+      canvas.addEventListener('webglcontextlost', event => {
+        event.preventDefault();
+        Module.setStatus('WebGL context lost; reload the page');
+      });
+
+      document.querySelector('#fullscreen').addEventListener('click', () => {
+        canvas.requestFullscreen();
+      });
+
+      function saveFileFromMEMFSToDisk(memoryFSname, localFSname) {
+        const data = FS.readFile(memoryFSname);
+        const blob = new Blob([data.buffer], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = localFSname;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+
+      const audioContexts = [];
+      if (self.AudioContext) {
+        self.AudioContext = new Proxy(self.AudioContext, {
+          construct(target, args) {
+            const context = new target(...args);
+            audioContexts.push(context);
+            if (context.state === 'suspended') audioButton.textContent = 'Resume audio';
+            return context;
+          }
+        });
+      } else {
+        audioButton.hidden = true;
+      }
+
+      audioButton.addEventListener('click', () => {
+        let resumed = false;
+        audioContexts.forEach(context => {
+          if (context.state === 'suspended') {
+            context.resume();
+            resumed = true;
+          } else if (context.state === 'running') {
+            context.suspend();
+          }
+        });
+        audioButton.textContent = resumed ? 'Mute' : 'Resume audio';
+      });
+
+      var Module = {
+        preRun: [],
+        postRun: [],
+        print: (() => {
+          output.value = '';
+          return function(text) {
+            if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+            console.log(text);
+            output.value += text + '\n';
+            output.scrollTop = output.scrollHeight;
+          };
+        })(),
+        printErr(text) {
+          if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+          console.error(text);
+        },
+        canvas,
+        setStatus(text) {
+          if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
+          if (text === Module.setStatus.last.text) return;
+
+          const match = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+          const now = Date.now();
+          if (match && now - Module.setStatus.last.time < 30) return;
+
+          Module.setStatus.last = { time: now, text };
+          if (match) {
+            statusElement.textContent = match[1].trim();
+            progressElement.value = parseInt(match[2], 10) * 100;
+            progressElement.max = parseInt(match[4], 10) * 100;
+            progressElement.hidden = false;
+          } else {
+            statusElement.textContent = text;
+            progressElement.hidden = true;
+          }
+          spinnerElement.hidden = !text;
+          loading.hidden = !text;
+        },
+        totalDependencies: 0,
+        monitorRunDependencies(left) {
+          this.totalDependencies = Math.max(this.totalDependencies, left);
+          Module.setStatus(left ? 'Preparing (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')' : '');
+        }
+      };
+
+      Module.setStatus('Loading');
+      window.onerror = function() {
+        Module.setStatus('Exception; open the console for details');
+        spinnerElement.hidden = true;
+        Module.setStatus = function(text) {
+          if (text) Module.printErr('[post-exception status] ' + text);
+        };
+      };
+    </script>
+    {{{ SCRIPT }}}
+  </body>
+</html>

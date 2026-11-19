@@ -121,6 +121,15 @@ other input to raylib, so legacy Back closes the activity rather than being
 consumed without action. This hook is in til's runtime, not a vendor patch.
 Back/relaunch and Home/resume were verified on API 28/4 KB and API 35/16 KB.
 
+The same first-party boundary owns EGL/poll shutdown adaptation. APK link
+interposition requests a pbuffer-capable window config and ends polling on
+activity destruction. A current cleanup pbuffer lets CloseWindow release GL
+objects after the native window is gone; EGL deletes it on unbind. Calls on
+other threads or outside GUI initialization retain the underlying API
+contract. ~vendor/raylib~ now matches pristine upstream
+~f9ea60738547fed4e9a2e16af6c5b83b08475281~; no vendor code or build-time
+source copy carries these adaptations. See ~issues/fixed/488.org~.
+
 The existing reproducibility driver also checks APKs when this SDK is present:
 
 #+begin_src sh
