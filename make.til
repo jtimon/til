@@ -2289,7 +2289,12 @@ LLVM_MINGW_DIR := "vendor/llvm-mingw"
 // What build_llvm_mingw does to the unpacked tree, numbered: part of the
 // stamp and of CI's cache key, so a tree laid out by an older bin/make is
 // replaced. 2: the Windows package gets x86_64-w64-mingw32/include.
-LLVM_MINGW_LAYOUT := "2"
+// 3: a Mac's package gets the Linux package's target side.
+LLVM_MINGW_LAYOUT := "3"
+// What a program for a windows target is linked from, in the package: the
+// mingw-w64 runtime and import libraries of each architecture, and
+// compiler-rt for windows. Member patterns of the Linux archive.
+LLVM_MINGW_TARGET_SIDE := "*/x86_64-w64-mingw32/lib */i686-w64-mingw32/lib */aarch64-w64-mingw32/lib */armv7-w64-mingw32/lib */lib/clang/*/lib/windows"
 
 /// The release's archive built for one host, and the sha256 it must have.
 LlvmMingwArchive := struct {
@@ -2371,6 +2376,43 @@ build_llvm_mingw := proc(mut b: Build) {
         if copy_tree(format(LLVM_MINGW_DIR, "/include"), arch_include) != 0 {
             panic("could not copy the llvm-mingw headers to ", arch_include)
         }
+    }
+    // Issue #472: the macOS package carries its own build of the target
+    // side, made on a Mac, and the runtime's debug info names that build's
+    // directory (/Users/runner/work/llvm-mingw/llvm-mingw, where the Linux
+    // and Windows packages have /home/runner/...). It is linked into every
+    // program: til.exe from the two Macs had the other hosts' code and
+    // data and other .debug_* sections (CI runs 3166 and 3167). The target
+    // side is data, not programs, so a Mac takes it from the Linux x64
+    // package: one set of those files on every host.
+    if b.host.is_mac() {
+        linux := llvm_mingw_archive_for(Host(os = "linux", arch = "x64"))
+        linux_download := format(LLVM_MINGW_DIR, "/", linux.file)
+        run("curl", "-sSL", "--fail", "-o", linux_download,
+            format("https://github.com/mstorsjo/llvm-mingw/releases/download/", LLVM_MINGW_RELEASE, "/", linux.file))
+        linux_got := file_sha256(b.host, linux_download)
+        if linux_got != linux.sha256 {
+            panic(linux_download, " has sha256 ", linux_got, ", expected ", linux.sha256)
+        }
+        // REM Out with the Mac's own first: what the Linux archive does
+        // not have must not stay behind.
+        for pattern : Str in LLVM_MINGW_TARGET_SIDE.split(" ") {
+            own_side := format(LLVM_MINGW_DIR, pattern.strip_prefix("*"))
+            if own_side.contains("*") {
+                // REM lib/clang/<version>/lib/windows: one version in a package.
+                for version : Str in Dir.list(format(LLVM_MINGW_DIR, "/lib/clang")) {
+                    File.remove_tree(format(LLVM_MINGW_DIR, "/lib/clang/", version, "/lib/windows"))
+                }
+                continue
+            }
+            if File.is_dir(own_side).not() { panic(own_side, " is not in the llvm-mingw package") }
+            File.remove_tree(own_side)
+        }
+        // REM A Mac's bsdtar matches member patterns without being asked.
+        unpack := Cmd.new("tar", "-xf", linux_download, "-C", LLVM_MINGW_DIR, "--strip-components=1")
+        for pattern : Str in LLVM_MINGW_TARGET_SIDE.split(" ") { unpack.arg(pattern) }
+        unpack.run_checked()
+        File.remove(linux_download)
     }
     File.writefile(stamp, "")
 }

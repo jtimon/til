@@ -3474,3 +3474,61 @@ What is missing, in the order it is being done:
 4. The Windows host building the mac targets. til runs ~dsymutil~ for a
    mac build and the Windows llvm-mingw package has none, so this needs
    the pinned LLVM for Windows first. Last.
+
+*** Run 3167: both mac targets equal from four hosts; make with the pinned compiler writes the cross builds
+
+Run 3167 (master 9f0de82) is green again, with windows-x64 strict.
+
+| target | producers | equal (32 + 64) | different |
+|--------+-----------+-----------------+-----------|
+| macos-arm64 | Linux x64, Linux arm64, arm64 Mac, Intel Mac | 117 + 2 | toolchain item; the arm64 Mac's tested ~bin/til~ |
+| macos-x64 | the same four | 119 + 2 | toolchain item; the Intel Mac's tested ~bin/til~ |
+| windows-x64 | Linux x64, Linux arm64, Windows (strict) | all | none |
+| windows-x64 | the two Macs (trial) | code and data | debug sections, the same on both Macs |
+
+- macos-arm64: ~til~ b836243fdf8d and c4ef4d15f8cd (width 64) from all
+  four; the arm64 Mac's is equal again (the libffi stamp). The Intel Mac
+  built it with llvm-mingw's clang and lld under the mac names: its first
+  list, equal on everything.
+- macos-x64: ~til~ acc098de2287 and e895843a84b8 from all four.
+- ~make bin/til~ in a root of its own: macos-arm64 fd7160cb9396 from
+  Linux x64, Linux arm64 and the Intel Mac; macos-x64 507a2b63dbf9 from
+  Linux x64, Linux arm64 and the arm64 Mac.
+
+**** make with the pinned compiler on a Mac
+
+Both Macs rebuilt ~bin/til~ with ~make~ while their pinned compiler was
+first on PATH: the arm64 Mac's is fd7160cb9396, the Intel Mac's
+507a2b63dbf9. Those are the other hosts' ~make bin/til~ lines for the
+two targets, and the rebuilt compiler ran ~hello_script~. So the only
+thing between a Mac's tested ~bin/til~ and the cross builds is that the
+Mac jobs build and test with Apple's toolchain.
+
+Next, on trial: two jobs, ~macos-arm64-pinned~ and ~macos-x64-pinned~,
+that run ~make~ and the suite (no GUI, no ASAN) with the pinned compiler
+first on PATH for the whole job, and list under their own producer
+names. Apple's cc only bootstraps ~bin/make~ there. ~continue-on-error~
+for the whole job: the first run shows what of the suite needs Apple's
+SDK. The existing Mac jobs keep Apple's toolchain, the ASAN suite and
+the GUI builds. Note that those jobs run the suite through
+~bin/til_asan~, not ~bin/til~: on the Macs "the tested ~bin/til~" becomes
+true with the new jobs.
+
+**** til.exe from a Mac: the package's own runtime
+
+The two Macs' ~til.exe~ agree with each other and differ from the other
+three hosts' in ~.debug_info~, ~.debug_line~ and ~.debug_str~. The
+strings name ~/Users/runner/work/llvm-mingw/llvm-mingw~ where the others
+have ~/home/runner/work/llvm-mingw/llvm-mingw~: llvm-mingw's macOS
+package carries its own build of the mingw-w64 runtime (crt2.o,
+libmingw32.a, ...), made on a Mac, and that runtime's debug info is
+linked into every program. The Linux packages and the Windows one (cross
+built on Linux) share one build of it.
+
+Fixed in ~bin/make llvm_mingw~: on a Mac it also downloads the Linux x64
+package, checks its sha256, and replaces the target side of the Mac's
+package with that one's (~<arch>-w64-mingw32/lib~ for the four
+architectures and ~lib/clang/*/lib/windows~). Those are data, not
+programs: one set of them on every host. Layout 3. Not run on a Mac
+from here; the Macs' windows lists stay on trial until a run shows them
+equal.
