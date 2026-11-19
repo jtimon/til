@@ -425,7 +425,7 @@ InterpSession := struct {
     // borrowers, not this cell: host references remain valid until VM deletion.
     shared_i64_storage := Option(InterpSharedI64).None
 namespace:
-    shared_i64 := func(mut self: InterpSession) returns ref I64 {
+    shared_i64 := func(mut self: InterpSession) returns ref mut I64 {
         if self.shared_i64_storage.is_none() {
             self.shared_i64_storage = Option(InterpSharedI64).Some(InterpSharedI64())
         }

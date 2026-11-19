@@ -25,7 +25,7 @@ namespace:
     /// This VM's stable shared scalar, initially zero and allocated lazily.
     /// Guest callbacks can retain ref I64 enum inputs pointing to this cell.
     /// Access is serialized with VM operations; the reference borrows the VM.
-    shared_i64 := func(mut self: TilVm) returns ref I64 {
+    shared_i64 := func(mut self: TilVm) returns ref mut I64 {
         return self.session.shared_i64()
     }
 

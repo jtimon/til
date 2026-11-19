@@ -114,20 +114,33 @@ analysis. A read-only result alone does not justify ~mut~, nor does returning
 an independently writable ref field justify a mutable carrier parameter.
 Existing return-borrow lifetime and closure-escape restrictions still apply.
 
-The next library step uses explicit writable collection accessors. The compiler
-now prepares private compile-time inspection of a type argument's writable-ref
-bit, preserving it through forwarded and nested template arguments. This lets
-container generators distinguish ~ref T~ from ~ref mut T~ without a new public
-query API. Typing and ownership analysis now also share the template-macro
+Writable collection access uses explicit ~Vec~ / ~Array~ ~get_mut~ and
+~unsafe_get_mut~, and ~Map.get_mut~. Owned elements and elements stored as
+~ref mut T~ yield ~returns ref mut T~ through a mutable receiver. Elements
+stored as read-only ~ref T~ retain a read-only result, even through these method
+names or a cloned container; those specializations need no mutable receiver.
+The checked methods retain ~OutOfBounds~ / ~KeyNotFound~ behavior. These are
+borrows, not ownership transfers: owned elements remain in the container, and
+reference elements still borrow their original owners. Storage invalidation and
+referent lifetimes are unchanged. Indexing/iteration selection is not migrated
+by adding these methods.
+
+~TilVm.shared_i64()~ now explicitly returns a writable borrow. Its stable cell
+still belongs to the VM; the reference does not retain the VM or survive its
+destruction. Writable-return diagnostics preserve a denied source through
+aliases/call temporaries so a plain-ref getter is named instead of ~_bang_ret_N~.
+
+Private compile-time inspection of a type argument's writable-ref bit preserves
+it through forwarded and nested template arguments. Container generators can
+therefore distinguish ~ref T~ from ~ref mut T~ without a new public query API.
+Typing and ownership analysis also share the template-macro
 classification: retained source templates are syntax, while their expanded
 concrete functions receive normal ownership checks and destruction. Ordinary
-value-macro bodies still receive ownership analysis. The accessor bodies and
-writable SDK getter contracts still require the bootstrap use step; these
-preparations grant no new element access.
+value-macro bodies still receive ownership analysis.
 
 This is not yet full enforcement of the permission table. Direct writable-alias
-creation/rebinding checks, general access-path/defaults migration, collection
-accessors, remaining reference-permission metadata and C-header bindings still
+creation/rebinding checks, general access-path/defaults migration, remaining
+library accessors/reference-permission metadata and C-header bindings still
 need work.
 Legacy local ~ref mut~ and plain ref-field behavior remain during migration.
 See [[../../issues/open/490.org][#490]], [[../../issues/open/491.org][#491]] and

@@ -6038,6 +6038,7 @@ priv writable_borrow_problem := func(scope: TypeScope, value: Expr, symbols: Sym
         }
         if b.own_type.is(OwnType.Ref).or(b.iface_borrow_explicit) {
             if b.referent_mut { return "" }
+            if b.ref_permission_problem.len() > 0 { return b.ref_permission_problem.clone() }
             return format("reference '", b.name, "' does not carry writable access from its declaration and source")
         }
         if b.is_mut.or(b.own_type.is(OwnType.Own)) { return "" }
@@ -6082,7 +6083,13 @@ priv writable_borrow_problem := func(scope: TypeScope, value: Expr, symbols: Sym
         if definition.is_none() { return "call has no resolved writable-reference contract" }
         if definition.unwrap().node_type.is(NodeType.FuncDef).not() { return "call has no writable-reference contract" }
         ref fd: FunctionDef = funcdef_of(definition.unwrap())
-        if fd.sig.return_ref_mut.not() { return "call has no 'returns ref mut' contract" }
+        if fd.sig.return_ref_mut.not() {
+            switch value.children[0].node_type {
+            case .Ident(callee): return format("call to '", callee.ident_name(symbols.names), "' has no 'returns ref mut' contract")
+            case .FieldAccess(callee): return format("call to '", callee.field_access_name(symbols.names), "' has no 'returns ref mut' contract")
+            case: return "call has no 'returns ref mut' contract"
+            }
+        }
         for pi in 0..fd.sig.params.len() {
             ref param: Declaration = fd.sig.params[pi]
             if param.own_type.is(OwnType.Ref).and(param.is_mut.or(param.referent_mut)) {
@@ -8732,7 +8739,9 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
             // acceptance rules before #490's full declaration migration.
             decl_b.referent_mut = sdecl.referent_mut
             if rhs_is_payload_binding(rhs, ctx.symbols).not() {
-                decl_b.referent_mut = decl_b.referent_mut.and(borrow_source_is_writable(scope, rhs, ctx.symbols))
+                problem := writable_borrow_problem(scope, rhs, ctx.symbols)
+                decl_b.referent_mut = decl_b.referent_mut.and(problem.is_empty())
+                decl_b.ref_permission_problem = problem.clone()
             }
             // #211: payload binding `ref T = get_payload(<ident>)` is the
             // typer-emitted shape produced by make_switch_case_condition.
@@ -10022,6 +10031,7 @@ priv comptime_prepare_value := proc(name: Str, path: Str, stmt: Expr, mut prep: 
         ctx.scope.set(name, b.type, b.is_mut, path, stmt.line, stmt.col, false, b.own_type, ctx.symbols)
         ref mut exported_binding: TypeBinding = ctx.scope.get_binding_name(name, ctx.symbols).unwrap()
         exported_binding.referent_mut = b.referent_mut
+        exported_binding.ref_permission_problem = b.ref_permission_problem.clone()
         ref mut global_binding : TypeBinding = ctx.scope.get_binding_name(name, ctx.symbols).unwrap()
         global_binding.is_priv = decl.is_priv
         global_binding.orig_name = decl.orig_name.clone()
@@ -10780,7 +10790,11 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         check_reference_rebind_lifetime(scope, target, roots, stmt, ctx)
         // A writable declaration cannot gain permission by rebinding after a
         // read-only source. Such a rebind itself needs #490's eventual error.
-        target.referent_mut = target.referent_mut.and(borrow_source_is_writable(scope, rhs, ctx.symbols))
+        problem := writable_borrow_problem(scope, rhs, ctx.symbols)
+        target.referent_mut = target.referent_mut.and(problem.is_empty())
+        if target.ref_permission_problem.is_empty().and(problem.is_empty().not()) {
+            target.ref_permission_problem = problem.clone()
+        }
         target.written = true
         target.aliases_global_storage = target.aliases_global_storage.or(expr_names_global_storage(scope, rhs, ctx))
         // Rebinding changes the borrow, not either pointee. Retain the union

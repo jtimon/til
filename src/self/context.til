@@ -263,6 +263,9 @@ TypeBinding := struct {
     ref_slot_explicit := false
     // Granting a writable result needs permission, but is not a write.
     mutable_ref_return := false
+    // Preserve a denied source's explanation through aliases and lowered call
+    // temporaries, so return diagnostics name the getter, not _bang_ret_N.
+    ref_permission_problem := ""
 namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns Bool {
         return a.name == b.name

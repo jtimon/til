@@ -21,9 +21,15 @@ SharedCycleLink := enum { None, Some: SharedCycleNode }
 SharedCycleNode := struct { value := SharedCycle.Empty }
 SharedCycleInput := proc(SharedCycle)
 
+// A writable result must survive the installed SDK facade, not just legacy
+// alias creation at a host call site.
+priv shared_cell_writable := func(mut vm: TilVm) returns ref mut I64 {
+    return vm.shared_i64()
+}
+
 shared_cell_callback_tests := proc(root: Str) returns TransformError {
     mut vm := TilVm.new(root)
-    ref mut cell : I64 = vm.shared_i64()
+    ref mut cell : I64 = shared_cell_writable(vm)
     assert(cell == 0)
     cell = 10
     // A failed initial load resets guest state, not the cell or its host borrow.

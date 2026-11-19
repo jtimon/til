@@ -6,6 +6,26 @@ import("dyn")
 import("numbers")
 import("str")
 
+priv type_arg_is_ref_mut := core_func(type: Type) returns Bool {}
+
+priv map_get_mut := macro(K: Type, V: Type) returns FuncDef {
+    if type_arg_is_ref(V).and(type_arg_is_ref_mut(V).not()) {
+        return func(self: Map(K, V), key: K) returns ref V throws KeyNotFound { return self.get(key)? }
+    } else {
+        return func(mut self: Map(K, V), key: K) returns ref mut V throws KeyNotFound {
+            mut lo: USize = 0
+            mut hi: USize = self.keys.count
+            while lo < hi {
+                mid: USize = lo.add(hi.sub(lo) / 2)
+                c: I64 = K.cmp(self.keys.unsafe_get(mid), key)
+                if c < 0 { lo = mid + 1 }
+                else { if c > 0 { hi = mid } else { return self.values.unsafe_get_mut(mid) } }
+            }
+            throw KeyNotFound()
+        }
+    }
+}
+
 priv map_store_key := macro(K: Type, V: Type) returns FuncDef {
     if type_arg_is_ref(K) {
         return func(mut self: Map(K, V), i: USize, key: K) { self.keys.unsafe_set(i, key) }
@@ -117,6 +137,10 @@ namespace:
         }
         throw KeyNotFound()
     }
+
+    /// Writable value borrow when V owns storage or carries writable access.
+    /// A read-only ref V stays read-only; map mutation invalidates slot borrows.
+    get_mut := map_get_mut(K, V)
 
     priv key_size := func() returns USize {
         if type_arg_is_ref(K).and(type_arg_is_interface(K).not()) { return UPtr.size() }

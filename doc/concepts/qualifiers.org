@@ -87,18 +87,27 @@ return-side ~mut~.
   compiler-inferred call temporaries preserve their callee's result permission.
   Return-only mutable grants justify the necessary parameter qualifier without
   recording an actual write. Lifetime/closure-escape checks are unchanged.
-- Prepared: private compile-time writable-ref type-argument inspection for
+- Implemented: private compile-time writable-ref type-argument inspection for
   container generators. It retains the writable bit through forwarding and
-  nested type applications without exposing a public qualifier query. Explicit
-  writable accessors and writable SDK getters belong to the bootstrap use step;
-  their source contracts have not changed in this preparation.
-- Prepared: typing and ownership analysis share template-macro classification.
+  nested type applications without exposing a public qualifier query.
+- Implemented: typing and ownership analysis share template-macro classification.
   Unexpanded definition templates are syntax, not executable function bodies;
   only their concrete expansions receive ownership analysis and destruction.
   Ordinary value macros still receive the normal checks. This fixes an
-  ownership-pass failure exposed by the planned writable Map accessor factory.
+  ownership-pass failure exposed by the writable Map accessor factory.
+- Implemented: Vec/Array ~get_mut~ and ~unsafe_get_mut~, and Map ~get_mut~,
+  explicitly grant writable borrows for owned or ~ref mut~ elements through a
+  mutable receiver. A specialization storing read-only ~ref T~ returns read-only
+  ~ref T~ instead and needs no mutable receiver; the method name cannot upgrade
+  an element's grant. Checked methods retain bounds/key errors. These borrows
+  neither transfer ownership nor extend storage validity. Ordinary ~get~ /
+  ~unsafe_get~ result contracts remain read-only; indexing/iteration selection
+  still follows its legacy lowering.
+- Implemented: ~TilVm.shared_i64()~ explicitly returns ~ref mut I64~. The scalar
+  remains VM-owned. Denied writable-return paths retain their source explanation
+  across aliases/temporaries, naming getters instead of compiler temporary slots.
 - Pending: general source-path and writable-alias creation checks, the plain-ref
-  defaults migration, collection accessors, remaining reference-permission
+  defaults migration, remaining library accessor/reference-permission
   metadata and the C-header binding translator.
   Existing accepted local/ref-field programs
   retain legacy permission behavior where these checks have not migrated.

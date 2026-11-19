@@ -9,6 +9,31 @@ import("vec")
 
 array := ext_func(T: Type, elements: ..Dynamic) returns Array {}
 
+priv type_arg_is_ref_mut := core_func(type: Type) returns Bool {}
+
+priv array_ref_unsafe_get_mut := macro(Element: Type) returns FuncDef {
+    if type_arg_is_ref_mut(Element) {
+        return func(mut self: Array(Element), i: USize) returns ref mut Element {
+            if deref(self.slot(i)).is_null() { panic("Array.get: uninitialized borrowed element") }
+            if type_arg_is_interface(Element) { return ptr_add(self.data, i.to_uptr().mul(Array(Element).slot_size().to_uptr())) }
+            return deref(ptr_add(self.data, i.to_uptr().mul(Array(Element).slot_size().to_uptr())))
+        }
+    } else {
+        return func(self: Array(Element), i: USize) returns ref Element { return self.unsafe_get(i) }
+    }
+}
+
+priv array_ref_get_mut := macro(Element: Type) returns FuncDef {
+    if type_arg_is_ref_mut(Element) {
+        return func(mut self: Array(Element), i: USize) returns ref mut Element throws OutOfBounds {
+            if i < self.cap { return self.unsafe_get_mut(i) }
+            throw OutOfBounds()
+        }
+    } else {
+        return func(self: Array(Element), i: USize) returns ref Element throws OutOfBounds { return self.get(i)? }
+    }
+}
+
 priv array_ref_store := macro(Element: Type) returns FuncDef {
     if type_arg_is_interface(Element) {
         return func(mut self: Array(Element), i: USize, val: Element) {
@@ -50,6 +75,9 @@ Array := macro(T: Type) returns StructDef {
                 if i < self.cap { return self.unsafe_get(i) }
                 throw OutOfBounds()
             }
+            // Read-only borrowed elements cannot acquire a writable grant.
+            unsafe_get_mut := array_ref_unsafe_get_mut(T)
+            get_mut := array_ref_get_mut(T)
             unsafe_set := func(mut self: Array(T), i: USize, val: T) { self.store(i, val) }
             set := func(mut self: Array(T), i: USize, val: T) throws OutOfBounds {
                 if i < self.cap { self.unsafe_set(i, val); return }
@@ -98,6 +126,17 @@ namespace:
     /// bounds (issue #284).
     unsafe_get := func(self: Array(T), i: USize) returns ref T {
         return ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
+    }
+
+    /// Writable element borrow; caller proves the index is in bounds.
+    unsafe_get_mut := func(mut self: Array(T), i: USize) returns ref mut T {
+        return ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
+    }
+
+    /// Checked writable element borrow. The array retains element ownership.
+    get_mut := func(mut self: Array(T), i: USize) returns ref mut T throws OutOfBounds {
+        if i < self.cap { return self.unsafe_get_mut(i) }
+        throw OutOfBounds()
     }
 
     /// Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is

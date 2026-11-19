@@ -2443,6 +2443,7 @@ typedef struct TypeBinding {
     Bool referent_mut;
     Bool ref_slot_explicit;
     Bool mutable_ref_return;
+    Str ref_permission_problem;
 } TypeBinding;
 
 

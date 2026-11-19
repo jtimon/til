@@ -8,6 +8,30 @@ import("str")
 
 vec := ext_func(T: Type, elements: ..Dynamic) returns Vec {}
 
+priv type_arg_is_ref_mut := core_func(type: Type) returns Bool {}
+
+priv vec_ref_unsafe_get_mut := macro(Element: Type) returns FuncDef {
+    if type_arg_is_ref_mut(Element) {
+        return func(mut self: Vec(Element), i: USize) returns ref mut Element {
+            if type_arg_is_interface(Element) { return ptr_add(self.data, i.to_uptr().mul(Vec(Element).slot_size().to_uptr())) }
+            return deref(ptr_add(self.data, i.to_uptr().mul(Vec(Element).slot_size().to_uptr())))
+        }
+    } else {
+        return func(self: Vec(Element), i: USize) returns ref Element { return self.unsafe_get(i) }
+    }
+}
+
+priv vec_ref_get_mut := macro(Element: Type) returns FuncDef {
+    if type_arg_is_ref_mut(Element) {
+        return func(mut self: Vec(Element), i: USize) returns ref mut Element throws OutOfBounds {
+            if i < self.count { return self.unsafe_get_mut(i) }
+            throw OutOfBounds()
+        }
+    } else {
+        return func(self: Vec(Element), i: USize) returns ref Element throws OutOfBounds { return self.get(i)? }
+    }
+}
+
 priv vec_ref_store := macro(Element: Type) returns FuncDef {
     if type_arg_is_interface(Element) {
         return func(mut self: Vec(Element), i: USize, val: Element) {
@@ -61,6 +85,10 @@ Vec := macro(T: Type) returns StructDef {
                 if i < self.count { return self.unsafe_get(i) }
                 throw OutOfBounds()
             }
+            // Writable borrowed elements retain their grant; ref T elements
+            // stay read-only even when the container slot is mutable.
+            unsafe_get_mut := vec_ref_unsafe_get_mut(T)
+            get_mut := vec_ref_get_mut(T)
             unsafe_set := func(mut self: Vec(T), i: USize, val: T) { self.store(i, val) }
             set := func(mut self: Vec(T), i: USize, val: T) throws OutOfBounds {
                 if i < self.count { self.unsafe_set(i, val); return }
@@ -310,6 +338,18 @@ namespace:
     /// proves the index in bounds (issue #284).
     unsafe_get := func(self: Vec(T), i: USize) returns ref T {
         return ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
+    }
+
+    /// Writable element borrow; caller proves the index is in bounds.
+    unsafe_get_mut := func(mut self: Vec(T), i: USize) returns ref mut T {
+        return ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
+    }
+
+    /// Checked writable element borrow. Reallocation/removal invalidates it;
+    /// the Vec retains ownership of the element and its backing storage.
+    get_mut := func(mut self: Vec(T), i: USize) returns ref mut T throws OutOfBounds {
+        if i < self.count { return self.unsafe_get_mut(i) }
+        throw OutOfBounds()
     }
 
     /// Return a reference to the element at index ~i~. Throws

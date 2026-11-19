@@ -59,8 +59,8 @@ The existing Vec/Array ~get~ and ~unsafe_get~, and Map ~get~, return plain
 ~ref~. Once that means read-only, writable element access needs an explicit
 contract. Downstream review approved explicit Vec/Array ~get_mut~ and
 ~unsafe_get_mut~, Map ~get_mut~, and writable contracts for genuinely writable
-SDK getters, including ~TilVm.shared_i64()~. The implementation is staged below;
-these names are not yet provided by the preparation commit.
+SDK getters, including ~TilVm.shared_i64()~. The implementation/use step below
+now provides these methods; the earlier preparation checkpoints did not.
 
 - Use the approved separate writable getters. Read-only getters plus setters
   alone cannot provide writable element aliases. Stored read-only ~ref T~
@@ -244,6 +244,49 @@ native self-translation. The qualifier ~generics~ family passed separately with
 compiled ASAN fixtures. HEAD's ~bin/til_boot~ reproduces the reduced imported
 factory's return-hoist panic; the fixed compiler interprets and compiles the
 corresponding regression successfully.
+
+**** Writable accessor use step
+
+With private-query and template-ownership preparation on master, implement
+Vec/Array ~get_mut~ / ~unsafe_get_mut~ and Map ~get_mut~. Owned elements and
+writable borrowed elements use a mutable receiver and ~returns ref mut~.
+Read-only borrowed elements retain a read-only result and receiver, including
+through cloned containers: the accessor name cannot upgrade their grant. Private
+module-local qualifier queries select the borrowed specializations without a
+new public query API. Existing bounds, missing-key and uninitialized borrowed
+array-element behavior is retained. No getter transfers element ownership or
+extends a container/referent lifetime. Indexing/iteration selection remains a
+separate migration.
+
+Both ~InterpSession.shared_i64~ and the installed ~TilVm.shared_i64~ facade now
+declare ~returns ref mut I64~. The installed embedding cases forward the result
+through a writable-return helper before exercising stable-cell/callback/reset
+behavior, so legacy alias acceptance alone cannot make that check pass.
+
+Source permission diagnostics now retain a denied initializer/rebinding's
+explanation on the typer binding. Forwarding through a lowered call temporary
+therefore reports ~call to 'get' has no 'returns ref mut' contract~ for Tiled's
+~return items[index]~, rather than only naming ~_bang_ret_0~. Read-only
+~get_mut~ specializations identify ~get_mut~ in the same way. This metadata is
+diagnostic provenance, not a new permission grant or an actual write.
+
+~writable_accessor_checks~ in ~test/type_arg_qualifiers.til~ exercises native and
+renamed/copied container templates, owned scalars/records/interfaces, writable
+borrowed scalars/records/interfaces, cloned writable/read-only containers,
+bounds/key errors and uninitialized borrowed array elements. Rejections cover
+plain read getters, read-only stored refs, readonly-to-writable forwarding and
+read-only receivers; targeted diagnostics cover indexing and a denied mutable
+getter. The existing GC-audit golden is regenerated because instantiated Vec
+methods carry their core source line positions and now include writable getters.
+
+Verification: ~make clean && make test_two_pass~ passed 596/596, including
+~gc_audit~, native self-translation and installed SDK consumers. The qualifier
+~generics~ family passed with compiled ASAN programs; the accessor fixture also
+passed separately at ~--usize=64 --asan~. The installed TilVm host passed its
+complete case set under clang ASAN at USize 32 and 64, with an empty runtime
+PATH. General alias creation/rebinding enforcement, plain-ref defaults,
+indexing/iteration selection, remaining library migrations and C-header
+qualifiers remain open work; this is not completion of #490/#491.
 
 **** Initial signature implementation
 
