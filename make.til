@@ -1565,14 +1565,24 @@ build_libffi_out_of_tree := proc(mut b: Build, name: Str) {
     // sources do not read. --without-gcc-arch as in the Makefile too: a
     // native configure would add a -march for the build machine's CPU,
     // which a cross configure never does (CI run 3117, linux-x64).
-    configure := Cmd.new("../configure", format("--host=", t.host), format("CC=", t.cc),
+    // REM Through sh: a Windows host starts programs, not scripts.
+    configure := Cmd.new("sh", "../configure", format("--host=", t.host), format("CC=", t.cc),
         "--disable-shared", "--enable-static", "--with-pic", "--without-gcc-arch", "--disable-docs", "--disable-multi-os-directory", "--quiet")
     if t.ar.is_empty().not() { configure.arg(format("AR=", t.ar)) }
     if t.ranlib.is_empty().not() { configure.arg(format("RANLIB=", t.ranlib)) }
     if t.ldflags.is_empty().not() { configure.arg(format("LDFLAGS=", t.ldflags)) }
     configure.cwd(t.dir())
     configure.run_checked()
-    run(GNU_MAKE, "-C", t.dir())
+    // On a Windows host configure ran in MSYS2's sh and wrote a Makefile
+    // for MSYS2's make, which sh finds on its PATH; GNU_MAKE there is
+    // mingw32-make, and a bare `make` from this program is bin/make.exe.
+    if b.host.os == "windows" {
+        build := Cmd.new("sh", "-c", "make")
+        build.cwd(t.dir())
+        build.run_checked()
+    } else {
+        run(GNU_MAKE, "-C", t.dir())
+    }
     // A Mac with the pinned clang builds its own target's archive here,
     // in the directory the Makefile uses for the host's libffi. The
     // Makefile's stamp says that archive is built: without it the next
@@ -1693,7 +1703,9 @@ build_nng_target := proc(mut b: Build, target: Str) {
     argv.push(own "-DNNG_ENABLE_NNGCAT=OFF")
     argv.push(own "-DNNG_ENABLE_TLS=OFF")
     argv.push(own "-DCMAKE_POSITION_INDEPENDENT_CODE=ON")
-    if is_host { argv.append(own host_cmake_generator(b.host)) }
+    // REM For a cross build too: without one cmake on Windows writes a
+    // Visual Studio project whatever the target.
+    argv.append(own host_cmake_generator(b.host))
     cflags := t.cflags.clone()
     if is_host.not() {
         argv.push(own format("-DCMAKE_SYSTEM_NAME=", t.system))
@@ -2456,6 +2468,14 @@ llvm_archive_for := func(host: Host) returns LlvmMingwArchive {
                 sha256 = "aba592b4a15e8f90c634c5367b51ec8418b8bcd2829865db331a17dc9418dcff")
         }
     }
+    // The release's Windows build under its older name; its tools are
+    // the same ones with .exe.
+    if host.os == "windows" {
+        if host.arch == "x64" {
+            return LlvmMingwArchive(file = format("clang+llvm-", LLVM_RELEASE, "-x86_64-pc-windows-msvc.tar.xz"),
+                sha256 = "62fdada7f6fa2b73856486dfbbdba3d2c1882991621615bcb55c60207611c6d4")
+        }
+    }
     panic("LLVM ", LLVM_RELEASE, " has no archive for a ", host.target_name(), " host")
     return LlvmMingwArchive()
 }
@@ -2479,11 +2499,23 @@ build_llvm := proc(mut b: Build) {
     if got != archive.sha256 {
         panic(download, " has sha256 ", got, ", expected ", archive.sha256)
     }
-    unpack := Cmd.new("tar", "-xf", download, "-C", LLVM_DIR, "--strip-components=1")
-    // REM GNU tar matches member patterns only when asked; a Mac's bsdtar
+    // Windows' own tar, as for llvm-mingw: a bsdtar, like a Mac's.
+    mut tar := "tar"
+    if b.host.os == "windows" { tar = format(get_env("SystemRoot").replace("\\", "/"), "/System32/tar.exe") }
+    unpack := Cmd.new(tar, "-xf", download, "-C", LLVM_DIR, "--strip-components=1")
+    // REM GNU tar matches member patterns only when asked; a bsdtar
     // always does and does not know the option.
-    if b.host.is_mac().not() { unpack.arg("--wildcards") }
-    for pattern : Str in LLVM_TOOLS.split(" ") { unpack.arg(pattern) }
+    if b.host.os == "linux" { unpack.arg("--wildcards") }
+    for pattern : Str in LLVM_TOOLS.split(" ") {
+        if b.host.os != "windows" || pattern.starts_with("*/bin/").not() {
+            unpack.arg(pattern)
+            continue
+        }
+        // REM A Windows package has no links: clang.exe is the compiler,
+        // and bsdtar fails on a pattern that matches nothing.
+        if pattern.contains("[") { continue }
+        unpack.arg(format(pattern, ".exe"))
+    }
     unpack.run_checked()
     File.remove(download)
     File.writefile(stamp, "")

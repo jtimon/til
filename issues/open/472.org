@@ -3612,3 +3612,38 @@ suite): a round is an hour, and the first failure used to hide the rest.
 
 Left: the Macs' tested ~bin/til~ (the trial jobs), then the Windows host
 building the two mac targets.
+
+*** The Windows host builds the two mac targets, on trial
+
+The last cell of the bar's table: til for ~macos-arm64~ and ~macos-x64~
+from the Windows host. A job of its own, ~windows-x64-mac~
+(~continue-on-error~), so that it neither waits for the suite nor stops
+with it; its two lists are ~produce-binary-trial~ under the producer
+name ~windows-x64~.
+
+What it took, none of it run on Windows from here:
+- ~bin/make llvm~ on a Windows host: the release's Windows build is
+  ~clang+llvm-<release>-x86_64-pc-windows-msvc.tar.xz~ (901 MB, sha256
+  checked here: 62fdada7f6fa...). It has every tool of ~LLVM_TOOLS~ as an
+  ~.exe~ and no ~clang-<major>~; unpacked with Windows' own tar, as
+  llvm-mingw is. Its ~lib/clang/23/lib~ has ~windows~ only, so there is
+  no darwin compiler-rt to link by accident (the Linux packages have none
+  for darwin either).
+- libffi for another target: ~configure~ is run through ~sh~ on every
+  host (a Windows host starts programs, not scripts), and on a Windows
+  host the Makefile it writes is run by MSYS2's ~make~ through ~sh~:
+  ~GNU_MAKE~ there is mingw32-make, and a bare ~make~ from ~bin/make.exe~
+  is ~bin/make.exe~.
+- nng: the "MSYS Makefiles" generator for a cross build on a Windows
+  host too; cmake's default there is a Visual Studio project.
+- The collector's root for ~make bin/til~: a junction (~mklink /J~) to
+  ~vendor~ on a Windows host. MSYS2's ~ln -s~ copies the tree, both
+  unpacked compilers included.
+
+Already there: til sets ~ZERO_AR_DATE~ the cmd.exe way on a Windows
+host, and asks the compiler for its dsymutil.
+
+A guess to check against the first lists, not acted on: ld64.lld strips
+~-oso_prefix~ from each object's absolute path, and on Windows that path
+is ~D:\a\til\til\gen/til/til.o~, so the N_OSO strings may come out as
+~\gen/til/til.o~ where the other hosts have ~/gen/til/til.o~.

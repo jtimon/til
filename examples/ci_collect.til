@@ -507,7 +507,14 @@ make_til := proc(compiler: Str, target: Str, directory: Str, extension: Str) ret
     executable.capture()
     if executable.run() != 0 { fail(format(executable.render(), " failed: ", executable.err())) }
     // REM The target's archives, headers and stubs: read, not written.
-    link := Cmd.new("ln", "-s", realpath_str("vendor"), format(root, "/vendor"))
+    mut link := Cmd.new("ln", "-s", realpath_str("vendor"), format(root, "/vendor"))
+    // REM MSYS2's ln -s copies the tree, the unpacked compilers included; a
+    // junction is the directory itself and needs no privilege. mklink is
+    // cmd.exe's own and reads / as an option: backslashes.
+    if host_os() == "windows" {
+        link = Cmd.new("cmd", "/c", "mklink", "/J", format(root, "/vendor").replace("/", "\\"),
+            realpath_str("vendor").replace("/", "\\"))
+    }
     link.capture()
     if link.run() != 0 { fail(format(link.render(), " failed: ", link.err())) }
     build := Cmd.new(format("./", boot), "build", format("--target=", target), "--usize=32", "-o", name,
