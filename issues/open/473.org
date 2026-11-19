@@ -989,3 +989,59 @@ The three producer steps and uploads now fail the run on failure or absent
 hash lists. Cross-host evidence and local failure checks are in [[./472.org][#472]],
 "Android native and APK comparisons become strict". Other targets retain
 their existing strict/trial policies.
+
+*** Where each target stands (2026-11-19), and who does what
+
+Jorge, 2026-11-19: #473 is finished when every target, except perhaps
+the experimental ones (fasm, HolyC, MLIR), is the same binary whichever
+host compiles it. This session keeps #472/#473 (the lists, the collector,
+the mac, linux and wasm32 targets); the Windows session keeps the Windows
+host and the windows targets, the Android session the android targets,
+which copy what is done here for the others.
+
+| target | level in collect | hosts that list it | missing |
+|--------+------------------+--------------------+---------|
+| windows-x64 | strict | Linux x64, Linux arm64, Windows, arm64 Mac, Intel Mac | nothing |
+| android-x64, android-arm64 | strict (Android session) | Linux x64, Linux arm64, arm64 Mac | Android session's |
+| macos-arm64, macos-x64 | strict, except ~make bin/til~ | Linux x64, Linux arm64, arm64 Mac, Intel Mac | the Windows host (job ~windows-x64-mac~, trial); the Macs' own tested ~bin/til~ (jobs ~-pinned~, trial) |
+| wasm32 | trial, new | Linux x64, Linux arm64, arm64 Mac | a first run |
+| linux-x64, linux-arm64 | trial | Linux x64, Linux arm64 | [[./504.org][#504]]: the host's C library; debug info differs today |
+| linux-arm32, linux-riscv64, linux-x86, linux-riscv32 | no binary list | none | #504 first |
+| windows-x86 | no binary list | none | see the note below |
+
+Notes for the other sessions:
+- Windows session: windows-x86 is in no binary list. The collector
+  already takes any windows target (~produce-binary ... windows-x64
+  windows-x86~ in the windows list steps would add it, on trial with
+  ~produce-binary-trial~ first); it needs the windows-x86 libffi and nng
+  built in those steps, and ~gnu_tool_prefix~ and the strict test in
+  ~produce_binary~ know only windows-x64. Not done here.
+- Windows session: the job ~windows-x64-mac~ (mac targets from the
+  Windows host) is this session's experiment on your host. Its first run
+  is 3182. What it needs from ~bin/make~ on Windows is listed in #472,
+  "The Windows host builds the two mac targets, on trial".
+- Android session: the mac targets became strict by listing with
+  ~produce-binary~ and a per-target test in ~produce_binary~; the
+  ~- toolchain~ line stays on trial everywhere.
+
+**** The mac targets are strict
+
+From ~examples/ci_collect.til~: a mac target's lines are level ~binary~
+when the step lists with ~produce-binary~, as windows-x64's are. Equal
+from the two Linux hosts and the two Macs in runs 3167, 3173 and 3178.
+The Intel Mac's list step is ~produce-binary~ now and no longer
+~continue-on-error~. One line stays on trial for the mac targets,
+~make bin/til~: on a Mac's own target it is the ~bin/til~ its job built
+and tested with Apple's toolchain, until that job builds it with the
+pinned compiler.
+
+**** wasm32 enters the lists
+
+~produce_wasm_binary~: ~hello_script~ and ~layout_corpus~ at both
+widths, built by til with the vendored emsdk's emcc (~--cc~, as the
+wasm32 job builds them). emcc writes one ~.js~ with the module inside;
+that file is the item. No til for this target and no vendored archive.
+Checked on one host: two runs of the producer write the same list, and
+the paths inside the output are relative to the checkout
+(~./vendor/emscripten/...~). Three producers on trial: the ~wasm32~ job
+(Linux x64), the arm64 Linux host and the arm64 Mac.

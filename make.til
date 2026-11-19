@@ -2139,7 +2139,12 @@ build_win_host := proc(mut b: Build) {
 check_mac_cross_tools := proc(mut b: Build) {
     if b.begin("check_mac_cross_tools").not() { return }
     require_mac_tool("clang", "clang -- install the toolchain with: apt-get install clang lld llvm")
-    require_mac_tool("ld.lld", "the lld linker (the mac cross-link runs clang -fuse-ld=lld) -- install the toolchain with: apt-get install clang lld llvm")
+    // REM On a Windows host CreateProcess adds .exe only to a name with no
+    // dot in it: "ld.lld" is looked up as written and not found beside
+    // ld.lld.exe (CI run 3182). The other tools have no dot.
+    mut lld := "ld.lld"
+    if b.host.os == "windows" { lld = "ld.lld.exe" }
+    require_mac_tool(lld, "the lld linker (the mac cross-link runs clang -fuse-ld=lld) -- install the toolchain with: apt-get install clang lld llvm")
     require_mac_tool("llvm-ar", "llvm-ar (GNU ar cannot archive Mach-O objects) -- install the toolchain with: apt-get install clang lld llvm")
     require_mac_tool("llvm-nm", "llvm-nm (the framework stub generator reads symbols with it) -- install the toolchain with: apt-get install clang lld llvm")
 }

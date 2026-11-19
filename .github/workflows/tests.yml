@@ -374,6 +374,21 @@ jobs:
           name: hashes-binary-mac-linux-arm64
           path: tmp/hashes-binary-mac/linux-arm64.txt
           if-no-files-found: error
+      # Issue #473: wasm32 from this host too (see the wasm32 job). The
+      # emsdk is installed with the first wasm32 archive bin/make builds.
+      - name: Write the wasm32 binary hash list
+        continue-on-error: true
+        run: |
+          ./bin/make vendor/secp256k1/build-wasm32/lib/libsecp256k1.a
+          mkdir -p tmp/hashes-binary-wasm
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial linux-arm64 tmp/hashes-binary-wasm/linux-arm64.txt bin/til wasm32
+          cat tmp/hashes-binary-wasm/linux-arm64.txt
+      - name: Upload the wasm32 binary hash list
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-wasm-linux-arm64
+          path: tmp/hashes-binary-wasm/linux-arm64.txt
 
   linux-arm64:
     needs: doc-gate
@@ -862,6 +877,23 @@ jobs:
           "$NODE" bin/layout_corpus.js | grep -q "layout corpus OK"
           ./bin/til build --target=wasm32 --cc="$EMCC" -o bin/hello_gui.html examples/hello_gui.til
           grep -qi "<html" bin/hello_gui.html
+      # Issue #473: wasm32 from three hosts, on trial -- this one, the
+      # arm64 Linux host and the arm64 Mac, each with the vendored emsdk at
+      # its pinned version (the emsdk installs that host's build of one
+      # emscripten release). Two programs at both widths; the list is the
+      # .js emcc writes, with the module inside.
+      - name: Write the wasm32 binary hash list
+        continue-on-error: true
+        run: |
+          mkdir -p tmp/hashes-binary-wasm
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial linux-x64 tmp/hashes-binary-wasm/linux-x64.txt bin/til wasm32
+          cat tmp/hashes-binary-wasm/linux-x64.txt
+      - name: Upload the wasm32 binary hash list
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-wasm-linux-x64
+          path: tmp/hashes-binary-wasm/linux-x64.txt
 
   windows-x64-build:
     needs: doc-gate
@@ -1731,6 +1763,20 @@ jobs:
           name: hashes-binary-windows-macos-arm64
           path: tmp/hashes-binary-windows/macos-arm64.txt
           if-no-files-found: error
+      # Issue #473: wasm32 from this Mac too (see the wasm32 job).
+      - name: Write the wasm32 binary hash list
+        continue-on-error: true
+        run: |
+          ./bin/make vendor/secp256k1/build-wasm32/lib/libsecp256k1.a
+          mkdir -p tmp/hashes-binary-wasm
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial macos-arm64 tmp/hashes-binary-wasm/macos-arm64.txt bin/til wasm32
+          cat tmp/hashes-binary-wasm/macos-arm64.txt
+      - name: Upload the wasm32 binary hash list
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-wasm-macos-arm64
+          path: tmp/hashes-binary-wasm/macos-arm64.txt
       # Guard Malloc puts every allocation on its own guarded page, so
       # an out-of-bounds or use-after-free write faults AT THE CULPRIT
       # INSTRUCTION (even from uninstrumented code like libffi asm) and
@@ -1881,6 +1927,26 @@ jobs:
           cat tmp/til-after-suite.txt
           cmp tmp/til-before-suite.txt tmp/til-after-suite.txt || status=1
           exit $status
+      # CI run 3182: the suite passed all but one row, and that row's
+      # line says only MISMATCH: test/templeos/script_str_runtime.til
+      # printed one thing interpreted by the pinned-built bin/til and
+      # another compiled with Apple's toolchain. Run 3178, where the
+      # pinned compiler built the program too, had no such row. The three
+      # outputs, to read which lines differ.
+      - name: The run/interp mismatch, by hand
+        if: always()
+        run: |
+          t=test/templeos/script_str_runtime.til
+          ./bin/til interpret $t > tmp/diag_interp.txt 2>&1 || true
+          ./bin/til run -o tmp/diag_apple -c tmp/diag_apple.c $t > tmp/diag_apple.txt 2>&1 || true
+          PATH="$PWD/vendor/llvm/bin:$PATH" ./bin/til run -o tmp/diag_pinned -c tmp/diag_pinned.c $t > tmp/diag_pinned.txt 2>&1 || true
+          wc -l tmp/diag_interp.txt tmp/diag_apple.txt tmp/diag_pinned.txt
+          echo "--- interp against Apple's"
+          diff tmp/diag_interp.txt tmp/diag_apple.txt || true
+          echo "--- interp against the pinned compiler's"
+          diff tmp/diag_interp.txt tmp/diag_pinned.txt || true
+          echo "--- test/templeos/templeos_str_runtime.expected against interp"
+          diff test/templeos/templeos_str_runtime.expected tmp/diag_interp.txt || true
       - name: Write the binary hash list
         if: always()
         run: |
@@ -1987,6 +2053,26 @@ jobs:
           cat tmp/til-after-suite.txt
           cmp tmp/til-before-suite.txt tmp/til-after-suite.txt || status=1
           exit $status
+      # CI run 3182: the suite passed all but one row, and that row's
+      # line says only MISMATCH: test/templeos/script_str_runtime.til
+      # printed one thing interpreted by the pinned-built bin/til and
+      # another compiled with Apple's toolchain. Run 3178, where the
+      # pinned compiler built the program too, had no such row. The three
+      # outputs, to read which lines differ.
+      - name: The run/interp mismatch, by hand
+        if: always()
+        run: |
+          t=test/templeos/script_str_runtime.til
+          ./bin/til interpret $t > tmp/diag_interp.txt 2>&1 || true
+          ./bin/til run -o tmp/diag_apple -c tmp/diag_apple.c $t > tmp/diag_apple.txt 2>&1 || true
+          PATH="$PWD/tmp/mac-tools:$PATH" ./bin/til run -o tmp/diag_pinned -c tmp/diag_pinned.c $t > tmp/diag_pinned.txt 2>&1 || true
+          wc -l tmp/diag_interp.txt tmp/diag_apple.txt tmp/diag_pinned.txt
+          echo "--- interp against Apple's"
+          diff tmp/diag_interp.txt tmp/diag_apple.txt || true
+          echo "--- interp against the pinned compiler's"
+          diff tmp/diag_interp.txt tmp/diag_pinned.txt || true
+          echo "--- test/templeos/templeos_str_runtime.expected against interp"
+          diff test/templeos/templeos_str_runtime.expected tmp/diag_interp.txt || true
       - name: Write the binary hash list
         if: always()
         run: |
@@ -2094,8 +2180,9 @@ jobs:
       # here, and clang finds Apple's dsymutil, whose .dSYM is not part of
       # the program. With that clang first on PATH til and bin/make build
       # the mac targets here as every other host does (targets.til,
-      # macos_is_cross; make.til, builds_as_host). On trial and
-      # continue-on-error.
+      # macos_is_cross; make.til, builds_as_host). Strict since CI runs
+      # 3167, 3173 and 3178 showed this Mac's lists for both mac targets
+      # equal to the other three hosts'.
       - name: The pinned llvm-mingw release
         id: llvm-mingw
         shell: bash
@@ -2111,7 +2198,6 @@ jobs:
           path: vendor/llvm-mingw
           key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: Write the binary hash list with llvm-mingw's clang
-        continue-on-error: true
         run: |
           make llvm_mingw
           mkdir -p tmp/mac-tools
@@ -2128,13 +2214,13 @@ jobs:
           mkdir -p tmp/hashes-binary
           # Its own target and the other Mac's: til has to be the same file
           # from every host that builds it (Jorge, 2026-11-19).
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial macos-x64 tmp/hashes-binary/macos-x64.txt bin/til macos-x64 macos-arm64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-x64 tmp/hashes-binary/macos-x64.txt bin/til macos-x64 macos-arm64
       - name: Upload the binary hash list
-        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-macos-x64
           path: tmp/hashes-binary/macos-x64.txt
+          if-no-files-found: error
       # Issue #472: windows-x64 from this Mac too, as on the arm64 Mac:
       # llvm-mingw last on PATH, so that Apple's clang stays this Mac's
       # own compiler. Strict, like there.
@@ -2561,7 +2647,7 @@ jobs:
   # arrived, and it failed saying so.
   collect:
     name: collect (compare the producers' hash lists)
-    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-native, windows-x64-build, macos-arm64, macos-x64, macos-cross-build, macos-arm64-pinned, macos-x64-pinned, windows-x64-mac]
+    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-native, windows-x64-build, macos-arm64, macos-x64, macos-cross-build, macos-arm64-pinned, macos-x64-pinned, windows-x64-mac, wasm32]
     if: always() && needs.doc-gate.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:

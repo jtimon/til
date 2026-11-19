@@ -3713,3 +3713,56 @@ So both Macs' ~make~, with their pinned compiler first on PATH, write
 the file the other hosts cross-build. What is left for the Macs is the
 suite on that file (run 3182 has the trial jobs doing it with Apple's
 toolchain for the test programs) and then moving the real Mac jobs to it.
+
+*** Runs 3178 (complete) and 3182: five producers per target; the Macs' suite on the pinned-built til is one row short
+
+**** Run 3178, the collect report (green)
+
+2285 equal, 0 different, 0 missing; 35 different on trial.
+
+| target | producers | equal (32 + 64) | different |
+|--------+-----------+-----------------+-----------|
+| windows-x64 | Linux x64, Linux arm64, Windows, arm64 Mac, Intel Mac (all strict) | 129 + 2 | toolchain item |
+| macos-arm64 | Linux x64, Linux arm64, arm64 Mac, its ~-pinned~ job, Intel Mac | 117 + 2 | toolchain item; ~make bin/til~ from the arm64 Mac's own job (Apple's, 5825c929b561) where the other four have 88412b6d5b74 |
+| macos-x64 | Linux x64, Linux arm64, arm64 Mac, Intel Mac, its ~-pinned~ job | 119 + 2 | toolchain item; ~make bin/til~ from the Intel Mac's own job (Apple's, a104b0d6f843) where the other four have 49b8d8e0bdd6 |
+
+The first run with ~til.exe~ strict and equal from all five hosts.
+
+**** Run 3182, the Macs' trial jobs (master 6c5f925)
+
+The arm64 Mac: ~bin/til~ from ~make~ with the pinned LLVM is
+f241bc71ddbd (the build stamp changed with ~-syslibroot~), the same
+file after the suite as before it. The suite on it, with Apple's
+toolchain building the programs: 569 of 570. A program linked with the
+pinned compiler on the Mac prints no linker warning any more.
+
+The one row: ~test/templeos/script_str_runtime.til~, ~MISMATCH (run vs
+interp)~: what it prints interpreted by the pinned-built ~bin/til~ is
+not what it prints compiled with Apple's toolchain. The row prints no
+diff. In run 3178, where the pinned compiler built the program too, the
+two agreed; in the Macs' own jobs, where Apple's toolchain builds both,
+they agree. So something in that test (strings, then files: stat,
+seek, read, rename, directory listing) comes out differently from a
+program built against ~vendor/macos~ than from one built against Apple's
+SDK, on the same Mac. That is a difference in behaviour of the til every
+other host cross-builds, and it has to be read before the Macs' jobs
+move to it. Both trial jobs now run the test the three ways by hand and
+print the diffs. The Intel Mac is the same: ~bin/til~ 83a6da6f3c18
+before and after its suite, 569 of 570, the same row.
+
+**** Run 3182, the Windows host building the mac targets
+
+First run of ~windows-x64-mac~:
+- ~bin/make llvm~: the Windows package downloads, checks and unpacks
+  with Windows' tar; ~clang~ 23.1.5, ~ld64.lld~ and ~dsymutil~ answer.
+- A program for each mac target builds: ~hello_script~ for macos-arm64
+  bf1bf3c79322, for macos-x64 fc0c6f56aaea (built at ~tmp/hello_<target>~,
+  a path no other host lists, so not compared yet).
+- libffi, nng and the lists stopped at the same place:
+  : cmd: cannot execute 'ld.lld' (CreateProcess failed, error 2)
+  CreateProcess adds ~.exe~ only to a name with no dot in it, so ~Cmd~
+  does not find ~ld.lld.exe~ as ~ld.lld~. ~check_mac_cross_tools~ and
+  the collector's toolchain line now name it with its extension on a
+  Windows host. Note for the Windows session: ~Cmd.new("ld.lld")~ (any
+  program name with a dot) is not found on a Windows host; whether ~Cmd~
+  should try the name with ~.exe~ itself is yours to decide.

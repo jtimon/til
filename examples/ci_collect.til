@@ -258,7 +258,11 @@ toolchain_identity := proc(target: Str) returns Str {
     }
     if target.starts_with("macos-") {
         // Headers and libraries are the repository's vendor/macos.
-        return format(version_line("clang"), "\n", version_line("ld.lld"), "\n", version_line("llvm-ar"), "\n", version_line("dsymutil"), "\n")
+        // REM A Windows host finds "ld.lld" only with its extension:
+        // CreateProcess adds .exe to a name without a dot (CI run 3182).
+        mut lld := "ld.lld"
+        if host_os() == "windows" { lld = "ld.lld.exe" }
+        return format(version_line("clang"), "\n", version_line(lld), "\n", version_line("llvm-ar"), "\n", version_line("dsymutil"), "\n")
     }
     if target.starts_with("linux-") || target.starts_with("windows-") {
         prefix := gnu_tool_prefix(target)
@@ -525,6 +529,51 @@ make_til := proc(compiler: Str, target: Str, directory: Str, extension: Str) ret
     return format(root, "/", name)
 }
 
+// wasm32 (#473) is a program target only: no til for it, no vendored
+// archive til links by default. til runs the vendored emsdk's emcc
+// through --cc, as the wasm32 CI job does (bin/make installs it with any
+// wasm32 archive), and emcc writes one .js with the module inside. Two
+// programs at both widths, on trial. Measured on one host: a build at the
+// same paths is the same file every time, and the paths in it are
+// relative to the checkout.
+produce_wasm_binary := proc(compiler: Str, mut lines: Vec(Str)) {
+    emsdk := realpath_str("vendor/emscripten")
+    emcc := format(emsdk, "/upstream/emscripten/emcc")
+    if File.is_file(emcc).not() {
+        fail(format(emcc, " is not installed; run bin/make vendor/secp256k1/build-wasm32/lib/libsecp256k1.a first"))
+    }
+    config := format(emsdk, "/.emscripten")
+    version := Cmd.new(emcc, "--version")
+    version.env("EM_CONFIG", config)
+    version.capture()
+    if version.run() != 0 { fail(format("cannot run ", emcc, " --version: ", version.err())) }
+    identity := version.out()
+    println("toolchain for wasm32:\n", identity)
+    identity_path := format(WORK, "/toolchain_wasm32")
+    File.writefile(identity_path, identity)
+    directory := format(WORK, "/binary_wasm32")
+    mkdir_p(directory)
+    for width : Str in array(Str, "32", "64") {
+        mut paths := vec(Str, identity_path.clone())
+        mut items := vec(Str, "- toolchain")
+        for source : Str in array(Str, "examples/hello_script.til", "test/layout_corpus.til") {
+            stem := file_stem(source)
+            binary := format(directory, "/", stem, "_", width, ".js")
+            build := build_command(compiler, "wasm32")
+            build.env("EM_CONFIG", config)
+            build.args(format("--cc=", emcc), format("--usize=", width), "-o", binary,
+                "-c", format(directory, "/", stem, "_", width, ".c"), source)
+            build.capture()
+            if build.run() != 0 { fail(format(build.render(), " failed:\n", build.out(), build.err())) }
+            if File.is_file(binary).not() { fail(format(build.render(), " wrote no ", binary)) }
+            paths.push(own binary)
+            items.push(own format(source, " ", stem, ".js"))
+        }
+        hashes := sha256_of(paths)
+        for i, hash in hashes { lines.push(own format(hash, " binary-trial wasm32 c ", width, " ", items[i])) }
+    }
+}
+
 // Level "binary": artifacts a run has shown equal between producers; a
 // difference fails the collect job. Level "binary-trial": artifacts being
 // tried; compared and printed the same way, never failing. An artifact
@@ -536,6 +585,10 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
     for target : Str in targets {
         if target.starts_with("android-") {
             produce_android_binary(compiler, target, lines, trial)
+            continue
+        }
+        if target == "wasm32" {
+            produce_wasm_binary(compiler, lines)
             continue
         }
         identity := toolchain_identity(target)
@@ -550,11 +603,19 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         // host and from the others, with its pinned compiler (#472).
         // windows-x64: the Windows host's tested bin/til.exe, til.exe at
         // both widths, the programs, the library and the vendored archives
-        // are the two Linux hosts' (CI runs 3159 to 3166). The mac and
-        // linux targets are still on trial, and so is any host that lists
-        // with produce-binary-trial.
+        // are the two Linux hosts' (CI runs 3159 to 3166). The two mac
+        // targets: everything but the tested bin/til is the same from the
+        // two Linux hosts and the two Macs (CI runs 3167, 3173 and 3178).
+        // The linux targets are still on trial (#504), and so is any host
+        // that lists with produce-binary-trial.
         mut target_level := "binary-trial"
-        if trial.not() && target == "windows-x64" { target_level = "binary" }
+        if trial.not() && (target == "windows-x64" || target.starts_with("macos-")) { target_level = "binary" }
+        // A Mac's own jobs still build and test bin/til with Apple's
+        // toolchain, so on its own target that line is not the other
+        // hosts'. On trial for the mac targets until those jobs build it
+        // with the pinned compiler, as their -pinned trial jobs do.
+        mut make_level := target_level.clone()
+        if target.starts_with("macos-") { make_level = "binary-trial" }
         mut levels := Vec(Str).new()
         mut items := Vec(Str).new()
         mut paths := Vec(Str).new()
@@ -619,7 +680,7 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         paths.push(own format(til_binary, extension))
         // The til make builds: the tested file on this target's own host,
         // the same build in a root of its own on every other.
-        levels.push(own target_level.clone())
+        levels.push(own make_level.clone())
         items.push(own "make bin/til")
         paths.push(own make_til(compiler, target, directory, extension))
 
