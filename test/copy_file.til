@@ -4,9 +4,8 @@ import("../src/std/file")
 import("../src/std/sys")
 
 // copy_file replaces its destination through a sibling temporary and a
-// rename. Kept free of POSIX-only tools so the Windows runner can
-// interpret it with the cross-built til.exe: that branch (MoveFileExA)
-// runs nowhere else (issue #483).
+// rename. Kept free of POSIX-only tools so the suite runs it on Windows
+// too, where that branch (MoveFileExA) runs (issue #483).
 
 DIR := "tmp/_test_copy_file"
 

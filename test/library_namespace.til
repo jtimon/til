@@ -450,7 +450,7 @@ JVM_EXPECTED := "globals ok\nenums ok\nclosed: BindingPoint handle is closed or 
 check_jvm := proc(asan: Bool) {
     java_home := jni_java_home()
     jar := "gen/lib/library_namespace_a.jar"
-    class_path := format(jar, ":tmp/library_namespace_classes")
+    class_path := jni_class_path(jar, "tmp/library_namespace_classes")
     jni_til_build("test/library_namespace_a.til", false)
     jni_javac(java_home, "tmp/library_namespace_classes", jar, "test/LibraryNamespaceAJniTest.java")
     out := jni_run(java_home, class_path, "LibraryNamespaceAJniTest")

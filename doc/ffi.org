@@ -943,20 +943,23 @@ and the jar in ~<prefix>/lib/~, beside the library.
 
 On desktop, the jar is all a Java program needs. Beside the class, under
 ~til/<pkg>/native/<target>/~ (til's target names: ~linux-x64~,
-~linux-arm64~, ~macos-x64~, ~macos-arm64~, ...), it carries the four
+~linux-arm64~, ~macos-x64~, ~macos-arm64~, ~windows-x64~, ...), it carries the four
 natives: the bridge, ~lib<name>~, and the til runtime and core
 (~libtilrt-*~, ~libtilcore-*~) both link. The class names the running
 target from ~os.name~ and ~os.arch~ as til names it, extracts that
 directory to a fresh temporary directory (deleted when the JVM exits) and
-loads the bridge, which finds the others through its rpath. For a target
-the jar does not carry it loads ~<name>_jni~ from ~java.library.path~
-instead -- a bridge installed beside the library -- and when that fails
-too, the error names the target:
+loads the bridge, which finds the others through its rpath. Windows has
+no rpath: there the class loads the runtime, core and library first, and
+the bridge's imports bind to those modules. For a target the jar does not
+carry it loads ~<name>_jni~ (~lib<name>_jni~ on Windows, whose names carry
+no implied prefix) from ~java.library.path~ instead -- a bridge installed
+beside the library, whose own dependencies Windows finds on ~PATH~ -- and
+when that fails too, the error names the target:
 
 #+begin_src sh
 til build --jni <name>.til
 javac -cp gen/lib/<name>.jar -d <classes> <Main>.java
-java -cp gen/lib/<name>.jar:<classes> <Main>
+java -cp gen/lib/<name>.jar:<classes> <Main>   # ';' between them on Windows
 #+end_src
 
 *One jar for several platforms.* A build fills only its own target's
@@ -985,7 +988,7 @@ small library).
 
 ~--jni~ uses the JDK in ~$JAVA_HOME~, else (on macOS) the one
 ~/usr/libexec/java_home~ names, else the one the ~javac~ on ~PATH~ belongs
-to, and fails when there is none. It builds on Linux and macOS hosts for
+to, and fails when there is none. It builds on Linux, macOS and Windows hosts for
 the host target or either Android target, with the library's compiler and flags
 (~--cc~, ~--asan~, ~--usize~, ~--opt~, ~--cpu~), against ~ext.h~ from the
 compiler's support tree. On desktop, the bridge finds ~lib<name>~ through its rpath
@@ -993,7 +996,9 @@ compiler's support tree. On desktop, the bridge finds ~lib<name>~ through its rp
 install names, so no ~DYLD_*~ variable is needed). On macOS it also links
 with ~-Wl,-undefined,dynamic_lookup~: the bridge calls the til runtime's
 allocator directly, and Mach-O, unlike ELF, wants every symbol bound to a
-library at link time; the runtime is already loaded by ~lib<name>~.
+library at link time; the runtime is already loaded by ~lib<name>~. On
+Windows the bridge links the runtime's and core's import libraries, as a
+library DLL does: a PE DLL resolves every symbol at link time too.
 
 *Android (#462).* Cross-build with the same interface:
 
@@ -1021,11 +1026,6 @@ runtime, core, library and bridge with ~System.loadLibrary~, in that order.
 Android never extracts executable libraries from jar resources to writable
 temporary storage and does not depend on the desktop rpath loader. The
 Android app's build packages the native libraries normally.
-
-Remaining platform work:
-  - Windows servers: ~--jni~ runs on Linux and macOS hosts only, so no
-    jar carries ~windows-*~ natives yet; that waits on building til on a
-    Windows host (#483).
 
 Bound: public top-level ~func~ / ~proc~ (and function aliases), user-written
 struct/enum namespace functions and enum variant constructors (as

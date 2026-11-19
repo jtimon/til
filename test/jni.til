@@ -16,7 +16,6 @@ import("jni_support")
 JAVA := "gen/til/java/til/jni_lib/JniLib.java"
 BRIDGE := "gen/til/jni_lib_jni.c"
 JAR := "gen/lib/jni_lib.jar"
-CLASS_PATH := "gen/lib/jni_lib.jar:tmp/jni_classes"
 
 require_contains := func(text: Str, expected: Str) returns Bool {
     if text.contains(expected).not() { panic("missing generated JNI text: ", expected) }
@@ -30,7 +29,7 @@ check_text := proc() {
     require_contains(java, "public final class JniLib {")
     require_contains(java, "static { tilLoadNatives(); }")
     require_contains(java, "String dir = \"native/\" + target + \"/\";")
-    require_contains(java, "System.loadLibrary(\"jni_lib_jni\");")
+    require_contains(java, "System.loadLibrary((target.startsWith(\"windows-\") ? \"lib\" : \"\") + \"jni_lib_jni\");")
     require_contains(java, "public static byte jni_add_u8(byte a, byte b) {")
     require_contains(java, "public static int jni_add_usize(int a, int b) {")
     require_contains(java, "public static boolean jni_not(boolean a) {")
@@ -146,19 +145,23 @@ main := proc(args: ..Str) {
 
     expected := File.readfile(EXPECTED_PATH)
     java_home := jni_java_home()
+    class_path := jni_class_path(JAR, "tmp/jni_classes")
     jni_javac(java_home, "tmp/jni_classes", JAR, "test/JniLibTest.java")
-    out := jni_run(java_home, CLASS_PATH, "JniLibTest")
+    out := jni_run(java_home, class_path, "JniLibTest")
     if out != expected { panic("JniLibTest output mismatch:\n", out) }
     println("jni jvm ok")
 
     // A target the jar does not carry (os.arch "none") loads the bridge from
     // java.library.path; without one there, the class names the target.
     other := Cmd.new(format(java_home, "/bin/java"), "-Xcheck:jni", "-Dos.arch=none",
-        "-Djava.library.path=gen/lib", "-cp", CLASS_PATH, "JniLibTest")
+        "-Djava.library.path=gen/lib", "-cp", class_path, "JniLibTest")
+    // REM Windows has no rpath: there the bridge's own dependencies are
+    // found on PATH. Elsewhere its rpath finds them.
+    if host_os() == "windows" { other.env("PATH", format("gen\\lib;", get_env("PATH"))) }
     other.capture_out()
     if other.run() != 0 { panic("JniLibTest from java.library.path failed:\n", other.out()) }
-    if other.out() != expected { panic("JniLibTest output mismatch from java.library.path:\n", other.out()) }
-    missing := Cmd.new(format(java_home, "/bin/java"), "-Dos.arch=none", "-cp", CLASS_PATH, "JniLibTest")
+    if jni_lines(other.out()) != expected { panic("JniLibTest output mismatch from java.library.path:\n", other.out()) }
+    missing := Cmd.new(format(java_home, "/bin/java"), "-Dos.arch=none", "-cp", class_path, "JniLibTest")
     missing.capture()
     if missing.run() == 0 { panic("JniLibTest ran with no natives for its target") }
     require_contains(missing.err(), "til.jni_lib.JniLib: the jar has no natives for ")
@@ -167,7 +170,7 @@ main := proc(args: ..Str) {
 
     if asan.and(host_os() == "linux") {
         jni_til_build("test/jni_lib.til", true)
-        out_asan := jni_run_asan(java_home, CLASS_PATH, "JniLibTest")
+        out_asan := jni_run_asan(java_home, class_path, "JniLibTest")
         if out_asan != expected { panic("JniLibTest output mismatch under ASAN:\n", out_asan) }
         println("jni jvm asan ok")
     }
@@ -178,7 +181,7 @@ main := proc(args: ..Str) {
     native_build.capture()
     if native_build.run() != 0 { panic("building native-layout JNI library failed:\n", native_build.out(), native_build.err()) }
     jni_javac(java_home, "tmp/jni_classes64", JAR, "test/JniLibTest.java")
-    native_out := jni_run(java_home, "gen/lib/jni_lib.jar:tmp/jni_classes64", "JniLibTest")
+    native_out := jni_run(java_home, jni_class_path(JAR, "tmp/jni_classes64"), "JniLibTest")
     if native_out != expected { panic("JniLibTest output mismatch at USize64:\n", native_out) }
     println("jni jvm native64 ok")
 }

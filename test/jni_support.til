@@ -82,12 +82,32 @@ jni_javac := proc(java_home: Str, classes: Str, jar: Str, sources: ..Str) {
     cmd.run_checked()
 }
 
+// A java -cp value: Windows separates the entries with ';', every other
+// host with ':'.
+jni_class_path := proc(entries: ..Str) returns Str {
+    mut sep := ":"
+    if host_os() == "windows" { sep = ";" }
+    mut out := ""
+    for entry : Str in entries {
+        if out.len() > 0 { out = format(out, sep) }
+        out = format(out, entry)
+    }
+    return out
+}
+
+// What a Java program printed, its lines ended with "\n": println ends
+// them with line.separator, which is CR LF on Windows.
+jni_lines := proc(out: Str) returns Str {
+    if host_os() == "windows" { return out.replace("\r\n", "\n") }
+    return out.clone()
+}
+
 // No java.library.path: the binding loads the natives its jar carries.
 jni_run := proc(java_home: Str, class_path: Str, main_class: Str) returns Str {
     run := Cmd.new(format(java_home, "/bin/java"), "-Xcheck:jni", "-cp", class_path, main_class)
     run.capture_out()
     if run.run() != 0 { panic(main_class, " failed:\n", run.out()) }
-    return run.out()
+    return jni_lines(run.out())
 }
 
 // The caller again with the library and bridge built with --asan: the

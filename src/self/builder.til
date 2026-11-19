@@ -1546,8 +1546,13 @@ priv build_jni := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_
     if host_os() == "macos" {
         os_include = "darwin"
         origin = "@loader_path"
+    } else if host_os() == "windows" {
+        // No rpath on Windows: the class loads the bridge's DLLs itself, in
+        // dependency order (emit_jni_native_loader).
+        os_include = "win32"
+        origin = ""
     } else if host_os() != "linux" {
-        println(format("error: --jni supports Linux and macOS hosts, not ", host_os()))
+        println(format("error: --jni supports Linux, macOS and Windows hosts, not ", host_os()))
         return 1
     }
     java_home := jni_java_home()
@@ -1570,7 +1575,15 @@ priv build_jni := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_
     if host_os() == "macos" { link_extra = " -Wl,-undefined,dynamic_lookup" }
     mut includes := format(" -I", shell_path(format(java_home, "/include")),
         " -I", shell_path(format(java_home, "/include/", os_include)))
-    mut rpath := format(" ", shell_path(format("-Wl,-rpath,", origin)))
+    mut rpath := ""
+    if origin.len() > 0 { rpath = format(" ", shell_path(format("-Wl,-rpath,", origin))) }
+    // A PE DLL resolves every symbol when it is linked: the bridge's calls
+    // into the til runtime and core go through their import libraries, as
+    // a library's own do (compile_lib).
+    if is_windows_target(target) {
+        link_extra = format(target_link_extra_args(target),
+            " gen/lib/lib", lp.runtime_stem(), ".dll.a gen/lib/lib", lp.core_stem(), ".dll.a")
+    }
     if is_android_target(target) {
         includes = ""
         rpath = ""
@@ -1578,7 +1591,7 @@ priv build_jni := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_
             " -l:", lp.core_shared_basename(), " -l:", lp.runtime_shared_basename(), " ", target_system_libs(target))
     }
     cmd := compiler.format(toolchain_extra_args(target), c_build_flags(lp), " -Werror", asan_flags, usize_flags,
-        android_toolchain_map_args(target, compiler),
+        android_toolchain_map_args(target, compiler), windows_toolchain_map_args(target, compiler),
         " -shared -fPIC", includes,
         " -I", h_dir, " -I", shell_path(ext_dir), " ", paths.jni_c_path, " -Lgen/lib -l", paths.name,
         rpath, link_extra, " -o ", jni_bridge_path(paths, target))

@@ -1153,456 +1153,6 @@ jobs:
   # cross-built against the win64 nng; running it
   # here proves nng works on real winsock -- wine's winsock is incomplete
   # and cannot, so this job IS the nng-on-windows proof.
-  windows-x64-host-build:
-    needs: doc-gate
-    if: needs.doc-gate.outputs.code == 'true'
-    name: windows-x64 host (cross-build til.exe + nng on linux)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri cmake
-      - name: Create test tmp directory
-        run: mkdir -p tmp
-      # Issue #483: the pinned llvm-mingw builds til.exe and everything else
-      # here, as in windows-x64-build.
-      - name: The pinned llvm-mingw release
-        id: llvm-mingw
-        shell: bash
-        run: |
-          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
-          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
-          test -n "$release"
-          test -n "$layout"
-          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
-      - name: Cache the pinned llvm-mingw
-        uses: actions/cache@v4
-        with:
-          path: vendor/llvm-mingw
-          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
-      - name: The pinned llvm-mingw first on PATH
-        run: |
-          make llvm_mingw
-          echo "$PWD/vendor/llvm-mingw/bin" >> "$GITHUB_PATH"
-      - name: Record the C toolchain
-        run: |
-          for tool in gcc x86_64-w64-mingw32-gcc x86_64-w64-mingw32-ld; do
-            if command -v "$tool" >/dev/null 2>&1; then
-              echo "$tool: $("$tool" --version 2>&1 | head -1)"
-            else
-              echo "$tool: not installed"
-            fi
-          done
-      - name: Build bin/til (native)
-        run: make
-      - name: Cross-build til.exe (windows host compiler) and nng server
-        run: |
-          make build_win_host win_server
-          file bin/til.exe | grep -q "PE32+"
-          file bin/sender.exe | grep -q "PE32+"
-          file bin/receiver.exe | grep -q "PE32+"
-      # Issue #349: the Cmd quoting round trip, cross-built here and
-      # EXECUTED on the real windows runner below -- the only place
-      # win_quote_arg / CreateProcessA / win_env_block ever run (the
-      # linux leg of the same pair is the suite's win_quoting test).
-      - name: Cross-build the Cmd quoting round trip
-        run: |
-          ./bin/til build --target=windows-x64 -o bin/echo_argv.exe test/echo_argv.til
-          ./bin/til build --target=windows-x64 -o bin/win_quoting.exe test/win_quoting.til
-          file bin/echo_argv.exe | grep -q "PE32+"
-          file bin/win_quoting.exe | grep -q "PE32+"
-      # Issue #347: the REPL console driver, cross-built here and RUN on
-      # the windows runner below -- the only place the repl_term_* windows
-      # block has ever executed. test/wincon.c rides along through
-      # link_c(), so this also keeps that file compiling under mingw's
-      # -Wall -Wextra -Werror.
-      - name: Cross-build the REPL console driver
-        run: |
-          ./bin/til build --target=windows-x64 -o bin/repl_wincon.exe test/repl_wincon.til
-          file bin/repl_wincon.exe | grep -q "PE32+"
-      # Issue #473 (C2): every file of the four uploads below, by name, as
-      # in windows-x64-build. Keep this list and the uploads' the same.
-      - name: Check the windows-host artifacts are complete
-        run: |
-          status=0
-          for f in \
-            bin/til.exe bin/sender.exe bin/receiver.exe \
-            bin/echo_argv.exe bin/win_quoting.exe bin/repl_wincon.exe \
-            vendor/secp256k1/build-windows-x64/lib/libsecp256k1.dll \
-            vendor/secp256k1/build-windows-x64/lib/libsecp256k1.a \
-            vendor/raylib/build-windows-x64/libraylib.dll \
-            vendor/raylib/build-windows-x64/libraylib.a \
-            vendor/tinyfiledialogs/build-windows-x64/libtinyfd.dll \
-            vendor/tinyfiledialogs/build-windows-x64/libtinyfd.a \
-            vendor/nng/build-windows-x64/libnng.dll \
-            vendor/nng/build-windows-x64/libnng.a; do
-            if [ ! -f "$f" ] || [ ! -s "$f" ]; then
-              echo "missing or empty: $f"; status=1
-            fi
-          done
-          exit $status
-      - name: Upload windows-host artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: til-windows-host
-          if-no-files-found: error
-          path: |
-            bin/til.exe
-            bin/sender.exe
-            bin/receiver.exe
-            bin/echo_argv.exe
-            bin/win_quoting.exe
-            bin/repl_wincon.exe
-      # Issue #235: what til.exe's interpreter loads for a program
-      # importing std/crypto -- the DLL twin build_win_host made from the
-      # windows-x64 archive -- plus that archive, which std/crypto's
-      # windows-x64 link() names (issue #422). Its own artifact: mixed
-      # directories in the one above would move bin/til.exe off the path
-      # every step uses.
-      - name: Upload the windows-host libsecp256k1
-        uses: actions/upload-artifact@v4
-        with:
-          name: secp256k1-windows-host
-          if-no-files-found: error
-          path: |
-            vendor/secp256k1/build-windows-x64/lib/libsecp256k1.dll
-            vendor/secp256k1/build-windows-x64/lib/libsecp256k1.a
-      # Issue #420: the same for mode gui -- the raylib and tinyfd DLL
-      # twins build_win_host made, beside the windows-x64 archives
-      # src/modes/gui.til links for a windows host (issue #422).
-      - name: Upload the windows-host gui libraries
-        uses: actions/upload-artifact@v4
-        with:
-          name: gui-windows-host
-          if-no-files-found: error
-          path: |
-            vendor/raylib/build-windows-x64/libraylib.dll
-            vendor/raylib/build-windows-x64/libraylib.a
-            vendor/tinyfiledialogs/build-windows-x64/libtinyfd.dll
-            vendor/tinyfiledialogs/build-windows-x64/libtinyfd.a
-      # Issue #482: the same for a program that links nng. til.exe builds
-      # it against the windows-x64 archive, and interprets it through the
-      # DLL twin build_win_host made beside that archive.
-      - name: Upload the windows-host nng
-        uses: actions/upload-artifact@v4
-        with:
-          name: nng-windows-host
-          if-no-files-found: error
-          path: |
-            vendor/nng/build-windows-x64/libnng.dll
-            vendor/nng/build-windows-x64/libnng.a
-
-  windows-x64-host-run:
-    name: windows-x64 host (run til.exe + nng on windows)
-    needs: windows-x64-host-build
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Download windows-host artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: til-windows-host
-          path: winhost
-      # Issue #473 (C2): the six files windows-x64-host-build uploads under
-      # this name, before any of them runs.
-      - name: Check the downloaded windows-host artifacts are complete
-        shell: bash
-        run: |
-          status=0
-          for f in til sender receiver echo_argv win_quoting repl_wincon; do
-            if [ ! -f "winhost/$f.exe" ] || [ ! -s "winhost/$f.exe" ]; then
-              echo "missing or empty: winhost/$f.exe"; status=1
-            fi
-          done
-          exit $status
-      # Issue #483: the pinned llvm-mingw, which every til.exe build below
-      # compiles with, got as on any Windows host (README.org, "Windows
-      # host"; the windows-x64-native job): when the cache has none, MSYS2's
-      # gcc builds a bootstrap bin/make for `make llvm_mingw`, and the
-      # bootstrap is removed. Not by the til.exe under test interpreting
-      # make.til (run 3153): it rebuilds a missing bin/make with a
-      # bin/til_boot first, and loads libffi's twin, neither of which is here.
-      # Its bin goes first on PATH for the bash steps.
-      - name: The pinned llvm-mingw release
-        id: llvm-mingw
-        shell: bash
-        run: |
-          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
-          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
-          test -n "$release"
-          test -n "$layout"
-          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
-      - name: Cache the pinned llvm-mingw
-        id: llvm-mingw-cache
-        uses: actions/cache@v4
-        with:
-          path: vendor/llvm-mingw
-          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
-      - name: Install make and the bootstrap gcc into MSYS2
-        if: steps.llvm-mingw-cache.outputs.cache-hit != 'true'
-        shell: cmd
-        env:
-          MSYSTEM: UCRT64
-        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed make mingw-w64-ucrt-x86_64-gcc && gcc --version"
-      - name: Download the pinned llvm-mingw with a bootstrap bin/make
-        if: steps.llvm-mingw-cache.outputs.cache-hit != 'true'
-        shell: cmd
-        env:
-          MSYSTEM: UCRT64
-          CHERE_INVOKING: 1
-          MSYS2_PATH_TYPE: inherit
-        run: C:\msys64\usr\bin\bash.exe -lc "make llvm_mingw && rm -rf bin tmp/boot vendor/libffi/build-windows-x64"
-      - name: The pinned llvm-mingw first on PATH
-        shell: bash
-        run: cygpath -w "$PWD/vendor/llvm-mingw/bin" >> "$GITHUB_PATH"
-      - name: Interpret and translate on windows
-        shell: bash
-        run: |
-          ./winhost/til.exe interpret examples/hello_script.til
-          ./winhost/til.exe interpret examples/hello_script.til | grep -q "Hello World"
-          ./winhost/til.exe translate -c tmp_hello.c examples/hello_script.til
-          test -s tmp_hello.c
-      # Issue #483: copy_file's Win32 branch (a sibling temporary, then
-      # MoveFileExA over the destination) executes nowhere else.
-      - name: Interpret the copy_file test on windows
-        shell: bash
-        run: |
-          ./winhost/til.exe interpret test/copy_file.til
-      # Issue #472 (F4): generated source is compared between hosts, so a
-      # windows-hosted compiler has to bake file names the way the others
-      # do: ./src/... for the compiler's own tree, the path as written for
-      # the program, forward slashes, never a drive or an absolute path.
-      # The grep -o lines show what was baked before anything is judged.
-      - name: Check the source paths til.exe bakes
-        shell: bash
-        run: |
-          ./winhost/til.exe translate -c tmp_copy_file.c test/copy_file.til
-          grep -o '"[^"]*\.til:[0-9]*:[0-9]*' tmp_copy_file.c | sed 's/:[0-9]*:[0-9]*$//' | sort | uniq -c
-          grep -q '"\./src/core/[a-z_]*\.til:' tmp_copy_file.c
-          grep -q '"\./src/std/[a-z_]*\.til:' tmp_copy_file.c
-          grep -q '"test/copy_file\.til:' tmp_copy_file.c
-          if grep -E '"([A-Za-z]:|/)[^"]*\.til:[0-9]' tmp_copy_file.c; then
-            echo "an absolute source path is baked into the generated C"; exit 1
-          fi
-          if grep -F '\\' tmp_copy_file.c | grep -E '\.til:[0-9]'; then
-            echo "a backslash source path is baked into the generated C"; exit 1
-          fi
-      # Issue #472 (F6): what til.exe writes for the floats it folds, held
-      # to the spellings the suite's "float_fold" row pins on the hosts that
-      # run the suite. til.exe runs no suite, and its finite values go
-      # through this C library's printf. Run 3051 showed every one of them
-      # equal to Linux's, so they are required here; the lines are printed
-      # first so a difference shows what was written.
-      - name: Check how til.exe spells folded floats
-        shell: bash
-        run: |
-          ./winhost/til.exe translate -c tmp_float_fold.c test/float_fold.til
-          grep -E 'hoisted__F(32|64)_g[0-9]+ = |TIL_OWN_LIT\("[-+.#0-9A-Za-z]+", ' tmp_float_fold.c
-          status=0
-          while IFS= read -r needle; do
-            count=$(grep -c -F -- "$needle" tmp_float_fold.c || true)
-            if [ "$count" != 1 ]; then
-              echo "expected once, found $count times: $needle"; status=1
-            fi
-          done <<'NEEDLES'
-          = 0.10000000000000001;
-          = 0.333333343;
-          = 1.0000000000000001e+305;
-          = 9.9999999999999694e-311;
-          = -0.0;
-          = 9007199254740992;
-          = __builtin_inf();
-          = (-__builtin_inf());
-          = __builtin_nan("");
-          TIL_OWN_LIT("1e+40", 5ULL)
-          TIL_OWN_LIT("1e-310", 6ULL)
-          TIL_OWN_LIT("0.333333", 8ULL)
-          TIL_OWN_LIT("-0", 2ULL)
-          TIL_OWN_LIT("-inf", 4ULL)
-          TIL_OWN_LIT("nan", 3ULL)
-          NEEDLES
-          exit $status
-      # Both files share one directory, which becomes the artifact's root.
-      - name: Download the windows-host libsecp256k1
-        uses: actions/download-artifact@v4
-        with:
-          name: secp256k1-windows-host
-          path: vendor/secp256k1/build-windows-x64/lib
-      - name: Check the downloaded libsecp256k1 is complete
-        shell: bash
-        run: |
-          status=0
-          for f in libsecp256k1.dll libsecp256k1.a; do
-            p="vendor/secp256k1/build-windows-x64/lib/$f"
-            if [ ! -f "$p" ] || [ ! -s "$p" ]; then
-              echo "missing or empty: $p"; status=1
-            fi
-          done
-          exit $status
-      # Issue #235: interpret std/crypto ON windows. The interpreter loads
-      # the twin beside the archive the program's link() resolves to for
-      # the host (ffi_load_archive_twin: libsecp256k1.a -> libsecp256k1.dll
-      # on a windows host): the windows-x64 one, where the artifact
-      # landed. A failing vector panics and fails the step.
-      - name: Interpret the std/crypto test on windows
-        shell: bash
-        run: |
-          ./winhost/til.exe interpret test/crypto.til
-      - name: Download the windows-host gui libraries
-        uses: actions/download-artifact@v4
-        with:
-          name: gui-windows-host
-          path: vendor
-      - name: Check the downloaded gui libraries are complete
-        shell: bash
-        run: |
-          status=0
-          for f in \
-            vendor/raylib/build-windows-x64/libraylib.dll \
-            vendor/raylib/build-windows-x64/libraylib.a \
-            vendor/tinyfiledialogs/build-windows-x64/libtinyfd.dll \
-            vendor/tinyfiledialogs/build-windows-x64/libtinyfd.a; do
-            if [ ! -f "$f" ] || [ ! -s "$f" ]; then
-              echo "missing or empty: $f"; status=1
-            fi
-          done
-          exit $status
-      # Issue #420: interpret mode gui ON windows. test/gui_interp.til is
-      # windowless (pure-CPU raylib calls through libffi: scalar and
-      # by-value struct arguments, Bool returns, string arguments), so it
-      # needs the DLL twins but no display. Same layout as std/crypto
-      # above: the windows-x64 archives where gui.til's link()s name them,
-      # the DLLs beside them. The test panics on any wrong answer.
-      - name: Interpret the windowless gui test on windows
-        shell: bash
-        run: |
-          ./winhost/til.exe interpret test/gui_interp.til
-      # Issue #349: first-ever execution of Cmd's windows side. The
-      # driver spawns echo_argv.exe THROUGH Cmd (win_quote_arg's
-      # CommandLineToArgvW rules, the CreateProcessA command line,
-      # win_env_block's case-insensitive override, GetTempPath capture
-      # spools) and compares what the child's CRT parsed against what
-      # was passed. TIL_QUOTE_CASE feeds the displacement probe.
-      - name: Cmd quoting round trip on windows
-        shell: bash
-        env:
-          TIL_QUOTE_CASE: parent
-        run: |
-          cd winhost
-          ./win_quoting.exe echo_argv.exe
-          ./win_quoting.exe echo_argv.exe | grep -q "win_quoting PASS"
-      # Issue #347: first-ever execution of the REPL's windows console
-      # half. The driver allocates a real console (the runner gives the
-      # job pipes, which repl_term_is_interactive correctly refuses), spawns
-      # til.exe repl into it, posts key records with WriteConsoleInput and
-      # reads the drawn rows back with ReadConsoleOutputCharacter -- the
-      # console analogue of the pty test/repl_pty.til drives on POSIX.
-      # Run from winhost/ and name the child as a BARE til.exe, like the
-      # quoting step above: CreateProcess resolves that from the calling
-      # image's directory, while a forward-slash relative path is not a
-      # spelling it is documented to search. til.exe finds its own support
-      # tree through GetModuleFileNameA, not through the cwd, so the REPL
-      # still resolves src/ and boot/ from here.
-      - name: REPL console session on windows
-        shell: bash
-        # Belt to the driver's own per-wait budget: the console is the
-        # child's, so a driver that blocks says NOTHING until it is killed,
-        # and the job default is six hours. Ten minutes is above the
-        # driver's own worst case (every wait timing out in sequence).
-        timeout-minutes: 10
-        run: |
-          cd winhost
-          mkdir -p tmp
-          ./repl_wincon.exe til.exe | tee repl_wincon.out
-          grep -q "repl_wincon PASS" repl_wincon.out
-      - name: Run nng sender+receiver over real winsock on windows
-        shell: bash
-        run: |
-          # Prove nng works on a REAL windows host, which wine cannot (its
-          # winsock is incomplete -- listen returns "Not supported"). sender
-          # listens on tcp://127.0.0.1:5555 and sends one message, then
-          # closes; receiver dials, receives (3s recv-timeout so it can
-          # never hang), and prints it. sender's nng_send blocks until a
-          # peer takes the message, so run sender in the background and let
-          # receiver drive the exchange -- running sender alone would hang.
-          ./winhost/sender.exe > sender.out 2>&1 &
-          spid=$!
-          sleep 3
-          ./winhost/receiver.exe | tee receiver.out
-          # receiver has finished (or hit its 3s recv-timeout). If the
-          # exchange failed, sender is still blocked in nng_send, so reap
-          # it rather than wait on it -- the step must never hang.
-          kill "$spid" 2>/dev/null || true
-          wait "$spid" 2>/dev/null || true
-          echo "--- sender output ---"; cat sender.out
-          grep -q "nng version" receiver.out
-          grep -q "received: hello from til over nng" receiver.out
-      # Both files share one directory, which becomes the artifact's root.
-      - name: Download the windows-host nng
-        uses: actions/download-artifact@v4
-        with:
-          name: nng-windows-host
-          path: vendor/nng/build-windows-x64
-      - name: Check the downloaded nng is complete
-        shell: bash
-        run: |
-          status=0
-          for f in libnng.dll libnng.a; do
-            p="vendor/nng/build-windows-x64/$f"
-            if [ ! -f "$p" ] || [ ! -s "$p" ]; then
-              echo "missing or empty: $p"; status=1
-            fi
-          done
-          exit $status
-      # Full compiler on windows: til.exe BUILDS (compiles + links) a
-      # program natively, the last host capability beyond interpret/
-      # translate. It needs a C toolchain -- `til.exe build` invokes the
-      # pinned llvm-mingw's x86_64-w64-mingw32-gcc (toolchain_command), on
-      # PATH since the step above. get_bin_dir walks up from
-      # winhost/ to the checkout root, so src/self/codegen/ext.c and boot/ resolve
-      # there; hello_script uses no runtime ext_func, so no libffi.
-      - name: Build programs and check link_c isolation on windows
-        shell: bash
-        run: |
-          x86_64-w64-mingw32-gcc --version
-          ./winhost/til.exe build -o hello_native.exe examples/hello_script.til
-          ./hello_native.exe
-          ./hello_native.exe | grep -q "Hello World"
-          # Execute the regression with the Windows compiler and native GCC,
-          # including its compiled compiler wrapper and both linked fixtures.
-          # Its last part (#482) builds and then INTERPRETS a program that
-          # links nng and a link_c bridge: the archive and its DLL twin from
-          # the step above, and for the interpreted bridge llvm-mingw's
-          # dlltool (interpreter.til, ffi_init_user_so).
-          # REM llvm-dlltool has no --version: it printed its usage and
-          # failed the step (CI run 3159). Where it is, then.
-          command -v x86_64-w64-mingw32-dlltool
-          mkdir -p tmp
-          compiler=$(cygpath -w "$PWD/winhost/til.exe")
-          if ! ./winhost/til.exe run --force-rebuild -o tmp/link_objects_driver.exe -c tmp/link_objects_driver.c test/link_objects.til "$compiler" > tmp/link_objects.out 2>&1; then
-            cat tmp/link_objects.out
-            exit 1
-          fi
-          cat tmp/link_objects.out
-          grep -q "link_objects PASS" tmp/link_objects.out
-      # Issue #473 (C3): this host's hash list for the collect job. til.exe
-      # BUILDS the collector with the pinned llvm-mingw (interpreting it takes
-      # hours); the hashes come from the sha256sum of Git for Windows, which
-      # a bash step has on its PATH. A Windows process ends the lines it
-      # prints with CR LF; the collector reads observations as text.
-      - name: Write the hash lists for the collector
-        shell: bash
-        run: |
-          mkdir -p tmp/hashes
-          ./winhost/til.exe build -o tmp/ci_collect.exe -c tmp/ci_collect.c examples/ci_collect.til
-          ./tmp/ci_collect.exe produce windows-x64 tmp/hashes/windows-x64.txt winhost/til.exe
-      - name: Upload the hash lists
-        uses: actions/upload-artifact@v4
-        with:
-          name: hashes-windows-x64
-          path: tmp/hashes/windows-x64.txt
-          if-no-files-found: error
-
   # Issue #483: make and make install natively on Windows, from the
   # repository alone -- no compiler or library imported from another host.
   # The runner's MSYS2 (C:\msys64) supplies make, sh, coreutils and, from
@@ -1684,11 +1234,84 @@ jobs:
           reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v Flags /t REG_DWORD /d 1 /f
           reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v Version /t REG_DWORD /d 2 /f
       # The whole suite, as linux-x64 runs it (without ASAN: MinGW has
-      # none).
+      # none), its JVM checks included: the runner's JDK 17 by name, since
+      # the binding compiles at --release 8, which JDK 8 has no option for.
       - name: make test
         shell: cmd
         timeout-minutes: 75
-        run: C:\msys64\usr\bin\bash.exe -lc "export PATH=$PWD/vendor/llvm-mingw/bin:$PATH && make test"
+        run: C:\msys64\usr\bin\bash.exe -lc "export PATH=$PWD/vendor/llvm-mingw/bin:$PATH && export JAVA_HOME=$JAVA_HOME_17_X64 && make test"
+      # Issue #472 (F4): generated source is compared between hosts, so the
+      # Windows compiler has to bake file names the way the others do:
+      # ./src/... for the compiler's own tree, the path as written for the
+      # program, forward slashes, never a drive or an absolute path. The
+      # grep -o lines show what was baked before anything is judged.
+      - name: Check the source paths til.exe bakes
+        shell: C:\msys64\usr\bin\bash.exe -leo pipefail {0}
+        run: |
+          ./bin/til.exe translate -c tmp/f4_copy_file.c test/copy_file.til
+          grep -o '"[^"]*\.til:[0-9]*:[0-9]*' tmp/f4_copy_file.c | sed 's/:[0-9]*:[0-9]*$//' | sort | uniq -c
+          grep -q '"\./src/core/[a-z_]*\.til:' tmp/f4_copy_file.c
+          grep -q '"\./src/std/[a-z_]*\.til:' tmp/f4_copy_file.c
+          grep -q '"test/copy_file\.til:' tmp/f4_copy_file.c
+          if grep -E '"([A-Za-z]:|/)[^"]*\.til:[0-9]' tmp/f4_copy_file.c; then
+            echo "an absolute source path is baked into the generated C"; exit 1
+          fi
+          if grep -F '\\' tmp/f4_copy_file.c | grep -E '\.til:[0-9]'; then
+            echo "a backslash source path is baked into the generated C"; exit 1
+          fi
+      # nng over a real winsock: the suite's nng checks use inproc://.
+      # sender listens on tcp://127.0.0.1:5555 and sends one message, then
+      # closes; receiver dials, receives (3s recv-timeout so it can never
+      # hang), and prints it. sender's nng_send blocks until a peer takes the
+      # message, so sender runs in the background and receiver drives the
+      # exchange; a sender still blocked afterwards is reaped, not awaited.
+      - name: Run nng sender+receiver over real winsock
+        shell: C:\msys64\usr\bin\bash.exe -leo pipefail {0}
+        run: |
+          export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
+          for name in sender receiver; do
+            ./bin/til.exe build --extra-modes=examples/custom_modes.til -o bin/$name.exe examples/$name.til
+          done
+          ./bin/sender.exe > tmp/sender.out 2>&1 &
+          spid=$!
+          sleep 3
+          ./bin/receiver.exe | tee tmp/receiver.out
+          kill "$spid" 2>/dev/null || true
+          wait "$spid" 2>/dev/null || true
+          echo "--- sender output ---"; cat tmp/sender.out
+          grep -q "nng version" tmp/receiver.out
+          grep -q "received: hello from til over nng" tmp/receiver.out
+      # Issue #473 (C3): this host's hash list for the collect job, from the
+      # til.exe the suite tested. The collector is built, not interpreted
+      # (interpreting it takes hours). A Windows process ends the lines it
+      # prints with CR LF; the collector reads observations as text.
+      - name: Write the hash lists for the collector
+        shell: C:\msys64\usr\bin\bash.exe -leo pipefail {0}
+        run: |
+          export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
+          mkdir -p tmp/hashes
+          ./bin/til.exe build -o tmp/ci_collect.exe -c tmp/ci_collect.c examples/ci_collect.til
+          ./tmp/ci_collect.exe produce windows-x64 tmp/hashes/windows-x64.txt bin/til.exe
+      - name: Upload the hash lists
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-windows-x64
+          path: tmp/hashes/windows-x64.txt
+          if-no-files-found: error
+      # This host's JNI jar, for jni-jar-merge.
+      - name: Build the JNI test jar
+        shell: C:\msys64\usr\bin\bash.exe -leo pipefail {0}
+        run: |
+          export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          ./bin/til.exe build --jni test/jni_lib.til
+      - name: Upload the JNI test jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: jni-jar-windows-x64
+          path: |
+            gen/lib/jni_lib.jar
+            gen/til/java/til/jni_lib/JniLib.java
       # Issue #472: this host's own windows-x64 build -- til.exe, two
       # programs, a library, the vendored archives -- with the pinned
       # llvm-mingw, the third producer beside the two Linux hosts' cross
@@ -2578,15 +2201,15 @@ jobs:
           path: tmp/crash/
           if-no-files-found: ignore
 
-  # One JNI jar for four platforms (doc/ffi.org "One jar for several
-  # platforms"): the four native jobs each upload the test/jni_lib.til jar
+  # One JNI jar for five platforms (doc/ffi.org "One jar for several
+  # platforms"): the five native jobs each upload the test/jni_lib.til jar
   # they built, this job merges them with the documented recipe, and
-  # jni-jar-run runs JniLibTest against the merged jar on each of the four.
+  # jni-jar-run runs JniLibTest against the merged jar on each of the five.
   # The generated Java source must be byte-identical across the hosts: the
   # class names every directory's natives by one runtime ABI.
   jni-jar-merge:
-    needs: [linux-x64, linux-arm64-native, macos-arm64, macos-x64]
-    name: JNI jar (merge the four hosts' jars)
+    needs: [linux-x64, linux-arm64-native, macos-arm64, macos-x64, windows-x64-native]
+    name: JNI jar (merge the five hosts' jars)
     runs-on: ubuntu-latest
     steps:
       - name: Download the hosts' JNI jars
@@ -2600,7 +2223,7 @@ jobs:
           set -eu
           # upload-artifact roots each artifact at its paths' common
           # ancestor, gen/: it holds lib/jni_lib.jar and til/java/...
-          targets="linux-x64 linux-arm64 macos-arm64 macos-x64"
+          targets="linux-x64 linux-arm64 macos-arm64 macos-x64 windows-x64"
           for t in $targets; do
             cmp hosts/jni-jar-linux-x64/til/java/til/jni_lib/JniLib.java \
               "hosts/jni-jar-$t/til/java/til/jni_lib/JniLib.java"
@@ -2612,7 +2235,7 @@ jobs:
           "$JAVA_HOME/bin/jar" cf ../jni_lib.jar .
           cd ..
           unzip -Z1 jni_lib.jar | grep '^til/jni_lib/native/'
-          [ "$(unzip -Z1 jni_lib.jar | grep -c '^til/jni_lib/native/[^/]*/$')" = 4 ]
+          [ "$(unzip -Z1 jni_lib.jar | grep -c '^til/jni_lib/native/[^/]*/$')" = 5 ]
           for t in $targets; do
             [ "$(unzip -Z1 jni_lib.jar | grep -c "^til/jni_lib/native/$t/lib")" = 4 ]
           done
@@ -2626,7 +2249,7 @@ jobs:
     needs: jni-jar-merge
     strategy:
       matrix:
-        runner: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel]
+        runner: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel, windows-latest]
     name: JNI jar (run the merged jar on ${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     steps:
@@ -2636,20 +2259,24 @@ jobs:
         with:
           name: jni-jar-merged
           path: merged
-      # The JDK as test/jni_support.til finds it. No java.library.path: the
-      # class loads this runner's natives from the jar.
+      # The JDK as test/jni_support.til finds it; on Windows the runner's
+      # JDK 17 by name, as in windows-x64-native, with ';' between the class
+      # path's entries and println's CR LF line ends. No java.library.path:
+      # the class loads this runner's natives from the jar.
       - name: Run JniLibTest against the merged jar
         shell: bash
         run: |
           set -eu
-          if [ -n "${JAVA_HOME:-}" ]; then jdk=$JAVA_HOME
+          sep=:
+          if [ "$RUNNER_OS" = Windows ]; then jdk=$(cygpath -u "$JAVA_HOME_17_X64"); sep=';'
+          elif [ -n "${JAVA_HOME:-}" ]; then jdk=$JAVA_HOME
           elif [ -x /usr/libexec/java_home ]; then jdk=$(/usr/libexec/java_home)
           else jdk=$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")"); fi
           mkdir -p tmp/jni_classes
           "$jdk/bin/javac" --release 8 -Xlint:all -Xlint:-options -Werror -cp merged/jni_lib.jar \
             -d tmp/jni_classes test/JniLibTest.java
-          "$jdk/bin/java" -Xcheck:jni -cp merged/jni_lib.jar:tmp/jni_classes JniLibTest > tmp/jni_merged.out
-          diff test/JniLibTest.expected tmp/jni_merged.out
+          "$jdk/bin/java" -Xcheck:jni -cp "merged/jni_lib.jar${sep}tmp/jni_classes" JniLibTest > tmp/jni_merged.out
+          diff --strip-trailing-cr test/JniLibTest.expected tmp/jni_merged.out
 
   # Issue #25 phase 2: SDK-less cross-compilation from the canonical
   # linux-x64 host to both mac targets (vendored zig-derived headers +
@@ -2934,7 +2561,7 @@ jobs:
   # arrived, and it failed saying so.
   collect:
     name: collect (compare the producers' hash lists)
-    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-host-run, windows-x64-native, windows-x64-build, macos-arm64, macos-x64, macos-cross-build, macos-arm64-pinned, macos-x64-pinned, windows-x64-mac]
+    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-native, windows-x64-build, macos-arm64, macos-x64, macos-cross-build, macos-arm64-pinned, macos-x64-pinned, windows-x64-mac]
     if: always() && needs.doc-gate.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -2943,7 +2570,6 @@ jobs:
         env:
           LINUX_X64: ${{ needs.linux-x64.result }}
           LINUX_ARM64: ${{ needs.linux-arm64-native.result }}
-          WINDOWS_X64: ${{ needs.windows-x64-host-run.result }}
           WINDOWS_X64_NATIVE: ${{ needs.windows-x64-native.result }}
           MACOS_ARM64: ${{ needs.macos-arm64.result }}
           MACOS_X64: ${{ needs.macos-x64.result }}
@@ -2951,7 +2577,7 @@ jobs:
         run: |
           status=0
           for pair in "linux-x64=$LINUX_X64" "linux-arm64-native=$LINUX_ARM64" \
-            "windows-x64-host-run=$WINDOWS_X64" "windows-x64-native=$WINDOWS_X64_NATIVE" \
+            "windows-x64-native=$WINDOWS_X64_NATIVE" \
             "macos-arm64=$MACOS_ARM64" "macos-x64=$MACOS_X64" \
             "macos-cross-build=$MACOS_CROSS"; do
             echo "$pair"

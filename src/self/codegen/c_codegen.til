@@ -10972,7 +10972,8 @@ priv jni_is_funcsig := func(name: Str, ctx: Context) returns Bool {
 // carries them under native/<target>/ beside the class (doc/ffi.org), one
 // directory per OS and CPU. The class names the running target as til does,
 // extracts that directory's natives to a fresh temp directory (deleted at
-// exit) and loads the bridge, which finds the rest through its rpath. A
+// exit) and loads the bridge, which finds the rest through its rpath (on
+// Windows, which has none, it loads the rest first, in dependency order). A
 // target the jar does not carry loads the bridge from java.library.path, as
 // for a bridge installed beside the library. The runtime ABI after the
 // target (layout, CPU profile, ASAN) is this build's, so every directory of
@@ -11010,8 +11011,11 @@ priv emit_jni_native_loader := proc(jf: File, lp: LoadedProgram, lib_name: Str, 
     jf.write("        }\n")
     jf.write("        String dir = \"native/\" + target + \"/\";\n")
     jf.write("        if (").write(cls).write(".class.getResource(dir + files[3]) == null) {\n")
+    // REM Windows maps a library name to <name>.dll, without the lib prefix
+    // the file has; the bridge's dependencies resolve through PATH there.
     jf.write("            try {\n")
-    jf.write("                System.loadLibrary(\"").write(lib_name).write("_jni\");\n")
+    jf.write("                System.loadLibrary((target.startsWith(\"windows-\") ? \"lib\" : \"\") + \"")
+        .write(lib_name).write("_jni\");\n")
     jf.write("            } catch (UnsatisfiedLinkError e) {\n")
     jf.write("                UnsatisfiedLinkError u = new UnsatisfiedLinkError(\"til.").write(pkg).write(".").write(cls)
         .write(": the jar has no natives for \" + target\n")
@@ -11035,7 +11039,10 @@ priv emit_jni_native_loader := proc(jf: File, lp: LoadedProgram, lib_name: Str, 
     jf.write("                    java.nio.file.Files.copy(in, out.toPath());\n")
     jf.write("                }\n")
     jf.write("            }\n")
-    jf.write("            System.load(new java.io.File(tmp, files[3]).getAbsolutePath());\n")
+    // REM Windows has no rpath: a DLL's imports bind to the modules already
+    // loaded under their names, so the bridge's three go first, in order.
+    jf.write("            int first = target.startsWith(\"windows-\") ? 0 : 3;\n")
+    jf.write("            for (int i = first; i < files.length; i++) System.load(new java.io.File(tmp, files[i]).getAbsolutePath());\n")
     jf.write("        } catch (java.io.IOException e) {\n")
     jf.write("            UnsatisfiedLinkError u = new UnsatisfiedLinkError(\"til.").write(pkg).write(".").write(cls)
         .write(": extracting the natives failed: \" + e);\n")

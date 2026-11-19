@@ -778,10 +778,7 @@ main := proc(args: ..Str) returns I64 {
     mut en_gui := 1
     // --no-jvm: for hosts without a JDK. The JNI binding tests still check
     // the generated Java and C as text; only their JDK runs are skipped.
-    // Implied on a Windows host, where til builds no --jni library
-    // (builder.til; doc/ffi.org).
     mut en_jvm := 1
-    if host_os() == "windows" { en_jvm = 0 }
     mut til_bin := TIL
     mut asan := 0
     mut usize_flag := ""
@@ -1023,12 +1020,11 @@ main := proc(args: ..Str) returns I64 {
     // one again.
     add_single(tests, "repl_pty", "cli", 0, "", format(TIL, " run test/repl_pty.til"))
 
-    // #347: the console half of the same editor, which had never been
-    // RUN on any machine. The real session happens on the windows runner
-    // (the workflow's "REPL console session on windows" step, against the
-    // cross-built .exe); here it reports SKIP -- and in doing so keeps
-    // test/wincon.c compiling and linking on every host, so the driver
-    // cannot rot between windows runs.
+    // #347: the console half of the same editor. The real session runs
+    // where the suite runs on Windows (the windows-x64-native CI job);
+    // elsewhere it reports SKIP -- and in doing so keeps test/wincon.c
+    // compiling and linking on every host, so the driver cannot rot
+    // between windows runs.
     add_single(tests, "repl_wincon", "cli", 0, "",
         format(TIL, " run test/repl_wincon.til ", TIL))
 
@@ -1159,10 +1155,10 @@ main := proc(args: ..Str) returns I64 {
     // Cmd's argv round trip (issue #349): spawn test/echo_argv.til's
     // binary through Cmd with the argument shapes a quoted command
     // line gets wrong and compare what the child's C runtime parsed.
-    // This linux leg pins the driver and the posix_spawnp path; the SAME two
-    // programs cross-compile to .exes in the windows-x64 host CI job
-    // and run on a real windows runner, where they are the only
-    // execution of win_quote_arg / CreateProcessA / win_env_block.
+    // On a POSIX host it pins the driver and the posix_spawnp path; where
+    // the suite runs on Windows (the windows-x64-native CI job) the same
+    // row is the execution of win_quote_arg / CreateProcessA /
+    // win_env_block.
     // TIL_QUOTE_CASE feeds the case-insensitive env displacement probe.
     add_single(tests, "win_quoting", "build", 0, "",
         format(til_bin, " build", asan_flag, " test/echo_argv.til '&&' ",
