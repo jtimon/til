@@ -1678,10 +1678,8 @@ jobs:
       # (libgl1-mesa-dri); this is the same for Windows: MSYS2's Mesa,
       # registered as the OpenGL driver Windows' opengl32.dll loads. The
       # binaries are the ones users get; only the machine's driver differs.
-      # BRING-UP: continue-on-error until a run shows the GUI tests pass.
       - name: Software OpenGL for the GUI tests (Mesa)
         shell: cmd
-        continue-on-error: true
         run: |
           C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-mesa && ls /ucrt64/bin | grep -i -E 'gallium|opengl'"
           reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v DLL /t REG_SZ /d C:\msys64\ucrt64\bin\libgallium_wgl.dll /f
@@ -1689,12 +1687,9 @@ jobs:
           reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v Flags /t REG_DWORD /d 1 /f
           reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v Version /t REG_DWORD /d 2 /f
       # The whole suite, as linux-x64 runs it (without ASAN: MinGW has
-      # none). BRING-UP: continue-on-error on this step only, so the job
-      # still guards make and make install while each merge shows how far
-      # the suite gets; it goes once the suite passes.
+      # none).
       - name: make test
         shell: cmd
-        continue-on-error: true
         timeout-minutes: 75
         run: C:\msys64\usr\bin\bash.exe -lc "export PATH=$PWD/vendor/llvm-mingw/bin:$PATH && make test"
       # Issue #472: this host's own windows-x64 build -- til.exe, two

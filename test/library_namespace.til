@@ -23,6 +23,14 @@ line_starting_with := func(text: Str, prefix: Str) returns Str {
     return ""
 }
 
+// The line end the C consumers' stdout writes. On Windows it is in text
+// mode, where the C runtime writes "\n" as "\r\n" (CI run 3166): til's own
+// programs set binary mode at start, and a library leaves its host's alone.
+c_newline := proc() returns Str {
+    if host_os() == "windows" { return "\r\n" }
+    return "\n"
+}
+
 check_parse_failure := proc(executable: Str, kind: Str, input: Str, message: Str) {
     cmd := Cmd.new(executable, kind, input)
     cmd.capture()
@@ -30,7 +38,7 @@ check_parse_failure := proc(executable: Str, kind: Str, input: Str, message: Str
     if cmd.err().len() != 0 { panic("shared numeric parser wrote stderr: ", cmd.err()) }
     output := cmd.out()
     require_contains(output, "src/core/str.til:")
-    if output.ends_with(format(": panic: ", message, "\n")).not() {
+    if output.ends_with(format(": panic: ", message, c_newline())).not() {
         panic("shared numeric parser diagnostic mismatch: ", output)
     }
 }
@@ -43,13 +51,13 @@ check_core_failures := proc(executable: Str) {
         if cmd.err().len() != 0 { panic("shared core panic changed output stream: ", cmd.err()) }
         output := cmd.out()
         if kind == 4 {
-            if output != "namespace-test: panic: left/right\n" { panic("shared panic output mismatch: ", output) }
+            if output != format("namespace-test: panic: left/right", c_newline()) { panic("shared panic output mismatch: ", output) }
         } else {
             require_contains(output, "src/core/str.til:")
             mut message := "Str.get: index out of bounds"
             if kind == 2 { message = "Str.push_str: capacity exceeded" }
             if kind == 3 { message = "Str.push_str: cannot mutate a string view or literal" }
-            if output.ends_with(format(": panic: ", message, "\n")).not() {
+            if output.ends_with(format(": panic: ", message, c_newline())).not() {
                 panic("shared core panic output mismatch: ", output)
             }
         }
