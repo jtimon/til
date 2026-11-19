@@ -1918,6 +1918,25 @@
   shared suites add two guest boots for 304 additional test executions.
   [[https://github.com/jtimon/til/actions/runs/44168655723/job/134345564432][TempleOS job and step timings]].
 
+**** Further stateless acceptance batching
+
+  The language batch also runs numeric casts and their 31 checked failures,
+  terminal-model support, four CLI cases and I32 division. Each program still
+  compiles and runs in its own private guest task, with the same output/status
+  checks. Finish this batch before the ownership/common-language/test-mode
+  groups reuse the CASE<n>.HC staging names.
+
+  This removes another eight standalone boots per width: 16 boots and eight
+  minutes of fixed startup sleeps, plus their disk and keyboard setup. GUI,
+  filesystem and intentional-timeout isolation remain as before.
+
+  Verification on master ~80a129a30~: clean ~make test~ passes 596/596,
+  clang-clean. The production 20-program language batch and separate filesystem
+  corpus case pass at USize32/64. A local USize64 end-to-end check of the eight
+  moved fixtures took 356.929 seconds standalone and 53.547 seconds batched,
+  including host translation/reference work with normal build-output reuse.
+  These local timings are not a full CI duration measurement.
+
 **** Manual GUI testing in one VM
 
   The task worktree already has the existing ~til-templeos-test~ Docker image,
