@@ -2822,13 +2822,12 @@ priv holyc_function_signature := func(name: Str, func_expr: Expr,
                 aggregate_return_type = "TilStr"
             } else if holyc_aggregate_type(return_type_name, state) {
                 aggregate_return_type = return_type_name
-            } else if holyc_scalar_type_name(return_type_name)
-                .and(fdef.sig.return_own_type.is(OwnType.Shallow).or(fdef.sig.func_type.is_plain())
-                    .or(state.enum_types.has(fdef.sig.return_type))).not() {
+            } else if holyc_scalar_type_name(return_type_name) {
+                // Non-reference scalars use the same value ABI for Til and extern functions.
+                return_type = return_type_name
+            } else {
                 error = format("unsupported function return type '", fdef.sig.return_type, "'")
                 return ""
-            } else {
-                return_type = return_type_name
             }
         }
         mut params := ""

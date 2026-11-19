@@ -3,8 +3,10 @@ mode script
 // External calls retain declarations; translation does not supply a body.
 get_external_value := ext_func() returns shallow I64 {}
 get_external_text := ext_func() returns Str {}
+get_external_status := ext_proc(label: Str) returns I64 {}
 unsupported := proc() {
     noop_proc()
     println(get_external_value().to_str(), get_external_text())
+    println(get_external_status("status").to_str())
 }
 unsupported()

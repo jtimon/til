@@ -7,6 +7,7 @@
 
 extern I64 get_external_value();
 extern U0 get_external_text(TilStr *return_out);
+extern I64 get_external_status(TilStr *label);
 extern U0 unsupported();
 
 U0 unsupported()
@@ -26,6 +27,19 @@ U0 unsupported()
     get_external_text(&hoisted__Str_unsupported_5_7);
     TilStrArraySet(&_va_Array_0_1, hoisted__U64_4_6, &hoisted__Str_unsupported_5_7);
     TilPrintln(&_va_Array_0_1);
+    U64 hoisted__U64_6_8 = 1;
+    TilStrArray _va_Array_1_9;
+    TilStrArrayNew(&_va_Array_1_9, hoisted__U64_6_8);
+    I64 _va_Array_1_ek_10 = 0;
+    TilStr hoisted__Str_unsupported_7_11;
+    TilStrInitLit(&hoisted__Str_unsupported_7_11, "status", 6);
+    I64 hoisted__I64_8_12 = get_external_status(&hoisted__Str_unsupported_7_11);
+    TilStrDelete(&hoisted__Str_unsupported_7_11, FALSE);
+    U64 hoisted__U64_9_13 = 0;
+    TilStr hoisted__Str_unsupported_10_14;
+    TilStrFromI64(&hoisted__Str_unsupported_10_14, hoisted__I64_8_12);
+    TilStrArraySet(&_va_Array_1_9, hoisted__U64_9_13, &hoisted__Str_unsupported_10_14);
+    TilPrintln(&_va_Array_1_9);
 }
 
 I64 TilMain()
