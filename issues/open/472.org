@@ -3700,3 +3700,16 @@ are built with ~bin/make~, not ~make~: the Makefile rebuilds
 if ~bin/til~ is another file after the suite than before it. The list
 step also links one program for the Mac with the pinned compiler and
 fails on any linker output.
+
+**** Run 3178, the Intel Mac
+
+The same on the Intel Mac, with llvm-mingw's clang and lld under the mac
+names: its ~bin/til~ from ~make~ is 49b8d8e0bdd6, the Linux x64 host's
+~make bin/til~ line for macos-x64, and ~src/til.til til~ (ed28c8e00640)
+and the width-64 one (8120478e4d11) are equal too. Its suite: 519 of
+570, the same 51 tests as on the arm64 Mac.
+
+So both Macs' ~make~, with their pinned compiler first on PATH, write
+the file the other hosts cross-build. What is left for the Macs is the
+suite on that file (run 3182 has the trial jobs doing it with Apple's
+toolchain for the test programs) and then moving the real Mac jobs to it.
