@@ -13,6 +13,15 @@ U0 GuestReport(U8 *text)
     OutU8(0xE9,*text++);
 }
 
+Bool guest_input_ready=FALSE;
+U0 GuestInputReady()
+{
+  if (!guest_input_ready) {
+    guest_input_ready=TRUE;
+    GuestReport("TILTEST:INPUT\n");
+  }
+}
+
 U0 GuestSaveDiagnostics()
 {
   I64 size;

@@ -30,14 +30,36 @@ container := proc(uid: Str, args: ..Str) returns Cmd {
 // Keyboard setup belongs to this test, not to an untracked host fixture.
 // Expect owns and reaps QEMU synchronously, including its timeout path.
 guest_driver := func(input_commands: Str = "") returns Str {
+    mut input := ""
+    if input_commands.len() > 0 {
+        // Drive monitor traffic while waiting so Expect still handles EOF and
+        // the host watchdog if the guest exits or stalls before taking input.
+        input = format(
+            "set ready \"TILTEST:BEGIN\\nTILTEST:INPUT\\n\"\nwhile {1} {\n",
+            " set log [open /work/debug.log rb]\n set prefix [read $log [string length $ready]]\n close $log\n",
+            " if {$prefix eq $ready} {break}\n after 100\n send \"info status\\r\"\n expect \"(qemu)\"\n}\n",
+            input_commands)
+    }
     return format(
         "set timeout 120\nlog_user 0\n",
         "spawn qemu-system-x86_64 -accel tcg -m 512 -smp 1 -drive file=guest.raw,format=raw,if=ide -cdrom TempleOS.ISO -boot d -display none -monitor stdio -debugcon file:debug.log -global isa-debugcon.iobase=0xe9 -device isa-debug-exit,iobase=0xf4,iosize=0x04\n",
-        "proc abort_guest {} {\n global deadline\n after cancel $deadline\n expect_before\n set timeout 5\n catch {send \"screendump /work/screen.ppm\\r\"}\n catch {send \"quit\\r\"}\n",
-        " expect {eof {} timeout {exec kill -KILL [exp_pid]; expect eof}}\n wait\n exit 124\n}\n",
-        "set deadline [after 180000 abort_guest]\nexpect_before {\n timeout {abort_guest}\n eof {after cancel $deadline; exit [lindex [wait] 3]}\n}\n",
-        "expect \"(qemu)\"\nafter 20000\nsend \"sendkey n\\r\"\nexpect \"(qemu)\"\n",
-        "after 5000\nsend \"sendkey n\\r\"\nexpect \"(qemu)\"\nafter 5000\n",
+        "proc abort_guest {status} {\n global deadline boot_deadline\n after cancel $deadline\n after cancel $boot_deadline\n expect_before\n set timeout 5\n catch {send \"screendump /work/screen.ppm\\r\"}\n catch {send \"quit\\r\"}\n",
+        " expect {eof {} timeout {exec kill -KILL [exp_pid]; expect eof}}\n wait\n exit $status\n}\n",
+        "set deadline [after 180000 {abort_guest 124}]\nexpect_before {\n timeout {abort_guest 124}\n eof {exit [lindex [wait] 3]}\n}\n",
+        // Watch the pinned live CD's boot text through the existing screenshot
+        // path. Sample only the prompt glyphs, excluding the blinking cursor,
+        // timer, mouse and other windows. A monitor prompt alone is not readiness.
+        "proc wait_boot_text {stage y chars crc} {\n global boot_stage\n set boot_stage $stage\n while {1} {\n",
+        "  send \"screendump /work/screen.ppm\\r\"\n  expect \"(qemu)\"\n",
+        "  set frame [open /work/screen.ppm rb]\n  set magic [gets $frame]\n  set geometry [gets $frame]\n  set depth [gets $frame]\n",
+        "  if {$magic ne \"P6\" || $depth ne \"255\"} {close $frame; puts stderr \"unexpected PPM header during $stage\"; abort_guest 125}\n",
+        "  if {$geometry eq \"640 480\"} {\n   set pixels [tell $frame]\n   set sample {}\n",
+        "   for {set row $y} {$row < $y+8} {incr row} {\n    seek $frame [expr {$pixels + 3*($row*640+8)}]\n    append sample [read $frame [expr {$chars*8*3}]]\n   }\n",
+        "   if {[zlib crc32 $sample] == $crc} {close $frame; return}\n  }\n  close $frame\n  after 250\n }\n}\n",
+        "set boot_stage {QEMU monitor}\nset boot_deadline [after 60000 {puts stderr \"boot readiness timed out: $boot_stage\"; abort_guest 125}]\nexpect \"(qemu)\"\n",
+        "wait_boot_text {Install onto hard drive} 136 16 0xf12e3056\nsend \"sendkey n 30\\r\"\nexpect \"(qemu)\"\n",
+        "wait_boot_text {Take Tour} 152 16 0xe168c593\nsend \"sendkey n 30\\r\"\nexpect \"(qemu)\"\n",
+        "wait_boot_text {T:/Home shell} 168 8 0x92c553ec\nafter cancel $boot_deadline\n",
         "proc type_text {text} {\n foreach ch [split $text \"\"] {\n switch -- $ch {\n",
         " \"(\" {set key shift-9}\n \")\" {set key shift-0}\n \"\\\"\" {set key shift-apostrophe}\n",
         " \":\" {set key shift-semicolon}\n \";\" {set key semicolon}\n \"/\" {set key slash}\n",
@@ -47,9 +69,8 @@ guest_driver := func(input_commands: Str = "") returns Str {
         " default {if {[string is upper $ch]} {set key shift-[string tolower $ch]} else {set key $ch}}\n",
         " }\n send \"sendkey $key 30\\r\"\n expect \"(qemu)\"\n after 50\n }\n",
         " send \"sendkey ret\\r\"\n expect \"(qemu)\"\n}\n",
-        "type_text {CBlkDev *bd=BlkDevNextFreeSlot('C',BDT_ATA);bd->base0=0x1F0;bd->base1=0x3F6;bd->unit=0;BlkDevAdd(bd,I64_MIN,FALSE,TRUE);}\nafter 2000\n",
-        "type_text {ExeFile(\"C:/Home/Once.HC\");}\n",
-        input_commands,
+        "type_text {CBlkDev *bd=BlkDevNextFreeSlot('C',BDT_ATA);bd->base0=0x1F0;bd->base1=0x3F6;bd->unit=0;BlkDevAdd(bd,I64_MIN,FALSE,TRUE);ExeFile(\"C:/Home/Once.HC\");}\n",
+        input,
         "expect eof\nafter cancel $deadline\nexit [lindex [wait] 3]\n")
 }
 
@@ -91,6 +112,24 @@ run_guest := proc(uid: Str, name: Str, expected: Str, outcome: Str, input_comman
         panic(name, ": guest output mismatch; expected '", framed, "', got '", actual, "'")
     }
     println("TempleOS: ", name, " passed")
+}
+
+priv run_input_guest := proc(uid: Str, name: Str, expected: Str, input_commands: Str, line_input: Bool = false) {
+    path := format(WORK, "/Ext.HC")
+    runtime := File.readfile(path)
+    // The GUI must have drawn its first frame and polled input. In the
+    // console case signal as the reader enters GetStr. Stage only the test
+    // copy of the runtime with this hook, just like the allocation ledger.
+    mut hook := "  TilGuiPollInput;\n}"
+    mut marked := "  TilGuiPollInput;\n  GuestInputReady;\n}"
+    if line_input {
+        hook = "  U8 *input=GetStr;"
+        marked = "  GuestInputReady;\n  U8 *input=GetStr;"
+    }
+    if runtime.contains(hook).not() { panic("missing input readiness hook: ", name) }
+    File.writefile(path, runtime.replace(hook, marked))
+    run_guest(uid, name, format("TILTEST:INPUT\n", expected), "pass", input_commands)
+    File.writefile(path, runtime)
 }
 
 priv GuestCase := struct {
@@ -220,10 +259,9 @@ gui_keyboard_checks := proc(identity: Str, bits: Str) {
     Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
         "-c", format(WORK, "/TILTEST.HC"), "examples/gui_keyboard.til").run_checked()
     File.appendfile(format(WORK, "/TILTEST.HC"), "\nTilMain;\n")
-    input := format("after 4000\n",
-        "foreach key {a shift-b backspace shift-4 shift-spc shift-1 ctrl-a c right right left ret} {\n",
+    input := format("foreach key {a shift-b backspace shift-4 shift-spc shift-1 ctrl-a c right right left ret} {\n",
         "send \"sendkey $key 80\\r\"\nexpect \"(qemu)\"\nafter 500\n}\n")
-    run_guest(identity, format("gui_keyboard_", bits), "GUI keyboard: a$ !c cursor=1\n", "pass", input)
+    run_input_guest(identity, format("gui_keyboard_", bits), "GUI keyboard: a$ !c cursor=1\n", input)
 }
 
 gui_keyboard_focus_checks := proc(identity: Str, bits: Str) {
@@ -261,12 +299,11 @@ gui_keyboard_focus_checks := proc(identity: Str, bits: Str) {
         "TilGuiPollInput; if (TilGuiIsKeyReleased(68)) TilPanicZ(\"between-frame release persisted\\n\");\n",
         "TilGuiCloseWindow; Kill(peer); TilRawWrite(\"GUI keyboard focus passed\\n\",26); }\n",
         "KeyboardFocusChecks;\n"))
-    input := format("after 4000\n",
-        "send \"sendkey shift-a 800\\r\"\nexpect \"(qemu)\"\nafter 1200\n",
+    input := format("send \"sendkey shift-a 800\\r\"\nexpect \"(qemu)\"\nafter 1200\n",
         "send \"sendkey b 300\\r\"\nexpect \"(qemu)\"\nafter 700\n",
         "send \"sendkey c 150\\r\"\nexpect \"(qemu)\"\nafter 500\n",
         "send \"sendkey d 300\\r\"\nexpect \"(qemu)\"\n")
-    run_guest(identity, format("gui_keyboard_focus_", bits), "GUI keyboard focus passed\n", "pass", input)
+    run_input_guest(identity, format("gui_keyboard_focus_", bits), "GUI keyboard focus passed\n", input)
 }
 
 gui_scissor_checks := proc(identity: Str, bits: Str) {
@@ -308,7 +345,7 @@ gui_scissor_checks := proc(identity: Str, bits: Str) {
 // past 150ms. Runs 2843-2847 lost drags, wheel clicks and a cursor key at
 // 150-300ms pacing.
 gui_mouse_input := func() returns Str {
-    return format("after 4000\nfor {set run 0} {$run<2} {incr run} {\n",
+    return format("for {set run 0} {$run<2} {incr run} {\n",
         "foreach command {\"mouse_move 160 160\" \"mouse_button 1\" \"mouse_move 80 0\" \"mouse_button 0\" \"mouse_button 2\" \"mouse_button 0\" \"mouse_move 600 0\" \"mouse_button 1\" \"mouse_move -120 0\" \"mouse_button 0\" \"mouse_move 8 24\"} {\n",
         "send \"$command\\r\"\nexpect \"(qemu)\"\nafter 500\n}\n",
         "send \"sendkey ret 80\\r\"\nexpect \"(qemu)\"\nafter 600\n}\n")
@@ -322,7 +359,7 @@ gui_mouse_checks := proc(identity: Str, bits: Str) {
     File.appendfile(format(WORK, "/TILTEST.HC"),
         "\nBool mouse_old_ac=AutoComplete(OFF); MsSet(0,0); TilMain; MsSet(0,0); TilMain; AutoComplete(mouse_old_ac);\n")
     expected := "GUI mouse: pane=1 selection=2..5 resets=1 dragging=false\n"
-    run_guest(identity, format("gui_mouse_", bits), format(expected, expected), "pass", gui_mouse_input())
+    run_input_guest(identity, format("gui_mouse_", bits), format(expected, expected), gui_mouse_input())
 
     File.writefile(format(WORK, "/TILTEST.HC"), format(program,
         "\nBool MousePeerReady=FALSE;\n",
@@ -365,12 +402,11 @@ gui_wheel_checks := proc(identity: Str, bits: Str) {
     program := File.readfile(format(WORK, "/TILTEST.HC"))
     File.appendfile(format(WORK, "/TILTEST.HC"),
         "\nBool wheel_old_ac=AutoComplete(OFF); MsSet(0,0,0); TilMain; AutoComplete(wheel_old_ac);\n")
-    input := format("after 4000\n",
-        "foreach command {\"mouse_move 160 160\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 1\" \"mouse_move 640 0\" \"mouse_move 0 0 -1\"} {\n",
+    input := format("foreach command {\"mouse_move 160 160\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 1\" \"mouse_move 640 0\" \"mouse_move 0 0 -1\"} {\n",
         "send \"$command\\r\"\nexpect \"(qemu)\"\nafter 500\n}\n",
         "send \"sendkey ret 80\\r\"\nexpect \"(qemu)\"\n")
-    run_guest(identity, format("gui_wheel_", bits),
-        "GUI mouse: pane=0 selection=0..0 resets=0 dragging=false\nGUI wheel: left=2 right=1\n", "pass", input)
+    run_input_guest(identity, format("gui_wheel_", bits),
+        "GUI mouse: pane=0 selection=0..0 resets=0 dragging=false\nGUI wheel: left=2 right=1\n", input)
 
     File.writefile(format(WORK, "/TILTEST.HC"), format(program,
         "\nBool WheelPeerReady=FALSE;\n",
@@ -409,7 +445,7 @@ gui_middle_checks := proc(identity: Str, bits: Str) {
     program := File.readfile(format(WORK, "/TILTEST.HC"))
     File.appendfile(format(WORK, "/TILTEST.HC"),
         "\nBool middle_old_ac=AutoComplete(OFF); MsSet(0,0,0); TilMain; MsSet(0,0,0); TilMain; AutoComplete(middle_old_ac);\n")
-    input := format("after 4000\nfor {set run 0} {$run<2} {incr run} {\n",
+    input := format("for {set run 0} {$run<2} {incr run} {\n",
         "foreach command {\"mouse_move 160 160\" \"mouse_move 0 0 -1\" \"mouse_move 0 0 -1\" \"mouse_move 640 0\" \"mouse_move 0 0 -1\"} {\n",
         "send \"$command\\r\"\nexpect \"(qemu)\"\nafter 500\n}\n",
         "if {$run==0} {send \"mouse_move -640 0\\r\"\nexpect \"(qemu)\"\nafter 500}\n",
@@ -418,9 +454,9 @@ gui_middle_checks := proc(identity: Str, bits: Str) {
         "send \"mouse_button 0\\r\"\nexpect \"(qemu)\"\nafter 500\n",
         "send \"sendkey ret 80\\r\"\nexpect \"(qemu)\"\nafter 600\n}\n")
     mouse_line := "GUI mouse: pane=0 selection=0..0 resets=0 dragging=false\n"
-    run_guest(identity, format("gui_middle_", bits), format(mouse_line,
+    run_input_guest(identity, format("gui_middle_", bits), format(mouse_line,
         "GUI wheel: left=0 right=1\nGUI middle: resets=1\n", mouse_line,
-        "GUI wheel: left=2 right=0\nGUI middle: resets=1\n"), "pass", input)
+        "GUI wheel: left=2 right=0\nGUI middle: resets=1\n"), input)
 
     File.writefile(format(WORK, "/TILTEST.HC"), format(program,
         "\nBool MiddlePeerReady=FALSE;\n",
@@ -711,8 +747,8 @@ main := proc() {
         if input_expected != "native line\nblank input\n" { panic("host line input mismatch") }
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), format(WORK, "/input.til")).run_checked()
-        run_guest(identity, format("line_input_", bits), input_expected, "pass",
-            "after 2000\ntype_text {native line}\nafter 500\ntype_text {}\n")
+        run_input_guest(identity, format("line_input_", bits), input_expected,
+            "type_text {native line}\nafter 500\ntype_text {}\n", true)
         failure_case(identity, bits, "missing", "content := File.readfile(\"MISSING.HC\")\nprintln(content)\n",
             "cfile_open: could not open 'MISSING.HC'\n", "")
         failure_case(identity, bits, "parent_read", "content := File.readfile(\"CHILD/PARENT.HC\")\nprintln(content)\n",
