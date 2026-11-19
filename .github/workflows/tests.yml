@@ -2215,12 +2215,16 @@ jobs:
           ld64.lld --version
           rm -rf vendor/libffi/build-macos-arm64
           ./bin/make vendor/libffi/build-macos-arm64/.libs/libffi.a
-          echo "$PWD/vendor/llvm/bin" >> "$GITHUB_PATH"
       # One step per stage, each run whatever the one before did: a trial
       # round is an hour, so it reports every stage that fails, not the
-      # first.
+      # first. The pinned compiler is first on PATH only in the steps that
+      # build bin/til and what it links, and in the one that writes the
+      # list: the suite then runs that bin/til with Apple's toolchain for
+      # the programs it builds, as a Mac user's til does. til asks `clang`
+      # which one it is each time it builds for a mac target.
       - name: This Mac's vendored archives, the SDK-less way
         run: |
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
           status=0
           for archive in vendor/raylib/build-macos-arm64/libraylib.a vendor/tinyfiledialogs/build-macos-arm64/libtinyfd.a vendor/nng/build-macos-arm64/libnng.a vendor/secp256k1/build-macos-arm64/lib/libsecp256k1.a; do
             ./bin/make "$archive" || status=1
@@ -2230,19 +2234,45 @@ jobs:
       - name: make bin/til
         if: always()
         run: |
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
           make bin/til
+          shasum -a 256 bin/til > tmp/til-before-suite.txt
+          cat tmp/til-before-suite.txt
+      # bin/make, not make: the Makefile builds bin/til_boot again each
+      # time, and bin/til after it -- here that would be Apple's build of it.
+      - name: The test programs, with Apple's toolchain
+        if: always()
+        run: |
+          clang --version
+          ./bin/make bin/test_runner bin/plot bin/tests
           shasum -a 256 bin/til
-      - name: The test programs
+      # The suite has to leave bin/til as it was: a test that ran make would
+      # replace it with Apple's build, and the list below would then name a
+      # file this suite did not run from its start.
+      - name: Run tests (no gui), programs built with Apple's toolchain
         if: always()
-        run: make bin/test_runner bin/plot bin/tests
-      - name: Run tests (no gui)
-        if: always()
-        run: bin/tests --no-gui -j2
+        run: |
+          status=0
+          bin/tests --no-gui -j2 || status=1
+          shasum -a 256 bin/til > tmp/til-after-suite.txt
+          cat tmp/til-after-suite.txt
+          cmp tmp/til-before-suite.txt tmp/til-after-suite.txt || status=1
+          exit $status
       - name: Write the binary hash list
         if: always()
         run: |
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
           mkdir -p tmp/hashes-binary
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial macos-arm64-pinned tmp/hashes-binary/macos-arm64-pinned.txt bin/til macos-arm64
+          # After the list, which must be written whatever this finds. CI run
+          # 3178: with the pinned compiler every link on a Mac warned
+          # about three of the host's own system libraries, found on disk
+          # ahead of the vendored stub. A program for this Mac has to link
+          # without a word (targets.til, -syslibroot).
+          ./bin/til build -o tmp/hello_pinned examples/hello_script.til 2> tmp/hello_pinned.err || cat tmp/hello_pinned.err
+          cat tmp/hello_pinned.err
+          test ! -s tmp/hello_pinned.err
+          tmp/hello_pinned
       - name: Upload the binary hash list
         if: always()
         uses: actions/upload-artifact@v4
@@ -2291,12 +2321,16 @@ jobs:
           ld64.lld --version
           rm -rf vendor/libffi/build-macos-x64
           ./bin/make vendor/libffi/build-macos-x64/.libs/libffi.a
-          echo "$PWD/tmp/mac-tools" >> "$GITHUB_PATH"
       # One step per stage, each run whatever the one before did: a trial
       # round is an hour, so it reports every stage that fails, not the
-      # first.
+      # first. The pinned compiler is first on PATH only in the steps that
+      # build bin/til and what it links, and in the one that writes the
+      # list: the suite then runs that bin/til with Apple's toolchain for
+      # the programs it builds, as a Mac user's til does. til asks `clang`
+      # which one it is each time it builds for a mac target.
       - name: This Mac's vendored archives, the SDK-less way
         run: |
+          export PATH="$PWD/tmp/mac-tools:$PATH"
           status=0
           for archive in vendor/raylib/build-macos-x64/libraylib.a vendor/tinyfiledialogs/build-macos-x64/libtinyfd.a vendor/nng/build-macos-x64/libnng.a vendor/secp256k1/build-macos-x64/lib/libsecp256k1.a; do
             ./bin/make "$archive" || status=1
@@ -2306,19 +2340,45 @@ jobs:
       - name: make bin/til
         if: always()
         run: |
+          export PATH="$PWD/tmp/mac-tools:$PATH"
           make bin/til
+          shasum -a 256 bin/til > tmp/til-before-suite.txt
+          cat tmp/til-before-suite.txt
+      # bin/make, not make: the Makefile builds bin/til_boot again each
+      # time, and bin/til after it -- here that would be Apple's build of it.
+      - name: The test programs, with Apple's toolchain
+        if: always()
+        run: |
+          clang --version
+          ./bin/make bin/test_runner bin/plot bin/tests
           shasum -a 256 bin/til
-      - name: The test programs
+      # The suite has to leave bin/til as it was: a test that ran make would
+      # replace it with Apple's build, and the list below would then name a
+      # file this suite did not run from its start.
+      - name: Run tests (no gui), programs built with Apple's toolchain
         if: always()
-        run: make bin/test_runner bin/plot bin/tests
-      - name: Run tests (no gui)
-        if: always()
-        run: bin/tests --no-gui -j2
+        run: |
+          status=0
+          bin/tests --no-gui -j2 || status=1
+          shasum -a 256 bin/til > tmp/til-after-suite.txt
+          cat tmp/til-after-suite.txt
+          cmp tmp/til-before-suite.txt tmp/til-after-suite.txt || status=1
+          exit $status
       - name: Write the binary hash list
         if: always()
         run: |
+          export PATH="$PWD/tmp/mac-tools:$PATH"
           mkdir -p tmp/hashes-binary
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial macos-x64-pinned tmp/hashes-binary/macos-x64-pinned.txt bin/til macos-x64
+          # After the list, which must be written whatever this finds. CI run
+          # 3178: with the pinned compiler every link on a Mac warned
+          # about three of the host's own system libraries, found on disk
+          # ahead of the vendored stub. A program for this Mac has to link
+          # without a word (targets.til, -syslibroot).
+          ./bin/til build -o tmp/hello_pinned examples/hello_script.til 2> tmp/hello_pinned.err || cat tmp/hello_pinned.err
+          cat tmp/hello_pinned.err
+          test ! -s tmp/hello_pinned.err
+          tmp/hello_pinned
       - name: Upload the binary hash list
         if: always()
         uses: actions/upload-artifact@v4

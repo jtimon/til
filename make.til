@@ -1532,7 +1532,10 @@ libffi_cross_targets := proc(b: Build) returns Vec(LibffiCross) {
         // like the mac gui archives.
         if mac_sdkless(b) {
             t.cc = format(t.cc, " -nostdlibinc -isystem ", get_cwd_str(), "/vendor/macos/include")
-            t.ldflags = format("-fuse-ld=lld -L", get_cwd_str(), "/vendor/macos")
+            // -syslibroot as in targets.til's target_link_extra_args: no
+            // host library answers a configure probe.
+            t.ldflags = format("-fuse-ld=lld -L", get_cwd_str(), "/vendor/macos -Wl,-syslibroot,",
+                get_cwd_str(), "/vendor/macos")
             t.ar = "llvm-ar"
             t.ranlib = "llvm-ranlib"
             t.sdkless_mac = true

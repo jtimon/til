@@ -388,7 +388,14 @@ target_link_extra_args := proc(target: Target) returns Str {
     // under wine as a stack overflow), where the same build on Linux runs.
     if is_windows_target(target) { return " -Wl,--no-insert-timestamp -Wl,--stack,8388608" }
     if macos_is_cross(target).not() { return "" }
-    return " -fuse-ld=lld -Lvendor/macos"
+    // #472: -syslibroot, so that the libraries libSystem.tbd re-exports
+    // come from the stub itself on every host. lld looks for an absolute
+    // install name under the library roots before it looks in the stub,
+    // and with no root named that is the host's /: a Mac has three of
+    // them on disk (libsystem_kernel, _platform and _pthread), so a Mac
+    // linked against its own system's and warned that they are newer than
+    // the deployment target (CI run 3178). Nothing is under this root.
+    return " -fuse-ld=lld -Lvendor/macos -Wl,-syslibroot,vendor/macos"
 }
 
 // #472 (L3a): does an executable for this target have to be linked from

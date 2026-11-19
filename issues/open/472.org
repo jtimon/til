@@ -3647,3 +3647,56 @@ A guess to check against the first lists, not acted on: ld64.lld strips
 ~-oso_prefix~ from each object's absolute path, and on Windows that path
 is ~D:\a\til\til\gen/til/til.o~, so the N_OSO strings may come out as
 ~\gen/til/til.o~ where the other hosts have ~/gen/til/til.o~.
+
+*** Run 3178: a Mac's make with the pinned compiler writes the cross-built til; its suite passes 519 of 570
+
+Run 3178 (master a747cae), read while its Mac and collect jobs still
+ran. Both ~-pinned~ trial jobs built everything and failed only in the
+suite. The Windows host's ~make test~ passes again.
+
+The arm64 Mac's ~bin/til~, built by ~make~ with the pinned LLVM and then
+run by the suite, is 88412b6d5b74: the Linux x64 host's ~make bin/til~
+line for macos-arm64 in the same run. ~src/til.til til~ (841fada0c48c)
+and the width-64 one (59ec37208955) are equal too.
+
+The suite on the arm64 Mac, with the pinned compiler also building every
+program the tests build: 519 of 570. The 51 failures are three causes:
+
+- 35 or so: every link printed three warnings, and the tests compare
+  output.
+  : ld64.lld: warning: /usr/lib/system/libsystem_kernel.dylib has version 26.7.0, which is newer than target minimum of 11.0.0
+  (and ~libsystem_platform~, ~libsystem_pthread~). lld looks for a
+  re-exported library's absolute install name under the library roots
+  before it looks inside the ~.tbd~ that re-exports it, and with no root
+  named the root is the host's ~/~. A Mac has exactly those three on
+  disk, so a Mac linked against its own system's copies where every other
+  host used the vendored stub's: a host leak, though the lists came out
+  equal. Fixed in til (~target_link_extra_args~) and for libffi's
+  configure probes in ~make.til~: ~-Wl,-syslibroot,vendor/macos~, under
+  which there is nothing. On Linux the flag changes a program only
+  through its build stamp, which hashes the command (and the UUID and
+  signature after it): ~cmp~ of ~hello_script~ before and after, both mac
+  targets.
+- ~'stdio.h' file not found~ and ~ld: library 'System' not found~ for
+  tests that run til from another directory (~build_outputs~,
+  ~cpu_options~, ~dynamic_widths~, ~mlir_options~) or an installed til
+  (~install*~): the SDK-less flags name ~vendor/macos~ relative to the
+  working directory, and an installed til has no ~vendor/macos~ at all.
+- ~jni~, ~library_namespace~: the JNI bridge is linked without
+  ~target_link_extra_args~, so the pinned clang called the system's ~ld~
+  with no SDK.
+
+The last two are what it would take for a Mac to build its *programs*
+SDK-less by default, from anywhere and from an installed til: a larger
+change, with an install-layout decision in it, and not what the bar asks.
+The bar asks that the til a Mac tests is the file the other hosts build.
+So the trial jobs now put the pinned compiler first on PATH only where
+~bin/til~ and what it links are built and where the list is written; the
+suite runs that ~bin/til~ with Apple's toolchain for the programs it
+builds, as the existing Mac jobs' suite does and as a Mac user's til
+does (til asks ~clang~ which one it is at each build). The test programs
+are built with ~bin/make~, not ~make~: the Makefile rebuilds
+~bin/til_boot~ every time and ~bin/til~ after it. The suite step fails
+if ~bin/til~ is another file after the suite than before it. The list
+step also links one program for the Mac with the pinned compiler and
+fails on any linker output.
