@@ -118,8 +118,7 @@ check_notes := proc(err: Str) {
     require_contains(err, "note: JNI binding til.jni_lib.JniLib: adopt__F64 not bound: parameter 'dest' of type Dynamic\n")
 }
 
-// JniLibTest's output; CI's jni-jar-run diffs the merged jar's run against
-// the same file (.github/workflows/tests.yml).
+// JniLibTest's output.
 EXPECTED_PATH := "test/JniLibTest.expected"
 
 main := proc(args: ..Str) {
