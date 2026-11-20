@@ -2400,7 +2400,7 @@ jobs:
           elif [ -x /usr/libexec/java_home ]; then jdk=$(/usr/libexec/java_home)
           else jdk=$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")"); fi
           mkdir -p tmp/jni_classes
-          "$jdk/bin/javac" --release 8 -Xlint:all -Xlint:-options -Werror -cp merged/jni_lib.jar \
+          "$jdk/bin/javac" --release 8 -encoding UTF-8 -Xlint:all -Xlint:-options -Werror -cp merged/jni_lib.jar \
             -d tmp/jni_classes test/JniLibTest.java
           "$jdk/bin/java" -Xcheck:jni -cp "merged/jni_lib.jar${sep}tmp/jni_classes" JniLibTest > tmp/jni_merged.out
           diff --strip-trailing-cr test/JniLibTest.expected tmp/jni_merged.out

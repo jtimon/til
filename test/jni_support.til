@@ -73,10 +73,13 @@ jni_til_build := proc(source: Str, asan: Bool) {
 }
 
 // A Java caller compiled against the binding's jar, at --release 8 like the
-// binding; -Xlint:-options mutes the JDK's notice about release 8.
+// binding; -Xlint:-options mutes the JDK's notice about release 8. The
+// callers are UTF-8 (JniLibTest's jni_str_len argument), and javac otherwise
+// reads them in the platform's charset: windows-1252 on Windows, where
+// jni_str_len then counted 8 bytes for that 6-byte word (CI run 3186).
 jni_javac := proc(java_home: Str, classes: Str, jar: Str, sources: ..Str) {
     File.remove_tree(classes)
-    cmd := Cmd.new(format(java_home, "/bin/javac"), "--release", "8", "-Xlint:all", "-Xlint:-options",
+    cmd := Cmd.new(format(java_home, "/bin/javac"), "--release", "8", "-encoding", "UTF-8", "-Xlint:all", "-Xlint:-options",
         "-Werror", "-cp", jar, "-d", classes)
     for source : Str in sources { cmd.arg(source) }
     cmd.run_checked()

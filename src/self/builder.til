@@ -1603,8 +1603,10 @@ priv build_jni := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_
     if mkdir_p("tmp") != 0 { panic("failed to create tmp") }
     stage := format("tmp/jni-", process_id().to_str(), "-", paths.name)
     File.remove_tree(stage)
-    javac := Cmd.new(format(java_home, "/bin/javac"), "--release", "8", "-Xlint:all", "-Xlint:-options", "-Werror",
-        "-d", stage, paths.java_path)
+    // REM -encoding: the binding is written as UTF-8, and javac otherwise
+    // reads sources in the platform's charset (windows-1252 on Windows).
+    javac := Cmd.new(format(java_home, "/bin/javac"), "--release", "8", "-encoding", "UTF-8", "-Xlint:all", "-Xlint:-options",
+        "-Werror", "-d", stage, paths.java_path)
     if javac.run() != 0 {
         File.remove_tree(stage)
         println("error: compiling the Java binding failed")
