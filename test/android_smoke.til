@@ -127,14 +127,14 @@ package_jni := proc(sdk: Str, stage: Str, width: Str) returns Str {
     return apk
 }
 
-wait_log := proc(device: Device, pid: Str, marker: Str, count: I64) returns Str {
-    for _ in 0..40 {
+wait_log := proc(device: Device, pid: Str, marker: Str, count: I64, polls: I64 = 40, interval_ms: I64 = 250) returns Str {
+    for _ in 0..polls {
         log := device.log(pid)
         for error : Str in array(Str, "no current context", "Fatal signal", "FATAL EXCEPTION", "Android GUI cleanup surface") {
             if log.contains(error) { panic("Android runtime failure: ", error, "\n", log) }
         }
         if log.split(marker).len().cast(U64).cast(I64) > count { return log }
-        sleep_ms(250)
+        sleep_ms(interval_ms)
     }
     panic("Android log did not reach ", count.to_str(), " occurrences of ", marker, "\n", device.log(pid))
 }
@@ -144,8 +144,13 @@ check_jni := proc(device: Device, sdk: Str, stage: Str, width: Str, pages: Str) 
     device.adb("install", "-r", apk)
     device.adb("shell", "am", "force-stop", JNI_APP)
     device.launch(format(JNI_APP, "/.AndroidJniActivity"))
-    log := wait_log(device, device.pid(JNI_APP), format("JNI complete, page size: ", pages, "\n"), 1)
+    // The corpus includes many 100,000-iteration stress loops. Give ART its
+    // own budget; the short Checkers lifecycle budget is not a benchmark.
+    log := wait_log(device, device.pid(JNI_APP), "JNI complete, page size: ", 1, 120, 1000)
     File.writefile(format(stage, "/jni.log"), log)
+    if log.contains(format("JNI complete, page size: ", pages, "\n")).not() {
+        panic("ART JNI ran on the wrong page size; expected ", pages, "\n", log)
+    }
     actual := device.adb("exec-out", "run-as", JNI_APP, "cat", "files/actual.txt")
     File.writefile(format(stage, "/jni.actual"), actual)
     smoke_equal("ART JNI corpus stdout", actual, File.readfile("test/JniLibTest.expected"))

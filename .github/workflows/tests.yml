@@ -162,7 +162,9 @@ jobs:
           - api: 28
             image: google_apis
             pages: 4096
-          - api: 35
+          # The API 35 16 KB guest crashed in ART's nterp inside system_server
+          # (run 3195 and local ActivityManager relaunches). Keep 16 KB on API 36.
+          - api: 36
             image: google_apis_ps16k
             pages: 16384
     steps:
@@ -201,6 +203,7 @@ jobs:
             bin/test/android_smoke "$ANDROID_SERIAL" ${{ matrix.api }} ${{ matrix.pages }} > tmp/android_smoke/crash.log 2>&1 || status=$?;
             cat tmp/android_smoke/crash.log;
             if [ "$status" -ne 0 ]; then
+            timeout 30s adb -s "$ANDROID_SERIAL" exec-out run-as org.til.androidsmoke cat files/actual.txt >> tmp/android_smoke/crash.log 2>&1;
             timeout 30s adb -s "$ANDROID_SERIAL" logcat -d -b crash >> tmp/android_smoke/crash.log 2>&1;
             timeout 30s adb -s "$ANDROID_SERIAL" logcat -d -b all -t 3000 >> tmp/android_smoke/crash.log 2>&1;
             fi;
