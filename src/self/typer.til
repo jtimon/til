@@ -961,7 +961,7 @@ priv validate_fcall_own_args_for_fdef := proc(mut scope: TypeScope, e: Expr, fde
                     // (ownership transfer). The source's `mut` is what
                     // keeps the binding from auto-aliasing into a ref, so
                     // count this as a write-through.
-                    mut own_arg_b_o := scope.get_binding_sym(an.ident_sym())
+                    own_arg_b_o := scope.get_binding_sym(an.ident_sym())
                     if own_arg_b_o.is_some() {
                         ref mut own_arg_b : TypeBinding = own_arg_b_o.unwrap()
                         own_arg_b.written = true
@@ -1052,7 +1052,7 @@ priv set_fcall_own_args_for_own_params := func(mut e: Expr, fdef_data: FunctionD
 }
 
 priv infer_struct_constructor_fcall := proc(mut scope: TypeScope, mut e: Expr, name: Str, name_sym: Sym, in_func: I32, mut ctx: Context) returns Bool {
-    mut sdef_o := scope.get_struct_by_sym(name_sym)
+    sdef_o := scope.get_struct_by_sym(name_sym)
     if sdef_o.is_none() { return false }
     ref mut sdef : Expr = sdef_o.unwrap()
     return infer_struct_constructor_fcall_impl(scope, sdef, e, name, name_sym, in_func, ctx)
@@ -1102,7 +1102,7 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
     // struct's own auto-generated or user-written ns methods, which
     // does not count as "used externally".
     if scope.active_type_name().eq(name).not() {
-        mut sb_used_o := scope.get_binding_sym(name_sym)
+        sb_used_o := scope.get_binding_sym(name_sym)
         if sb_used_o.is_some() {
             ref mut sb_used : TypeBinding = sb_used_o.unwrap()
             sb_used.used = true
@@ -2713,7 +2713,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             }
         }
 
-        mut sdef1_o := scope.get_struct(type_name, ctx.symbols)
+        sdef1_o := scope.get_struct(type_name, ctx.symbols)
         mut nf1o := Option(ref Expr).None
         if sdef1_o.is_some() {
             infer_requested_value_method(sdef1_o.unwrap(), type_name, method, ctx)
@@ -2806,7 +2806,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         return true
     }
     ref obj3_sname : Str = ctx.symbols.resolve(obj3_sym)
-    mut sdef2_o := scope.get_struct_by_sym(obj3_sym)
+    sdef2_o := scope.get_struct_by_sym(obj3_sym)
     mut nf2o := Option(ref Expr).None
     if sdef2_o.is_some() {
         infer_requested_value_method(sdef2_o.unwrap(), obj3_sname, method, ctx)
@@ -5037,7 +5037,7 @@ infer_expr := proc(mut scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: 
 priv infer_ident_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: Context) {
     ref id_name : IdentData = ident_of(expr)
     ref name : Str = id_name.ident_name(ctx.symbols.names)
-    mut ib_o := scope.get_binding_sym(id_name.ident_sym())
+    ib_o := scope.get_binding_sym(id_name.ident_sym())
     mut type := Type.Unknown
     if ib_o.is_some() { type = ib_o.unwrap().type.clone() }
     if type.is(Type.Unknown) {
@@ -6119,7 +6119,7 @@ priv credit_mutable_return := func(mut scope: TypeScope, value: Expr, symbols: S
                 // Carried references grant their own permission: the carrier's
                 // mutable slot is not needed merely to return its ref field.
                 if root.carried.and(b.iface_borrow_explicit.not()) { continue }
-                mut source := lookup_binding_at(scope, root, symbols)
+                source := lookup_binding_at(scope, root, symbols)
                 if source.is_some() {
                     ref mut source_binding: TypeBinding = source.unwrap()
                     source_binding.mutable_ref_return = true
@@ -6569,7 +6569,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             // normalization above may have refined param.til_type, so this
             // local is the place that still knows a `n: USize`
             // param was written USize rather than the target's U32.
-            mut pb_o := func_scope.get_binding_name(param.name, ctx.symbols)
+            pb_o := func_scope.get_binding_name(param.name, ctx.symbols)
             if pb_o.is_some() {
                 ref mut pb : TypeBinding = pb_o.unwrap()
                 pb.declared_type_name = ptype_name.clone()
@@ -6892,7 +6892,7 @@ priv propagate_priv_refs := func(mut scope: TypeScope, ctx: Context) {
         if ctx.priv_ref_edges.has(referrer).not() { continue }
         ref referees : Vec(Str) = ctx.priv_ref_edges[referrer]
         for referee : Str in referees {
-            mut rbo := scope.get_binding_name(referee, ctx.symbols)
+            rbo := scope.get_binding_name(referee, ctx.symbols)
             if rbo.is_none() { continue }
             ref mut rb2 : TypeBinding = rbo.unwrap()
             if rb2.used { continue }
@@ -7137,6 +7137,35 @@ priv return_fieldaccess_root := func(e: Expr) returns ref Expr {
     return e
 }
 
+// An owned carrier can return a writable borrow too: Option(ref mut T).Some
+// needs the source grant even though neither the carrier nor this body writes.
+// Validate/credit that grant while the return still names its constructor,
+// before return hoisting turns it into a synthetic value binding.
+priv check_writable_payload_return := proc(mut scope: TypeScope, stmt: Expr, mut ctx: Context) {
+    ref value: Expr = stmt.children[0]
+    if value.node_type.is(NodeType.FCall).not() { return }
+    definition := borrow_call_contract(value, scope, ctx.symbols)
+    if definition.is_none() { return }
+    ref fd: FunctionDef = funcdef_of(definition.unwrap())
+    if fd.is_enum_variant_ctor.not() { return }
+    for pi in 0..fd.sig.params.len() {
+        ref param: Declaration = fd.sig.params[pi]
+        if param.own_type.is(OwnType.Ref).and(param.referent_mut) {
+            argument := summary_fcall_arg_for_param(value, fd, pi, scope, ctx.symbols)
+            if argument.is_none() {
+                stmt.type_error("writable payload return is missing its source", ctx)
+            } else {
+                problem := writable_borrow_problem(scope, argument.unwrap(), ctx.symbols)
+                if problem.len() > 0 {
+                    stmt.type_error(format("cannot return a writable borrowed payload: ", problem), ctx)
+                } else {
+                    credit_mutable_return(scope, argument.unwrap(), ctx.symbols)
+                }
+            }
+        }
+    }
+}
+
 priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, returns_ref: I32, mut ctx: Context) {
     ref func_state : TyperFuncState = scope.typer_func_state()
     if stmt.children.len() > 0 {
@@ -7185,6 +7214,7 @@ priv infer_return_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
             }
         }
         if returns_ref == 0 {
+            check_writable_payload_return(scope, stmt, ctx)
             // #282 follow-up: a by-value `return v.get(i)?` (ref-returning,
             // THROWING call) compiled, then DEREF'd a null ref on the throw
             // path ("panic: null deref"). The Decl form (`x := v.get(i)?`) and
@@ -7422,7 +7452,7 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
             // Search struct fields from payload
             switch sdef.node_type {
             case .StructDef(fa_sdd):
-                mut fld_o := member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
+                fld_o := member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
                 if fld_o.is_some() {
                     ref mut fld : Declaration = fld_o.unwrap()
                     mut field_type := fld.til_type.clone()
@@ -7442,7 +7472,7 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
             // Search namespace declarations from payload ns_decls
             if found.not() {
                 infer_requested_value_method(sdef, obj_sname, fname, ctx)
-                mut nsd_o := def_ns_get(sdef, fname)
+                nsd_o := def_ns_get(sdef, fname)
                 if nsd_o.is_some() {
                     ref mut nsd : Declaration = nsd_o.unwrap()
                     expr.set_til_type(declaration_resolved_type(nsd, scope, ctx.symbols))
@@ -7568,7 +7598,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
             mut found := false
             switch sdef.node_type {
             case .StructDef(fa_sdd):
-                mut fld_o := member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
+                fld_o := member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
                 if fld_o.is_some() {
                     ref mut fld : Declaration = fld_o.unwrap()
                     found = true
@@ -8220,7 +8250,7 @@ priv infer_interface_payload_call := proc(mut scope: TypeScope, mut call: Expr, 
     }
     mark_fcall_direct(call)
     infer_and_validate_fcall_args_for_fdef(scope, call, fd, in_func, ctx)
-    mut binding_o := scope.get_binding_name(name, ctx.symbols)
+    binding_o := scope.get_binding_name(name, ctx.symbols)
     ref mut binding : TypeBinding = binding_o.unwrap()
     binding.used = true
     resolve_fcall_return_type(scope, call, name, binding_o, fdef_o, in_func, ctx)
@@ -9195,7 +9225,7 @@ priv infer_body_value_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx
 // Shared by capture blocks and capturing functions.
 priv validate_captures := proc(mut scope: TypeScope, mut captures: Vec(Declaration), errnode: Expr, mut ctx: Context) {
     for mut cap : Declaration in captures {
-        mut b_o := scope.get_binding_name(cap.name, ctx.symbols)
+        b_o := scope.get_binding_name(cap.name, ctx.symbols)
         if b_o.is_none() {
             errnode.type_error(format("capture '", cap.name,
                 "': no such variable in the enclosing scope"), ctx)
@@ -9228,7 +9258,7 @@ priv validate_captures := proc(mut scope: TypeScope, mut captures: Vec(Declarati
 priv capture_private_mut_begin := func(mut scope: TypeScope, captures: Vec(Declaration),
         mut source_muts: Vec(Bool), mut source_written: Vec(Bool), symbols: SymbolPool) {
     for cap : Declaration in captures {
-        mut b_o := scope.get_binding_name(cap.name, symbols)
+        b_o := scope.get_binding_name(cap.name, symbols)
         if b_o.is_none() {
             missing_mut := false
             missing_written := false
@@ -9248,7 +9278,7 @@ priv capture_private_mut_end := func(mut scope: TypeScope, captures: Vec(Declara
     for i in 0..captures.len() {
         ref cap : Declaration = captures[i]
         if cap.is_mut.not().or(cap.own_type.is(OwnType.Ref)) { continue }
-        mut b_o := scope.get_binding_name(cap.name, symbols)
+        b_o := scope.get_binding_name(cap.name, symbols)
         if b_o.is_none() { continue }
         ref mut b : TypeBinding = b_o.unwrap()
         b.is_mut = source_muts[i]
@@ -9476,7 +9506,7 @@ priv reregister_scope_defs := func(body: Expr, mut scope: TypeScope, symbols: Sy
         ref rfirst : Expr = rstmt.children[0]
         switch rstmt.node_type {
         case .Decl(rdecl):
-            mut rb_o := scope.get_binding_name(rdecl.name, symbols)
+            rb_o := scope.get_binding_name(rdecl.name, symbols)
             if rb_o.is_some() {
                 ref mut rb : TypeBinding = rb_o.unwrap()
                 if rfirst.node_type.is(NodeType.StructDef).or(rfirst.node_type.is(NodeType.EnumDef)) {
@@ -10076,9 +10106,9 @@ priv comptime_prepare_member := proc(mut e: Expr, scope: TypeScope, mut prep: Co
     if binding_o.is_some().and(type_binding_is_type_token(scope, binding_o.unwrap(), ctx.symbols).not()) { return }
     method := fieldaccess_of(e).field_access_name(ctx.symbols.names).clone()
     comptime_prepare_type(name, prep, ctx)
-    mut def_o := ctx.scope.get_struct(name, ctx.symbols)
+    def_o := ctx.scope.get_struct(name, ctx.symbols)
     if def_o.is_none() { return }
-    mut member_o := def_ns_get(def_o.unwrap(), method)
+    member_o := def_ns_get(def_o.unwrap(), method)
     if member_o.is_none().or(member_o.unwrap().default_value.is_none()) { return }
     ref mut body : Expr = member_o.unwrap().default_expr()
     if body.node_type.is(NodeType.FuncDef) {
@@ -10690,7 +10720,7 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
     // - Ref bindings: `ref mut x : T = &slot` followed by `x = v` is
     //   the explicit write-through-ref pattern -- the assign is the
     //   whole point of the binding.
-    mut ub_o := scope.get_binding_name(aname, ctx.symbols)
+    ub_o := scope.get_binding_name(aname, ctx.symbols)
     if ub_o.is_some() {
         ref mut ub : TypeBinding = ub_o.unwrap()
         // #154: writing a cross-file global counts as using its import
@@ -10719,7 +10749,7 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
     if type_carries_borrow_t(scope, rhs.til_type(), ctx.symbols) {
         deposited_393 := deposit_src_roots(scope, rhs, ctx.symbols)
         if deposited_393.len() > 0 {
-            mut db_o := scope.get_binding_name(aname, ctx.symbols)
+            db_o := scope.get_binding_name(aname, ctx.symbols)
             if db_o.is_some() {
                 ref mut db : TypeBinding = db_o.unwrap()
                 if binding_is_storage(scope, db, ctx.symbols) {
@@ -11064,7 +11094,7 @@ type_from_name := func(name: Str, mut scope: TypeScope, mut ctx: Context) return
     sym_o := ctx.symbols.lookup(name)
     if sym_o.is_none() { return Type.Unknown }
     sym := sym_o.unwrap()
-    mut b_o := scope.get_binding_sym(sym)
+    b_o := scope.get_binding_sym(sym)
     if b_o.is_some() {
         ref mut b : TypeBinding = b_o.unwrap()
         // #154: a type annotation naming a cross-file type uses its
@@ -13888,6 +13918,13 @@ priv lvalue_write_roots := func(scope: TypeScope, obj: Expr, symbols: SymbolPool
                         mut precise := true
                         for place: ParameterPlace in summaries[key].returned {
                             if place.parameter != pi { continue }
+                            // A payload unwrap can name only its carrier in
+                            // the place walk. The relation masks distinguish
+                            // its pointee from an identity return of the carrier.
+                            if place.field.is_empty().and(fd.ref_return_into_params.bor(fd.ref_return_carried_params).band(summary_param_bit(pi)) != 0) {
+                                precise = false
+                                break
+                            }
                             projected := project_return_place(scope, argument.unwrap(), place.field, symbols)
                             if projected.is_none() { precise = false; break }
                             targets.push(own Option(Expr).take(own projected))
@@ -13976,7 +14013,7 @@ priv lookup_binding_at := func(scope: TypeScope, r: BorrowRoot, symbols: SymbolP
 
 priv mark_roots_written := func(scope: TypeScope, roots: Vec(BorrowRoot), symbols: SymbolPool) {
     for r : BorrowRoot in roots {
-        mut rb_o := lookup_binding_at(scope, r, symbols)
+        rb_o := lookup_binding_at(scope, r, symbols)
         if rb_o.is_none() { continue }
         ref mut rb : TypeBinding = rb_o.unwrap()
         rb.written = true
@@ -14059,7 +14096,7 @@ priv check_writable_root_set := proc(mut scope: TypeScope, site: Expr, roots: Ve
 }
 
 priv mark_name_written_name := func(mut scope: TypeScope, name: Str, symbols: SymbolPool) {
-    mut bo := scope.get_binding_name(name, symbols)
+    bo := scope.get_binding_name(name, symbols)
     if bo.is_none() { return }
     ref mut b : TypeBinding = bo.unwrap()
     b.written = true
@@ -14067,7 +14104,7 @@ priv mark_name_written_name := func(mut scope: TypeScope, name: Str, symbols: Sy
 }
 
 priv mark_name_written_sym := func(mut scope: TypeScope, sym: Sym, symbols: SymbolPool) {
-    mut bo := scope.get_binding_sym(sym)
+    bo := scope.get_binding_sym(sym)
     if bo.is_none() { return }
     ref mut b : TypeBinding = bo.unwrap()
     b.written = true
@@ -14139,7 +14176,7 @@ priv deposit_roots_into_binding := func(scope: TypeScope, mut b: TypeBinding, de
             if ar.carried.not() { push_root_unique(alias_roots, ar) }
         }
         for ar : BorrowRoot in alias_roots {
-            mut ab_o := lookup_binding_at(scope, ar, symbols)
+            ab_o := lookup_binding_at(scope, ar, symbols)
             if ab_o.is_none() { continue }
             ref mut ab : TypeBinding = ab_o.unwrap()
             for r : BorrowRoot in deposited {
@@ -14269,7 +14306,7 @@ priv ref_container_source_stable := func(source: Expr, scope: TypeScope, symbols
 }
 
 priv apply_call_deposit := proc(scope: TypeScope, sink: Expr, src: Expr, site: Expr, source_borrowed: Bool, address_borrow: Bool, mut ctx: Context) {
-    mut bo := deposit_sink_binding(scope, sink, ctx.symbols)
+    bo := deposit_sink_binding(scope, sink, ctx.symbols)
     global_sink := expr_names_global_storage(scope, sink, ctx)
     if bo.is_none().and(global_sink.not()) { return }
     source_type := resolved_type_name(src.til_type(), ctx.symbols)
@@ -14393,7 +14430,9 @@ priv summary_case_payload_ref := func(pat: Expr, scope: TypeScope, self_type: St
     }
     if callee.children.len() > 0 {
         switch callee.children[0].node_type {
-        case .Ident(eid): ename = Str.clone(eid.ident_name(symbols.names))
+        case .Ident(eid):
+            ref explicit_name: Str = eid.ident_name(symbols.names)
+            if explicit_name.is_empty().not() { ename = explicit_name.clone() }
         case:
         }
     }
@@ -14405,11 +14444,12 @@ priv summary_case_payload_ref := func(pat: Expr, scope: TypeScope, self_type: St
     return enum_variant_payload_ref(edef_o.unwrap(), idx)
 }
 
-priv summary_bind_case := func(cn: Expr, subj: RootBits, mut roots: Map(Str, RootBits), scope: TypeScope, self_type: Str, symbols: SymbolPool) {
-    if cn.node_type.is(NodeType.Case).not() { return }
+priv summary_bind_case := func(cn: Expr, subj: RootBits, mut roots: Map(Str, RootBits), scope: TypeScope, self_type: Str, symbols: SymbolPool) returns Vec(UPtr) {
+    mut payload_sites := Vec(UPtr).new()
+    if cn.node_type.is(NodeType.Case).not() { return payload_sites }
     npat := case_pattern_count(cn)
     for pi in 0..npat {
-        if pi >= cn.children.len() { return }
+        if pi >= cn.children.len() { return payload_sites }
         ref pat : Expr = cn.children[pi]
         if pat.node_type.is(NodeType.FCall).not() { continue }
         if pat.children.len() != 2 { continue }
@@ -14428,9 +14468,25 @@ priv summary_bind_case := func(cn: Expr, subj: RootBits, mut roots: Map(Str, Roo
                 roots.set(bid.ident_name(symbols.names), own RootBits(
                     alias = subj.alias.bor(subj.into), carried = subj.carried))
             }
+            // Lowering inserts this binding at the case's source site. Its
+            // get_payload load may itself be hoisted, so record the concrete
+            // declaration identity rather than re-recognizing its final RHS.
+            // These identities live only for this read-only summary walk.
+            ref body: Expr = cn.children[cn.children.len() - 1]
+            for declaration: Expr in body.children {
+                switch declaration.node_type {
+                case .Decl(d):
+                    if d.name == bid.ident_name(symbols.names) && declaration.line == cn.line && declaration.col == cn.col {
+                        payload_sites.push(own word_bits(to_ptr(declaration)).to_uptr())
+                        break
+                    }
+                case:
+                }
+            }
         case:
         }
     }
+    return payload_sites
 }
 
 // A generic spelling reduced to the def it instantiates: `Vec(V)` ->
@@ -14715,7 +14771,30 @@ priv summary_expr_bits := func(e: Expr, roots: Map(Str, RootBits), scope: TypeSc
             return RootBits(into = source.into, carried = source.alias.bor(source.carried))
         }
         rso := raw_borrow_source(e, symbols)
-        if rso.is_some() { return summary_expr_bits(rso.unwrap(), roots, scope, self_type, params, symbols, ctx) }
+        if rso.is_some() {
+            source := summary_expr_bits(rso.unwrap(), roots, scope, self_type, params, symbols, ctx)
+            if ident_of(e.children[0]).ident_name(symbols.names) == "get_payload" {
+                mut enum_name := summary_receiver_type(rso.unwrap(), scope, self_type, params, symbols)
+                if enum_name.is_empty() {
+                    typed := expr_type_name_ref(rso.unwrap(), symbols)
+                    if typed.is_some() { enum_name = typed.unwrap().clone() }
+                }
+                definition := scope.get_struct(enum_name, symbols)
+                if definition.is_some() {
+                    if definition.unwrap().node_type.is(NodeType.EnumDef) {
+                        if enum_is_niche(definition.unwrap()) {
+                            if enum_variant_payload_ref(definition.unwrap(), enum_niche_some_index(definition.unwrap())) {
+                                // Opening a borrowed niche reaches its pointee,
+                                // not the carrier. Match the source-level case
+                                // summary after payload bindings are lowered.
+                                return RootBits(alias = source.into, carried = source.alias.bor(source.carried))
+                            }
+                        }
+                    }
+                }
+            }
+            return source
+        }
         mut enum_arg_o := enum_ref_payload_ctor_arg(e, scope, symbols)
         if enum_arg_o.is_none() { enum_arg_o = summary_generic_ref_ctor_arg(e, ctx) }
         if enum_arg_o.is_some() {
@@ -15304,7 +15383,8 @@ priv summary_assignment_rebinds := func(name: Str, rhs: Expr, scope: TypeScope, 
 
 // Walk one body, collecting the parameter bits every `return` can hand
 // back. Nested FuncDefs are skipped: their returns belong to them.
-priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: DepositAcc, scope: TypeScope, self_type: Str, params: Vec(Declaration), receivers: Vec(Declaration), symbols: SymbolPool, ctx: Context) returns RootBits {
+priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: DepositAcc, scope: TypeScope, self_type: Str, params: Vec(Declaration), receivers: Vec(Declaration), symbols: SymbolPool, ctx: Context,
+    payload_sites: Option(ref Vec(UPtr)) = Option(ref Vec(UPtr)).None) returns RootBits {
     switch e.node_type {
     case .FuncDef:
         return RootBits()
@@ -15313,7 +15393,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         mut saved_aliases := acc.global_aliases.clone()
         mut bits := RootBits()
         for child : Expr in e.children {
-            bits = bits.bor(summary_walk(child, roots, acc, scope, self_type, params, receivers, symbols, ctx))
+            bits = bits.bor(summary_walk(child, roots, acc, scope, self_type, params, receivers, symbols, ctx, payload_sites))
             switch child.node_type {
             case .Decl(d): acc.locals.push(own d.name.clone())
             case:
@@ -15355,6 +15435,12 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
                 // inline or borrowed. Its synthesized get_payload binding
                 // must not replace that fact with a raw pointer alias when
                 // the typed body is summarized again.
+                if payload_sites.is_some() {
+                    ref sites: Vec(UPtr) = payload_sites.unwrap()
+                    for site: UPtr in sites {
+                        if site == word_bits(to_ptr(e)).to_uptr() { return RootBits() }
+                    }
+                }
                 if roots.has(d.name).and(rhs_is_payload_binding(e.children[0], symbols)) { return RootBits() }
                 db := summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)
                 if db.is_zero().not() { roots.set(d.name, own db.clone()) }
@@ -15378,11 +15464,12 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
         mut case_bits := RootBits()
         if e.children.len() > 0 {
             subj := summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)
+            case_type := summary_receiver_type(e.children[0], scope, self_type, receivers, symbols)
             for ci in 1..e.children.len() {
                 // Bind immediately before its arm, not all arms up front:
                 // two variants can reuse a name with different ownership.
-                summary_bind_case(e.children[ci], subj, roots, scope, self_type, symbols)
-                case_bits = case_bits.bor(summary_walk(e.children[ci], roots, acc, scope, self_type, params, receivers, symbols, ctx))
+                sites := summary_bind_case(e.children[ci], subj, roots, scope, case_type, symbols)
+                case_bits = case_bits.bor(summary_walk(e.children[ci], roots, acc, scope, self_type, params, receivers, symbols, ctx, safe_ref(sites)))
             }
         }
         return case_bits
@@ -15443,7 +15530,7 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
     }
     mut bits := RootBits()
     for c : Expr in e.children {
-        bits = bits.bor(summary_walk(c, roots, acc, scope, self_type, params, receivers, symbols, ctx))
+        bits = bits.bor(summary_walk(c, roots, acc, scope, self_type, params, receivers, symbols, ctx, payload_sites))
     }
     return bits
 }
@@ -17110,7 +17197,7 @@ priv dotted_pattern_receiver := func(pat: Expr, symbols: SymbolPool) returns Opt
 // with no enum to resolve against is caught by infer_ident_expr's "needs a
 // known enum type in this position".
 priv qualify_dotted_expr := func(e: Expr, expected: Type, mut symbols: SymbolPool) {
-    mut recv_o := dotted_pattern_receiver(e, symbols)
+    recv_o := dotted_pattern_receiver(e, symbols)
     if recv_o.is_none() { return }
     if is_enum_type(expected).not() { return }
     ref ename : Str = type_name_ref(expected, symbols)
@@ -17130,7 +17217,7 @@ priv qualify_dotted_case_patterns := proc(stmt: Expr, sw_type: Type, mut ctx: Co
         ref cnode : Expr = stmt.children[ci]
         if cnode.node_type.is(NodeType.Case).not() { continue }
         for pi in 0..case_pattern_count(cnode) {
-            mut recv_o := dotted_pattern_receiver(cnode.children[pi], ctx.symbols)
+            recv_o := dotted_pattern_receiver(cnode.children[pi], ctx.symbols)
             if recv_o.is_none() { continue }
             if is_enum_type(sw_type).not().or(sname.len() == 0) {
                 cnode.children[pi].type_error("a leading-dot pattern needs an enum subject: the elided name is the subject's enum, and this switch's subject is not one -- write the pattern out in full (issue #341)", ctx)
@@ -17841,7 +17928,7 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
     if find_namespace_func(sdef, "unsafe_get", scope, ctx.symbols).is_none() {
         method_name = "get"
     }
-    mut get_funco := find_namespace_func(sdef, method_name, scope, ctx.symbols)
+    get_funco := find_namespace_func(sdef, method_name, scope, ctx.symbols)
 
     if len_funco.is_none() {
         stmt.type_error(format("type '", type_name, "' has no 'len' method (required for for-in)"), ctx)

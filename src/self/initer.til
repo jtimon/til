@@ -1290,9 +1290,10 @@ priv generate_enum_clone_method := func(mut enum_def: Expr, ename: Str, line: U3
             // reusing the storage answer here would make a niche clone alias
             // the original's payload and double-free it.
             payload_is_borrowed := enum_variant_payload_ref(enum_def, j.to_i32())
+            payload_is_writable := payload_is_borrowed.and(enumdef_of(enum_def).variants[j].payload_ref_mut)
 
             mut self_arg := Expr.new(own ident_node(symbols.intern("self")), line, col)
-            case_body.add_child(own make_payload_ref_decl(own self_arg, pn, vtype, line, col, false, symbols, payload_in_slot))
+            case_body.add_child(own make_payload_ref_decl(own self_arg, pn, vtype, line, col, false, symbols, payload_in_slot, referent_mut = payload_is_writable))
 
             mut ctor_call := Expr.new(own NodeType.FCall(FCallData()), line, col)
             ctor_call.add_child(own ctor_acc)
@@ -2174,7 +2175,7 @@ compute_struct_layout := proc(name: Str, mut struct_def: Expr, mut scope: TypeSc
                             fsz = UPtr.size()
                             falign = UPtr.size()
                         } else {
-                            mut nested_def_o := scope.get_struct(ftype, ctx.symbols)
+                            nested_def_o := scope.get_struct(ftype, ctx.symbols)
                             if nested_def_o.is_some() {
                                 ref mut nested_def : Expr = nested_def_o.unwrap()
                                 if nested_def.node_type.is(NodeType.EnumDef) {
@@ -2240,7 +2241,7 @@ priv type_size_align := proc(ftype: Str, mut scope: TypeScope, mut ctx: Context,
     }
     tsa_resolved := type_from_name_init_name(ftype, scope, ctx.symbols)
     if tsa_resolved.is_funcptr().or(tsa_resolved.is(Type.Body)) { sz = UPtr.size(); al = UPtr.size(); return }
-    mut nested_o := scope.get_struct(ftype, ctx.symbols)
+    nested_o := scope.get_struct(ftype, ctx.symbols)
     if nested_o.is_none() { sz = UPtr.size(); al = UPtr.size(); return }
     ref mut nested : Expr = nested_o.unwrap()
     switch nested.node_type {

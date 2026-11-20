@@ -577,7 +577,7 @@ repl_clone_loaded_program := func(src: LoadedProgram) returns LoadedProgram {
 }
 
 priv retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, target_name: Str, symbols: SymbolPool) {
-    mut alias_binding_o := scope.get_binding_name(alias_name, symbols)
+    alias_binding_o := scope.get_binding_name(alias_name, symbols)
     if alias_binding_o.is_none() { return }
     ref mut alias_binding : TypeBinding = alias_binding_o.unwrap()
     target_binding_o := scope.get_binding_name(target_name, symbols)

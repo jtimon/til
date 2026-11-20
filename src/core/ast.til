@@ -401,6 +401,13 @@ namespace:
         case .None: panic(__LOC__, "default_expr on a Declaration with no default: ", self.name)
         }
     }
+    /// Writable view of the stored default; absence has the same panic contract.
+    default_expr_mut := func(mut self: Declaration) returns ref mut Expr {
+        switch self.default_value {
+        case .Some(dv): return dv
+        case .None: panic(__LOC__, "default_expr on a Declaration with no default: ", self.name)
+        }
+    }
 }
 
 // --- FuncSig / FunctionDef structs ---
@@ -788,6 +795,10 @@ namespace:
     /// Field Declaration at declaration position i (name == "").
     field_at := func(self: StructDef, i: USize) returns ref Declaration {
         return self.fields.unsafe_get(i)
+    }
+    /// Writable field view; the caller proves i is a declaration position.
+    field_at_mut := func(mut self: StructDef, i: USize) returns ref mut Declaration {
+        return self.fields.unsafe_get_mut(i)
     }
     /// Namespace member name at declaration position i.
     member_name_at := func(self: StructDef, i: USize) returns ref Str {
@@ -1497,6 +1508,15 @@ decl_of := func(e: Expr, loc: Str = __LOC__) returns ref Declaration {
     }
 }
 
+/// Writable payload views borrow the original node, retaining the readers'
+/// exact-variant and call-site-location panic contracts.
+decl_of_mut := func(mut e: Expr, loc: Str = __LOC__) returns ref mut Declaration {
+    switch e.node_type {
+    case .Decl(d): return d
+    case: UNREACHABLE("expected Decl", loc = loc)
+    }
+}
+
 fcall_of := func(e: Expr, loc: Str = __LOC__) returns ref FCallData {
     switch e.node_type {
     case .FCall(d):
@@ -1506,12 +1526,26 @@ fcall_of := func(e: Expr, loc: Str = __LOC__) returns ref FCallData {
     }
 }
 
+fcall_of_mut := func(mut e: Expr, loc: Str = __LOC__) returns ref mut FCallData {
+    switch e.node_type {
+    case .FCall(d): return d
+    case: UNREACHABLE("expected FCall", loc = loc)
+    }
+}
+
 funcdef_of := func(e: Expr, loc: Str = __LOC__) returns ref FunctionDef {
     switch e.node_type {
     case .FuncDef(d):
         return d
     case:
         UNREACHABLE("expected FuncDef", loc = loc)
+    }
+}
+
+funcdef_of_mut := func(mut e: Expr, loc: Str = __LOC__) returns ref mut FunctionDef {
+    switch e.node_type {
+    case .FuncDef(d): return d
+    case: UNREACHABLE("expected FuncDef", loc = loc)
     }
 }
 
@@ -1533,12 +1567,26 @@ structdef_of := func(e: Expr, loc: Str = __LOC__) returns ref StructDef {
     }
 }
 
+structdef_of_mut := func(mut e: Expr, loc: Str = __LOC__) returns ref mut StructDef {
+    switch e.node_type {
+    case .StructDef(d): return d
+    case: UNREACHABLE("expected StructDef", loc = loc)
+    }
+}
+
 enumdef_of := func(e: Expr, loc: Str = __LOC__) returns ref EnumDef {
     switch e.node_type {
     case .EnumDef(d):
         return d
     case:
         UNREACHABLE("expected EnumDef", loc = loc)
+    }
+}
+
+enumdef_of_mut := func(mut e: Expr, loc: Str = __LOC__) returns ref mut EnumDef {
+    switch e.node_type {
+    case .EnumDef(d): return d
+    case: UNREACHABLE("expected EnumDef", loc = loc)
     }
 }
 

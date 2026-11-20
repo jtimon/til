@@ -138,6 +138,45 @@ still belongs to the VM; the reference does not retain the VM or survive its
 destruction. Writable-return diagnostics preserve a denied source through
 aliases/call temporaries so a plain-ref getter is named instead of ~_bang_ret_N~.
 
+Optional writable borrows use ~safe_ref_mut(value)~, producing
+~Option(ref mut T)~. The Option owns its carrier, not the referent. Its
+~unwrap()~ yields writable access even when the Option's own slot is fixed;
+cloning it copies the borrow with the same permission. For example:
+
+#+begin_src til
+Item := struct { n: I64 = 0 }
+mut item := Item()
+optional := safe_ref_mut(item)
+const ref mut value: Item = optional.unwrap()
+value.n = 1
+assert(item.n == 1)
+#+end_src
+
+Mutable AST views make mutation explicit. The existing ~funcdef_of~ returns a
+read-only view; ~funcdef_of_mut~ requires a mutable node and returns a writable
+view of the SAME payload:
+
+#+begin_src til
+mut node := Expr.new(own NodeType.FuncDef(FunctionDef()), 0, 0)
+ref mut definition: FunctionDef = funcdef_of_mut(node)
+definition.sig.return_type = format("I64")
+assert(funcdef_of(node).sig.return_type == "I64")
+#+end_src
+
+The corresponding views are ~decl_of_mut~, ~fcall_of_mut~, ~structdef_of_mut~,
+~enumdef_of_mut~, ~Declaration.default_expr_mut~ and ~StructDef.field_at_mut~.
+Compiler member access uses ~member_get_mut~, ~def_ns_get_mut~ and
+~def_ns_decls_mut~; optional lookups return ~Option(ref mut Declaration)~ and
+retain None on a missing member. These views neither clone nor take ownership.
+Wrong-kind/default-absence panic contracts match the read-only accessors.
+
+Direct returns of enum constructors carrying writable borrowed payloads also
+validate the source grant and credit necessary ~mut~ separately from writes.
+Thus returning ~Option(ref mut T).Some(value)~ can require ~mut value~ without
+writing it; returning a read-only payload or None alone cannot justify it.
+This prepares explicit caller migration; general alias enforcement is still
+pending as described below.
+
 Private compile-time inspection of a type argument's writable-ref bit preserves
 it through forwarded and nested template arguments. Container generators can
 therefore distinguish ~ref T~ from ~ref mut T~ without a new public query API.

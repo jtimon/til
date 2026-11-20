@@ -3540,7 +3540,7 @@ make_switch_case_condition := func(mut scope: TypeScope, mut case_body: Expr, ma
                                         if bind_is_mut {
                                             switch sw_ref.node_type {
                                             case .Ident(sw_idn2):
-                                                mut sw_b2_o := scope.get_binding_sym(sw_idn2.ident_sym())
+                                                sw_b2_o := scope.get_binding_sym(sw_idn2.ident_sym())
                                                 if sw_b2_o.is_some() {
                                                     ref mut sw_b2 : TypeBinding = sw_b2_o.unwrap()
                                                     sw_b2.written = true
@@ -4049,7 +4049,7 @@ prepend_clike_payload_binding := func(mut scope: TypeScope, enum_def: Expr, sw_e
     // marked -- an immutable root can't be written and keeps its own checks.
     root_sym := lvalue_root_sym(sw_expr)
     if root_sym != 0 {
-        mut rb_o := scope.get_binding_sym(root_sym)
+        rb_o := scope.get_binding_sym(root_sym)
         if rb_o.is_some() {
             ref mut rb : TypeBinding = rb_o.unwrap()
             if rb.is_mut { rb.written = true }
@@ -5230,7 +5230,7 @@ body_pre_passes := proc(mut ctx: Context, mut body: Expr, mut scope: TypeScope, 
                 new_ch.push_take(temp_ch, j)
             }
         } else {
-            mut guarded_body := apply_call_hoist_delete(ctx, stmt, new_ch, scope, has_array_vec, has_variadic, has_kwargs, do_hoist, needs_delete, returns_ref)
+            guarded_body := apply_call_hoist_delete(ctx, stmt, new_ch, scope, has_array_vec, has_variadic, has_kwargs, do_hoist, needs_delete, returns_ref)
             if guarded_body.is_some() {
                 // An outer ! checks only errors from calls it actually ran.
                 // Its generated checks (and return for `return f(...)!`)

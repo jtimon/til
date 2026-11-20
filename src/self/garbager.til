@@ -4879,7 +4879,7 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
         // save_old_delete flag can tell both backends to tear it down.
         if dd.own_type.is(OwnType.Ref).and(stmt.children.len().gt(0)) {
             if rhs_is_payload_binding(stmt.children[0], ctx.symbols) {
-                mut grd_bo := scope.get_binding_name(dd.name, ctx.symbols)
+                grd_bo := scope.get_binding_name(dd.name, ctx.symbols)
                 if grd_bo.is_some() {
                     ref mut grd_b : TypeBinding = grd_bo.unwrap()
                     grd_b.is_alias = true
@@ -4901,7 +4901,7 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
         if vgate.and(stmt.children.len() > 0) {
             view_src := str_view_source_name(stmt.children[0], scope, ctx.symbols)
             if view_src.len() > 0 {
-                mut vreg_o := scope.get_binding_name(dd.name, ctx.symbols)
+                vreg_o := scope.get_binding_name(dd.name, ctx.symbols)
                 if vreg_o.is_some() {
                     ref mut vreg : TypeBinding = vreg_o.unwrap()
                     vreg.is_str_view = true
@@ -4958,7 +4958,7 @@ priv garbager_record_call_deposits := func(mut scope: TypeScope, stmt: Expr, sym
     mut deposits := Vec(GcDeposit).new()
     gc_collect_deposits(stmt, scope, deposits, symbols)
     for deposit : GcDeposit in deposits {
-        mut binding_o := gc_deposit_binding(scope, deposit.sink, symbols)
+        binding_o := gc_deposit_binding(scope, deposit.sink, symbols)
         if binding_o.is_none() { continue }
         ref mut binding : TypeBinding = binding_o.unwrap()
         mut root := deposit.source.clone()
@@ -4978,7 +4978,7 @@ priv garbager_record_call_deposits := func(mut scope: TypeScope, stmt: Expr, sym
 priv garbager_record_carried_assignment := func(mut scope: TypeScope, name: Str, rhs: Expr, symbols: SymbolPool) {
     if type_carries_borrow_t(scope, rhs.til_type(), symbols).not() { return }
     roots := deposit_src_roots(scope, rhs, symbols)
-    mut binding_o := scope.get_binding_name(name, symbols)
+    binding_o := scope.get_binding_name(name, symbols)
     if binding_o.is_none() { return } // A namespace/global slot is not a local.
     ref mut binding : TypeBinding = binding_o.unwrap()
     for root : BorrowRoot in roots {

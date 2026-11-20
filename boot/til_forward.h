@@ -404,6 +404,7 @@ typedef struct priv___src_self_typer_til__ParameterPlaces priv___src_self_typer_
 typedef struct priv___src_self_typer_til__CoverageNode priv___src_self_typer_til__CoverageNode;
 typedef struct Vec__priv___src_self_typer_til__CtorArg Vec__priv___src_self_typer_til__CtorArg;
 typedef struct Option__ref_Map__UPtr_ParameterEffects Option__ref_Map__UPtr_ParameterEffects;
+typedef struct Option__ref_Vec__UPtr Option__ref_Vec__UPtr;
 typedef struct Map__Str_RootBits Map__Str_RootBits;
 typedef struct Map__Str_priv___src_self_typer_til__ParameterPlaces Map__Str_priv___src_self_typer_til__ParameterPlaces;
 typedef struct Vec__priv___src_self_typer_til__CoverageNode Vec__priv___src_self_typer_til__CoverageNode;
@@ -1401,6 +1402,10 @@ typedef struct Vec__priv___src_self_typer_til__CtorArg {
 
 struct Option__ref_Map__UPtr_ParameterEffects {
     Map__UPtr_ParameterEffects *data;
+};
+
+struct Option__ref_Vec__UPtr {
+    Vec__UPtr *data;
 };
 
 typedef struct Map__Str_RootBits {

@@ -906,7 +906,7 @@ namespace:
     set_func_def_name := func(mut self: TypeScope, name: Str, fdef: Expr, symbols: SymbolPool) {
         sym_o := symbols.lookup(name)
         if sym_o.is_none() { panic("set_func_def_name: binding name is not interned: ", name) }
-        mut b_o := bindings_lookup_one(self.bindings, sym_o.unwrap())
+        b_o := bindings_lookup_one(self.bindings, sym_o.unwrap())
         if b_o.is_some() {
             ref mut b : TypeBinding = b_o.unwrap()
             b.func_type = func_def_type(fdef)
@@ -3138,6 +3138,12 @@ member_get := func(idx: Map(Str, USize), v: Vec(Declaration), name: Str) returns
     return safe_ref(d)
 }
 
+member_get_mut := func(idx: Map(Str, USize), mut v: Vec(Declaration), name: Str) returns Option(ref mut Declaration) {
+    ref p: USize = idx.get(name)?
+    catch (e: KeyNotFound) { return Option(ref mut Declaration).None }
+    return Option(ref mut Declaration).Some(v.unsafe_get_mut(p))
+}
+
 // #307: members are declaration-ordered Vecs with a name -> position
 // index Map beside them (see ast.til StructDef doc). This is the
 // Expr-level access API over both def kinds: the decl Vec itself (walk
@@ -3151,6 +3157,14 @@ def_ns_decls := func(sdef: Expr) returns ref Vec(Declaration) {
         return ed.ns_decls
     case:
         panic(__LOC__, "def_ns_decls: node is neither a StructDef nor an EnumDef")
+    }
+}
+
+def_ns_decls_mut := func(mut sdef: Expr) returns ref mut Vec(Declaration) {
+    switch sdef.node_type {
+    case .StructDef(sd): return sd.ns_decls
+    case .EnumDef(ed): return ed.ns_decls
+    case: panic(__LOC__, "def_ns_decls: node is neither a StructDef nor an EnumDef")
     }
 }
 
@@ -3189,6 +3203,14 @@ def_ns_get := func(sdef: Expr, name: Str) returns Option(ref Declaration) {
     case:
         UNREACHABLE("expected StructDef or EnumDef")
         return Option(ref Declaration).None
+    }
+}
+
+def_ns_get_mut := func(mut sdef: Expr, name: Str) returns Option(ref mut Declaration) {
+    switch sdef.node_type {
+    case .StructDef(sd): return member_get_mut(sd.ns_index, sd.ns_decls, name)
+    case .EnumDef(ed): return member_get_mut(ed.ns_index, ed.ns_decls, name)
+    case: UNREACHABLE("expected StructDef or EnumDef")
     }
 }
 

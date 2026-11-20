@@ -349,6 +349,84 @@ clang ASAN at the default compact layout with an empty runtime PATH. The existin
 new projection helper's owned ~Option(Expr)~ result; its heap-allocation check is
 retained, not disabled.
 
+**** Mutable optional-reference and AST/member view preparation
+
+The human approved explicit writable APIs after the migration audit found
+existing mutable aliases of read-only ~funcdef_of~, ~decl_of~, ~default_expr~
+and optional member lookups. Add ~safe_ref_mut~ returning ~Option(ref mut T)~;
+the payload views ~decl_of_mut~, ~fcall_of_mut~, ~funcdef_of_mut~,
+~structdef_of_mut~, ~enumdef_of_mut~; ~Declaration.default_expr_mut~ and
+~StructDef.field_at_mut~; and compiler helpers ~member_get_mut~,
+~def_ns_get_mut~ and ~def_ns_decls_mut~. They borrow the original storage and
+retain the corresponding wrong-kind, missing-default and missing-member
+behavior. The existing build/SDK installation ships the sources; no new
+generated path or dependency is introduced. Both guides include code examples
+for review. Mutable scope lookup contracts, source migration and general alias
+creation/rebinding enforcement remain following stages.
+
+This exposed a necessary-mut gap: returning an owned optional carrier with a
+writable borrowed payload needs a source grant despite never writing it. The
+old compiler rejects a direct ~return Option(ref mut T).Some(value)~ as
+~redundant 'mut' on parameter 'value'~. Validate mutable borrowed enum-constructor
+return sources and credit the existing grant bookkeeping before hoisting, not
+the actual-write flag. Read-only payload returns and None-only returns still
+do not justify mutable inputs.
+
+The new check also exposed a generated-clone metadata omission: the clone of
+~Option(ref mut Declaration)~ tried to return its borrowed payload through a
+synthetic alias with ~referent_mut=false~. Enum clone generation now copies the
+selected variant's mutable-payload bit to that alias, retaining a writable
+borrow without making the carrier mutable or upgrading read-only payloads.
+
+Finally, an empty parameter-relative return place is not enough to refine
+~Option.unwrap()~ to the Option carrier. Its into/carried relation masks still
+describe the payload's real source. Preserve those relations for an empty path,
+so immutable optional carriers can yield writable payloads without a false
+~declare optional mut~ diagnostic.
+
+The earlier summary had already accumulated a false carrier-alias bit:
+~summary_case_payload_ref~ replaced the known enum with the empty receiver of an
+unqualified ~.Some~ pattern before typing. Preserve the enum fallback and derive
+it from the switch subject's declaration. Lowered borrowed-niche loads use the
+same pointee relation as the source pattern. Tagged payload-load hoisting can
+also obscure the synthetic binding's RHS; the summary now keeps that binding's
+AST identity for the duration of the arm's read-only walk, rather than replacing
+the pattern's relation with a raw-slot alias. This is temporary analysis state,
+not another persistent cache or AST field.
+
+Correct pointee-only tracking exposes old ~mut optional_lookup~ qualifiers that
+never replace the optional slot. Remove those compiler carrier-slot qualifiers
+while preserving the mutable payload views. Qualify Option's borrowed-result
+patterns as ~Option(T).Some~ so HEAD's old bootstrap sees the same ownership
+before its dotted-case pass; that gives old and new compilers a common source
+form without disabling diagnostics or inventing writes.
+
+~mutable_ast_view_checks~ in ~test/type_arg_qualifiers.til~ exercises all approved
+views, visible mutation through the original nodes, scalar/record optional
+borrows and clones, struct/enum member lookup and missing names, writable
+forwarding, read-only result/input rejection, None/read-only redundant-mut
+checks, and wrong-variant panics with explicit caller locations. Unqualified
+patterns in free getters cover both borrowed niches and tagged mixed-permission
+enums, including cloned immutable carriers with a fixed writable payload slot.
+
+The first integration was removed because these checks added 36 serial compiler
+invocations to the existing ~generics~ job, including 14 that loaded the full
+TilVm dependency graph. The rebased unbatched run took 154.43s wall time, with
+152.38s in that job. Batch the 12 rejections into one source checked once per
+frontend action, matching each diagnostic to its own source line. Compile the
+five wrong-variant cases into one binary and run each abort in a separate
+process. The ~mutable_views~ test family is scheduled independently of
+~generics~ by the existing suite scheduler.
+
+On the same base (~1bfed3433~), ~make clean && make test_two_pass~ passed
+597/597 after batching, in 65.23s wall time. ~mutable_views~ took 55.12s and
+~generics~ took 63.04s; native self-translation moved from 30.88s to 31.72s.
+Recent master samples were about 59s; those are historical comparisons, not a
+matched compiler benchmark. The batched family passed with compiled ASAN
+fixtures. Before rebasing, the full installed TilVm case set and the mutable-view
+fixture against the matching installed SDK also passed clang ASAN (the latter
+at USize 64).
+
 **** Initial signature implementation
 
 Initial implementation work addresses callable contract compatibility and

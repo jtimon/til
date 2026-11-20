@@ -647,6 +647,120 @@ return_signature_checks := proc(compiler: Str, root: Str, asan: Bool) {
     expect(saw_generic, "missing inferred writable-return generic instance")
 }
 
+priv check_wrong_mutable_view := proc(cmd: Cmd, kind: Str) {
+    cmd.capture()
+    status := cmd.run()
+    output := format(cmd.out(), cmd.err())
+    expect(status != 0, output)
+    expect(output.contains("mutable-view-site") && output.contains(format("expected ", kind)), output)
+}
+
+mutable_ast_view_checks := proc(compiler: Str, root: Str, asan: Bool) {
+    File.writefile(format(root, "/mutable_ast_views.til"), format("mode cli\nimport(\"std/tilvm\")\n",
+        "Item := struct { n: I64 = 0 }\n",
+        "BorrowedViews := enum { None, Read: ref Item, const Write: ref mut Item }\n",
+        "from_optional := func(value: Option(ref mut Item)) returns ref mut Item { switch value { case .Some(item): return item; case: panic(\"missing\") } }\n",
+        "from_tagged := func(value: BorrowedViews) returns ref mut Item { switch value { case .Write(item): return item; case: panic(\"wrong variant\") } }\n",
+        "direct_option := func(mut value: Item) returns Option(ref mut Item) { return Option(ref mut Item).Some(value) }\n",
+        "decl_view := func(mut node: Expr) returns ref mut Declaration { return decl_of_mut(node) }\n",
+        "function_view := func(mut node: Expr) returns ref mut FunctionDef { return funcdef_of_mut(node) }\n",
+        "member_view := func(mut node: Expr) returns ref mut Declaration { return def_ns_get_mut(node, \"member\").unwrap() }\n",
+        "main := proc() {\nassert(TilVm.size() > 0)\nmut item := Item()\noptional := safe_ref_mut(item)\n",
+        "const ref mut value: Item = optional.unwrap()\nvalue.n = 1\nassert_eq(I64, item.n, 1)\n",
+        "direct := direct_option(item)\nref mut forwarded: Item = direct.unwrap()\nforwarded.n = 2\nassert_eq(I64, item.n, 2)\n",
+        "copied := optional.clone()\nref mut cloned: Item = copied.unwrap()\ncloned.n = 3\nassert_eq(I64, item.n, 3)\n",
+        "ref mut extracted: Item = from_optional(optional)\nextracted.n = 4\nassert_eq(I64, item.n, 4)\n",
+        "tagged := BorrowedViews.Write(item)\ntagged_copy := tagged.clone()\nref mut tagged_value: Item = from_tagged(tagged_copy)\ntagged_value.n = 5\nassert_eq(I64, item.n, 5)\n",
+        "mut number: I64 = 3\nscalar := safe_ref_mut(number)\nref mut scalar_value: I64 = scalar.unwrap()\nscalar_value = 4\nassert_eq(I64, number, 4)\n",
+        "mut node := Expr.new(own NodeType.Decl(Declaration(name = \"before\")), 0, 0)\n",
+        "ref mut declaration: Declaration = decl_view(node)\ndeclaration.name = format(\"after\")\n",
+        "declaration.default_value = Option(Expr).Some(own Expr.new(own NodeType.Body, 0, 0))\n",
+        "ref mut body: Expr = declaration.default_expr_mut()\nbody.children.push(own Expr.new(own NodeType.Body, 0, 0))\n",
+        "assert_eq(Str, decl_of(node).name, \"after\")\nassert_eq(USize, decl_of(node).default_expr().children.len(), 1)\n",
+        "mut call := Expr.new(own NodeType.FCall(FCallData()), 0, 0)\n",
+        "ref mut flags: FCallData = fcall_of_mut(call)\nflags.is_subscript = true\nassert(fcall_of(call).is_subscript)\n",
+        "mut function := Expr.new(own NodeType.FuncDef(FunctionDef()), 0, 0)\n",
+        "ref mut definition: FunctionDef = function_view(function)\ndefinition.sig.return_type = format(\"I64\")\nassert_eq(Str, funcdef_of(function).sig.return_type, \"I64\")\n",
+        "mut structure := Expr.new(own NodeType.StructDef(StructDef()), 0, 0)\n",
+        "ref mut fields: StructDef = structdef_of_mut(structure)\nfields.push_field(own Declaration(name = \"field\"))\n",
+        "ref mut field: Declaration = fields.field_at_mut(0)\nfield.is_priv = true\nassert(fields.field_at(0).is_priv)\nassert_eq(Str, fields.field_name_at(0), \"field\")\n",
+        "fields.push_member(own Declaration(name = \"member\"))\n",
+        "found := member_get_mut(fields.ns_index, fields.ns_decls, \"member\")\nref mut member: Declaration = found.unwrap()\nmember.is_priv = true\n",
+        "assert(member_get(fields.ns_index, fields.ns_decls, \"member\").unwrap().is_priv)\n",
+        "assert(member_get_mut(fields.ns_index, fields.ns_decls, \"missing\").is_none())\n",
+        "ref mut members: Vec(Declaration) = def_ns_decls_mut(structure)\nref mut listed: Declaration = members.get_mut(0)!\nlisted.used = true\nassert(def_ns_get(structure, \"member\").unwrap().used)\n",
+        "ref mut named: Declaration = member_view(structure)\nnamed.is_priv = false\nassert(def_ns_get(structure, \"member\").unwrap().is_priv.not())\n",
+        "assert(def_ns_get_mut(structure, \"missing\").is_none())\n",
+        "mut enumeration := Expr.new(own NodeType.EnumDef(EnumDef()), 0, 0)\n",
+        "ref mut enum_data: EnumDef = enumdef_of_mut(enumeration)\nenum_data.tag_type = format(\"U8\")\nenum_data.push_member(own Declaration(name = \"member\"))\n",
+        "ref mut enum_member: Declaration = def_ns_get_mut(enumeration, \"member\").unwrap()\nenum_member.used = true\n",
+        "ref mut enum_members: Vec(Declaration) = def_ns_decls_mut(enumeration)\nref mut enum_listed: Declaration = enum_members.get_mut(0)!\nenum_listed.is_priv = true\n",
+        "assert_eq(Str, enumdef_of(enumeration).tag_type, \"U8\")\nassert(def_ns_get(enumeration, \"member\").unwrap().used)\nassert(def_ns_get(enumeration, \"member\").unwrap().is_priv)\n",
+        "println(\"mutable AST views passed\")\n}\n"))
+    check(Cmd.new(compiler, "interpret", format(root, "/mutable_ast_views.til")), "mutable AST views passed\n")
+    check_run(compiler, root, "mutable_ast_views", "mutable AST views passed\n", asan)
+    // Load std/tilvm once per action. A failure on another line must not
+    // stand in for the expected rejection of any individual declaration.
+    invalid := format(root, "/invalid_mutable_views.til")
+    File.writefile(invalid, format("mode cli\nimport(\"std/tilvm\")\nItem := struct { n := 0 }\n",
+        "BorrowedViews := enum { None, Read: ref Item, const Write: ref mut Item }\n",
+        "bad_payload := func(value: Item) returns Option(ref mut Item) { return Option(ref mut Item).Some(value) }\n",
+        "bad_wrap := func(value: Item) returns Option(ref mut Item) { return safe_ref_mut(value) }\n",
+        "bad_read_wrap := func(mut value: Item) returns Option(ref Item) { return Option(ref Item).Some(value) }\n",
+        "bad_clone := func(mut value: Item) returns ref mut Item { read := safe_ref(value); return read.clone().unwrap() }\n",
+        "bad_tagged := func(value: BorrowedViews) returns ref mut Item { switch value { case .Read(item): return item; case: panic(\"wrong variant\") } }\n",
+        "bad_none := func(mut value: Item) returns Option(ref mut Item) { if value.n == 0 { return Option(ref mut Item).None }; return Option(ref mut Item).None }\n",
+        "bad_decl := func(mut node: Expr) returns ref mut Declaration { return decl_of(node) }\n",
+        "bad_func := func(mut node: Expr) returns ref mut FunctionDef { return funcdef_of(node) }\n",
+        "bad_default := func(mut declaration: Declaration) returns ref mut Expr { return declaration.default_expr() }\n",
+        "bad_field := func(mut definition: StructDef) returns ref mut Declaration { return definition.field_at(0) }\n",
+        "bad_member := func(mut node: Expr) returns ref mut Declaration { return def_ns_get(node, \"member\").unwrap() }\n",
+        "bad_owner := func(node: Expr) returns ref mut FunctionDef { return funcdef_of_mut(node) }\n",
+        "main := proc() { assert(TilVm.size() > 0) }\n"))
+    denied := "cannot return a writable reference"
+    redundant := "redundant 'mut' on parameter 'value'"
+    expected := array(Str, "cannot return a writable borrowed payload", "'value' is an immutable binding",
+        redundant, denied, denied, redundant, denied, denied, denied, denied, denied, denied)
+    for action: Str in array(Str, "interpret", "translate") {
+        cmd := Cmd.new(compiler, action, invalid)
+        cmd.capture()
+        status := cmd.run()
+        output := format(cmd.out(), cmd.err())
+        expect(status != 0, output)
+        lines := output.split("\n")
+        for i, diagnostic in expected {
+            site := format(invalid, ":", (i + 5).to_str(), ":")
+            mut matched := false
+            for line: Str in lines {
+                if line.contains(site) && line.contains("error:") && line.contains(diagnostic) { matched = true; break }
+            }
+            expect(matched, "missing ", diagnostic, " at ", site, "\n", output)
+        }
+    }
+
+    // Panics terminate execution, so run each arm in its own process, but
+    // compile the five arms into one executable instead of five separate builds.
+    wrong := format(root, "/wrong_mutable_view.til")
+    binary := format(root, "/wrong_mutable_view")
+    File.writefile(wrong, format("mode cli\nmain := proc(args: ..Str) {\n",
+        "mut node := Expr.new(own NodeType.Body, 0, 0)\nswitch args[0] {\n",
+        "case \"Decl\": decl_of_mut(node, loc = \"mutable-view-site\")\n",
+        "case \"FCall\": fcall_of_mut(node, loc = \"mutable-view-site\")\n",
+        "case \"FuncDef\": funcdef_of_mut(node, loc = \"mutable-view-site\")\n",
+        "case \"StructDef\": structdef_of_mut(node, loc = \"mutable-view-site\")\n",
+        "case \"EnumDef\": enumdef_of_mut(node, loc = \"mutable-view-site\")\n",
+        "case: panic(\"unknown test arm\")\n}\n}\n"))
+    build := Cmd.new(compiler, "build", "-o", binary, "-c", format(binary, ".c"), wrong)
+    if asan { build.arg("--asan") }
+    build.run_checked()
+    mut executable := binary.clone()
+    if host_os() == "windows" { executable = format(binary, ".exe") }
+    for kind: Str in array(Str, "Decl", "FCall", "FuncDef", "StructDef", "EnumDef") {
+        check_wrong_mutable_view(Cmd.new(compiler, "interpret", wrong, kind), kind)
+        check_wrong_mutable_view(Cmd.new(executable, kind), kind)
+    }
+}
+
 capture_forwarding_checks := proc(compiler: Str, root: Str, asan: Bool) {
     prelude := format("mode cli\nCounts := struct { drops: I64 = 0 }\n",
         "SimpleCapture := struct { const ref cell: I64; const ref mut counts: Counts }\n",
@@ -967,13 +1081,13 @@ main := proc(args: ..Str) {
         if args[2] != "--asan" { panic("unknown qualifier test option: ", args[2]) }
         asan = true
     }
-    if family.eq("all").or(family.eq("success")).or(family.eq("borrows")).or(family.eq("generics")).not() {
+    if family.eq("all").or(family.eq("success")).or(family.eq("borrows")).or(family.eq("generics")).or(family.eq("mutable_views")).not() {
         panic("unknown qualifier test family: ", family)
     }
     mut root := "tmp/type_arg_qualifiers"
     if family != "all" { root = format(root, "_", family) }
     mkdir_p(root)
-    prepare_templates(root)
+    if family != "mutable_views" { prepare_templates(root) }
     switch family {
     case "all":
         // Keep the standalone command's original case order.
@@ -990,6 +1104,7 @@ main := proc(args: ..Str) {
         template_ownership_checks(compiler, root, asan)
         writable_accessor_checks(compiler, root, asan)
         capture_forwarding_checks(compiler, root, asan)
+        mutable_ast_view_checks(compiler, root, asan)
         writable_return_source_checks(compiler, root, asan)
     case "success":
         query_checks(compiler, root, asan)
@@ -998,6 +1113,8 @@ main := proc(args: ..Str) {
     case "borrows":
         family_borrow_checks(compiler, root)
         vector_borrow_checks(compiler, root)
+    case "mutable_views":
+        mutable_ast_view_checks(compiler, root, asan)
     case "generics":
         query_error_checks(compiler, root)
         interface_argument_checks(compiler, root)

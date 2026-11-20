@@ -111,6 +111,15 @@ return-side ~mut~.
   does not make unrelated read-only captured fields write destinations. Fixed
   ~const ref mut~ aliases are writable through their referent grant. Opaque/raw
   and recursively widened return origins remain conservative.
+- Implemented: ~safe_ref_mut~ produces ~Option(ref mut T)~ from a mutable source.
+  Writable AST views use ~decl_of_mut~, ~fcall_of_mut~, ~funcdef_of_mut~,
+  ~structdef_of_mut~, ~enumdef_of_mut~, ~Declaration.default_expr_mut~ and
+  ~StructDef.field_at_mut~. Compiler namespace/member views use
+  ~member_get_mut~, ~def_ns_get_mut~ and ~def_ns_decls_mut~. Optional views
+  preserve absence, and fixed optional carriers do not remove payload access.
+  Generated enum clones preserve borrowed payload permissions. Direct mutable
+  borrowed-payload constructor returns validate/credit the source's necessary
+  grant without recording a write; read-only payloads/None do not justify ~mut~.
 - Pending: general source-path and writable-alias creation checks, the plain-ref
   defaults migration, remaining library accessor/reference-permission
   metadata and the C-header binding translator.
@@ -121,6 +130,19 @@ return-side ~mut~.
 remaining API decisions. Keep this guide and ownership.org synchronized in
 each implementation commit; parsing a qualifier is not evidence that every
 permission check is implemented.
+
+For example, AST mutation now has an explicit view spelling:
+
+#+begin_src til
+ref mut definition: FunctionDef = funcdef_of_mut(node)
+definition.sig.return_type = format("I64")
+#+end_src
+
+Here ~node~ must provide mutable access. ~funcdef_of(node)~ describes a read-only
+result and cannot satisfy a ~returns ref mut FunctionDef~ forwarding contract.
+See ownership.org for complete optional-reference and AST-view examples. These
+APIs prepare the caller migration; mutable scope lookups and the general alias
+checks still need their following stages.
 
 ** Mutability rule (~mut~ vs ~const~)
 

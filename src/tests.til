@@ -1219,7 +1219,7 @@ main := proc(args: ..Str) returns I64 {
     // Each family owns its renamed templates, generated probes and driver
     // outputs. All cases/backends are retained; no compiler-host build is
     // duplicated, just the small orchestration driver and template copies.
-    for family : Str in array(Str, "success", "borrows", "generics") {
+    for family : Str in array(Str, "success", "borrows", "generics", "mutable_views") {
         add_count(tests, format("type_arg_qualifiers_", family), "build", "type argument qualifiers passed", 1,
             format(til_bin, " run", asan_flag,
                 " -o bin/c/type_arg_qualifiers_", family, " -c gen/c/type_arg_qualifiers_", family,

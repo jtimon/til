@@ -1946,7 +1946,7 @@ priv ffi_borrow_place_walk := proc(type_name: Str, data: Dynamic, root: UPtr, mu
 priv field_access_base := proc(mut scope: Scope, mut obj: Expr, mut ctx: Context) returns Option(ref Dynamic) {
     switch obj.node_type {
     case .Ident(id):
-        mut hb_o := scope_lookup_heap_binding(scope, id.ident_name(ctx.symbols.names))
+        hb_o := scope_lookup_heap_binding(scope, id.ident_name(ctx.symbols.names))
         if hb_o.is_some() {
             ref mut hb : HeapBinding = hb_o.unwrap()
             ffi_refresh_external_place(hb, ctx)
@@ -2367,7 +2367,7 @@ priv eval_expr_raw_info := proc(mut scope: Scope, mut e: Expr, mut ctx: Context,
         }
         return raw_unit_result(expr_type, ctx)
     case .Ident(ident):
-        mut hb_o := scope_lookup_heap_binding(scope, ident.ident_name(ctx.symbols.names))
+        hb_o := scope_lookup_heap_binding(scope, ident.ident_name(ctx.symbols.names))
         if hb_o.is_none() {
             // Missing values are an expected "not known" result during
             // folding, not an interpreter binding invariant violation.
@@ -2929,8 +2929,8 @@ priv eval_fcall := proc(mut scope: Scope, mut stmt: Expr, fcd: FCallData, mut ct
         case:
         }
         if sw_target.len().gt(0).and(sw_src.len().gt(0)) {
-                mut sw_hb_o := scope_lookup_heap_binding(scope, sw_target)
-                mut sw_src_hb_o := scope_lookup_heap_binding(scope, sw_src)
+                sw_hb_o := scope_lookup_heap_binding(scope, sw_target)
+                sw_src_hb_o := scope_lookup_heap_binding(scope, sw_src)
                 if sw_hb_o.is_none().or(sw_src_hb_o.is_none()) { panic("swap_replace binding not found") }
                 ref mut sw_hb : HeapBinding = sw_hb_o.unwrap()
                 ref mut sw_src_hb : HeapBinding = sw_src_hb_o.unwrap()
@@ -2971,7 +2971,7 @@ priv mark_deleted_receiver := func(mut scope: Scope, stmt: Expr, symbols: Symbol
     if is_delete.not() { return }
     switch stmt.children[1].node_type {
     case .Ident(recv_id):
-        mut hb_o := scope_lookup_heap_binding(scope, recv_id.ident_name(symbols.names))
+        hb_o := scope_lookup_heap_binding(scope, recv_id.ident_name(symbols.names))
         if hb_o.is_none() { return }
         ref mut hb : HeapBinding = hb_o.unwrap()
         hb.payload_released = true
@@ -3110,7 +3110,7 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
             // the abort teardown in scope_free must not drop it either.
             if stmt.children.len() > 0 {
                 if expr_is_borrowed_iface_box_ctor(stmt.children[0], ctx.scope, ctx.symbols) {
-                    mut bhb_o := scope_lookup_heap_binding(scope, dd.name)
+                    bhb_o := scope_lookup_heap_binding(scope, dd.name)
                     if bhb_o.is_some() {
                         ref mut bhb : HeapBinding = bhb_o.unwrap()
                         bhb.payload_released = true
@@ -3119,7 +3119,7 @@ eval_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context) {
             }
         case .Assign(ad):
             ref mut rhs : Expr = stmt.children[0]
-            mut assign_hb_o := scope_lookup_heap_binding(scope, ad.name)
+            assign_hb_o := scope_lookup_heap_binding(scope, ad.name)
             if assign_hb_o.is_none() { panic("assignment binding not found: ", ad.name) }
             // A global lives in the root scope; a folded func may not change it.
             if ctx.eval.constfold_no_state_writes {
@@ -3576,7 +3576,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, mut e: Expr, mut func_
         is_variadic_param := fdef_params.sig.variadic_index == pi.to_i32()
         switch arg_expr.node_type {
         case .Ident(arg_ident):
-            mut source_hb_o := scope_lookup_heap_binding(caller_scope, arg_ident.ident_name(ctx.symbols.names))
+            source_hb_o := scope_lookup_heap_binding(caller_scope, arg_ident.ident_name(ctx.symbols.names))
             if source_hb_o.is_none() { panic("argument binding not found: ", arg_ident.ident_name(ctx.symbols.names)) }
             ref mut source_hb : HeapBinding = source_hb_o.unwrap()
             if source_hb.moved_out { panic("argument from moved binding: ", arg_ident.ident_name(ctx.symbols.names)) }
@@ -4317,7 +4317,7 @@ priv eval_call_info := proc(mut scope: Scope, mut e: Expr, shallow call_type: Ty
                         // scope_find, not scope_lookup: the callee may already
                         // have released the slot (adopt's `free(own src)`), and
                         // the lookup's callable refresh would read it.
-                        mut arg_hb_o := scope_find_heap_binding(scope, oa_ident.ident_name(ctx.symbols.names))
+                        arg_hb_o := scope_find_heap_binding(scope, oa_ident.ident_name(ctx.symbols.names))
                         if arg_hb_o.is_some() {
                             ref mut arg_hb : HeapBinding = arg_hb_o.unwrap()
                             // An own arg whose CALLEE PARAM is `own` was genuinely
@@ -5294,7 +5294,7 @@ priv scope_find_heap_binding := func(mut s: Scope, name: Str) returns Option(ref
 }
 
 scope_lookup_heap_binding := func(mut s: Scope, name: Str) returns Option(ref HeapBinding) {
-    mut found := scope_find_heap_binding(s, name)
+    found := scope_find_heap_binding(s, name)
     if found.is_none() { return Option(ref HeapBinding).None }
     ref mut b : HeapBinding = found.unwrap()
     switch b.ext_slot {
@@ -5672,7 +5672,7 @@ scope_read_bound_raw := func(mut scope: Scope, name: Str, ctx: Context) returns 
 }
 
 priv scope_move_bound_raw := func(mut scope: Scope, name: Str, ctx: Context) returns Dynamic {
-    mut hb_o := scope_lookup_heap_binding(scope, name)
+    hb_o := scope_lookup_heap_binding(scope, name)
     if hb_o.is_none() { panic("scope move binding not found: ", name) }
     ref mut hb : HeapBinding = hb_o.unwrap()
     if hb.moved_out { panic("move of moved binding: ", name) }
@@ -5839,7 +5839,7 @@ scope_set_heap_owned := func(mut s: Scope, name: Str, ptr: Dynamic, til_type_w: 
 // Move sites need this separate from removing the map entry so later reads can
 // fail at the source instead of silently falling back to a stale parent binding.
 scope_set_heap_moved := func(mut s: Scope, name: Str, moved_out: Bool) {
-    mut b_o := scope_lookup_heap_binding(s, name)
+    b_o := scope_lookup_heap_binding(s, name)
     if b_o.is_none() { panic("scope_set_heap_moved: heap binding not found: ", name) }
     ref mut b : HeapBinding = b_o.unwrap()
     b.moved_out = moved_out
@@ -5979,7 +5979,7 @@ priv closure_env_clone := func(env: Scope) returns Scope {
 }
 
 priv capture_raw_binding := func(mut env: Scope, mut source: Scope, cap: Declaration, ctx: Context) {
-    mut hb_o := scope_lookup_heap_binding(source, cap.name)
+    hb_o := scope_lookup_heap_binding(source, cap.name)
     if hb_o.is_none() { panic("closure capture binding not found: ", cap.name) }
     ref mut hb : HeapBinding = hb_o.unwrap()
     if hb.moved_out { panic("closure capture from moved binding: ", cap.name) }
@@ -6539,7 +6539,7 @@ priv ns_set := func(sname: Str, fname: Str, raw: Dynamic, shallow supplied_type:
     if supplied_type.is(Type.Dynamic).and(incoming.is_null()) {
         incoming = EvalHeap.heap_alloc(Dynamic.size())
     }
-    mut hb_o := scope_lookup_heap_binding(ns_scope(c), qn)
+    hb_o := scope_lookup_heap_binding(ns_scope(c), qn)
     // An existing binding's type is already canonical; a fresh one interns
     // the supplied type. scope_set_raw_owned panics on Unknown either way.
     if hb_o.is_some() {
@@ -10781,7 +10781,7 @@ priv h_free := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) re
 priv h_til_closure_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ctx: Context) returns Bool {
     switch e.children[1].node_type {
     case .Ident(id):
-        mut hb_o := scope_lookup_heap_binding(s, id.ident_name(ctx.symbols.names))
+        hb_o := scope_lookup_heap_binding(s, id.ident_name(ctx.symbols.names))
         if hb_o.is_none() { panic("til_closure_delete: non-callable ", id.ident_name(ctx.symbols.names)) }
         ref mut hb : HeapBinding = hb_o.unwrap()
         if hb_type(hb).is(Type.Dynamic).and(hb.is_erased_dynamic.not()) {
@@ -10816,7 +10816,7 @@ priv h_til_closure_delete := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut ct
             ref obj_expr : Expr = e.children[1].children[0]
             switch obj_expr.node_type {
             case .Ident:
-                mut base_o := resolve_field_assign_base(s, obj_expr, ctx.symbols)
+                base_o := resolve_field_assign_base(s, obj_expr, ctx.symbols)
                 if base_o.is_some() {
                     ref mut base : Dynamic = base_o.unwrap()
                     sdef_o := resolve_field_assign_sdef(s, obj_expr, ctx)
@@ -10908,7 +10908,7 @@ priv h_til_closure_slot_take := proc(mut s: Scope, mut e: Expr, _r: Dynamic, mut
     ref source_expr : Expr = e.children[2]
     switch source_expr.node_type {
     case .Ident(id):
-        mut source_hb_o := scope_lookup_heap_binding(s, id.ident_name(ctx.symbols.names))
+        source_hb_o := scope_lookup_heap_binding(s, id.ident_name(ctx.symbols.names))
         if source_hb_o.is_none() { panic("til_closure_slot_take: source binding not found: ", id.ident_name(ctx.symbols.names)) }
         ref mut source_hb : HeapBinding = source_hb_o.unwrap()
         if source_hb.moved_out { panic("til_closure_slot_take: source binding already moved: ", id.ident_name(ctx.symbols.names)) }
@@ -11449,7 +11449,7 @@ priv enum_method_dispatch := proc(method: Str, mut scope: Scope, enum_def: Expr,
                 if payload_transfers {
                     switch payload_expr.node_type {
                     case .Ident(payload_id):
-                        mut payload_hb_o := scope_lookup_heap_binding(scope, payload_id.ident_name(ctx.symbols.names))
+                        payload_hb_o := scope_lookup_heap_binding(scope, payload_id.ident_name(ctx.symbols.names))
                         if payload_hb_o.is_none() { panic("enum payload binding not found: ", payload_id.ident_name(ctx.symbols.names)) }
                         ref mut payload_hb : HeapBinding = payload_hb_o.unwrap()
                         if payload_hb.moved_out { panic("enum payload binding already moved: ", payload_id.ident_name(ctx.symbols.names)) }
@@ -12740,7 +12740,7 @@ priv scalar_step_cell := proc(mut scope: Scope, mut e: Expr, type_str: Str, delt
     mut storage : Dynamic = 0
     switch arg.node_type {
     case .Ident(id):
-        mut hb_o := scope_lookup_heap_binding(scope, id.ident_name(ctx.symbols.names))
+        hb_o := scope_lookup_heap_binding(scope, id.ident_name(ctx.symbols.names))
         if hb_o.is_none() { panic(__LOC__, ": inc/dec target undefined: ", id.ident_name(ctx.symbols.names)) }
         ref mut hb : HeapBinding = hb_o.unwrap()
         ffi_refresh_external_place(hb, ctx)

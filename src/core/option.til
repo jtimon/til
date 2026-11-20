@@ -22,9 +22,11 @@ Option := macro(T: Type) returns EnumDef {
         is_none := func(self: Option(T)) returns Bool {
             return self.is_some().not()
         }
+        // REM: qualify borrowed-result patterns so the old bootstrap also
+        // sees payload ownership before dotted-case qualification (#491).
         unwrap_or := func(self: Option(T), default_v: T) returns T {
             switch self {
-            case .Some(v): return v
+            case Option(T).Some(v): return v
             case: return default_v
             }
         }
@@ -37,7 +39,7 @@ Option := macro(T: Type) returns EnumDef {
         /// stops being true.
         unwrap := func(self: Option(T)) returns T {
             switch self {
-            case .Some(v): return v
+            case Option(T).Some(v): return v
             case: panic(__LOC__, "unwrap of a None Option")
             }
         }
@@ -50,7 +52,7 @@ Option := macro(T: Type) returns EnumDef {
         /// a clone would copy a whole subtree and break node identity.
         take := func(own self: Option(T)) returns T {
             switch self {
-            case .Some(v): return v
+            case Option(T).Some(v): return v
             case: panic(__LOC__, "take of a None Option")
             }
         }
@@ -60,4 +62,10 @@ Option := macro(T: Type) returns EnumDef {
 /// Wrap a non-null borrowed ref in an Option without repeating its type.
 safe_ref := func(T: Type, value: T) returns Option(ref T) {
     return Option(ref T).Some(value)
+}
+
+/// Wrap a writable borrow. The Option owns no part of the referent and does
+/// not extend its lifetime beyond the existing borrowed-owner rules.
+safe_ref_mut := func(T: Type, mut value: T) returns Option(ref mut T) {
+    return Option(ref mut T).Some(value)
 }
