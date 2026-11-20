@@ -1,6 +1,7 @@
 mode lib
 
 import("../std/sys")
+import("../std/file")
 
 // Target and Lang definitions for cross-compilation support.
 // Mirrors rstil's src/rs/target.rs.
@@ -190,11 +191,52 @@ priv validate_lang_for_target := func(lang: Lang, target: Target) {
 
 // ---------- Toolchain commands
 
+// #504: a linux target's C library is pinned -- Bootlin's toolchain for
+// it, glibc 2.34, its target side unpacked by `bin/make vendor/linux/<target>`
+// (make.til, linux_sysroots: the tuples there are these). Where that tree
+// is unpacked, til builds the target with clang, lld and that sysroot, on
+// every host, the target's own included: the host's glibc is the one
+// thing a linux build took from the machine it ran on (#472). Where it is
+// not, a linux target is built as before, with the host's gcc or the
+// distribution's cross gcc. The tree is named from the working directory,
+// like vendor/macos and vendor/android.
+priv linux_tuple := func(target: Target) returns Str {
+    switch target {
+    case .LinuxX64:     return "x86_64-buildroot-linux-gnu"
+    case .LinuxArm64:   return "aarch64-buildroot-linux-gnu"
+    case .LinuxArm32:   return "arm-buildroot-linux-gnueabihf"
+    case .LinuxRiscv64: return "riscv64-buildroot-linux-gnu"
+    case .LinuxX86:     return "i686-buildroot-linux-gnu"
+    case .LinuxRiscv32: return "riscv32-buildroot-linux-gnu"
+    case: return ""
+    }
+}
+
+priv linux_pinned_dir := func(target: Target) returns Str {
+    return format("vendor/linux/", target_to_str(target))
+}
+
+linux_is_pinned := proc(target: Target) returns Bool {
+    tuple := linux_tuple(target)
+    if tuple.is_empty() { return false }
+    return File.is_dir(format(linux_pinned_dir(target), "/", tuple, "/sysroot"))
+}
+
+// The compile arguments of a pinned linux build: clang reads the target's
+// headers from the sysroot and gcc's start files and libgcc from beside
+// it (--gcc-toolchain finds lib/gcc/<tuple>/<version>).
+priv linux_pinned_args := func(target: Target) returns Str {
+    tuple := linux_tuple(target)
+    dir := linux_pinned_dir(target)
+    return format(" --target=", tuple, " --sysroot=", dir, "/", tuple, "/sysroot --gcc-toolchain=", dir)
+}
+
 // proc, not func: the LinuxX64 case is host-dependent
 // (detect_current_target() is a proc), so the whole thing must be a proc. Its callers (compile_c,
 // compile_lib) are already procs.
 toolchain_command := proc(target: Target, lang: Lang) returns Str {
     validate_lang_for_target(lang, target)
+    if linux_is_pinned(target) { return "clang" }
     switch target {
     // The host's own gcc on a linux-x64 host. On any other host "gcc" is
     // another machine's compiler, so the cross gcc is named: the distro's
@@ -339,17 +381,19 @@ windows_toolchain_map_args := proc(target: Target, compiler: Str) returns Str {
 // Android keeps clang's builtin headers alongside the vendored NDK sysroot.
 // Their install directory reached .debug_line when two checkouts shared one
 // LLVM installation. Map only that resource tree, not installed til sources.
-android_toolchain_map_args := proc(target: Target, compiler: Str) returns Str {
-    if is_android_target(target).not() { return "" }
+// #504: a pinned linux build reads the same headers beside its sysroot,
+// and an ELF carries its debug info in the executable itself.
+clang_resource_map_args := proc(target: Target, compiler: Str) returns Str {
+    if is_android_target(target).or(linux_is_pinned(target)).not() { return "" }
     probe := Cmd.new()
     for word : Str in compiler.split(" ") {
         if word.len() > 0 { probe.arg(word) }
     }
     probe.arg("-print-resource-dir")
     probe.capture()
-    if probe.run() != 0 { panic("cannot locate Android clang's builtin headers: ", probe.err()) }
+    if probe.run() != 0 { panic("cannot locate clang's builtin headers for ", target_to_str(target), ": ", probe.err()) }
     resource := probe.out().trim()
-    if resource.len() == 0 { panic("Android clang reported an empty resource directory") }
+    if resource.len() == 0 { panic("clang reported an empty resource directory for ", target_to_str(target)) }
     return format(" -ffile-prefix-map=", shell_path(resource), "=clang-resource")
 }
 
@@ -387,6 +431,7 @@ target_link_extra_args := proc(target: Target) returns Str {
     // typing make.til (CI run 3150, the bootstrap's exit 127; reproduced
     // under wine as a stack overflow), where the same build on Linux runs.
     if is_windows_target(target) { return " -Wl,--no-insert-timestamp -Wl,--stack,8388608" }
+    if linux_is_pinned(target) { return " -fuse-ld=lld" }
     if macos_is_cross(target).not() { return "" }
     // #472: -syslibroot, so that the libraries libSystem.tbd re-exports
     // come from the stub itself on every host. lld looks for an absolute
@@ -414,7 +459,10 @@ toolchain_extra_args := proc(target: Target) returns Str {
     if target.is(Target.TempleosX86) {
         panic("HolyC doesn't support these flags")
     }
-    prefix := target_prefix_args(target)
+    mut prefix := target_prefix_args(target)
+    // REM Not beside the host's: linux-x86's -m32 and its multiarch
+    // directory belong to the host gcc's build of that target.
+    if linux_is_pinned(target) { prefix = linux_pinned_args(target) }
     mut out := prefix
     // -fsigned-char: til's I8 is plain C char (it must match libc
     // prototypes in ext_func bindings), and plain char is unsigned on

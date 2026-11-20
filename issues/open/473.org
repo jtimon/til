@@ -1003,7 +1003,7 @@ which copy what is done here for the others.
 |--------+------------------+--------------------+---------|
 | windows-x64 | strict | Linux x64, Linux arm64, Windows, arm64 Mac, Intel Mac | nothing |
 | android-x64, android-arm64 | strict (Android session) | Linux x64, Linux arm64, arm64 Mac | Android session's |
-| macos-arm64, macos-x64 | strict, the Macs' own ~bin/til~ included (run 3190) | Linux x64, Linux arm64, arm64 Mac, Intel Mac | the Windows host (job ~windows-x64-mac~, trial): its executables differ in one linker-written separator, a choice of Jorge's (#472, "Run 3190") |
+| macos-arm64, macos-x64 | strict | Linux x64, Linux arm64, Windows, arm64 Mac, Intel Mac | nothing: the same file from the five hosts, the Macs' own tested ~bin/til~ included (runs 3193 and 3198) |
 | wasm32 | switched off for now | none | resumed after the rest of #472 (Jorge, 2026-11-20) |
 | linux-x64, linux-arm64 | trial | Linux x64, Linux arm64 | [[./504.org][#504]]: the host's C library; debug info differs today |
 | linux-arm32, linux-riscv64, linux-x86, linux-riscv32 | no binary list | none | #504 first |

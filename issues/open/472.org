@@ -4057,3 +4057,25 @@ runtime jobs (the Android session's). collect: 2278 equal, 0 different,
 The Windows host's two mac lists (trial) agree with the others on 114 + 1
 and 116 + 1 items and differ in the executables and their ~:debug-map~
 items, as in run 3190: this run is from before the fixed debug root.
+
+*** Run 3198: the mac targets are the same file from five hosts
+
+Run 3198 (master 9f207e4, the first with the fixed debug root). The
+Windows host's debug map reads ~SO /proc/self/cwd/tmp/ci_collect/...~
+like every other host's, and its til for the mac targets is the Linux
+x64 host's, read from the two jobs' logs:
+
+| | macos-arm64 | macos-x64 |
+|-+-------------+-----------|
+| ~src/til.til til~ | 863a465c9926 | 5fbc30ba75c7 |
+| ~make bin/til~ | 26a87f3c562c | 6e57b0e05131 |
+| ~til~, width 64 | bc05c8d5d04a | c67e8c4c0778 |
+
+Both hosts, all six. With run 3193 (the two Linux hosts and the two
+Macs, the Macs' own tested ~bin/til~ included) that is every host that
+builds them. ~windows-x64-mac~ is strict from here: it lists with
+~produce-binary~, is no longer ~continue-on-error~, its uploads must
+find their files, and collect's "Producer results" names it.
+
+For #472 that leaves the linux targets (#504), wasm32 (switched off) and
+windows-x86 (the Windows session's).

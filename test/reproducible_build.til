@@ -208,6 +208,14 @@ main := proc(args: ..Str) {
     copy_checked("boot/til_forward.h", format(SECOND, "/boot/til_forward.h"))
     // REM Cross toolchains read their headers/stubs/builtins from the checkout.
     if target_flag.contains("macos") { copy_tree_checked("vendor/macos", format(SECOND, "/vendor/macos")) }
+    // #504: the linux targets' pinned C library, where this checkout has
+    // it unpacked (bin/make vendor/linux/<target>): til builds a linux
+    // target against it then, and the second root has to as well. A link:
+    // it is read, not written, and it is 75 MB a target.
+    if File.is_dir("vendor/linux") {
+        mkdir_p(format(SECOND, "/vendor"))
+        Cmd.new("ln", "-s", realpath_str("vendor/linux"), format(SECOND, "/vendor/linux")).run_checked()
+    }
     if target_flag.contains("android-") {
         copy_tree_checked("vendor/android", format(SECOND, "/vendor/android"))
         sdk := android_apk_sdk()

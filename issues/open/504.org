@@ -1,6 +1,6 @@
 # priority: medium
 # category: features
-** OPEN #504 Linux targets: the host's C library leaks into the binary (header paths in debug info today, more with other hosts)
+** WIP #504 Linux targets: the host's C library leaks into the binary (header paths in debug info today, more with other hosts)
 
 Split from [[./472.org][#472]] (Jorge, 2026-11-16): which model to follow
 is undecided, so it gets its own issue. #472 and #473 cannot finish for
@@ -125,3 +125,103 @@ adds a tree, so each needs Jorge's yes.
   CI run (the collector's ~binary~ level, #472).
 - [ ] The answer is written down for a host with another glibc version:
   either the same bytes there too, or stated as outside the guarantee.
+
+*** Decided (Jorge, 2026-11-20): bundle the C library, from Bootlin, for all six targets
+
+Option 3: the same binaries from everywhere is the requirement, and it
+is the only option that gives a host without glibc (a Mac, Windows) a C
+library at all, or two Linux hosts with different glibc versions the
+same one. Source: the target side of Bootlin's prebuilt toolchains
+(toolchains.bootlin.com), which CI already downloads for riscv32, for
+all six Linux targets.
+
+**** The version: glibc 2.34
+
+The oldest glibc Bootlin has for all six, its 2021.11 series:
+
+| target | Bootlin directory | release | tuple | gcc (start files, libgcc) |
+|--------+-------------------+---------+-------+---------------------------|
+| linux-x64 | x86-64 | stable-2021.11-5 | x86_64-buildroot-linux-gnu | 10.3.0 |
+| linux-arm64 | aarch64 | stable-2021.11-1 | aarch64-buildroot-linux-gnu | 10.3.0 |
+| linux-arm32 | armv7-eabihf | stable-2021.11-1 | arm-buildroot-linux-gnueabihf | 10.3.0 |
+| linux-riscv64 | riscv64-lp64d | stable-2021.11-1 | riscv64-buildroot-linux-gnu | 10.3.0 |
+| linux-x86 | x86-i686 | stable-2021.11-1 | i686-buildroot-linux-gnu | 10.3.0 |
+| linux-riscv32 | riscv32-ilp32d | bleeding-edge-2021.11-1 | riscv32-buildroot-linux-gnu | 11.2.0 |
+
+(riscv32 has no stable series before 2024.05, which is glibc 2.39.) Older
+ones exist for some targets only: aarch64 goes back to 2.27, x86-64 to
+2.34. So a til binary built with these needs glibc 2.34 or newer: RHEL
+9, Ubuntu 22.04, Debian 12 and later. The six archives were downloaded
+here and their sha256 compared with the ~.sha256~ Bootlin publishes next
+to each.
+
+**** Step 1, done: bin/make fetches them
+
+~bin/make linux_sysroots~ (all six) and ~bin/make vendor/linux/<target>~
+(one): download, sha256 check, and unpack under ~vendor/linux/<target>~
+(ignored; removed by ~bin/make clean_vendor~ like the other pinned downloads) only
+what a compiler on any host reads: ~<tuple>/sysroot~ (headers, ~crt1.o~,
+libc) and ~lib/gcc/<tuple>~ (~crtbegin.o~, ~libgcc~). 72 to 80 MB per
+target unpacked, about 130 MB per download. Bootlin's own compiler, an
+x86-64 Linux program, is not unpacked.
+
+Tried by hand here, with the unpacked trees and clang 18 with lld:
+
+: clang --target=<tuple> --sysroot=vendor/linux/<target>/<tuple>/sysroot --gcc-toolchain=vendor/linux/<target> -fuse-ld=lld
+
+builds a C program for each of the six. The linux-x64 one runs here and
+its only versioned symbols are GLIBC_2.2.5 and GLIBC_2.34; the other
+five run under qemu-user with that sysroot.
+
+**** Step 2, done: til and bin/make build a linux target against it
+
+Where ~vendor/linux/<target>~ is unpacked (~targets.til~,
+~linux_is_pinned~; named from the working directory, like ~vendor/macos~
+and ~vendor/android~), til builds that target with
+
+: clang --target=<tuple> --sysroot=vendor/linux/<target>/<tuple>/sysroot --gcc-toolchain=vendor/linux/<target> ... -fuse-ld=lld
+
+on every host, the target's own included, and maps clang's own header
+directory to ~clang-resource~ as for android (~clang_resource_map_args~,
+the android function renamed). Where it is not unpacked nothing changes:
+the host's gcc, or the distribution's cross gcc. ~bin/make~ builds the
+target's libffi and nng the same way (clang, lld for the probe links,
+llvm-ar), and does not reuse a build directory configured for the other
+C library: cmake's cached "strlcpy found" from the host's glibc 2.39
+failed the compile against 2.34, so a stamp in the directory says which
+it was configured for. The gui and libsecp256k1 archives are not built
+pinned yet: til itself links neither.
+
+Measured here (Linux x64, Ubuntu's clang 18, not yet the pinned LLVM):
+- ~hello_script~ for linux-x64: runs; versioned symbols up to
+  GLIBC_2.34; every directory in ~.debug_line~ is relative (~.~,
+  ~./src/self/codegen~, ~vendor/linux/linux-x64/.../sysroot/usr/include~,
+  ~clang-resource/include~).
+- ~hello_script~ for linux-arm64: runs under qemu-user.
+- til itself for linux-x64, linked with the pinned libffi and nng: runs
+  and interprets; GLIBC_2.34 at most (the gcc-built one needs 2.38).
+- ~test/reproducible_build.til~ for linux-x64 and for linux-arm64: a
+  program and a library built in two checkout roots are the same bytes.
+  The test links ~vendor/linux~ into its second root; without that the
+  second root built with the host's gcc.
+- The collector lists both targets (280 lines), with llvm's objcopy and
+  ar for a pinned linux target, as for the mac targets.
+
+In CI: both Linux hosts list linux-x64 and linux-arm64 this way, after
+their mac lists (the pinned LLVM is first on PATH there), on trial. The
+lists made with each host's own gcc and glibc are removed. The tree is
+deleted at the end of the step, so that nothing after it builds pinned.
+
+**** Next
+
+- A run showing the two Linux hosts' lists equal; then strict.
+- The Linux hosts' own ~bin/til~ built pinned, as the Macs' is: the
+  bootstrap compiler (~bin/til_boot~, HEAD's) has to know the rule first,
+  so this needs step 2 merged. And the suite with the tree unpacked:
+  tests that run til from another directory, or an installed til, will
+  not find ~vendor/linux~ (the Macs' 51 failures of run 3178 were this),
+  and ~--asan~ needs a sanitizer runtime for the pinned tuple.
+- The gui and libsecp256k1 archives pinned; the other four targets in
+  the lists.
+- The Macs and Windows as producers. Not looked at yet: unpacking a
+  sysroot's symbolic links on a Windows host.

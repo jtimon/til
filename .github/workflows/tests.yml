@@ -294,37 +294,6 @@ jobs:
           name: hashes-linux-arm64
           path: tmp/hashes/linux-arm64.txt
           if-no-files-found: error
-      # Issue #472 (level 3) / #473 (C7): what this host builds for the two
-      # Linux targets, its own natively and linux-x64 cross (the mirror of
-      # the x64 producer, #472 plan S5), with the identity of the tools that
-      # built them. The collect job compares these binaries between
-      # producers whatever toolchains they recorded: every host has to build
-      # the same bytes for a target (the toolchain rule, end of
-      # issues/open/472.org); the toolchains are listed for diagnosis.
-      # til links libffi and nng, so til for a target needs that target's
-      # archives; bin/make builds linux-x64's with the cross gcc installed
-      # here, and this host's own were built for bin/til.
-      # continue-on-error on these steps while the artifacts are on trial:
-      # a trial must not redden a run. Without this host's list the collect
-      # job reports the binary groups as "from one producer only (not
-      # compared)". The windows and mac targets follow, each with its one
-      # pinned compiler.
-      - name: Install the linux-x64 cross toolchain and build its archives
-        continue-on-error: true
-        run: |
-          sudo apt-get install -y cmake gcc-x86-64-linux-gnu libc6-dev-amd64-cross
-          make vendor/libffi/build-linux-x64/.libs/libffi.a vendor/nng/build-linux-x64/libnng.a
-      - name: Write the binary hash lists for the collector
-        continue-on-error: true
-        run: |
-          mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til linux-arm64 linux-x64
-      - name: Upload the binary hash lists
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: hashes-binary-linux-arm64
-          path: tmp/hashes-binary/linux-arm64.txt
       # Issue #472: windows-x64 with the one compiler every host uses for it,
       # llvm-mingw (clang, lld and the mingw-w64 UCRT runtime) at one pinned
       # release, which is published for Linux x64 and arm64, macOS and
@@ -426,6 +395,35 @@ jobs:
           name: hashes-binary-mac-linux-arm64
           path: tmp/hashes-binary-mac/linux-arm64.txt
           if-no-files-found: error
+      # Issue #504: the two Linux targets with their pinned C library --
+      # Bootlin's toolchain for each, glibc 2.34, unpacked by bin/make under
+      # vendor/linux -- and the pinned LLVM that is first on PATH here. til
+      # builds a linux target with clang, lld and that tree wherever it is
+      # unpacked, and bin/make builds the target's libffi and nng the same
+      # way, this host's own included. Both Linux hosts list both targets
+      # (the lists made with each host's own gcc and glibc are gone: their
+      # debug info named the host's header directories). On trial and
+      # continue-on-error. The tree is removed again at the end: the steps
+      # of a job after this one would build this host's programs with it.
+      - name: Write the linux binary hash lists with the pinned C library
+        continue-on-error: true
+        run: |
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
+          clang --version | grep -q "clang version 23.1.5"
+          ./bin/make vendor/linux/linux-x64 vendor/linux/linux-arm64
+          ./bin/make vendor/libffi/build-linux-x64/.libs/libffi.a vendor/nng/build-linux-x64/libnng.a
+          ./bin/make vendor/libffi/build-linux-arm64/.libs/libffi.a vendor/nng/build-linux-arm64/libnng.a
+          ./bin/til run test/reproducible_build.til bin/til linux-x64
+          ./bin/til run test/reproducible_build.til bin/til linux-arm64
+          mkdir -p tmp/hashes-binary
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til linux-x64 linux-arm64
+          rm -rf vendor/linux
+      - name: Upload the linux binary hash lists
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-linux-arm64
+          path: tmp/hashes-binary/linux-arm64.txt
       # Issue #473: wasm32 from this host too (see the wasm32 job). The
       # emsdk is installed with the first wasm32 archive bin/make builds.
       - name: Write the wasm32 binary hash list
@@ -1186,6 +1184,35 @@ jobs:
           name: hashes-binary-mac-linux-x64
           path: tmp/hashes-binary-mac/linux-x64.txt
           if-no-files-found: error
+      # Issue #504: the two Linux targets with their pinned C library --
+      # Bootlin's toolchain for each, glibc 2.34, unpacked by bin/make under
+      # vendor/linux -- and the pinned LLVM that is first on PATH here. til
+      # builds a linux target with clang, lld and that tree wherever it is
+      # unpacked, and bin/make builds the target's libffi and nng the same
+      # way, this host's own included. Both Linux hosts list both targets
+      # (the lists made with each host's own gcc and glibc are gone: their
+      # debug info named the host's header directories). On trial and
+      # continue-on-error. The tree is removed again at the end: the steps
+      # of a job after this one would build this host's programs with it.
+      - name: Write the linux binary hash lists with the pinned C library
+        continue-on-error: true
+        run: |
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
+          clang --version | grep -q "clang version 23.1.5"
+          ./bin/make vendor/linux/linux-x64 vendor/linux/linux-arm64
+          ./bin/make vendor/libffi/build-linux-x64/.libs/libffi.a vendor/nng/build-linux-x64/libnng.a
+          ./bin/make vendor/libffi/build-linux-arm64/.libs/libffi.a vendor/nng/build-linux-arm64/libnng.a
+          ./bin/til run test/reproducible_build.til bin/til linux-x64
+          ./bin/til run test/reproducible_build.til bin/til linux-arm64
+          mkdir -p tmp/hashes-binary
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til linux-x64 linux-arm64
+          rm -rf vendor/linux
+      - name: Upload the linux binary hash lists
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-linux-x64
+          path: tmp/hashes-binary/linux-x64.txt
 
   windows-x64-run:
     name: windows-x64/x86 (run .exe on windows)
@@ -1427,20 +1454,20 @@ jobs:
           name: hashes-binary-windows-windows-x64
           path: tmp/hashes-binary-windows/windows-x64.txt
 
-  # Issue #472: the two mac targets from the Windows host, on trial: the
-  # last host missing from "til for a mac target is the same file from
-  # every host". The pinned LLVM's Windows build (bin/make llvm) first on
-  # PATH, as on the Linux hosts and the arm64 Mac; llvm-mingw stays this
-  # host's own compiler by its own names. A job of its own, so that it
-  # neither waits for the suite nor stops with it. One step per stage, each
-  # run whatever the one before did, to read every failing stage from one
-  # round. continue-on-error for the whole job.
+  # Issue #472: the two mac targets from the Windows host, the fifth host
+  # that builds them. The pinned LLVM's Windows build (bin/make llvm)
+  # first on PATH, as on the Linux hosts and the arm64 Mac; llvm-mingw
+  # stays this host's own compiler by its own names. A job of its own, so
+  # that it neither waits for the suite nor stops with it. One step per
+  # stage, each run whatever the one before did, to read every failing
+  # stage from one round. Strict since CI run 3198, where this host wrote
+  # the other hosts' til for both targets at both widths: a difference
+  # fails collect, and so does this job failing.
   windows-x64-mac:
     needs: doc-gate
     if: needs.doc-gate.outputs.code == 'true'
-    name: windows-x64 (mac targets with the pinned LLVM, trial)
+    name: windows-x64 (mac targets with the pinned LLVM)
     runs-on: windows-latest
-    continue-on-error: true
     timeout-minutes: 90
     env:
       MSYSTEM: UCRT64
@@ -1532,8 +1559,8 @@ jobs:
           export PATH="$PWD/vendor/llvm/bin:$PWD/vendor/llvm-mingw/bin:$PATH"
           mkdir -p tmp/hashes-binary-mac tmp/hashes-binary-mac-x64
           status=0
-          ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial windows-x64 tmp/hashes-binary-mac/windows-x64.txt bin/til.exe macos-arm64 || status=1
-          ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial windows-x64 tmp/hashes-binary-mac-x64/windows-x64.txt bin/til.exe macos-x64 || status=1
+          ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary windows-x64 tmp/hashes-binary-mac/windows-x64.txt bin/til.exe macos-arm64 || status=1
+          ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary windows-x64 tmp/hashes-binary-mac-x64/windows-x64.txt bin/til.exe macos-x64 || status=1
           exit $status
       - name: Upload the macos-arm64 hash list
         if: always()
@@ -1541,12 +1568,14 @@ jobs:
         with:
           name: hashes-binary-mac-windows-x64
           path: tmp/hashes-binary-mac/windows-x64.txt
+          if-no-files-found: error
       - name: Upload the macos-x64 hash list
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-mac-x64-windows-x64
           path: tmp/hashes-binary-mac-x64/windows-x64.txt
+          if-no-files-found: error
 
   # Issue #25 phase 1: native macOS. No continue-on-error anywhere: a
   # failed job fails the run, honestly red until the remaining darwin
@@ -2232,32 +2261,6 @@ jobs:
             fi
           done
           exit $status
-      # Issue #472 (level 3) / #473 (C7): what this host builds for the two
-      # mac targets, with the identity of the clang, lld, llvm-ar and
-      # dsymutil that built it. The collect job compares these binaries
-      # between producers whatever toolchains they recorded: every host has
-      # to build the same bytes for a target (the toolchain rule, end of
-      # issues/open/472.org); the toolchains are listed for diagnosis. The
-      # mac headers and libraries are the repository's vendor/macos on
-      # every host.
-      # linux-arm64 from this x64 host is the CROSS half of the pair #472 is
-      # about; linux-arm64-native builds the same things natively. Ubuntu
-      # 24.04 has gcc 13.3.0 and glibc 2.39 both ways.
-      # linux-x64 is the mirror pair (#472 plan, S5): native here, cross on
-      # linux-arm64-native. Its libffi was built for bin/til.
-      - name: Write the binary hash lists for the collector
-        run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
-          make vendor/libffi/build-linux-arm64/.libs/libffi.a vendor/nng/build-linux-arm64/libnng.a
-          make vendor/nng/build-linux-x64/libnng.a
-          mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til linux-arm64 linux-x64
-      - name: Upload the binary hash lists
-        uses: actions/upload-artifact@v4
-        with:
-          name: hashes-binary-linux-x64
-          path: tmp/hashes-binary/linux-x64.txt
-          if-no-files-found: error
 
   macos-host-cross-linux-run:
     name: macos host cross (run ELF on linux)
@@ -2362,12 +2365,13 @@ jobs:
           MACOS_ARM64: ${{ needs.macos-arm64.result }}
           MACOS_X64: ${{ needs.macos-x64.result }}
           MACOS_CROSS: ${{ needs.macos-cross-build.result }}
+          WINDOWS_X64_MAC: ${{ needs.windows-x64-mac.result }}
         run: |
           status=0
           for pair in "linux-x64=$LINUX_X64" "linux-arm64-native=$LINUX_ARM64" \
             "windows-x64-native=$WINDOWS_X64_NATIVE" \
             "macos-arm64=$MACOS_ARM64" "macos-x64=$MACOS_X64" \
-            "macos-cross-build=$MACOS_CROSS"; do
+            "macos-cross-build=$MACOS_CROSS" "windows-x64-mac=$WINDOWS_X64_MAC"; do
             echo "$pair"
             if [ "${pair#*=}" != success ]; then status=1; fi
           done

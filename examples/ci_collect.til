@@ -227,6 +227,15 @@ tool_output := proc(tool: Str, argument: Str) returns Str {
     return command.out().trim().clone()
 }
 
+// #504: is this linux target built with its pinned C library, i.e. is that
+// unpacked (bin/make vendor/linux/<target>)? til asks the same of the same
+// directory (targets.til, linux_is_pinned): it then builds with clang and
+// lld, and the tools that read its output here are llvm's, the same on
+// every host.
+linux_pinned := proc(target: Str) returns Bool {
+    return target.starts_with("linux-") && File.is_dir(format("vendor/linux/", target))
+}
+
 // The prefix of the GNU tools for a linux or windows target, as Debian
 // names them on every host, the target's own included. A windows target's
 // are the pinned llvm-mingw's on every host, Windows too (issue #483), by
@@ -276,6 +285,12 @@ toolchain_identity := proc(target: Str) returns Str {
         mut lld := "ld.lld"
         if host_os() == "windows" { lld = "ld.lld.exe" }
         return format(version_line("clang"), "\n", version_line(lld), "\n", version_line("llvm-ar"), "\n", version_line("dsymutil"), "\n")
+    }
+    if linux_pinned(target) {
+        mut lld := "ld.lld"
+        if host_os() == "windows" { lld = "ld.lld.exe" }
+        return format(version_line("clang"), "\n", version_line(lld), "\n", version_line("llvm-ar"), "\n",
+            "C library: vendor/linux/", target, " (Bootlin, glibc 2.34)\n")
     }
     if target.starts_with("linux-") || target.starts_with("windows-") {
         prefix := gnu_tool_prefix(target)
@@ -338,7 +353,9 @@ binary_sections := func(target: Str) returns Vec(Str) {
 // build id. A section the binary does not have is listed as such.
 list_sections := proc(target: Str, level: Str, binary: Str, label: Str, scratch: Str, mut lines: Vec(Str), width: Str = "32") {
     mut objcopy := "llvm-objcopy"
-    if target.starts_with("macos-").or(target.starts_with("android-")).not() { objcopy = format(gnu_tool_prefix(target), "objcopy") }
+    if target.starts_with("macos-").or(target.starts_with("android-")).or(linux_pinned(target)).not() {
+        objcopy = format(gnu_tool_prefix(target), "objcopy")
+    }
     mut section_names := Vec(Str).new()
     mut section_paths := Vec(Str).new()
     for section : Str in binary_sections(target) {
@@ -392,7 +409,9 @@ list_members := proc(target: Str, level: Str, archive: Str, label: Str, scratch:
     // list lacked a line the Linux hosts had (CI run 3142). The table is
     // still compared, in the hash of the whole archive.
     mut archiver := "ar"
-    if host_os() == "macos" || target.starts_with("macos-") || target.starts_with("android-") { archiver = "llvm-ar" }
+    if host_os() == "macos" || target.starts_with("macos-") || target.starts_with("android-") || linux_pinned(target) {
+        archiver = "llvm-ar"
+    }
     extract := Cmd.new(archiver, "x", format("--output=", scratch), archive)
     extract.capture()
     if extract.run() != 0 { fail(format(extract.render(), " failed: ", extract.err())) }
