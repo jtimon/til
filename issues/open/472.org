@@ -3936,3 +3936,81 @@ with ~cmd: cannot execute 'x86_64-w64-mingw32-ld'~. ~gnu_tool_prefix~
 returns the prefixed names on a Windows host too since 6328f57, and that
 one is not in the Windows package. No windows list from that host, and
 collect red at "Producer results". Reported to the Windows session.
+
+*** Run 3190: what differs in a mac executable linked on a Windows host
+
+Run 3190 (master 20f3e58), the first with ~list_debug_map~. The Windows
+host's lines for macos-arm64 ~til~:
+
+: SO .\tmp/ci_collect/binary_macos-arm64/til.c
+: OSO tmp/ci_collect/binary_macos-arm64/til.o
+: SO .\./src/self/codegen/ext.c
+: OSO tmp/ci_collect/binary_macos-arm64/til_ext.o
+
+and every other host's:
+
+: SO ./tmp/ci_collect/binary_macos-arm64/til.c
+: SO ././src/self/codegen/ext.c
+
+The OSO lines (object path, modification time 0) are the same; so are
+the compile directory (~.~) and the file names in the objects, which are
+the other hosts' objects byte for byte. The one character is the
+linker's: lld's Mach-O port builds the N_SO string as compile directory,
+the *host's* path separator, file name. With the archives, objects,
+library and sections already equal (run 3186), this is the whole
+difference between a mac executable linked on Windows and one linked
+anywhere else; the UUID and the signature follow from it.
+
+Checked here with clang and lld: when the file name in the debug info is
+absolute in the POSIX sense, the linker writes it as it is and joins
+nothing (~-ffile-prefix-map=<cwd>/=/~ and the source named by its full
+path give ~SO /tmp/so/a.c~).
+
+So the choices, each Jorge's:
+1. til names its generated C by full path for a mac target and maps the
+   checkout to a fixed root, on every host: every host then writes
+   ~SO /gen/til/x.c~, Windows included. The cost is in the debugger: a
+   path under ~./~ is found from the checkout's directory, one under a
+   made-up root needs a source map. It also changes every mac object and
+   executable once (new strings), the same on all hosts.
+2. Leave it: a mac executable linked on a Windows host is the other
+   hosts' in every section, object and archive and differs in that one
+   record. The Windows host's mac lists then stay on trial for the
+   executables, or are compared without them.
+3. No debug map from any host (~-Wl,-S~): equal everywhere, and no
+   ~.dSYM~ for a cross-built mac program.
+
+**** The converted Mac jobs, first run
+
+Both ~macos-arm64~ and ~macos-x64~ started with the run (no wait for the
+Linux job) and passed "Build bin/til with the pinned LLVM" / "with
+llvm-mingw's clang"; their suites were running when this was written.
+
+*** Run 3190, complete: the Macs' own bin/til is the cross-built file
+
+Both converted Mac jobs are green, in a run that ended 1 h 17 min after
+it started (the Mac jobs no longer wait for the Linux one).
+
+| | suite (ASAN) | its own ~make bin/til~ | the same line from Linux x64 |
+|-+--------------+------------------------+------------------------------|
+| arm64 Mac | 572 of 572 | de027be6bf73 | de027be6bf73 |
+| Intel Mac | 572 of 572 | ae117fc4fd92 | ae117fc4fd92 |
+
+Each Mac also lists the other Mac's target with the same two hashes, and
+"Run this Mac's SDK-less builds" passed on both. ~bin/til~ did not change
+between the build step, the suite and the list step. So ~make bin/til~
+is strict for the mac targets now, like every other mac item: the
+special case in ~produce_binary~ is gone.
+
+**** collect could not read the lists in this run
+
+~list_debug_map~'s item was named ~<label>:debug map~, eight fields
+where a list line has seven, and collect stopped at the first such line
+(~expected 7 fields, found 8~) instead of comparing. The item is
+~<label>:debug-map~ now, and a producer checks its own lines when it
+writes the list (~write_list~), so a malformed one fails the job that
+made it. Checked here: produce for macos-arm64, then collect over two
+copies of the list.
+
+The run was red before that for others' reasons: the Windows host's own
+list step (fixed in 1bfed34) and the two new Android runtime jobs.

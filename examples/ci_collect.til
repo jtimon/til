@@ -349,7 +349,8 @@ list_sections := proc(target: Str, level: Str, binary: Str, label: Str, scratch:
 // cannot show it: in CI run 3186 a Windows host's mac executables differed
 // from every other host's with all their sections, objects and archives
 // equal. One item, and the lines printed, to read the paths from each
-// producer's log.
+// producer's log. The item's name is one word: a list line is seven
+// fields, and "debug map" made eight, which collect refused (CI run 3190).
 list_debug_map := proc(producer: Str, target: Str, level: Str, binary: Str, label: Str, scratch: Str, mut lines: Vec(Str)) {
     nm := Cmd.new("llvm-nm", "-ap", binary)
     nm.capture()
@@ -364,7 +365,7 @@ list_debug_map := proc(producer: Str, target: Str, level: Str, binary: Str, labe
     path := format(scratch, "_debug_map")
     File.writefile(path, format(join(kept, "\n"), "\n"))
     hashes := sha256_of(vec(Str, path.clone()))
-    lines.push(own format(hashes[0], " ", level, " ", target, " c 32 ", label, ":debug map"))
+    lines.push(own format(hashes[0], " ", level, " ", target, " c 32 ", label, ":debug-map"))
 }
 
 // An archive by member, for the same reason.
@@ -604,6 +605,16 @@ produce_wasm_binary := proc(compiler: Str, mut lines: Vec(Str)) {
     }
 }
 
+// A producer's list, written. A line is seven fields (read_list): one with
+// more or fewer is refused here, in the job that wrote it, not by collect
+// after every producer has run (CI run 3190: an item named with a space).
+write_list := proc(list: Str, lines: Vec(Str)) {
+    for line : Str in lines {
+        if line.split(" ").len() != 7 { fail(format("a list line is seven fields, this one is not: ", line)) }
+    }
+    File.writefile(list, format(join(lines, "\n"), "\n"))
+}
+
 // Level "binary": artifacts a run has shown equal between producers; a
 // difference fails the collect job. Level "binary-trial": artifacts being
 // tried; compared and printed the same way, never failing. An artifact
@@ -634,18 +645,15 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         // windows-x64: the Windows host's tested bin/til.exe, til.exe at
         // both widths, the programs, the library and the vendored archives
         // are the two Linux hosts' (CI runs 3159 to 3166). The two mac
-        // targets: everything but the tested bin/til is the same from the
-        // two Linux hosts and the two Macs (CI runs 3167, 3173 and 3178).
+        // targets: the same from the two Linux hosts and the two Macs (CI
+        // runs 3167, 3173 and 3178), and so is the bin/til each Mac's own
+        // job builds and runs its suite with, since those jobs build it
+        // with the pinned compiler (CI run 3190: de027be6bf73 for
+        // macos-arm64 and ae117fc4fd92 for macos-x64, from all four).
         // The linux targets are still on trial (#504), and so is any host
         // that lists with produce-binary-trial.
         mut target_level := "binary-trial"
         if trial.not() && (target == "windows-x64" || target.starts_with("macos-")) { target_level = "binary" }
-        // The Macs' own jobs build bin/til with the pinned compiler since
-        // the commit after CI run 3188 (before it, with Apple's toolchain,
-        // and that line was not the other hosts'). On trial for the mac
-        // targets until a run shows the two Macs' lines equal to the rest.
-        mut make_level := target_level.clone()
-        if target.starts_with("macos-") { make_level = "binary-trial" }
         mut levels := Vec(Str).new()
         mut items := Vec(Str).new()
         mut paths := Vec(Str).new()
@@ -710,7 +718,7 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         paths.push(own format(til_binary, extension))
         // The til make builds: the tested file on this target's own host,
         // the same build in a root of its own on every other.
-        levels.push(own make_level.clone())
+        levels.push(own target_level.clone())
         items.push(own "make bin/til")
         paths.push(own make_til(compiler, target, directory, extension))
 
@@ -759,7 +767,7 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         list_members(target, target_level, format("vendor/nng/build-", target, "/libnng.a"), "vendor libnng.a",
             format(directory, "/libnng_members"), lines)
     }
-    File.writefile(list, format(join(lines, "\n"), "\n"))
+    write_list(list, lines)
     // The til binaries' own lines, in this job's log: the binary that
     // matters can be compared between hosts as soon as their jobs end,
     // without waiting for the collect job (which waits for every producer).
@@ -791,7 +799,7 @@ produce := proc(producer: Str, list: Str, compiler: Str) {
             }
         }
     }
-    File.writefile(list, format(join(lines, "\n"), "\n"))
+    write_list(list, lines)
     println("ci_collect: ", producer, " wrote ", lines.len().to_str(), " lines to ", list)
 }
 
