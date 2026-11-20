@@ -3845,3 +3845,94 @@ other hosts' yet:
 
 Which items differ (the archives, their members, til's sections) is in
 the collect report, which had not run when this was written.
+
+*** Run 3186, the collect report: from the Windows host only the linked mac executables differ
+
+The run is red for the Windows host's ~make test~ (the Windows
+session's; ~c9e2f03~ followed), so collect stopped at "Producer results";
+its report: 2282 equal, 0 different, 0 missing, 44 different on trial.
+The mac targets are strict in it for the first time, with nothing
+different between the two Linux hosts and the two Macs.
+
+macos-arm64, six producers (Linux x64, Linux arm64, arm64 Mac and its
+~-pinned~ job, Intel Mac, Windows): 114 + 1 items equal. What the Windows
+host has different from the other five, which agree with each other:
+
+| item | others | Windows |
+|------+--------+---------|
+| ~hello_script~ | 68652be3d7fe | 57c91cef75fe |
+| ~layout_corpus~ | 16b0ea4c7f5f | f54a5da3f6b8 |
+| ~src/til.til til~ | 2da53be6d87b | d731f864368f |
+| ~make bin/til~ | 6b5d2dcbca74 | ed45297b53b7 |
+| ~til~, width 64 | 2c784a6d4b80 | bb9c4f769787 |
+
+macos-x64 the same way (116 + 1 equal). Equal from Windows: ~libffi.a~
+and ~libnng.a~ and every member of both (so ~sh configure~ under MSYS2
+and cmake's "MSYS Makefiles" write the other hosts' objects), the
+library's ~.o~, ~.a~ and ~.dylib~, the generated C, and every listed
+section of til and of hello_script. So the compiler and the archiver do
+the same on Windows; the difference is in the part of a linked
+executable that no section holds. For Mach-O that is the symbol table's
+debug map (the linker records each source and object path and the
+object's modification time), the UUID computed over the file, and the
+signature over that.
+
+Next: ~list_debug_map~ in the collector: for a mac target, the N_SO and
+N_OSO lines of ~llvm-nm -ap~ for til and hello_script, as one item each
+(~<label>:debug map~) and printed in every producer's log. From a Linux
+host they read ~SO ./tmp/ci_collect/binary_macos-arm64/til.c~ and
+~OSO tmp/ci_collect/binary_macos-arm64/til.o~ with time 0.
+
+**** wasm32, the one run it was listed in
+
+Three producers (Linux x64, Linux arm64, arm64 Mac): ~layout_corpus.js~
+equal at both widths; ~hello_script.js~ equal between the two Linux
+hosts and different on the Mac (32: 003070646e3c against dbd13183622f).
+Switched off since (issue 473).
+
+*** Run 3188: the Macs' suites pass on the pinned-built til; the Mac jobs build it that way now
+
+Run 3188 (master c9e2f03, with the ~File.tell~ fix). Both ~-pinned~ trial
+jobs are green:
+
+| | ~bin/til~ before and after the suite | suite |
+|-+--------------------------------------+-------|
+| arm64 Mac | 8e0c3ef41a28 | 570 of 570 |
+| Intel Mac | (job green; log not read line by line) | passes |
+
+The three ways of running ~script_str_runtime~ print the same 121 lines
+now, and so does the pinned build's objects relinked as SDK 26.5: with
+~cfile_tell~ asking the descriptor, the test no longer tells the two
+links apart, so whether the old difference came from the SDK version in
+~LC_BUILD_VERSION~ or from Apple's headers stays unanswered and no longer
+matters for this.
+
+So the trial is over, and the Mac jobs themselves change:
+- First build step, ~macos-arm64~: ~make llvm~ (Apple's cc bootstraps
+  ~bin/make~, which downloads the compiler), ~./bin/make vendor~ with
+  Apple's toolchain (raylib, tinyfd, libsecp256k1, nng, the twins: what
+  a Mac's programs link), then with the pinned LLVM first on PATH the
+  host's libffi and nng again and ~./bin/make bin/til~. ~macos-x64~ the
+  same with llvm-mingw's clang and lld under the mac names.
+- The suite step builds ~bin/til_asan~ and the test programs with
+  ~bin/make~ and Apple's toolchain and runs the ASAN suite as before; it
+  fails if ~bin/til~ is another file afterwards, and so does the list
+  step. Every later ~make~ in the two jobs is ~./bin/make~: the Makefile
+  writes ~bin/til_boot~ again each time and ~bin/til~ is rebuilt after
+  it, by whatever clang is first on PATH. til itself runs ~make~ when it
+  packages an APK, so the suite step ends with ~touch bin/til~ once the
+  bytes are checked.
+- The two ~-pinned~ jobs are removed (two Mac runners fewer per push).
+- ~make bin/til~ stays on trial for the mac targets in the collector for
+  one run: the first where the two Macs' own jobs list the pinned-built
+  file.
+
+Not verified from here: none of the Mac steps can run in this session.
+
+**** The Windows host's own list broke in this run (the Windows session's)
+
+~windows-x64 native~: ~make test~ passes; the windows list step fails
+with ~cmd: cannot execute 'x86_64-w64-mingw32-ld'~. ~gnu_tool_prefix~
+returns the prefixed names on a Windows host too since 6328f57, and that
+one is not in the Windows package. No windows list from that host, and
+collect red at "Producer results". Reported to the Windows session.

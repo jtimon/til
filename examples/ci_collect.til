@@ -337,6 +337,30 @@ list_sections := proc(target: Str, level: Str, binary: Str, label: Str, scratch:
     for i, hash in section_hashes { lines.push(own format(hash, " ", level, " ", target, " c ", width, " ", label, ":", section_names[i])) }
 }
 
+// A Mach-O executable's debug map: the source and object paths the linker
+// records for the debugger (N_SO, N_OSO; an OSO line's last number is the
+// object's modification time). It is in no section, so list_sections
+// cannot show it: in CI run 3186 a Windows host's mac executables differed
+// from every other host's with all their sections, objects and archives
+// equal. One item, and the lines printed, to read the paths from each
+// producer's log.
+list_debug_map := proc(producer: Str, target: Str, level: Str, binary: Str, label: Str, scratch: Str, mut lines: Vec(Str)) {
+    nm := Cmd.new("llvm-nm", "-ap", binary)
+    nm.capture()
+    if nm.run() != 0 { fail(format(nm.render(), " failed: ", nm.err())) }
+    mut kept := Vec(Str).new()
+    for line : Str in nm.out().split("\n") {
+        if line.contains(" SO ") || line.contains(" OSO ") {
+            println("ci_collect: ", producer, " ", target, " ", label, " debug map: ", line)
+            kept.push(own line.clone())
+        }
+    }
+    path := format(scratch, "_debug_map")
+    File.writefile(path, format(join(kept, "\n"), "\n"))
+    hashes := sha256_of(vec(Str, path.clone()))
+    lines.push(own format(hashes[0], " ", level, " ", target, " c 32 ", label, ":debug map"))
+}
+
 // An archive by member, for the same reason.
 list_members := proc(target: Str, level: Str, archive: Str, label: Str, scratch: Str, mut lines: Vec(Str), width: Str = "32") {
     File.remove_tree(scratch)
@@ -610,10 +634,10 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         // that lists with produce-binary-trial.
         mut target_level := "binary-trial"
         if trial.not() && (target == "windows-x64" || target.starts_with("macos-")) { target_level = "binary" }
-        // A Mac's own jobs still build and test bin/til with Apple's
-        // toolchain, so on its own target that line is not the other
-        // hosts'. On trial for the mac targets until those jobs build it
-        // with the pinned compiler, as their -pinned trial jobs do.
+        // The Macs' own jobs build bin/til with the pinned compiler since
+        // the commit after CI run 3188 (before it, with Apple's toolchain,
+        // and that line was not the other hosts'). On trial for the mac
+        // targets until a run shows the two Macs' lines equal to the rest.
         mut make_level := target_level.clone()
         if target.starts_with("macos-") { make_level = "binary-trial" }
         mut levels := Vec(Str).new()
@@ -718,6 +742,12 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         list_sections(target, target_level, format(til_binary, extension), "src/til.til til", format(directory, "/til_section"), lines)
         list_sections(target, target_level, format(directory, "/hello_script", extension), "examples/hello_script.til hello_script",
             format(directory, "/hello_section"), lines)
+        if target.starts_with("macos-") {
+            list_debug_map(producer, target, target_level, format(til_binary, extension), "src/til.til til",
+                format(directory, "/til"), lines)
+            list_debug_map(producer, target, target_level, format(directory, "/hello_script", extension),
+                "examples/hello_script.til hello_script", format(directory, "/hello"), lines)
+        }
         list_members(target, target_level, format("vendor/libffi/build-", target, "/.libs/libffi.a"), "vendor libffi.a",
             format(directory, "/libffi_members"), lines)
         list_members(target, target_level, format("vendor/nng/build-", target, "/libnng.a"), "vendor libnng.a",

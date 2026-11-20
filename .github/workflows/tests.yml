@@ -1603,14 +1603,13 @@ jobs:
   # cancels a job that waits too long for one (run 3007: "The job was not
   # acquired by Runner of type hosted even after multiple attempts"), so
   # the small mac jobs live inside the native job of their architecture:
-  # this one also runs the linux-cross-built arm64 binaries (the steps
-  # marked "cross run") and cross-builds windows and linux from the mac
-  # (the steps marked "host cross"); macos-x64 runs the x64 cross
-  # binaries. Hence the `needs: macos-cross-build`: those binaries are its
-  # artifacts. The cross-run steps go first -- they take seconds and need
-  # no build -- so a native-suite failure cannot hide them.
+  # this one also cross-builds linux from the mac (the steps marked "host
+  # cross"). Neither Mac job waits for another job (#473, S7): the mac
+  # binaries the Linux job cross-builds used to be run here; now each Mac
+  # runs the ones it builds itself without Apple's SDK, which collect holds
+  # to the same bytes (the step "Run this Mac's SDK-less builds").
   macos-arm64:
-    needs: [doc-gate, macos-cross-build]
+    needs: doc-gate
     if: needs.doc-gate.outputs.code == 'true'
     name: macos-arm64 (native)
     runs-on: macos-latest
@@ -1618,42 +1617,60 @@ jobs:
       - uses: actions/checkout@v5
       - name: Create test tmp directory
         run: mkdir -p tmp
-      - name: Download mac artifacts (cross run)
-        uses: actions/download-artifact@v4
-        with:
-          name: hello_script-macos
-      - name: Run cross-built binary (cross run)
-        run: |
-          chmod +x hello_script-macos-arm64
-          ./hello_script-macos-arm64
-          ./hello_script-macos-arm64 | grep -q "Hello World"
-      - name: Run the cross-built std/crypto test (cross run)
-        run: |
-          chmod +x crypto-macos-arm64
-          ./crypto-macos-arm64
-      - name: Download the mac til and libffi programs (cross run)
-        uses: actions/download-artifact@v4
-        with:
-          name: til-macos-cross
-          path: machost
-      # Issue #420: the cross-built libffi on a real mac -- directly, and
-      # through the cross-built til's interpreter.
-      - name: Run the cross-built libffi test and til interpreter (cross run)
-        run: |
-          chmod +x machost/ffi_prep-macos-arm64 machost/nng_pair-macos-arm64 machost/til-macos-arm64
-          ./machost/ffi_prep-macos-arm64 | grep -q "ffi_prep ok"
-          ./machost/nng_pair-macos-arm64 | grep -q "nng pair ok"
-          ./machost/til-macos-arm64 interpret examples/hello_script.til | grep -q "Hello World"
-          ./machost/til-macos-arm64 interpret test/ext_libc.til
       - name: Record the C toolchain
         run: |
           echo "clang: $(clang --version 2>&1 | head -1)"
           echo "ld: $(ld -v 2>&1 | head -1)"
           echo "sdk: $(xcrun --show-sdk-version 2>&1 | head -1)"
+      # Issue #472/#473: bin/til is built with the pinned LLVM, so that the
+      # til this job runs is the file every other host builds for this
+      # target (CI runs 3178 to 3188: the -pinned trial jobs' bin/til was
+      # the cross-built one, and the whole suite passed on it). Only bin/til
+      # and the two archives it links, libffi and nng: Apple's toolchain
+      # builds everything else first (raylib, tinyfd, libsecp256k1, the
+      # twins), and after this step builds every program, as a Mac user's
+      # til does -- til asks `clang` which one it is at each build.
+      # `make llvm` first: Apple's cc bootstraps bin/make, which downloads
+      # the compiler. After it, bin/make and never make: the Makefile builds
+      # bin/til_boot again each time, and bin/til after it with whatever
+      # clang is first on PATH.
+      - name: The pinned LLVM release
+        id: llvm
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned LLVM
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm
+          key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Build bin/til with the pinned LLVM
+        run: |
+          make llvm
+          ./bin/make vendor
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
+          clang --version
+          clang --version | grep -q "clang version 23.1.5"
+          ld64.lld --version
+          rm -rf vendor/libffi/build-macos-arm64 vendor/nng/build-macos-arm64
+          ./bin/make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/nng/build-macos-arm64/libnng.a
+          ./bin/make bin/til
+          shasum -a 256 bin/til > tmp/til-built.txt
+          cat tmp/til-built.txt
       - name: Build and run tests (no gui, ASAN)
         run: |
-          make bin/til bin/til_asan bin/test_runner bin/plot bin/tests
+          clang --version
+          ./bin/make bin/til_asan bin/test_runner bin/plot bin/tests
           bin/tests --no-gui --til-bin bin/til_asan --asan -j1
+          shasum -a 256 bin/til | cmp - tmp/til-built.txt
+          # til runs `make` for a vendored archive when it packages an APK,
+          # and the Makefile writes bin/til_boot again each time: newer than
+          # bin/til, which bin/make would then build again, here with
+          # Apple's toolchain. The bytes were just checked; only the time
+          # is behind.
+          touch bin/til
       - name: Test target build
         run: |
           ./bin/til build --target=macos-arm64 -o bin/hello_script_macos_arm64 examples/hello_script.til
@@ -1677,17 +1694,20 @@ jobs:
       # it here IS the mac-gui deliverable (issue #25). raylib/tinyfd were
       # already built natively by the suite step above.
       - name: Build native mac examples (gui + portable)
-        run: make build_mac
-      # Issue #25: macOS as a HOST cross-compiling to the OTHER OSes (the
-      # last two matrix cells), with the bin/til the suite step built.
-      # Windows uses the pinned llvm-mingw, as on every host (issue #483),
-      # its bin on PATH in the windows step only: it carries a clang too,
-      # which must not replace Apple's for the mac builds.
+        run: ./bin/make build_mac
+      # Issue #25: macOS as a HOST cross-compiling to the OTHER OSes, with
+      # the bin/til the suite step built.
+      # windows-x64 is no longer built here to be run on a Windows runner
+      # (#473, S7): the windows list step below builds hello_script.exe,
+      # til.exe and the rest, collect holds them to the bytes the Windows
+      # host builds and tests itself (strict, five hosts: CI run 3178), and
+      # a file that is the tested one needs no second run.
       # Linux uses a prebuilt cross-gcc (messense tap) via --cc, the same
       # override the riscv32 job uses. Compiled programs bind ext_func to
       # direct C symbols and never reference libffi, so no cross libffi is
-      # needed. The artifacts run on real windows / linux runners
-      # (macos-host-cross-win-run / -linux-run below).
+      # needed. The artifacts run on a real linux runner
+      # (macos-host-cross-linux-run below), until the linux targets are in
+      # the lists the same way (#504).
       - name: Install cross toolchains (host cross)
         run: |
           brew tap messense/macos-cross-toolchains
@@ -1713,13 +1733,6 @@ jobs:
         with:
           path: vendor/llvm-mingw
           key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
-      - name: Cross-compile hello_script for windows-x64 (host cross)
-        run: |
-          make llvm_mingw
-          export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
-          x86_64-w64-mingw32-gcc --version | grep -q clang
-          ./bin/til build --target=windows-x64 -o bin/hello_script-from-mac.exe examples/hello_script.til
-          file bin/hello_script-from-mac.exe | grep -q "PE32+"
       - name: Cross-compile hello_script for linux-x64 (host cross)
         run: |
           ./bin/til build --target=linux-x64 --cc=x86_64-unknown-linux-gnu-gcc \
@@ -1732,7 +1745,7 @@ jobs:
       # linux runner below.
       - name: Cross-compile the std/crypto test for linux-x64 (host cross)
         run: |
-          make LINUX_X64_CC=x86_64-unknown-linux-gnu-gcc vendor/secp256k1/build-linux-x64/lib/libsecp256k1.a
+          LINUX_X64_CC=x86_64-unknown-linux-gnu-gcc ./bin/make vendor/secp256k1/build-linux-x64/lib/libsecp256k1.a
           ./bin/til build --target=linux-x64 --cc=x86_64-unknown-linux-gnu-gcc \
             -o bin/crypto-from-mac-linux test/crypto.til
           file bin/crypto-from-mac-linux | grep -q "ELF 64-bit"
@@ -1741,7 +1754,6 @@ jobs:
         with:
           name: hello_script-from-mac
           path: |
-            bin/hello_script-from-mac.exe
             bin/hello_script-from-mac-linux
             bin/crypto-from-mac-linux
       # Issue #473 (C3): this host's hash list for the collect job, as in
@@ -1762,34 +1774,18 @@ jobs:
       # mac targets here as it does everywhere else -- vendor/macos, lld,
       # named objects -- not with Apple's SDK and linker (targets.til,
       # macos_is_cross), and bin/make builds this host's own libffi and nng
-      # the same way (make.til, builds_as_host). They are rebuilt here by
-      # bin/make directly: through the Makefile, the missing stamp of the
-      # host's libffi would have it rebuilt with Apple's cc. Mac equality
-      # remains on trial; Android producer failures are blocking after 3167.
-      # The pinned LLVM (make.til LLVM_RELEASE), unpacked by `make llvm` into
-      # vendor/llvm, kept between runs: one cache entry per release and
-      # runner kind.
-      - name: The pinned LLVM release
-        id: llvm
-        shell: bash
-        run: |
-          release=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
-          test -n "$release"
-          echo "release=$release" >> "$GITHUB_OUTPUT"
-      - name: Cache the pinned LLVM
-        uses: actions/cache@v4
-        with:
-          path: vendor/llvm
-          key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      # the same way (make.til, builds_as_host): the job's first build step
+      # did that, with bin/til. The mac targets are strict in collect;
+      # Android producer failures are blocking after 3167.
       - name: Write the mac and Android binary hash list with the pinned LLVM
         run: |
-          make llvm
+          # The file the first step built, still: this list's "make bin/til".
+          shasum -a 256 bin/til | cmp - tmp/til-built.txt
           export PATH="$PWD/vendor/llvm/bin:$PATH"
-          clang --version
           clang --version | grep -q "clang version 23.1.5"
-          ld64.lld --version
-          rm -rf vendor/libffi/build-macos-arm64 vendor/nng/build-macos-arm64 vendor/libffi/build-macos-x64 vendor/nng/build-macos-x64
-          ./bin/make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/nng/build-macos-arm64/libnng.a
+          # This Mac's own libffi and nng are the pinned compiler's since
+          # the first step; the other Mac's are built here.
+          rm -rf vendor/libffi/build-macos-x64 vendor/nng/build-macos-x64
           ./bin/make vendor/libffi/build-macos-x64/.libs/libffi.a vendor/nng/build-macos-x64/libnng.a
           # The macOS SDK producer compares the same unsigned APK payload as
           # Linux x64; its independently created debug signature is excluded.
@@ -1810,9 +1806,34 @@ jobs:
           name: hashes-binary-macos-arm64
           path: tmp/hashes-binary/macos-arm64.txt
           if-no-files-found: error
-      # Issue #472: windows-x64 from this Mac, with the pinned llvm-mingw the
-      # host-cross step above unpacked: the fourth host that builds
-      # til.exe. Last on PATH, not first: til finds the windows compiler by
+      # Issue #473 (S7): the files this Mac built for itself without
+      # Apple's SDK, run here. They used to come from the Linux job
+      # (macos-cross-build), and this job waited for it to end. collect
+      # holds this Mac's hello_script and til to the bytes every other host
+      # builds for this target, so running these is running those, and no
+      # job waits for another. The three programs outside the lists are
+      # built the same way, libsecp256k1 for them too. til goes to bin/
+      # first: it finds its support tree beside the directory it is in.
+      - name: Run this Mac's SDK-less builds
+        run: |
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
+          built=tmp/ci_collect/binary_macos-arm64
+          $built/hello_script | grep -q "Hello World"
+          cp $built/til bin/til_sdkless
+          ./bin/til_sdkless interpret examples/hello_script.til | grep -q "Hello World"
+          ./bin/til_sdkless interpret test/ext_libc.til
+          rm -rf vendor/secp256k1/build-macos-arm64
+          ./bin/make vendor/secp256k1/build-macos-arm64/lib/libsecp256k1.a
+          mkdir -p tmp/sdkless
+          ./bin/til build --target=macos-arm64 -o tmp/sdkless/crypto test/crypto.til
+          ./bin/til build --target=macos-arm64 -o tmp/sdkless/ffi_prep test/ffi_prep.til
+          ./bin/til build --target=macos-arm64 --extra-modes=examples/custom_modes.til -o tmp/sdkless/nng_pair test/nng_pair.til
+          tmp/sdkless/crypto
+          tmp/sdkless/ffi_prep | grep -q "ffi_prep ok"
+          tmp/sdkless/nng_pair | grep -q "nng pair ok"
+      # Issue #472: windows-x64 from this Mac, with the pinned llvm-mingw
+      # (unpacked here by bin/make, cached by the steps above): the fourth
+      # host that builds til.exe. Last on PATH, not first: til finds the windows compiler by
       # its prefixed name, and a `clang` ahead of Apple's would make til
       # build this Mac's own programs (the collector here) without the SDK
       # and with a linker llvm-mingw does not have. Strict since CI run
@@ -1820,6 +1841,7 @@ jobs:
       # the windows side of llvm-mingw from its Linux package on a Mac.
       - name: Write the windows binary hash list with the pinned llvm-mingw
         run: |
+          ./bin/make llvm_mingw
           export PATH="$PATH:$PWD/vendor/llvm-mingw/bin"
           x86_64-w64-mingw32-gcc --version
           x86_64-w64-mingw32-gcc --version | grep -q clang
@@ -1912,165 +1934,24 @@ jobs:
           path: tmp/crash/
           if-no-files-found: ignore
 
-  # Also runs the linux-cross-built x64 binaries (issue #475; see the
-  # macos-arm64 job).
-  # Issue #472/#473: the Mac's make and suite with the pinned compiler, on
-  # trial. The macos-arm64 job above builds and tests with Apple's
-  # toolchain, so its tested bin/til is not the file the other hosts build
-  # for this target. CI run 3167 showed that make, with the pinned LLVM
-  # first on PATH, writes exactly their file (fd7160cb9396). Here the
-  # whole job runs that way: Apple's cc only bootstraps bin/make (it has to
-  # exist to download the compiler), the host's libffi is rebuilt with the
-  # pinned clang, and make and the suite follow. Its list is under a
-  # producer name of its own; "make bin/til" in it is the bin/til this
-  # suite ran. continue-on-error for the whole job: this shows what of the
-  # suite needs Apple's SDK before the real job changes.
-  macos-arm64-pinned:
+  macos-x64:
     needs: doc-gate
     if: needs.doc-gate.outputs.code == 'true'
-    name: macos-arm64 (pinned LLVM, trial)
-    runs-on: macos-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v5
-      - name: Create test tmp directory
-        run: mkdir -p tmp
-      - name: The pinned LLVM release
-        id: llvm
-        shell: bash
-        run: |
-          release=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
-          test -n "$release"
-          echo "release=$release" >> "$GITHUB_OUTPUT"
-      - name: Cache the pinned LLVM
-        uses: actions/cache@v4
-        with:
-          path: vendor/llvm
-          key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
-      - name: The pinned LLVM first on PATH, and this Mac's libffi built with it
-        run: |
-          make llvm
-          export PATH="$PWD/vendor/llvm/bin:$PATH"
-          clang --version
-          clang --version | grep -q "clang version 23.1.5"
-          ld64.lld --version
-          rm -rf vendor/libffi/build-macos-arm64
-          ./bin/make vendor/libffi/build-macos-arm64/.libs/libffi.a
-      # One step per stage, each run whatever the one before did: a trial
-      # round is an hour, so it reports every stage that fails, not the
-      # first. The pinned compiler is first on PATH only in the steps that
-      # build bin/til and what it links, and in the one that writes the
-      # list: the suite then runs that bin/til with Apple's toolchain for
-      # the programs it builds, as a Mac user's til does. til asks `clang`
-      # which one it is each time it builds for a mac target.
-      - name: This Mac's vendored archives, the SDK-less way
-        run: |
-          export PATH="$PWD/vendor/llvm/bin:$PATH"
-          status=0
-          for archive in vendor/raylib/build-macos-arm64/libraylib.a vendor/tinyfiledialogs/build-macos-arm64/libtinyfd.a vendor/nng/build-macos-arm64/libnng.a vendor/secp256k1/build-macos-arm64/lib/libsecp256k1.a; do
-            ./bin/make "$archive" || status=1
-          done
-          ./bin/make vendor || status=1
-          exit $status
-      - name: make bin/til
-        if: always()
-        run: |
-          export PATH="$PWD/vendor/llvm/bin:$PATH"
-          make bin/til
-          shasum -a 256 bin/til > tmp/til-before-suite.txt
-          cat tmp/til-before-suite.txt
-      # bin/make, not make: the Makefile builds bin/til_boot again each
-      # time, and bin/til after it -- here that would be Apple's build of it.
-      - name: The test programs, with Apple's toolchain
-        if: always()
-        run: |
-          clang --version
-          ./bin/make bin/test_runner bin/plot bin/tests
-          shasum -a 256 bin/til
-      # The suite has to leave bin/til as it was: a test that ran make would
-      # replace it with Apple's build, and the list below would then name a
-      # file this suite did not run from its start.
-      - name: Run tests (no gui), programs built with Apple's toolchain
-        if: always()
-        run: |
-          status=0
-          bin/tests --no-gui -j2 || status=1
-          shasum -a 256 bin/til > tmp/til-after-suite.txt
-          cat tmp/til-after-suite.txt
-          cmp tmp/til-before-suite.txt tmp/til-after-suite.txt || status=1
-          exit $status
-      # CI run 3182: the suite passed all but one row, and that row's
-      # line says only MISMATCH: test/templeos/script_str_runtime.til
-      # printed one thing interpreted by the pinned-built bin/til and
-      # another compiled with Apple's toolchain. Run 3178, where the
-      # pinned compiler built the program too, had no such row. The three
-      # outputs, to read which lines differ.
-      - name: The run/interp mismatch, by hand
-        if: always()
-        run: |
-          t=test/templeos/script_str_runtime.til
-          ./bin/til interpret $t > tmp/diag_interp.txt 2>&1 || true
-          ./bin/til run -o tmp/diag_apple -c tmp/diag_apple.c $t > tmp/diag_apple.txt 2>&1 || true
-          PATH="$PWD/vendor/llvm/bin:$PATH" ./bin/til run -o tmp/diag_pinned -c tmp/diag_pinned.c $t > tmp/diag_pinned.txt 2>&1 || true
-          wc -l tmp/diag_interp.txt tmp/diag_apple.txt tmp/diag_pinned.txt
-          echo "--- interp against Apple's"
-          diff tmp/diag_interp.txt tmp/diag_apple.txt || true
-          echo "--- interp against the pinned compiler's"
-          diff tmp/diag_interp.txt tmp/diag_pinned.txt || true
-          echo "--- test/templeos/templeos_str_runtime.expected against interp"
-          diff test/templeos/templeos_str_runtime.expected tmp/diag_interp.txt || true
-          # A guess, tested in the same round: macOS libraries choose what
-          # they do by the SDK version a program says it was linked with,
-          # and a link without Apple's SDK says the deployment target's
-          # (LC_BUILD_VERSION sdk 11.0 from a Linux host, where Apple's
-          # link names its SDK). The pinned build's own two objects, linked
-          # again saying this Mac's SDK version: if that program prints what
-          # Apple's build prints, that is the difference.
-          sdk=$(xcrun --show-sdk-version)
-          otool -l tmp/diag_apple | grep -A4 LC_BUILD_VERSION || true
-          otool -l tmp/diag_pinned | grep -A4 LC_BUILD_VERSION || true
-          ls -l tmp/diag_pinned.o tmp/diag_pinned_ext.o || true
-          PATH="$PWD/vendor/llvm/bin:$PATH" clang -target arm64-apple-macos11 -fuse-ld=lld -Lvendor/macos -Wl,-syslibroot,vendor/macos -Wl,-platform_version,macos,11.0,$sdk -o tmp/diag_sdk tmp/diag_pinned.o tmp/diag_pinned_ext.o || true
-          otool -l tmp/diag_sdk | grep -A4 LC_BUILD_VERSION || true
-          tmp/diag_sdk > tmp/diag_sdk.txt 2>&1 || true
-          echo "--- Apple's against the pinned objects linked as SDK $sdk"
-          diff tmp/diag_apple.txt tmp/diag_sdk.txt || true
-      - name: Write the binary hash list
-        if: always()
-        run: |
-          export PATH="$PWD/vendor/llvm/bin:$PATH"
-          mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial macos-arm64-pinned tmp/hashes-binary/macos-arm64-pinned.txt bin/til macos-arm64
-          # After the list, which must be written whatever this finds. CI run
-          # 3178: with the pinned compiler every link on a Mac warned
-          # about three of the host's own system libraries, found on disk
-          # ahead of the vendored stub. A program for this Mac has to link
-          # without a word (targets.til, -syslibroot).
-          ./bin/til build -o tmp/hello_pinned examples/hello_script.til 2> tmp/hello_pinned.err || cat tmp/hello_pinned.err
-          cat tmp/hello_pinned.err
-          test ! -s tmp/hello_pinned.err
-          tmp/hello_pinned
-      - name: Upload the binary hash list
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: hashes-binary-macos-arm64-pinned
-          path: tmp/hashes-binary/macos-arm64-pinned.txt
-
-  # The Intel Mac's make and suite with its pinned compiler, on trial: as
-  # macos-arm64-pinned, with llvm-mingw's clang and lld under the mac names
-  # (LLVM publishes no build for Intel macOS; CI run 3167 showed that make
-  # with them writes the other hosts' macos-x64 til, 507a2b63dbf9).
-  macos-x64-pinned:
-    needs: doc-gate
-    if: needs.doc-gate.outputs.code == 'true'
-    name: macos-x64 (llvm-mingw's clang, trial)
+    name: macos-x64 (native)
     runs-on: macos-15-intel
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
       - name: Create test tmp directory
         run: mkdir -p tmp
+      - name: Record the C toolchain
+        run: |
+          echo "clang: $(clang --version 2>&1 | head -1)"
+          echo "ld: $(ld -v 2>&1 | head -1)"
+          echo "sdk: $(xcrun --show-sdk-version 2>&1 | head -1)"
+      # Issue #472/#473: bin/til is built with this Mac's pinned compiler,
+      # as in the macos-arm64 job: llvm-mingw's clang and lld under the mac
+      # names (LLVM publishes no build for Intel macOS; see the list step
+      # below). Only bin/til and the two archives it links.
       - name: The pinned llvm-mingw release
         id: llvm-mingw
         shell: bash
@@ -2085,9 +1966,10 @@ jobs:
         with:
           path: vendor/llvm-mingw
           key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
-      - name: llvm-mingw's clang first on PATH, and this Mac's libffi built with it
+      - name: Build bin/til with llvm-mingw's clang
         run: |
           make llvm_mingw
+          ./bin/make vendor
           mkdir -p tmp/mac-tools
           for tool in clang llvm-ar llvm-ranlib llvm-nm llvm-objcopy; do ln -sf "$PWD/vendor/llvm-mingw/bin/$tool" "tmp/mac-tools/$tool"; done
           ln -sf "$PWD/vendor/llvm-mingw/bin/lld" tmp/mac-tools/ld64.lld
@@ -2096,154 +1978,23 @@ jobs:
           clang --version
           clang --version | grep -q "clang version 23.1.5"
           ld64.lld --version
-          rm -rf vendor/libffi/build-macos-x64
-          ./bin/make vendor/libffi/build-macos-x64/.libs/libffi.a
-      # One step per stage, each run whatever the one before did: a trial
-      # round is an hour, so it reports every stage that fails, not the
-      # first. The pinned compiler is first on PATH only in the steps that
-      # build bin/til and what it links, and in the one that writes the
-      # list: the suite then runs that bin/til with Apple's toolchain for
-      # the programs it builds, as a Mac user's til does. til asks `clang`
-      # which one it is each time it builds for a mac target.
-      - name: This Mac's vendored archives, the SDK-less way
-        run: |
-          export PATH="$PWD/tmp/mac-tools:$PATH"
-          status=0
-          for archive in vendor/raylib/build-macos-x64/libraylib.a vendor/tinyfiledialogs/build-macos-x64/libtinyfd.a vendor/nng/build-macos-x64/libnng.a vendor/secp256k1/build-macos-x64/lib/libsecp256k1.a; do
-            ./bin/make "$archive" || status=1
-          done
-          ./bin/make vendor || status=1
-          exit $status
-      - name: make bin/til
-        if: always()
-        run: |
-          export PATH="$PWD/tmp/mac-tools:$PATH"
-          make bin/til
-          shasum -a 256 bin/til > tmp/til-before-suite.txt
-          cat tmp/til-before-suite.txt
-      # bin/make, not make: the Makefile builds bin/til_boot again each
-      # time, and bin/til after it -- here that would be Apple's build of it.
-      - name: The test programs, with Apple's toolchain
-        if: always()
-        run: |
-          clang --version
-          ./bin/make bin/test_runner bin/plot bin/tests
-          shasum -a 256 bin/til
-      # The suite has to leave bin/til as it was: a test that ran make would
-      # replace it with Apple's build, and the list below would then name a
-      # file this suite did not run from its start.
-      - name: Run tests (no gui), programs built with Apple's toolchain
-        if: always()
-        run: |
-          status=0
-          bin/tests --no-gui -j2 || status=1
-          shasum -a 256 bin/til > tmp/til-after-suite.txt
-          cat tmp/til-after-suite.txt
-          cmp tmp/til-before-suite.txt tmp/til-after-suite.txt || status=1
-          exit $status
-      # CI run 3182: the suite passed all but one row, and that row's
-      # line says only MISMATCH: test/templeos/script_str_runtime.til
-      # printed one thing interpreted by the pinned-built bin/til and
-      # another compiled with Apple's toolchain. Run 3178, where the
-      # pinned compiler built the program too, had no such row. The three
-      # outputs, to read which lines differ.
-      - name: The run/interp mismatch, by hand
-        if: always()
-        run: |
-          t=test/templeos/script_str_runtime.til
-          ./bin/til interpret $t > tmp/diag_interp.txt 2>&1 || true
-          ./bin/til run -o tmp/diag_apple -c tmp/diag_apple.c $t > tmp/diag_apple.txt 2>&1 || true
-          PATH="$PWD/tmp/mac-tools:$PATH" ./bin/til run -o tmp/diag_pinned -c tmp/diag_pinned.c $t > tmp/diag_pinned.txt 2>&1 || true
-          wc -l tmp/diag_interp.txt tmp/diag_apple.txt tmp/diag_pinned.txt
-          echo "--- interp against Apple's"
-          diff tmp/diag_interp.txt tmp/diag_apple.txt || true
-          echo "--- interp against the pinned compiler's"
-          diff tmp/diag_interp.txt tmp/diag_pinned.txt || true
-          echo "--- test/templeos/templeos_str_runtime.expected against interp"
-          diff test/templeos/templeos_str_runtime.expected tmp/diag_interp.txt || true
-          # A guess, tested in the same round: macOS libraries choose what
-          # they do by the SDK version a program says it was linked with,
-          # and a link without Apple's SDK says the deployment target's
-          # (LC_BUILD_VERSION sdk 11.0 from a Linux host, where Apple's
-          # link names its SDK). The pinned build's own two objects, linked
-          # again saying this Mac's SDK version: if that program prints what
-          # Apple's build prints, that is the difference.
-          sdk=$(xcrun --show-sdk-version)
-          otool -l tmp/diag_apple | grep -A4 LC_BUILD_VERSION || true
-          otool -l tmp/diag_pinned | grep -A4 LC_BUILD_VERSION || true
-          ls -l tmp/diag_pinned.o tmp/diag_pinned_ext.o || true
-          PATH="$PWD/tmp/mac-tools:$PATH" clang -target x86_64-apple-macos10.12 -fuse-ld=lld -Lvendor/macos -Wl,-syslibroot,vendor/macos -Wl,-platform_version,macos,10.12,$sdk -o tmp/diag_sdk tmp/diag_pinned.o tmp/diag_pinned_ext.o || true
-          otool -l tmp/diag_sdk | grep -A4 LC_BUILD_VERSION || true
-          tmp/diag_sdk > tmp/diag_sdk.txt 2>&1 || true
-          echo "--- Apple's against the pinned objects linked as SDK $sdk"
-          diff tmp/diag_apple.txt tmp/diag_sdk.txt || true
-      - name: Write the binary hash list
-        if: always()
-        run: |
-          export PATH="$PWD/tmp/mac-tools:$PATH"
-          mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial macos-x64-pinned tmp/hashes-binary/macos-x64-pinned.txt bin/til macos-x64
-          # After the list, which must be written whatever this finds. CI run
-          # 3178: with the pinned compiler every link on a Mac warned
-          # about three of the host's own system libraries, found on disk
-          # ahead of the vendored stub. A program for this Mac has to link
-          # without a word (targets.til, -syslibroot).
-          ./bin/til build -o tmp/hello_pinned examples/hello_script.til 2> tmp/hello_pinned.err || cat tmp/hello_pinned.err
-          cat tmp/hello_pinned.err
-          test ! -s tmp/hello_pinned.err
-          tmp/hello_pinned
-      - name: Upload the binary hash list
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: hashes-binary-macos-x64-pinned
-          path: tmp/hashes-binary/macos-x64-pinned.txt
-
-  macos-x64:
-    needs: [doc-gate, macos-cross-build]
-    if: needs.doc-gate.outputs.code == 'true'
-    name: macos-x64 (native)
-    runs-on: macos-15-intel
-    steps:
-      - uses: actions/checkout@v5
-      - name: Create test tmp directory
-        run: mkdir -p tmp
-      - name: Download mac artifacts (cross run)
-        uses: actions/download-artifact@v4
-        with:
-          name: hello_script-macos
-      - name: Run cross-built binary (cross run)
-        run: |
-          chmod +x hello_script-macos-x64
-          ./hello_script-macos-x64
-          ./hello_script-macos-x64 | grep -q "Hello World"
-      - name: Run the cross-built std/crypto test (cross run)
-        run: |
-          chmod +x crypto-macos-x64
-          ./crypto-macos-x64
-      - name: Download the mac til and libffi programs (cross run)
-        uses: actions/download-artifact@v4
-        with:
-          name: til-macos-cross
-          path: machost
-      # Issue #420: the cross-built libffi on a real mac -- directly, and
-      # through the cross-built til's interpreter.
-      - name: Run the cross-built libffi test and til interpreter (cross run)
-        run: |
-          chmod +x machost/ffi_prep-macos-x64 machost/nng_pair-macos-x64 machost/til-macos-x64
-          ./machost/ffi_prep-macos-x64 | grep -q "ffi_prep ok"
-          ./machost/nng_pair-macos-x64 | grep -q "nng pair ok"
-          ./machost/til-macos-x64 interpret examples/hello_script.til | grep -q "Hello World"
-          ./machost/til-macos-x64 interpret test/ext_libc.til
-      - name: Record the C toolchain
-        run: |
-          echo "clang: $(clang --version 2>&1 | head -1)"
-          echo "ld: $(ld -v 2>&1 | head -1)"
-          echo "sdk: $(xcrun --show-sdk-version 2>&1 | head -1)"
+          rm -rf vendor/libffi/build-macos-x64 vendor/nng/build-macos-x64
+          ./bin/make vendor/libffi/build-macos-x64/.libs/libffi.a vendor/nng/build-macos-x64/libnng.a
+          ./bin/make bin/til
+          shasum -a 256 bin/til > tmp/til-built.txt
+          cat tmp/til-built.txt
       - name: Build and run tests (no gui, ASAN)
         run: |
-          make bin/til bin/til_asan bin/test_runner bin/plot bin/tests
+          clang --version
+          ./bin/make bin/til_asan bin/test_runner bin/plot bin/tests
           bin/tests --no-gui --til-bin bin/til_asan --asan -j2
+          shasum -a 256 bin/til | cmp - tmp/til-built.txt
+          # til runs `make` for a vendored archive when it packages an APK,
+          # and the Makefile writes bin/til_boot again each time: newer than
+          # bin/til, which bin/make would then build again, here with
+          # Apple's toolchain. The bytes were just checked; only the time
+          # is behind.
+          touch bin/til
       - name: Test target build
         run: |
           ./bin/til build --target=macos-x64 -o bin/hello_script_macos_x64 examples/hello_script.til
@@ -2262,7 +2013,7 @@ jobs:
             gen/til/java/til/jni_lib/JniLib.java
       # Native mac GUI build -- see the macos-arm64 job for the rationale.
       - name: Build native mac examples (gui + portable)
-        run: make build_mac
+        run: ./bin/make build_mac
       # Issue #473 (C3): this host's hash list for the collect job.
       - name: Write the hash lists for the collector
         run: |
@@ -2287,33 +2038,15 @@ jobs:
       # macos_is_cross; make.til, builds_as_host). Strict since CI runs
       # 3167, 3173 and 3178 showed this Mac's lists for both mac targets
       # equal to the other three hosts'.
-      - name: The pinned llvm-mingw release
-        id: llvm-mingw
-        shell: bash
-        run: |
-          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
-          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
-          test -n "$release"
-          test -n "$layout"
-          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
-      - name: Cache the pinned llvm-mingw
-        uses: actions/cache@v4
-        with:
-          path: vendor/llvm-mingw
-          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: Write the binary hash list with llvm-mingw's clang
         run: |
-          make llvm_mingw
-          mkdir -p tmp/mac-tools
-          for tool in clang llvm-ar llvm-ranlib llvm-nm llvm-objcopy; do ln -sf "$PWD/vendor/llvm-mingw/bin/$tool" "tmp/mac-tools/$tool"; done
-          ln -sf "$PWD/vendor/llvm-mingw/bin/lld" tmp/mac-tools/ld64.lld
-          ln -sf "$PWD/vendor/llvm-mingw/bin/lld" tmp/mac-tools/ld.lld
+          # The file the first step built, still: this list's "make bin/til".
+          shasum -a 256 bin/til | cmp - tmp/til-built.txt
           export PATH="$PWD/tmp/mac-tools:$PATH"
-          clang --version
           clang --version | grep -q "clang version 23.1.5"
-          ld64.lld --version
-          rm -rf vendor/libffi/build-macos-x64 vendor/nng/build-macos-x64 vendor/libffi/build-macos-arm64 vendor/nng/build-macos-arm64
-          ./bin/make vendor/libffi/build-macos-x64/.libs/libffi.a vendor/nng/build-macos-x64/libnng.a
+          # This Mac's own libffi and nng are the pinned compiler's since
+          # the first step; the other Mac's are built here.
+          rm -rf vendor/libffi/build-macos-arm64 vendor/nng/build-macos-arm64
           ./bin/make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/nng/build-macos-arm64/libnng.a
           mkdir -p tmp/hashes-binary
           # Its own target and the other Mac's: til has to be the same file
@@ -2325,6 +2058,31 @@ jobs:
           name: hashes-binary-macos-x64
           path: tmp/hashes-binary/macos-x64.txt
           if-no-files-found: error
+      # Issue #473 (S7): the files this Mac built for itself without
+      # Apple's SDK, run here. They used to come from the Linux job
+      # (macos-cross-build), and this job waited for it to end. collect
+      # holds this Mac's hello_script and til to the bytes every other host
+      # builds for this target, so running these is running those, and no
+      # job waits for another. The three programs outside the lists are
+      # built the same way, libsecp256k1 for them too. til goes to bin/
+      # first: it finds its support tree beside the directory it is in.
+      - name: Run this Mac's SDK-less builds
+        run: |
+          export PATH="$PWD/tmp/mac-tools:$PATH"
+          built=tmp/ci_collect/binary_macos-x64
+          $built/hello_script | grep -q "Hello World"
+          cp $built/til bin/til_sdkless
+          ./bin/til_sdkless interpret examples/hello_script.til | grep -q "Hello World"
+          ./bin/til_sdkless interpret test/ext_libc.til
+          rm -rf vendor/secp256k1/build-macos-x64
+          ./bin/make vendor/secp256k1/build-macos-x64/lib/libsecp256k1.a
+          mkdir -p tmp/sdkless
+          ./bin/til build --target=macos-x64 -o tmp/sdkless/crypto test/crypto.til
+          ./bin/til build --target=macos-x64 -o tmp/sdkless/ffi_prep test/ffi_prep.til
+          ./bin/til build --target=macos-x64 --extra-modes=examples/custom_modes.til -o tmp/sdkless/nng_pair test/nng_pair.til
+          tmp/sdkless/crypto
+          tmp/sdkless/ffi_prep | grep -q "ffi_prep ok"
+          tmp/sdkless/nng_pair | grep -q "nng pair ok"
       # Issue #472: windows-x64 from this Mac too, as on the arm64 Mac:
       # llvm-mingw last on PATH, so that Apple's clang stays this Mac's
       # own compiler. Strict, like there.
@@ -2622,44 +2380,6 @@ jobs:
           name: hashes-binary-linux-x64
           path: tmp/hashes-binary/linux-x64.txt
           if-no-files-found: error
-      - name: Upload mac artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: hello_script-macos
-          path: |
-            bin/hello_script-macos-arm64
-            bin/hello_script-macos-x64
-            bin/crypto-macos-arm64
-            bin/crypto-macos-x64
-      # Its own artifact, downloaded into machost/ like the windows-host
-      # run job's winhost/: til finds its source tree in its directory's
-      # parent, so from there it uses the checkout's.
-      - name: Upload the mac til and libffi programs
-        uses: actions/upload-artifact@v4
-        with:
-          name: til-macos-cross
-          path: |
-            bin/ffi_prep-macos-arm64
-            bin/ffi_prep-macos-x64
-            bin/nng_pair-macos-arm64
-            bin/nng_pair-macos-x64
-            bin/til-macos-arm64
-            bin/til-macos-x64
-
-  macos-host-cross-win-run:
-    name: macos host cross (run .exe on windows)
-    needs: macos-arm64
-    runs-on: windows-latest
-    steps:
-      - name: Download cross artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: hello_script-from-mac
-      - name: Run mac-built .exe
-        shell: bash
-        run: |
-          ./hello_script-from-mac.exe
-          ./hello_script-from-mac.exe | grep -q "Hello World"
 
   macos-host-cross-linux-run:
     name: macos host cross (run ELF on linux)
@@ -2751,7 +2471,7 @@ jobs:
   # arrived, and it failed saying so.
   collect:
     name: collect (compare the producers' hash lists)
-    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-native, windows-x64-build, macos-arm64, macos-x64, macos-cross-build, macos-arm64-pinned, macos-x64-pinned, windows-x64-mac]
+    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-native, windows-x64-build, macos-arm64, macos-x64, macos-cross-build, windows-x64-mac]
     if: always() && needs.doc-gate.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:

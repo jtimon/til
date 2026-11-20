@@ -1003,7 +1003,7 @@ which copy what is done here for the others.
 |--------+------------------+--------------------+---------|
 | windows-x64 | strict | Linux x64, Linux arm64, Windows, arm64 Mac, Intel Mac | nothing |
 | android-x64, android-arm64 | strict (Android session) | Linux x64, Linux arm64, arm64 Mac | Android session's |
-| macos-arm64, macos-x64 | strict, except ~make bin/til~ | Linux x64, Linux arm64, arm64 Mac, Intel Mac | the Windows host (job ~windows-x64-mac~, trial); the Macs' own tested ~bin/til~ (jobs ~-pinned~, trial) |
+| macos-arm64, macos-x64 | strict, except ~make bin/til~ | Linux x64, Linux arm64, arm64 Mac, Intel Mac | the Windows host (job ~windows-x64-mac~, trial: only the linked executables differ, run 3186); ~make bin/til~ strict once a run shows the Macs' own jobs' pinned-built ~bin/til~ equal (they build it that way since the commit after run 3188) |
 | wasm32 | switched off for now | none | resumed after the rest of #472 (Jorge, 2026-11-20) |
 | linux-x64, linux-arm64 | trial | Linux x64, Linux arm64 | [[./504.org][#504]]: the host's C library; debug info differs today |
 | linux-arm32, linux-riscv64, linux-x86, linux-riscv32 | no binary list | none | #504 first |
@@ -1059,3 +1059,46 @@ session's own container (bde7eba0f0ec, 8dfac551437f), two machines and
 two checkout paths; the emcc line is equal too. ~hello_script.js~
 differs between the two; they were built from different commits, and
 why that program changes with the commit was not looked into.
+
+*** S7, first part: the Mac jobs wait for no one; a Mac-built .exe is not run again (2026-11-20)
+
+Jorge, 2026-11-20: not counting the doc gate there are still four levels
+of jobs where there should be two, the producers and collect.
+
+What made the levels, before this:
+
+| level | jobs | why they wait |
+|-------+------+---------------|
+| 1 | every producer but the two Mac jobs | nothing |
+| 2 | ~macos-arm64~, ~macos-x64~ | for ~macos-cross-build~: they ran its mac binaries |
+| 2 | ~windows-x64-run~ | for ~windows-x64-build~: it runs its x64 and x86 programs |
+| 3 | ~collect~ | for every producer, the Mac jobs among them |
+| 3 | ~macos-host-cross-win-run~, ~macos-host-cross-linux-run~ | for ~macos-arm64~: they ran what it cross-built |
+| 3 | ~jni-jar-merge~ | for five hosts' jars |
+| 4 | ~jni-jar-run~ | for the merged jar |
+
+Done here:
+- ~macos-arm64~ and ~macos-x64~ no longer need ~macos-cross-build~. The
+  Linux-built hello_script, crypto, ffi_prep, nng_pair and til are not
+  downloaded; each Mac runs the ones it builds itself with the pinned
+  compiler, right after its list step: hello_script and til are the
+  files in its list (collect: strict, the same bytes from four hosts),
+  the other three are built by the same commands. ~macos-cross-build~
+  keeps building them and uploads no program artifacts.
+- ~macos-host-cross-win-run~ is gone, and the Mac's step that built
+  ~hello_script-from-mac.exe~ for it: that program for windows-x64 is in
+  the Mac's windows list, strict against the Windows host's own.
+
+Levels now: producers; then ~collect~, ~windows-x64-run~,
+~macos-host-cross-linux-run~ and ~jni-jar-merge~; then ~jni-jar-run~.
+
+Left for two levels:
+- ~windows-x64-run~: the Windows session's. Its x64 half is covered by
+  the lists; windows-x86 has no native host and no list yet.
+- ~macos-host-cross-linux-run~: a Linux ELF built on the Mac, run on
+  Linux. Goes when the linux targets are in the lists (#504).
+- ~jni-jar-merge~ and ~jni-jar-run~: not a "build here, run there" pair
+  but a test of one jar holding every host's library, so it needs all the
+  hosts first and then each of them again. Two levels by its nature;
+  whether it stays, moves into collect's level, or changes shape is not
+  decided.
