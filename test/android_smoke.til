@@ -247,6 +247,22 @@ wait_board := proc(device: Device, stage: Str, name: Str, view: BoardView, expec
     panic("Checkers board differs: ", stage, "/", name, ".png")
 }
 
+wait_activity_removed := proc(device: Device, component: Str) {
+    // The native glue logs android_app_destroy! before it wakes the UI
+    // thread. Wait for Android to remove the old ActivityRecord before
+    // starting the next instance; the process itself must still be alive.
+    for _ in 0..40 {
+        activities := device.adb("shell", "dumpsys", "activity", "activities")
+        mut present := false
+        for line : Str in activities.split("\n") {
+            if line.contains("Hist #").and(line.contains(component)) { present = true; break }
+        }
+        if present.not() { return }
+        sleep_ms(250)
+    }
+    panic("Back did not remove ", component, " from Android's task history")
+}
+
 check_checkers := proc(device: Device, stage: Str, width: Str, apk: Str) {
     component := format(CHECKERS, "/android.app.NativeActivity")
     device.adb("install", "-r", apk)
@@ -308,6 +324,7 @@ check_checkers := proc(device: Device, stage: Str, width: Str, apk: Str) {
                 panic("expected one ", marker, " per Checkers Back exit")
             }
         }
+        wait_activity_removed(device, component)
         smoke_equal("Checkers PID after Back", device.pid(CHECKERS), pid)
         if cycle < 4 {
             device.launch(component)

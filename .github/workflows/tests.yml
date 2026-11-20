@@ -197,8 +197,14 @@ jobs:
           disable-linux-hw-accel: false
           emulator-options: -no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim
           script: >-
-            bin/test/android_smoke "$ANDROID_SERIAL" ${{ matrix.api }} ${{ matrix.pages }} ||
-            { status=$?; timeout 30s adb -s "$ANDROID_SERIAL" logcat -d -b crash > tmp/android_smoke/crash.log; exit "$status"; }
+            status=0;
+            bin/test/android_smoke "$ANDROID_SERIAL" ${{ matrix.api }} ${{ matrix.pages }} > tmp/android_smoke/crash.log 2>&1 || status=$?;
+            cat tmp/android_smoke/crash.log;
+            if [ "$status" -ne 0 ]; then
+            timeout 30s adb -s "$ANDROID_SERIAL" logcat -d -b crash >> tmp/android_smoke/crash.log 2>&1;
+            timeout 30s adb -s "$ANDROID_SERIAL" logcat -d -b all -t 3000 >> tmp/android_smoke/crash.log 2>&1;
+            fi;
+            exit "$status"
       - name: Remove disposable AVD and debug key
         if: always()
         run: rm -rf tmp/android-smoke-home
