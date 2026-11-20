@@ -4014,3 +4014,46 @@ copies of the list.
 
 The run was red before that for others' reasons: the Windows host's own
 list step (fixed in 1bfed34) and the two new Android runtime jobs.
+
+*** The mac debug map names sources under one fixed root (Jorge, 2026-11-20: the same binaries from everywhere)
+
+The first of the three ways above, since the other two do not give the
+same binary from every host. For a mac target built without Apple's SDK
+(~compile_c_named_objects~), til names the generated C and ~ext.c~ by
+their full paths and adds ~-fdebug-prefix-map=<working directory>=/proc/self/cwd~
+after the map to ~.~ that every build has. In the debug info the later
+option wins, so the compile directory and the file names are under
+~/proc/self/cwd~; ~__FILE__~ and til's own location strings keep ~./~.
+The linker then writes the name as it is and joins nothing:
+
+: SO /proc/self/cwd/tmp/dbgroot/hello.c
+: OSO tmp/dbgroot/hello.o
+: SO /proc/self/cwd/src/self/codegen/ext.c
+: OSO tmp/dbgroot/hello_ext.o
+
+(read from a macos-arm64 ~hello_script~ built here). The root's name is
+Bazel's for the same purpose: a Linux debugger opens ~/proc/self/cwd~ by
+itself; lldb on a Mac takes
+~settings set target.source-map /proc/self/cwd <the build's directory>~.
+Asked of Jorge, not answered when this was written: that name, or one
+of til's own.
+
+Every mac object and executable changes once with this, the same way on
+every host. Whether a Windows host now writes the other hosts' bytes is
+for the next run to show: its job is still on trial.
+
+*** Run 3193: collect green, with the mac targets strict from four hosts, the Macs' own bin/til included
+
+Run 3193 (master bd3be5c). Everything is green but the two Android
+runtime jobs (the Android session's). collect: 2278 equal, 0 different,
+0 missing, 46 different on trial.
+
+| target | strict producers | equal (32 + 64) |
+|--------+------------------+-----------------|
+| windows-x64 | Linux x64, Linux arm64, Windows, arm64 Mac, Intel Mac | 130 + 2 |
+| macos-arm64 | Linux x64, Linux arm64, arm64 Mac, Intel Mac | all; ~make bin/til~ 004c8c269e1c from the four, the arm64 Mac's being the file its suite ran with |
+| macos-x64 | the same four | all |
+
+The Windows host's two mac lists (trial) agree with the others on 114 + 1
+and 116 + 1 items and differ in the executables and their ~:debug-map~
+items, as in run 3190: this run is from before the fixed debug root.

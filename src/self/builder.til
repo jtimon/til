@@ -529,6 +529,35 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     return 0
 }
 
+// #472: the linker writes each source's path into a Mach-O executable's
+// debug map, and when the name in the debug info is relative it joins the
+// compile directory and the name with the HOST's separator: a Windows
+// host wrote ".\gen/til/x.c" where every other host wrote
+// "./gen/til/x.c", the one difference left in a mac executable linked
+// there (CI run 3190: objects, archives and sections were equal). A name
+// that is absolute in the POSIX sense is written as it is. So the sources
+// are named by their full paths, and the working directory is recorded as
+// one fixed root: /proc/self/cwd, the name Bazel uses for the same
+// purpose. A Linux debugger opens that by itself; lldb on a Mac takes
+// `settings set target.source-map /proc/self/cwd <the build's directory>`.
+// Debug info only (-fdebug-prefix-map), and after c_path_map_flags, which
+// maps the same directory to "." -- for debug info the later option wins,
+// while __FILE__ keeps "./". A file outside the working directory (an
+// installed compiler's runtime) keeps its real path, as before.
+priv MAC_DEBUG_ROOT := "/proc/self/cwd"
+
+priv mac_debug_root_flags := proc() returns Str {
+    physical := realpath_str(".")
+    mut flags := format(" -fdebug-prefix-map=", physical, "=", MAC_DEBUG_ROOT)
+    // REM As in c_path_map_flags: $PWD when it names this directory
+    // through a symbolic link.
+    logical := get_env("PWD")
+    if logical.len() > 0 && logical != physical && realpath_str(logical) == physical {
+        flags = format(flags, " -fdebug-prefix-map=", logical, "=", MAC_DEBUG_ROOT)
+    }
+    return flags
+}
+
 // #472 (L3a): the build for a target whose linker records its object files
 // (targets.til target_links_named_objects). The generated C and the runtime
 // compile to objects named after the generated C, beside it, so the names
@@ -544,8 +573,14 @@ priv compile_c_named_objects := proc(compiler: Str, extra: Str, compile_flags: S
     if dot > c_path.rfind("/") { object_base = c_path.substr(0, dot.to_usize()).clone() }
     main_object := format(object_base, ".o")
     ext_object := format(object_base, "_ext.o")
-    for pair : Str in array(Str, format(c_path, " -o ", main_object), format(ext_c_path, " -o ", ext_object)) {
-        if system_cmd(compiler.format(extra, compile_flags, " -g -I", ext_dir, " -c ", pair)) != 0 {
+    // REM Full paths, for mac_debug_root_flags; ext_c_path arrives quoted
+    // for the shell when it has to be, so it is resolved by the shell's
+    // own reading of it only where it is plain.
+    main_source := shell_path(realpath_str(c_path))
+    mut ext_source := ext_c_path.clone()
+    if ext_c_path.starts_with("\"").or(ext_c_path.starts_with("'")).not() { ext_source = shell_path(realpath_str(ext_c_path)) }
+    for pair : Str in array(Str, format(main_source, " -o ", main_object), format(ext_source, " -o ", ext_object)) {
+        if system_cmd(compiler.format(extra, compile_flags, mac_debug_root_flags(), " -g -I", ext_dir, " -c ", pair)) != 0 {
             println("error: C compilation failed")
             return 1
         }
