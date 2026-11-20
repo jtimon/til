@@ -245,6 +245,16 @@ test_file_append := test() {
     f := File.append(path)
     f.write(" tail")
     assert_eq(Str, File.readfile(path), "reset tail")
+
+    // A seek does not move where an append handle writes, and tell after
+    // the write says where the file ends: not the seek's position plus the
+    // bytes written, which a Mac's C library answered for a program linked
+    // with Apple's SDK (CI run 3186). A handle of its own: the read above
+    // sees " tail" because f is closed at its last use.
+    again := File.append(path)
+    again.seek(0).write("!")
+    assert_eq(I64, again.tell(), 11)
+    assert_eq(Str, File.readfile(path), "reset tail!")
 }
 
 // --- Directories and whole-tree operations (issue #345) ---

@@ -2781,6 +2781,34 @@ I64 cfile_tell(const void *handle) {
     // File.tell answer "-1 bytes from the start", which callers then use
     // as a size (seek_end(0) + tell() is how a file's length is measured
     // here) or as a seek target.
+#ifndef _WIN32
+    // A file opened for append is written at its end whatever a seek said
+    // (C11 7.21.5.3p6), and C libraries disagree about ftell after such a
+    // write. glibc answers where the file ends. So does macOS for a program
+    // linked without Apple's SDK; for one linked with it, the same library
+    // answers the seek's position plus the bytes written: one test printed
+    // 4 or 18 for one file on one Mac, by how the program was linked (CI
+    // run 3186, test/templeos/script_str_runtime.til). The descriptor knows:
+    // an O_APPEND write leaves its offset at the end of the file. Flushed
+    // first, so that what was written has reached it.
+    int flags = fcntl(fileno((FILE *)handle), F_GETFL);
+    if (flags == -1) {
+        fprintf(stderr, "cfile_tell: %s\n", strerror(errno));
+        exit(1);
+    }
+    if (flags & O_APPEND) {
+        if (fflush((FILE *)handle) != 0) {
+            fprintf(stderr, "cfile_tell: %s\n", strerror(errno));
+            exit(1);
+        }
+        I64 end = (I64)lseek(fileno((FILE *)handle), 0, SEEK_CUR);
+        if (end < 0) {
+            fprintf(stderr, "cfile_tell: %s\n", strerror(errno));
+            exit(1);
+        }
+        return end;
+    }
+#endif
     I64 pos = (I64)TIL_FTELL((FILE *)handle);
     if (pos < 0) {
         fprintf(stderr, "cfile_tell: %s\n", strerror(errno));

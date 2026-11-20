@@ -377,6 +377,7 @@ jobs:
       # Issue #473: wasm32 from this host too (see the wasm32 job). The
       # emsdk is installed with the first wasm32 archive bin/make builds.
       - name: Write the wasm32 binary hash list
+        if: false
         continue-on-error: true
         run: |
           ./bin/make vendor/secp256k1/build-wasm32/lib/libsecp256k1.a
@@ -384,6 +385,7 @@ jobs:
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial linux-arm64 tmp/hashes-binary-wasm/linux-arm64.txt bin/til wasm32
           cat tmp/hashes-binary-wasm/linux-arm64.txt
       - name: Upload the wasm32 binary hash list
+        if: false
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -877,18 +879,23 @@ jobs:
           "$NODE" bin/layout_corpus.js | grep -q "layout corpus OK"
           ./bin/til build --target=wasm32 --cc="$EMCC" -o bin/hello_gui.html examples/hello_gui.til
           grep -qi "<html" bin/hello_gui.html
+      # Switched off (if: false) in the three jobs that have these two
+      # steps: not a priority until the rest of #472 is done (Jorge,
+      # 2026-11-20). The one run they had (3186) is in issues/open/473.org.
       # Issue #473: wasm32 from three hosts, on trial -- this one, the
       # arm64 Linux host and the arm64 Mac, each with the vendored emsdk at
       # its pinned version (the emsdk installs that host's build of one
       # emscripten release). Two programs at both widths; the list is the
       # .js emcc writes, with the module inside.
       - name: Write the wasm32 binary hash list
+        if: false
         continue-on-error: true
         run: |
           mkdir -p tmp/hashes-binary-wasm
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial linux-x64 tmp/hashes-binary-wasm/linux-x64.txt bin/til wasm32
           cat tmp/hashes-binary-wasm/linux-x64.txt
       - name: Upload the wasm32 binary hash list
+        if: false
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -1765,6 +1772,7 @@ jobs:
           if-no-files-found: error
       # Issue #473: wasm32 from this Mac too (see the wasm32 job).
       - name: Write the wasm32 binary hash list
+        if: false
         continue-on-error: true
         run: |
           ./bin/make vendor/secp256k1/build-wasm32/lib/libsecp256k1.a
@@ -1772,6 +1780,7 @@ jobs:
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial macos-arm64 tmp/hashes-binary-wasm/macos-arm64.txt bin/til wasm32
           cat tmp/hashes-binary-wasm/macos-arm64.txt
       - name: Upload the wasm32 binary hash list
+        if: false
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -1947,6 +1956,22 @@ jobs:
           diff tmp/diag_interp.txt tmp/diag_pinned.txt || true
           echo "--- test/templeos/templeos_str_runtime.expected against interp"
           diff test/templeos/templeos_str_runtime.expected tmp/diag_interp.txt || true
+          # A guess, tested in the same round: macOS libraries choose what
+          # they do by the SDK version a program says it was linked with,
+          # and a link without Apple's SDK says the deployment target's
+          # (LC_BUILD_VERSION sdk 11.0 from a Linux host, where Apple's
+          # link names its SDK). The pinned build's own two objects, linked
+          # again saying this Mac's SDK version: if that program prints what
+          # Apple's build prints, that is the difference.
+          sdk=$(xcrun --show-sdk-version)
+          otool -l tmp/diag_apple | grep -A4 LC_BUILD_VERSION || true
+          otool -l tmp/diag_pinned | grep -A4 LC_BUILD_VERSION || true
+          ls -l tmp/diag_pinned.o tmp/diag_pinned_ext.o || true
+          PATH="$PWD/vendor/llvm/bin:$PATH" clang -target arm64-apple-macos11 -fuse-ld=lld -Lvendor/macos -Wl,-syslibroot,vendor/macos -Wl,-platform_version,macos,11.0,$sdk -o tmp/diag_sdk tmp/diag_pinned.o tmp/diag_pinned_ext.o || true
+          otool -l tmp/diag_sdk | grep -A4 LC_BUILD_VERSION || true
+          tmp/diag_sdk > tmp/diag_sdk.txt 2>&1 || true
+          echo "--- Apple's against the pinned objects linked as SDK $sdk"
+          diff tmp/diag_apple.txt tmp/diag_sdk.txt || true
       - name: Write the binary hash list
         if: always()
         run: |
@@ -2073,6 +2098,22 @@ jobs:
           diff tmp/diag_interp.txt tmp/diag_pinned.txt || true
           echo "--- test/templeos/templeos_str_runtime.expected against interp"
           diff test/templeos/templeos_str_runtime.expected tmp/diag_interp.txt || true
+          # A guess, tested in the same round: macOS libraries choose what
+          # they do by the SDK version a program says it was linked with,
+          # and a link without Apple's SDK says the deployment target's
+          # (LC_BUILD_VERSION sdk 11.0 from a Linux host, where Apple's
+          # link names its SDK). The pinned build's own two objects, linked
+          # again saying this Mac's SDK version: if that program prints what
+          # Apple's build prints, that is the difference.
+          sdk=$(xcrun --show-sdk-version)
+          otool -l tmp/diag_apple | grep -A4 LC_BUILD_VERSION || true
+          otool -l tmp/diag_pinned | grep -A4 LC_BUILD_VERSION || true
+          ls -l tmp/diag_pinned.o tmp/diag_pinned_ext.o || true
+          PATH="$PWD/tmp/mac-tools:$PATH" clang -target x86_64-apple-macos10.12 -fuse-ld=lld -Lvendor/macos -Wl,-syslibroot,vendor/macos -Wl,-platform_version,macos,10.12,$sdk -o tmp/diag_sdk tmp/diag_pinned.o tmp/diag_pinned_ext.o || true
+          otool -l tmp/diag_sdk | grep -A4 LC_BUILD_VERSION || true
+          tmp/diag_sdk > tmp/diag_sdk.txt 2>&1 || true
+          echo "--- Apple's against the pinned objects linked as SDK $sdk"
+          diff tmp/diag_apple.txt tmp/diag_sdk.txt || true
       - name: Write the binary hash list
         if: always()
         run: |
@@ -2647,7 +2688,7 @@ jobs:
   # arrived, and it failed saying so.
   collect:
     name: collect (compare the producers' hash lists)
-    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-native, windows-x64-build, macos-arm64, macos-x64, macos-cross-build, macos-arm64-pinned, macos-x64-pinned, windows-x64-mac, wasm32]
+    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-native, windows-x64-build, macos-arm64, macos-x64, macos-cross-build, macos-arm64-pinned, macos-x64-pinned, windows-x64-mac]
     if: always() && needs.doc-gate.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:

@@ -3766,3 +3766,82 @@ First run of ~windows-x64-mac~:
   Windows host. Note for the Windows session: ~Cmd.new("ld.lld")~ (any
   program name with a dot) is not found on a Windows host; whether ~Cmd~
   should try the name with ~.exe~ itself is yours to decide.
+
+**** The mismatch: a guess, tested in the next round
+
+Not reproduced on Linux: ~script_str_runtime~ interpreted, built with gcc
+and built with clang prints the same 121 lines here. Neither the test
+nor the mac side of ~ext.c~ changed between runs 3178 and 3182. Within
+one toolchain the interpreter and the compiled program agree (two
+unrelated pieces of code), across the two they do not: that points at
+the platform, not at undefined behaviour in the C.
+
+One thing that differs between the two builds on the same Mac:
+~LC_BUILD_VERSION~. A link without Apple's SDK records the deployment
+target as the SDK version too (~sdk 11.0~ next to ~minos 11.0~, read from
+a program built here), where Apple's link records its SDK's. macOS
+libraries choose behaviour by that version. The trial jobs' step links
+the pinned build's own two objects once more with
+~-Wl,-platform_version,macos,<min>,<the Mac's SDK version>~ (lld takes
+the last one given; checked here: ~sdk 26.0~, ~minos 11.0~) and diffs
+its output against Apple's build. If they agree, til's SDK-less link has
+to say which SDK its headers and stub are from.
+
+*** Run 3186: what the mismatch is, and the Windows host's first mac lists
+
+**** The mismatch: File.tell after a write to an append handle
+
+Both Macs, the same one line of 121:
+
+: --- interp against Apple's
+: 36c36
+: < 18
+: ---
+: > 4
+
+and no difference between the interpreter and the program the pinned
+compiler built. Line 36 is
+
+: appender := File.append(fs_data)
+: appender.seek(0).write("tail")
+: println(appender.tell().to_str())
+
+on a 14-byte file. The bytes land at the end either way (the next lines
+of the test read them back). ~ftello~ after the write answers 18, where
+the file ends, on Linux and on a Mac for a program linked without Apple's
+SDK; for a program linked with Apple's SDK, the same C library on the
+same Mac answers 4, the seek's position plus the bytes written. So a
+natively built til program on a Mac has been printing 4 there all along;
+the suite's row only compares the interpreter with the compiled program,
+and in the Macs' own jobs both are Apple's.
+
+Fixed where it is asked, ~cfile_tell~ in ~ext.c~: for a handle whose
+descriptor is ~O_APPEND~, flush and return the descriptor's own offset,
+which an append write leaves at the end of the file on every system.
+Nothing changes on Linux (glibc's answer is that offset). Not on
+Windows hosts, whose branch is untouched: note for the Windows session,
+~File.append(p).seek(0).write(s).tell()~ is not pinned there.
+~test/files.til~ asserts it (~test_file_appendfile~'s second handle);
+on a Mac with Apple's toolchain that assertion fails without the fix.
+Not run on a Mac from here: the next round's Mac jobs are the test.
+
+Whether the difference comes from the SDK version in
+~LC_BUILD_VERSION~ or from Apple's headers is still open; the relink
+step added to the trial jobs answers it in the same round.
+
+**** The Windows host builds libffi, nng and til for both mac targets
+
+After the ~ld.lld~ fix the whole job ran: libffi through ~sh configure~
+and MSYS2's make, nng through cmake's "MSYS Makefiles", the two programs,
+the library, til at both widths and ~make bin/til~ in a root with the
+junction. Its lists were uploaded (121 and 123 lines). They are not the
+other hosts' yet:
+
+| macos-arm64 | the arm64 Mac's ~-pinned~ job | Windows |
+|-------------+--------------------------------+---------|
+| ~src/til.til til~ | 2da53be6d87b | d731f864368f |
+| ~make bin/til~ | 6b5d2dcbca74 | ed45297b53b7 |
+| ~til~, width 64 | 2c784a6d4b80 | bb9c4f769787 |
+
+Which items differ (the archives, their members, til's sections) is in
+the collect report, which had not run when this was written.

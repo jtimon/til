@@ -1004,7 +1004,7 @@ which copy what is done here for the others.
 | windows-x64 | strict | Linux x64, Linux arm64, Windows, arm64 Mac, Intel Mac | nothing |
 | android-x64, android-arm64 | strict (Android session) | Linux x64, Linux arm64, arm64 Mac | Android session's |
 | macos-arm64, macos-x64 | strict, except ~make bin/til~ | Linux x64, Linux arm64, arm64 Mac, Intel Mac | the Windows host (job ~windows-x64-mac~, trial); the Macs' own tested ~bin/til~ (jobs ~-pinned~, trial) |
-| wasm32 | trial, new | Linux x64, Linux arm64, arm64 Mac | a first run |
+| wasm32 | switched off for now | none | resumed after the rest of #472 (Jorge, 2026-11-20) |
 | linux-x64, linux-arm64 | trial | Linux x64, Linux arm64 | [[./504.org][#504]]: the host's C library; debug info differs today |
 | linux-arm32, linux-riscv64, linux-x86, linux-riscv32 | no binary list | none | #504 first |
 | windows-x86 | no binary list | none | see the note below |
@@ -1045,3 +1045,17 @@ Checked on one host: two runs of the producer write the same list, and
 the paths inside the output are relative to the checkout
 (~./vendor/emscripten/...~). Three producers on trial: the ~wasm32~ job
 (Linux x64), the arm64 Linux host and the arm64 Mac.
+
+**** wasm32 switched off for now (Jorge, 2026-11-20)
+
+Not a priority until the rest of #472 is done: the three jobs' two wasm32
+list steps are ~if: false~ and ~collect~ no longer waits for the ~wasm32~
+job. ~produce_wasm_binary~ stays in the collector. To resume: remove the
+three ~if: false~ pairs and put ~wasm32~ back in ~collect~'s ~needs~.
+
+What the one run with the steps on showed before that (3186, Linux x64
+only read): ~layout_corpus.js~ at both widths is the file built in this
+session's own container (bde7eba0f0ec, 8dfac551437f), two machines and
+two checkout paths; the emcc line is equal too. ~hello_script.js~
+differs between the two; they were built from different commits, and
+why that program changes with the commit was not looked into.
