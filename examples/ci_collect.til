@@ -291,8 +291,14 @@ toolchain_identity := proc(target: Str) returns Str {
         if target.starts_with("linux-") {
             compiler_identity = format(compiler, " ", tool_output(compiler, "-dumpfullversion"), " ", tool_output(compiler, "-dumpmachine"))
         }
+        // REM llvm-mingw's Windows package has no x86_64-w64-mingw32-ld (CI
+        // run 3188), the wrapper its Linux package runs ld.lld through: there
+        // the linker clang runs is ld.lld.exe, named with its .exe because
+        // Windows adds one only to a name without a dot.
+        mut linker := format(prefix, "ld")
+        if target.starts_with("windows-").and(host_os() == "windows") { linker = "ld.lld.exe" }
         return format(compiler_identity, "\n",
-            version_line(format(prefix, "ld")), "\n", version_line(format(prefix, "ar")), "\n",
+            version_line(linker), "\n", version_line(format(prefix, "ar")), "\n",
             libc_version.trim(), "\n")
     }
     fail(format("produce-binary does not know the toolchain of ", target))
