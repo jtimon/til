@@ -783,8 +783,37 @@ Hand-off checklist for the local session:
     directly, or Gradle) and where generated manifests and APKs live.
   - Stage 3 uses the existing generated Java/jar and ~.so~ outputs for
     the app's own build, without a new AAR or ~jniLibs/~ output tree.
-  - Whether an emulator-based check runs anywhere automated (CI only, or
-    opt-in locally).
+   - APPROVED: emulator checks in CI and opt-in locally, with disposable
+     AVDs and the Android Emulator Runner action in CI.
+
+*** Maintained Android runtime smoke checks
+
+The ~android-runtime~ CI matrix runs on Linux x86_64 with KVM and cold,
+disposable AVDs: API 28 ~google_apis~ and API 35 ~google_apis_ps16k~.
+The action stops the emulator after the test, and the workflow removes
+its temporary home, including the AVD and its debug key. Failed runs
+retain screenshots, logs and the guest's JNI output when available.
+
+~test/android_smoke.til~ uses the existing build interfaces at both USize
+layouts. It pushes and runs ~test/layout_corpus.til~ as a CLI executable,
+packages the generated JNI binding into a Java Activity, and compares
+the unchanged JNI corpus against ~test/JniLibTest.expected~ on ART. The
+Activity measures the page size with ~sysconf~. The Checkers test checks
+the default AI opening, red and black 2P moves, Restart, same-process
+Home/resume, and four clean Back exits with fresh rendered boards on
+relaunch. Android can retain the surface across Home; the Back assertions
+check destruction and GL cleanup independently.
+
+To run locally, build ~bin/til~ with ~make~, install SDK Platform 37.0 and
+Build-Tools 36.0.0, then start a disposable x86_64 AVD. Run from the
+checkout root with the actual serial, API and expected page size, e.g.
+~bin/til run test/android_smoke.til emulator-5554 35 16384~. The driver
+installs and removes test apps (including Checkers) on that AVD;
+the caller stops it. The default suite still needs no emulator.
+
+Both images passed locally at both layouts after rebasing onto
+~7d6107d5a~; ~make clean && make test~ passed 596/596. GitHub-hosted
+execution is not yet verified. ARM64 device execution remains open.
 
 *** Acceptance
 

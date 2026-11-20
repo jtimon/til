@@ -149,6 +149,69 @@ jobs:
           path: tmp/hashes/linux-x64.txt
           if-no-files-found: error
 
+  android-runtime:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
+    name: Android x86_64 runtime (API ${{ matrix.api }}, ${{ matrix.pages }}-byte pages)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api: 28
+            image: google_apis
+            pages: 4096
+          - api: 35
+            image: google_apis_ps16k
+            pages: 16384
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build the host compiler and smoke driver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1
+          mkdir -p tmp/android-smoke-home tmp/android_smoke
+          make
+          bin/til build test/android_smoke.til
+      - name: Install APK tools and enable KVM
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-37.0" "build-tools;36.0.0"
+          sudo chmod 0666 /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+      - name: Run CLI, ART JNI and Checkers at both USize layouts
+        # v2.37 creates 16 KB AVDs by package without forcing a mismatched --abi tag.
+        uses: ReactiveCircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        env:
+          # The action puts AVDs below $HOME/.android/avd.
+          HOME: ${{ github.workspace }}/tmp/android-smoke-home
+          ANDROID_USER_HOME: ${{ github.workspace }}/tmp/android-smoke-home/.android
+          TMPDIR: ${{ github.workspace }}/tmp
+          JAVA_TOOL_OPTIONS: -Djava.io.tmpdir=${{ github.workspace }}/tmp
+        with:
+          api-level: ${{ matrix.api }}
+          target: ${{ matrix.image }}
+          arch: x86_64
+          profile: pixel_2
+          avd-name: til-smoke
+          disable-linux-hw-accel: false
+          emulator-options: -no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim
+          script: >-
+            bin/test/android_smoke "$ANDROID_SERIAL" ${{ matrix.api }} ${{ matrix.pages }} ||
+            { status=$?; timeout 30s adb -s "$ANDROID_SERIAL" logcat -d -b crash > tmp/android_smoke/crash.log; exit "$status"; }
+      - name: Remove disposable AVD and debug key
+        if: always()
+        run: rm -rf tmp/android-smoke-home
+      - name: Upload smoke diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-runtime-api-${{ matrix.api }}
+          path: |
+            tmp/android_smoke/**/*.log
+            tmp/android_smoke/**/*.actual
+            tmp/android_smoke/**/*.png
+
   # One layout flag (doc/self.org): --usize=32, the compact layout (U32
   # widths, own pointers in the #313 cage), is the default on 64-bit C
   # targets, so every other job runs on it. This job keeps the native

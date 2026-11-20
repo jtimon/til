@@ -1,0 +1,348 @@
+mode cli
+
+// #462: run from the checkout root against one booted, disposable AVD.
+// The caller owns boot and shutdown. The ordinary suite needs no emulator.
+import("../src/std/sys")
+import("../src/std/file")
+import("./jni_support")
+import("../vendor/bindings/raylib")
+link("vendor/raylib/build-linux-x64/libraylib.a")
+link("m")
+link("dl")
+link("pthread")
+
+JNI_APP := "org.til.androidsmoke"
+CHECKERS := "org.til.checkers"
+JNI_JAR := "gen/lib/jni_lib.jar"
+RED_PIECE := 14430770 // RGB (220, 50, 50), from Checkers
+BLACK_PIECE := 3289650 // RGB (50, 50, 50)
+
+checked := proc(cmd: Cmd) returns Str {
+    cmd.capture()
+    if cmd.run() != 0 { panic(cmd.render(), ":\n", cmd.out(), cmd.err()) }
+    return cmd.out()
+}
+
+Device := struct {
+    own tool: Str = ""
+    own serial: Str = ""
+namespace:
+    command := proc(self: Device, args: ..Str) returns Cmd {
+        cmd := Cmd.new("timeout", "30s", self.tool, "-s", self.serial)
+        for arg : Str in args { cmd.arg(arg) }
+        return cmd
+    }
+
+    adb := proc(self: Device, args: ..Str) returns Str {
+        cmd := self.command()
+        for arg : Str in args { cmd.arg(arg) }
+        return checked(cmd)
+    }
+
+    launch := proc(self: Device, component: Str) {
+        result := self.adb("shell", "am", "start", "-W", "-n", component)
+        if result.contains("Status: ok").not() { panic("cannot start ", component, ": ", result) }
+    }
+
+    pid := proc(self: Device, app: Str) returns Str {
+        return self.adb("shell", "pidof", app).trim().clone()
+    }
+
+    log := proc(self: Device, pid: Str) returns Str {
+        return self.adb("logcat", "-d", format("--pid=", pid), "threaded_app:V", "raylib:V", "til:V",
+            "TilAndroidSmoke:V", "AndroidRuntime:V", "libc:V", "libEGL:V", "*:E")
+    }
+}
+
+smoke_equal := func(label: Str, actual: Str, expected: Str) {
+    if actual != expected { panic(label, ": expected ", expected, ", got ", actual) }
+}
+
+check_cli := proc(device: Device, stage: Str, width: Str) {
+    local := format(stage, "/layout_corpus")
+    remote := format("/data/local/tmp/til-layout-", width)
+    Cmd.new("bin/til", "build", "--target=android-x64", format("--usize=", width),
+        "-o", local, "-c", format(local, ".c"), "test/layout_corpus.til").run_checked()
+    device.adb("push", local, remote)
+    device.adb("shell", "chmod", "755", remote)
+    smoke_equal("Android CLI stdout", device.adb("shell", remote), "layout corpus OK\n")
+    device.adb("shell", "rm", remote)
+    println("PASS CLI USize", width)
+}
+
+package_jni := proc(sdk: Str, stage: Str, width: Str) returns Str {
+    java := format(jni_java_home(), "/bin/")
+    tools := format(sdk, "/build-tools/36.0.0/")
+    platform := format(sdk, "/platforms/android-37.0/android.jar")
+    classes := format(stage, "/classes")
+    native := format(stage, "/lib/x86_64")
+    caller := format(stage, "/caller.jar")
+    manifest := format(stage, "/AndroidManifest.xml")
+    unsigned := format(stage, "/jni-unsigned.apk")
+    aligned := format(stage, "/jni-aligned.apk")
+    apk := format(stage, "/jni.apk")
+    if mkdir_p(native) != 0 { panic("cannot create ", native) }
+
+    Cmd.new("bin/til", "build", "--target=android-x64", format("--usize=", width),
+        "--jni", "test/jni_lib.til").run_checked()
+    jni_javac(jni_java_home(), classes, format(platform, ":", JNI_JAR),
+        "test/JniLibTest.java", "test/AndroidJniActivity.java")
+    jar := format(java, "jar")
+    Cmd.new(jar, "cf", caller, "-C", classes, ".").run_checked()
+    Cmd.new(format(tools, "d8"), "--min-api", "28", "--lib", platform,
+        "--output", stage, JNI_JAR, caller).run_checked()
+
+    // Read exactly this build's list, not globbed leftovers in gen/lib.
+    prefix := "til/jni_lib/native/android-x64/"
+    mut libs : I64 = 0
+    for entry : Str in checked(Cmd.new(jar, "tf", JNI_JAR)).split("\n") {
+        if entry.starts_with(prefix).and(entry.ends_with(".so")) {
+            name := entry.strip_prefix(prefix)
+            if copy_file(format("gen/lib/", name), format(native, "/", name)) != 0 {
+                panic("cannot stage JNI library ", name)
+            }
+            libs = libs + 1
+        }
+    }
+    if libs != 4 { panic("expected four Android JNI libraries, got ", libs.to_str()) }
+
+    File.writefile(manifest, format(
+        "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"", JNI_APP, "\">\n",
+        "<uses-sdk android:minSdkVersion=\"28\" android:targetSdkVersion=\"37\"/>\n",
+        "<application android:debuggable=\"true\" android:extractNativeLibs=\"false\">\n",
+        "<activity android:name=\".AndroidJniActivity\" android:exported=\"true\"/>\n",
+        "</application></manifest>\n"))
+    Cmd.new(format(tools, "aapt2"), "link", "--manifest", manifest, "-I", platform, "-o", unsigned).run_checked()
+    Cmd.new(jar, "--update", "--no-manifest", "--no-compress", "--file", unsigned,
+        "-C", stage, "classes.dex", "-C", stage, "lib").run_checked()
+    align := format(tools, "zipalign")
+    sign := format(tools, "apksigner")
+    Cmd.new(align, "-P", "16", "-f", "4", unsigned, aligned).run_checked()
+    // The Checkers build already provisioned the ordinary debug key.
+    Cmd.new(sign, "sign", "--ks", format(get_env("HOME"), "/.android/debug.keystore"),
+        "--ks-pass", "pass:android", "--key-pass", "pass:android", "--v4-signing-enabled", "false",
+        "--out", apk, aligned).run_checked()
+    Cmd.new(sign, "verify", apk).run_checked()
+    Cmd.new(align, "-c", "-P", "16", "4", apk).run_checked()
+    return apk
+}
+
+wait_log := proc(device: Device, pid: Str, marker: Str, count: I64) returns Str {
+    for _ in 0..40 {
+        log := device.log(pid)
+        for error : Str in array(Str, "no current context", "Fatal signal", "FATAL EXCEPTION", "Android GUI cleanup surface") {
+            if log.contains(error) { panic("Android runtime failure: ", error, "\n", log) }
+        }
+        if log.split(marker).len().cast(U64).cast(I64) > count { return log }
+        sleep_ms(250)
+    }
+    panic("Android log did not reach ", count.to_str(), " occurrences of ", marker, "\n", device.log(pid))
+}
+
+check_jni := proc(device: Device, sdk: Str, stage: Str, width: Str, pages: Str) {
+    apk := package_jni(sdk, stage, width)
+    device.adb("install", "-r", apk)
+    device.adb("shell", "am", "force-stop", JNI_APP)
+    device.launch(format(JNI_APP, "/.AndroidJniActivity"))
+    log := wait_log(device, device.pid(JNI_APP), format("JNI complete, page size: ", pages, "\n"), 1)
+    File.writefile(format(stage, "/jni.log"), log)
+    actual := device.adb("exec-out", "run-as", JNI_APP, "cat", "files/actual.txt")
+    File.writefile(format(stage, "/jni.actual"), actual)
+    smoke_equal("ART JNI corpus stdout", actual, File.readfile("test/JniLibTest.expected"))
+    device.adb("uninstall", JNI_APP)
+    println("PASS ART JNI USize", width, ", ", pages, "-byte pages")
+}
+
+capture := proc(device: Device, stage: Str, name: Str) returns Image {
+    path := format(stage, "/", name, ".png")
+    cmd := device.command("exec-out", "screencap", "-p")
+    cmd.stdout_to(path)
+    cmd.run_checked()
+    image := LoadImage(path.c_str)
+    if IsImageValid(image).not() { panic("invalid screenshot: ", path) }
+    return image
+}
+
+rgb := func(image: Image, x: I64, y: I64) returns I64 {
+    color := GetImageColor(image, x.to_i32(), y.to_i32())
+    return color.r.cast(U64).cast(I64) * 65536 + color.g.cast(U64).cast(I64) * 256 + color.b.cast(U64).cast(I64)
+}
+
+BoardView := struct {
+    width: I64 = 0
+    top: I64 = 0
+namespace:
+    px := func(self: BoardView, x: I64) returns I64 { return x * self.width / 720 }
+    py := func(self: BoardView, y: I64) returns I64 { return self.top + self.px(y) }
+    pixel := func(self: BoardView, image: Image, x: I64, y: I64) returns I64 {
+        return rgb(image, self.px(x), self.py(y))
+    }
+    board := func(self: BoardView, image: Image) returns Vec(I64) {
+        mut values := Vec(I64).new()
+        for row in 0..8 {
+            for col in 0..8 { values.push(own self.pixel(image, col * 80 + 40, row * 80 + 120)) }
+        }
+        return values
+    }
+    tap := proc(self: BoardView, device: Device, x: I64, y: I64) {
+        px := self.px(x).to_str()
+        py := self.py(y).to_str()
+        // Hold through a frame so raylib samples the press.
+        device.adb("shell", "input", "swipe", px, py, px, py, "120")
+        sleep_ms(250)
+    }
+}
+
+board_view := func(image: Image) returns BoardView {
+    // The portrait display fits the 720x800 canvas by width. Find the
+    // bottom row of red pieces to measure its vertical letterbox offset.
+    mut bottom : I64 = -1
+    mut top : I64 = -1
+    mut y := image.height.cast(I64) - 1
+    width := image.width.cast(I64)
+    while y >= 0 {
+        mut x : I64 = 0
+        while x < width {
+            if rgb(image, x, y) == RED_PIECE { break }
+            x = x + 4
+        }
+        if x < width {
+            if bottom < 0 { bottom = y }
+            top = y
+        } else if bottom >= 0 { break }
+        y = y - 1
+    }
+    return BoardView(width = width, top = (top + bottom) / 2 - 680 * width / 720)
+}
+
+same_board := func(first: Vec(I64), second: Vec(I64)) returns Bool {
+    for i, value in first { if value != second[i] { return false } }
+    return true
+}
+
+starting_pieces := func(pieces: Vec(I64), opening: Bool) returns Bool {
+    mut red : I64 = 0
+    mut black : I64 = 0
+    mut red_advanced : I64 = 0
+    for i, value in pieces {
+        if value == RED_PIECE {
+            red = red + 1
+            if i < 40 { red_advanced = red_advanced + 1 }
+        }
+        if value == BLACK_PIECE && i < 24 { black = black + 1 }
+    }
+    mut advanced := 0
+    if opening { advanced = 1 }
+    return red == 12 && black == 12 && red_advanced == advanced
+}
+
+wait_board := proc(device: Device, stage: Str, name: Str, view: BoardView, expected: Vec(I64)) {
+    for _ in 0..20 {
+        image := capture(device, stage, name)
+        matches := same_board(expected, view.board(image))
+        UnloadImage(image)
+        if matches { return }
+        sleep_ms(250)
+    }
+    panic("Checkers board differs: ", stage, "/", name, ".png")
+}
+
+check_checkers := proc(device: Device, stage: Str, width: Str, apk: Str) {
+    component := format(CHECKERS, "/android.app.NativeActivity")
+    device.adb("install", "-r", apk)
+    device.adb("shell", "am", "force-stop", CHECKERS)
+    device.launch(component)
+    pid := device.pid(CHECKERS)
+    wait_log(device, pid, "APP_CMD_INIT_WINDOW", 1)
+    mut view := BoardView()
+    mut fresh := Vec(I64).new()
+    for _ in 0..20 {
+        image := capture(device, stage, "initial")
+        view = board_view(image)
+        if view.top >= 0 {
+            pieces := view.board(image)
+            // Default 1P lets Red make its opening move before Black plays.
+            if starting_pieces(pieces, true) { fresh = pieces.clone() }
+        }
+        UnloadImage(image)
+        if fresh.len() != 0 { break }
+        sleep_ms(250)
+    }
+    if fresh.len() == 0 { panic("Checkers did not render its initial board") }
+
+    view.tap(device, 325, 55) // 2P
+    view.tap(device, 145, 55) // Red
+    view.tap(device, 55, 55) // Restart applies settings
+    initial_two_player := capture(device, stage, "initial-2p")
+    reset_board := view.board(initial_two_player)
+    UnloadImage(initial_two_player)
+    if starting_pieces(reset_board, false).not() { panic("Checkers did not start a fresh 2P game") }
+    view.tap(device, 200, 520)
+    view.tap(device, 280, 440)
+    view.tap(device, 280, 280)
+    view.tap(device, 200, 360)
+    moved := capture(device, stage, "moves")
+    if view.pixel(moved, 280, 440) != RED_PIECE || view.pixel(moved, 200, 360) != BLACK_PIECE {
+        panic("Checkers red/black 2P moves failed")
+    }
+    changed := view.board(moved)
+    UnloadImage(moved)
+
+    device.adb("shell", "input", "keyevent", "KEYCODE_HOME")
+    // Home must stop the activity. Android can keep its surface while the
+    // task is stopped; Back below exercises teardown even on those images.
+    wait_log(device, pid, "activityState=14", 1) // APP_CMD_STOP
+    device.launch(component)
+    wait_log(device, pid, "activityState=11", 2) // APP_CMD_RESUME
+    smoke_equal("Checkers PID after Home", device.pid(CHECKERS), pid)
+    wait_board(device, stage, "resume", view, changed)
+    view.tap(device, 55, 55)
+    wait_board(device, stage, "restart", view, reset_board)
+
+    for cycle in 1..5 {
+        device.adb("shell", "input", "keyevent", "KEYCODE_BACK")
+        log := wait_log(device, pid, "android_app_destroy!", cycle)
+        File.writefile(format(stage, "/checkers.log"), log)
+        for marker : Str in array(Str, "Window closed successfully", "Android GUI cleanup context restored") {
+            if log.split(marker).len().cast(U64).cast(I64) != cycle + 1 {
+                panic("expected one ", marker, " per Checkers Back exit")
+            }
+        }
+        smoke_equal("Checkers PID after Back", device.pid(CHECKERS), pid)
+        if cycle < 4 {
+            device.launch(component)
+            smoke_equal("Checkers PID after relaunch", device.pid(CHECKERS), pid)
+            wait_board(device, stage, format("relaunch", cycle.to_str()), view, fresh)
+        }
+    }
+    device.adb("uninstall", CHECKERS)
+    println("PASS Checkers USize", width, ": moves, Restart, Home/resume, four clean Back exits")
+}
+
+main := proc(args: ..Str) {
+    if args.len() != 3 { panic("usage: bin/til run test/android_smoke.til <emulator-serial> <api> <page-size>") }
+    serial := args[0].clone()
+    api := args[1].clone()
+    pages := args[2].clone()
+    if serial.starts_with("emulator-").not() { panic("Android smoke needs a disposable emulator: ", serial) }
+    sdk := android_apk_sdk()
+    if sdk.len() == 0 { panic("Android SDK required for Android smoke") }
+    device := Device(tool = format(sdk, "/platform-tools/adb"), serial = serial)
+    smoke_equal("Android boot completed", device.adb("shell", "getprop", "sys.boot_completed").trim(), "1")
+    smoke_equal("Android API", device.adb("shell", "getprop", "ro.build.version.sdk").trim(), api)
+    smoke_equal("Android ABI", device.adb("shell", "getprop", "ro.product.cpu.abi").trim(), "x86_64")
+    println("Android x86_64 API ", api, ": ", device.adb("shell", "getprop", "ro.build.fingerprint").trim())
+    device.adb("shell", "input", "keyevent", "82")
+
+    for width : Str in array(Str, "32", "64") {
+        stage := format("tmp/android_smoke/U", width)
+        File.remove_tree(stage)
+        if mkdir_p(stage) != 0 { panic("cannot create ", stage) }
+        apk := format(stage, "/checkers.apk")
+        Cmd.new("bin/til", "build", "--target=android-x64", format("--usize=", width),
+            "-o", apk, "-c", format(stage, "/checkers.c"), "examples/checkers.til").run_checked()
+        check_cli(device, stage, width)
+        check_jni(device, sdk, stage, width, pages)
+        check_checkers(device, stage, width, apk)
+    }
+}
