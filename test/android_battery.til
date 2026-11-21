@@ -1,0 +1,13 @@
+mode gui
+
+// #462: this NativeActivity calls an Android Java API from its native thread.
+link_c("android_battery.c")
+
+android_battery_capacity := ext_proc() returns shallow I32 {}
+android_battery_report := ext_proc(shallow capacity: I32) {}
+
+main := proc() {
+    capacity := android_battery_capacity()
+    if capacity < 0 || capacity > 100 { panic("invalid BatteryManager capacity: ", capacity.to_str()) }
+    android_battery_report(capacity)
+}

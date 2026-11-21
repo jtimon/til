@@ -12,6 +12,7 @@ link("dl")
 link("pthread")
 
 JNI_APP := "org.til.androidsmoke"
+BATTERY_APP := "org.til.android_battery"
 CHECKERS := "org.til.checkers"
 JNI_JAR := "gen/lib/jni_lib.jar"
 RED_PIECE := 14430770 // RGB (220, 50, 50), from Checkers
@@ -156,6 +157,47 @@ check_jni := proc(device: Device, sdk: Str, stage: Str, width: Str, pages: Str) 
     smoke_equal("ART JNI corpus stdout", actual, File.readfile("test/JniLibTest.expected"))
     device.adb("uninstall", JNI_APP)
     println("PASS ART JNI USize", width, ", ", pages, "-byte pages")
+}
+
+guest_battery_level := proc(device: Device) returns Str {
+    dump := device.adb("shell", "dumpsys", "battery")
+    for line : Str in dump.split("\n") {
+        text := line.trim()
+        if text.starts_with("level:") { return text.strip_prefix("level:").trim().clone() }
+    }
+    panic("Android battery service did not report a level:\n", dump)
+}
+
+wait_battery_pid := proc(device: Device) returns Str {
+    for _ in 0..40 {
+        cmd := device.command("shell", "pidof", BATTERY_APP)
+        cmd.capture()
+        status := cmd.run()
+        if status == 0 { return cmd.out().trim().clone() }
+        // pidof exits 1 without output while ActivityManager starts the app.
+        if status != 1 || cmd.err().len() != 0 { panic(cmd.render(), ":\n", cmd.out(), cmd.err()) }
+        sleep_ms(250)
+    }
+    panic("BatteryManager probe did not start: ", BATTERY_APP)
+}
+
+check_android_battery := proc(device: Device, stage: Str, width: Str) {
+    apk := format(stage, "/android_battery.apk")
+    Cmd.new("bin/til", "build", "--target=android-x64", format("--usize=", width),
+        "-o", apk, "-c", format(stage, "/android_battery.c"), "test/android_battery.til").run_checked()
+    device.adb("install", "-r", apk)
+    device.adb("shell", "am", "force-stop", BATTERY_APP)
+    // This probe finishes without drawing a frame for am start -W to await.
+    result := device.adb("shell", "am", "start", "-n", format(BATTERY_APP, "/android.app.NativeActivity"))
+    if result.contains("Error:") { panic(result) }
+    log := wait_log(device, wait_battery_pid(device), "android_app_destroy!", 1)
+    File.writefile(format(stage, "/battery.log"), log)
+    level := guest_battery_level(device)
+    if log.contains(format("BatteryManager capacity: ", level, "\n")).not() {
+        panic("til -> Android BatteryManager disagrees with guest battery level ", level, "\n", log)
+    }
+    device.adb("uninstall", BATTERY_APP)
+    println("PASS til -> Android BatteryManager USize", width, ": ", level, "%")
 }
 
 capture := proc(device: Device, stage: Str, name: Str) returns Image {
@@ -365,6 +407,7 @@ main := proc(args: ..Str) {
             "-o", apk, "-c", format(stage, "/checkers.c"), "examples/checkers.til").run_checked()
         check_cli(device, stage, width)
         check_jni(device, sdk, stage, width, pages)
+        check_android_battery(device, stage, width)
         check_checkers(device, stage, width, apk)
     }
 }
