@@ -308,6 +308,17 @@ programs, their library and their archives, and no til
   tar, as the pinned LLVM is; whether it makes the trees' symbolic
   links is what the run shows.
 
+- The five Linux cross jobs (linux-arm64, -riscv64, -x86, -arm32,
+  -riscv32, run under qemu) build pinned: the pinned LLVM and the
+  target's tree, no distribution cross gcc, and no second Bootlin
+  toolchain for riscv32 (it downloaded the 2024.02 one and passed
+  ~--cc~). qemu's ~-L~ is the tree's sysroot; linux-x86 runs on the
+  runner's own i386 libraries as before, which its gui step needs for
+  X11. Every step of the five was run here first, pinned, under
+  qemu-user: hello, the layout corpus at both widths, std/crypto, nng,
+  libffi, the gui build, til cross-built and interpreting (arm64,
+  riscv64), the x86 width probes. Not run here: the x86 gui under xvfb.
+
 **** Next
 
 - From the next run: if ~make bin/til~ is equal for linux-x64 and
@@ -315,9 +326,6 @@ programs, their library and their archives, and no til
   other four that is equal; if the pinned suites pass, each native job
   runs one suite, pinned, from its start (and the x64 lists move to the
   ~linux-x64~ job, so that the tested file is the listed one).
-- The Linux cross jobs (linux-arm64, -riscv64, -x86, -arm32, -riscv32
-  under qemu) still build with the distribution's cross gcc: they are
-  to build pinned too, and then need no cross gcc.
 - The Macs' and the Windows host's lists: read the first run, fix
   what it shows.
 - The trees are downloaded on every run (six per Linux host): a cache
