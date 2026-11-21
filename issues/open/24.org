@@ -1,16 +1,20 @@
 # priority: low
 # category: examples
-** OPEN #24 Music theory examples: ongoing improvements
+** WIP #24 Music theory examples: ongoing improvements
 
 Permanent umbrella issue for GUI music theory learning examples.
+
+This issue is the durable record of the music discussion, terminology,
+references, and plans. Code comments explain implementation. Keep this
+umbrella open as individual improvements land.
 
 Current examples:
 
 - `examples/music_modes.til`: unified mode viewer for 7 Greek modes,
   5 Global modes, and experimental 5 Nathex modes. Shows note/mode
-  controls, a pentagram, scale playback, note click playback, triad labels
-  for 7-mode scales, language selectors, span selector, and a compact
-  playable piano.
+  controls, a shared Note/Triad/4 notes selector, a pentagram, scale/chord playback,
+  triad labels for 7-mode scales, PT/ES/EN selectors, span selector, and a
+  playable piano that expands to contain the upper chord voices.
 - `examples/piano.til`: standalone 3-octave QWERTY piano with scrolling
   piano-roll visualization, Solfege/Letters/Hextaves/Nathex display modes,
   and a Happy Birthday playback button.
@@ -46,6 +50,16 @@ Recent progress:
   Nathex mode keeps the same open-string names but plays `NATHEX_FREQS` and
   uses 16 wider frets over the same physical span as the regular 24-fret
   board.
+- Shared Happy Birthday data now serves piano and guitar. Guitar also has
+  Tones/Microtones, Fabienk climb/hook, and Micro Happy playback. Micro Happy
+  keeps the normal melody's string/fret choices, interpreting each fret as
+  a micro-step; this is a fingering transformation, not a uniform compression
+  of every melodic interval across string changes.
+- The regular micro guitar retains 24 conventional frets and inserts 15
+  quarter-tone frets (odd steps through 29): 39 physical frets, not an exact
+  copy of the reported 36-fret Khn guitar. Nathex uses 32 half-step frets
+  across two octaves, i.e. a 16-TET grid. The physical microtonal guitar is
+  going ahead; physical comfort and tuning will need practical evaluation.
 - The macro bug found while building the nathex table is fixed in
   [[../fixed/285.org][#285]]: foldable calls such as `2.to_f32()` are accepted as
   macro arguments. Its post-mortem names ~test_macro_to_f32_arg~ and
@@ -62,6 +76,442 @@ Notes:
 - Regular 5 Global hextaves and Nathex use the same names but different
   frequency semantics: regular 5 Global uses 3 hextaves for two octaves,
   while Nathex uses 2 hextaves for two octaves.
+
+*** Note / Triad implementation (worktree based on master 3618c2c95)
+
+Implemented in ~examples/music_modes.til~: the shared selector, simultaneous
+three-voice mixed sound, upward alternate-degree voicing, stacked staff notes,
+all-voice keyboard highlights, independent PT/ES/EN selection in every system,
+and persistent translated chord descriptions. Note remains the default.
+The controls/staff spacing is adjusted to fit the new row and upper voices
+inside the existing window. Input and drawing share keyboard geometry.
+
+Focused regressions in the example (run with
+~bin/til_boot test examples/music_modes.til~):
+- ~test_music_triad_voicing~: C major, B diminished crossing the octave,
+  and five-note Europe crossing its hextave.
+- ~test_music_chord_languages~: Portuguese Diminuto, Spanish Disminuido,
+  English Diminished, and explicit experimental five-note labels.
+- ~test_music_chord_ranges~: every root, accidental, mode and span in all
+  three systems; upper voices, frequency bounds, staff bounds, keyboard hits.
+- ~test_music_chord_selection~: chord -> off-scale note -> Note playback
+  clears stale voices and selection.
+- ~test_music_chord_mix~: spectral projections detect all three simultaneous
+  frequencies, absence of a fourth, and bounded peak amplitude.
+
+All five pass interpreted and compiled. On this base, ~make clean && make test~
+also passed 590/590. The GUI initialized graphics/audio and closed cleanly
+during the extended manual session. The initial 30-second smoke session was
+deliberately time-limited, not a crash. The user reported that standard chords
+sounded good and requested more time to explore Nathex chords.
+
+The agreement and remaining extensions:
+
+- Keep the existing 7 Greek / 5 Global / 5 Nathex top selectors. Directly
+  beneath them is one shared, mutually exclusive Note / Triad selector.
+  Note is the default and retains current single-note behavior. This
+  supersedes the earlier proposal for a separate chord tab or a top-level
+  Notes/Triads/Sevenths selector.
+- Support EN, PT, ES independently in every system. New labels and teaching
+  descriptions must follow the selected language, including chord quality.
+- Triad plays three notes at once, built from alternate scale
+  degrees: root, root+2, root+4. Continue upward across the scale boundary,
+  not back down to the first register. Highlight and spell all voices on
+  the staff and keyboard, including chords at the displayed upper endpoint.
+- In Greek modes these are conventional diatonic triads. In the five-note
+  modes they are experimental alternate-degree constructions, not assumed
+  to be Western major/minor chords.
+- Scale playback becomes a sequence of chords in Triad mode. Piano keys
+  belonging to the displayed scale select its chords; other keys retain
+  single-pitch audition, as the localized hint explains. The expanded upper
+  keys expose chord voices, not an unbounded chain of new chord roots.
+- Audio must actually mix simultaneous voices. The shared ~play_tone~ is
+  monophonic: calling it three times replaces voices rather than making a
+  chord. Retrigger/stop the whole group together, keep amplitude headroom,
+  and release audio resources before shutting down the device.
+- Four-note mode adds a second row: stack degrees 1-3-5-7 in the current
+  scale, or audition maj7, 7, m7, m7b5, dim7, maj7#5, or added 6 on the
+  selected root. Nathex approximates each preset interval on its 8-TET grid;
+  different targets may coincide. The scale-derived stack is a separate choice.
+  The active chord name is shown in PT, ES, and EN together below the piano.
+- Future lessons: arpeggio/together choice,
+  inversions, and progressions. Four-note chord does not always mean seventh.
+- Later add same-root quality comparison, distinct from scale-derived chords:
+  a requested quality can contain notes outside the selected scale.
+- Prioritize learning standard 12-TET harmony as well as curiosity-driven
+  8/16/24/32-TET listening. Repetition is desirable; keep comparison register,
+  duration, volume, and timbre controlled. Timbre changes audibility of tuning.
+
+*** Terminology and chord primer (EN / PT / ES)
+
+The user mixes English, Portuguese, and Spanish music terms and explicitly
+wants gentle corrections rather than reproducing mistaken terminology.
+ASCII spellings below match the current source/UI convention.
+
+| English       | Portuguese       | Spanish             |
+|---------------+------------------+---------------------|
+| Note          | Nota             | Nota                |
+| Chord         | Acorde           | Acorde              |
+| Triad         | Triade           | Triada              |
+| Major         | Maior            | Mayor               |
+| Minor         | Menor            | Menor               |
+| Diminished    | Diminuto         | Disminuido          |
+| Augmented     | Aumentado        | Aumentado           |
+| Seventh chord | Acorde de setima | Acorde de septima   |
+| Arpeggio      | Arpejo           | Arpegio             |
+| Sharp         | Sustenido        | Sostenido           |
+| Flat          | Bemol            | Bemol               |
+
+Portuguese is ~diminuto~, not ~diminutivo~. The adjective agrees with the
+noun: PT ~triade diminuta~, ES ~triada disminuida~. Likewise PT/ES ~aumentada~
+for a triad (~aumentado~ for an acorde). The control is called a radio
+button. Standard chord symbols can accompany translated prose.
+
+| Chord on Do | Notes       | 12-TET offsets | Symbol |
+|-------------+-------------+----------------+--------|
+| Major       | Do Mi Sol   | 0 4 7          | C      |
+| Minor       | Do Mib Sol  | 0 3 7          | Cm     |
+| Diminished  | Do Mib Solb | 0 3 6          | Cdim   |
+| Augmented   | Do Mi Sol#  | 0 4 8          | Caug   |
+
+Do-Mi-Sol simultaneously is a C-major triad; successively it is an arpeggio.
+Do-Mi-Sol-Si is Cmaj7, Do-Mi-Sol-Sib is C7 (dominant seventh), and
+Do-Mib-Sol-Sib is Cm7. Begin with triads before adding these variations.
+
+Count distinct pitches modulo the octave, not voices: Do-Mi-Sol-Do is still
+a triad. In lead-sheet notation C6 adds La (1-3-5-6); in figured bass a 6
+can instead mean a triad in first inversion (e.g. Mi-Sol-Do, C/E).
+For Nathex transfer the degree rule, then check the actual intervals. In
+a five-degree mode, degree 6 is the root one hextave up. Adding it to a
+Nathex triad doubles the root at the octave rather than adding a fourth
+pitch class. Degree 7, on the other hand, is degree 2 in the next register.
+Sources: [[https://musictheory.pugetsound.edu/mt21c/Triads.html][Hutchinson, Triads]];
+[[https://en.wikipedia.org/wiki/Sixth_chord][Sixth chord (added sixth vs first inversion)]].
+
+*** Tuning FAQ: notation, equal temperament, harmonics, and Bach
+
+**** Names and formulas
+
+- N-TET means N-tone equal temperament; here it divides 2:1 into N equal
+  frequency-ratio steps. N-EDO (equal divisions of the octave) is explicit.
+  ~f(k) = f0 * 2^(k/N)~; one step is ~1200/N~ cents.
+- Nathex's actual tuning is simply 8-TET/8-EDO. The user prefers established
+  terminology such as 8-TET to the invented name. The ca/de/fi/go/lu notation
+  and mode choices are a separate layer, not a reason to require that name.
+  UI/code renaming is a follow-up; existing identifiers still say Nathex.
+- Regular Global hextaves retain 12-TET: names repeat every eight semitones,
+  an 800-cent span with ratio ~2^(8/12)~. Three such cycles equal two octaves.
+  This is not 8-TET. Its selected modes reorganize pitches as well as names.
+- Nathex uses eight 150-cent steps per 1200-cent doubling. One Nathex hextave
+  is one physical octave. Do not mix its register count with regular hextaves.
+- Both share five natural names at offsets ~0,2,3,5,7~ of an eight-step cycle;
+  Europe uses steps ~2,1,2,2,1~. A five-note mode is a subset of the grid.
+- Halving 8-TET steps gives 16-TET (75 cents), then 32-TET (37.5 cents).
+  Halving 12-TET steps gives 24-TET (50 cents), then 48-TET (25 cents).
+  Quarter-tone 24-TET is one common microtonal system, not all microtonality.
+- Fitting 2/3/4/5 eight-step cycles into *two* octaves yields respectively
+  8/12/16/20-TET. With each step halved, these become 16/24/32/40-TET.
+  This changes the tuning; merely displaying more cycles does not improve it.
+
+**** What is natural? Why Hz and cents tell different stories
+
+- Possible pitches are continuous (the useful analog/digital analogy).
+  A harmonic series is discrete: ~f0, 2*f0, 3*f0, ...~. It is equally spaced
+  in Hz, not in musical intervals. Successive ratios ~2/1,3/2,4/3,...~ shrink.
+- There is no single natural scale. Just intonation selects simple ratios
+  between pitches; different roots and harmonic contexts favor different
+  relationships. Bells and other inharmonic sounds need not have integer
+  partials. Timbre affects which intervals sound smooth.
+- An octave is 2:1. Cents measure ratios: ~1200*log2(f2/f1)~. TET grids have
+  equal cents spacing but increasing Hz spacing higher up a linear-Hz plot.
+- From a 100-Hz fundamental, two octaves (100..400 Hz) contain harmonics 1..4.
+  From 400..1600 Hz of that *same* fundamental they contain harmonics 4..16,
+  thirteen pitches including endpoints. Harmonic 16 is four octaves above
+  harmonic 1; it does not mean sixteen subdivisions per octave.
+- Two octaves of 12-TET are 24 steps, or 25 pitches including both endpoints.
+- Error in cents for a given target ratio stays the same in every register
+  and from every grid note in an equal temperament. Error in Hz grows with
+  frequency. This holds beyond C1..B9 mathematically, not as a claim that all
+  such frequencies are audible or physically playable.
+- Unequal temperament can have different errors from different starting
+  notes. Rounded integer-Hz playback tables introduce extra error, especially
+  low down; comparison charts should calculate at higher precision.
+
+**** What Bach did and did not do
+
+- Octaves, sharps/flats, and ratio-based tuning predate Bach by centuries.
+  Bach did not invent 12-TET or the octave. His Well-Tempered Clavier explores
+  all 24 major/minor keys with a tuning usable throughout them.
+- Earlier practice was not one formula everyone used. Pythagorean tuning
+  builds from fifths (3:2); just intonation includes ratios such as 5:4;
+  meantone and other temperaments adjust intervals to suit fixed instruments.
+- The main conflict is changing key, not changing octave. Twelve pure fifths
+  do not equal seven octaves: ~(3/2)^12 / 2^7 = 1.01364...~, 23.46 cents.
+- Well temperament often means unequal but usable keys, with different key
+  colors. Modern equal temperament makes transposed interval patterns identical.
+  Bach's exact intended tuning is disputed. Do not label 12-TET 'Bach's scale'.
+  The linked Spanish article blurs this distinction in places.
+- In ideal strings, halving vibrating length doubles frequency at fixed
+  tension/mass per length. String-length ratios and frequency ratios express
+  the same physics inversely; they are not incompatible tuning standards.
+- Sharps/flats specify alterations, not automatic harmonic corrections.
+  C# and Db coincide in 12-TET, but need not in other tuning systems.
+
+**** More resolution does not mean winning every harmonic comparison
+
+Nearest-grid absolute errors, in cents (smaller is closer). These are explicit
+pure-ratio targets, not assertions that interval names have only one tuning.
+
+| Target             | Ratio | 12-TET | 8-TET | 16-TET | 24-TET | 32-TET |
+|--------------------+-------+--------+-------+--------+--------+--------|
+| Minor second       | 16/15 |  11.73 | 38.27 |  36.73 |  11.73 |   0.77 |
+| Major second       | 9/8   |   3.91 | 53.91 |  21.09 |   3.91 |  16.41 |
+| Minor third        | 6/5   |  15.64 | 15.64 |  15.64 |  15.64 |  15.64 |
+| Major third        | 5/4   |  13.69 | 63.69 |  11.31 |  13.69 |  11.31 |
+| Fourth             | 4/3   |   1.96 | 48.04 |  26.96 |   1.96 |  10.54 |
+| Septimal tritone    | 7/5   |  17.49 | 17.49 |  17.49 |  17.49 |  17.49 |
+| Fifth              | 3/2   |   1.96 | 48.04 |  26.96 |   1.96 |  10.54 |
+| Minor sixth        | 8/5   |  13.69 | 63.69 |  11.31 |  13.69 |  11.31 |
+| Major sixth        | 5/3   |  15.64 | 15.64 |  15.64 |  15.64 |  15.64 |
+| Harmonic seventh   | 7/4   |  31.17 | 68.83 |   6.17 |  18.83 |   6.17 |
+| Major seventh      | 15/8  |  11.73 | 38.27 |  36.73 |  11.73 |   0.77 |
+| Octave             | 2/1   |   0.00 |  0.00 |   0.00 |   0.00 |   0.00 |
+| Eleventh harmonic  | 11/8  |  48.68 | 48.68 |  26.32 |   1.32 |  11.18 |
+| Thirteenth harmonic| 13/8  |  40.53 | 59.47 |  15.53 |   9.47 |  15.53 |
+
+Reproduce each entry with ~c = 1200*log2(ratio)~ and
+~abs(round(c*N/1200)*1200/N - c)~. The table concerns best available single
+intervals, not proof that all such choices form mutually pure chords.
+
+- 8 -> 16 -> 32 and 12 -> 24 -> 48 retain every old grid pitch: nearest
+  approximation never worsens. Unrelated grids do not provide that guarantee.
+- A pure fifth is 701.96 cents: 12/24 offer 700, 16 offers 675, 32 offers
+  712.5. 32 improves on 16 but does not beat 12/24 for this ratio.
+- Among the first twelve rows, 32 beats 24 five times, loses three, ties four.
+  But distinct octave-reduced harmonics 1..16 give targets
+  ~3/2,5/4,7/4,9/8,11/8,13/8,15/8~: 24 wins four and 32 wins three.
+  Counting wins depends on targets, weighting, and duplicated complementary
+  intervals (fourth/fifth). There is no universal best musical system.
+- Worst-case nearest-pitch error is ~600/N~ cents: 50 for 12, 37.5 for 16,
+  25 for 24, 18.75 for 32. A finer unrelated grid improves this bound, not
+  necessarily every chosen harmonic match. 24 and 32 share ticks every 150 cents.
+- Moving sharp labels changes notation, not sound. Moving actual pitches can
+  improve selected ratios, but ceases to be strict TET. For example, move a
+  16-TET third from 375 to 386.31 cents or a fifth from 675 to 701.96.
+  Improving one root/context changes intervals elsewhere. A finite fixed
+  keyboard cannot make every fifth and third pure in every key.
+- Keeping the same original eight pitches after adding micro-frets does not
+  change their errors: new choices must actually be used in melodies/chords.
+- Fretless strings (violin, etc.) can adapt to different systems without new
+  frets, at the cost of ear/position training. Frets supply repeatable targets;
+  bends provide some flexibility. Hole count on a flute is not pitch count:
+  cross-fingering, partial covering, and registers matter.
+
+*** Harmonic series listening view and longer-term tuning comparison
+
+The Tuning comparison tab plays exact partials (n*f0) or their nearest
+C4-anchored 12-, 8-, or 16-TET pitches. Click either frequency in a row or
+listen to its column in sequence. Positive cents mean the grid is sharp.
+The display starts at C4: choose f0=C2 for partials 4..16 over two octaves,
+or f0=C4 for partials 1..4. Choose one regular hextave (800 cents), one
+octave (1200), two regular hextaves (1600), or two octaves (2400).
+The Delian constant D = cube root of 2 is computed at compile time. From
+the same starting pitch, a regular hextave spans 2/D, a Nathex hextave 2:
+their endpoint ratio is D. Both system names are retained.
+
+The separate Harmonics and just scale staff defaults to playing partials
+1..8 of C4 in order, at their actual frequencies: C4, C5, approximately
+G5, C6, approximately E6, G6, Bb6, then C7. In particular, harmonic 7
+is about 31 cents flatter than equal-tempered Bb6. These eight harmonics
+span three octaves. The series itself has no Ionian/Dorian mode selector.
+For comparison, its C major (Ionian) control plays one five-limit just
+intonation: 1, 9/8, 5/4, 4/3, 3/2, 5/3, 15/8, 2. It repeats at double
+frequency for the second octave (15 notes including the shared boundary).
+This is one diatonic tuning, not Bach's uniquely intended original scale.
+
+Separate listening idea: make D itself the frequency ratio of one whole
+eight-step hextave. Then one step is D^(1/8) = 2^(1/24), or 50 cents;
+three hextaves span one octave. The available pitches are 24-TET, but
+ca/de/fi/go/lu would repeat every 400 cents. This is an experimental
+alternative to Nathex's 2:1 cycle, not a change to its tuning.
+
+Listening observation (one listener): individual Nathex chords could sound
+good while the sequence felt unfamiliar, especially immediately after 12-TET.
+Listening longer within one tuning changed the impression. This motivates
+switching approximations while holding the reference and register fixed.
+
+Earlier proposal and future extensions:
+
+- The initial request was a til-generated SVG like totals.svg. The agreed
+  direction is instead another tab/view in ~examples/music_modes.til~, reusing
+  drawing and audio. No SVG export format, cache, or generator is approved or
+  needed for this first interactive version.
+- Display three full octaves, C4 through C7 inclusive (~261.63..2093.00 Hz),
+  on a shared linear-Hz X axis. Show ascending partial/note indices on Y with
+  partial numbers, solfege, and ca/de/fi/go/lu labels as appropriate.
+- Compare harmonic references with 12, 8, 16, 24, and 32-TET; prioritize the
+  familiar 12-TET baseline and the 8 -> 16 -> 32 subdivision family. Distinguish
+  retained pitches from inserted midpoints. Include frequencies and cents
+  errors, octave markers, and click-to-hear comparisons.
+- Explicitly state the harmonic fundamental. Proposed initial C4 gives
+  partials 1..8 in this range. Earlier C2/partials 4..16 proposal described a
+  *two*-octave window; it is not the same series/range. Do not silently fold
+  partials into an octave or substitute a lower fundamental.
+- Compare ratios separately from absolute-Hz locations. Use calculated
+  frequencies rather than the current rounded integer tables for analysis.
+- Adjustable unequal tuning is a later experiment, not already implemented
+  or a claim that one mode's optimized tuning works equally well in all modes.
+
+**** Listening experiment: one MIDI passage, several translations
+
+Use a familiar passage from a standard MIDI file as the 12-TET baseline.
+Keep timing, voices, dynamics, timbre, and a reference pitch fixed so the
+listener can attribute differences to pitch mapping. Try the original,
+Nathex (8-TET), and its 16-TET subdivision. Compare these separate rules:
+
+- Keep signed step counts from an anchor but change the step size. Keep the
+  user's "Delian constant trick" as a candidate; record its exact mapping
+  before identifying it with this rule. A constant frequency multiplier
+  alone transposes all voices without changing their interval ratios.
+- Keep the register and round each source pitch to the nearest target-grid
+  pitch. For a semitone offset s from the anchor, use round(s*N/12) steps
+  of N-TET. Octaves stay octaves; on a coarser grid two notes may coincide.
+- Choose ratios for an intended chord (e.g. 4:5:6 for a major triad), then
+  approximate them on the target grid. Consider voice leading and held
+  notes: choosing a new root every chord can move a sustained voice.
+
+MIDI interoperability matters for sharing with other programs as well as
+importing songs. Plain note numbers under default tuning cannot reproduce
+every 8/16-TET pitch. Test export with a receiving synth that supports a
+tuning table or independent bends for simultaneous voices. Future experiment;
+no file format, playback mode or MIDI implementation decided here.
+
+***** First listening test: Do-Mi-Sol from a common C4/ca4
+
+Start with this one chord by ear, before implementing MIDI. Play the same
+root, register, sine timbre, voice levels, and duration in each trial.
+Offsets below are measured in cents from the bass, not between adjacent voices.
+
+| Construction                        | Steps in its grid | Cents above bass |
+|-------------------------------------+-------------------+------------------|
+| 12-TET Do-Mi-Sol (source)            | 0 4 7             | 0 400 700        |
+| 8-TET Europe, alternate degrees     | 0 3 7 (ca-fi-lu)  | 0 450 1050       |
+| 8-TET, keep source step counts      | 0 4 7 (ca-#fi-lu) | 0 600 1050       |
+| 8-TET, nearest source pitches       | 0 3 5 (ca-fi-go)  | 0 450 750        |
+| 8-TET, nearest pure-major intervals | 0 3 5 (ca-fi-go)  | 0 450 750        |
+
+Use a pure 4:5:6 triad as a listening reference: ~f, 5*f/4, 3*f/2~,
+or ~0, 386.31, 701.96~ cents. In this test the last two mappings must
+sound identical. For a case where those rules differ, add a seventh in
+24-TET: preserving the original 12-TET minor seventh gives 1000 cents;
+approximating a 7:4 harmonic seventh (968.83 cents) gives 950 cents.
+These are root-relative fits; the upper voices also form an audible interval.
+For listening notes record two answers separately: "Which sounded closest
+to the reference?" and "Which would I use in a song?" Repeat as needed.
+
+**** Possible first steps by topic
+
+1. Listen to the worked triad above. Compare ca-fi-lu against ca-fi-go first:
+   only the top voice changes. Repeat the pure-major comparison on 16/24/32.
+2. Harmony lessons: hear major vs minor on one root, both together and
+   arpeggiated. Spell each in PT/ES/EN. Next change one voice to explore
+   diminished/augmented qualities, inversions, sevenths and progressions.
+3. Tuning view: plot C4..C7 on one linear Hz axis with C4 harmonics 1..8.
+   Start with the 12/8/16 grids, then overlay 24/32 and listen to marked
+   intervals. For unequal tuning, adjust one pitch and check other roots.
+4. Song translation: write down a worked input/output for the Delian rule.
+   Try the rules on a short familiar MIDI passage with one held voice, then
+   check that a second program can reproduce the intended pitches on export.
+5. Instruments: audition a playable three-note voicing on the microtonal
+   guitar. For the flute, choose target fingerings and pitches, then model
+   hole placement and verify a measured prototype before fixing print dimensions.
+6. Project home: inventory shared music calculations vs application code;
+   try the standalone build with installed til. Use that experience to judge
+   a std library or audio-only mode and the eventual tiled-style extraction.
+7. Later research: revisit BP, 833 cents, and A12; verify the Khon-Juander
+   reference before comparing it. Keep standard harmony and Nathex listening first.
+
+*** Later instrument design: virtual flute before printing
+
+- Explore target scale, range, fingering, hole count, spacing, bore, hole sizes,
+  and wall/chimney dimensions virtually before designing a printable flute.
+- ~L_eff = c/(2*f)~ is only an open-pipe starting approximation. Tone holes are
+  acoustic vents with corrections and interactions, not exact new endpoints.
+  Air temperature, blowing, and end corrections affect physical tuning.
+- A six-hole D fipple/whistle was a suggestion, not a user-selected design.
+  Printable format/tooling and physical layout remain to be decided explicitly.
+- Measure and tune physical prototypes; label predicted results as estimates.
+
+*** Eventual extraction into a dedicated music repository
+
+The music application and its learning material will eventually have their
+own repository. The precedent is tiled, which grew out of the editor example
+and took tilminal with it. nostril is another til project with its own repo.
+
+- Before extraction, consider retaining reusable music functionality as a
+  library in til's ~src/std/~. Candidate pieces include frequency/ratio/cents
+  conversion, equal-temperament calculations, scale and chord construction,
+  and reusable synthesis primitives. These are candidates for review, not
+  approved new modules or public APIs.
+- Also explore an audio-only ~mode music~ for small programs that play notes,
+  chords, or sequences without opening a GUI. It could provide playback
+  setup, scheduling, waiting for playback to finish, and cleanup, backed by
+  the same reusable library. Compare this convenience with ordinary library
+  imports before deciding whether a separate mode is worthwhile. The name,
+  syntax, backend dependencies, and mode contract remain design questions;
+  this records the idea rather than introducing a mode now.
+- Separate musical calculations from GUI rendering and audio-device/backend
+  handling. Project-specific modes, notation experiments, songs, controls,
+  and teaching views can live in the music repository, consuming any agreed
+  standard-library functionality instead of copying it.
+- Decide the standard-library boundary, names, contracts, tests, and install
+  behavior with the user before moving code. The standalone build should
+  exercise any retained library through the installed til distribution.
+- Inventory the music-specific pieces together: ~examples/music_modes.til~,
+  ~examples/piano.til~, ~examples/guitar.til~, ~examples/lib/music.til~,
+  chord/audio helpers, assets, tests, and the teaching material recorded here.
+  Include future tuning-comparison and instrument-design work in that review.
+- Identify which dependencies belong to til's general-purpose GUI/audio and
+  standard libraries, versus application-specific code that should travel
+  with the music project. Review the tiled extraction for practical lessons
+  before deciding the exact boundary; avoid copying compiler/runtime internals.
+- Establish a reproducible build and test path using an identified til
+  version from outside the compiler checkout. Verify asset lookup, GUI/audio
+  dependencies, and supported platforms without relying on til's local
+  ~bin/~, ~tmp/~, or source-tree-relative imports.
+- Choose the repository name, ownership, layout, and migration timing with
+  the user. Transfer the relevant documentation, references, tests, and open
+  plans along with the application so this discussion is not lost.
+- Make the new repository the single maintained home for the music
+  application. At migration time, decide which examples, if any, are worth
+  keeping in the language repo for teaching or compiler regression coverage;
+  do not maintain two diverging application
+  copies. Leave clear pointers from til to the extracted project.
+- Validate the standalone project before removing or replacing anything in
+  til. Track migration progress here until its music roadmap has an agreed
+  home in the new repository.
+
+*** References and lower-priority alternative systems
+
+Priority is standard harmony and the 12/8/16/24/32-TET experiments above.
+The following alternatives are retained for later research, not immediate work.
+
+- [[https://es.wikipedia.org/wiki/El_clave_bien_temperado][El clave bien temperado]]
+- [[https://en.wikipedia.org/wiki/The_Well-Tempered_Clavier][Bach: intended tuning and its uncertainty]]
+- [[https://en.wikipedia.org/wiki/Well_temperament][Well temperament]]
+- [[https://en.wikipedia.org/wiki/Equal_temperament][Equal temperament]]
+- [[https://en.wikipedia.org/wiki/Bohlen%E2%80%93Pierce_scale][Bohlen-Pierce scale]]:
+  common equal version is 13 equal divisions of a 3:1 tritave (13-ED3), not
+  thirteen divisions of an octave. Step ~146.30 cents, close to 8-TET's 150,
+  but eight BP steps are ~1170.43 cents and thirteen are exactly 1901.96.
+  Thirteen 8-TET steps are 1950 cents. BP has odd-harmonic motivations such
+  as 3:5:7 chords, just variants, and nine-note subsets of its thirteen-note
+  grid. Do not confuse the subset size with the equal grid's step count.
+- [[https://en.wikipedia.org/wiki/833_cents_scale][833 cents scale]]
+- [[https://en.wikipedia.org/wiki/A12_scale][A12 scale]]
+- User reference: "Khon-Juander tuning 1/3 alternative musical system".
+  Spelling, source, and tuning rules are unverified; investigate later rather
+  than inventing a definition.
 
 *** TODO Richer audio (sustain, chords, drone note under scale)
 *** TODO Chord progressions

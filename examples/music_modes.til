@@ -19,19 +19,15 @@ FIVE_FULL_SCALE_NOTES : USize = 16
 NATHEX_FULL_SCALE_NOTES : USize = 11
 MAX_SCALE_NOTES : USize = 16
 SEVEN_CYCLE : I32 = 12
-FIVE_DRAW_CYCLES : USize = 3
-FIVE_WHITE_KEYS : USize = 16
-SEVEN_ONCE_WHITE_KEYS : USize = 14
-SEVEN_FULL_WHITE_KEYS : USize = 15
 
 // -- Derived metrics --
 MARGIN : I32 = WINDOW_WIDTH / 48
 BTN_W : I32 = (WINDOW_WIDTH - MARGIN * 2) / SEVEN_NATURAL_COUNT.to_i32()
-SYSTEM_BTN_W : I32 = (WINDOW_WIDTH - MARGIN * 2) / 3
-BTN_H : I32 = WINDOW_HEIGHT / 22
-GAP : I32 = WINDOW_HEIGHT / 60
-FONT : I32 = WINDOW_HEIGHT / 38
-FONT_SM : I32 = WINDOW_HEIGHT / 45
+SYSTEM_BTN_W : I32 = (WINDOW_WIDTH - MARGIN * 2) / 5
+BTN_H : I32 = WINDOW_HEIGHT / 27
+GAP : I32 = WINDOW_HEIGHT / 90
+FONT : I32 = WINDOW_HEIGHT / 45
+FONT_SM : I32 = WINDOW_HEIGHT / 54
 PAD_X : I32 = BTN_W / 25
 PAD_Y : I32 = BTN_H / 4
 LANG_BTN_W : I32 = BTN_W * 2 / 5
@@ -43,15 +39,17 @@ SPAN_BTN_W : I32 = BTN_W * 3 / 2
 // Row Y positions. Both systems use the same language row so the pentagram
 // and piano stay fixed when switching systems.
 SYSTEM_ROW_Y : I32 = GAP
-NOTE_ROW_Y : I32 = SYSTEM_ROW_Y + BTN_H + GAP
+PLAYBACK_ROW_Y : I32 = SYSTEM_ROW_Y + BTN_H + GAP
+QUALITY_ROW_Y : I32 = PLAYBACK_ROW_Y + BTN_H
+NOTE_ROW_Y : I32 = QUALITY_ROW_Y + BTN_H + GAP
 MODE_ROW_Y : I32 = NOTE_ROW_Y + BTN_H * 3 + GAP
 RADIO_ROW_Y : I32 = MODE_ROW_Y + BTN_H + GAP
 
 // Staff/pentagram
 BUTTONS_END_Y : I32 = RADIO_ROW_Y + BTN_H
-STAFF_SP : I32 = WINDOW_HEIGHT / 41
+STAFF_SP : I32 = WINDOW_HEIGHT / 76
 NOTE_R : I32 = WINDOW_HEIGHT / 82
-STAFF_BASE_Y : I32 = BUTTONS_END_Y + GAP + STAFF_SP * 18
+STAFF_BASE_Y : I32 = BUTTONS_END_Y + GAP + STAFF_SP * 26
 STAFF_X : I32 = MARGIN * 3
 STAFF_W : I32 = WINDOW_WIDTH - STAFF_X * 2
 NOTE_X0 : I32 = WINDOW_WIDTH / 8
@@ -59,8 +57,6 @@ LABEL_Y : I32 = STAFF_BASE_Y + STAFF_SP * 2 + NOTE_R + GAP
 
 // Piano roll
 PIANO_Y : I32 = LABEL_Y + WINDOW_HEIGHT / 45 + GAP
-FIVE_WHITE_W : I32 = STAFF_W / FIVE_WHITE_KEYS.to_i32()
-FIVE_BLACK_W : I32 = FIVE_WHITE_W / 2
 WHITE_H : I32 = WINDOW_HEIGHT / 8
 BLACK_H : I32 = WHITE_H * 2 / 3
 HINT_Y : I32 = PIANO_Y + WHITE_H + GAP
@@ -89,6 +85,35 @@ LANG_PT := array(Str, "PT", "Lidio", "Jonio", "Mixolidio", "Dorico", "Eolio", "F
 LANG_ES := array(Str, "ES", "Lidio", "Jonico", "Mixolidio", "Dorico", "Eolico", "Frigio", "Locrio")
 LANG_EN := array(Str, "EN", "Lydian", "Ionian", "Mixolydian", "Dorian", "Aeolian", "Phrygian", "Locrian")
 LANGS := array(Array__Str, LANG_PT, LANG_ES, LANG_EN)
+
+NOTE_LABELS := array(Str, "Nota", "Nota", "Note")
+TRIAD_LABELS := array(Str, "Triade", "Triada", "Triad")
+FOUR_LABELS := array(Str, "4 notas", "4 notas", "4 notes")
+// First choice: stack degrees in the current mode. Other choices specify
+// root-relative chromatic intervals, independent of that mode.
+FOUR_PT := array(Str, "Da escala", "Setima maior", "Setima da dominante", "Setima menor", "Meio diminuto", "Setima diminuta", "Triade aumentada com setima maior", "Sexta adicionada")
+FOUR_ES := array(Str, "De la escala", "Septima mayor", "Septima de dominante", "Septima menor", "Semidisminuido", "Septima disminuida", "Triada aumentada con septima mayor", "Sexta agregada")
+FOUR_EN := array(Str, "From scale", "Major seventh", "Dominant seventh", "Minor seventh", "Half-diminished seventh", "Diminished seventh", "Augmented major seventh", "Added sixth")
+FOUR_SYMBOLS := array(Str, "1-3-5-7", "maj7", "7", "m7", "m7b5", "dim7", "maj7#5", "6")
+FOUR_NAMES := array(Array__Str, FOUR_PT, FOUR_ES, FOUR_EN)
+FOUR_INTERVALS := array(I32, 0,4,7,11, 0,4,7,10, 0,3,7,10, 0,3,6,10, 0,3,6,9, 0,4,8,11, 0,4,7,9)
+FOUR_COUNT : USize = 8
+FOUR_W : I32 = (WINDOW_WIDTH - MARGIN * 2) / FOUR_COUNT.to_i32()
+QUALITY_PT := array(Str, "Maior", "Menor", "Diminuta", "Aumentada")
+QUALITY_ES := array(Str, "Mayor", "Menor", "Disminuida", "Aumentada")
+QUALITY_EN := array(Str, "Major", "Minor", "Diminished", "Augmented")
+QUALITY_LABELS := array(Array__Str, QUALITY_PT, QUALITY_ES, QUALITY_EN)
+DEGREE_LABELS := array(Str, "Graus 1-3-5", "Grados 1-3-5", "Degrees 1-3-5")
+STEP_LABELS := array(Str, "passos", "pasos", "steps")
+CHORD_HINTS := array(Str,
+    "Triades nas notas da escala exibida; outras teclas tocam notas individuais",
+    "Triadas en las notas de la escala mostrada; otras teclas tocan notas individuales",
+    "Triads on displayed scale notes; other keys play single notes")
+
+// One mixed sound gives all voices exactly the same onset and envelope.
+mut viewer_sound := Sound()
+mut viewer_sound_loaded := false
+mut active_keys := array(I32, -1, -1, -1, -1)
 
 // -- Helper functions --
 
@@ -161,6 +186,147 @@ active_root_count := func(use_five: Bool) returns USize {
     return SEVEN_NATURAL_COUNT
 }
 
+scale_degree_key := func(five_system: Bool, sc_chrom: Array(I32), degree: USize) returns I32 {
+    count := active_root_count(five_system)
+    mut cycle := SEVEN_CYCLE
+    if five_system { cycle = FIVE_CYCLE.to_i32() }
+    return sc_chrom[degree % count] + (degree / count).to_i32() * cycle
+}
+
+key_is_active := func(key: I32) returns Bool {
+    for i : USize in 0..active_keys.len() {
+        if active_keys[i].eq(key) { return true }
+    }
+    return false
+}
+
+clear_active_keys := func() {
+    for i : USize in 0..active_keys.len() { active_keys[i] = -1 }
+}
+
+stop_viewer_sound := proc() {
+    if viewer_sound_loaded {
+        StopSound(viewer_sound)
+        UnloadSound(viewer_sound)
+        viewer_sound_loaded = false
+    }
+    clear_active_keys()
+}
+
+viewer_freq := func(use_nathex: Bool, key: I32) returns I64 {
+    // Upper Global chords can exceed the stored C4-B6 table. Extend its
+    // last octave by exact doubling, rather than dropping a chord voice.
+    mut table_key := key
+    mut multiplier : I64 = 1
+    if use_nathex.not() {
+        while table_key.gte(36) {
+            table_key = table_key - 12
+            multiplier = multiplier * 2
+        }
+    }
+    return music_modes_key_freq(use_nathex, table_key.to_usize()) * multiplier
+}
+
+mixed_sample := func(freqs: Array(F32), phase: F32) returns F32 {
+    mut sample : F32 = 0
+    for v : USize in 0..freqs.len() {
+        sample = sample + sinf(freqs[v] * phase)
+    }
+    amplitude : F32 = 0.3
+    return sample * amplitude / freqs.len().to_f32()
+}
+
+play_keys := proc(use_nathex: Bool, keys: Array(I32), voice_count: USize) {
+    stop_viewer_sound()
+    mut freqs := Array(F32).new(voice_count)
+    for v : USize in 0..voice_count {
+        active_keys[v] = keys[v].clone()
+        freqs[v] = viewer_freq(use_nathex, keys[v]).to_f32()
+    }
+    play_freqs(freqs)
+}
+
+play_freqs := proc(freqs: Array(F32)) {
+    if sound_enabled.not() { return }
+    sr : I64 = 44100
+    samples : I64 = sr * 250 / 1000
+    attack := sr / 100
+    release := sr / 100
+    mut buf : U8 = malloc((samples * 4).to_usize().to_uptr())
+    pi2 : F32 = 6.283185307179586
+    for i : USize in 0..samples.to_usize() {
+        mut envelope : F32 = 1
+        if i.to_i64().lt(attack) { envelope = i.to_f32() / attack.to_f32() }
+        if i.to_i64().gt(samples - release) {
+            envelope = (samples - i.to_i64()).to_f32() / release.to_f32()
+        }
+        sample := mixed_sample(freqs, pi2 * i.to_f32() / sr.to_f32()) * envelope
+        memcpy(ptr_add(buf, i.to_uptr() * 4), sample, 4)
+    }
+    wave := Wave(frameCount = samples.to_u32(), sampleRate = sr.to_u32(),
+                 sampleSize = 32, channels = 1, data = to_ptr(buf))
+    viewer_sound = LoadSoundFromWave(wave)
+    free(own buf)
+    viewer_sound_loaded = true
+    PlaySound(viewer_sound)
+}
+
+voice_count_for := func(chord_mode: Bool, kind: I32) returns USize {
+    if kind.gte(0) { return 4 }
+    if chord_mode { return 3 }
+    return 1
+}
+
+voice_degree := func(root: USize, v: USize, kind: I32) returns USize {
+    if kind.eq(7).and(v.eq(3)) { return root + 5 }
+    return root + v * 2
+}
+
+voice_key := func(five: Bool, nathex: Bool, chrom: Array(I32), root: USize, v: USize, kind: I32) returns I32 {
+    if kind.lte(0) { return scale_degree_key(five, chrom, root + v * 2) }
+    mut offset := FOUR_INTERVALS[(kind - 1).to_usize() * 4 + v].clone()
+    if nathex { offset = (offset * 8 + 6) / 12 }
+    return scale_degree_key(five, chrom, root) + offset
+}
+
+StaffTone := struct {
+    name : I32 = 0
+    register : I32 = 0
+    accidental : I32 = 0
+}
+
+staff_tone := func(five: Bool, nathex: Bool, root: USize, v: USize, kind: I32, chrom: Array(I32),
+                   diat: Array(I32), span: Array(I32), acc: Array(I32)) returns StaffTone {
+    count := active_root_count(five)
+    d := voice_degree(root, v, kind)
+    idx := d % count
+    mut a := acc[idx].clone()
+    if kind.gt(0).and(v.gt(0)) {
+        key := voice_key(five, nathex, chrom, root, v, kind)
+        if five {
+            pc := key.to_usize() % FIVE_CYCLE
+            // Spell chromatic targets in the local five-name grid. Use the
+            // root's displayed register as anchor (also for altered roots).
+            root_key := scale_degree_key(true, chrom, root)
+            root_idx := root % count
+            correction := (FIVE_NATURALS[diat[root_idx].to_usize()] + acc[root_idx] - root_key) / FIVE_CYCLE.to_i32() + span[root_idx] + (root / count).to_i32()
+            return StaffTone(name = FIVE_DIATONIC_BY_CHROM[pc], register = key / FIVE_CYCLE.to_i32() + correction, accidental = FIVE_ACC_BY_CHROM[pc])
+        }
+        a = a + key - scale_degree_key(false, chrom, d)
+    }
+    return StaffTone(name = diat[idx], register = span[idx] + (d / count).to_i32(), accidental = a)
+}
+
+play_degree := proc(chord_mode: Bool, five_system: Bool, use_nathex: Bool,
+                    sc_chrom: Array(I32), degree: USize, kind: I32 = -1) {
+    voices := voice_count_for(chord_mode, kind)
+    mut keys := Array(I32).new(voices)
+    for v : USize in 0..voices {
+        keys[v] = voice_key(five_system, use_nathex, sc_chrom, degree, v, kind)
+    }
+    play_keys(use_nathex, keys, voices)
+}
+
 note_x := func(dni: USize, note_count: USize) returns I32 {
     dx := (WINDOW_WIDTH - NOTE_X0 * 2) / (note_count.to_i32() - 1)
     return NOTE_X0 + dni.to_i32() * dx
@@ -181,11 +347,12 @@ start_scale := func(mut playing: Bool, mut play_idx: USize, mut play_timer: I64)
 draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USize, note_count: USize,
                   sc_diat: Array(I32), sc_span: Array(I32), sc_acc: Array(I32),
                   sc_triad: Array(U32), playing: Bool, play_idx: USize,
-                  clicked_note: I32, fnt: Font) {
+                  clicked_note: I32, voice: USize, fnt: Font, sc_chrom: Array(I32), kind: I32) {
     five_system := active_five_system(use_five, use_nathex)
     dnx := note_x(dni, note_count)
-    ref nd : I32 = sc_diat[dni]
-    ref ns : I32 = sc_span[dni]
+    tone := staff_tone(five_system, use_nathex, dni, voice, kind, sc_chrom, sc_diat, sc_span, sc_acc)
+    nd := tone.name
+    ns := tone.register
     mut staff_pos := nd - 2 + ns * SEVEN_NATURAL_COUNT.to_i32()
     if five_system { staff_pos = five_staff_pos(nd, ns) }
     dny := staff_y(five_system, nd, ns)
@@ -224,7 +391,7 @@ draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USiz
 
     DrawCircle(dnx, dny, NOTE_R.to_f32(), note_color)
 
-    ref na : I32 = sc_acc[dni]
+    na := tone.accidental
     if !na.eq(0) {
         mut aw := NOTE_R
         if na.abs().eq(2) { aw = NOTE_R * 2 }
@@ -232,6 +399,8 @@ draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USiz
         DrawTextEx(fnt, at.c_str, Vector2(x = (dnx - (FONT + aw)).to_f32(), y = (dny - FONT / 2).to_f32()), FONT.to_f32(), 1, WHITE)
     }
 
+    // A chord column has three noteheads but only one root/chord label.
+    if voice.gt(0) { return }
     mut label := ""
     if five_system {
         if use_nathex { label = nathex_full_note_name(nd, na, ns) }
@@ -240,7 +409,7 @@ draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USiz
         ref nn_base : Str = seven_note_name(use_letters, nd.to_usize())
         nn_acc := acc_text(na.cast(I64))
         label = format(nn_base, nn_acc)
-        if dni.lt(SEVEN_NATURAL_COUNT) {
+        if kind.lt(0).and(dni.lt(SEVEN_NATURAL_COUNT)) {
             ref trt2 : U32 = sc_triad[dni]
             chord := format(LETTER_DIATONIC_NOTE_NAMES[nd.to_usize()], nn_acc, TRIAD_SUFFIXES[trt2.cast(USize)])
             if use_letters {
@@ -294,37 +463,81 @@ recompute_seven_scale := func(sel_diatonic: USize, sel_accidental: I32, sel_mode
     }
 }
 
-play_freq := proc(freq: I64) {
-    if freq.gt(0).and(freq.lte(PRACTICAL_MAX_FREQ)) {
-        play_tone(freq, 250)
-    }
-}
-
-play_note := proc(freq: I64, mut clicked_note: I32, mut clicked_timer: I32, note_idx: I32) {
-    if freq.gt(0) {
-        play_freq(freq)
-        clicked_note = note_idx
-        clicked_timer = 300
-    }
-}
-
-scale_piano_key := func(chrom: I32) returns I32 {
-    return chrom
-}
-
-highlight_scale_for_key := func(key_idx: I32, note_count: USize, sc_chrom: Array(I32), mut clicked_note: I32, mut clicked_timer: I32) {
+audition_key := proc(key_idx: I32, chord_mode: Bool, five_system: Bool, use_nathex: Bool,
+                     note_count: USize, sc_chrom: Array(I32),
+                     mut clicked_note: I32, mut clicked_timer: I32, kind: I32 = -1) {
+    clicked_note = -1
+    clicked_timer = 300
     for ci : USize in 0..note_count {
-        ref chrom : I32 = sc_chrom[ci]
-        scale_key_idx := scale_piano_key(chrom)
-        if scale_key_idx.eq(key_idx) {
+        if sc_chrom[ci].eq(key_idx) {
             clicked_note = ci.to_i32()
-            clicked_timer = 300
-            break
+            play_degree(chord_mode, five_system, use_nathex, sc_chrom, ci, kind)
+            return
         }
     }
+    // Keys outside the displayed scale are explicitly single-note auditions.
+    if viewer_freq(use_nathex, key_idx).lte(PRACTICAL_MAX_FREQ) {
+        keys := array(I32, key_idx)
+        play_keys(use_nathex, keys, 1)
+    } else {
+        stop_viewer_sound()
+    }
 }
 
-draw_piano := proc(use_five: Bool, use_nathex: Bool, full_span: Bool, active_key_idx: I32, fnt: Font) {
+piano_last_key := func(five_system: Bool, full_span: Bool, chord_mode: Bool,
+                       sc_chrom: Array(I32), note_count: USize, kind: I32 = -1, nathex: Bool = false) returns I32 {
+    mut last : I32 = 23
+    if five_system.or(full_span) { last = 24 }
+    if chord_mode {
+        upper := voice_key(five_system, nathex, sc_chrom, note_count - 1, voice_count_for(true, kind) - 1, kind)
+        if upper.gt(last) { last = upper }
+    }
+    return last
+}
+
+piano_natural := func(five_system: Bool, white_idx: USize) returns I32 {
+    if five_system {
+        return (white_idx / FIVE_NATURAL_COUNT).to_i32() * FIVE_CYCLE.to_i32() + FIVE_NATURALS[white_idx % FIVE_NATURAL_COUNT]
+    }
+    return (white_idx / SEVEN_NATURAL_COUNT).to_i32() * SEVEN_CYCLE + NATURALS[white_idx % SEVEN_NATURAL_COUNT]
+}
+
+piano_white_count := func(five_system: Bool, last_key: I32) returns USize {
+    mut count : USize = 0
+    while piano_natural(five_system, count).lte(last_key) { count++ }
+    // Leave room for a final accidental between its two surrounding whites.
+    if piano_natural(five_system, count - 1).lt(last_key) { count++ }
+    return count
+}
+
+piano_hit_key := func(five_system: Bool, last_key: I32, mx: I32, my: I32) returns I32 {
+    white_count := piano_white_count(five_system, last_key)
+    white_w := STAFF_W / white_count.to_i32()
+    black_w := white_w / 2
+    if mx.lt(STAFF_X).or(mx.gte(STAFF_X + white_w * white_count.to_i32())).or(my.lt(PIANO_Y)).or(my.gte(PIANO_Y + WHITE_H)) { return -1 }
+    if my.lt(PIANO_Y + BLACK_H) {
+        for i : USize in 0..(white_count - 1) {
+            key := piano_natural(five_system, i)
+            if (piano_natural(five_system, i + 1) - key).eq(2) {
+                bx := STAFF_X + (i + 1).to_i32() * white_w - black_w / 2
+                if mx.gte(bx).and(mx.lt(bx + black_w)) { return key + 1 }
+            }
+        }
+    }
+    return piano_natural(five_system, ((mx - STAFF_X) / white_w).to_usize())
+}
+
+piano_key_label := func(five_system: Bool, key: I32) returns Str {
+    if key.lt(PIANO_C4_KEY_COUNT.to_i32()) {
+        return PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key.to_usize()].clone()
+    }
+    if five_system {
+        return format(FIVE_NAMES[key.mod(FIVE_CYCLE.to_i32()).to_usize()], (key / FIVE_CYCLE.to_i32() + 4).to_str())
+    }
+    return freqs_letter_note_name(PIANO_C4_FREQ_OFFSET.to_i32() + key)
+}
+
+draw_piano := proc(five_system: Bool, last_key: I32, fnt: Font) {
     KEY_WHITE_PRESSED := Color(r = 0, g = 200, b = 210, a = 255)
     KEY_WHITE := Color(r = 240, g = 240, b = 240, a = 255)
     KEY_LABEL_COLOR := Color(r = 80, g = 80, b = 80, a = 255)
@@ -332,73 +545,337 @@ draw_piano := proc(use_five: Bool, use_nathex: Bool, full_span: Bool, active_key
     KEY_BLACK := Color(r = 20, g = 20, b = 20, a = 255)
     KEY_LABEL_BLACK := Color(r = 180, g = 180, b = 180, a = 255)
 
-    if active_five_system(use_five, use_nathex) {
-        // C4-C6: 3 hextaves / 2 octaves from the first key to the final ca.
-        for i : USize in 0..FIVE_WHITE_KEYS {
-            kx := STAFF_X + i.to_i32() * FIVE_WHITE_W
-            cycle := i / FIVE_NATURAL_COUNT
-            ref nat : I32 = FIVE_NATURALS[i.mod(FIVE_NATURAL_COUNT)]
-            key_idx := cycle.to_i32() * FIVE_CYCLE.to_i32() + nat
-            mut k_color := KEY_WHITE
-            if key_idx.eq(active_key_idx) { k_color = KEY_WHITE_PRESSED }
-            DrawRectangle(kx, PIANO_Y, FIVE_WHITE_W - 2, WHITE_H, k_color)
-            mut lbl := "ca7"
-            if key_idx.lt(PIANO_C4_KEY_COUNT.to_i32()) {
-                ref key_lbl : Str = PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key_idx.to_usize()]
-                lbl = key_lbl.clone()
-            }
-            DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + FIVE_WHITE_W / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18, 1, KEY_LABEL_COLOR)
+    white_count := piano_white_count(five_system, last_key)
+    white_w := STAFF_W / white_count.to_i32()
+    black_w := white_w / 2
+    for i : USize in 0..white_count {
+        key := piano_natural(five_system, i)
+        x := STAFF_X + i.to_i32() * white_w
+        mut color := KEY_WHITE
+        if key_is_active(key) { color = KEY_WHITE_PRESSED }
+        DrawRectangle(x, PIANO_Y, white_w - 2, WHITE_H, color)
+        label := piano_key_label(five_system, key)
+        DrawTextEx(fnt, label.c_str, Vector2(x = (x + white_w / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18, 1, KEY_LABEL_COLOR)
+    }
+    for i : USize in 0..(white_count - 1) {
+        key := piano_natural(five_system, i)
+        if (piano_natural(five_system, i + 1) - key).eq(2) {
+            x := STAFF_X + (i + 1).to_i32() * white_w - black_w / 2
+            mut color := KEY_BLACK
+            if key_is_active(key + 1) { color = KEY_BLACK_PRESSED }
+            DrawRectangle(x, PIANO_Y, black_w, BLACK_H, color)
+            label := piano_key_label(five_system, key + 1)
+            DrawTextEx(fnt, label.c_str, Vector2(x = (x + black_w / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14, 1, KEY_LABEL_BLACK)
         }
+    }
+}
 
-        for cycle : USize in 0..FIVE_DRAW_CYCLES {
-            for j : USize in 0..3 {
-                ref bpos : I32 = FIVE_BLACK_KEY_POS[j]
-                ref bchrom : I32 = FIVE_BLACKS[j]
-                key_idx := cycle.to_i32() * FIVE_CYCLE.to_i32() + bchrom
-                bx := STAFF_X + (cycle.to_i32() * FIVE_NATURAL_COUNT.to_i32() + bpos + 1) * FIVE_WHITE_W - FIVE_BLACK_W / 2
-                mut kb_color := KEY_BLACK
-                if key_idx.eq(active_key_idx) { kb_color = KEY_BLACK_PRESSED }
-                DrawRectangle(bx, PIANO_Y, FIVE_BLACK_W, BLACK_H, kb_color)
-                ref lbl : Str = PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key_idx.to_usize()]
-                DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + FIVE_BLACK_W / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14, 1, KEY_LABEL_BLACK)
-            }
+chord_description := func(five_system: Bool, use_nathex: Bool, use_letters: Bool,
+                          lang: USize, degree: USize, sc_chrom: Array(I32),
+                          sc_diat: Array(I32), sc_span: Array(I32), sc_acc: Array(I32),
+                          sc_triad: Array(U32), kind: I32 = -1) returns Str {
+    count := active_root_count(five_system)
+    mut text := ""
+    mut offsets := ""
+    root := scale_degree_key(five_system, sc_chrom, degree)
+    for v : USize in 0..voice_count_for(true, kind) {
+        tone := staff_tone(five_system, use_nathex, degree, v, kind, sc_chrom, sc_diat, sc_span, sc_acc)
+        delta := voice_key(five_system, use_nathex, sc_chrom, degree, v, kind) - root
+        if v.gt(0) { offsets = format(offsets, ",") }
+        offsets = format(offsets, delta.to_str())
+        mut label := ""
+        if five_system {
+            label = five_full_note_name(tone.name, tone.accidental, tone.register)
+        } else {
+            label = format(seven_note_name(use_letters, tone.name.to_usize()), acc_text(tone.accidental.cast(I64)), (tone.register + 4).to_str())
         }
-    } else {
-        mut seven_white_keys := SEVEN_ONCE_WHITE_KEYS
-        if full_span { seven_white_keys = SEVEN_FULL_WHITE_KEYS }
-        seven_white_w := STAFF_W / seven_white_keys.to_i32()
-        seven_black_w := seven_white_w / 2
+        if v.gt(0) { text = format(text, " + ") }
+        text = format(text, label)
+    }
+    mut quality := DEGREE_LABELS[lang].clone()
+    if kind.gte(0) {
+        ref names : Array(Str) = FOUR_NAMES[lang]
+        quality = names[kind.to_usize()].clone()
+        if kind.eq(0) { quality = format(quality, " 1-3-5-7") }
+        if use_nathex.and(kind.gt(0)) { quality = format("~", quality) }
+    } else if five_system.not() {
+        ref labels : Array(Str) = QUALITY_LABELS[lang]
+        quality = labels[sc_triad[degree % count].cast(USize)].clone()
+    }
+    mut tuning := "12-TET"
+    if use_nathex { tuning = "8-TET" }
+    return format(text, " | ", quality, " | ", STEP_LABELS[lang], " ", offsets, " (", tuning, ")")
+}
 
-        // Once: C4-B5. Full span: C4-C6, with final C mouse-only.
-        for i : USize in 0..seven_white_keys {
-            kx := STAFF_X + i.to_i32() * seven_white_w
-            ref nat : I32 = NATURALS[i.mod(SEVEN_NATURAL_COUNT)]
-            key_oct := i / SEVEN_NATURAL_COUNT
-            key_idx := key_oct.to_i32() * SEVEN_CYCLE + nat
-            mut k_color := KEY_WHITE
-            if key_idx.eq(active_key_idx) { k_color = KEY_WHITE_PRESSED }
-            DrawRectangle(kx, PIANO_Y, seven_white_w - 2, WHITE_H, k_color)
-            mut lbl := "C6"
-            if key_idx.lt(PIANO_C4_KEY_COUNT.to_i32()) {
-                ref key_lbl : Str = PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key_idx.to_usize()]
-                lbl = key_lbl.clone()
-            }
-            DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + seven_white_w / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18, 1, KEY_LABEL_COLOR)
-        }
+log2f := ext_func(shallow value: F32) returns shallow F32 {}
+exp2f := ext_func(shallow value: F32) returns shallow F32 {}
 
-        for oct : USize in 0..2 {
-            for j : USize in 0..5 {
-                ref bpos : I32 = BLACK_KEY_POS[j]
-                ref bchrom : I32 = BLACK_CHROMS[j]
-                key_idx := oct.to_i32() * SEVEN_CYCLE + bchrom
-                bx := STAFF_X + (oct.to_i32() * SEVEN_NATURAL_COUNT.to_i32() + bpos + 1) * seven_white_w - seven_black_w / 2
-                mut kb_color := KEY_BLACK
-                if key_idx.eq(active_key_idx) { kb_color = KEY_BLACK_PRESSED }
-                DrawRectangle(bx, PIANO_Y, seven_black_w, BLACK_H, kb_color)
-                ref lbl : Str = PIANO_KEY_LABELS[PIANO_C4_KEY_OFFSET + key_idx.to_usize()]
-                DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + seven_black_w / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14, 1, KEY_LABEL_BLACK)
-            }
+// Eight 12-TET steps span 2/D; eight Nathex steps span 2. Their endpoint
+// ratio is the Delian constant D, the real solution to D^3 = 2.
+delian_ratio := macro() returns F32 {
+    mut d : F32 = 1
+    two : F32 = 2
+    for _ in 0..6 { d = (d * two + two / (d * d)) / 3 }
+    return d
+}
+DELIAN := delian_ratio()
+SERIES_C4 : F32 = 261.625565
+SERIES_TUNINGS := array(I32, 12, 8, 16)
+SERIES_TITLES := array(Str, "Comparar afinacoes", "Comparar afinaciones", "Tuning comparison")
+JUST_TITLES := array(Str, "Harmonicos e escala justa", "Armonicos y escala justa", "Harmonics and just scale")
+JUST_PLAY := array(Str, "Tocar", "Tocar", "Play")
+JUST_STOP := array(Str, "Parar", "Parar", "Stop")
+JUST_KEY := array(Str, "Do maior (Jonio)", "Do mayor (Jonico)", "C major (Ionian)")
+FIRST_EIGHT := array(Str, "Harmonicos 1-8", "Armonicos 1-8", "Harmonics 1-8")
+// Approximate staff positions (C4 = 0); these never determine the sound.
+PARTIAL_POS := array(USize, 0, 7, 11, 14, 16, 18, 20, 21)
+JUST_NUM := array(I32, 1, 9, 5, 4, 3, 5, 15)
+JUST_DEN := array(I32, 1, 8, 4, 3, 2, 3, 8)
+
+// Five-limit major scale. All pitches are ratios to the same C4 tonic.
+just_multiplier := func(degree: USize) returns I32 {
+    mut m : I32 = 1
+    for _ in 0..(degree / SEVEN_NATURAL_COUNT) { m = m * 2 }
+    return m
+}
+just_frequency := func(degree: USize) returns F32 {
+    i := degree % SEVEN_NATURAL_COUNT
+    return SERIES_C4 * JUST_NUM[i].to_f32() / JUST_DEN[i].to_f32() * just_multiplier(degree).to_f32()
+}
+
+JustStaff := struct {
+    harmonics : Bool = true
+    full : Bool = true
+    playing : Bool = false
+    selected : I32 = -1
+    timer : I32 = 0
+}
+
+staff_frequency := func(harmonics: Bool, degree: USize) returns F32 {
+    if harmonics { return SERIES_C4 * (degree + 1).to_f32() }
+    return just_frequency(degree)
+}
+
+just_play := proc(mut s: JustStaff, degree: USize) {
+    stop_viewer_sound()
+    play_freqs(array(F32, staff_frequency(s.harmonics, degree)))
+    s.selected = degree.to_i32()
+    s.timer = 350
+}
+
+SPAN_PT := array(Str, "1 hextave (800 c)", "1 oitava (1200 c)", "2 hextaves (1600 c)", "2 oitavas (2400 c)")
+SPAN_ES := array(Str, "1 hextava (800 c)", "1 octava (1200 c)", "2 hextavas (1600 c)", "2 octavas (2400 c)")
+SPAN_EN := array(Str, "1 hextave (800 c)", "1 octave (1200 c)", "2 hextaves (1600 c)", "2 octaves (2400 c)")
+SERIES_SPANS := array(Array__Str, SPAN_PT, SPAN_ES, SPAN_EN)
+
+just_frame := proc(mut s: JustStaff, fnt: Font, mut lang: USize, dt: I32) {
+    ref spans : Array(Str) = SERIES_SPANS[lang]
+    if series_button(fnt, FIRST_EIGHT[lang], MARGIN, QUALITY_ROW_Y + GAP, BTN_W, s.harmonics) {
+        s.harmonics = true; s.selected = -1; s.playing = false; stop_viewer_sound()
+    }
+    if series_button(fnt, JUST_KEY[lang], MARGIN + BTN_W, QUALITY_ROW_Y + GAP, BTN_W, s.harmonics.not()) {
+        s.harmonics = false; s.selected = -1; s.playing = false; stop_viewer_sound()
+    }
+    for i : USize in 0..2 {
+        if s.harmonics { break }
+        if series_button(fnt, spans[i * 2 + 1], MARGIN + i.to_i32() * BTN_W, PLAYBACK_ROW_Y, BTN_W, s.full.eq(i.eq(1))) {
+            s.full = i.eq(1); s.playing = false; s.selected = -1; stop_viewer_sound()
         }
+    }
+    mut count := SEVEN_ONCE_SCALE_NOTES
+    if s.full.and(s.harmonics.not()) { count = SEVEN_FULL_SCALE_NOTES }
+    mut action := JUST_PLAY[lang].clone()
+    if s.playing { action = JUST_STOP[lang].clone() }
+    if series_button(fnt, action, MARGIN + BTN_W * 2 + GAP, PLAYBACK_ROW_Y, BTN_W, s.playing) {
+        s.playing = s.playing.not(); s.selected = -1; s.timer = 0; stop_viewer_sound()
+    }
+    for li : USize in 0..3 {
+        if series_button(fnt, lang_str(li, 0), MARGIN + BTN_W * 3 + GAP * 2 + li.to_i32() * LANG_BTN_W, PLAYBACK_ROW_Y, LANG_BTN_W, lang.eq(li)) { lang = li }
+    }
+    if s.playing {
+        s.timer = s.timer - dt
+        if s.timer.lte(0) {
+            next := (s.selected + 1).to_usize()
+            if next.lt(count) { just_play(s, next) }
+            else { s.playing = false }
+        }
+    }
+    mut title := JUST_KEY[lang].clone()
+    if s.harmonics { title = FIRST_EIGHT[lang].clone() }
+    series_text(fnt, format(title, "  |  Do4 = 1/1 = ", SERIES_C4.to_str(), " Hz"), MARGIN, NOTE_ROW_Y + BTN_H)
+    gray := Color(r = 115, g = 115, b = 115, a = 255)
+    for line : USize in 0..5 {
+        DrawRectangle(STAFF_X, STAFF_BASE_Y - line.to_i32() * 2 * STAFF_SP, STAFF_W, 2, gray)
+    }
+    for d : USize in 0..count {
+        mut pos := d
+        if s.harmonics { pos = PARTIAL_POS[d].clone() }
+        i := pos % SEVEN_NATURAL_COUNT
+        x := note_x(d, count)
+        y := staff_y(false, i.to_i32(), (pos / SEVEN_NATURAL_COUNT).to_i32())
+        mut ledger := STAFF_BASE_Y + STAFF_SP * 2
+        while ledger.lte(y) { DrawRectangle(x - NOTE_R * 2, ledger, NOTE_R * 4, 2, gray); ledger = ledger + STAFF_SP * 2 }
+        ledger = STAFF_BASE_Y - STAFF_SP * 10
+        while ledger.gte(y) { DrawRectangle(x - NOTE_R * 2, ledger, NOTE_R * 4, 2, gray); ledger = ledger - STAFF_SP * 2 }
+        if IsMouseButtonPressed(0).and((GetMouseX() - x).abs().lt(NOTE_R * 2)).and((GetMouseY() - y).abs().lt(NOTE_R * 2)) {
+            s.playing = false; just_play(s, d)
+        }
+        mut color := Color(r = 245, g = 195, b = 65, a = 255)
+        if s.selected.eq(d.to_i32()) { color = Color(r = 0, g = 195, b = 215, a = 255) }
+        DrawCircle(x, y, NOTE_R.to_f32(), color)
+        mut name := SOLFEGE_NOTE_NAMES[i].clone()
+        if s.harmonics.and(d.eq(6)) {
+            name = "~Sib"
+            series_text(fnt, "b", x - NOTE_R * 3, y - NOTE_R)
+        }
+        series_text(fnt, format(name, (pos / SEVEN_NATURAL_COUNT + 4).to_str()), x - NOTE_R, LABEL_Y)
+        mut ratio := format((JUST_NUM[i] * just_multiplier(d)).to_str(), "/", JUST_DEN[i].to_str())
+        if s.harmonics { ratio = format((d + 1).to_str(), "/1") }
+        series_text(fnt, ratio, x - NOTE_R, LABEL_Y + BTN_H)
+    }
+    if s.selected.gte(0) { series_text(fnt, format(staff_frequency(s.harmonics, s.selected.to_usize()).to_str(), " Hz"), MARGIN, LABEL_Y + BTN_H * 2) }
+}
+
+test_harmonics_vs_ionian := test() {
+    assert_eq(F32, staff_frequency(true, 6), SERIES_C4 * 7)
+    assert_eq(F32, staff_frequency(true, 7), SERIES_C4 * 8)
+    assert_eq(F32, staff_frequency(false, 7), SERIES_C4 * 2)
+    assert_eq(F32, staff_frequency(false, 14), SERIES_C4 * 4)
+    assert_eq(F32, staff_frequency(false, 4), SERIES_C4 * 1.5)
+}
+EXACT_LABEL := array(Str, "Ouvir: harmonicos", "Oir: armonicos", "Play harmonics")
+GRID_LABEL := array(Str, "Ouvir: temperado", "Oir: temperado", "Play approximation")
+
+series_ratio := func(span: USize) returns F32 {
+    two : F32 = 2
+    regular := two / DELIAN
+    if span.eq(0) { return regular }
+    if span.eq(1) { return 2 }
+    if span.eq(2) { return regular * regular }
+    return 4
+}
+
+// The window starts at C4. first=4 means the fourth partial of C2;
+// first=1 means the fundamental C4 itself. The grid stays anchored to C4.
+partial_ratio := func(h: I32, first: I32) returns F32 { return h.to_f32() / first.to_f32() }
+nearest_step := func(ratio: F32, n: I32) returns I32 {
+    return (log2f(ratio) * n.to_f32() + 0.5).to_i64().to_i32()
+}
+grid_ratio := func(step: I32, n: I32) returns F32 { return exp2f(step.to_f32() / n.to_f32()) }
+
+series_note_name := func(step: I32, n: I32) returns Str {
+    if n.eq(12) { return format(SOLFEGE_CHROMATIC_NAMES[(step % 12).to_usize()], (step / 12 + 4).to_str()) }
+    mut index := step
+    mut micro := ""
+    if n.eq(16) {
+        index = step / 2
+        if step.mod(2).eq(1) { micro = "t" }
+    }
+    return format(FIVE_NAMES[(index % 8).to_usize()], micro, (index / 8 + 4).to_str())
+}
+
+SeriesView := struct {
+    span : USize = 3
+    tuning : USize = 0
+    first : I32 = 4
+    current : I32 = 0
+    timer : I32 = 0
+    running : Bool = false
+    grid : Bool = false
+}
+
+series_text := proc(fnt: Font, s: Str, x: I32, y: I32) {
+    DrawTextEx(fnt, s.c_str, Vector2(x = x.to_f32(), y = y.to_f32()), FONT_SM.to_f32(), 1, Color(r = 235, g = 235, b = 235, a = 255))
+}
+
+series_button := proc(fnt: Font, label: Str, x: I32, y: I32, w: I32, active: Bool) returns Bool {
+    mut color := Color(r = 50, g = 50, b = 50, a = 255)
+    if active { color = Color(r = 0, g = 130, b = 140, a = 255) }
+    DrawRectangle(x, y, w - 2, BTN_H - 2, color)
+    series_text(fnt, label, x + PAD_X, y + PAD_Y)
+    return IsMouseButtonPressed(0).and(GetMouseX().gte(x)).and(GetMouseX().lt(x + w)).and(GetMouseY().gte(y)).and(GetMouseY().lt(y + BTN_H))
+}
+
+series_tone := proc(h: I32, first: I32, n: I32, grid: Bool) {
+    mut ratio := partial_ratio(h, first)
+    if grid { ratio = grid_ratio(nearest_step(ratio, n), n) }
+    stop_viewer_sound()
+    freqs := array(F32, SERIES_C4 * ratio)
+    play_freqs(freqs)
+}
+
+series_frame := proc(mut s: SeriesView, fnt: Font, mut lang: USize, dt: I32) {
+    ref spans : Array(Str) = SERIES_SPANS[lang]
+    mut changed := false
+    for i : USize in 0..4 {
+        span_w := (WINDOW_WIDTH - MARGIN * 2) / 4
+        if series_button(fnt, spans[i], MARGIN + i.to_i32() * span_w, PLAYBACK_ROW_Y, span_w, s.span.eq(i)) {
+            s.span = i
+            changed = true
+        }
+    }
+    y := PLAYBACK_ROW_Y + BTN_H + GAP
+    for i : USize in 0..3 {
+        label := format(SERIES_TUNINGS[i].to_str(), "-TET")
+        if series_button(fnt, label, MARGIN + i.to_i32() * 140, y, 140, s.tuning.eq(i)) { s.tuning = i; changed = true }
+        if series_button(fnt, lang_str(i, 0), MARGIN + 900 + i.to_i32() * 90, y, 90, lang.eq(i)) { lang = i }
+    }
+    if series_button(fnt, "f0 = C2", MARGIN + 480, y, 170, s.first.eq(4)) { s.first = 4; changed = true }
+    if series_button(fnt, "f0 = C4", MARGIN + 650, y, 170, s.first.eq(1)) { s.first = 1; changed = true }
+    if changed { s.running = false; s.current = 0; stop_viewer_sound() }
+    n := SERIES_TUNINGS[s.tuning].clone()
+    limit := series_ratio(s.span)
+    last := (limit * s.first.to_f32()).to_i64().to_i32()
+    play_y := y + BTN_H + GAP
+    for mode : USize in 0..2 {
+        mut label := EXACT_LABEL[lang].clone()
+        if mode.eq(1) { label = GRID_LABEL[lang].clone() }
+        if series_button(fnt, label, MARGIN + mode.to_i32() * 260, play_y, 260, s.running.and(s.grid.eq(mode.eq(1)))) {
+            s.grid = mode.eq(1); s.running = true; s.current = s.first - 1; s.timer = 0
+        }
+    }
+    if s.running {
+        s.timer = s.timer - dt
+        if s.timer.lte(0) {
+            if s.current.eq(last) { s.running = false }
+            else { s.current++; series_tone(s.current, s.first, n, s.grid); s.timer = 350 }
+        }
+    }
+    // Linear Hz plot. Include the nearest grid point even if it falls just
+    // outside the partial selection window (e.g. 10th harmonic in 8-TET).
+    right := WINDOW_WIDTH - MARGIN - 100
+    left := MARGIN + 770
+    mut max_ratio := limit
+    high := grid_ratio(nearest_step(partial_ratio(last, s.first), n), n)
+    if high.gt(max_ratio) { max_ratio = high }
+    scale := (right - left).to_f32() / (max_ratio - 1)
+    header := play_y + BTN_H + GAP
+    series_text(fnt, "n", MARGIN, header)
+    series_text(fnt, "n * f0 (Hz)", MARGIN + 85, header)
+    series_text(fnt, format(n.to_str(), "-TET (Hz)"), MARGIN + 305, header)
+    series_text(fnt, "TET - n*f0 (cents)", MARGIN + 525, header)
+    series_text(fnt, "C4: 261.63 Hz", left, header)
+    series_text(fnt, format((SERIES_C4 * max_ratio).to_i64().to_str(), " Hz"), right - 60, header)
+    for h : USize in s.first.to_usize()..(last + 1).to_usize() {
+        i := h.to_i32()
+        r := partial_ratio(i, s.first)
+        step := nearest_step(r, n)
+        g := grid_ratio(step, n)
+        row := header + BTN_H + (i - s.first) * (BTN_H + GAP)
+        series_text(fnt, h.to_str(), MARGIN, row + PAD_Y)
+        if series_button(fnt, (SERIES_C4 * r).to_str(), MARGIN + 75, row, 210, s.current.eq(i).and(s.grid.not())) {
+            s.running = false; s.current = i; s.grid = false; series_tone(i, s.first, n, false)
+        }
+        grid_label := format(series_note_name(step, n), "  ", (SERIES_C4 * g).to_str())
+        if series_button(fnt, grid_label, MARGIN + 295, row, 210, s.current.eq(i).and(s.grid)) {
+            s.running = false; s.current = i; s.grid = true; series_tone(i, s.first, n, true)
+        }
+        cents := log2f(g / r) * 1200
+        series_text(fnt, cents.to_str(), MARGIN + 525, row + PAD_Y)
+        cy := row + BTN_H / 2
+        DrawRectangle(left, cy, right - left, 1, Color(r = 75, g = 75, b = 75, a = 255))
+        DrawCircle(left + ((r - 1) * scale).to_i64().to_i32(), cy, 8, Color(r = 245, g = 195, b = 65, a = 255))
+        DrawCircle(left + ((g - 1) * scale).to_i64().to_i32(), cy, 4, Color(r = 0, g = 195, b = 215, a = 255))
     }
 }
 
@@ -419,6 +896,9 @@ main := proc() {
 
     // State. Default is 7 Greek modes.
     mut use_five := false
+    mut active_tab : USize = 0
+    mut just := JustStaff()
+    mut series := SeriesView()
     mut use_nathex := false
     mut seven_sel_diatonic : USize = 0
     mut seven_sel_accidental : I32 = 0
@@ -428,15 +908,16 @@ main := proc() {
     mut five_sel_mode : USize = 1
     mut sel_lang : USize = 0
     mut use_letters := false
+    mut chord_mode := false
+    mut kind : I32 = -1
     mut full_span := false
     mut need_recompute := true
     mut playing := false
     mut play_idx : USize = 0
     mut play_timer : I64 = 0
     mut clicked_note : I32 = -1
+    mut described_note : I32 = -1
     mut clicked_timer : I32 = 0
-    mut piano_active_idx : I32 = -1
-    mut piano_active_timer : I32 = 0
 
     BLACK := Color(r = 0, g = 0, b = 0, a = 255)
     GRAY := Color(r = 100, g = 100, b = 100, a = 255)
@@ -452,6 +933,14 @@ main := proc() {
         mut five_system := active_five_system(use_five, use_nathex)
         mut note_count := active_note_count(use_five, use_nathex, full_span)
 
+        if IsMouseButtonPressed(0).and(GetMouseY().gte(SYSTEM_ROW_Y)).and(GetMouseY().lt(SYSTEM_ROW_Y + BTN_H)).and(GetMouseX().gte(MARGIN)).and(GetMouseX().lt(MARGIN + SYSTEM_BTN_W * 5)) {
+            active_tab = ((GetMouseX() - MARGIN) / SYSTEM_BTN_W).to_usize()
+            just.playing = false; just.selected = -1
+            series.running = false
+            series.current = 0
+            stop_viewer_sound()
+        }
+
         if need_recompute {
             need_recompute = false
             if five_system {
@@ -463,7 +952,7 @@ main := proc() {
         }
 
         // Input: mouse clicks.
-        if IsMouseButtonPressed(0) {
+        if IsMouseButtonPressed(0).and(active_tab.lt(3)) {
             mx := GetMouseX()
             my := GetMouseY()
 
@@ -481,12 +970,33 @@ main := proc() {
                         play_idx = 0
                         play_timer = 0
                         clicked_note = -1
-                        piano_active_idx = -1
+                        described_note = -1
+                        stop_viewer_sound()
                     }
                 }
             }
 
             root_count := active_root_count(five_system)
+
+            if my.gte(PLAYBACK_ROW_Y).and(my.lt(PLAYBACK_ROW_Y + BTN_H)).and(mx.gte(MARGIN)).and(mx.lt(MARGIN + BTN_W * 3)) {
+                chord_mode = mx.gte(MARGIN + BTN_W)
+                kind = -1
+                if mx.gte(MARGIN + BTN_W * 2) { kind = 0 }
+                playing = false
+                clicked_note = -1
+                described_note = -1
+                clicked_timer = 0
+                stop_viewer_sound()
+            }
+
+            if kind.gte(0).and(my.gte(QUALITY_ROW_Y)).and(my.lt(QUALITY_ROW_Y + BTN_H)).and(mx.gte(MARGIN)).and(mx.lt(MARGIN + FOUR_W * FOUR_COUNT.to_i32())) {
+                kind = (mx - MARGIN) / FOUR_W
+                playing = false
+                if described_note.lt(0) { described_note = 0 }
+                clicked_note = described_note
+                clicked_timer = 300
+                play_degree(true, five_system, use_nathex, sc_chrom, clicked_note.to_usize(), kind)
+            }
 
             // Root buttons: max 7 cols x 3 rows. 5-mode leaves two cols empty.
             if my.gte(NOTE_ROW_Y).and(my.lt(NOTE_ROW_Y + BTN_H * 3)) {
@@ -525,12 +1035,7 @@ main := proc() {
             if my.gte(RADIO_ROW_Y).and(my.lt(RADIO_ROW_Y + BTN_H)) {
                 if mx.gte(MARGIN).and(mx.lt(MARGIN + LANG_BTN_W * 3)) {
                     lang_col : USize = (mx - MARGIN).div(LANG_BTN_W).to_usize()
-                    if five_system {
-                        if lang_col.eq(0) { sel_lang = 0 }
-                        if lang_col.eq(1) { sel_lang = 2 }
-                    } else {
-                        if lang_col.lt(3) { sel_lang = lang_col }
-                    }
+                    if lang_col.lt(3) { sel_lang = lang_col }
                 }
                 // Note-label buttons only apply to 7 Greek modes.
                 if !five_system {
@@ -550,7 +1055,8 @@ main := proc() {
                         play_idx = 0
                         play_timer = 0
                         clicked_note = -1
-                        piano_active_idx = -1
+                        described_note = -1
+                        stop_viewer_sound()
                     }
                 }
             }
@@ -558,89 +1064,47 @@ main := proc() {
             // Click on pentagram notes.
             for ci : USize in 0..note_count {
                 cnx := note_x(ci, note_count)
-                cny := staff_y(five_system, sc_diat[ci], sc_span[ci])
-                hit := NOTE_R * 3
-                if (mx - cnx).abs().lt(hit).and((my - cny).abs().lt(hit)) {
-                    play_note(sc_freq[ci], clicked_note, clicked_timer, ci.to_i32())
-                    piano_active_idx = scale_piano_key(sc_chrom[ci])
-                    piano_active_timer = 300
+                voices := voice_count_for(chord_mode, kind)
+                for voice : USize in 0..voices {
+                    tone := staff_tone(five_system, use_nathex, ci, voice, kind, sc_chrom, sc_diat, sc_span, sc_acc)
+                    cny := staff_y(five_system, tone.name, tone.register)
+                    hit := NOTE_R * 2
+                    if (mx - cnx).abs().lt(hit).and((my - cny).abs().lt(hit)) {
+                        playing = false
+                        play_degree(chord_mode, five_system, use_nathex, sc_chrom, ci, kind)
+                        clicked_note = ci.to_i32()
+                        clicked_timer = 300
+                        break
+                    }
                 }
             }
 
-            // Click on piano keys. Black keys are checked first because they are drawn on top.
-            if my.gte(PIANO_Y).and(my.lt(PIANO_Y + WHITE_H)).and(mx.gte(STAFF_X)) {
-                mut piano_key_idx : I32 = -1
-                if five_system {
-                    if mx.lt(STAFF_X + FIVE_WHITE_W * FIVE_WHITE_KEYS.to_i32()) {
-                        if my.lt(PIANO_Y + BLACK_H) {
-                            for cycle : USize in 0..FIVE_DRAW_CYCLES {
-                                for j : USize in 0..3 {
-                                    ref bpos : I32 = FIVE_BLACK_KEY_POS[j]
-                                    ref bchrom : I32 = FIVE_BLACKS[j]
-                                    bx := STAFF_X + (cycle.to_i32() * FIVE_NATURAL_COUNT.to_i32() + bpos + 1) * FIVE_WHITE_W - FIVE_BLACK_W / 2
-                                    if mx.gte(bx).and(mx.lt(bx + FIVE_BLACK_W)) {
-                                        piano_key_idx = cycle.to_i32() * FIVE_CYCLE.to_i32() + bchrom
-                                    }
-                                }
-                            }
-                        }
-                        if piano_key_idx.lt(0) {
-                            wk := (mx - STAFF_X) / FIVE_WHITE_W
-                            cycle := wk / FIVE_NATURAL_COUNT.to_i32()
-                            ref nat : I32 = FIVE_NATURALS[wk.mod(FIVE_NATURAL_COUNT.to_i32()).to_usize()]
-                            piano_key_idx = cycle * FIVE_CYCLE.to_i32() + nat
-                        }
-                    }
-                } else {
-                    mut seven_white_keys := SEVEN_ONCE_WHITE_KEYS
-                    if full_span { seven_white_keys = SEVEN_FULL_WHITE_KEYS }
-                    seven_white_w := STAFF_W / seven_white_keys.to_i32()
-                    seven_black_w := seven_white_w / 2
-                    if mx.lt(STAFF_X + seven_white_w * seven_white_keys.to_i32()) {
-                        if my.lt(PIANO_Y + BLACK_H) {
-                            for oct : USize in 0..2 {
-                                for j : USize in 0..5 {
-                                    ref bpos : I32 = BLACK_KEY_POS[j]
-                                    ref bchrom : I32 = BLACK_CHROMS[j]
-                                    bx := STAFF_X + (oct.to_i32() * SEVEN_NATURAL_COUNT.to_i32() + bpos + 1) * seven_white_w - seven_black_w / 2
-                                    if mx.gte(bx).and(mx.lt(bx + seven_black_w)) {
-                                        piano_key_idx = oct.to_i32() * SEVEN_CYCLE + bchrom
-                                    }
-                                }
-                            }
-                        }
-                        if piano_key_idx.lt(0) {
-                            wk := (mx - STAFF_X) / seven_white_w
-                            oct := wk / SEVEN_NATURAL_COUNT.to_i32()
-                            ref nat : I32 = NATURALS[wk.mod(SEVEN_NATURAL_COUNT.to_i32()).to_usize()]
-                            piano_key_idx = oct * SEVEN_CYCLE + nat
-                        }
-                    }
-                }
-
-                if piano_key_idx.gte(0) {
-                    ref freq : I64 = music_modes_key_freq(use_nathex, piano_key_idx.to_usize())
-                    play_freq(freq)
-                    highlight_scale_for_key(piano_key_idx, note_count, sc_chrom, clicked_note, clicked_timer)
-                    piano_active_idx = piano_key_idx
-                    piano_active_timer = 300
-                }
+            // Drawing and hit testing share the same expanded chord keyboard.
+            last_key := piano_last_key(five_system, full_span, chord_mode, sc_chrom, note_count, kind, use_nathex)
+            piano_key := piano_hit_key(five_system, last_key, mx, my)
+            if piano_key.gte(0) {
+                playing = false
+                audition_key(piano_key, chord_mode, five_system, use_nathex, note_count, sc_chrom, clicked_note, clicked_timer, kind)
+                if clicked_note.lt(0) { described_note = -1 }
             }
         }
 
         // Input: keyboard piano keys matching examples/piano.til C4..B5.
         for ki : USize in 0..PIANO_C4_KEY_COUNT {
+            if active_tab.gte(3) { break }
             if IsKeyPressed(PIANO_KEYCODES[PIANO_C4_KEY_OFFSET + ki]) {
-                ref freq : I64 = music_modes_key_freq(use_nathex, ki)
-                play_freq(freq)
-                highlight_scale_for_key(ki.to_i32(), note_count, sc_chrom, clicked_note, clicked_timer)
-                piano_active_idx = ki.to_i32()
-                piano_active_timer = 300
+                playing = false
+                audition_key(ki.to_i32(), chord_mode, five_system, use_nathex, note_count, sc_chrom, clicked_note, clicked_timer, kind)
+                if clicked_note.lt(0) { described_note = -1 }
             }
         }
 
         if need_recompute {
             need_recompute = false
+            stop_viewer_sound()
+            clicked_note = -1
+            described_note = -1
+            clicked_timer = 0
             if five_system {
                 five_recompute_scale(five_sel_diatonic, five_sel_accidental, five_sel_mode, note_count, use_nathex, sc_chrom, sc_diat, sc_span, sc_acc, sc_freq)
             } else {
@@ -650,23 +1114,23 @@ main := proc() {
             note_count = active_note_count(use_five, use_nathex, full_span)
         }
 
-        if clicked_note.gte(0) {
+        if clicked_timer.gt(0) {
             clicked_timer = clicked_timer - dt
-            if clicked_timer.lte(0) { clicked_note = -1 }
-        }
-        if piano_active_idx.gte(0) {
-            piano_active_timer = piano_active_timer - dt
-            if piano_active_timer.lte(0) { piano_active_idx = -1 }
+            if clicked_timer.lte(0) {
+                clicked_note = -1
+                stop_viewer_sound()
+            }
         }
 
+        if active_tab.gte(3) { playing = false; clicked_timer = 0; clicked_note = -1 }
         if playing {
             play_timer = play_timer + dt.cast(I64)
             if play_timer.gte(300) {
                 play_timer = 0
                 if play_idx.lt(note_count) {
-                    play_note(sc_freq[play_idx], clicked_note, clicked_timer, play_idx.to_i32())
-                    piano_active_idx = scale_piano_key(sc_chrom[play_idx])
-                    piano_active_timer = 300
+                    play_degree(chord_mode, five_system, use_nathex, sc_chrom, play_idx, kind)
+                    clicked_note = play_idx.to_i32()
+                    clicked_timer = 300
                     play_idx = play_idx + 1
                 } else {
                     playing = false
@@ -675,24 +1139,59 @@ main := proc() {
         }
 
         // Draw.
+        if clicked_note.gte(0) { described_note = clicked_note }
         BeginDrawing()
         ClearBackground(BLACK)
 
         // -- System buttons --
-        for si : USize in 0..3 {
+        for si : USize in 0..5 {
             sx := MARGIN + si.to_i32() * SYSTEM_BTN_W
             mut s_color := BTN_INACTIVE
-            if si.eq(0).and(!five_system) { s_color = BTN_ACTIVE }
-            if si.eq(1).and(use_five) { s_color = BTN_ACTIVE }
-            if si.eq(2).and(use_nathex) { s_color = BTN_ACTIVE }
+            if si.eq(active_tab) { s_color = BTN_ACTIVE }
             DrawRectangle(sx, SYSTEM_ROW_Y, SYSTEM_BTN_W - 2, BTN_H - 2, s_color)
             mut slabel := "7 Greek modes"
             if si.eq(1) { slabel = "5 Global modes" }
             if si.eq(2) { slabel = "5 Nathex modes" }
+            if si.eq(3) { slabel = SERIES_TITLES[sel_lang].clone() }
+            if si.eq(4) { slabel = JUST_TITLES[sel_lang].clone() }
             DrawTextEx(fnt, slabel.c_str, Vector2(x = (sx + PAD_X).to_f32(), y = (SYSTEM_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1, BUTTON_LABEL)
         }
 
+        if active_tab.gte(3) {
+            if active_tab.eq(3) { series_frame(series, fnt, sel_lang, dt) }
+            else { just_frame(just, fnt, sel_lang, dt) }
+            EndDrawing()
+            continue
+        }
         root_count := active_root_count(five_system)
+        // -- Note / Triad radio buttons, shared by all three systems --
+        for choice : USize in 0..3 {
+            x := MARGIN + choice.to_i32() * BTN_W
+            mut color := BTN_INACTIVE
+            if choice.eq(0).and(chord_mode.not()).or(choice.eq(1).and(chord_mode).and(kind.lt(0))).or(choice.eq(2).and(kind.gte(0))) { color = BTN_ACTIVE }
+            DrawRectangle(x, PLAYBACK_ROW_Y, BTN_W - 2, BTN_H - 2, color)
+            mut label := NOTE_LABELS[sel_lang].clone()
+            if choice.eq(1) { label = TRIAD_LABELS[sel_lang].clone() }
+            if choice.eq(2) { label = FOUR_LABELS[sel_lang].clone() }
+            DrawTextEx(fnt, label.c_str, Vector2(x = (x + PAD_X).to_f32(), y = (PLAYBACK_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1, BUTTON_LABEL)
+        }
+        if chord_mode.and(described_note.gte(0)) {
+            description := chord_description(five_system, use_nathex, use_letters, sel_lang,
+                described_note.to_usize(), sc_chrom, sc_diat, sc_span, sc_acc, sc_triad, kind)
+            DrawTextEx(fnt, description.c_str, Vector2(x = (MARGIN + BTN_W * 3 + GAP).to_f32(), y = (PLAYBACK_ROW_Y + PAD_Y).to_f32()), FONT_SM.to_f32(), 1, BUTTON_LABEL)
+        }
+        if kind.gte(0) {
+            ref names : Array(Str) = FOUR_NAMES[sel_lang]
+            for q : USize in 0..FOUR_COUNT {
+                x := MARGIN + q.to_i32() * FOUR_W
+                mut color := BTN_INACTIVE
+                if kind.eq(q.to_i32()) { color = BTN_ACTIVE }
+                DrawRectangle(x, QUALITY_ROW_Y, FOUR_W - 2, BTN_H - 2, color)
+                mut label := FOUR_SYMBOLS[q].clone()
+                if q.eq(0) { label = names[q].clone() }
+                DrawTextEx(fnt, label.c_str, Vector2(x = (x + PAD_X).to_f32(), y = (QUALITY_ROW_Y + PAD_Y).to_f32()), FONT_SM.to_f32(), 1, BUTTON_LABEL)
+            }
+        }
         mut sel_diatonic := seven_sel_diatonic
         mut sel_accidental := seven_sel_accidental
         mut sel_mode := seven_sel_mode
@@ -750,25 +1249,12 @@ main := proc() {
         }
 
         // -- Language buttons --
-        mut lang_button_count : USize = 3
-        if five_system { lang_button_count = 2 }
-        for li : USize in 0..lang_button_count {
+        for li : USize in 0..3 {
             lx := MARGIN + li.to_i32() * LANG_BTN_W
             mut lr_color := Color(r = 40, g = 40, b = 40, a = 255)
-            if five_system {
-                if li.eq(0).and(!sel_lang.eq(2)) { lr_color = BTN_ACTIVE }
-                if li.eq(1).and(sel_lang.eq(2)) { lr_color = BTN_ACTIVE }
-            } else {
-                if li.eq(sel_lang) { lr_color = BTN_ACTIVE }
-            }
+            if li.eq(sel_lang) { lr_color = BTN_ACTIVE }
             DrawRectangle(lx, RADIO_ROW_Y, LANG_BTN_W - 2, BTN_H - 2, lr_color)
-            mut ll := "PT/ES"
-            if five_system {
-                if li.eq(1) { ll = "EN" }
-            } else {
-                ref lang_label : Str = lang_str(li, 0)
-                ll = lang_label.clone()
-            }
+            ref ll : Str = lang_str(li, 0)
             DrawTextEx(fnt, ll.c_str, Vector2(x = (lx + PAD_X).to_f32(), y = (RADIO_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1, BUTTON_LABEL)
         }
 
@@ -818,11 +1304,15 @@ main := proc() {
         }
 
         for dni : USize in 0..note_count {
-            draw_note(use_five, use_nathex, use_letters, dni, note_count, sc_diat, sc_span, sc_acc, sc_triad,
-                      playing, play_idx, clicked_note, fnt)
+            voices := voice_count_for(chord_mode, kind)
+            for voice : USize in 0..voices {
+                draw_note(use_five, use_nathex, use_letters, dni, note_count, sc_diat, sc_span, sc_acc, sc_triad,
+                          playing, play_idx, clicked_note, voice, fnt, sc_chrom, kind)
+            }
         }
 
-        draw_piano(use_five, use_nathex, full_span, piano_active_idx, fnt)
+        last_key := piano_last_key(five_system, full_span, chord_mode, sc_chrom, note_count, kind, use_nathex)
+        draw_piano(five_system, last_key, fnt)
 
         mut hint := "7 Greek modes: click note + mode to play scale; piano keys E-M play C4-B5"
         if use_five {
@@ -831,12 +1321,204 @@ main := proc() {
         if use_nathex {
             hint = "5 Nathex modes: separate 8-step doubling table, ca1=do1"
         }
-        DrawTextEx(fnt, hint.c_str, Vector2(x = (WINDOW_WIDTH / 4).to_f32(), y = HINT_Y.to_f32()), FONT.to_f32(), 1, TICK_LABEL)
+        if chord_mode { hint = CHORD_HINTS[sel_lang].clone() }
+        if chord_mode {
+            for lang : USize in 0..3 {
+                mut name := TRIAD_LABELS[lang].clone()
+                if kind.gte(0) {
+                    ref names : Array(Str) = FOUR_NAMES[lang]
+                    name = names[kind.to_usize()].clone()
+                } else if described_note.gte(0).and(five_system.not()) {
+                    ref names : Array(Str) = QUALITY_LABELS[lang]
+                    name = format(name, ": ", names[sc_triad[described_note.to_usize() % root_count].cast(USize)])
+                } else if five_system {
+                    name = format(name, ": ", DEGREE_LABELS[lang])
+                }
+                legend := format(lang_str(lang, 0), ": ", name)
+                DrawTextEx(fnt, legend.c_str, Vector2(x = (MARGIN + (WINDOW_WIDTH - MARGIN * 2) / 3 * lang.to_i32()).to_f32(), y = HINT_Y.to_f32()), FONT_SM.to_f32(), 1, BUTTON_LABEL)
+            }
+        } else {
+            DrawTextEx(fnt, hint.c_str, Vector2(x = MARGIN.to_f32(), y = HINT_Y.to_f32()), FONT.to_f32(), 1, TICK_LABEL)
+        }
 
         EndDrawing()
     }
 
     UnloadFont(fnt)
+    stop_viewer_sound()
     CloseAudioDevice()
     CloseWindow()
+}
+
+test_harmonic_series_reference := test() {
+    assert_eq(I32, (series_ratio(0) * 4).to_i64().to_i32(), 6)
+    assert_eq(I32, (series_ratio(1) * 4).to_i64().to_i32(), 8)
+    assert_eq(I32, (series_ratio(2) * 4).to_i64().to_i32(), 10)
+    assert_eq(I32, (series_ratio(3) * 4).to_i64().to_i32(), 16)
+    assert_eq(I32, nearest_step(partial_ratio(6, 4), 12), 7)
+    assert_eq(I32, nearest_step(partial_ratio(6, 4), 8), 5)
+    assert_eq(I32, nearest_step(partial_ratio(6, 4), 16), 9)
+    assert_eq(Str, series_note_name(9, 16), "#fit4")
+    for n : I32 in SERIES_TUNINGS {
+        assert_eq(F32, grid_ratio(nearest_step(partial_ratio(16, 4), n), n), 4)
+    }
+}
+
+test_music_triad_voicing := test() {
+    c_major := array(I32, 0, 2, 4, 5, 7, 9, 11)
+    assert_eq(I32, scale_degree_key(false, c_major, 0), 0)
+    assert_eq(I32, scale_degree_key(false, c_major, 2), 4)
+    assert_eq(I32, scale_degree_key(false, c_major, 4), 7)
+    // B diminished must rise through D5 and F5, not wrap down to D4/F4.
+    assert_eq(I32, scale_degree_key(false, c_major, 6), 11)
+    assert_eq(I32, scale_degree_key(false, c_major, 8), 14)
+    assert_eq(I32, scale_degree_key(false, c_major, 10), 17)
+    assert_eq(U32, seven_triad_type(c_major, 6), 2)
+    europe := array(I32, 0, 2, 3, 5, 7)
+    assert_eq(I32, scale_degree_key(true, europe, 4), 7)
+    assert_eq(I32, scale_degree_key(true, europe, 6), 10)
+    assert_eq(I32, scale_degree_key(true, europe, 8), 13)
+    assert_eq(I32, scale_degree_key(true, europe, 15), 24)
+    assert_eq(I32, scale_degree_key(true, europe, 19), 31)
+}
+
+test_music_chord_languages := test() {
+    mut chrom := Array(I32).new(MAX_SCALE_NOTES)
+    mut diat := Array(I32).new(MAX_SCALE_NOTES)
+    mut span := Array(I32).new(MAX_SCALE_NOTES)
+    mut acc := Array(I32).new(MAX_SCALE_NOTES)
+    mut freq := Array(I64).new(MAX_SCALE_NOTES)
+    mut triad := Array(U32).new(SEVEN_NATURAL_COUNT)
+    recompute_seven_scale(0, 0, 1, 8, chrom, diat, span, acc, freq, triad)
+    assert_eq(Str, chord_description(false, false, false, 0, 6, chrom, diat, span, acc, triad),
+        "Si4 + Re5 + Fa5 | Diminuta | passos 0,3,6 (12-TET)")
+    assert_eq(Str, chord_description(false, false, false, 1, 6, chrom, diat, span, acc, triad),
+        "Si4 + Re5 + Fa5 | Disminuida | pasos 0,3,6 (12-TET)")
+    assert_eq(Str, chord_description(false, false, true, 2, 6, chrom, diat, span, acc, triad),
+        "B4 + D5 + F5 | Diminished | steps 0,3,6 (12-TET)")
+    five_recompute_scale(0, 0, 1, 6, true, chrom, diat, span, acc, freq)
+    assert_eq(Str, chord_description(true, true, false, 2, 4, chrom, diat, span, acc, triad),
+        "lu4 + de5 + go5 | Degrees 1-3-5 | steps 0,3,6 (8-TET)")
+}
+
+test_music_chord_ranges := test() {
+    mut chrom := Array(I32).new(MAX_SCALE_NOTES)
+    mut diat := Array(I32).new(MAX_SCALE_NOTES)
+    mut span := Array(I32).new(MAX_SCALE_NOTES)
+    mut acc := Array(I32).new(MAX_SCALE_NOTES)
+    mut freq := Array(I64).new(MAX_SCALE_NOTES)
+    mut triad := Array(U32).new(SEVEN_NATURAL_COUNT)
+    // Exercise every mode/root/spelling/span, including the last chord.
+    for system : USize in 0..3 {
+        five := system.gt(0)
+        nathex := system.eq(2)
+        count := active_root_count(five)
+        for root : USize in 0..count {
+            for accidental : I32 in array(I32, -1, 0, 1) {
+                for mode_idx : USize in 0..count {
+                    for full : Bool in array(Bool, false, true) {
+                        notes := active_note_count(system.eq(1), nathex, full)
+                        if five {
+                            five_recompute_scale(root, accidental, mode_idx, notes, nathex, chrom, diat, span, acc, freq)
+                        } else {
+                            recompute_seven_scale(root, accidental, mode_idx, notes, chrom, diat, span, acc, freq, triad)
+                        }
+                        last := piano_last_key(five, full, true, chrom, notes)
+                        whites := piano_white_count(five, last)
+                        width := STAFF_W / whites.to_i32()
+                        for d : USize in 0..notes {
+                            assert_eq(I32, scale_degree_key(five, chrom, d), chrom[d])
+                            a := scale_degree_key(five, chrom, d)
+                            b := scale_degree_key(five, chrom, d + 2)
+                            c := scale_degree_key(five, chrom, d + 4)
+                            assert(a.lt(b).and(b.lt(c)))
+                            assert(c.lte(last))
+                            assert(viewer_freq(nathex, c).lte(PRACTICAL_MAX_FREQ))
+                            // All upper voices fit above the staff controls.
+                            idx := (d + 4) % count
+                            register := span[idx] + ((d + 4) / count).to_i32()
+                            assert(staff_y(five, diat[idx], register).gt(BUTTONS_END_Y + NOTE_R))
+                        }
+                        for white : USize in 0..whites {
+                            key := piano_natural(five, white)
+                            x := STAFF_X + white.to_i32() * width + width / 2
+                            assert_eq(I32, piano_hit_key(five, last, x, PIANO_Y + WHITE_H - 5), key)
+                            if (white + 1).lt(whites) {
+                                if (piano_natural(five, white + 1) - key).eq(2) {
+                                    bx := STAFF_X + (white + 1).to_i32() * width
+                                    assert_eq(I32, piano_hit_key(five, last, bx, PIANO_Y + 5), key + 1)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert(HINT_Y + FONT < WINDOW_HEIGHT)
+}
+
+test_music_chord_selection := test() {
+    sound_enabled = false
+    c_major := array(I32, 0, 2, 4, 5, 7, 9, 11, 12)
+    mut selected : I32 = -1
+    mut timer : I32 = 0
+    audition_key(11, true, false, false, 8, c_major, selected, timer)
+    assert_eq(I32, selected, 6)
+    assert_eq(I32, active_keys[0], 11)
+    assert_eq(I32, active_keys[1], 14)
+    assert_eq(I32, active_keys[2], 17)
+    audition_key(1, true, false, false, 8, c_major, selected, timer)
+    assert_eq(I32, selected, -1)
+    assert_eq(I32, active_keys[0], 1)
+    assert_eq(I32, active_keys[1], -1)
+    assert_eq(I32, active_keys[2], -1)
+    audition_key(0, false, false, false, 8, c_major, selected, timer)
+    assert_eq(I32, active_keys[0], 0)
+    assert_eq(I32, active_keys[1], -1)
+    stop_viewer_sound()
+    assert_eq(I32, active_keys[0], -1)
+    sound_enabled = true
+}
+
+test_four_note_selection := test() {
+    sound_enabled = false
+    major := array(I32, 0, 2, 4, 5, 7, 9, 11, 12)
+    // B-D-F-A is the diatonic half-diminished seventh in C major.
+    play_degree(true, false, false, major, 6, 0)
+    assert_eq(I32, active_keys[0], 11)
+    assert_eq(I32, active_keys[1], 14)
+    assert_eq(I32, active_keys[2], 17)
+    assert_eq(I32, active_keys[3], 21)
+    play_degree(true, false, false, major, 6, 5)
+    assert_eq(I32, active_keys[3], 20)
+    europe := array(I32, 0, 2, 3, 5, 7)
+    play_degree(true, true, true, europe, 0, 0)
+    assert_eq(I32, active_keys[3], 10)
+    play_degree(true, true, true, europe, 0, 1)
+    assert_eq(I32, active_keys[3], 7)
+    play_degree(true, true, true, europe, 0)
+    assert_eq(I32, active_keys[3], -1)
+    stop_viewer_sound()
+    sound_enabled = true
+}
+
+test_music_chord_mix := test() {
+    // Project a 0.1-second signal onto three component frequencies and an
+    // absent frequency. This detects lost/replaced voices, not just peak gain.
+    freqs := array(F32, 200, 300, 500)
+    probes := array(F32, 200, 300, 500, 700)
+    mut energy := array(F32, 0, 0, 0, 0)
+    for i : USize in 0..4410 {
+        phase : F32 = 6.283185307179586 * i.to_f32() / 44100
+        sample := mixed_sample(freqs, phase)
+        assert(sample.gte(-0.301).and(sample.lte(0.301)))
+        for p : USize in 0..4 {
+            energy[p] = energy[p] + sample * sinf(probes[p] * phase)
+        }
+    }
+    for p : USize in 0..3 {
+        assert(energy[p].gt(220).and(energy[p].lt(221)))
+    }
+    assert(energy[3].gt(-0.1).and(energy[3].lt(0.1)))
 }
