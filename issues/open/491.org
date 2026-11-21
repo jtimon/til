@@ -427,6 +427,23 @@ fixtures. Before rebasing, the full installed TilVm case set and the mutable-vie
 fixture against the matching installed SDK also passed clang ASAN (the latter
 at USize 64).
 
+**** Writable scope lookups
+
+~TypeScope.get_binding_sym_mut~ and ~get_binding_name_mut~ expose writable
+views of binding metadata for compiler passes. They use one symbol-index probe
+per scope, return the nearest binding or None, and never insert on a miss.
+Child scopes explicitly borrow their parents via ~Option(ref mut TypeScope)~,
+so ancestor use/write credit and borrow-deposit tracking can mutate the original
+binding. Read-only lookup contracts and declaration-site matching for borrow
+roots are preserved. This prepares general alias enforcement; it does not
+enable it.
+
+The existing batched ~mutable_views~ fixture checks local and ancestor writes,
+shadowing, absent symbols and names, and rejection of permission upgrades.
+On ~7e8e3f9c3~, ~make clean && make test_two_pass~ passed 597/597 with
+65.80s suite wall time (56.70s for ~mutable_views~ and 32.82s for native
+self-translation). The focused ~mutable_views~ family also passed with ASAN.
+
 **** Initial signature implementation
 
 Initial implementation work addresses callable contract compatibility and

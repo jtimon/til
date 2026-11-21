@@ -170,6 +170,13 @@ Compiler member access uses ~member_get_mut~, ~def_ns_get_mut~ and
 retain None on a missing member. These views neither clone nor take ownership.
 Wrong-kind/default-absence panic contracts match the read-only accessors.
 
+Compiler scope writers use ~TypeScope.get_binding_name_mut~ and
+~get_binding_sym_mut~ to borrow the nearest binding as
+~Option(ref mut TypeBinding)~. A child scope stores a writable parent borrow
+created with ~safe_ref_mut(parent)~, so writes to ancestor binding metadata
+reach the original scope. Shadowing and missing-name behavior are the same as
+for the read-only lookups. The parent and its bindings keep their owners.
+
 Direct returns of enum constructors carrying writable borrowed payloads also
 validate the source grant and credit necessary ~mut~ separately from writes.
 Thus returning ~Option(ref mut T).Some(value)~ can require ~mut value~ without

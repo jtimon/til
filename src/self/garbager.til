@@ -2329,6 +2329,22 @@ priv gc_deposit_binding := func(scope: TypeScope, root: BorrowRoot, symbols: Sym
     }
 }
 
+priv gc_deposit_binding_mut := func(mut scope: TypeScope, root: BorrowRoot, symbols: SymbolPool) returns Option(ref mut TypeBinding) {
+    sym := symbols.lookup(root.name)
+    if sym.is_none() { return Option(ref mut TypeBinding).None }
+    pos := scope.bindings.find(sym.unwrap())
+    if pos >= 0 {
+        ref mut binding: TypeBinding = scope.bindings.values.unsafe_get_mut(pos.to_usize())
+        if binding.line == root.line && binding.col == root.col && binding.path == root.path {
+            return Option(ref mut TypeBinding).Some(binding)
+        }
+    }
+    switch scope.parent {
+    case .Some(parent): return gc_deposit_binding_mut(parent, root, symbols)
+    case .None: return Option(ref mut TypeBinding).None
+    }
+}
+
 priv gc_carried_loan_start := func(root: BorrowRoot, scope: TypeScope, step: I64, symbols: SymbolPool) returns I64 {
     if root.deposited.not() { return step }
     owner_o := gc_deposit_binding(scope, root, symbols)
@@ -4866,7 +4882,7 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
         }
         scope.set(dd.name, dtype, dd.is_mut, ctx.path, stmt.line, stmt.col,
             false, dd.own_type, ctx.symbols)
-        ref mut binding : TypeBinding = scope.get_binding_name(dd.name, ctx.symbols).unwrap()
+        ref mut binding : TypeBinding = scope.get_binding_name_mut(dd.name, ctx.symbols).unwrap()
         if gc_ref_container(type_name_ref(binding.type, ctx.symbols), scope, ctx) {
             for mut root : BorrowRoot in roots { root.deposited = true }
         }
@@ -4879,7 +4895,7 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
         // save_old_delete flag can tell both backends to tear it down.
         if dd.own_type.is(OwnType.Ref).and(stmt.children.len().gt(0)) {
             if rhs_is_payload_binding(stmt.children[0], ctx.symbols) {
-                grd_bo := scope.get_binding_name(dd.name, ctx.symbols)
+                grd_bo := scope.get_binding_name_mut(dd.name, ctx.symbols)
                 if grd_bo.is_some() {
                     ref mut grd_b : TypeBinding = grd_bo.unwrap()
                     grd_b.is_alias = true
@@ -4901,7 +4917,7 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
         if vgate.and(stmt.children.len() > 0) {
             view_src := str_view_source_name(stmt.children[0], scope, ctx.symbols)
             if view_src.len() > 0 {
-                vreg_o := scope.get_binding_name(dd.name, ctx.symbols)
+                vreg_o := scope.get_binding_name_mut(dd.name, ctx.symbols)
                 if vreg_o.is_some() {
                     ref mut vreg : TypeBinding = vreg_o.unwrap()
                     vreg.is_str_view = true
@@ -4935,7 +4951,7 @@ priv garbager_register_decl := func(mut ctx: Context, stmt: Expr, mut scope: Typ
         if stmt.children.len() > 0 {
             if reference_assignment_rebinds(stmt, scope, ctx.symbols) {
                 roots := expr_borrow_roots(scope, stmt.children[0], ctx.symbols)
-                ref mut target : TypeBinding = scope.get_binding_name(ad.name, ctx.symbols).unwrap()
+                ref mut target : TypeBinding = scope.get_binding_name_mut(ad.name, ctx.symbols).unwrap()
                 for root : BorrowRoot in roots {
                     mut found := false
                     for prior : BorrowRoot in target.borrow_roots { if BorrowRoot.eq(prior, root) { found = true } }
@@ -4958,7 +4974,7 @@ priv garbager_record_call_deposits := func(mut scope: TypeScope, stmt: Expr, sym
     mut deposits := Vec(GcDeposit).new()
     gc_collect_deposits(stmt, scope, deposits, symbols)
     for deposit : GcDeposit in deposits {
-        binding_o := gc_deposit_binding(scope, deposit.sink, symbols)
+        binding_o := gc_deposit_binding_mut(scope, deposit.sink, symbols)
         if binding_o.is_none() { continue }
         ref mut binding : TypeBinding = binding_o.unwrap()
         mut root := deposit.source.clone()
@@ -4978,7 +4994,7 @@ priv garbager_record_call_deposits := func(mut scope: TypeScope, stmt: Expr, sym
 priv garbager_record_carried_assignment := func(mut scope: TypeScope, name: Str, rhs: Expr, symbols: SymbolPool) {
     if type_carries_borrow_t(scope, rhs.til_type(), symbols).not() { return }
     roots := deposit_src_roots(scope, rhs, symbols)
-    binding_o := scope.get_binding_name(name, symbols)
+    binding_o := scope.get_binding_name_mut(name, symbols)
     if binding_o.is_none() { return } // A namespace/global slot is not a local.
     ref mut binding : TypeBinding = binding_o.unwrap()
     for root : BorrowRoot in roots {
@@ -5050,18 +5066,18 @@ priv garbager_body_binding_count := func(body: Expr) returns USize {
 // visit field defaults and namespace values so method bodies join the same
 // post-order destruction walk as ordinary functions.
 priv garbager_walk_type_def := proc(mut ctx: Context, mut type_def: Expr, type_name: Str,
-    parent: TypeScope, insert: Bool) {
+    mut parent: TypeScope, insert: Bool) {
     mut binding_capacity : USize = 0
     switch type_def.node_type {
     case .StructDef(sd): binding_capacity = sd.fields.len()
     case:
     }
-    mut type_scope := TypeScope(parent = safe_ref(parent), current_type_name = type_name.clone())
+    mut type_scope := TypeScope(parent = safe_ref_mut(parent), current_type_name = type_name.clone())
     switch type_def.node_type {
     case .StructDef(sd):
         mut field_scope := TypeScope(
             bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
-            parent = safe_ref(type_scope), current_type_name = type_name.clone())
+            parent = safe_ref_mut(type_scope), current_type_name = type_name.clone())
         for field_idx, mut field in sd.fields {
             ref field_name : Str = sd.field_name_at(field_idx)
             if field.default_value.is_some() {
@@ -5104,7 +5120,7 @@ priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: Typ
         binding_capacity := fd.sig.params.len() + garbager_body_binding_count(func_body)
         mut func_scope := TypeScope(
             bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
-            parent = safe_ref(scope), is_func_root = true)
+            parent = safe_ref_mut(scope), is_func_root = true)
         garbager_register_params(ctx, fd, func_scope, expr.line, expr.col)
         garbager_walk_body(ctx, func_body, func_scope, true,
             safe_ref(fd), Vec(Declaration).new(), insert, is_destructor)
@@ -5118,7 +5134,7 @@ priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: Typ
         }
         mut capture_scope := TypeScope(
             bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
-            parent = safe_ref(scope))
+            parent = safe_ref_mut(scope))
         garbager_walk_body(ctx, capture_body, capture_scope, true,
             Option(ref FunctionDef).None, cbd.captures, insert)
         return
@@ -5127,14 +5143,14 @@ priv garbager_walk_expr := proc(mut ctx: Context, mut expr: Expr, mut scope: Typ
         ref mut value_body : Expr = expr.children[0]
         mut value_scope := TypeScope(
             bindings = SymMap(TypeBinding).with_capacity(garbager_body_binding_count(value_body)),
-            parent = safe_ref(scope))
+            parent = safe_ref_mut(scope))
         garbager_walk_body(ctx, value_body, value_scope, true,
             Option(ref FunctionDef).None, Vec(Declaration).new(), insert)
         return
     case .Body:
         mut body_scope := TypeScope(
             bindings = SymMap(TypeBinding).with_capacity(garbager_body_binding_count(expr)),
-            parent = safe_ref(scope))
+            parent = safe_ref_mut(scope))
         garbager_walk_body(ctx, expr, body_scope, true,
             Option(ref FunctionDef).None, Vec(Declaration).new(), insert)
         return
@@ -5197,7 +5213,7 @@ garbager_destroy_body := proc(mut ctx: Context, mut body: Expr, mut scope: TypeS
 // a time. owner is the type whose namespace declares it, "" for a file-level
 // function.
 garbager_destroy_function := proc(mut ctx: Context, mut fdef: Expr, owner: Str, is_destructor: Bool) {
-    mut scope := TypeScope(parent = safe_ref(ctx.scope), current_type_name = owner.clone())
+    mut scope := TypeScope(parent = safe_ref_mut(ctx.scope), current_type_name = owner.clone())
     garbager_walk_expr(ctx, fdef, scope, true, is_destructor)
 }
 

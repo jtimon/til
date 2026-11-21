@@ -577,7 +577,7 @@ repl_clone_loaded_program := func(src: LoadedProgram) returns LoadedProgram {
 }
 
 priv retarget_alias_binding := func(mut scope: TypeScope, alias_name: Str, target_name: Str, symbols: SymbolPool) {
-    alias_binding_o := scope.get_binding_name(alias_name, symbols)
+    alias_binding_o := scope.get_binding_name_mut(alias_name, symbols)
     if alias_binding_o.is_none() { return }
     ref mut alias_binding : TypeBinding = alias_binding_o.unwrap()
     target_binding_o := scope.get_binding_name(target_name, symbols)
@@ -3935,7 +3935,7 @@ priv lazy_flush_pending_decls := func(mut lp: LoadedProgram, unit_path: Str, pen
             rt := decl_type_from_name(ret_type, lp.ctx.symbols)
             lp.ctx.scope.set(name, rt, false, unit_path, line, col, false, OwnType.Shallow, lp.ctx.symbols)
             lp.ctx.scope.set_func_def_name(name, pushed.children[0], lp.ctx.symbols)
-            ref mut fb : TypeBinding = lp.ctx.scope.get_binding_name(name, lp.ctx.symbols).unwrap()
+            ref mut fb : TypeBinding = lp.ctx.scope.get_binding_name_mut(name, lp.ctx.symbols).unwrap()
             fb.is_func_decl = true
             fb.is_priv = true
         } else {

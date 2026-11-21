@@ -320,8 +320,9 @@ typedef struct Vec__ParameterPlace Vec__ParameterPlace;
 typedef struct Vec__BorrowRoot Vec__BorrowRoot;
 typedef struct SymMap__TypeBinding SymMap__TypeBinding;
 typedef struct SymMap__Dynamic SymMap__Dynamic;
-typedef struct Option__ref_TypeScope Option__ref_TypeScope;
+typedef struct Option__ref_mut_TypeScope Option__ref_mut_TypeScope;
 typedef struct Option__ref_TypeBinding Option__ref_TypeBinding;
+typedef struct Option__ref_mut_TypeBinding Option__ref_mut_TypeBinding;
 typedef struct Map__U32_Str Map__U32_Str;
 typedef struct Map__Str_FFIEntryBox Map__Str_FFIEntryBox;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
@@ -1114,11 +1115,15 @@ typedef struct SymMap__Dynamic {
 } SymMap__Dynamic;
 
 
-struct Option__ref_TypeScope {
+struct Option__ref_mut_TypeScope {
     TypeScope *data;
 };
 
 struct Option__ref_TypeBinding {
+    TypeBinding *data;
+};
+
+struct Option__ref_mut_TypeBinding {
     TypeBinding *data;
 };
 
@@ -2871,7 +2876,7 @@ typedef struct TypeScope {
     Str target_uptr_pname;
     SymMap__Dynamic func_defs;
     SymMap__Dynamic struct_defs;
-    Option__ref_TypeScope parent;
+    Option__ref_mut_TypeScope parent;
     Bool is_func_root;
     Str current_type_name;
     TyperFuncState typer_func;
@@ -3302,8 +3307,9 @@ _Static_assert(sizeof(Vec__ParameterPlace) == 12, "til computed sizeof(Vec__Para
 _Static_assert(sizeof(Vec__BorrowRoot) == 12, "til computed sizeof(Vec__BorrowRoot) as 12");
 _Static_assert(sizeof(SymMap__TypeBinding) == 36, "til computed sizeof(SymMap__TypeBinding) as 36");
 _Static_assert(sizeof(SymMap__Dynamic) == 36, "til computed sizeof(SymMap__Dynamic) as 36");
-_Static_assert(sizeof(Option__ref_TypeScope) == 8, "til computed sizeof(Option__ref_TypeScope) as 8");
+_Static_assert(sizeof(Option__ref_mut_TypeScope) == 8, "til computed sizeof(Option__ref_mut_TypeScope) as 8");
 _Static_assert(sizeof(Option__ref_TypeBinding) == 8, "til computed sizeof(Option__ref_TypeBinding) as 8");
+_Static_assert(sizeof(Option__ref_mut_TypeBinding) == 8, "til computed sizeof(Option__ref_mut_TypeBinding) as 8");
 _Static_assert(sizeof(Map__U32_Str) == 24, "til computed sizeof(Map__U32_Str) as 24");
 _Static_assert(sizeof(Map__Str_FFIEntryBox) == 24, "til computed sizeof(Map__Str_FFIEntryBox) as 24");
 _Static_assert(sizeof(Map__Str_ExprPtrBox) == 24, "til computed sizeof(Map__Str_ExprPtrBox) as 24");
@@ -4230,6 +4236,7 @@ static Bool type_kind_eq(Type * a, Type * b);
 static Bool type_eq(Type * a, Type * b, SymbolPool * symbols);
 static Option__ref_Expr priv___src_self_context_til__defs_lookup_one(SymMap__Dynamic * m, U32 * sym);
 static Option__ref_TypeBinding priv___src_self_context_til__bindings_lookup_one(SymMap__TypeBinding * m, U32 * sym);
+static Option__ref_mut_TypeBinding priv___src_self_context_til__bindings_lookup_one_mut(SymMap__TypeBinding * m, U32 * sym);
 static TyperFuncState TyperFuncState_clone(TyperFuncState * self);
 static void TyperFuncState_delete(TyperFuncState * self, Bool call_free);
 static TyperFuncState * TypeScope_typer_func_state(TypeScope * self);
@@ -4240,6 +4247,8 @@ static Bool TypeScope_has_local_binding_sym(TypeScope * self, U32 sym);
 static Bool TypeScope_has_local_binding_name(TypeScope * self, Str * name, SymbolPool * symbols);
 static Option__ref_TypeBinding TypeScope_get_binding_sym(TypeScope * self, U32 * sym);
 static Option__ref_TypeBinding TypeScope_get_binding_name(TypeScope * self, Str * name, SymbolPool * symbols);
+static Option__ref_mut_TypeBinding TypeScope_get_binding_sym_mut(TypeScope * self, U32 * sym);
+static Option__ref_mut_TypeBinding TypeScope_get_binding_name_mut(TypeScope * self, Str * name, SymbolPool * symbols);
 static ScopeFind TypeScope_find_name(TypeScope * self, Str * name, SymbolPool * symbols);
 static ScopeFind TypeScope_find_sym(TypeScope * self, U32 sym);
 static Type TypeScope_get_type_name(TypeScope * self, Str * name, SymbolPool * symbols);
@@ -4456,15 +4465,19 @@ static void SymMap__Dynamic_insert_absent(SymMap__Dynamic * self, U32 key, void 
 static Bool SymMap__Dynamic_remove(SymMap__Dynamic * self, U32 key);
 static SymMap__Dynamic SymMap__Dynamic_clone(SymMap__Dynamic * self);
 static void SymMap__Dynamic_delete(SymMap__Dynamic * self, Bool call_free);
-static Bool Option__ref_TypeScope_is_some(Option__ref_TypeScope self);
-static Bool Option__ref_TypeScope_is_none(Option__ref_TypeScope self);
-static Option__ref_TypeScope Option__ref_TypeScope_Some(TypeScope * val);
+static Bool Option__ref_mut_TypeScope_is_some(Option__ref_mut_TypeScope self);
+static Bool Option__ref_mut_TypeScope_is_none(Option__ref_mut_TypeScope self);
+static Option__ref_mut_TypeScope Option__ref_mut_TypeScope_Some(TypeScope * val);
 static Bool Option__ref_TypeBinding_is_some(Option__ref_TypeBinding self);
 static Bool Option__ref_TypeBinding_is_none(Option__ref_TypeBinding self);
 static TypeBinding * Option__ref_TypeBinding_unwrap(Option__ref_TypeBinding * self);
 static Option__ref_TypeBinding Option__ref_TypeBinding_Some(TypeBinding * val);
 static void Option__ref_TypeBinding_delete(Option__ref_TypeBinding * self, Bool call_free);
 static Option__ref_TypeBinding Option__ref_TypeBinding_clone(Option__ref_TypeBinding * self);
+static Bool Option__ref_mut_TypeBinding_is_some(Option__ref_mut_TypeBinding self);
+static Bool Option__ref_mut_TypeBinding_is_none(Option__ref_mut_TypeBinding self);
+static TypeBinding * Option__ref_mut_TypeBinding_unwrap(Option__ref_mut_TypeBinding * self);
+static Option__ref_mut_TypeBinding Option__ref_mut_TypeBinding_Some(TypeBinding * val);
 static Bool Map__U32_Str_has(Map__U32_Str * self, U32 key);
 static Str * Map__U32_Str_get(Map__U32_Str * self, U32 * key, I64 * _err_kind);
 static USize Map__U32_Str_key_size(void);
@@ -4776,6 +4789,7 @@ static Option__ref_Expr Option__ref_Expr_clone(Option__ref_Expr * self);
 static Vec__TypeBinding Vec__TypeBinding_with_capacity(USize n);
 static void Vec__TypeBinding_clear(Vec__TypeBinding * self);
 static void Vec__TypeBinding_push(Vec__TypeBinding * self, TypeBinding * val);
+static TypeBinding * Vec__TypeBinding_unsafe_get_mut(Vec__TypeBinding * self, USize * i);
 static void Vec__TypeBinding_remove_at(Vec__TypeBinding * self, USize i, I64 * _err_kind);
 static void Vec__TypeBinding_delete(Vec__TypeBinding * self, Bool call_free);
 static Vec__TypeBinding Vec__TypeBinding_clone(Vec__TypeBinding * self);
@@ -5462,6 +5476,7 @@ static Vec__BorrowRoot priv___src_self_typer_til__capture_borrow_roots(TypeScope
 static Option__Expr priv___src_self_typer_til__project_return_place(TypeScope * scope, Expr * argument, Str * path, SymbolPool * symbols);
 static Vec__BorrowRoot priv___src_self_typer_til__lvalue_write_roots(TypeScope * scope, Expr * obj, SymbolPool * symbols, Option__ref_Map__UPtr_ParameterEffects effects);
 static Option__ref_TypeBinding priv___src_self_typer_til__lookup_binding_at(TypeScope * scope, BorrowRoot * r, SymbolPool * symbols);
+static Option__ref_mut_TypeBinding priv___src_self_typer_til__lookup_binding_at_mut(TypeScope * scope, BorrowRoot * r, SymbolPool * symbols);
 static void priv___src_self_typer_til__mark_roots_written(TypeScope * scope, Vec__BorrowRoot * roots, SymbolPool * symbols);
 static Bool priv___src_self_typer_til__root_is_writable(TypeScope * scope, TypeBinding * b, BorrowRoot * r, SymbolPool * symbols);
 static Bool priv___src_self_typer_til__root_carries_own_qualifier(TypeBinding * b, BorrowRoot * r);
@@ -5472,7 +5487,7 @@ static void priv___src_self_typer_til__mark_name_written_sym(TypeScope * scope, 
 static void priv___src_self_typer_til__mark_written_through(TypeScope * scope, Expr * obj, SymbolPool * symbols, Option__ref_Map__UPtr_ParameterEffects effects);
 static Vec__BorrowRoot deposit_src_roots(TypeScope * scope, Expr * src, SymbolPool * symbols);
 static void priv___src_self_typer_til__deposit_roots_into_binding(TypeScope * scope, TypeBinding * b, Vec__BorrowRoot * deposited, SymbolPool * symbols);
-static Option__ref_TypeBinding priv___src_self_typer_til__deposit_sink_binding(TypeScope * scope, Expr * sink, SymbolPool * symbols);
+static Option__ref_mut_TypeBinding priv___src_self_typer_til__deposit_sink_binding(TypeScope * scope, Expr * sink, SymbolPool * symbols);
 static Bool priv___src_self_typer_til__deposit_sink_outlives_owner(TypeScope * scope, TypeBinding * owner, BorrowRoot * sink, SymbolPool * symbols);
 static void priv___src_self_typer_til__check_interface_deposit_lifetimes(TypeScope * scope, TypeBinding * sink, Vec__BorrowRoot * deposited, Expr * site, Context * ctx);
 static Bool priv___src_self_typer_til__ref_container_source_stable(Expr * source, TypeScope * scope, SymbolPool * symbols);
@@ -5618,7 +5633,7 @@ static void adopt__priv___src_self_typer_til__CtorArg(void * dest, priv___src_se
 static void adopt__priv___src_self_typer_til__ParameterPlaces(void * dest, priv___src_self_typer_til__ParameterPlaces * src);
 static void adopt__priv___src_self_typer_til__CoverageNode(void * dest, priv___src_self_typer_til__CoverageNode * src);
 static Option__ref_Map__UPtr_ParameterEffects safe_ref__Map__UPtr_ParameterEffects(Map__UPtr_ParameterEffects * value);
-static Option__ref_TypeScope safe_ref__TypeScope(TypeScope * value);
+static Option__ref_mut_TypeScope safe_ref_mut__TypeScope(TypeScope * value);
 static Option__ref_Vec__UPtr safe_ref__Vec__UPtr(Vec__UPtr * value);
 static I32 priv___src_self_desugarer_til__slot_default_code(USize defaults_index);
 static USize priv___src_self_desugarer_til__slot_default_index(I32 code);
@@ -5885,6 +5900,7 @@ static priv___src_self_garbager_til__GcDeposit priv___src_self_garbager_til__GcD
 static void priv___src_self_garbager_til__GcDeposit_delete(priv___src_self_garbager_til__GcDeposit * self, Bool call_free);
 static void priv___src_self_garbager_til__gc_collect_deposits(Expr * e, TypeScope * scope, Vec__priv___src_self_garbager_til__GcDeposit * deposits, SymbolPool * symbols);
 static Option__ref_TypeBinding priv___src_self_garbager_til__gc_deposit_binding(TypeScope * scope, BorrowRoot * root, SymbolPool * symbols);
+static Option__ref_mut_TypeBinding priv___src_self_garbager_til__gc_deposit_binding_mut(TypeScope * scope, BorrowRoot * root, SymbolPool * symbols);
 static I64 priv___src_self_garbager_til__gc_carried_loan_start(BorrowRoot * root, TypeScope * scope, I64 step, SymbolPool * symbols);
 static Bool priv___src_self_garbager_til__gc_ref_container(Str * name, TypeScope * scope, Context * ctx);
 static void priv___src_self_garbager_til__collect_enum_ref_payload_edges(Expr * e, I64 body_last, Vec__priv___src_self_garbager_til__GcBorrowEdge * edges, TypeScope * scope, SymbolPool * symbols);
@@ -12916,6 +12932,8 @@ static struct {
     Str hoisted__Str_Option__ref_Vec__UPtr_unwrap_5;
     Str hoisted__Str_Option__ref_ffi_type_unwrap_2;
     Str hoisted__Str_Option__ref_ffi_type_unwrap_5;
+    Str hoisted__Str_Option__ref_mut_TypeBinding_unwrap_2;
+    Str hoisted__Str_Option__ref_mut_TypeBinding_unwrap_5;
     Str hoisted__Str_Str_get_3;
     Str hoisted__Str_Str_push_str_3;
     Str hoisted__Str_Str_push_str_7;
@@ -19291,21 +19309,23 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Option__ref_Vec__UPtr_unwrap_5), "./src/self/typer.til:43:19", 26ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Option__ref_ffi_type_unwrap_2), "./src/self/interpreter.til:43:25", 32ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Option__ref_ffi_type_unwrap_5), "./src/self/interpreter.til:43:19", 32ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Option__ref_mut_TypeBinding_unwrap_2), "./src/self/context.til:43:25", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Option__ref_mut_TypeBinding_unwrap_5), "./src/self/context.til:43:19", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Str_get_3), "./src/core/str.til:141:13", 25ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Str_push_str_3), "./src/core/str.til:217:13", 25ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Str_push_str_7), "./src/core/str.til:221:13", 25ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Str_to_i64_21), "./src/core/str.til:487:40", 25ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Str_to_i64_7), "./src/core/str.til:483:44", 25ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Str_to_u64_7), "./src/core/str.til:529:44", 25ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_SymMap__Dynamic_remove_10), "./src/self/context.til:589:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_SymMap__Dynamic_remove_5), "./src/self/context.til:588:19", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_SymMap__TypeBinding_remove_10), "./src/self/context.til:589:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_SymMap__TypeBinding_remove_5), "./src/self/context.til:588:19", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_SymMap__Dynamic_remove_10), "./src/self/context.til:595:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_SymMap__Dynamic_remove_5), "./src/self/context.til:594:19", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_SymMap__TypeBinding_remove_10), "./src/self/context.til:595:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_SymMap__TypeBinding_remove_5), "./src/self/context.til:594:19", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_SymbolPool_resolve_11), "./src/self/parser.til:96:13", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_SymbolPool_resolve_3), "./src/self/parser.til:94:23", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_TypeScope_set_func_def_name_5), "./src/self/context.til:908:30", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_TypeScope_set_struct_def_15), "./src/self/context.til:931:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_TypeScope_set_struct_def_21), "./src/self/context.til:936:30", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_TypeScope_set_func_def_name_5), "./src/self/context.til:932:30", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_TypeScope_set_struct_def_15), "./src/self/context.til:955:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_TypeScope_set_struct_def_21), "./src/self/context.til:960:30", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Vec__Declaration_pop_3), "./src/core/ast.til:377:13", 25ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Vec__Expr_pop_3), "./src/core/ast.til:377:13", 25ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_Vec__Expr_push_take_11), "./src/core/ast.til:462:13", 25ULL},
@@ -19318,7 +19338,7 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_append_switch_else_if_9), "./src/self/desugarer.til:3819:34", 32ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_arg_addressed_ident_11), "./src/self/typer.til:12434:40", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_arg_addressed_ident_6), "./src/self/typer.til:12431:32", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_array_vec_elem_type_name_5), "./src/self/context.til:2972:26", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_array_vec_elem_type_name_5), "./src/self/context.til:2996:26", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_attach_switch_default_body_14), "./src/self/desugarer.til:3835:62", 32ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_attach_switch_default_body_4), "./src/self/desugarer.til:3832:17", 32ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_attach_switch_default_body_9), "./src/self/desugarer.til:3834:34", 32ULL},
@@ -19341,8 +19361,8 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_c_call_reference_type_4), "./src/self/codegen/common_c.til:49:13", 37ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_c_field_receiver_has_call_5), "./src/self/codegen/common_c.til:65:74", 37ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_case_pattern_count_0), "./src/core/ast.til:1609:12", 26ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_check_unused_priv_members_in_program_6), "./src/self/typer.til:6973:13", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_check_unused_priv_members_in_program_77), "./src/self/typer.til:6977:37", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_check_unused_priv_members_in_program_6), "./src/self/typer.til:6974:13", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_check_unused_priv_members_in_program_77), "./src/self/typer.til:6978:37", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_clang_resource_map_args_25), "./src/self/targets.til:414:27", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_clang_resource_map_args_31), "./src/self/targets.til:416:30", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_cmd_ast_6), "./src/self/loader.til:5030:13", 29ULL},
@@ -19360,7 +19380,7 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_compute_struct_layout_125), "./src/self/initer.til:2213:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_compute_struct_layout_84), "./src/self/initer.til:2183:64", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_compute_struct_layout_93), "./src/self/initer.til:2188:41", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_constfolder_classify_stmt_12), "./src/self/context.til:2549:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_constfolder_classify_stmt_12), "./src/self/context.til:2573:25", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_constfolder_eval_generator_function_11), "./src/self/constfolder.til:40:13", 32ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_constfolder_eval_generator_function_18), "./src/self/constfolder.til:46:13", 32ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_constfolder_eval_generator_function_35), "./src/self/constfolder.til:42:43", 32ULL},
@@ -19385,16 +19405,16 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_ctx_field_layout_14), "./src/self/initer.til:2349:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_ctx_total_size_6), "./src/self/initer.til:2326:30", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_dce_program_bodies_6), "./src/self/scavenger.til:1721:17", 32ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_def_ns_decls_2), "./src/self/context.til:3159:15", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_def_ns_decls_5), "./src/self/context.til:3159:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_def_ns_get_5), "./src/self/context.til:3204:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_def_ns_has_5), "./src/self/context.til:3190:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_def_ns_name_at_4), "./src/self/context.til:3179:15", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_def_ns_name_at_7), "./src/self/context.til:3179:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_def_ns_pos_5), "./src/self/context.til:3232:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_delete_body_is_free_only_11), "./src/self/context.til:2989:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_delete_body_is_free_only_18), "./src/self/context.til:2992:29", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_delete_body_is_free_only_5), "./src/self/context.til:2987:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_def_ns_decls_2), "./src/self/context.til:3183:15", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_def_ns_decls_5), "./src/self/context.til:3183:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_def_ns_get_5), "./src/self/context.til:3228:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_def_ns_has_5), "./src/self/context.til:3214:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_def_ns_name_at_4), "./src/self/context.til:3203:15", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_def_ns_name_at_7), "./src/self/context.til:3203:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_def_ns_pos_5), "./src/self/context.til:3256:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_delete_body_is_free_only_11), "./src/self/context.til:3013:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_delete_body_is_free_only_18), "./src/self/context.til:3016:29", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_delete_body_is_free_only_5), "./src/self/context.til:3011:9", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_desugar_fcall_args_for_fdef_100), "./src/self/desugarer.til:114:25", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_desugar_fcall_args_for_fdef_113), "./src/self/desugarer.til:117:26", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_desugar_fcall_args_for_fdef_131), "./src/self/desugarer.til:128:44", 31ULL},
@@ -19424,31 +19444,31 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_dyn_fn_signature_matches_53), "./src/self/typer.til:1572:57", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_dyn_fn_signature_matches_58), "./src/self/typer.til:1572:120", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_dyn_fn_uses_typed_abi_27), "./src/self/typer.til:1545:29", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_has_payloads_9), "./src/self/context.til:3305:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_is_niche_18), "./src/self/context.til:3437:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_niche_some_index_13), "./src/self/context.til:3457:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_niche_some_index_16), "./src/self/context.til:3462:11", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_niche_some_index_19), "./src/self/context.til:3462:5", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_niche_some_index_6), "./src/self/context.til:3459:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_ref_payload_ctor_arg_35), "./src/self/context.til:3513:31", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_ref_payload_ctor_arg_4), "./src/self/context.til:3485:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_ref_payload_ctor_arg_9), "./src/self/context.til:3491:31", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_tag_type_1), "./src/self/context.til:3316:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_index_11), "./src/self/context.til:3365:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_index_6), "./src/self/context.til:3367:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_index_for_tag_11), "./src/self/context.til:3353:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_index_for_tag_6), "./src/self/context.til:3355:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_payload_const_4), "./src/self/context.til:3392:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_payload_const_8), "./src/self/context.til:3389:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_payload_funcsig_4), "./src/self/context.til:3430:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_payload_funcsig_8), "./src/self/context.til:3427:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_payload_ref_4), "./src/self/context.til:3473:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_payload_ref_8), "./src/self/context.til:3470:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_tag_7), "./src/self/context.til:3330:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_tag_at_4), "./src/self/context.til:3344:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_tag_at_8), "./src/self/context.til:3341:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_type_4), "./src/self/context.til:3379:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_type_8), "./src/self/context.til:3376:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_has_payloads_9), "./src/self/context.til:3329:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_is_niche_18), "./src/self/context.til:3461:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_niche_some_index_13), "./src/self/context.til:3481:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_niche_some_index_16), "./src/self/context.til:3486:11", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_niche_some_index_19), "./src/self/context.til:3486:5", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_niche_some_index_6), "./src/self/context.til:3483:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_ref_payload_ctor_arg_35), "./src/self/context.til:3537:31", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_ref_payload_ctor_arg_4), "./src/self/context.til:3509:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_ref_payload_ctor_arg_9), "./src/self/context.til:3515:31", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_tag_type_1), "./src/self/context.til:3340:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_index_11), "./src/self/context.til:3389:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_index_6), "./src/self/context.til:3391:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_index_for_tag_11), "./src/self/context.til:3377:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_index_for_tag_6), "./src/self/context.til:3379:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_payload_const_4), "./src/self/context.til:3416:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_payload_const_8), "./src/self/context.til:3413:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_payload_funcsig_4), "./src/self/context.til:3454:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_payload_funcsig_8), "./src/self/context.til:3451:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_payload_ref_4), "./src/self/context.til:3497:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_payload_ref_8), "./src/self/context.til:3494:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_tag_7), "./src/self/context.til:3354:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_tag_at_4), "./src/self/context.til:3368:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_tag_at_8), "./src/self/context.til:3365:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_type_4), "./src/self/context.til:3403:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_enum_variant_type_8), "./src/self/context.til:3400:25", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_eval_body_120), "./src/self/interpreter.til:3202:27", 34ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_eval_body_135), "./src/self/interpreter.til:3202:21", 34ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_eval_body_14), "./src/self/interpreter.til:3112:65", 34ULL},
@@ -19518,21 +19538,21 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_callee_fdef_27), "./src/self/typer.til:13229:55", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_callee_fdef_4), "./src/self/typer.til:13205:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_has_ref_args_0), "./src/self/parser.til:3553:27", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_is_direct_13), "./src/self/context.til:3932:11", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_is_direct_4), "./src/self/context.til:3931:35", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_is_get_method_6), "./src/self/typer.til:16216:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_is_struct_ctor_15), "./src/self/context.til:3009:24", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_kwargs_count_14), "./src/self/context.til:4070:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_kwargs_count_5), "./src/self/context.til:4064:17", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_is_direct_13), "./src/self/context.til:3956:11", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_is_direct_4), "./src/self/context.til:3955:35", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_is_get_method_6), "./src/self/typer.til:16231:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_is_struct_ctor_15), "./src/self/context.til:3033:24", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_kwargs_count_14), "./src/self/context.til:4094:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_kwargs_count_5), "./src/self/context.til:4088:17", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_returns_own_19), "./src/self/typer.til:635:67", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_returns_own_37), "./src/self/typer.til:653:35", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_returns_own_54), "./src/self/typer.til:671:58", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_returns_own_6), "./src/self/typer.til:632:9", 26ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_returns_ref_19), "./src/self/typer.til:16234:41", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_returns_ref_32), "./src/self/typer.til:16248:35", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_returns_ref_48), "./src/self/typer.til:16268:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_returns_ref_6), "./src/self/typer.til:16228:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_variadic_count_10), "./src/self/context.til:4104:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_returns_ref_19), "./src/self/typer.til:16249:41", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_returns_ref_32), "./src/self/typer.til:16263:35", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_returns_ref_48), "./src/self/typer.til:16283:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_returns_ref_6), "./src/self/typer.til:16243:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_fcall_variadic_count_10), "./src/self/context.til:4128:9", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_ffi_init_scan_program_12), "./src/self/interpreter.til:13294:21", 35ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_ffi_init_scan_program_23), "./src/self/interpreter.til:13312:29", 35ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_ffi_init_scan_program_28), "./src/self/interpreter.til:13314:70", 35ULL},
@@ -19544,12 +19564,12 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_ffi_init_scan_program_83), "./src/self/interpreter.til:13314:44", 35ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_ffi_init_struct_defs_append_15), "./src/self/interpreter.til:9241:13", 34ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_format_decl_info_5), "./src/self/loader.til:2027:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_func_param_has_stack_outer_12), "./src/self/context.til:2833:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_func_param_has_stack_outer_23), "./src/self/context.til:2842:41", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_func_param_has_stack_outer_28), "./src/self/context.til:2842:35", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_func_param_has_stack_outer_59), "./src/self/context.til:2860:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_func_param_passes_c_value_23), "./src/self/context.til:2821:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_func_param_passes_c_value_7), "./src/self/context.til:2809:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_func_param_has_stack_outer_12), "./src/self/context.til:2857:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_func_param_has_stack_outer_23), "./src/self/context.til:2866:41", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_func_param_has_stack_outer_28), "./src/self/context.til:2866:35", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_func_param_has_stack_outer_59), "./src/self/context.til:2884:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_func_param_passes_c_value_23), "./src/self/context.til:2845:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_func_param_passes_c_value_7), "./src/self/context.til:2833:9", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_func_type_from_i64_2), "./src/core/ast.til:217:17", 25ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_func_type_from_i64_7), "./src/core/ast.til:217:11", 25ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_gen_cmp_derived_for_stmt_169), "./src/self/initer.til:1951:13", 29ULL},
@@ -19630,9 +19650,9 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_holyc_codegen_translate_50), "./src/self/codegen/holyc_codegen.til:6131:45", 44ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_holyc_codegen_translate_662), "./src/self/codegen/holyc_codegen.til:6379:40", 44ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_holyc_codegen_translate_669), "./src/self/codegen/holyc_codegen.til:6367:38", 44ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_host_niche_slot_size_4), "./src/self/context.til:2484:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_host_niche_slot_size_6), "./src/self/context.til:2483:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_import_path_for_stmt_5), "./src/self/context.til:1299:50", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_host_niche_slot_size_4), "./src/self/context.til:2508:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_host_niche_slot_size_6), "./src/self/context.til:2507:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_import_path_for_stmt_5), "./src/self/context.til:1323:50", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_infer_body_stmt_14), "./src/self/typer.til:9397:21", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_infer_body_stmt_22), "./src/self/typer.til:9412:26", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_infer_body_stmt_35), "./src/self/typer.til:9419:9", 27ULL},
@@ -19669,7 +19689,7 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_init_retire_generic_sources_22), "./src/self/initer.til:4992:26", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_init_retire_generic_sources_6), "./src/self/initer.til:4979:13", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_init_scan_unresolved_generic_calls_6), "./src/self/initer.til:4957:33", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_init_stmt_is_generic_source_6), "./src/self/context.til:1153:46", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_init_stmt_is_generic_source_6), "./src/self/context.til:1177:46", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_interface_concrete_type_name_13), "./src/self/initer.til:6379:52", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_interface_concrete_type_name_23), "./src/self/initer.til:6391:16", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_interface_concrete_type_name_24), "./src/self/initer.til:6391:41", 29ULL},
@@ -19700,14 +19720,14 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_interpreter_init_ns_7), "./src/self/interpreter.til:6374:21", 34ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_is_clone_fcall_6), "./src/self/typer.til:886:22", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_is_compile_directive_6), "./src/self/typer.til:9050:22", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_is_def_5), "./src/self/context.til:3123:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_is_func_decl_5), "./src/self/context.til:3118:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_is_def_5), "./src/self/context.til:3147:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_is_func_decl_5), "./src/self/context.til:3142:25", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_is_macro_call_7), "./src/self/constfolder.til:1317:9", 33ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_is_range_new_call_16), "./src/self/context.til:4000:31", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_is_range_new_call_6), "./src/self/context.til:3992:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_is_range_new_call_16), "./src/self/context.til:4024:31", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_is_range_new_call_6), "./src/self/context.til:4016:9", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_is_simple_lvalue_expr_5), "./src/self/typer.til:9041:52", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_is_struct_or_enum_5), "./src/self/context.til:3112:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_body_split_point_6), "./src/self/context.til:3781:46", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_is_struct_or_enum_5), "./src/self/context.til:3136:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_body_split_point_6), "./src/self/context.til:3805:46", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_recursive_variadic_def_10), "./src/self/loader.til:3009:30", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_recursive_variadic_def_17), "./src/self/loader.til:3010:81", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_recursive_variadic_def_42), "./src/self/loader.til:3013:51", 29ULL},
@@ -19716,10 +19736,10 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_recursive_variadic_def_81), "./src/self/loader.til:3037:42", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_recursive_variadic_def_87), "./src/self/loader.til:3038:52", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_recursive_variadic_def_92), "./src/self/loader.til:3039:34", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_variadic_body_unrollable_24), "./src/self/context.til:3829:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_variadic_body_unrollable_30), "./src/self/context.til:3835:33", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_variadic_body_unrollable_40), "./src/self/context.til:3842:17", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_variadic_body_unrollable_6), "./src/self/context.til:3825:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_variadic_body_unrollable_24), "./src/self/context.til:3853:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_variadic_body_unrollable_30), "./src/self/context.til:3859:33", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_variadic_body_unrollable_40), "./src/self/context.til:3866:17", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_lazy_variadic_body_unrollable_6), "./src/self/context.til:3849:9", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_load_program_113), "./src/self/loader.til:1347:27", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_load_program_117), "./src/self/loader.til:1352:13", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_load_program_181), "./src/self/loader.til:1439:58", 29ULL},
@@ -19771,9 +19791,9 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_make_switch_case_condition_9), "./src/self/desugarer.til:3435:43", 32ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_make_switch_case_condition_90), "./src/self/desugarer.til:3469:51", 32ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_make_switch_case_condition_95), "./src/self/desugarer.til:3470:37", 32ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mark_binding_referenced_7), "./src/self/typer.til:6870:13", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mark_fcall_direct_11), "./src/self/context.til:3940:11", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mark_fcall_direct_4), "./src/self/context.til:3939:28", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mark_binding_referenced_7), "./src/self/typer.til:6871:13", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mark_fcall_direct_11), "./src/self/context.til:3964:11", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mark_fcall_direct_4), "./src/self/context.til:3963:28", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_106), "./src/self/codegen/mlir_codegen.til:2942:33", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_111), "./src/self/codegen/mlir_codegen.til:2945:25", 43ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_mlir_codegen_translate_118), "./src/self/codegen/mlir_codegen.til:2948:29", 43ULL},
@@ -19864,19 +19884,19 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_repl_type_delta_program_5), "./src/self/loader.til:4981:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_replace_body_stmt_with_block_4), "./src/self/desugarer.til:4076:18", 32ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_replace_switch_stmt_with_block_4), "./src/self/desugarer.til:3812:18", 32ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_resolve_direct_fcall_12), "./src/self/context.til:3960:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_resolve_direct_fcall_4), "./src/self/context.til:3951:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_resolve_direct_fcall_12), "./src/self/context.til:3984:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_resolve_direct_fcall_4), "./src/self/context.til:3975:9", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_resolve_fn_sig_31), "./src/self/typer.til:575:54", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_resolve_fn_sig_4), "./src/self/typer.til:532:9", 26ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_resolve_import_for_stmt_34), "./src/self/context.til:1326:5", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_resolve_import_for_stmt_8), "./src/self/context.til:1313:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_resolve_import_for_stmt_34), "./src/self/context.til:1350:5", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_resolve_import_for_stmt_8), "./src/self/context.til:1337:9", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_resolve_link_path_12), "./src/self/loader.til:83:81", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_resolve_target_cpu_39), "./src/self/targets.til:163:24", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_resolve_target_cpu_59), "./src/self/targets.til:168:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_rhs_is_allocator_call_6), "./src/self/context.til:3586:22", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_rhs_is_allocator_call_6), "./src/self/context.til:3610:22", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_rhs_is_clone_fcall_6), "./src/self/typer.til:10895:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_rhs_is_payload_binding_14), "./src/self/typer.til:16809:68", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_rhs_is_payload_binding_6), "./src/self/typer.til:16804:24", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_rhs_is_payload_binding_14), "./src/self/typer.til:16824:68", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_rhs_is_payload_binding_6), "./src/self/typer.til:16819:24", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_run_cmd_5), "./src/std/sys.til:285:13", 24ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_run_repl_session_112), "src/til.til:607:21", 18ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_run_repl_session_117), "src/til.til:608:25", 18ULL},
@@ -22331,17 +22351,17 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_constfolder_va_consumer_args_ok_6), "./src/self/constfolder.til:1521:13", 34ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_constfolder_va_elements_known_25), "./src/self/constfolder.til:1423:46", 34ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_constfolder_va_elements_known_5), "./src/self/constfolder.til:1413:13", 34ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_import_path_for_call_14), "./src/self/context.til:1274:24", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_import_path_for_call_25), "./src/self/context.til:1280:24", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_lazy_is_guard_6), "./src/self/context.til:3724:49", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_lazy_single_return_body_6), "./src/self/context.til:3715:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_lazy_stmts_inlinable_14), "./src/self/context.til:3740:57", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_lazy_stmts_inlinable_26), "./src/self/context.til:3741:59", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_lazy_stmts_inlinable_5), "./src/self/context.til:3733:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_lazy_stmts_inlinable_57), "./src/self/context.til:3749:39", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_lazy_stmts_inlinable_68), "./src/self/context.til:3749:39", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_ns_const_order_deps_4), "./src/self/context.til:3290:30", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_ns_const_order_visit_12), "./src/self/context.til:3275:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_import_path_for_call_14), "./src/self/context.til:1298:24", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_import_path_for_call_25), "./src/self/context.til:1304:24", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_lazy_is_guard_6), "./src/self/context.til:3748:49", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_lazy_single_return_body_6), "./src/self/context.til:3739:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_lazy_stmts_inlinable_14), "./src/self/context.til:3764:57", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_lazy_stmts_inlinable_26), "./src/self/context.til:3765:59", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_lazy_stmts_inlinable_5), "./src/self/context.til:3757:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_lazy_stmts_inlinable_57), "./src/self/context.til:3773:39", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_lazy_stmts_inlinable_68), "./src/self/context.til:3773:39", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_ns_const_order_deps_4), "./src/self/context.til:3314:30", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_context_ns_const_order_visit_12), "./src/self/context.til:3299:9", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_desugarer_annotate_throw_types_in_30), "./src/self/desugarer.til:915:17", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_desugarer_annotate_throw_types_in_35), "./src/self/desugarer.til:921:28", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_desugarer_apply_call_hoist_delete_15), "./src/self/desugarer.til:5516:21", 32ULL},
@@ -22651,38 +22671,38 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_cfg_scan_90), "./src/self/garbager.til:487:21", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_cfg_scan_96), "./src/self/garbager.til:491:63", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_cfg_set_end_4), "./src/self/garbager.til:406:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_114), "./src/self/garbager.til:3082:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_13), "./src/self/garbager.til:3022:29", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_27), "./src/self/garbager.til:3041:56", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_37), "./src/self/garbager.til:3041:56", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_49), "./src/self/garbager.til:3049:84", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_54), "./src/self/garbager.til:3050:101", 32ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_70), "./src/self/garbager.til:3053:21", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_75), "./src/self/garbager.til:3055:21", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_view_escapes_15), "./src/self/garbager.til:2926:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_view_escapes_56), "./src/self/garbager.til:2957:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_114), "./src/self/garbager.til:2491:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_128), "./src/self/garbager.til:2493:13", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_137), "./src/self/garbager.til:2501:13", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_166), "./src/self/garbager.til:2509:13", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_17), "./src/self/garbager.til:2449:13", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_172), "./src/self/garbager.til:2521:33", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_210), "./src/self/garbager.til:2547:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_226), "./src/self/garbager.til:2557:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_245), "./src/self/garbager.til:2572:21", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_259), "./src/self/garbager.til:2574:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_279), "./src/self/garbager.til:2572:21", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_293), "./src/self/garbager.til:2574:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_31), "./src/self/garbager.til:2465:66", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_44), "./src/self/garbager.til:2470:64", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_6), "./src/self/garbager.til:2442:50", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_62), "./src/self/garbager.til:2475:62", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_67), "./src/self/garbager.til:2476:64", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_84), "./src/self/garbager.til:2481:62", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_89), "./src/self/garbager.til:2482:65", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_94), "./src/self/garbager.til:2483:64", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_call_ref_return_edges_14), "./src/self/garbager.til:2397:64", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_call_ref_return_edges_33), "./src/self/garbager.til:2397:64", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_114), "./src/self/garbager.til:3098:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_13), "./src/self/garbager.til:3038:29", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_27), "./src/self/garbager.til:3057:56", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_37), "./src/self/garbager.til:3057:56", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_49), "./src/self/garbager.til:3065:84", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_54), "./src/self/garbager.til:3066:101", 32ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_70), "./src/self/garbager.til:3069:21", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_use_after_own_transfer_75), "./src/self/garbager.til:3071:21", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_view_escapes_15), "./src/self/garbager.til:2942:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_check_view_escapes_56), "./src/self/garbager.til:2973:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_114), "./src/self/garbager.til:2507:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_128), "./src/self/garbager.til:2509:13", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_137), "./src/self/garbager.til:2517:13", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_166), "./src/self/garbager.til:2525:13", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_17), "./src/self/garbager.til:2465:13", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_172), "./src/self/garbager.til:2537:33", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_210), "./src/self/garbager.til:2563:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_226), "./src/self/garbager.til:2573:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_245), "./src/self/garbager.til:2588:21", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_259), "./src/self/garbager.til:2590:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_279), "./src/self/garbager.til:2588:21", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_293), "./src/self/garbager.til:2590:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_31), "./src/self/garbager.til:2481:66", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_44), "./src/self/garbager.til:2486:64", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_6), "./src/self/garbager.til:2458:50", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_62), "./src/self/garbager.til:2491:62", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_67), "./src/self/garbager.til:2492:64", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_84), "./src/self/garbager.til:2497:62", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_89), "./src/self/garbager.til:2498:65", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_borrow_edges_94), "./src/self/garbager.til:2499:64", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_call_ref_return_edges_14), "./src/self/garbager.til:2413:64", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_call_ref_return_edges_33), "./src/self/garbager.til:2413:64", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_reference_loans_106), "./src/self/garbager.til:2243:56", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_reference_loans_123), "./src/self/garbager.til:2244:82", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_reference_loans_140), "./src/self/garbager.til:2252:50", 31ULL},
@@ -22700,14 +22720,14 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_scope_locals_208), "./src/self/garbager.til:2017:21", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_scope_locals_27), "./src/self/garbager.til:1889:17", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_scope_locals_97), "./src/self/garbager.til:1974:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_shallow_param_transfers_26), "./src/self/garbager.til:3001:69", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_const_global_is_literal_17), "./src/self/garbager.til:4497:33", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_const_global_is_literal_21), "./src/self/garbager.til:4495:35", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_const_global_is_literal_32), "./src/self/garbager.til:4500:11", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_const_global_is_literal_39), "./src/self/garbager.til:4500:5", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_delete_call_free_target_sym_12), "./src/self/garbager.til:4097:22", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_delete_call_free_target_sym_18), "./src/self/garbager.til:4106:26", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_delete_call_free_target_sym_4), "./src/self/garbager.til:4090:22", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_collect_shallow_param_transfers_26), "./src/self/garbager.til:3017:69", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_const_global_is_literal_17), "./src/self/garbager.til:4513:33", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_const_global_is_literal_21), "./src/self/garbager.til:4511:35", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_const_global_is_literal_32), "./src/self/garbager.til:4516:11", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_const_global_is_literal_39), "./src/self/garbager.til:4516:5", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_delete_call_free_target_sym_12), "./src/self/garbager.til:4113:22", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_delete_call_free_target_sym_18), "./src/self/garbager.til:4122:26", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_delete_call_free_target_sym_4), "./src/self/garbager.til:4106:22", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_enum_ref_payload_borrow_src_14), "./src/self/garbager.til:2090:22", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_enum_ref_payload_borrow_src_38), "./src/self/garbager.til:2110:43", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_enum_ref_payload_borrow_src_7), "./src/self/garbager.til:2082:22", 31ULL},
@@ -22716,26 +22736,26 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_expr_has_unproven_str_def_27), "./src/self/garbager.til:1651:54", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_expr_has_unproven_str_def_6), "./src/self/garbager.til:1635:54", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_expr_root_ident_name_6), "./src/self/garbager.til:2118:73", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_extend_ref_local_lifetimes_6), "./src/self/garbager.til:2611:13", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_extend_ref_local_lifetimes_6), "./src/self/garbager.til:2627:13", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_fact_bit_req_2), "./src/self/garbager.til:1767:24", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_fact_bit_req_9), "./src/self/garbager.til:1767:18", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_flag_outer_assign_rebinds_54), "./src/self/garbager.til:3626:25", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_104), "./src/self/garbager.til:4913:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_147), "./src/self/garbager.til:4937:64", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_170), "./src/self/garbager.til:4945:77", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_182), "./src/self/garbager.til:4949:55", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_187), "./src/self/garbager.til:4950:74", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_26), "./src/self/garbager.til:4855:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_4), "./src/self/garbager.til:4842:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_57), "./src/self/garbager.til:4881:52", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_83), "./src/self/garbager.til:4902:59", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_params_6), "./src/self/garbager.til:4995:13", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_walk_body_24), "./src/self/garbager.til:5175:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_walk_body_6), "./src/self/garbager.til:5154:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_walk_expr_21), "./src/self/garbager.til:5103:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_walk_expr_4), "./src/self/garbager.til:5093:21", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_walk_expr_46), "./src/self/garbager.til:5114:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_walk_expr_72), "./src/self/garbager.til:5127:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_flag_outer_assign_rebinds_54), "./src/self/garbager.til:3642:25", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_104), "./src/self/garbager.til:4929:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_147), "./src/self/garbager.til:4953:64", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_170), "./src/self/garbager.til:4961:77", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_182), "./src/self/garbager.til:4965:55", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_187), "./src/self/garbager.til:4966:74", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_26), "./src/self/garbager.til:4871:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_4), "./src/self/garbager.til:4858:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_57), "./src/self/garbager.til:4897:52", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_decl_83), "./src/self/garbager.til:4918:59", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_register_params_6), "./src/self/garbager.til:5011:13", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_walk_body_24), "./src/self/garbager.til:5191:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_walk_body_6), "./src/self/garbager.til:5170:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_walk_expr_21), "./src/self/garbager.til:5119:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_walk_expr_4), "./src/self/garbager.til:5109:21", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_walk_expr_46), "./src/self/garbager.til:5130:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_garbager_walk_expr_72), "./src/self/garbager.til:5143:17", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_audit_destructor_line_12), "./src/self/garbager.til:223:22", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_audit_destructor_line_18), "./src/self/garbager.til:224:26", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_audit_destructor_line_23), "./src/self/garbager.til:224:38", 30ULL},
@@ -22758,14 +22778,14 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_audit_sites_90), "./src/self/garbager.til:290:42", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_cfg_dump_18), "./src/self/garbager.til:534:36", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_cfg_dump_6), "./src/self/garbager.til:530:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_chain_has_ns_6), "./src/self/garbager.til:4539:38", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_chain_root_name_6), "./src/self/garbager.til:4547:60", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_chain_has_ns_6), "./src/self/garbager.til:4555:38", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_chain_root_name_6), "./src/self/garbager.til:4563:60", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_collect_deposits_23), "./src/self/garbager.til:2299:53", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_collect_deposits_71), "./src/self/garbager.til:2288:36", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_collect_deposits_9), "./src/self/garbager.til:2287:32", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_collect_own_arg_names_24), "./src/self/garbager.til:4349:34", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_collect_own_arg_names_6), "./src/self/garbager.til:4349:34", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_fcall_is_ctor_4), "./src/self/garbager.til:4559:30", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_collect_own_arg_names_24), "./src/self/garbager.til:4365:34", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_collect_own_arg_names_6), "./src/self/garbager.til:4365:34", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_fcall_is_ctor_4), "./src/self/garbager.til:4575:30", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_flow_assign_verdicts_12), "./src/self/garbager.til:1114:13", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_flow_assign_verdicts_17), "./src/self/garbager.til:1118:13", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_flow_assign_verdicts_24), "./src/self/garbager.til:1120:21", 31ULL},
@@ -22793,7 +22813,7 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_flow_exit_is_mixed_44), "./src/self/garbager.til:1238:20", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_flow_exit_is_mixed_57), "./src/self/garbager.til:1238:46", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_flow_exit_is_mixed_7), "./src/self/garbager.til:1231:13", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_flow_exit_state_5), "./src/self/garbager.til:4378:5", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_flow_exit_state_5), "./src/self/garbager.til:4394:5", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_flow_fixpoint_102), "./src/self/garbager.til:784:21", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_flow_fixpoint_11), "./src/self/garbager.til:762:13", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_flow_fixpoint_123), "./src/self/garbager.til:789:33", 30ULL},
@@ -22878,114 +22898,114 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_live_solve_85), "./src/self/garbager.til:1425:20", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_mixing_transfer_index_17), "./src/self/garbager.til:1184:13", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_mixing_transfer_index_6), "./src/self/garbager.til:1178:44", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_place_key_6), "./src/self/garbager.til:4526:39", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_ref_container_5), "./src/self/garbager.til:2347:9", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_reject_field_moves_6), "./src/self/garbager.til:4580:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_reject_field_moves_88), "./src/self/garbager.til:4580:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_assign_delete_8), "./src/self/garbager.til:3672:59", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_103), "./src/self/garbager.til:3130:37", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_108), "./src/self/garbager.til:3131:45", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_113), "./src/self/garbager.til:3132:58", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_118), "./src/self/garbager.til:3132:71", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_150), "./src/self/garbager.til:3164:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_157), "./src/self/garbager.til:3168:50", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_165), "./src/self/garbager.til:3168:50", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_173), "./src/self/garbager.til:3172:46", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_184), "./src/self/garbager.til:3179:33", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_189), "./src/self/garbager.til:3180:41", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_194), "./src/self/garbager.til:3181:54", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_199), "./src/self/garbager.til:3181:67", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_216), "./src/self/garbager.til:3179:33", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_221), "./src/self/garbager.til:3180:41", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_226), "./src/self/garbager.til:3181:54", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_231), "./src/self/garbager.til:3181:67", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_264), "./src/self/garbager.til:3187:21", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_269), "./src/self/garbager.til:3197:25", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_278), "./src/self/garbager.til:3232:27", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_291), "./src/self/garbager.til:3232:21", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_44), "./src/self/garbager.til:3119:54", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_52), "./src/self/garbager.til:3119:54", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_60), "./src/self/garbager.til:3123:50", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_71), "./src/self/garbager.til:3130:37", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_76), "./src/self/garbager.til:3131:45", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_81), "./src/self/garbager.til:3132:58", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_86), "./src/self/garbager.til:3132:71", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_into_stmt_10), "./src/self/garbager.til:3349:13", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_into_stmt_15), "./src/self/garbager.til:3351:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_free_calls_102), "./src/self/garbager.til:4783:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_free_calls_31), "./src/self/garbager.til:4717:19", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_free_calls_50), "./src/self/garbager.til:4717:13", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_106), "./src/self/garbager.til:3321:33", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_111), "./src/self/garbager.til:3322:41", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_116), "./src/self/garbager.til:3323:54", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_12), "./src/self/garbager.til:3267:13", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_121), "./src/self/garbager.til:3323:67", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_44), "./src/self/garbager.til:3312:50", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_53), "./src/self/garbager.til:3312:50", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_62), "./src/self/garbager.til:3315:46", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_73), "./src/self/garbager.til:3321:33", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_78), "./src/self/garbager.til:3322:41", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_83), "./src/self/garbager.til:3323:54", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_88), "./src/self/garbager.til:3323:67", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_post_stmt_deletes_118), "./src/self/garbager.til:3538:25", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_post_stmt_deletes_136), "./src/self/garbager.til:3542:29", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_post_stmt_deletes_64), "./src/self/garbager.til:3479:25", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_post_stmt_deletes_77), "./src/self/garbager.til:3481:29", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_propagate_borrow_edges_25), "./src/self/garbager.til:2596:74", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_propagate_borrow_edges_36), "./src/self/garbager.til:2596:97", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_propagate_borrow_edges_52), "./src/self/garbager.til:2597:53", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_propagate_borrow_edges_71), "./src/self/garbager.til:2603:67", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_realign_delete_call_free_6), "./src/self/garbager.til:4195:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_realign_delete_call_free_expr_15), "./src/self/garbager.til:4166:27", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_realign_delete_call_free_expr_4), "./src/self/garbager.til:4157:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_record_keep_outer_args_6), "./src/self/garbager.til:4043:37", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_record_keep_outer_args_expr_17), "./src/self/garbager.til:4017:26", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_record_keep_outer_args_expr_28), "./src/self/garbager.til:4024:30", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_record_storage_decisions_6), "./src/self/garbager.til:3985:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_place_key_6), "./src/self/garbager.til:4542:39", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_ref_container_5), "./src/self/garbager.til:2363:9", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_reject_field_moves_6), "./src/self/garbager.til:4596:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_gc_reject_field_moves_88), "./src/self/garbager.til:4596:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_assign_delete_8), "./src/self/garbager.til:3688:59", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_103), "./src/self/garbager.til:3146:37", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_108), "./src/self/garbager.til:3147:45", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_113), "./src/self/garbager.til:3148:58", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_118), "./src/self/garbager.til:3148:71", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_150), "./src/self/garbager.til:3180:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_157), "./src/self/garbager.til:3184:50", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_165), "./src/self/garbager.til:3184:50", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_173), "./src/self/garbager.til:3188:46", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_184), "./src/self/garbager.til:3195:33", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_189), "./src/self/garbager.til:3196:41", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_194), "./src/self/garbager.til:3197:54", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_199), "./src/self/garbager.til:3197:67", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_216), "./src/self/garbager.til:3195:33", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_221), "./src/self/garbager.til:3196:41", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_226), "./src/self/garbager.til:3197:54", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_231), "./src/self/garbager.til:3197:67", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_264), "./src/self/garbager.til:3203:21", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_269), "./src/self/garbager.til:3213:25", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_278), "./src/self/garbager.til:3248:27", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_291), "./src/self/garbager.til:3248:21", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_44), "./src/self/garbager.til:3135:54", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_52), "./src/self/garbager.til:3135:54", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_60), "./src/self/garbager.til:3139:50", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_71), "./src/self/garbager.til:3146:37", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_76), "./src/self/garbager.til:3147:45", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_81), "./src/self/garbager.til:3148:58", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_86), "./src/self/garbager.til:3148:71", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_into_stmt_10), "./src/self/garbager.til:3365:13", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_exit_deletes_into_stmt_15), "./src/self/garbager.til:3367:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_free_calls_102), "./src/self/garbager.til:4799:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_free_calls_31), "./src/self/garbager.til:4733:19", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_free_calls_50), "./src/self/garbager.til:4733:13", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_106), "./src/self/garbager.til:3337:33", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_111), "./src/self/garbager.til:3338:41", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_116), "./src/self/garbager.til:3339:54", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_12), "./src/self/garbager.til:3283:13", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_121), "./src/self/garbager.til:3339:67", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_44), "./src/self/garbager.til:3328:50", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_53), "./src/self/garbager.til:3328:50", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_62), "./src/self/garbager.til:3331:46", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_73), "./src/self/garbager.til:3337:33", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_78), "./src/self/garbager.til:3338:41", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_83), "./src/self/garbager.til:3339:54", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_nested_exit_deletes_88), "./src/self/garbager.til:3339:67", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_post_stmt_deletes_118), "./src/self/garbager.til:3554:25", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_post_stmt_deletes_136), "./src/self/garbager.til:3558:29", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_post_stmt_deletes_64), "./src/self/garbager.til:3495:25", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_insert_post_stmt_deletes_77), "./src/self/garbager.til:3497:29", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_propagate_borrow_edges_25), "./src/self/garbager.til:2612:74", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_propagate_borrow_edges_36), "./src/self/garbager.til:2612:97", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_propagate_borrow_edges_52), "./src/self/garbager.til:2613:53", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_propagate_borrow_edges_71), "./src/self/garbager.til:2619:67", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_realign_delete_call_free_6), "./src/self/garbager.til:4211:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_realign_delete_call_free_expr_15), "./src/self/garbager.til:4182:27", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_realign_delete_call_free_expr_4), "./src/self/garbager.til:4173:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_record_keep_outer_args_6), "./src/self/garbager.til:4059:37", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_record_keep_outer_args_expr_17), "./src/self/garbager.til:4033:26", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_record_keep_outer_args_expr_28), "./src/self/garbager.til:4040:30", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_record_storage_decisions_6), "./src/self/garbager.til:4001:17", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_reference_storage_sources_11), "./src/self/garbager.til:2187:57", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_reference_storage_sources_22), "./src/self/garbager.til:2189:67", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_reference_storage_sources_4), "./src/self/garbager.til:2186:40", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_reference_storage_sources_40), "./src/self/garbager.til:2193:67", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_reference_storage_sources_60), "./src/self/garbager.til:2193:67", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_conditional_transfer_deletes_40), "./src/self/garbager.til:3907:57", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_conditional_transfer_deletes_60), "./src/self/garbager.til:3936:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_nontransfer_paths_11), "./src/self/garbager.til:3798:21", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_nontransfer_paths_40), "./src/self/garbager.til:3821:21", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_nontransfer_paths_46), "./src/self/garbager.til:3825:21", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_nontransfer_paths_5), "./src/self/garbager.til:3792:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_nontransfer_paths_71), "./src/self/garbager.til:3821:21", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_nontransfer_paths_77), "./src/self/garbager.til:3825:21", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_transfer_path_wrapper_free_11), "./src/self/garbager.til:3743:21", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_transfer_path_wrapper_free_22), "./src/self/garbager.til:3751:52", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_transfer_path_wrapper_free_40), "./src/self/garbager.til:3761:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_body_31), "./src/self/garbager.til:4324:46", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_body_50), "./src/self/garbager.til:4328:46", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_body_55), "./src/self/garbager.til:4329:46", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_body_6), "./src/self/garbager.til:4320:71", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_body_68), "./src/self/garbager.til:4332:71", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_10), "./src/self/garbager.til:4237:23", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_109), "./src/self/garbager.til:4293:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_120), "./src/self/garbager.til:4299:43", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_133), "./src/self/garbager.til:4301:43", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_141), "./src/self/garbager.til:4303:43", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_23), "./src/self/garbager.til:4237:17", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_47), "./src/self/garbager.til:4268:30", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_58), "./src/self/garbager.til:4276:30", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_63), "./src/self/garbager.til:4280:49", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_90), "./src/self/garbager.til:4293:23", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_transfer_inside_loop_10), "./src/self/garbager.til:2762:51", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_transfer_inside_loop_4), "./src/self/garbager.til:2761:44", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_conditional_transfer_deletes_40), "./src/self/garbager.til:3923:57", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_conditional_transfer_deletes_60), "./src/self/garbager.til:3952:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_nontransfer_paths_11), "./src/self/garbager.til:3814:21", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_nontransfer_paths_40), "./src/self/garbager.til:3837:21", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_nontransfer_paths_46), "./src/self/garbager.til:3841:21", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_nontransfer_paths_5), "./src/self/garbager.til:3808:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_nontransfer_paths_71), "./src/self/garbager.til:3837:21", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_nontransfer_paths_77), "./src/self/garbager.til:3841:21", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_transfer_path_wrapper_free_11), "./src/self/garbager.til:3759:21", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_transfer_path_wrapper_free_22), "./src/self/garbager.til:3767:52", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_sink_transfer_path_wrapper_free_40), "./src/self/garbager.til:3777:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_body_31), "./src/self/garbager.til:4340:46", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_body_50), "./src/self/garbager.til:4344:46", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_body_55), "./src/self/garbager.til:4345:46", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_body_6), "./src/self/garbager.til:4336:71", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_body_68), "./src/self/garbager.til:4348:71", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_10), "./src/self/garbager.til:4253:23", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_109), "./src/self/garbager.til:4309:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_120), "./src/self/garbager.til:4315:43", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_133), "./src/self/garbager.til:4317:43", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_141), "./src/self/garbager.til:4319:43", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_23), "./src/self/garbager.til:4253:17", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_47), "./src/self/garbager.til:4284:30", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_58), "./src/self/garbager.til:4292:30", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_63), "./src/self/garbager.til:4296:49", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_temp_check_expr_90), "./src/self/garbager.til:4309:23", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_transfer_inside_loop_10), "./src/self/garbager.til:2778:51", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_transfer_inside_loop_4), "./src/self/garbager.til:2777:44", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_transfer_is_destructor_call_12), "./src/self/garbager.til:128:29", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_transfer_is_destructor_call_32), "./src/self/garbager.til:136:33", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_view_transfer_receiver_13), "./src/self/garbager.til:2878:42", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_view_transfer_receiver_18), "./src/self/garbager.til:2881:66", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_view_transfer_receiver_25), "./src/self/garbager.til:2889:97", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_view_transfer_receiver_48), "./src/self/garbager.til:2878:42", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_view_transfer_receiver_5), "./src/self/garbager.til:2871:30", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_view_transfer_receiver_53), "./src/self/garbager.til:2881:66", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_view_transfer_receiver_60), "./src/self/garbager.til:2889:97", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_while_spine_transfers_20), "./src/self/garbager.til:2740:46", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_while_spine_transfers_26), "./src/self/garbager.til:2741:49", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_view_transfer_receiver_13), "./src/self/garbager.til:2894:42", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_view_transfer_receiver_18), "./src/self/garbager.til:2897:66", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_view_transfer_receiver_25), "./src/self/garbager.til:2905:97", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_view_transfer_receiver_48), "./src/self/garbager.til:2894:42", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_view_transfer_receiver_5), "./src/self/garbager.til:2887:30", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_view_transfer_receiver_53), "./src/self/garbager.til:2897:66", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_view_transfer_receiver_60), "./src/self/garbager.til:2905:97", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_while_spine_transfers_20), "./src/self/garbager.til:2756:46", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_garbager_while_spine_transfers_26), "./src/self/garbager.til:2757:49", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_initer_finish_enum_eq_method_34), "./src/self/initer.til:890:33", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_initer_generate_enum_clone_method_11), "./src/self/initer.til:1283:13", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_initer_generate_enum_clone_method_148), "./src/self/initer.til:1350:34", 29ULL},
@@ -24458,31 +24478,31 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_aggregate_borrows_type_13), "./src/self/typer.til:3301:36", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_aggregate_borrows_type_30), "./src/self/typer.til:3301:36", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_aggregate_borrows_type_5), "./src/self/typer.til:3297:9", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_assert_fcall_callee_classified_19), "./src/self/typer.til:4999:11", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_assert_fcall_callee_classified_22), "./src/self/typer.til:4999:5", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_assert_fcall_callee_classified_4), "./src/self/typer.til:4997:9", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_borrow_call_argument_23), "./src/self/typer.til:6017:13", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_borrow_call_argument_35), "./src/self/typer.til:6020:85", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_borrow_call_argument_4), "./src/self/typer.til:6013:41", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_borrow_call_argument_9), "./src/self/typer.til:6014:81", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_borrow_call_contract_4), "./src/self/typer.til:5998:13", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_assert_fcall_callee_classified_19), "./src/self/typer.til:5000:11", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_assert_fcall_callee_classified_22), "./src/self/typer.til:5000:5", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_assert_fcall_callee_classified_4), "./src/self/typer.til:4998:9", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_borrow_call_argument_23), "./src/self/typer.til:6018:13", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_borrow_call_argument_35), "./src/self/typer.til:6021:85", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_borrow_call_argument_4), "./src/self/typer.til:6014:41", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_borrow_call_argument_9), "./src/self/typer.til:6015:81", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_borrow_call_contract_4), "./src/self/typer.til:5999:13", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_inferred_interface_value_53), "./src/self/typer.til:8385:53", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_inferred_interface_value_58), "./src/self/typer.til:8385:65", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_14), "./src/self/typer.til:7104:47", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_19), "./src/self/typer.til:7105:53", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_31), "./src/self/typer.til:7109:95", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_36), "./src/self/typer.til:7109:118", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_4), "./src/self/typer.til:7102:33", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_41), "./src/self/typer.til:7110:26", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_46), "./src/self/typer.til:7111:44", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_9), "./src/self/typer.til:7103:36", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_capture_borrow_permission_4), "./src/self/typer.til:5985:52", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_14), "./src/self/typer.til:7105:47", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_19), "./src/self/typer.til:7106:53", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_31), "./src/self/typer.til:7110:95", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_36), "./src/self/typer.til:7110:118", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_4), "./src/self/typer.til:7103:33", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_41), "./src/self/typer.til:7111:26", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_46), "./src/self/typer.til:7112:44", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_box_return_value_9), "./src/self/typer.til:7104:36", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_capture_borrow_permission_4), "./src/self/typer.til:5986:52", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_capture_private_mut_end_17), "./src/self/typer.til:9284:31", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_capture_private_mut_end_22), "./src/self/typer.til:9285:35", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_capture_private_mut_end_6), "./src/self/typer.til:9279:13", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_carries_borrow_memo_clear_15), "./src/self/typer.til:13420:44", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_carries_borrow_memo_clear_36), "./src/self/typer.til:13420:44", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_all_paths_return_30), "./src/self/typer.til:6725:46", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_all_paths_return_30), "./src/self/typer.til:6726:46", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_carried_borrow_of_local_return_4), "./src/self/typer.til:12410:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_delete_inline_field_call_free_15), "./src/self/typer.til:3146:22", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_delete_inline_field_call_free_20), "./src/self/typer.til:3148:22", 28ULL},
@@ -24501,8 +24521,8 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_free_managed_local_54), "./src/self/typer.til:3240:38", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_free_managed_local_59), "./src/self/typer.til:3243:17", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_global_escape_call_4), "./src/self/typer.til:12388:40", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_indirect_call_writes_18), "./src/self/typer.til:16067:33", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_indirect_call_writes_4), "./src/self/typer.til:16057:37", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_indirect_call_writes_18), "./src/self/typer.til:16082:33", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_indirect_call_writes_4), "./src/self/typer.til:16072:37", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_is_null_arg_dynamic_4), "./src/self/typer.til:11929:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_memcpy_managed_src_12), "./src/self/typer.til:3329:13", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_memcpy_managed_src_17), "./src/self/typer.til:3334:32", 28ULL},
@@ -24514,34 +24534,34 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_own_captures_34), "./src/self/typer.til:9152:17", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_own_captures_6), "./src/self/typer.til:9152:17", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_decl_owned_init_4), "./src/self/typer.til:702:13", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_117), "./src/self/typer.til:5926:34", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_26), "./src/self/typer.til:5943:38", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_38), "./src/self/typer.til:5946:65", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_43), "./src/self/typer.til:5947:45", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_50), "./src/self/typer.til:5954:107", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_6), "./src/self/typer.til:5934:27", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_88), "./src/self/typer.til:5966:37", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_95), "./src/self/typer.til:5969:13", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_117), "./src/self/typer.til:5927:34", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_26), "./src/self/typer.til:5944:38", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_38), "./src/self/typer.til:5947:65", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_43), "./src/self/typer.til:5948:45", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_50), "./src/self/typer.til:5955:107", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_6), "./src/self/typer.til:5935:27", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_88), "./src/self/typer.til:5967:37", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_function_returns_95), "./src/self/typer.til:5970:13", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ref_local_null_init_4), "./src/self/typer.til:827:13", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_returned_borrowed_closure_captures_17), "./src/self/typer.til:6285:9", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_returned_borrowed_closure_captures_4), "./src/self/typer.til:6283:66", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_10), "./src/self/typer.til:6227:61", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_40), "./src/self/typer.til:6241:65", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_75), "./src/self/typer.til:6255:60", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_80), "./src/self/typer.til:6259:69", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_returned_borrowed_closure_captures_17), "./src/self/typer.til:6286:9", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_returned_borrowed_closure_captures_4), "./src/self/typer.til:6284:66", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_10), "./src/self/typer.til:6228:61", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_40), "./src/self/typer.til:6242:65", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_75), "./src/self/typer.til:6256:60", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_returned_borrowed_closure_captures_in_80), "./src/self/typer.til:6260:69", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_str_view_of_local_return_15), "./src/self/typer.til:12094:52", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_str_view_of_local_return_4), "./src/self/typer.til:12081:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_str_view_of_local_return_9), "./src/self/typer.til:12085:28", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_ufcs_arg_bitmap_1), "./src/self/typer.til:2333:29", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_unused_mut_params_20), "./src/self/typer.til:6759:30", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_unused_params_20), "./src/self/typer.til:6733:30", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_user_delete_frees_own_fields_4), "./src/self/typer.til:5220:17", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_writable_payload_return_11), "./src/self/typer.til:7152:13", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_writable_payload_return_39), "./src/self/typer.til:7149:27", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_writable_payload_return_4), "./src/self/typer.til:7145:9", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_closure_lvalue_root_sym_5), "./src/self/typer.til:6202:76", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_collect_missing_paths_11), "./src/self/typer.til:16516:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_collect_missing_paths_6), "./src/self/typer.til:16514:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_unused_mut_params_20), "./src/self/typer.til:6760:30", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_unused_params_20), "./src/self/typer.til:6734:30", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_user_delete_frees_own_fields_4), "./src/self/typer.til:5221:17", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_writable_payload_return_11), "./src/self/typer.til:7153:13", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_writable_payload_return_39), "./src/self/typer.til:7150:27", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_check_writable_payload_return_4), "./src/self/typer.til:7146:9", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_closure_lvalue_root_sym_5), "./src/self/typer.til:6203:76", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_collect_missing_paths_11), "./src/self/typer.til:16531:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_collect_missing_paths_6), "./src/self/typer.til:16529:17", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_collect_own_arg_names_11), "./src/self/typer.til:12769:21", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_collect_own_arg_names_6), "./src/self/typer.til:12767:17", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_comptime_frame_3), "./src/self/typer.til:9894:17", 28ULL},
@@ -24579,46 +24599,46 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_comptime_prepare_value_15), "./src/self/typer.til:10046:44", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_comptime_prepare_value_20), "./src/self/typer.til:10046:56", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_comptime_prepare_value_36), "./src/self/typer.til:10039:30", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_compute_ref_return_summaries_15), "./src/self/typer.til:16131:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_compute_ref_return_summaries_18), "./src/self/typer.til:16140:42", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_compute_ref_return_summaries_23), "./src/self/typer.til:16142:40", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_compute_ref_return_summaries_33), "./src/self/typer.til:16149:40", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_compute_ref_return_summaries_45), "./src/self/typer.til:16130:34", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_coverage_sub_index_6), "./src/self/typer.til:16322:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_credit_mutable_return_33), "./src/self/typer.til:6131:56", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_credit_mutable_return_44), "./src/self/typer.til:6140:21", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_credit_mutable_return_59), "./src/self/typer.til:6138:35", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_compute_ref_return_summaries_15), "./src/self/typer.til:16146:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_compute_ref_return_summaries_18), "./src/self/typer.til:16155:42", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_compute_ref_return_summaries_23), "./src/self/typer.til:16157:40", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_compute_ref_return_summaries_33), "./src/self/typer.til:16164:40", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_compute_ref_return_summaries_45), "./src/self/typer.til:16145:34", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_coverage_sub_index_6), "./src/self/typer.til:16337:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_credit_mutable_return_33), "./src/self/typer.til:6132:56", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_credit_mutable_return_44), "./src/self/typer.til:6141:21", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_credit_mutable_return_59), "./src/self/typer.til:6139:35", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_ctor_arg_field_decl_5), "./src/self/typer.til:13513:63", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_ctor_arg_value_4), "./src/self/typer.til:13520:46", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_declared_type_for_decl_2), "./src/self/typer.til:8063:31", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_deposit_sink_binding_17), "./src/self/typer.til:14205:61", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_deposit_sink_outlives_owner_19), "./src/self/typer.til:14230:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_152), "./src/self/typer.til:18022:58", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_162), "./src/self/typer.til:18022:58", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_177), "./src/self/typer.til:18037:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_185), "./src/self/typer.til:18049:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_19), "./src/self/typer.til:17895:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_284), "./src/self/typer.til:18162:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_317), "./src/self/typer.til:17939:33", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_320), "./src/self/typer.til:17969:37", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_4), "./src/self/typer.til:17878:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_89), "./src/self/typer.til:17980:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_9), "./src/self/typer.til:17879:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_kv_stmt_14), "./src/self/typer.til:18266:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_kv_stmt_20), "./src/self/typer.til:18270:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_kv_stmt_4), "./src/self/typer.til:18252:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_kv_stmt_44), "./src/self/typer.til:18307:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_16), "./src/self/typer.til:17715:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_28), "./src/self/typer.til:17723:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_39), "./src/self/typer.til:17731:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_4), "./src/self/typer.til:17711:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_44), "./src/self/typer.til:17732:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_69), "./src/self/typer.til:17780:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_75), "./src/self/typer.til:17783:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_9), "./src/self/typer.til:17712:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_dotted_pattern_receiver_12), "./src/self/typer.til:17176:24", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_dotted_pattern_receiver_17), "./src/self/typer.til:17177:41", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_dotted_pattern_receiver_29), "./src/self/typer.til:17183:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_declared_type_for_decl_2), "./src/self/typer.til:8064:31", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_deposit_sink_binding_17), "./src/self/typer.til:14220:61", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_deposit_sink_outlives_owner_19), "./src/self/typer.til:14245:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_152), "./src/self/typer.til:18037:58", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_162), "./src/self/typer.til:18037:58", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_177), "./src/self/typer.til:18052:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_185), "./src/self/typer.til:18064:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_19), "./src/self/typer.til:17910:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_284), "./src/self/typer.til:18177:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_317), "./src/self/typer.til:17954:33", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_320), "./src/self/typer.til:17984:37", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_4), "./src/self/typer.til:17893:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_89), "./src/self/typer.til:17995:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_collection_stmt_9), "./src/self/typer.til:17894:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_kv_stmt_14), "./src/self/typer.til:18281:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_kv_stmt_20), "./src/self/typer.til:18285:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_kv_stmt_4), "./src/self/typer.til:18267:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_kv_stmt_44), "./src/self/typer.til:18322:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_16), "./src/self/typer.til:17730:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_28), "./src/self/typer.til:17738:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_39), "./src/self/typer.til:17746:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_4), "./src/self/typer.til:17726:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_44), "./src/self/typer.til:17747:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_69), "./src/self/typer.til:17795:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_75), "./src/self/typer.til:17798:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_desugar_for_in_range_stmt_9), "./src/self/typer.til:17727:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_dotted_pattern_receiver_12), "./src/self/typer.til:17191:24", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_dotted_pattern_receiver_17), "./src/self/typer.til:17192:41", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_dotted_pattern_receiver_29), "./src/self/typer.til:17198:13", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_dynvec_elem_from_new_14), "./src/self/typer.til:8519:27", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_dynvec_elem_from_new_25), "./src/self/typer.til:8526:28", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_dynvec_elem_from_new_35), "./src/self/typer.til:8531:28", 28ULL},
@@ -24637,17 +24657,17 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expr_names_global_storage_13), "./src/self/typer.til:13585:59", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expr_names_global_storage_25), "./src/self/typer.til:13595:41", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expr_names_global_storage_44), "./src/self/typer.til:13591:32", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expr_uses_self_field_21), "./src/self/typer.til:5186:34", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expr_uses_self_field_4), "./src/self/typer.til:5176:34", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_100), "./src/self/typer.til:15905:35", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_111), "./src/self/typer.til:15929:73", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_126), "./src/self/typer.til:15929:73", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_13), "./src/self/typer.til:15894:44", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_30), "./src/self/typer.til:15897:65", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_4), "./src/self/typer.til:15892:46", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_54), "./src/self/typer.til:15908:72", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_67), "./src/self/typer.til:15909:63", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_85), "./src/self/typer.til:15916:37", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expr_uses_self_field_21), "./src/self/typer.til:5187:34", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expr_uses_self_field_4), "./src/self/typer.til:5177:34", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_100), "./src/self/typer.til:15920:35", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_111), "./src/self/typer.til:15944:73", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_126), "./src/self/typer.til:15944:73", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_13), "./src/self/typer.til:15909:44", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_30), "./src/self/typer.til:15912:65", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_4), "./src/self/typer.til:15907:46", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_54), "./src/self/typer.til:15923:72", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_67), "./src/self/typer.til:15924:63", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_expression_places_85), "./src/self/typer.til:15931:37", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fa_is_ns_named_sym_9), "./src/self/typer.til:38:9", 25ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fcall_callee_declared_return_type_11), "./src/self/typer.til:3549:33", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fcall_callee_declared_return_type_5), "./src/self/typer.til:3545:27", 28ULL},
@@ -24666,21 +24686,21 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fcall_is_interface_clone_13), "./src/self/typer.til:12226:31", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fcall_is_interface_clone_21), "./src/self/typer.til:12231:49", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fcall_is_interface_clone_6), "./src/self/typer.til:12221:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fcall_is_raw_alloc_6), "./src/self/typer.til:8100:22", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fcall_is_raw_alloc_6), "./src/self/typer.til:8101:22", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fcall_namespace_name_11), "./src/self/typer.til:11815:31", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fcall_namespace_name_5), "./src/self/typer.til:11811:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fcall_struct_ctor_def_4), "./src/self/typer.til:13476:26", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fdef_deposits_param_23), "./src/self/typer.til:5887:5", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fdef_deposits_param_6), "./src/self/typer.til:5881:27", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fdef_global_borrows_param_12), "./src/self/typer.til:5895:27", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fdef_global_borrows_param_32), "./src/self/typer.til:5899:5", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fdef_global_borrows_param_5), "./src/self/typer.til:5893:9", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fdef_may_deposit_14), "./src/self/typer.til:14943:25", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fdef_deposits_param_23), "./src/self/typer.til:5888:5", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fdef_deposits_param_6), "./src/self/typer.til:5882:27", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fdef_global_borrows_param_12), "./src/self/typer.til:5896:27", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fdef_global_borrows_param_32), "./src/self/typer.til:5900:5", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fdef_global_borrows_param_5), "./src/self/typer.til:5894:9", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fdef_may_deposit_14), "./src/self/typer.til:14958:25", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fdef_sig_mismatch_26), "./src/self/typer.til:1494:13", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fdef_sig_mismatch_31), "./src/self/typer.til:1495:13", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fieldaccess_field_decl_4), "./src/self/typer.til:13443:33", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fieldaccess_field_decl_9), "./src/self/typer.til:13444:59", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fieldaccess_path_7), "./src/self/typer.til:14391:41", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_fieldaccess_path_7), "./src/self/typer.til:14406:41", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_finalize_decl_binding_238), "./src/self/typer.til:8750:17", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_finalize_decl_binding_249), "./src/self/typer.til:8752:111", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_finalize_decl_binding_384), "./src/self/typer.til:8853:34", 28ULL},
@@ -24706,9 +24726,9 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_flush_generic_pending_84), "./src/self/typer.til:9662:42", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_flush_generic_pending_94), "./src/self/typer.til:9665:17", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_flush_generic_pending_99), "./src/self/typer.til:9667:50", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_func_gen_macro_template_27), "./src/self/typer.til:4520:9", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_func_gen_macro_template_32), "./src/self/typer.til:4523:9", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_func_gen_macro_template_37), "./src/self/typer.til:4526:9", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_func_gen_macro_template_27), "./src/self/typer.til:4519:9", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_func_gen_macro_template_32), "./src/self/typer.til:4522:9", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_func_gen_macro_template_37), "./src/self/typer.til:4525:9", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_funcref_sig_mismatch_14), "./src/self/typer.til:1480:34", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_funcref_sig_mismatch_15), "./src/self/typer.til:1480:65", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_generic_bind_funcsig_dep_18), "./src/self/typer.til:3931:52", 28ULL},
@@ -24843,22 +24863,22 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_cast_fcall_71), "./src/self/typer.til:3500:74", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_cast_fcall_79), "./src/self/typer.til:3502:98", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_cast_fcall_90), "./src/self/typer.til:3505:27", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_12), "./src/self/typer.til:17085:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_134), "./src/self/typer.til:17137:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_161), "./src/self/typer.til:17153:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_20), "./src/self/typer.til:17102:87", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_32), "./src/self/typer.til:17112:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_4), "./src/self/typer.til:17066:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_54), "./src/self/typer.til:17085:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_62), "./src/self/typer.til:17102:87", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_74), "./src/self/typer.til:17112:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_func_def_106), "./src/self/typer.til:7935:9", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_func_def_14), "./src/self/typer.til:7882:37", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_func_def_5), "./src/self/typer.til:7873:29", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_func_def_59), "./src/self/typer.til:7898:58", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_func_def_64), "./src/self/typer.til:7909:37", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_func_def_70), "./src/self/typer.til:7916:58", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_func_def_81), "./src/self/typer.til:7898:34", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_12), "./src/self/typer.til:17100:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_134), "./src/self/typer.til:17152:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_161), "./src/self/typer.til:17168:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_20), "./src/self/typer.til:17117:87", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_32), "./src/self/typer.til:17127:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_4), "./src/self/typer.til:17081:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_54), "./src/self/typer.til:17100:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_62), "./src/self/typer.til:17117:87", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_clike_switch_74), "./src/self/typer.til:17127:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_func_def_106), "./src/self/typer.til:7936:9", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_func_def_14), "./src/self/typer.til:7883:37", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_func_def_5), "./src/self/typer.til:7874:29", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_func_def_59), "./src/self/typer.til:7899:58", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_func_def_64), "./src/self/typer.til:7910:37", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_func_def_70), "./src/self/typer.til:7917:58", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_func_def_81), "./src/self/typer.til:7899:34", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_stmt_121), "./src/self/typer.til:8960:29", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_stmt_126), "./src/self/typer.til:8961:33", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_stmt_149), "./src/self/typer.til:8977:53", 28ULL},
@@ -24885,44 +24905,44 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_stmt_66), "./src/self/typer.til:8928:59", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_stmt_77), "./src/self/typer.til:8937:49", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_stmt_82), "./src/self/typer.til:8938:45", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_type_alias_passthrough_12), "./src/self/typer.til:7942:31", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_type_alias_passthrough_4), "./src/self/typer.til:7941:21", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_type_def_30), "./src/self/typer.til:7832:17", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_type_def_5), "./src/self/typer.til:7811:29", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_type_def_77), "./src/self/typer.til:7860:46", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_type_def_83), "./src/self/typer.til:7812:31", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_type_alias_passthrough_12), "./src/self/typer.til:7943:31", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_type_alias_passthrough_4), "./src/self/typer.til:7942:21", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_type_def_30), "./src/self/typer.til:7833:17", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_type_def_5), "./src/self/typer.til:7812:29", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_type_def_77), "./src/self/typer.til:7861:46", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_type_def_83), "./src/self/typer.til:7813:31", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_typed_value_126), "./src/self/typer.til:8477:9", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_typed_value_4), "./src/self/typer.til:8399:17", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_typed_value_70), "./src/self/typer.til:8433:60", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_untyped_value_26), "./src/self/typer.til:8500:35", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_decl_untyped_value_4), "./src/self/typer.til:8482:13", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_ext_global_decl_14), "./src/self/typer.til:7975:24", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_ext_global_decl_26), "./src/self/typer.til:7989:28", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_ext_global_decl_32), "./src/self/typer.til:7992:25", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_ext_global_decl_42), "./src/self/typer.til:7995:28", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_ext_global_decl_48), "./src/self/typer.til:7998:25", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_101), "./src/self/typer.til:4866:13", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_15), "./src/self/typer.til:4725:18", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_155), "./src/self/typer.til:4906:26", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_160), "./src/self/typer.til:4911:34", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_21), "./src/self/typer.til:4728:13", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_232), "./src/self/typer.til:4949:30", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_237), "./src/self/typer.til:4950:31", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_250), "./src/self/typer.til:4949:30", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_255), "./src/self/typer.til:4950:31", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_4), "./src/self/typer.til:4711:59", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_47), "./src/self/typer.til:4775:45", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_74), "./src/self/typer.til:4803:26", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_85), "./src/self/typer.til:4840:22", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_112), "./src/self/typer.til:7449:40", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_14), "./src/self/typer.til:7411:56", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_19), "./src/self/typer.til:7418:29", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_24), "./src/self/typer.til:7425:34", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_34), "./src/self/typer.til:7427:34", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_4), "./src/self/typer.til:7409:36", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_51), "./src/self/typer.til:7436:42", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_74), "./src/self/typer.til:7481:71", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_9), "./src/self/typer.til:7410:51", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_ext_global_decl_14), "./src/self/typer.til:7976:24", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_ext_global_decl_26), "./src/self/typer.til:7990:28", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_ext_global_decl_32), "./src/self/typer.til:7993:25", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_ext_global_decl_42), "./src/self/typer.til:7996:28", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_ext_global_decl_48), "./src/self/typer.til:7999:25", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_101), "./src/self/typer.til:4867:13", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_15), "./src/self/typer.til:4724:18", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_155), "./src/self/typer.til:4907:26", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_160), "./src/self/typer.til:4912:34", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_21), "./src/self/typer.til:4727:13", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_232), "./src/self/typer.til:4950:30", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_237), "./src/self/typer.til:4951:31", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_250), "./src/self/typer.til:4950:30", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_255), "./src/self/typer.til:4951:31", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_4), "./src/self/typer.til:4710:59", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_47), "./src/self/typer.til:4774:45", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_74), "./src/self/typer.til:4802:26", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_fcall_expr_85), "./src/self/typer.til:4841:22", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_112), "./src/self/typer.til:7450:40", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_14), "./src/self/typer.til:7412:56", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_19), "./src/self/typer.til:7419:29", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_24), "./src/self/typer.til:7426:34", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_34), "./src/self/typer.til:7428:34", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_4), "./src/self/typer.til:7410:36", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_51), "./src/self/typer.til:7437:42", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_74), "./src/self/typer.til:7482:71", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_expr_9), "./src/self/typer.til:7411:51", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_fcall_1019), "./src/self/typer.til:2977:60", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_fcall_1068), "./src/self/typer.til:2998:38", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_fcall_1088), "./src/self/typer.til:3017:30", 28ULL},
@@ -24990,80 +25010,80 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_fcall_965), "./src/self/typer.til:2961:55", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_fcall_985), "./src/self/typer.til:2964:21", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_access_fcall_997), "./src/self/typer.til:2970:49", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_10), "./src/self/typer.til:7543:9", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_15), "./src/self/typer.til:7552:76", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_20), "./src/self/typer.til:7553:68", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_25), "./src/self/typer.til:7554:36", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_30), "./src/self/typer.til:7559:62", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_304), "./src/self/typer.til:7743:26", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_39), "./src/self/typer.til:7561:61", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_4), "./src/self/typer.til:7537:36", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_52), "./src/self/typer.til:7565:9", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_57), "./src/self/typer.til:7566:13", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_155), "./src/self/typer.til:6445:21", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_32), "./src/self/typer.til:6336:21", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_389), "./src/self/typer.til:6609:21", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_404), "./src/self/typer.til:6627:72", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_409), "./src/self/typer.til:6627:90", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_414), "./src/self/typer.til:6628:76", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_43), "./src/self/typer.til:6344:29", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_445), "./src/self/typer.til:6645:49", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_450), "./src/self/typer.til:6656:55", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_455), "./src/self/typer.til:6657:49", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_499), "./src/self/typer.til:6694:46", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_529), "./src/self/typer.til:6697:9", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_87), "./src/self/typer.til:6386:89", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_10), "./src/self/typer.til:7544:9", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_15), "./src/self/typer.til:7553:76", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_20), "./src/self/typer.til:7554:68", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_25), "./src/self/typer.til:7555:36", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_30), "./src/self/typer.til:7560:62", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_304), "./src/self/typer.til:7744:26", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_39), "./src/self/typer.til:7562:61", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_4), "./src/self/typer.til:7538:36", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_52), "./src/self/typer.til:7566:9", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_field_assign_stmt_57), "./src/self/typer.til:7567:13", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_155), "./src/self/typer.til:6446:21", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_32), "./src/self/typer.til:6337:21", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_389), "./src/self/typer.til:6610:21", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_404), "./src/self/typer.til:6628:72", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_409), "./src/self/typer.til:6628:90", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_414), "./src/self/typer.til:6629:76", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_43), "./src/self/typer.til:6345:29", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_445), "./src/self/typer.til:6646:49", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_450), "./src/self/typer.til:6657:55", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_455), "./src/self/typer.til:6658:49", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_499), "./src/self/typer.til:6695:46", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_529), "./src/self/typer.til:6698:9", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_def_expr_87), "./src/self/typer.til:6387:89", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_ptr_field_call_65), "./src/self/typer.til:868:42", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_sig_expr_119), "./src/self/typer.til:5763:34", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_func_sig_expr_119), "./src/self/typer.til:5764:34", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_funcptr_call_via_cast_11), "./src/self/typer.til:3576:31", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_funcptr_call_via_cast_22), "./src/self/typer.til:3582:31", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_funcptr_call_via_cast_4), "./src/self/typer.til:3565:13", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_generic_fcall_23), "./src/self/typer.til:4597:29", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_ident_expr_38), "./src/self/typer.til:5038:31", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_if_stmt_21), "./src/self/typer.til:7368:92", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_if_stmt_26), "./src/self/typer.til:7370:41", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_if_stmt_31), "./src/self/typer.til:7375:96", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_if_stmt_36), "./src/self/typer.til:7377:45", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_if_stmt_4), "./src/self/typer.til:7362:36", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_if_stmt_9), "./src/self/typer.til:7363:41", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_12), "./src/self/typer.til:8244:9", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_19), "./src/self/typer.til:8247:25", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_24), "./src/self/typer.til:8248:44", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_36), "./src/self/typer.til:8247:25", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_4), "./src/self/typer.til:8240:35", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_41), "./src/self/typer.til:8248:44", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_52), "./src/self/typer.til:8240:13", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_56), "./src/self/typer.til:8242:28", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_map_lit_expr_7), "./src/self/typer.til:5117:48", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_match_expr_16), "./src/self/typer.til:16573:59", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_match_expr_35), "./src/self/typer.til:16578:26", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_match_expr_4), "./src/self/typer.til:16560:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_match_expr_60), "./src/self/typer.til:16573:59", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_match_expr_79), "./src/self/typer.til:16578:26", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_match_expr_9), "./src/self/typer.til:16565:53", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_named_arg_expr_4), "./src/self/typer.til:5099:40", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_generic_fcall_23), "./src/self/typer.til:4596:29", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_ident_expr_38), "./src/self/typer.til:5039:31", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_if_stmt_21), "./src/self/typer.til:7369:92", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_if_stmt_26), "./src/self/typer.til:7371:41", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_if_stmt_31), "./src/self/typer.til:7376:96", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_if_stmt_36), "./src/self/typer.til:7378:45", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_if_stmt_4), "./src/self/typer.til:7363:36", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_if_stmt_9), "./src/self/typer.til:7364:41", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_12), "./src/self/typer.til:8245:9", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_19), "./src/self/typer.til:8248:25", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_24), "./src/self/typer.til:8249:44", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_36), "./src/self/typer.til:8248:25", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_4), "./src/self/typer.til:8241:35", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_41), "./src/self/typer.til:8249:44", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_52), "./src/self/typer.til:8241:13", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_interface_payload_call_56), "./src/self/typer.til:8243:28", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_map_lit_expr_7), "./src/self/typer.til:5118:48", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_match_expr_16), "./src/self/typer.til:16588:59", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_match_expr_35), "./src/self/typer.til:16593:26", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_match_expr_4), "./src/self/typer.til:16575:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_match_expr_60), "./src/self/typer.til:16588:59", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_match_expr_79), "./src/self/typer.til:16593:26", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_match_expr_9), "./src/self/typer.til:16580:53", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_named_arg_expr_4), "./src/self/typer.til:5100:40", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_named_funcptr_call_2), "./src/self/typer.til:2098:29", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_requested_value_method_12), "./src/self/typer.til:2390:38", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_requested_value_method_4), "./src/self/typer.til:2385:39", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_13), "./src/self/typer.til:7188:73", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_134), "./src/self/typer.til:7277:33", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_141), "./src/self/typer.til:7288:97", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_146), "./src/self/typer.til:7289:42", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_162), "./src/self/typer.til:7306:49", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_167), "./src/self/typer.til:7309:54", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_172), "./src/self/typer.til:7311:54", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_201), "./src/self/typer.til:7315:33", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_246), "./src/self/typer.til:7327:92", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_251), "./src/self/typer.til:7328:46", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_26), "./src/self/typer.til:7192:44", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_280), "./src/self/typer.til:7338:17", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_31), "./src/self/typer.til:7193:55", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_4), "./src/self/typer.til:7181:46", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_42), "./src/self/typer.til:7197:40", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_47), "./src/self/typer.til:7201:47", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_57), "./src/self/typer.til:7210:25", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_84), "./src/self/typer.til:7230:17", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_set_lit_expr_6), "./src/self/typer.til:5156:67", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_13), "./src/self/typer.til:7189:73", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_134), "./src/self/typer.til:7278:33", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_141), "./src/self/typer.til:7289:97", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_146), "./src/self/typer.til:7290:42", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_162), "./src/self/typer.til:7307:49", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_167), "./src/self/typer.til:7310:54", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_172), "./src/self/typer.til:7312:54", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_201), "./src/self/typer.til:7316:33", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_246), "./src/self/typer.til:7328:92", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_251), "./src/self/typer.til:7329:46", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_26), "./src/self/typer.til:7193:44", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_280), "./src/self/typer.til:7339:17", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_31), "./src/self/typer.til:7194:55", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_4), "./src/self/typer.til:7182:46", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_42), "./src/self/typer.til:7198:40", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_47), "./src/self/typer.til:7202:47", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_57), "./src/self/typer.til:7211:25", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_return_stmt_84), "./src/self/typer.til:7231:17", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_set_lit_expr_6), "./src/self/typer.til:5157:67", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_105), "./src/self/typer.til:1179:54", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_110), "./src/self/typer.til:1182:53", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_13), "./src/self/typer.til:1128:52", 28ULL},
@@ -25124,79 +25144,79 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_832), "./src/self/typer.til:1367:44", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_85), "./src/self/typer.til:1167:45", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_854), "./src/self/typer.til:1143:36", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_112), "./src/self/typer.til:17288:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_117), "./src/self/typer.til:17290:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_123), "./src/self/typer.til:17292:76", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_145), "./src/self/typer.til:17288:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_150), "./src/self/typer.til:17290:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_156), "./src/self/typer.til:17292:76", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_16), "./src/self/typer.til:17255:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_192), "./src/self/typer.til:17349:35", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_239), "./src/self/typer.til:17400:15", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_280), "./src/self/typer.til:17428:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_29), "./src/self/typer.til:17257:32", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_290), "./src/self/typer.til:17428:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_323), "./src/self/typer.til:17466:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_329), "./src/self/typer.til:17472:46", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_340), "./src/self/typer.til:17482:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_345), "./src/self/typer.til:17483:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_352), "./src/self/typer.til:17489:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_38), "./src/self/typer.til:17270:25", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_386), "./src/self/typer.til:17508:106", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_396), "./src/self/typer.til:17520:93", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_4), "./src/self/typer.til:17238:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_406), "./src/self/typer.til:17520:93", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_421), "./src/self/typer.til:17549:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_426), "./src/self/typer.til:17559:54", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_476), "./src/self/typer.til:17466:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_482), "./src/self/typer.til:17472:46", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_493), "./src/self/typer.til:17482:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_498), "./src/self/typer.til:17483:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_505), "./src/self/typer.til:17489:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_539), "./src/self/typer.til:17508:106", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_549), "./src/self/typer.til:17520:93", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_559), "./src/self/typer.til:17520:93", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_574), "./src/self/typer.til:17549:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_579), "./src/self/typer.til:17559:54", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_63), "./src/self/typer.til:17255:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_76), "./src/self/typer.til:17257:32", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_85), "./src/self/typer.til:17270:25", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_9), "./src/self/typer.til:17239:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_type_arg_query_10), "./src/self/typer.til:4643:33", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_type_arg_query_15), "./src/self/typer.til:4646:22", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_type_arg_query_32), "./src/self/typer.til:4662:22", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_type_arg_query_37), "./src/self/typer.til:4663:30", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_type_arg_query_42), "./src/self/typer.til:4663:42", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_type_arg_query_78), "./src/self/typer.til:4668:45", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_type_def_expr_251), "./src/self/typer.til:5663:12", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_109), "./src/self/typer.til:7801:92", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_114), "./src/self/typer.til:7803:42", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_20), "./src/self/typer.til:7752:96", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_35), "./src/self/typer.til:7754:9", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_4), "./src/self/typer.til:7749:36", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_46), "./src/self/typer.til:7756:13", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_51), "./src/self/typer.til:7759:17", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_56), "./src/self/typer.til:7766:22", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_61), "./src/self/typer.til:7787:22", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_9), "./src/self/typer.til:7750:44", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_interface_box_storage_is_borrowed_21), "./src/self/typer.til:8227:64", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_interface_contract_signature_10), "./src/self/typer.til:5274:17", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_interface_contract_signature_42), "./src/self/typer.til:5288:76", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_interface_contract_signature_47), "./src/self/typer.til:5289:35", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_112), "./src/self/typer.til:17303:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_117), "./src/self/typer.til:17305:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_123), "./src/self/typer.til:17307:76", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_145), "./src/self/typer.til:17303:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_150), "./src/self/typer.til:17305:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_156), "./src/self/typer.til:17307:76", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_16), "./src/self/typer.til:17270:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_192), "./src/self/typer.til:17364:35", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_239), "./src/self/typer.til:17415:15", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_280), "./src/self/typer.til:17443:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_29), "./src/self/typer.til:17272:32", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_290), "./src/self/typer.til:17443:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_323), "./src/self/typer.til:17481:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_329), "./src/self/typer.til:17487:46", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_340), "./src/self/typer.til:17497:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_345), "./src/self/typer.til:17498:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_352), "./src/self/typer.til:17504:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_38), "./src/self/typer.til:17285:25", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_386), "./src/self/typer.til:17523:106", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_396), "./src/self/typer.til:17535:93", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_4), "./src/self/typer.til:17253:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_406), "./src/self/typer.til:17535:93", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_421), "./src/self/typer.til:17564:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_426), "./src/self/typer.til:17574:54", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_476), "./src/self/typer.til:17481:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_482), "./src/self/typer.til:17487:46", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_493), "./src/self/typer.til:17497:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_498), "./src/self/typer.til:17498:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_505), "./src/self/typer.til:17504:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_539), "./src/self/typer.til:17523:106", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_549), "./src/self/typer.til:17535:93", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_559), "./src/self/typer.til:17535:93", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_574), "./src/self/typer.til:17564:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_579), "./src/self/typer.til:17574:54", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_63), "./src/self/typer.til:17270:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_76), "./src/self/typer.til:17272:32", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_85), "./src/self/typer.til:17285:25", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_switch_stmt_9), "./src/self/typer.til:17254:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_type_arg_query_10), "./src/self/typer.til:4642:33", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_type_arg_query_15), "./src/self/typer.til:4645:22", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_type_arg_query_32), "./src/self/typer.til:4661:22", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_type_arg_query_37), "./src/self/typer.til:4662:30", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_type_arg_query_42), "./src/self/typer.til:4662:42", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_type_arg_query_78), "./src/self/typer.til:4667:45", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_type_def_expr_251), "./src/self/typer.til:5664:12", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_109), "./src/self/typer.til:7802:92", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_114), "./src/self/typer.til:7804:42", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_20), "./src/self/typer.til:7753:96", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_35), "./src/self/typer.til:7755:9", 27ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_4), "./src/self/typer.til:7750:36", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_46), "./src/self/typer.til:7757:13", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_51), "./src/self/typer.til:7760:17", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_56), "./src/self/typer.til:7767:22", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_61), "./src/self/typer.til:7788:22", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_infer_while_stmt_9), "./src/self/typer.til:7751:44", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_interface_box_storage_is_borrowed_21), "./src/self/typer.til:8228:64", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_interface_contract_signature_10), "./src/self/typer.til:5275:17", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_interface_contract_signature_42), "./src/self/typer.til:5289:76", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_interface_contract_signature_47), "./src/self/typer.til:5290:35", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_enum_variant_ctor_with_payload_15), "./src/self/typer.til:11846:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_enum_variant_ctor_with_payload_6), "./src/self/typer.til:11838:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_16), "./src/self/typer.til:16355:29", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_4), "./src/self/typer.til:16337:32", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_40), "./src/self/typer.til:16366:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_45), "./src/self/typer.til:16369:39", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_50), "./src/self/typer.til:16372:47", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_57), "./src/self/typer.til:16384:37", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_63), "./src/self/typer.til:16386:37", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_9), "./src/self/typer.til:16340:40", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_literal_instance_type_name_10), "./src/self/typer.til:5138:46", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_literal_instance_type_name_48), "./src/self/typer.til:5143:47", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_literal_instance_type_name_5), "./src/self/typer.til:5137:46", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_lower_matches_in_stmt_4), "./src/self/typer.til:16625:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_16), "./src/self/typer.til:16370:29", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_4), "./src/self/typer.til:16352:32", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_40), "./src/self/typer.til:16381:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_45), "./src/self/typer.til:16384:39", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_50), "./src/self/typer.til:16387:47", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_57), "./src/self/typer.til:16399:37", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_63), "./src/self/typer.til:16401:37", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_is_pattern_covered_9), "./src/self/typer.til:16355:40", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_literal_instance_type_name_10), "./src/self/typer.til:5139:46", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_literal_instance_type_name_48), "./src/self/typer.til:5144:47", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_literal_instance_type_name_5), "./src/self/typer.til:5138:46", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_lower_matches_in_stmt_4), "./src/self/typer.til:16640:13", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_lvalue_write_roots_109), "./src/self/typer.til:13919:63", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_lvalue_write_roots_14), "./src/self/typer.til:13852:85", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_lvalue_write_roots_236), "./src/self/typer.til:13908:36", 29ULL},
@@ -25204,81 +25224,81 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_lvalue_write_roots_53), "./src/self/typer.til:13876:54", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_lvalue_write_roots_67), "./src/self/typer.til:13886:37", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_lvalue_write_roots_73), "./src/self/typer.til:13886:16", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_callable_field_transfer_6), "./src/self/typer.til:7514:11", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_16), "./src/self/typer.til:16442:33", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_39), "./src/self/typer.til:16455:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_4), "./src/self/typer.til:16424:32", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_44), "./src/self/typer.til:16458:39", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_49), "./src/self/typer.til:16461:47", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_56), "./src/self/typer.til:16473:41", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_61), "./src/self/typer.til:16474:37", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_9), "./src/self/typer.til:16427:40", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_written_through_5), "./src/self/typer.til:14130:77", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_arm_value_type_22), "./src/self/typer.til:16611:45", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_arm_value_type_27), "./src/self/typer.til:16612:27", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_arm_value_type_4), "./src/self/typer.til:16595:36", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_arm_value_type_9), "./src/self/typer.til:16601:72", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_12), "./src/self/typer.til:16653:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_17), "./src/self/typer.til:16654:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_24), "./src/self/typer.til:16657:42", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_30), "./src/self/typer.til:16658:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_35), "./src/self/typer.til:16659:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_42), "./src/self/typer.til:16662:42", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_48), "./src/self/typer.til:16663:45", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_6), "./src/self/typer.til:16652:36", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_callable_field_transfer_6), "./src/self/typer.til:7515:11", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_16), "./src/self/typer.til:16457:33", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_39), "./src/self/typer.til:16470:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_4), "./src/self/typer.til:16439:32", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_44), "./src/self/typer.til:16473:39", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_49), "./src/self/typer.til:16476:47", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_56), "./src/self/typer.til:16488:41", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_61), "./src/self/typer.til:16489:37", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_pattern_coverage_9), "./src/self/typer.til:16442:40", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_mark_written_through_5), "./src/self/typer.til:14146:77", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_arm_value_type_22), "./src/self/typer.til:16626:45", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_arm_value_type_27), "./src/self/typer.til:16627:27", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_arm_value_type_4), "./src/self/typer.til:16610:36", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_arm_value_type_9), "./src/self/typer.til:16616:72", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_12), "./src/self/typer.til:16668:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_17), "./src/self/typer.til:16669:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_24), "./src/self/typer.til:16672:42", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_30), "./src/self/typer.til:16673:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_35), "./src/self/typer.til:16674:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_42), "./src/self/typer.til:16677:42", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_48), "./src/self/typer.til:16678:45", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_match_is_bool_identity_6), "./src/self/typer.til:16667:36", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_named_arg_inner_4), "./src/self/typer.til:11430:37", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_normalize_interface_requirements_13), "./src/self/typer.til:10366:25", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_numeric_operand_hint_16), "./src/self/typer.til:2408:26", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_numeric_operand_hint_22), "./src/self/typer.til:2417:45", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_103), "./src/self/typer.til:15983:61", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_110), "./src/self/typer.til:15987:53", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_117), "./src/self/typer.til:15993:25", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_129), "./src/self/typer.til:15996:53", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_147), "./src/self/typer.til:16003:66", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_163), "./src/self/typer.til:16011:37", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_179), "./src/self/typer.til:16020:89", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_189), "./src/self/typer.til:16009:39", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_19), "./src/self/typer.til:15955:25", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_24), "./src/self/typer.til:15956:51", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_54), "./src/self/typer.til:15964:50", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_72), "./src/self/typer.til:15971:70", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_93), "./src/self/typer.til:15977:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_98), "./src/self/typer.til:15979:23", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_place_callee_18), "./src/self/typer.til:15861:67", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_place_callee_21), "./src/self/typer.til:15865:61", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_place_callee_4), "./src/self/typer.til:15859:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_place_crosses_ref_28), "./src/self/typer.til:15839:29", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_place_crosses_ref_4), "./src/self/typer.til:15832:49", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_place_type_18), "./src/self/typer.til:15823:29", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_place_type_4), "./src/self/typer.til:15817:49", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_pre_coerce_decl_numeric_literals_15), "./src/self/typer.til:8088:59", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_103), "./src/self/typer.til:15998:61", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_110), "./src/self/typer.til:16002:53", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_117), "./src/self/typer.til:16008:25", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_129), "./src/self/typer.til:16011:53", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_147), "./src/self/typer.til:16018:66", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_163), "./src/self/typer.til:16026:37", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_179), "./src/self/typer.til:16035:89", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_189), "./src/self/typer.til:16024:39", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_19), "./src/self/typer.til:15970:25", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_24), "./src/self/typer.til:15971:51", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_54), "./src/self/typer.til:15979:50", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_72), "./src/self/typer.til:15986:70", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_93), "./src/self/typer.til:15992:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_parameter_effect_walk_98), "./src/self/typer.til:15994:23", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_place_callee_18), "./src/self/typer.til:15876:67", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_place_callee_21), "./src/self/typer.til:15880:61", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_place_callee_4), "./src/self/typer.til:15874:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_place_crosses_ref_28), "./src/self/typer.til:15854:29", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_place_crosses_ref_4), "./src/self/typer.til:15847:49", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_place_type_18), "./src/self/typer.til:15838:29", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_place_type_4), "./src/self/typer.til:15832:49", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_pre_coerce_decl_numeric_literals_15), "./src/self/typer.til:8089:59", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_project_return_place_22), "./src/self/typer.til:13811:29", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_propagate_priv_refs_16), "./src/self/typer.til:6890:13", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_propagate_priv_refs_21), "./src/self/typer.til:6893:13", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_push_param_names_6), "./src/self/typer.til:6190:29", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_qualify_dotted_case_patterns_13), "./src/self/typer.til:17220:61", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_qualify_dotted_case_patterns_27), "./src/self/typer.til:17223:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_qualify_dotted_case_patterns_47), "./src/self/typer.til:17217:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_qualify_dotted_case_patterns_54), "./src/self/typer.til:17220:61", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_qualify_dotted_case_patterns_6), "./src/self/typer.til:17217:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_qualify_dotted_case_patterns_68), "./src/self/typer.til:17223:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_propagate_priv_refs_16), "./src/self/typer.til:6891:13", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_propagate_priv_refs_21), "./src/self/typer.til:6894:13", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_push_param_names_6), "./src/self/typer.til:6191:29", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_qualify_dotted_case_patterns_13), "./src/self/typer.til:17235:61", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_qualify_dotted_case_patterns_27), "./src/self/typer.til:17238:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_qualify_dotted_case_patterns_47), "./src/self/typer.til:17232:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_qualify_dotted_case_patterns_54), "./src/self/typer.til:17235:61", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_qualify_dotted_case_patterns_6), "./src/self/typer.til:17232:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_qualify_dotted_case_patterns_68), "./src/self/typer.til:17238:31", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_raw_borrow_source_27), "./src/self/typer.til:13552:41", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_raw_borrow_source_4), "./src/self/typer.til:13548:24", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_ref_container_source_stable_23), "./src/self/typer.til:14280:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_ref_container_source_stable_54), "./src/self/typer.til:14293:36", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_ref_container_source_stable_7), "./src/self/typer.til:14280:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_10), "./src/self/typer.til:16682:50", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_15), "./src/self/typer.til:16687:52", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_20), "./src/self/typer.til:16688:50", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_25), "./src/self/typer.til:16688:63", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_30), "./src/self/typer.til:16688:30", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_43), "./src/self/typer.til:16691:58", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_48), "./src/self/typer.til:16692:88", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_5), "./src/self/typer.til:16681:25", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_53), "./src/self/typer.til:16692:112", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_58), "./src/self/typer.til:16693:42", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_63), "./src/self/typer.til:16694:26", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_86), "./src/self/typer.til:16696:53", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_ref_container_source_stable_23), "./src/self/typer.til:14295:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_ref_container_source_stable_54), "./src/self/typer.til:14308:36", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_ref_container_source_stable_7), "./src/self/typer.til:14295:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_10), "./src/self/typer.til:16697:50", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_15), "./src/self/typer.til:16702:52", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_20), "./src/self/typer.til:16703:50", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_25), "./src/self/typer.til:16703:63", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_30), "./src/self/typer.til:16703:30", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_43), "./src/self/typer.til:16706:58", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_48), "./src/self/typer.til:16707:88", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_5), "./src/self/typer.til:16696:25", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_53), "./src/self/typer.til:16707:112", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_58), "./src/self/typer.til:16708:42", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_63), "./src/self/typer.til:16709:26", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_replace_matches_rec_86), "./src/self/typer.til:16711:53", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_reregister_scope_defs_106), "./src/self/typer.til:9555:42", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_reregister_scope_defs_24), "./src/self/typer.til:9514:92", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_reregister_scope_defs_38), "./src/self/typer.til:9525:69", 28ULL},
@@ -25297,7 +25317,7 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_return_escape_roots_15), "./src/self/typer.til:12274:21", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_return_escape_roots_39), "./src/self/typer.til:12274:21", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_return_escape_roots_80), "./src/self/typer.til:12313:25", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_return_fieldaccess_root_12), "./src/self/typer.til:7135:50", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_return_fieldaccess_root_12), "./src/self/typer.til:7136:50", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_return_source_root_binding_6), "./src/self/typer.til:12180:96", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_rewrite_ctor_field_shorthand_14), "./src/self/typer.til:1088:27", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_rewrite_ctor_field_shorthand_19), "./src/self/typer.til:1089:26", 28ULL},
@@ -25313,124 +25333,124 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_rewrite_til_type_arg_4), "./src/self/typer.til:132:9", 26ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_rewrite_til_type_arg_9), "./src/self/typer.til:140:24", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_set_fcall_own_args_for_own_params_18), "./src/self/typer.til:1048:32", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_own_param_payload_returns_15), "./src/self/typer.til:17018:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_own_param_payload_returns_22), "./src/self/typer.til:17022:24", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_own_param_payload_returns_29), "./src/self/typer.til:17027:24", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_own_param_payload_returns_40), "./src/self/typer.til:17050:45", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_own_param_payload_returns_46), "./src/self/typer.til:17056:50", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_payload_returns_19), "./src/self/typer.til:16973:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_payload_returns_26), "./src/self/typer.til:16980:34", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_payload_returns_34), "./src/self/typer.til:16982:34", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_payload_returns_6), "./src/self/typer.til:16969:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summarize_unit_walk_12), "./src/self/typer.til:16092:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_assignment_rebinds_15), "./src/self/typer.til:15375:80", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_assignment_rebinds_24), "./src/self/typer.til:15378:34", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_bind_case_11), "./src/self/typer.til:14456:24", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_bind_case_16), "./src/self/typer.til:14457:28", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_bind_case_31), "./src/self/typer.til:14475:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_bind_case_6), "./src/self/typer.til:14453:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_capture_bits_6), "./src/self/typer.til:14703:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_case_payload_ref_14), "./src/self/typer.til:14432:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_case_payload_ref_6), "./src/self/typer.til:14423:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_deposit_base_name_6), "./src/self/typer.til:15001:78", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_effect_callee_18), "./src/self/typer.til:15227:55", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_effect_callee_23), "./src/self/typer.til:15228:77", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_effect_callee_4), "./src/self/typer.til:15225:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_effect_sink_bits_20), "./src/self/typer.til:15208:16", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_effect_sink_bits_7), "./src/self/typer.til:15201:60", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_110), "./src/self/typer.til:14818:25", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_132), "./src/self/typer.til:14818:25", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_171), "./src/self/typer.til:14849:59", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_186), "./src/self/typer.til:14849:59", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_32), "./src/self/typer.til:14735:45", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_37), "./src/self/typer.til:14740:48", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_6), "./src/self/typer.til:14728:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_74), "./src/self/typer.til:14776:35", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_96), "./src/self/typer.til:14776:16", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_own_param_payload_returns_15), "./src/self/typer.til:17033:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_own_param_payload_returns_22), "./src/self/typer.til:17037:24", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_own_param_payload_returns_29), "./src/self/typer.til:17042:24", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_own_param_payload_returns_40), "./src/self/typer.til:17065:45", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_own_param_payload_returns_46), "./src/self/typer.til:17071:50", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_payload_returns_19), "./src/self/typer.til:16988:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_payload_returns_26), "./src/self/typer.til:16995:34", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_payload_returns_34), "./src/self/typer.til:16997:34", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_steal_payload_returns_6), "./src/self/typer.til:16984:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summarize_unit_walk_12), "./src/self/typer.til:16107:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_assignment_rebinds_15), "./src/self/typer.til:15390:80", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_assignment_rebinds_24), "./src/self/typer.til:15393:34", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_bind_case_11), "./src/self/typer.til:14471:24", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_bind_case_16), "./src/self/typer.til:14472:28", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_bind_case_31), "./src/self/typer.til:14490:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_bind_case_6), "./src/self/typer.til:14468:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_capture_bits_6), "./src/self/typer.til:14718:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_case_payload_ref_14), "./src/self/typer.til:14447:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_case_payload_ref_6), "./src/self/typer.til:14438:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_deposit_base_name_6), "./src/self/typer.til:15016:78", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_effect_callee_18), "./src/self/typer.til:15242:55", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_effect_callee_23), "./src/self/typer.til:15243:77", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_effect_callee_4), "./src/self/typer.til:15240:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_effect_sink_bits_20), "./src/self/typer.til:15223:16", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_effect_sink_bits_7), "./src/self/typer.til:15216:60", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_110), "./src/self/typer.til:14833:25", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_132), "./src/self/typer.til:14833:25", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_171), "./src/self/typer.til:14864:59", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_186), "./src/self/typer.til:14864:59", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_32), "./src/self/typer.til:14750:45", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_37), "./src/self/typer.til:14755:48", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_6), "./src/self/typer.til:14743:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_74), "./src/self/typer.til:14791:35", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_expr_bits_96), "./src/self/typer.til:14791:16", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_arg_for_param_12), "./src/self/typer.til:13278:44", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_arg_for_param_19), "./src/self/typer.til:13281:48", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_arg_for_param_28), "./src/self/typer.til:13284:35", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_deposits_111), "./src/self/typer.til:15105:51", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_deposits_138), "./src/self/typer.til:15116:81", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_deposits_4), "./src/self/typer.til:15059:22", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_deposits_45), "./src/self/typer.til:15080:61", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_deposits_50), "./src/self/typer.til:15081:57", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_deposits_70), "./src/self/typer.til:15087:60", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_deposits_99), "./src/self/typer.til:15101:57", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fieldassign_stores_no_borrow_4), "./src/self/typer.til:14676:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fieldassign_targets_ref_4), "./src/self/typer.til:15164:48", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generated_clone_arg_14), "./src/self/typer.til:14899:34", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generated_clone_arg_19), "./src/self/typer.til:14900:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generated_clone_arg_34), "./src/self/typer.til:14905:54", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generated_clone_arg_39), "./src/self/typer.til:14913:12", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generated_clone_arg_4), "./src/self/typer.til:14893:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generated_clone_arg_9), "./src/self/typer.til:14896:40", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generic_dep_def_4), "./src/self/typer.til:14632:33", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generic_ref_ctor_arg_10), "./src/self/typer.til:14647:27", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generic_ref_ctor_arg_16), "./src/self/typer.til:14658:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generic_ref_ctor_arg_4), "./src/self/typer.til:14638:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_candidate_13), "./src/self/typer.til:15310:53", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_candidate_37), "./src/self/typer.til:15314:57", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_candidate_56), "./src/self/typer.til:15324:65", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_candidate_72), "./src/self/typer.til:15324:65", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_candidate_85), "./src/self/typer.til:15320:37", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_candidate_91), "./src/self/typer.til:15322:16", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_ref_field_10), "./src/self/typer.til:15338:72", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_ref_field_25), "./src/self/typer.til:15339:38", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_ref_field_39), "./src/self/typer.til:15340:47", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_ref_field_41), "./src/self/typer.til:15341:35", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_ref_field_5), "./src/self/typer.til:15337:50", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_local_ref_receiver_11), "./src/self/typer.til:15365:56", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_local_ref_receiver_23), "./src/self/typer.til:15365:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_local_ref_receiver_28), "./src/self/typer.til:15365:56", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_local_ref_receiver_6), "./src/self/typer.til:15365:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_name_sink_bits_12), "./src/self/typer.til:15185:77", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_note_deposit_target_26), "./src/self/typer.til:15040:28", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_note_deposit_target_4), "./src/self/typer.til:15032:52", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_note_local_deposit_4), "./src/self/typer.til:15019:22", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_param_method_4), "./src/self/typer.til:14585:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_param_method_9), "./src/self/typer.til:14590:27", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_receiver_declarations_15), "./src/self/typer.til:15560:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_receiver_declarations_17), "./src/self/typer.til:15564:28", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_receiver_declarations_22), "./src/self/typer.til:15566:40", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_receiver_declarations_40), "./src/self/typer.til:15556:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_receiver_declarations_47), "./src/self/typer.til:15578:12", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_receiver_type_19), "./src/self/typer.til:14526:52", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_retain_candidates_21), "./src/self/typer.til:15595:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_self_method_4), "./src/self/typer.til:14553:9", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_self_method_9), "./src/self/typer.til:14556:49", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_source_global_type_4), "./src/self/typer.til:15280:91", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_target_expr_global_22), "./src/self/typer.til:15264:37", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_target_expr_global_43), "./src/self/typer.til:15260:28", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_target_expr_global_6), "./src/self/typer.til:15250:79", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_105), "./src/self/typer.til:15428:97", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_118), "./src/self/typer.til:15431:46", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_123), "./src/self/typer.til:15432:45", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_149), "./src/self/typer.til:15444:75", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_166), "./src/self/typer.til:15445:51", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_178), "./src/self/typer.til:15447:33", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_18), "./src/self/typer.til:15405:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_183), "./src/self/typer.til:15448:51", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_224), "./src/self/typer.til:15466:49", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_229), "./src/self/typer.til:15467:58", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_236), "./src/self/typer.til:15471:54", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_241), "./src/self/typer.til:15472:66", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_25), "./src/self/typer.til:15408:60", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_253), "./src/self/typer.til:15471:54", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_258), "./src/self/typer.til:15472:66", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_283), "./src/self/typer.til:15480:53", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_288), "./src/self/typer.til:15481:70", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_293), "./src/self/typer.til:15483:57", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_299), "./src/self/typer.til:15487:41", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_35), "./src/self/typer.til:15408:60", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_351), "./src/self/typer.til:15506:53", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_365), "./src/self/typer.til:15511:65", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_370), "./src/self/typer.til:15512:57", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_381), "./src/self/typer.til:15520:80", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_60), "./src/self/typer.til:15416:49", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_66), "./src/self/typer.til:15417:42", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_71), "./src/self/typer.til:15418:41", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_76), "./src/self/typer.til:15419:44", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_deposits_111), "./src/self/typer.til:15120:51", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_deposits_138), "./src/self/typer.til:15131:81", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_deposits_4), "./src/self/typer.til:15074:22", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_deposits_45), "./src/self/typer.til:15095:61", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_deposits_50), "./src/self/typer.til:15096:57", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_deposits_70), "./src/self/typer.til:15102:60", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fcall_deposits_99), "./src/self/typer.til:15116:57", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fieldassign_stores_no_borrow_4), "./src/self/typer.til:14691:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_fieldassign_targets_ref_4), "./src/self/typer.til:15179:48", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generated_clone_arg_14), "./src/self/typer.til:14914:34", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generated_clone_arg_19), "./src/self/typer.til:14915:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generated_clone_arg_34), "./src/self/typer.til:14920:54", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generated_clone_arg_39), "./src/self/typer.til:14928:12", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generated_clone_arg_4), "./src/self/typer.til:14908:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generated_clone_arg_9), "./src/self/typer.til:14911:40", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generic_dep_def_4), "./src/self/typer.til:14647:33", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generic_ref_ctor_arg_10), "./src/self/typer.til:14662:27", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generic_ref_ctor_arg_16), "./src/self/typer.til:14673:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_generic_ref_ctor_arg_4), "./src/self/typer.til:14653:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_candidate_13), "./src/self/typer.til:15325:53", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_candidate_37), "./src/self/typer.til:15329:57", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_candidate_56), "./src/self/typer.til:15339:65", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_candidate_72), "./src/self/typer.til:15339:65", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_candidate_85), "./src/self/typer.til:15335:37", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_candidate_91), "./src/self/typer.til:15337:16", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_ref_field_10), "./src/self/typer.til:15353:72", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_ref_field_25), "./src/self/typer.til:15354:38", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_ref_field_39), "./src/self/typer.til:15355:47", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_ref_field_41), "./src/self/typer.til:15356:35", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_global_ref_field_5), "./src/self/typer.til:15352:50", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_local_ref_receiver_11), "./src/self/typer.til:15380:56", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_local_ref_receiver_23), "./src/self/typer.til:15380:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_local_ref_receiver_28), "./src/self/typer.til:15380:56", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_local_ref_receiver_6), "./src/self/typer.til:15380:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_name_sink_bits_12), "./src/self/typer.til:15200:77", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_note_deposit_target_26), "./src/self/typer.til:15055:28", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_note_deposit_target_4), "./src/self/typer.til:15047:52", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_note_local_deposit_4), "./src/self/typer.til:15034:22", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_param_method_4), "./src/self/typer.til:14600:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_param_method_9), "./src/self/typer.til:14605:27", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_receiver_declarations_15), "./src/self/typer.til:15575:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_receiver_declarations_17), "./src/self/typer.til:15579:28", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_receiver_declarations_22), "./src/self/typer.til:15581:40", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_receiver_declarations_40), "./src/self/typer.til:15571:31", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_receiver_declarations_47), "./src/self/typer.til:15593:12", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_receiver_type_19), "./src/self/typer.til:14541:52", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_retain_candidates_21), "./src/self/typer.til:15610:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_self_method_4), "./src/self/typer.til:14568:9", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_self_method_9), "./src/self/typer.til:14571:49", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_source_global_type_4), "./src/self/typer.til:15295:91", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_target_expr_global_22), "./src/self/typer.til:15279:37", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_target_expr_global_43), "./src/self/typer.til:15275:28", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_target_expr_global_6), "./src/self/typer.til:15265:79", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_105), "./src/self/typer.til:15443:97", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_118), "./src/self/typer.til:15446:46", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_123), "./src/self/typer.til:15447:45", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_149), "./src/self/typer.til:15459:75", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_166), "./src/self/typer.til:15460:51", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_178), "./src/self/typer.til:15462:33", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_18), "./src/self/typer.til:15420:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_183), "./src/self/typer.til:15463:51", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_224), "./src/self/typer.til:15481:49", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_229), "./src/self/typer.til:15482:58", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_236), "./src/self/typer.til:15486:54", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_241), "./src/self/typer.til:15487:66", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_25), "./src/self/typer.til:15423:60", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_253), "./src/self/typer.til:15486:54", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_258), "./src/self/typer.til:15487:66", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_283), "./src/self/typer.til:15495:53", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_288), "./src/self/typer.til:15496:70", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_293), "./src/self/typer.til:15498:57", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_299), "./src/self/typer.til:15502:41", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_35), "./src/self/typer.til:15423:60", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_351), "./src/self/typer.til:15521:53", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_365), "./src/self/typer.til:15526:65", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_370), "./src/self/typer.til:15527:57", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_381), "./src/self/typer.til:15535:80", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_60), "./src/self/typer.til:15431:49", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_66), "./src/self/typer.til:15432:42", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_71), "./src/self/typer.til:15433:41", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_summary_walk_76), "./src/self/typer.til:15434:44", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_try_ufcs_rewrite_107), "./src/self/typer.til:510:38", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_try_ufcs_rewrite_116), "./src/self/typer.til:496:33", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_try_ufcs_rewrite_21), "./src/self/typer.til:458:58", 27ULL},
@@ -25463,51 +25483,51 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_type_repl_delta_fields_from_39), "./src/self/typer.til:10418:17", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_type_repl_delta_fields_from_53), "./src/self/typer.til:10420:17", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_type_repl_delta_fields_from_6), "./src/self/typer.til:10418:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_type_template_returned_structs_12), "./src/self/typer.til:4628:26", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_parameter_effects_28), "./src/self/typer.til:16040:65", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_parameter_effects_38), "./src/self/typer.til:16042:37", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_parameter_effects_54), "./src/self/typer.til:16046:71", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_parameter_effects_71), "./src/self/typer.til:16031:27", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_12), "./src/self/typer.til:15651:25", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_122), "./src/self/typer.til:15704:66", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_139), "./src/self/typer.til:15708:17", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_160), "./src/self/typer.til:15714:80", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_165), "./src/self/typer.til:15715:48", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_205), "./src/self/typer.til:15737:57", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_219), "./src/self/typer.til:15748:53", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_241), "./src/self/typer.til:15760:29", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_52), "./src/self/typer.til:15662:81", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_72), "./src/self/typer.til:15669:25", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_93), "./src/self/typer.til:15679:25", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_retained_params_21), "./src/self/typer.til:15627:80", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_retained_params_26), "./src/self/typer.til:15628:43", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_retained_params_6), "./src/self/typer.til:15622:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_type_template_returned_structs_12), "./src/self/typer.til:4627:26", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_parameter_effects_28), "./src/self/typer.til:16055:65", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_parameter_effects_38), "./src/self/typer.til:16057:37", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_parameter_effects_54), "./src/self/typer.til:16061:71", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_parameter_effects_71), "./src/self/typer.til:16046:27", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_12), "./src/self/typer.til:15666:25", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_122), "./src/self/typer.til:15719:66", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_139), "./src/self/typer.til:15723:17", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_160), "./src/self/typer.til:15729:80", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_165), "./src/self/typer.til:15730:48", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_205), "./src/self/typer.til:15752:57", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_219), "./src/self/typer.til:15763:53", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_241), "./src/self/typer.til:15775:29", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_52), "./src/self/typer.til:15677:81", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_72), "./src/self/typer.til:15684:25", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_ref_return_summary_93), "./src/self/typer.til:15694:25", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_retained_params_21), "./src/self/typer.til:15642:80", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_retained_params_26), "./src/self/typer.til:15643:43", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_update_retained_params_6), "./src/self/typer.til:15637:17", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_fcall_own_args_2), "./src/self/typer.til:1015:35", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_fcall_own_args_for_fdef_18), "./src/self/typer.til:923:17", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_fcall_own_args_for_fdef_23), "./src/self/typer.til:925:17", 27ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_struct_pattern_rest_17), "./src/self/typer.til:16754:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_struct_pattern_rest_30), "./src/self/typer.til:16754:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_struct_pattern_rest_4), "./src/self/typer.til:16745:24", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_struct_pattern_rest_47), "./src/self/typer.til:16772:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_struct_pattern_rest_57), "./src/self/typer.til:16772:21", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_struct_pattern_rest_9), "./src/self/typer.til:16747:28", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_writable_borrow_problem_103), "./src/self/typer.til:6074:65", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_writable_borrow_problem_130), "./src/self/typer.til:6087:34", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_writable_borrow_problem_159), "./src/self/typer.til:6094:17", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_writable_borrow_problem_191), "./src/self/typer.til:6085:31", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_writable_borrow_problem_53), "./src/self/typer.til:6048:56", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_struct_pattern_rest_17), "./src/self/typer.til:16769:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_struct_pattern_rest_30), "./src/self/typer.til:16769:13", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_struct_pattern_rest_4), "./src/self/typer.til:16760:24", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_struct_pattern_rest_47), "./src/self/typer.til:16787:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_struct_pattern_rest_57), "./src/self/typer.til:16787:21", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_validate_struct_pattern_rest_9), "./src/self/typer.til:16762:28", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_writable_borrow_problem_103), "./src/self/typer.til:6075:65", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_writable_borrow_problem_130), "./src/self/typer.til:6088:34", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_writable_borrow_problem_159), "./src/self/typer.til:6095:17", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_writable_borrow_problem_191), "./src/self/typer.til:6086:31", 28ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_typer_writable_borrow_problem_53), "./src/self/typer.til:6049:56", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_set_keep_outer_arg_4), "./src/self/parser.til:3570:31", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_set_own_arg_4), "./src/self/parser.til:3503:31", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_set_ref_arg_5), "./src/self/parser.til:3537:31", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_set_splat_arg_4), "./src/self/parser.til:3520:31", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_101), "./src/self/context.til:3689:42", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_113), "./src/self/context.til:3689:80", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_19), "./src/self/context.til:3673:47", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_31), "./src/self/context.til:3673:103", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_51), "./src/self/context.til:3680:17", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_57), "./src/self/context.til:3682:48", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_76), "./src/self/context.til:3680:17", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_82), "./src/self/context.til:3682:48", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_101), "./src/self/context.til:3713:42", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_113), "./src/self/context.til:3713:80", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_19), "./src/self/context.til:3697:47", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_31), "./src/self/context.til:3697:103", 31ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_51), "./src/self/context.til:3704:17", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_57), "./src/self/context.til:3706:48", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_76), "./src/self/context.til:3704:17", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_stmt_always_diverges_82), "./src/self/context.til:3706:48", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_str_view_source_name_28), "./src/self/typer.til:12011:24", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_str_view_source_name_6), "./src/self/typer.til:12002:24", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_switch_is_clike_134), "./src/self/desugarer.til:3967:36", 32ULL},
@@ -25534,7 +25554,7 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_sym_of_17), "./src/self/parser.til:297:17", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_sym_of_4), "./src/self/parser.til:297:23", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_sym_of_9), "./src/self/parser.til:297:17", 28ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_synth_symbol_suffix_4), "./src/self/context.til:2255:40", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_synth_symbol_suffix_4), "./src/self/context.til:2279:40", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_target_emitted_size_5), "./src/self/typer.til:11775:18", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_target_from_str_107), "./src/self/targets.til:71:5", 27ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_target_niche_slot_size_10), "./src/self/typer.til:11633:9", 28ULL},
@@ -25552,12 +25572,12 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_transfer_is_shallow_field_value_copy_46), "./src/self/typer.til:11461:41", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_transfer_is_shallow_field_value_copy_5), "./src/self/typer.til:11443:34", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_transfer_is_shallow_field_value_copy_54), "./src/self/typer.til:11478:74", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_arg_query_name_11), "./src/self/context.til:2362:24", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_name_mentions_param_22), "./src/self/context.til:1168:20", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_name_mentions_param_40), "./src/self/context.til:1173:43", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_name_mentions_param_67), "./src/self/context.til:1174:43", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_name_mentions_param_7), "./src/self/context.til:1167:16", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_name_mentions_param_90), "./src/self/context.til:1178:16", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_arg_query_name_11), "./src/self/context.til:2386:24", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_name_mentions_param_22), "./src/self/context.til:1192:20", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_name_mentions_param_40), "./src/self/context.til:1197:43", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_name_mentions_param_67), "./src/self/context.til:1198:43", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_name_mentions_param_7), "./src/self/context.til:1191:16", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_name_mentions_param_90), "./src/self/context.til:1202:16", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_program_errors_101), "./src/self/loader.til:4825:62", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_program_errors_11), "./src/self/loader.til:4734:67", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_program_errors_116), "./src/self/loader.til:4835:89", 29ULL},
@@ -25577,8 +25597,8 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_type_program_errors_89), "./src/self/loader.til:4817:52", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_typer_lift_lambdas_32), "./src/self/desugarer.til:403:13", 31ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_typer_lift_lambdas_6), "./src/self/desugarer.til:382:21", 31ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_unsigned_prim_name_for_width_11), "./src/self/context.til:2427:5", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_unsigned_prim_width_for_name_19), "./src/self/context.til:2443:5", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_unsigned_prim_name_for_width_11), "./src/self/context.til:2451:5", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_unsigned_prim_width_for_name_19), "./src/self/context.til:2467:5", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_view_return_base_local_36), "./src/self/typer.til:12070:29", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_view_return_base_local_42), "./src/self/typer.til:12073:56", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_windows_archiver_7), "./src/self/targets.til:430:11", 29ULL},
@@ -25669,6 +25689,8 @@ static void til_loc_lits_init(void) {
 #define hoisted__Str_Option__ref_Vec__UPtr_unwrap_5 (_til_loc_lits_cage->hoisted__Str_Option__ref_Vec__UPtr_unwrap_5)
 #define hoisted__Str_Option__ref_ffi_type_unwrap_2 (_til_loc_lits_cage->hoisted__Str_Option__ref_ffi_type_unwrap_2)
 #define hoisted__Str_Option__ref_ffi_type_unwrap_5 (_til_loc_lits_cage->hoisted__Str_Option__ref_ffi_type_unwrap_5)
+#define hoisted__Str_Option__ref_mut_TypeBinding_unwrap_2 (_til_loc_lits_cage->hoisted__Str_Option__ref_mut_TypeBinding_unwrap_2)
+#define hoisted__Str_Option__ref_mut_TypeBinding_unwrap_5 (_til_loc_lits_cage->hoisted__Str_Option__ref_mut_TypeBinding_unwrap_5)
 #define hoisted__Str_Str_get_3 (_til_loc_lits_cage->hoisted__Str_Str_get_3)
 #define hoisted__Str_Str_push_str_3 (_til_loc_lits_cage->hoisted__Str_Str_push_str_3)
 #define hoisted__Str_Str_push_str_7 (_til_loc_lits_cage->hoisted__Str_Str_push_str_7)
@@ -66961,6 +66983,19 @@ static Option__ref_TypeBinding priv___src_self_context_til__bindings_lookup_one(
     return hoisted__Option__ref_TypeBinding_3;
 }
 
+static Option__ref_mut_TypeBinding priv___src_self_context_til__bindings_lookup_one_mut(SymMap__TypeBinding * m, U32 * sym) {
+    I64 pos = SymMap__TypeBinding_find(m, DEREF(sym));
+    I64 hoisted__I64_0 = 0;
+    Bool hoisted__Bool_1 = ((Bool)(pos < hoisted__I64_0));
+    if (hoisted__Bool_1) {
+        return (Option__ref_mut_TypeBinding){.data = NULL};
+    }
+    U32 hoisted__U32_2 = I64_to_usize(pos);
+    TypeBinding *hoisted__TypeBinding_3 = Vec__TypeBinding_unsafe_get_mut(&m->values, &hoisted__U32_2);
+    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_4 = Option__ref_mut_TypeBinding_Some(hoisted__TypeBinding_3);
+    return hoisted__Option__ref_mut_TypeBinding_4;
+}
+
 static TyperFuncState TyperFuncState_clone(TyperFuncState * self) {
     TyperFuncState hoisted__TyperFuncState_0 = {0};
     hoisted__TyperFuncState_0.current_top_func_name = Str_clone(&self->current_top_func_name);
@@ -66992,7 +67027,7 @@ static TyperFuncState * TypeScope_typer_func_state(TypeScope * self) {
     }
     switch ((int)((self->parent).data != NULL)) {
     case 1: {
-        TypeScope *p = ((void *)((Option__ref_TypeScope *)(&self->parent))->data);
+        TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&self->parent))->data);
         TyperFuncState *hoisted__TyperFuncState_0 = TypeScope_typer_func_state(p);
         return hoisted__TyperFuncState_0;
     }
@@ -67012,7 +67047,7 @@ static Str * TypeScope_active_type_name(TypeScope * self) {
     }
     switch ((int)((self->parent).data != NULL)) {
     case 1: {
-        TypeScope *p = ((void *)((Option__ref_TypeScope *)(&self->parent))->data);
+        TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&self->parent))->data);
         Str *hoisted__Str_TypeScope_active_type_name_0 = TypeScope_active_type_name(p);
         return hoisted__Str_TypeScope_active_type_name_0;
     }
@@ -67066,7 +67101,7 @@ static Option__ref_TypeBinding TypeScope_get_binding_sym(TypeScope * self, U32 *
         _err_kind = hoisted__I64_1;
         switch ((int)((self->parent).data != NULL)) {
         case 1: {
-            TypeScope *p = ((void *)((Option__ref_TypeScope *)(&self->parent))->data);
+            TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&self->parent))->data);
             Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_0 = TypeScope_get_binding_sym(p, sym);
             return hoisted__Option__ref_TypeBinding_0;
         }
@@ -67088,6 +67123,36 @@ static Option__ref_TypeBinding TypeScope_get_binding_name(TypeScope * self, Str 
     U32 hoisted__U32_1 = Option__U32_unwrap(&sym_o);
     Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_2 = TypeScope_get_binding_sym(self, &hoisted__U32_1);
     return hoisted__Option__ref_TypeBinding_2;
+}
+
+static Option__ref_mut_TypeBinding TypeScope_get_binding_sym_mut(TypeScope * self, U32 * sym) {
+    Option__ref_mut_TypeBinding found = priv___src_self_context_til__bindings_lookup_one_mut(&self->bindings, sym);
+    Bool hoisted__Bool_1 = Option__ref_mut_TypeBinding_is_some(found);
+    if (hoisted__Bool_1) {
+        return found;
+    }
+    switch ((int)((self->parent).data != NULL)) {
+    case 1: {
+        TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&self->parent))->data);
+        Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_0 = TypeScope_get_binding_sym_mut(p, sym);
+        return hoisted__Option__ref_mut_TypeBinding_0;
+    }
+    default: {
+        return (Option__ref_mut_TypeBinding){.data = NULL};
+    }
+    }
+    __builtin_unreachable();
+}
+
+static Option__ref_mut_TypeBinding TypeScope_get_binding_name_mut(TypeScope * self, Str * name, SymbolPool * symbols) {
+    Option__U32 sym_o = SymbolPool_lookup(symbols, name);
+    Bool hoisted__Bool_0 = Option__U32_is_none(&sym_o);
+    if (hoisted__Bool_0) {
+        return (Option__ref_mut_TypeBinding){.data = NULL};
+    }
+    U32 hoisted__U32_1 = Option__U32_unwrap(&sym_o);
+    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_2 = TypeScope_get_binding_sym_mut(self, &hoisted__U32_1);
+    return hoisted__Option__ref_mut_TypeBinding_2;
 }
 
 static ScopeFind TypeScope_find_name(TypeScope * self, Str * name, SymbolPool * symbols) {
@@ -67131,7 +67196,7 @@ static Bool TypeScope_in_function(TypeScope * self) {
     }
     switch ((int)((self->parent).data != NULL)) {
     case 1: {
-        TypeScope *p = ((void *)((Option__ref_TypeScope *)(&self->parent))->data);
+        TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&self->parent))->data);
         Bool hoisted__Bool_1 = TypeScope_in_function(p);
         return hoisted__Bool_1;
     }
@@ -67164,7 +67229,7 @@ static Option__ref_Expr TypeScope_get_struct_by_sym(TypeScope * self, U32 * sym)
         _err_kind = hoisted__I64_1;
         switch ((int)((self->parent).data != NULL)) {
         case 1: {
-            TypeScope *p = ((void *)((Option__ref_TypeScope *)(&self->parent))->data);
+            TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&self->parent))->data);
             Option__ref_Expr hoisted__Option__ref_Expr_0 = TypeScope_get_struct_by_sym(p, sym);
             return hoisted__Option__ref_Expr_0;
         }
@@ -67187,7 +67252,7 @@ static Option__ref_Expr TypeScope_struct_def_of_sym(TypeScope * self, U32 * sym)
     }
     switch ((int)((self->parent).data != NULL)) {
     case 1: {
-        TypeScope *p = ((void *)((Option__ref_TypeScope *)(&self->parent))->data);
+        TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&self->parent))->data);
         Option__ref_Expr hoisted__Option__ref_Expr_1 = TypeScope_struct_def_of_sym(p, sym);
         return hoisted__Option__ref_Expr_1;
     }
@@ -67224,7 +67289,7 @@ static Option__ref_Expr TypeScope_lookup_func_sym(TypeScope * self, U32 * sym) {
     }
     switch ((int)((self->parent).data != NULL)) {
     case 1: {
-        TypeScope *p = ((void *)((Option__ref_TypeScope *)(&self->parent))->data);
+        TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&self->parent))->data);
         Option__ref_Expr hoisted__Option__ref_Expr_1 = TypeScope_lookup_func_sym(p, sym);
         return hoisted__Option__ref_Expr_1;
     }
@@ -67273,7 +67338,7 @@ static Bool TypeScope_any_func_def_sym(TypeScope * self, U32 sym) {
     }
     switch ((int)((self->parent).data != NULL)) {
     case 1: {
-        TypeScope *p = ((void *)((Option__ref_TypeScope *)(&self->parent))->data);
+        TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&self->parent))->data);
         Bool hoisted__Bool_1 = TypeScope_any_func_def_sym(p, sym);
         return hoisted__Bool_1;
     }
@@ -67323,7 +67388,7 @@ static Option__ref_Expr TypeScope_lookup_func_symbol_sym(TypeScope * self, U32 *
     }
     switch ((int)((self->parent).data != NULL)) {
     case 1: {
-        TypeScope *p = ((void *)((Option__ref_TypeScope *)(&self->parent))->data);
+        TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&self->parent))->data);
         Option__ref_Expr hoisted__Option__ref_Expr_1 = TypeScope_lookup_func_symbol_sym(p, sym);
         return hoisted__Option__ref_Expr_1;
     }
@@ -67361,10 +67426,10 @@ static void TypeScope_set_func_def_name(TypeScope * self, Str * name, Expr * fde
         panic(&_va_Array_0, &hoisted__Str_TypeScope_set_func_def_name_5);
     }
     U32 hoisted__U32_7 = Option__U32_unwrap(&sym_o);
-    Option__ref_TypeBinding b_o = priv___src_self_context_til__bindings_lookup_one(&self->bindings, &hoisted__U32_7);
-    Bool hoisted__Bool_8 = Option__ref_TypeBinding_is_some(b_o);
+    Option__ref_mut_TypeBinding b_o = priv___src_self_context_til__bindings_lookup_one_mut(&self->bindings, &hoisted__U32_7);
+    Bool hoisted__Bool_8 = Option__ref_mut_TypeBinding_is_some(b_o);
     if (hoisted__Bool_8) {
-        TypeBinding *b = Option__ref_TypeBinding_unwrap(&b_o);
+        TypeBinding *b = Option__ref_mut_TypeBinding_unwrap(&b_o);
         { FuncType _old = b->func_type;
         b->func_type = func_def_type(fdef);
         FuncType_delete(&_old, (Bool){0}); }
@@ -67506,7 +67571,7 @@ static void TypeScope_set(TypeScope * self, Str * name, Type * type, Bool is_mut
     Bool hoisted__Bool_8 = ((Bool)(existing >= hoisted__I64_7));
     if (hoisted__Bool_8) {
         U32 hoisted__U32_0 = I64_to_usize(existing);
-        TypeBinding *b = ((TypeBinding *)((void *)((U8 *)(TIL_OWN_GET(U8, (self->bindings.values.data))) + (((U64)(((U64)(hoisted__U32_0)) * ((U64)(176))))))));
+        TypeBinding *b = Vec__TypeBinding_unsafe_get_mut(&self->bindings.values, &hoisted__U32_0);
         { Type _old = b->type;
         b->type = Type_clone(type);
         Type_delete(&_old, (Bool){0}); }
@@ -69290,7 +69355,7 @@ static void context_reset_type_scope(Context * ctx) {
     _sc1.target_uptr_pname = _til_str_lits.h00000b8823a4;
     _sc1.func_defs = SymMap__Dynamic_new();
     _sc1.struct_defs = SymMap__Dynamic_new();
-    _sc1.parent = (Option__ref_TypeScope){.data = NULL};
+    _sc1.parent = (Option__ref_mut_TypeScope){.data = NULL};
     _sc1.is_func_root = hoisted__Bool_4;
     _sc1.current_type_name = _til_str_lits.h000000001505;
     _sc1.typer_func = ({ TyperFuncState _sc3 = {0};     _sc3.current_top_func_name = _til_str_lits.h000000001505;
@@ -69384,7 +69449,7 @@ static void note_cross_file_type_use_sym(TypeScope * scope, Context * ctx, U32 s
 static Str * scope_target_usize_pname(TypeScope * scope) {
     switch ((int)((scope->parent).data != NULL)) {
     case 1: {
-        TypeScope *p = ((void *)((Option__ref_TypeScope *)(&scope->parent))->data);
+        TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&scope->parent))->data);
         Str *hoisted__Str_scope_target_usize_pname_0 = scope_target_usize_pname(p);
         return hoisted__Str_scope_target_usize_pname_0;
     }
@@ -69398,7 +69463,7 @@ static Str * scope_target_usize_pname(TypeScope * scope) {
 static Str * scope_target_uptr_pname(TypeScope * scope) {
     switch ((int)((scope->parent).data != NULL)) {
     case 1: {
-        TypeScope *p = ((void *)((Option__ref_TypeScope *)(&scope->parent))->data);
+        TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&scope->parent))->data);
         Str *hoisted__Str_scope_target_uptr_pname_0 = scope_target_uptr_pname(p);
         return hoisted__Str_scope_target_uptr_pname_0;
     }
@@ -75114,12 +75179,12 @@ static void SymMap__Dynamic_delete(SymMap__Dynamic * self, Bool call_free) {
     }
 }
 
-static Option__ref_TypeScope Option__ref_TypeScope_Some(TypeScope * val) {
-    Option__ref_TypeScope r;
+static Option__ref_mut_TypeScope Option__ref_mut_TypeScope_Some(TypeScope * val) {
+    Option__ref_mut_TypeScope r;
     r.data = val;
     return r;
 }
-static Bool Option__ref_TypeScope_is_some(Option__ref_TypeScope self) {
+static Bool Option__ref_mut_TypeScope_is_some(Option__ref_mut_TypeScope self) {
     switch ((int)((self).data != NULL)) {
     case 1: {
         Bool hoisted__Bool_0 = 1;
@@ -75133,8 +75198,8 @@ static Bool Option__ref_TypeScope_is_some(Option__ref_TypeScope self) {
     __builtin_unreachable();
 }
 
-static Bool Option__ref_TypeScope_is_none(Option__ref_TypeScope self) {
-    Bool hoisted__Bool_0 = Option__ref_TypeScope_is_some(self);
+static Bool Option__ref_mut_TypeScope_is_none(Option__ref_mut_TypeScope self) {
+    Bool hoisted__Bool_0 = Option__ref_mut_TypeScope_is_some(self);
     Bool hoisted__Bool_1 = ((Bool)(!(hoisted__Bool_0)));
     return hoisted__Bool_1;
 }
@@ -75200,6 +75265,52 @@ static Option__ref_TypeBinding Option__ref_TypeBinding_clone(Option__ref_TypeBin
         TypeBinding *_clone_payload_Some_1 = ((void *)((Option__ref_TypeBinding *)(self))->data);
         Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_0 = Option__ref_TypeBinding_Some(_clone_payload_Some_1);
         return hoisted__Option__ref_TypeBinding_0;
+    }
+    }
+    __builtin_unreachable();
+}
+
+
+static Option__ref_mut_TypeBinding Option__ref_mut_TypeBinding_Some(TypeBinding * val) {
+    Option__ref_mut_TypeBinding r;
+    r.data = val;
+    return r;
+}
+static Bool Option__ref_mut_TypeBinding_is_some(Option__ref_mut_TypeBinding self) {
+    switch ((int)((self).data != NULL)) {
+    case 1: {
+        Bool hoisted__Bool_0 = 1;
+        return hoisted__Bool_0;
+    }
+    default: {
+        Bool hoisted__Bool_1 = 0;
+        return hoisted__Bool_1;
+    }
+    }
+    __builtin_unreachable();
+}
+
+static Bool Option__ref_mut_TypeBinding_is_none(Option__ref_mut_TypeBinding self) {
+    Bool hoisted__Bool_0 = Option__ref_mut_TypeBinding_is_some(self);
+    Bool hoisted__Bool_1 = ((Bool)(!(hoisted__Bool_0)));
+    return hoisted__Bool_1;
+}
+
+static TypeBinding * Option__ref_mut_TypeBinding_unwrap(Option__ref_mut_TypeBinding * self) {
+    switch ((int)((DEREF(self)).data != NULL)) {
+    case 1: {
+        TypeBinding *v = ((void *)((Option__ref_mut_TypeBinding *)(self))->data);
+        return v;
+    }
+    default: {
+        U32 hoisted__U32_0 = 2;
+        Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_0);
+        I64 _va_Array_0_ek = 0;
+        U32 hoisted__U32_1 = 0;
+        Array__Str_set(&_va_Array_0, hoisted__U32_1, &hoisted__Str_Option__ref_mut_TypeBinding_unwrap_2, &_va_Array_0_ek);
+        U32 hoisted__U32_3 = 1;
+        Array__Str_set(&_va_Array_0, hoisted__U32_3, &_til_str_lits.hd4660ef804a1, &_va_Array_0_ek);
+        panic(&_va_Array_0, &hoisted__Str_Option__ref_mut_TypeBinding_unwrap_5);
     }
     }
     __builtin_unreachable();
@@ -82236,6 +82347,15 @@ static void Vec__TypeBinding_push(Vec__TypeBinding * self, TypeBinding * val) {
     self->count = hoisted__U32_16;
 }
 
+static TypeBinding * Vec__TypeBinding_unsafe_get_mut(Vec__TypeBinding * self, USize * i) {
+    U32 hoisted__U32_0 = 176;
+    U64 hoisted__U64_1 = ((U64)(DEREF(i)));
+    U64 hoisted__U64_2 = ((U64)(hoisted__U32_0));
+    U64 hoisted__U64_3 = ((U64)(hoisted__U64_1 * hoisted__U64_2));
+    void *hoisted__v_4 = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->data))) + (hoisted__U64_3)));
+    return hoisted__v_4;
+}
+
 static void Vec__TypeBinding_remove_at(Vec__TypeBinding * self, USize i, I64 * _err_kind) {
     Bool hoisted__Bool_20 = ((Bool)(i >= self->count));
     if (hoisted__Bool_20) {
@@ -83985,8 +84105,8 @@ static void priv___src_self_initer_til__register_body_type_token(Context * ctx, 
     U32 hoisted__U32_6 = 0;
     Bool hoisted__Bool_7 = 0;
     TypeScope_set(scope, &_til_str_lits.h00017c832613, &(Type){.tag = Type_TAG_Body}, hoisted__Bool_4, &ctx->path, hoisted__U32_5, hoisted__U32_6, hoisted__Bool_7, (OwnType){.tag = OwnType_TAG_Shallow}, &ctx->symbols);
-    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_9 = TypeScope_get_binding_name(scope, &_til_str_lits.h00017c832613, &ctx->symbols);
-    TypeBinding *b = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_9);
+    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_9 = TypeScope_get_binding_name_mut(scope, &_til_str_lits.h00017c832613, &ctx->symbols);
+    TypeBinding *b = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_9);
     Bool hoisted__Bool_10 = 1;
     b->is_builtin = hoisted__Bool_10;
 }
@@ -84144,8 +84264,8 @@ static I32 priv___src_self_initer_til__register_struct_def_for_stmt(Context * ct
         panic(&_va_Array_2, &hoisted__Str_self_initer_register_struct_def_for_stmt_54);
     }
     TypeScope_set_struct_def(scope, &sname, _bang_ret_1, &ctx->symbols);
-    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_75 = TypeScope_get_binding_name(scope, &sname, &ctx->symbols);
-    TypeBinding *b = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_75);
+    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_75 = TypeScope_get_binding_name_mut(scope, &sname, &ctx->symbols);
+    TypeBinding *b = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_75);
     b->is_builtin = (is_builtin);
     b->is_priv = sdecl->is_priv;
     { Str _old = b->orig_name;
@@ -86289,8 +86409,8 @@ static I32 priv___src_self_initer_til__register_enum_definition(Context * ctx, E
         panic(&_va_Array_1, &hoisted__Str_self_initer_register_enum_definition_37);
     }
     TypeScope_set_struct_def(scope, &ename, _bang_ret_0, &ctx->symbols);
-    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_51 = TypeScope_get_binding_name(scope, &ename, &ctx->symbols);
-    TypeBinding *b = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_51);
+    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_51 = TypeScope_get_binding_name_mut(scope, &ename, &ctx->symbols);
+    TypeBinding *b = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_51);
     b->is_priv = edecl->is_priv;
     { Str _old = b->orig_name;
     b->orig_name = Str_clone(&edecl->orig_name);
@@ -89123,8 +89243,8 @@ static void register_funcsig_alias_for_stmt(Context * ctx, Expr * stmt, TypeScop
         panic(&_va_Array_1, &hoisted__Str_register_funcsig_alias_for_stmt_9);
     }
     TypeScope_set_func_def_name(scope, &sdecl->name, _bang_ret_1, &ctx->symbols);
-    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_25 = TypeScope_get_binding_name(scope, &sdecl->name, &ctx->symbols);
-    TypeBinding *fb = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_25);
+    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_25 = TypeScope_get_binding_name_mut(scope, &sdecl->name, &ctx->symbols);
+    TypeBinding *fb = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_25);
     Bool hoisted__Bool_26 = 1;
     fb->is_func_decl = hoisted__Bool_26;
 }
@@ -89264,8 +89384,8 @@ static void priv___src_self_initer_til__register_type_alias_for_stmt(Context * c
             Expr *hoisted__Expr_37 = Option__ref_Expr_unwrap(&tgt_fd_o);
             TypeScope_set_func_def_name(scope, &sdecl->name, hoisted__Expr_37, &ctx->symbols);
         }
-        Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_42 = TypeScope_get_binding_name(scope, &sdecl->name, &ctx->symbols);
-        TypeBinding *ab = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_42);
+        Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_42 = TypeScope_get_binding_name_mut(scope, &sdecl->name, &ctx->symbols);
+        TypeBinding *ab = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_42);
         Option__ref_Expr tgt_sd_o = TypeScope_struct_def_of_name(scope, &target->name, &ctx->symbols);
         Bool hoisted__Bool_43 = Option__ref_Expr_is_some(tgt_sd_o);
         if (hoisted__Bool_43) {
@@ -89308,8 +89428,8 @@ static void priv___src_self_initer_til__register_type_alias_for_stmt(Context * c
         Bool hoisted__Bool_49 = 0;
         TypeScope_set(scope, &sdecl->name, &til_type, hoisted__Bool_48, &ctx->path, stmt->line, stmt->col, hoisted__Bool_49, (OwnType){.tag = OwnType_TAG_Shallow}, &ctx->symbols);
         Type_delete(&til_type, 0);
-        Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_50 = TypeScope_get_binding_name(scope, &sdecl->name, &ctx->symbols);
-        TypeBinding *ab = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_50);
+        Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_50 = TypeScope_get_binding_name_mut(scope, &sdecl->name, &ctx->symbols);
+        TypeBinding *ab = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_50);
         Bool hoisted__Bool_51 = 1;
         ab->is_type_alias = hoisted__Bool_51;
         { Str _old = ab->alias_target;
@@ -89528,8 +89648,8 @@ static void priv___src_self_initer_til__register_top_level_value_for_stmt(Contex
                     Type_delete(&hoisted__Type_68, 0);
                     Bool hoisted__Bool_69 = 0;
                     TypeScope_set(scope, &ext_decl->name, &external_type, ext_decl->is_mut, &ctx->path, stmt->line, stmt->col, hoisted__Bool_69, ext_decl->own_type, &ctx->symbols);
-                    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_70 = TypeScope_get_binding_name(scope, &ext_decl->name, &ctx->symbols);
-                    TypeBinding *ext_binding = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_70);
+                    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_70 = TypeScope_get_binding_name_mut(scope, &ext_decl->name, &ctx->symbols);
+                    TypeBinding *ext_binding = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_70);
                     ext_binding->is_priv = ext_decl->is_priv;
                     { Str _old = ext_binding->orig_name;
                     ext_binding->orig_name = Str_clone(&ext_decl->orig_name);
@@ -89595,8 +89715,8 @@ static void priv___src_self_initer_til__register_top_level_value_for_stmt(Contex
     Bool hoisted__Bool_96 = 0;
     TypeScope_set(scope, &sdecl->name, &t, sdecl->is_mut, &ctx->path, stmt->line, stmt->col, hoisted__Bool_96, (OwnType){.tag = OwnType_TAG_Shallow}, &ctx->symbols);
     Type_delete(&t, 0);
-    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_97 = TypeScope_get_binding_name(scope, &sdecl->name, &ctx->symbols);
-    TypeBinding *tlv_b = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_97);
+    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_97 = TypeScope_get_binding_name_mut(scope, &sdecl->name, &ctx->symbols);
+    TypeBinding *tlv_b = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_97);
     tlv_b->is_priv = sdecl->is_priv;
     { Str _old = tlv_b->orig_name;
     tlv_b->orig_name = Str_clone(&sdecl->orig_name);
@@ -89667,8 +89787,8 @@ static void register_function_def_for_stmt(Context * ctx, Expr * stmt, TypeScope
             panic(&_va_Array_1, &hoisted__Str_register_function_def_for_stmt_12);
         }
         TypeScope_set_func_def_name(scope, &sdecl->name, _bang_ret_0, &ctx->symbols);
-        Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_18 = TypeScope_get_binding_name(scope, &sdecl->name, &ctx->symbols);
-        TypeBinding *fb = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_18);
+        Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_18 = TypeScope_get_binding_name_mut(scope, &sdecl->name, &ctx->symbols);
+        TypeBinding *fb = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_18);
         Bool hoisted__Bool_19 = 1;
         fb->is_func_decl = hoisted__Bool_19;
         fb->is_priv = sdecl->is_priv;
@@ -89859,8 +89979,8 @@ static void register_function_def_for_stmt(Context * ctx, Expr * stmt, TypeScope
         panic(&_va_Array_5, &hoisted__Str_register_function_def_for_stmt_95);
     }
     TypeScope_set_func_def_name(scope, &sdecl->name, _bang_ret_1, &ctx->symbols);
-    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_137 = TypeScope_get_binding_name(scope, &sdecl->name, &ctx->symbols);
-    TypeBinding *fb = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_137);
+    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_137 = TypeScope_get_binding_name_mut(scope, &sdecl->name, &ctx->symbols);
+    TypeBinding *fb = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_137);
     Bool hoisted__Bool_138 = 1;
     fb->is_func_decl = hoisted__Bool_138;
     fb->is_priv = sdecl->is_priv;
@@ -105790,8 +105910,8 @@ static void priv___src_self_initer_til__init_mark_expanded_macro_used(Expr * pro
         Array__Str_set(&_va_Array_0, hoisted__U32_12, &_til_str_lits.h00000002b5cc, &_va_Array_0_ek);
         panic(&_va_Array_0, &hoisted__Str_self_initer_init_mark_expanded_macro_used_14);
     }
-    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_16 = TypeScope_get_binding_name(scope, name, symbols);
-    TypeBinding *binding = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_16);
+    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_16 = TypeScope_get_binding_name_mut(scope, name, symbols);
+    TypeBinding *binding = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_16);
     Bool hoisted__Bool_17 = 1;
     binding->used = hoisted__Bool_17;
 }
@@ -114376,7 +114496,7 @@ static Option__ref_TypeBinding priv___src_self_typer_til__reference_binding_in_f
     }
     switch ((int)((scope->parent).data != NULL)) {
     case 1: {
-        TypeScope *parent = ((void *)((Option__ref_TypeScope *)(&scope->parent))->data);
+        TypeScope *parent = ((void *)((Option__ref_mut_TypeScope *)(&scope->parent))->data);
         Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_0 = priv___src_self_typer_til__reference_binding_in_frame(parent, name, symbols);
         return hoisted__Option__ref_TypeBinding_0;
     }
@@ -115129,10 +115249,10 @@ static void priv___src_self_typer_til__validate_fcall_own_args_for_fdef(TypeScop
                 }
                 ScopeFind_delete(&sf_ab, 0);
                 U32 hoisted__U32_81 = IdentData_ident_sym(an);
-                Option__ref_TypeBinding own_arg_b_o = TypeScope_get_binding_sym(scope, &hoisted__U32_81);
-                Bool hoisted__Bool_82 = Option__ref_TypeBinding_is_some(own_arg_b_o);
+                Option__ref_mut_TypeBinding own_arg_b_o = TypeScope_get_binding_sym_mut(scope, &hoisted__U32_81);
+                Bool hoisted__Bool_82 = Option__ref_mut_TypeBinding_is_some(own_arg_b_o);
                 if (hoisted__Bool_82) {
-                    TypeBinding *own_arg_b = Option__ref_TypeBinding_unwrap(&own_arg_b_o);
+                    TypeBinding *own_arg_b = Option__ref_mut_TypeBinding_unwrap(&own_arg_b_o);
                     Bool hoisted__Bool_79 = 1;
                     own_arg_b->written = hoisted__Bool_79;
                 }
@@ -115543,10 +115663,10 @@ static Bool priv___src_self_typer_til__infer_struct_constructor_fcall_impl(TypeS
     Bool hoisted__Bool_852 = Str_eq(hoisted__Str_self_typer_infer_struct_constructor_fcall_impl_851, name);
     Bool hoisted__Bool_853 = ((Bool)(!(hoisted__Bool_852)));
     if (hoisted__Bool_853) {
-        Option__ref_TypeBinding sb_used_o = TypeScope_get_binding_sym(scope, &name_sym);
-        Bool hoisted__Bool_1 = Option__ref_TypeBinding_is_some(sb_used_o);
+        Option__ref_mut_TypeBinding sb_used_o = TypeScope_get_binding_sym_mut(scope, &name_sym);
+        Bool hoisted__Bool_1 = Option__ref_mut_TypeBinding_is_some(sb_used_o);
         if (hoisted__Bool_1) {
-            TypeBinding *sb_used = Option__ref_TypeBinding_unwrap(&sb_used_o);
+            TypeBinding *sb_used = Option__ref_mut_TypeBinding_unwrap(&sb_used_o);
             Bool hoisted__Bool_0 = 1;
             sb_used->used = hoisted__Bool_0;
         }
@@ -120498,7 +120618,7 @@ static void priv___src_self_typer_til__infer_requested_value_method(Expr * def, 
     inner.target_uptr_pname = _til_str_lits.h00000b8823a4;
     inner.func_defs = SymMap__Dynamic_new();
     inner.struct_defs = SymMap__Dynamic_new();
-    inner.parent = safe_ref__TypeScope(&ctx->scope);
+    inner.parent = safe_ref_mut__TypeScope(&ctx->scope);
     inner.is_func_root = hoisted__Bool_10;
     inner.current_type_name = Str_clone(&name);
     inner.typer_func = ({ TyperFuncState _sc2 = {0};     _sc2.current_top_func_name = _til_str_lits.h000000001505;
@@ -128461,10 +128581,10 @@ static void priv___src_self_typer_til__generic_finish_fcall(TypeScope * scope, E
         Array__Str_set(&_va_Array_15, hoisted__U32_156, &hoisted__Str_self_typer_generic_finish_fcall_157, &_va_Array_15_ek);
         panic(&_va_Array_15, &hoisted__Str_self_typer_generic_finish_fcall_158);
     }
-    Option__ref_TypeBinding cb_used = TypeScope_get_binding_name(scope, &mono, &ctx->symbols);
-    Bool hoisted__Bool_188 = Option__ref_TypeBinding_is_some(cb_used);
+    Option__ref_mut_TypeBinding cb_used = TypeScope_get_binding_name_mut(scope, &mono, &ctx->symbols);
+    Bool hoisted__Bool_188 = Option__ref_mut_TypeBinding_is_some(cb_used);
     if (hoisted__Bool_188) {
-        TypeBinding *cbu = Option__ref_TypeBinding_unwrap(&cb_used);
+        TypeBinding *cbu = Option__ref_mut_TypeBinding_unwrap(&cb_used);
         Bool hoisted__Bool_159 = 1;
         cbu->used = hoisted__Bool_159;
     }
@@ -128539,8 +128659,8 @@ static void priv___src_self_typer_til__generic_finish_fcall(TypeScope * scope, E
     }
     priv___src_self_typer_til__infer_and_validate_fcall_args_for_fdef(scope, e, cfd, in_func, ctx);
     priv___src_self_typer_til__validate_fcall_own_args_for_fdef(scope, e, cfd, ctx);
-    cb_used = TypeScope_get_binding_name(scope, &mono, &ctx->symbols);
-    priv___src_self_typer_til__resolve_fcall_return_type(scope, e, &mono, cb_used, cfd_o, in_func, ctx);
+    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_191 = TypeScope_get_binding_name(scope, &mono, &ctx->symbols);
+    priv___src_self_typer_til__resolve_fcall_return_type(scope, e, &mono, hoisted__Option__ref_TypeBinding_191, cfd_o, in_func, ctx);
     Vec__I64_delete(&arg_pos, 0);
     GenericSources_delete(&gs, 0);
     Map__Str_Str_delete(&lt, 0);
@@ -129513,16 +129633,18 @@ static void priv___src_self_typer_til__infer_fcall_expr(TypeScope * scope, Expr 
             return;
         }
     }
-    Option__ref_TypeBinding callee_bind_o = TypeScope_get_binding_sym(scope, &callee_sym);
+    Option__ref_mut_TypeBinding callee_write_o = TypeScope_get_binding_sym_mut(scope, &callee_sym);
+    Option__ref_TypeBinding callee_read_o = Option__ref_TypeBinding_clone(&(Option__ref_TypeBinding){.data = NULL});
     Option__ref_Expr callee_fdef_o = Option__ref_Expr_clone(&(Option__ref_Expr){.data = NULL});
     Str generic_src_name = (Str){.c_str = TIL_OWN_LIT("", 0ULL), .count = 0ULL, .cap = TIL_CAP_LIT};
     Str func_gen_src_name = (Str){.c_str = TIL_OWN_LIT("", 0ULL), .count = 0ULL, .cap = TIL_CAP_LIT};
-    Bool hoisted__Bool_324 = Option__ref_TypeBinding_is_some(callee_bind_o);
+    Bool hoisted__Bool_324 = Option__ref_mut_TypeBinding_is_some(callee_write_o);
     if (hoisted__Bool_324) {
-        TypeBinding *callee_bind = Option__ref_TypeBinding_unwrap(&callee_bind_o);
+        TypeBinding *callee_bind = Option__ref_mut_TypeBinding_unwrap(&callee_write_o);
         mark_binding_referenced(scope, ctx, callee_bind);
         note_cross_file_use(ctx, &callee_bind->path);
         priv___src_self_typer_til__check_priv_access(e, &name, callee_bind, scope, ctx);
+        { Option__ref_TypeBinding _new = Option__ref_TypeBinding_Some(callee_bind); Option__ref_TypeBinding_delete(&callee_read_o, (Bool){0}); callee_read_o = _new; }
         { Option__ref_Expr _new = TypeScope_lookup_func_by_sym(scope, &callee_sym, &ctx->symbols); Option__ref_Expr_delete(&callee_fdef_o, (Bool){0}); callee_fdef_o = _new; }
         Bool hoisted__Bool_96 = Option__ref_Expr_is_some(callee_fdef_o);
         if (hoisted__Bool_96) {
@@ -129815,8 +129937,8 @@ static void priv___src_self_typer_til__infer_fcall_expr(TypeScope * scope, Expr 
             }
         }
     }
-    priv___src_self_typer_til__infer_and_validate_fcall_args(scope, e, callee_bind_o, &callee_fdef_o, in_func, ctx);
-    callee_bind_o = TypeScope_get_binding_sym(scope, &callee_sym);
+    priv___src_self_typer_til__infer_and_validate_fcall_args(scope, e, callee_read_o, &callee_fdef_o, in_func, ctx);
+    Option__ref_TypeBinding callee_bind_o = TypeScope_get_binding_sym(scope, &callee_sym);
     Bool _m_Bool_198 = 0;
     {
         Bool _sw_Bool_199 = ((Bool)(!(callee_is_indirect)));
@@ -130277,11 +130399,11 @@ static void priv___src_self_typer_til__infer_ident_expr(TypeScope * scope, Expr 
     IdentData *id_name = ident_of(expr, &hoisted__Str_self_typer_infer_ident_expr_38);
     Str *name = IdentData_ident_name(id_name, &ctx->symbols.names);
     U32 hoisted__U32_39 = IdentData_ident_sym(id_name);
-    Option__ref_TypeBinding ib_o = TypeScope_get_binding_sym(scope, &hoisted__U32_39);
+    Option__ref_mut_TypeBinding ib_o = TypeScope_get_binding_sym_mut(scope, &hoisted__U32_39);
     Type type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    Bool hoisted__Bool_40 = Option__ref_TypeBinding_is_some(ib_o);
+    Bool hoisted__Bool_40 = Option__ref_mut_TypeBinding_is_some(ib_o);
     if (hoisted__Bool_40) {
-        { Type _new = Type_clone(&Option__ref_TypeBinding_unwrap(&ib_o)->type); Type_delete(&type, (Bool){0}); type = _new; }
+        { Type _new = Type_clone(&Option__ref_mut_TypeBinding_unwrap(&ib_o)->type); Type_delete(&type, (Bool){0}); type = _new; }
     }
     Bool hoisted__Bool_41 = ((Bool)((((Type *)(&type))->tag) == Type_TAG_Unknown));
     if (hoisted__Bool_41) {
@@ -130308,9 +130430,9 @@ static void priv___src_self_typer_til__infer_ident_expr(TypeScope * scope, Expr 
         }
     }
     Expr_set_til_type(expr, type);
-    Bool hoisted__Bool_42 = Option__ref_TypeBinding_is_some(ib_o);
+    Bool hoisted__Bool_42 = Option__ref_mut_TypeBinding_is_some(ib_o);
     if (hoisted__Bool_42) {
-        TypeBinding *ib = Option__ref_TypeBinding_unwrap(&ib_o);
+        TypeBinding *ib = Option__ref_mut_TypeBinding_unwrap(&ib_o);
         note_cross_file_use(ctx, &ib->path);
         Str *hoisted__Str_self_typer_infer_ident_expr_29 = TypeScope_active_type_name(scope);
         Bool hoisted__Bool_30 = Str_eq(hoisted__Str_self_typer_infer_ident_expr_29, name);
@@ -131402,8 +131524,8 @@ static void priv___src_self_typer_til__type_struct_fields(Expr * expr, TypeScope
                 Type field_semantic_type = declaration_resolved_type(fd, inner, &ctx->symbols);
                 Bool hoisted__Bool_114 = 0;
                 TypeScope_set(inner, tc_fname, &field_semantic_type, fd->is_mut, &ctx->path, expr->line, expr->col, hoisted__Bool_114, fd->own_type, &ctx->symbols);
-                Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_115 = TypeScope_get_binding_name(inner, tc_fname, &ctx->symbols);
-                TypeBinding *field_binding = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_115);
+                Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_115 = TypeScope_get_binding_name_mut(inner, tc_fname, &ctx->symbols);
+                TypeBinding *field_binding = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_115);
                 field_binding->referent_mut = fd->referent_mut;
                 Bool hoisted__Bool_116 = is_funcptr(&field_semantic_type);
                 if (hoisted__Bool_116) {
@@ -131490,7 +131612,7 @@ static void priv___src_self_typer_til__infer_type_def_expr(TypeScope * scope, Ex
     inner.target_uptr_pname = _til_str_lits.h00000b8823a4;
     inner.func_defs = SymMap__Dynamic_new();
     inner.struct_defs = SymMap__Dynamic_new();
-    inner.parent = safe_ref__TypeScope(scope);
+    inner.parent = safe_ref_mut__TypeScope(scope);
     inner.is_func_root = hoisted__Bool_259;
     inner.current_type_name = Str_clone(type_name);
     inner.typer_func = ({ TyperFuncState _sc2 = {0};     _sc2.current_top_func_name = _til_str_lits.h000000001505;
@@ -131520,7 +131642,7 @@ static void priv___src_self_typer_til__infer_type_def_expr(TypeScope * scope, Ex
         field_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
         field_scope.func_defs = SymMap__Dynamic_new();
         field_scope.struct_defs = SymMap__Dynamic_new();
-        field_scope.parent = safe_ref__TypeScope(&inner);
+        field_scope.parent = safe_ref_mut__TypeScope(&inner);
         field_scope.is_func_root = hoisted__Bool_5;
         field_scope.current_type_name = Str_clone(type_name);
         field_scope.typer_func = ({ TyperFuncState _sc5 = {0};         _sc5.current_top_func_name = _til_str_lits.h000000001505;
@@ -131988,8 +132110,8 @@ static void priv___src_self_typer_til__infer_type_def_expr(TypeScope * scope, Ex
                     Type_delete(&tc_rt, 0);
                     Expr *hoisted__Expr_194 = Declaration_default_expr(tc_nd);
                     TypeScope_set_func_def_name(&inner, tc_name, hoisted__Expr_194, &ctx->symbols);
-                    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_195 = TypeScope_get_binding_name(&inner, tc_name, &ctx->symbols);
-                    TypeBinding *tc_fb = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_195);
+                    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_195 = TypeScope_get_binding_name_mut(&inner, tc_name, &ctx->symbols);
+                    TypeBinding *tc_fb = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_195);
                     Bool hoisted__Bool_196 = 1;
                     tc_fb->is_func_decl = hoisted__Bool_196;
                     Bool hoisted__Bool_197 = FuncType_is_bodyless(&tc_fd->sig.func_type);
@@ -133150,7 +133272,7 @@ static I32 priv___src_self_typer_til__capture_borrow_permission(TypeScope * scop
     }
     switch ((int)((scope->parent).data != NULL)) {
     case 1: {
-        TypeScope *parent = ((void *)((Option__ref_TypeScope *)(&scope->parent))->data);
+        TypeScope *parent = ((void *)((Option__ref_mut_TypeScope *)(&scope->parent))->data);
         I32 hoisted__I32_11 = priv___src_self_typer_til__capture_borrow_permission(parent, name);
         return hoisted__I32_11;
     }
@@ -133771,8 +133893,8 @@ static void priv___src_self_typer_til__credit_mutable_return(TypeScope * scope, 
     case NodeType_TAG_Ident: {
         IdentData *id = ((void *)((U8 *)(&value->node_type) + offsetof(NodeType, data)));
         U32 hoisted__U32_17 = IdentData_ident_sym(id);
-        Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_18 = TypeScope_get_binding_sym(scope, &hoisted__U32_17);
-        TypeBinding *b = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_18);
+        Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_18 = TypeScope_get_binding_sym_mut(scope, &hoisted__U32_17);
+        TypeBinding *b = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_18);
         Bool hoisted__Bool_19 = 1;
         b->mutable_ref_return = hoisted__Bool_19;
         Bool _m_Bool_0 = 0;
@@ -133816,10 +133938,10 @@ static void priv___src_self_typer_til__credit_mutable_return(TypeScope * scope, 
                     if (_m_Bool_7) {
                         continue;
                     }
-                    Option__ref_TypeBinding source = priv___src_self_typer_til__lookup_binding_at(scope, root, symbols);
-                    Bool hoisted__Bool_16 = Option__ref_TypeBinding_is_some(source);
+                    Option__ref_mut_TypeBinding source = priv___src_self_typer_til__lookup_binding_at_mut(scope, root, symbols);
+                    Bool hoisted__Bool_16 = Option__ref_mut_TypeBinding_is_some(source);
                     if (hoisted__Bool_16) {
-                        TypeBinding *source_binding = Option__ref_TypeBinding_unwrap(&source);
+                        TypeBinding *source_binding = Option__ref_mut_TypeBinding_unwrap(&source);
                         Bool hoisted__Bool_12 = 1;
                         source_binding->mutable_ref_return = hoisted__Bool_12;
                     }
@@ -134546,7 +134668,7 @@ static void priv___src_self_typer_til__infer_func_def_expr(TypeScope * scope, Ex
         if (hoisted__Bool_506) {
             Bool _m_Bool_66 = 0;
             {
-                Bool _sw_Bool_67 = Option__ref_TypeScope_is_some(scope->parent);
+                Bool _sw_Bool_67 = Option__ref_mut_TypeScope_is_some(scope->parent);
                 Bool hoisted__Bool_70 = 1;
                 Bool hoisted__Bool_71 = ((Bool)(_sw_Bool_67 == hoisted__Bool_70));
                 if (hoisted__Bool_71) {
@@ -134617,7 +134739,7 @@ static void priv___src_self_typer_til__infer_func_def_expr(TypeScope * scope, Ex
         func_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
         func_scope.func_defs = SymMap__Dynamic_new();
         func_scope.struct_defs = SymMap__Dynamic_new();
-        func_scope.parent = safe_ref__TypeScope(scope);
+        func_scope.parent = safe_ref_mut__TypeScope(scope);
         func_scope.is_func_root = hoisted__Bool_514;
         func_scope.current_type_name = _til_str_lits.h000000001505;
         func_scope.typer_func = ({ TyperFuncState _sc1 = {0};         _sc1.current_top_func_name = _til_str_lits.h000000001505;
@@ -134785,7 +134907,7 @@ static void priv___src_self_typer_til__infer_func_def_expr(TypeScope * scope, Ex
             Bool hoisted__Bool_147 = 1;
             Bool hoisted__Bool_148 = ((Bool)(_sw_Bool_143 == hoisted__Bool_147));
             if (hoisted__Bool_148) {
-                Bool hoisted__Bool_144 = Option__ref_TypeScope_is_none(scope->parent);
+                Bool hoisted__Bool_144 = Option__ref_mut_TypeScope_is_none(scope->parent);
                 _m_Bool_142 = hoisted__Bool_144;
             } else {
                 Bool hoisted__Bool_145 = 0;
@@ -135322,10 +135444,10 @@ static void priv___src_self_typer_til__infer_func_def_expr(TypeScope * scope, Ex
                         }
                     }
                 }
-                Option__ref_TypeBinding pb_o = TypeScope_get_binding_name(&func_scope, &param->name, &ctx->symbols);
-                Bool hoisted__Bool_374 = Option__ref_TypeBinding_is_some(pb_o);
+                Option__ref_mut_TypeBinding pb_o = TypeScope_get_binding_name_mut(&func_scope, &param->name, &ctx->symbols);
+                Bool hoisted__Bool_374 = Option__ref_mut_TypeBinding_is_some(pb_o);
                 if (hoisted__Bool_374) {
-                    TypeBinding *pb = Option__ref_TypeBinding_unwrap(&pb_o);
+                    TypeBinding *pb = Option__ref_mut_TypeBinding_unwrap(&pb_o);
                     { Str _old = pb->declared_type_name;
                     pb->declared_type_name = Str_clone(&ptype_name);
                     Str_delete(&_old, (Bool){0}); }
@@ -136287,12 +136409,12 @@ static void priv___src_self_typer_til__propagate_priv_refs(TypeScope * scope, Co
                 U32 hoisted__U32_25 = 1;
                 U32 hoisted__U32_26 = ((U32)(_fi_USize_22 + hoisted__U32_25));
                 _fi_USize_22 = hoisted__U32_26;
-                Option__ref_TypeBinding rbo = TypeScope_get_binding_name(scope, referee, &ctx->symbols);
-                Bool hoisted__Bool_27 = Option__ref_TypeBinding_is_none(rbo);
+                Option__ref_mut_TypeBinding rbo = TypeScope_get_binding_name_mut(scope, referee, &ctx->symbols);
+                Bool hoisted__Bool_27 = Option__ref_mut_TypeBinding_is_none(rbo);
                 if (hoisted__Bool_27) {
                     continue;
                 }
-                TypeBinding *rb2 = Option__ref_TypeBinding_unwrap(&rbo);
+                TypeBinding *rb2 = Option__ref_mut_TypeBinding_unwrap(&rbo);
                 if (rb2->used) {
                     continue;
                 }
@@ -137977,7 +138099,7 @@ static void priv___src_self_typer_til__infer_if_stmt(TypeScope * scope, Expr * s
     then_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
     then_scope.func_defs = SymMap__Dynamic_new();
     then_scope.struct_defs = SymMap__Dynamic_new();
-    then_scope.parent = safe_ref__TypeScope(scope);
+    then_scope.parent = safe_ref_mut__TypeScope(scope);
     then_scope.is_func_root = hoisted__Bool_66;
     then_scope.current_type_name = _til_str_lits.h000000001505;
     then_scope.typer_func = ({ TyperFuncState _sc1 = {0};     _sc1.current_top_func_name = _til_str_lits.h000000001505;
@@ -138044,7 +138166,7 @@ static void priv___src_self_typer_til__infer_if_stmt(TypeScope * scope, Expr * s
         else_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
         else_scope.func_defs = SymMap__Dynamic_new();
         else_scope.struct_defs = SymMap__Dynamic_new();
-        else_scope.parent = safe_ref__TypeScope(scope);
+        else_scope.parent = safe_ref_mut__TypeScope(scope);
         else_scope.is_func_root = hoisted__Bool_45;
         else_scope.current_type_name = _til_str_lits.h000000001505;
         else_scope.typer_func = ({ TyperFuncState _sc4 = {0};         _sc4.current_top_func_name = _til_str_lits.h000000001505;
@@ -139501,7 +139623,7 @@ static void priv___src_self_typer_til__infer_while_stmt(TypeScope * scope, Expr 
     while_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
     while_scope.func_defs = SymMap__Dynamic_new();
     while_scope.struct_defs = SymMap__Dynamic_new();
-    while_scope.parent = safe_ref__TypeScope(scope);
+    while_scope.parent = safe_ref_mut__TypeScope(scope);
     while_scope.is_func_root = hoisted__Bool_133;
     while_scope.current_type_name = _til_str_lits.h000000001505;
     while_scope.typer_func = ({ TyperFuncState _sc1 = {0};     _sc1.current_top_func_name = _til_str_lits.h000000001505;
@@ -139739,8 +139861,8 @@ static Bool priv___src_self_typer_til__infer_decl_type_def(TypeScope * scope, Ex
         panic(&_va_Array_4, &hoisted__Str_self_typer_infer_decl_type_def_77);
     }
     TypeScope_set_struct_def(scope, sname, _bang_ret_1, &ctx->symbols);
-    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_93 = TypeScope_get_binding_name(scope, sname, &ctx->symbols);
-    TypeBinding *b = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_93);
+    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_93 = TypeScope_get_binding_name_mut(scope, sname, &ctx->symbols);
+    TypeBinding *b = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_93);
     b->is_builtin = (is_builtin);
     b->is_priv = sdecl->is_priv;
     { Str _old = b->orig_name;
@@ -139965,8 +140087,8 @@ static Bool priv___src_self_typer_til__infer_decl_func_def(TypeScope * scope, Ex
             panic(&_va_Array_5, &hoisted__Str_self_typer_infer_decl_func_def_70);
         }
         TypeScope_set_func_def_name(scope, &sdecl->name, _bang_ret_4, &ctx->symbols);
-        Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_95 = TypeScope_get_binding_name(scope, &sdecl->name, &ctx->symbols);
-        TypeBinding *fb = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_95);
+        Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_95 = TypeScope_get_binding_name_mut(scope, &sdecl->name, &ctx->symbols);
+        TypeBinding *fb = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_95);
         Bool hoisted__Bool_96 = 1;
         fb->is_func_decl = hoisted__Bool_96;
         fb->is_priv = sdecl->is_priv;
@@ -140614,8 +140736,8 @@ static Bool priv___src_self_typer_til__infer_ext_global_decl(TypeScope * scope, 
 static void priv___src_self_typer_til__bind_ext_global_decl(TypeScope * scope, Declaration * decl, Type * external_type, Str * path, U32 line, U32 col, Context * ctx) {
     Bool hoisted__Bool_1 = 0;
     TypeScope_set(scope, &decl->name, external_type, decl->is_mut, path, line, col, hoisted__Bool_1, decl->own_type, &ctx->symbols);
-    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_2 = TypeScope_get_binding_name(scope, &decl->name, &ctx->symbols);
-    TypeBinding *binding = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_2);
+    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_2 = TypeScope_get_binding_name_mut(scope, &decl->name, &ctx->symbols);
+    TypeBinding *binding = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_2);
     binding->mut_explicit = decl->is_mut;
     binding->referent_mut = decl->referent_mut;
     binding->ref_slot_explicit = decl->ref_slot_explicit;
@@ -141332,11 +141454,12 @@ static void priv___src_self_typer_til__infer_interface_payload_call(TypeScope * 
     }
     mark_fcall_direct(call);
     priv___src_self_typer_til__infer_and_validate_fcall_args_for_fdef(scope, call, fd, in_func, ctx);
-    Option__ref_TypeBinding binding_o = TypeScope_get_binding_name(scope, &name, &ctx->symbols);
-    TypeBinding *binding = Option__ref_TypeBinding_unwrap(&binding_o);
-    Bool hoisted__Bool_60 = 1;
-    binding->used = hoisted__Bool_60;
-    priv___src_self_typer_til__resolve_fcall_return_type(scope, call, &name, binding_o, fdef_o, in_func, ctx);
+    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_60 = TypeScope_get_binding_name_mut(scope, &name, &ctx->symbols);
+    TypeBinding *binding = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_60);
+    Bool hoisted__Bool_61 = 1;
+    binding->used = hoisted__Bool_61;
+    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_62 = safe_ref__TypeBinding(binding);
+    priv___src_self_typer_til__resolve_fcall_return_type(scope, call, &name, hoisted__Option__ref_TypeBinding_62, fdef_o, in_func, ctx);
     Str_delete(&name, 0);
 }
 
@@ -142639,8 +142762,8 @@ static void priv___src_self_typer_til__finalize_decl_binding(TypeScope * scope, 
         Bool hoisted__Bool_394 = 0;
         TypeScope_set(scope, &sdecl->name, &semantic_decl_type, sdecl->is_mut, &ctx->path, stmt->line, stmt->col, hoisted__Bool_394, (OwnType){.tag = OwnType_TAG_Shallow}, &ctx->symbols);
         Type_delete(&semantic_decl_type, 0);
-        Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_395 = TypeScope_get_binding_name(scope, &sdecl->name, &ctx->symbols);
-        TypeBinding *decl_b = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_395);
+        Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_395 = TypeScope_get_binding_name_mut(scope, &sdecl->name, &ctx->symbols);
+        TypeBinding *decl_b = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_395);
         decl_b->mut_explicit = sdecl->is_mut;
         decl_b->ref_slot_explicit = sdecl->ref_slot_explicit;
         if (had_declared_type) {
@@ -144052,7 +144175,7 @@ static Bool priv___src_self_typer_til__capture_is_mut(Vec__Declaration * capture
 static TypeScope * priv___src_self_typer_til__scope_root_ref(TypeScope * s) {
     switch ((int)((s->parent).data != NULL)) {
     case 1: {
-        TypeScope *p = ((void *)((Option__ref_TypeScope *)(&s->parent))->data);
+        TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&s->parent))->data);
         TypeScope *hoisted__TypeScope_0 = priv___src_self_typer_til__scope_root_ref(p);
         return hoisted__TypeScope_0;
     }
@@ -144506,7 +144629,7 @@ static void priv___src_self_typer_til__infer_body_value_expr(TypeScope * scope, 
     body_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
     body_scope.func_defs = SymMap__Dynamic_new();
     body_scope.struct_defs = SymMap__Dynamic_new();
-    body_scope.parent = safe_ref__TypeScope(scope);
+    body_scope.parent = safe_ref_mut__TypeScope(scope);
     body_scope.is_func_root = hoisted__Bool_33;
     body_scope.current_type_name = _til_str_lits.h000000001505;
     body_scope.typer_func = ({ TyperFuncState _sc1 = {0};     _sc1.current_top_func_name = _til_str_lits.h000000001505;
@@ -144559,8 +144682,8 @@ static void priv___src_self_typer_til__validate_captures(TypeScope * scope, Vec_
             U32 hoisted__U32_31 = 1;
             U32 hoisted__U32_32 = ((U32)(_fi_USize_0 + hoisted__U32_31));
             _fi_USize_0 = hoisted__U32_32;
-            Option__ref_TypeBinding b_o = TypeScope_get_binding_name(scope, &cap->name, &ctx->symbols);
-            Bool hoisted__Bool_33 = Option__ref_TypeBinding_is_none(b_o);
+            Option__ref_mut_TypeBinding b_o = TypeScope_get_binding_name_mut(scope, &cap->name, &ctx->symbols);
+            Bool hoisted__Bool_33 = Option__ref_mut_TypeBinding_is_none(b_o);
             if (hoisted__Bool_33) {
                 U32 hoisted__U32_2 = 3;
                 Array__Str _va_Array_0 = Array__Str_new(hoisted__U32_2);
@@ -144577,7 +144700,7 @@ static void priv___src_self_typer_til__validate_captures(TypeScope * scope, Vec_
                 type_error(errnode, &hoisted__Str_self_typer_validate_captures_9, ctx, &(DiagnosticPhase){.tag = DiagnosticPhase_TAG_Type});
                 Str_delete(&hoisted__Str_self_typer_validate_captures_9, 0);
             } else {
-                TypeBinding *b = Option__ref_TypeBinding_unwrap(&b_o);
+                TypeBinding *b = Option__ref_mut_TypeBinding_unwrap(&b_o);
                 { Type _old = cap->til_type;
                 cap->til_type = Type_clone(&b->type);
                 Type_delete(&_old, (Bool){0}); }
@@ -144648,8 +144771,8 @@ static void priv___src_self_typer_til__capture_private_mut_begin(TypeScope * sco
             U32 hoisted__U32_12 = 1;
             U32 hoisted__U32_13 = ((U32)(_fi_USize_0 + hoisted__U32_12));
             _fi_USize_0 = hoisted__U32_13;
-            Option__ref_TypeBinding b_o = TypeScope_get_binding_name(scope, &cap->name, symbols);
-            Bool hoisted__Bool_14 = Option__ref_TypeBinding_is_none(b_o);
+            Option__ref_mut_TypeBinding b_o = TypeScope_get_binding_name_mut(scope, &cap->name, symbols);
+            Bool hoisted__Bool_14 = Option__ref_mut_TypeBinding_is_none(b_o);
             if (hoisted__Bool_14) {
                 Bool hoisted__Bool_2 = 0;
                 Vec__Bool_push(source_muts, hoisted__Bool_2);
@@ -144657,7 +144780,7 @@ static void priv___src_self_typer_til__capture_private_mut_begin(TypeScope * sco
                 Vec__Bool_push(source_written, hoisted__Bool_3);
                 continue;
             }
-            TypeBinding *b = Option__ref_TypeBinding_unwrap(&b_o);
+            TypeBinding *b = Option__ref_mut_TypeBinding_unwrap(&b_o);
             Bool hoisted__Bool_15 = (b->is_mut);
             Vec__Bool_push(source_muts, hoisted__Bool_15);
             Bool hoisted__Bool_16 = (b->written);
@@ -144724,12 +144847,12 @@ static void priv___src_self_typer_til__capture_private_mut_end(TypeScope * scope
             if (_m_Bool_7) {
                 continue;
             }
-            Option__ref_TypeBinding b_o = TypeScope_get_binding_name(scope, &cap->name, symbols);
-            Bool hoisted__Bool_25 = Option__ref_TypeBinding_is_none(b_o);
+            Option__ref_mut_TypeBinding b_o = TypeScope_get_binding_name_mut(scope, &cap->name, symbols);
+            Bool hoisted__Bool_25 = Option__ref_mut_TypeBinding_is_none(b_o);
             if (hoisted__Bool_25) {
                 continue;
             }
-            TypeBinding *b = Option__ref_TypeBinding_unwrap(&b_o);
+            TypeBinding *b = Option__ref_mut_TypeBinding_unwrap(&b_o);
             Bool *_bang_ret_0 = (((Bool)((U32)(i) < source_muts->count)) ? (Bool *)((Bool *)((void *)((U8 *)(TIL_OWN_GET(U8, (source_muts->data))) + (((U64)(((U64)((U32)(i))) * 1ULL)))))) : (_err_kind = 1, (Bool *)NULL));
             I64 hoisted__I64_26 = 1;
             Bool hoisted__Bool_27 = ((Bool)(_err_kind == hoisted__I64_26));
@@ -145006,7 +145129,7 @@ static void priv___src_self_typer_til__infer_capture_block(TypeScope * scope, Ex
     block_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
     block_scope.func_defs = SymMap__Dynamic_new();
     block_scope.struct_defs = SymMap__Dynamic_new();
-    block_scope.parent = safe_ref__TypeScope(scope);
+    block_scope.parent = safe_ref_mut__TypeScope(scope);
     block_scope.is_func_root = hoisted__Bool_81;
     block_scope.current_type_name = _til_str_lits.h000000001505;
     block_scope.typer_func = ({ TyperFuncState _sc1 = {0};     _sc1.current_top_func_name = _til_str_lits.h000000001505;
@@ -145058,8 +145181,8 @@ static void priv___src_self_typer_til__infer_capture_block(TypeScope * scope, Ex
             TypeBinding *osrc = Option__ref_TypeBinding_unwrap(&osrc_o);
             Bool hoisted__Bool_68 = 0;
             TypeScope_set(&block_scope, &ocap->name, &osrc->type, osrc->is_mut, &ctx->path, stmt->line, stmt->col, hoisted__Bool_68, (OwnType){.tag = OwnType_TAG_Own}, &ctx->symbols);
-            Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_69 = TypeScope_get_binding_name(&block_scope, &ocap->name, &ctx->symbols);
-            TypeBinding *ob = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_69);
+            Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_69 = TypeScope_get_binding_name_mut(&block_scope, &ocap->name, &ctx->symbols);
+            TypeBinding *ob = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_69);
             Bool hoisted__Bool_70 = 1;
             ob->used = hoisted__Bool_70;
         }
@@ -145265,7 +145388,7 @@ static void infer_body_stmt(TypeScope * scope, Expr * body, USize * i, I32 in_fu
         block_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
         block_scope.func_defs = SymMap__Dynamic_new();
         block_scope.struct_defs = SymMap__Dynamic_new();
-        block_scope.parent = safe_ref__TypeScope(scope);
+        block_scope.parent = safe_ref_mut__TypeScope(scope);
         block_scope.is_func_root = hoisted__Bool_60;
         block_scope.current_type_name = _til_str_lits.h000000001505;
         block_scope.typer_func = ({ TyperFuncState _sc1 = {0};         _sc1.current_top_func_name = _til_str_lits.h000000001505;
@@ -145383,7 +145506,7 @@ static void infer_body_stmt(TypeScope * scope, Expr * body, USize * i, I32 in_fu
             catch_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
             catch_scope.func_defs = SymMap__Dynamic_new();
             catch_scope.struct_defs = SymMap__Dynamic_new();
-            catch_scope.parent = safe_ref__TypeScope(scope);
+            catch_scope.parent = safe_ref_mut__TypeScope(scope);
             catch_scope.is_func_root = hoisted__Bool_94;
             catch_scope.current_type_name = _til_str_lits.h000000001505;
             catch_scope.typer_func = ({ TyperFuncState _sc4 = {0};             _sc4.current_top_func_name = _til_str_lits.h000000001505;
@@ -145458,10 +145581,10 @@ static void priv___src_self_typer_til__reregister_scope_defs(Expr * body, TypeSc
             switch ((rstmt->node_type).tag) {
             case NodeType_TAG_Decl: {
                 Declaration *rdecl = ((void *)((U8 *)(&rstmt->node_type) + offsetof(NodeType, data)));
-                Option__ref_TypeBinding rb_o = TypeScope_get_binding_name(scope, &rdecl->name, symbols);
-                Bool hoisted__Bool_114 = Option__ref_TypeBinding_is_some(rb_o);
+                Option__ref_mut_TypeBinding rb_o = TypeScope_get_binding_name_mut(scope, &rdecl->name, symbols);
+                Bool hoisted__Bool_114 = Option__ref_mut_TypeBinding_is_some(rb_o);
                 if (hoisted__Bool_114) {
-                    TypeBinding *rb = Option__ref_TypeBinding_unwrap(&rb_o);
+                    TypeBinding *rb = Option__ref_mut_TypeBinding_unwrap(&rb_o);
                     Bool _m_Bool_7 = 0;
                     {
                         Bool _sw_Bool_8 = ((Bool)((((NodeType *)(&rfirst->node_type))->tag) == NodeType_TAG_StructDef));
@@ -145719,7 +145842,7 @@ static void infer_body(TypeScope * scope, Expr * body, I32 in_func, I32 owns_sco
         Bool _m_Bool_1 = 0;
         {
             {
-                Bool _sw_Bool_2 = Option__ref_TypeScope_is_none(scope->parent);
+                Bool _sw_Bool_2 = Option__ref_mut_TypeScope_is_none(scope->parent);
                 Bool hoisted__Bool_6 = 1;
                 Bool hoisted__Bool_7 = ((Bool)(_sw_Bool_2 == hoisted__Bool_6));
                 if (hoisted__Bool_7) {
@@ -146835,7 +146958,7 @@ static void priv___src_self_typer_til__comptime_prepare_type(Str * type_name, Co
         inner.target_uptr_pname = _til_str_lits.h00000b8823a4;
         inner.func_defs = SymMap__Dynamic_new();
         inner.struct_defs = SymMap__Dynamic_new();
-        inner.parent = safe_ref__TypeScope(&ctx->scope);
+        inner.parent = safe_ref_mut__TypeScope(&ctx->scope);
         inner.is_func_root = hoisted__Bool_36;
         inner.current_type_name = Str_clone(&name);
         inner.typer_func = ({ TyperFuncState _sc2 = {0};         _sc2.current_top_func_name = _til_str_lits.h000000001505;
@@ -147062,7 +147185,7 @@ static void priv___src_self_typer_til__comptime_prepare_function(Str * name, Str
     local.target_uptr_pname = _til_str_lits.h00000b8823a4;
     local.func_defs = SymMap__Dynamic_new();
     local.struct_defs = SymMap__Dynamic_new();
-    local.parent = safe_ref__TypeScope(&ctx->scope);
+    local.parent = safe_ref_mut__TypeScope(&ctx->scope);
     local.is_func_root = hoisted__Bool_89;
     local.current_type_name = Str_clone(owner);
     local.typer_func = ({ TyperFuncState _sc2 = {0};     _sc2.current_top_func_name = _til_str_lits.h000000001505;
@@ -147267,8 +147390,8 @@ static void priv___src_self_typer_til__comptime_prepare_named_function(Str * nam
         panic(&_va_Array_3, &hoisted__Str_self_typer_comptime_prepare_named_function_30);
     }
     Str saved_path = Str_clone(&ctx->path);
-    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_48 = TypeScope_get_binding_name(&ctx->scope, &name, &ctx->symbols);
-    TypeBinding *binding = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_48);
+    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_48 = TypeScope_get_binding_name_mut(&ctx->scope, &name, &ctx->symbols);
+    TypeBinding *binding = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_48);
     Bool hoisted__Bool_49 = 1;
     binding->used = hoisted__Bool_49;
     context_enter_file(ctx, &binding->path);
@@ -147367,7 +147490,7 @@ static void priv___src_self_typer_til__comptime_prepare_value(Str * name, Str * 
     local.target_uptr_pname = _til_str_lits.h00000b8823a4;
     local.func_defs = SymMap__Dynamic_new();
     local.struct_defs = SymMap__Dynamic_new();
-    local.parent = safe_ref__TypeScope(&ctx->scope);
+    local.parent = safe_ref_mut__TypeScope(&ctx->scope);
     local.is_func_root = hoisted__Bool_43;
     local.current_type_name = _til_str_lits.h000000001505;
     local.typer_func = ({ TyperFuncState _sc2 = {0};     _sc2.current_top_func_name = _til_str_lits.h000000001505;
@@ -147436,14 +147559,14 @@ static void priv___src_self_typer_til__comptime_prepare_value(Str * name, Str * 
         TypeBinding *b = Option__ref_TypeBinding_unwrap(&b_o);
         Bool hoisted__Bool_26 = 0;
         TypeScope_set(&ctx->scope, name, &b->type, b->is_mut, path, stmt->line, stmt->col, hoisted__Bool_26, b->own_type, &ctx->symbols);
-        Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_27 = TypeScope_get_binding_name(&ctx->scope, name, &ctx->symbols);
-        TypeBinding *exported_binding = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_27);
+        Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_27 = TypeScope_get_binding_name_mut(&ctx->scope, name, &ctx->symbols);
+        TypeBinding *exported_binding = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_27);
         exported_binding->referent_mut = b->referent_mut;
         { Str _old = exported_binding->ref_permission_problem;
         exported_binding->ref_permission_problem = Str_clone(&b->ref_permission_problem);
         Str_delete(&_old, (Bool){0}); }
-        Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_28 = TypeScope_get_binding_name(&ctx->scope, name, &ctx->symbols);
-        TypeBinding *global_binding = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_28);
+        Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_28 = TypeScope_get_binding_name_mut(&ctx->scope, name, &ctx->symbols);
+        TypeBinding *global_binding = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_28);
         global_binding->is_priv = decl->is_priv;
         { Str _old = global_binding->orig_name;
         global_binding->orig_name = Str_clone(&decl->orig_name);
@@ -147860,7 +147983,7 @@ static void priv___src_self_typer_til__comptime_prepare_expr(Expr * e, TypeScope
         local.target_uptr_pname = _til_str_lits.h00000b8823a4;
         local.func_defs = SymMap__Dynamic_new();
         local.struct_defs = SymMap__Dynamic_new();
-        local.parent = safe_ref__TypeScope(scope);
+        local.parent = safe_ref_mut__TypeScope(scope);
         local.is_func_root = hoisted__Bool_28;
         local.current_type_name = _til_str_lits.h000000001505;
         local.typer_func = ({ TyperFuncState _sc2 = {0};         _sc2.current_top_func_name = _til_str_lits.h000000001505;
@@ -147966,7 +148089,7 @@ static void priv___src_self_typer_til__comptime_prepare_expr(Expr * e, TypeScope
         local.target_uptr_pname = _til_str_lits.h00000b8823a4;
         local.func_defs = SymMap__Dynamic_new();
         local.struct_defs = SymMap__Dynamic_new();
-        local.parent = safe_ref__TypeScope(scope);
+        local.parent = safe_ref_mut__TypeScope(scope);
         local.is_func_root = hoisted__Bool_63;
         local.current_type_name = _til_str_lits.h000000001505;
         local.typer_func = ({ TyperFuncState _sc6 = {0};         _sc6.current_top_func_name = _til_str_lits.h000000001505;
@@ -148137,7 +148260,7 @@ static void priv___src_self_typer_til__comptime_prepare_expr(Expr * e, TypeScope
         local.target_uptr_pname = _til_str_lits.h00000b8823a4;
         local.func_defs = SymMap__Dynamic_new();
         local.struct_defs = SymMap__Dynamic_new();
-        local.parent = safe_ref__TypeScope(scope);
+        local.parent = safe_ref_mut__TypeScope(scope);
         local.is_func_root = hoisted__Bool_105;
         local.current_type_name = _til_str_lits.h000000001505;
         local.typer_func = ({ TyperFuncState _sc10 = {0};         _sc10.current_top_func_name = _til_str_lits.h000000001505;
@@ -148319,7 +148442,7 @@ static I32 eval_generator_condition(Expr * condition, TypeScope * scope, Context
     local.target_uptr_pname = _til_str_lits.h00000b8823a4;
     local.func_defs = SymMap__Dynamic_new();
     local.struct_defs = SymMap__Dynamic_new();
-    local.parent = safe_ref__TypeScope(scope);
+    local.parent = safe_ref_mut__TypeScope(scope);
     local.is_func_root = hoisted__Bool_58;
     local.current_type_name = _til_str_lits.h000000001505;
     local.typer_func = ({ TyperFuncState _sc2 = {0};     _sc2.current_top_func_name = _til_str_lits.h000000001505;
@@ -149183,7 +149306,7 @@ static void priv___src_self_typer_til__type_repl_delta_fields_from(Expr * progra
                     inner.target_uptr_pname = _til_str_lits.h00000b8823a4;
                     inner.func_defs = SymMap__Dynamic_new();
                     inner.struct_defs = SymMap__Dynamic_new();
-                    inner.parent = safe_ref__TypeScope(&ctx->scope);
+                    inner.parent = safe_ref_mut__TypeScope(&ctx->scope);
                     inner.is_func_root = hoisted__Bool_25;
                     inner.current_type_name = Str_clone(&d->name);
                     inner.typer_func = ({ TyperFuncState _sc2 = {0};                     _sc2.current_top_func_name = _til_str_lits.h000000001505;
@@ -149286,7 +149409,7 @@ static void priv___src_self_typer_til__type_repl_delta_fields_from(Expr * progra
                     inner.target_uptr_pname = _til_str_lits.h00000b8823a4;
                     inner.func_defs = SymMap__Dynamic_new();
                     inner.struct_defs = SymMap__Dynamic_new();
-                    inner.parent = safe_ref__TypeScope(&ctx->scope);
+                    inner.parent = safe_ref_mut__TypeScope(&ctx->scope);
                     inner.is_func_root = hoisted__Bool_58;
                     inner.current_type_name = Str_clone(&d->name);
                     inner.typer_func = ({ TyperFuncState _sc6 = {0};                     _sc6.current_top_func_name = _til_str_lits.h000000001505;
@@ -149569,7 +149692,7 @@ static I32 priv___src_self_typer_til__type_fields_file(Str * path, Context * ctx
                 inner.target_uptr_pname = _til_str_lits.h00000b8823a4;
                 inner.func_defs = SymMap__Dynamic_new();
                 inner.struct_defs = SymMap__Dynamic_new();
-                inner.parent = safe_ref__TypeScope(&ctx->scope);
+                inner.parent = safe_ref_mut__TypeScope(&ctx->scope);
                 inner.is_func_root = hoisted__Bool_36;
                 inner.current_type_name = Str_clone(&d->name);
                 inner.typer_func = ({ TyperFuncState _sc2 = {0};                 _sc2.current_top_func_name = _til_str_lits.h000000001505;
@@ -150120,10 +150243,10 @@ static void priv___src_self_typer_til__infer_assign_stmt(TypeScope * scope, Expr
     }
     Type *hoisted__Type_313 = Expr_til_type(rhs);
     Expr_set_til_type(stmt, DEREF(hoisted__Type_313));
-    Option__ref_TypeBinding ub_o = TypeScope_get_binding_name(scope, &aname, &ctx->symbols);
-    Bool hoisted__Bool_314 = Option__ref_TypeBinding_is_some(ub_o);
+    Option__ref_mut_TypeBinding ub_o = TypeScope_get_binding_name_mut(scope, &aname, &ctx->symbols);
+    Bool hoisted__Bool_314 = Option__ref_mut_TypeBinding_is_some(ub_o);
     if (hoisted__Bool_314) {
-        TypeBinding *ub = Option__ref_TypeBinding_unwrap(&ub_o);
+        TypeBinding *ub = Option__ref_mut_TypeBinding_unwrap(&ub_o);
         note_cross_file_use(ctx, &ub->path);
         Bool _m_Bool_68 = 0;
         {
@@ -150188,10 +150311,10 @@ static void priv___src_self_typer_til__infer_assign_stmt(TypeScope * scope, Expr
         U32 hoisted__U32_110 = 0;
         Bool hoisted__Bool_111 = ((Bool)(hoisted__U32_109 > hoisted__U32_110));
         if (hoisted__Bool_111) {
-            Option__ref_TypeBinding db_o = TypeScope_get_binding_name(scope, &aname, &ctx->symbols);
-            Bool hoisted__Bool_108 = Option__ref_TypeBinding_is_some(db_o);
+            Option__ref_mut_TypeBinding db_o = TypeScope_get_binding_name_mut(scope, &aname, &ctx->symbols);
+            Bool hoisted__Bool_108 = Option__ref_mut_TypeBinding_is_some(db_o);
             if (hoisted__Bool_108) {
-                TypeBinding *db = Option__ref_TypeBinding_unwrap(&db_o);
+                TypeBinding *db = Option__ref_mut_TypeBinding_unwrap(&db_o);
                 Bool hoisted__Bool_107 = priv___src_self_typer_til__binding_is_storage(scope, db, &ctx->symbols);
                 if (hoisted__Bool_107) {
                     Bool _m_Bool_97 = 0;
@@ -150448,8 +150571,8 @@ static void priv___src_self_typer_til__infer_assign_stmt(TypeScope * scope, Expr
     Bool hoisted__Bool_319 = reference_assignment_rebinds(stmt, scope, &ctx->symbols);
     if (hoisted__Bool_319) {
         Vec__BorrowRoot roots = expr_borrow_roots(scope, rhs, &ctx->symbols);
-        Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_236 = TypeScope_get_binding_name(scope, &aname, &ctx->symbols);
-        TypeBinding *target = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_236);
+        Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_236 = TypeScope_get_binding_name_mut(scope, &aname, &ctx->symbols);
+        TypeBinding *target = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_236);
         priv___src_self_typer_til__check_reference_rebind_lifetime(scope, target, &roots, stmt, ctx);
         Str problem = priv___src_self_typer_til__writable_borrow_problem(scope, rhs, &ctx->symbols);
         Bool _m_Bool_214 = 0;
@@ -151558,10 +151681,10 @@ static Type type_from_name(Str * name, TypeScope * scope, Context * ctx) {
         return (Type){.tag = Type_TAG_Unknown};
     }
     U32 sym = Option__U32_unwrap(&sym_o);
-    Option__ref_TypeBinding b_o = TypeScope_get_binding_sym(scope, &sym);
-    Bool hoisted__Bool_31 = Option__ref_TypeBinding_is_some(b_o);
+    Option__ref_mut_TypeBinding b_o = TypeScope_get_binding_sym_mut(scope, &sym);
+    Bool hoisted__Bool_31 = Option__ref_mut_TypeBinding_is_some(b_o);
     if (hoisted__Bool_31) {
-        TypeBinding *b = Option__ref_TypeBinding_unwrap(&b_o);
+        TypeBinding *b = Option__ref_mut_TypeBinding_unwrap(&b_o);
         note_cross_file_use(ctx, &b->path);
         if (b->is_type_alias) {
             Bool hoisted__Bool_3 = Str_is_empty(&b->alias_target);
@@ -161053,12 +161176,67 @@ static Option__ref_TypeBinding priv___src_self_typer_til__lookup_binding_at(Type
     }
     switch ((int)((scope->parent).data != NULL)) {
     case 1: {
-        TypeScope *p = ((void *)((Option__ref_TypeScope *)(&scope->parent))->data);
+        TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&scope->parent))->data);
         Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_11 = priv___src_self_typer_til__lookup_binding_at(p, r, symbols);
         return hoisted__Option__ref_TypeBinding_11;
     }
     default: {
         return (Option__ref_TypeBinding){.data = NULL};
+    }
+    }
+    __builtin_unreachable();
+}
+
+static Option__ref_mut_TypeBinding priv___src_self_typer_til__lookup_binding_at_mut(TypeScope * scope, BorrowRoot * r, SymbolPool * symbols) {
+    Option__U32 sym = SymbolPool_lookup(symbols, &r->name);
+    Bool hoisted__Bool_13 = Option__U32_is_none(&sym);
+    if (hoisted__Bool_13) {
+        return (Option__ref_mut_TypeBinding){.data = NULL};
+    }
+    U32 hoisted__U32_14 = Option__U32_unwrap(&sym);
+    I64 pos = SymMap__TypeBinding_find(&scope->bindings, hoisted__U32_14);
+    I64 hoisted__I64_15 = 0;
+    Bool hoisted__Bool_16 = ((Bool)(pos >= hoisted__I64_15));
+    if (hoisted__Bool_16) {
+        U32 hoisted__U32_11 = I64_to_usize(pos);
+        TypeBinding *b = Vec__TypeBinding_unsafe_get_mut(&scope->bindings.values, &hoisted__U32_11);
+        Bool _m_Bool_0 = 0;
+        {
+            {
+                Bool _sw_Bool_1 = ((Bool)(b->line == r->line));
+                Bool hoisted__Bool_4 = 1;
+                Bool hoisted__Bool_5 = ((Bool)(_sw_Bool_1 == hoisted__Bool_4));
+                if (hoisted__Bool_5) {
+                    Bool hoisted__Bool_2 = ((Bool)(b->col == r->col));
+                    _m_Bool_0 = hoisted__Bool_2;
+                } else {
+                    Bool hoisted__Bool_3 = 0;
+                    _m_Bool_0 = hoisted__Bool_3;
+                }
+            }
+            Bool hoisted__Bool_8 = 1;
+            Bool hoisted__Bool_9 = ((Bool)(_m_Bool_0 == hoisted__Bool_8));
+            if (hoisted__Bool_9) {
+                Bool hoisted__Bool_6 = Str_eq(&b->path, &r->path);
+                _m_Bool_0 = hoisted__Bool_6;
+            } else {
+                Bool hoisted__Bool_7 = 0;
+                _m_Bool_0 = hoisted__Bool_7;
+            }
+        }
+        if (_m_Bool_0) {
+            Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_10 = Option__ref_mut_TypeBinding_Some(b);
+            return hoisted__Option__ref_mut_TypeBinding_10;
+        }
+    }
+    switch ((int)((scope->parent).data != NULL)) {
+    case 1: {
+        TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&scope->parent))->data);
+        Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_12 = priv___src_self_typer_til__lookup_binding_at_mut(p, r, symbols);
+        return hoisted__Option__ref_mut_TypeBinding_12;
+    }
+    default: {
+        return (Option__ref_mut_TypeBinding){.data = NULL};
     }
     }
     __builtin_unreachable();
@@ -161078,12 +161256,12 @@ static void priv___src_self_typer_til__mark_roots_written(TypeScope * scope, Vec
             U32 hoisted__U32_3 = 1;
             U32 hoisted__U32_4 = ((U32)(_fi_USize_0 + hoisted__U32_3));
             _fi_USize_0 = hoisted__U32_4;
-            Option__ref_TypeBinding rb_o = priv___src_self_typer_til__lookup_binding_at(scope, r, symbols);
-            Bool hoisted__Bool_5 = Option__ref_TypeBinding_is_none(rb_o);
+            Option__ref_mut_TypeBinding rb_o = priv___src_self_typer_til__lookup_binding_at_mut(scope, r, symbols);
+            Bool hoisted__Bool_5 = Option__ref_mut_TypeBinding_is_none(rb_o);
             if (hoisted__Bool_5) {
                 continue;
             }
-            TypeBinding *rb = Option__ref_TypeBinding_unwrap(&rb_o);
+            TypeBinding *rb = Option__ref_mut_TypeBinding_unwrap(&rb_o);
             Bool hoisted__Bool_6 = 1;
             rb->written = hoisted__Bool_6;
         }
@@ -161290,12 +161468,12 @@ static void priv___src_self_typer_til__check_writable_root_set(TypeScope * scope
 }
 
 static void priv___src_self_typer_til__mark_name_written_name(TypeScope * scope, Str * name, SymbolPool * symbols) {
-    Option__ref_TypeBinding bo = TypeScope_get_binding_name(scope, name, symbols);
-    Bool hoisted__Bool_0 = Option__ref_TypeBinding_is_none(bo);
+    Option__ref_mut_TypeBinding bo = TypeScope_get_binding_name_mut(scope, name, symbols);
+    Bool hoisted__Bool_0 = Option__ref_mut_TypeBinding_is_none(bo);
     if (hoisted__Bool_0) {
         return;
     }
-    TypeBinding *b = Option__ref_TypeBinding_unwrap(&bo);
+    TypeBinding *b = Option__ref_mut_TypeBinding_unwrap(&bo);
     Bool hoisted__Bool_1 = 1;
     b->written = hoisted__Bool_1;
     U32 hoisted__U32_2 = (b->borrow_roots.count);
@@ -161307,12 +161485,12 @@ static void priv___src_self_typer_til__mark_name_written_name(TypeScope * scope,
 }
 
 static void priv___src_self_typer_til__mark_name_written_sym(TypeScope * scope, U32 sym, SymbolPool * symbols) {
-    Option__ref_TypeBinding bo = TypeScope_get_binding_sym(scope, &sym);
-    Bool hoisted__Bool_0 = Option__ref_TypeBinding_is_none(bo);
+    Option__ref_mut_TypeBinding bo = TypeScope_get_binding_sym_mut(scope, &sym);
+    Bool hoisted__Bool_0 = Option__ref_mut_TypeBinding_is_none(bo);
     if (hoisted__Bool_0) {
         return;
     }
-    TypeBinding *b = Option__ref_TypeBinding_unwrap(&bo);
+    TypeBinding *b = Option__ref_mut_TypeBinding_unwrap(&bo);
     Bool hoisted__Bool_1 = 1;
     b->written = hoisted__Bool_1;
     U32 hoisted__U32_2 = (b->borrow_roots.count);
@@ -161467,12 +161645,12 @@ static void priv___src_self_typer_til__deposit_roots_into_binding(TypeScope * sc
                 U32 hoisted__U32_43 = 1;
                 U32 hoisted__U32_44 = ((U32)(_fi_USize_23 + hoisted__U32_43));
                 _fi_USize_23 = hoisted__U32_44;
-                Option__ref_TypeBinding ab_o = priv___src_self_typer_til__lookup_binding_at(scope, ar, symbols);
-                Bool hoisted__Bool_45 = Option__ref_TypeBinding_is_none(ab_o);
+                Option__ref_mut_TypeBinding ab_o = priv___src_self_typer_til__lookup_binding_at_mut(scope, ar, symbols);
+                Bool hoisted__Bool_45 = Option__ref_mut_TypeBinding_is_none(ab_o);
                 if (hoisted__Bool_45) {
                     continue;
                 }
-                TypeBinding *ab = Option__ref_TypeBinding_unwrap(&ab_o);
+                TypeBinding *ab = Option__ref_mut_TypeBinding_unwrap(&ab_o);
                 {
                     Vec__BorrowRoot *_fc_Vec__BorrowRoot_25 = deposited;
                     USize _fi_USize_25 = 0;
@@ -161528,20 +161706,19 @@ static void priv___src_self_typer_til__deposit_roots_into_binding(TypeScope * sc
     }
 }
 
-static Option__ref_TypeBinding priv___src_self_typer_til__deposit_sink_binding(TypeScope * scope, Expr * sink, SymbolPool * symbols) {
+static Option__ref_mut_TypeBinding priv___src_self_typer_til__deposit_sink_binding(TypeScope * scope, Expr * sink, SymbolPool * symbols) {
     I64 _err_kind = 0;
     switch ((sink->node_type).tag) {
     case NodeType_TAG_Ident: {
         IdentData *id = ((void *)((U8 *)(&sink->node_type) + offsetof(NodeType, data)));
         U32 hoisted__U32_2 = IdentData_ident_sym(id);
-        Option__ref_TypeBinding bo = TypeScope_get_binding_sym(scope, &hoisted__U32_2);
-        Bool hoisted__Bool_3 = Option__ref_TypeBinding_is_some(bo);
+        Option__ref_mut_TypeBinding bo = TypeScope_get_binding_sym_mut(scope, &hoisted__U32_2);
+        Bool hoisted__Bool_3 = Option__ref_mut_TypeBinding_is_some(bo);
         if (hoisted__Bool_3) {
-            TypeBinding *b = Option__ref_TypeBinding_unwrap(&bo);
-            Bool hoisted__Bool_1 = priv___src_self_typer_til__binding_is_storage(scope, b, symbols);
+            TypeBinding *hoisted__TypeBinding_0 = Option__ref_mut_TypeBinding_unwrap(&bo);
+            Bool hoisted__Bool_1 = priv___src_self_typer_til__binding_is_storage(scope, hoisted__TypeBinding_0, symbols);
             if (hoisted__Bool_1) {
-                Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_0 = safe_ref__TypeBinding(b);
-                return hoisted__Option__ref_TypeBinding_0;
+                return bo;
             }
         }
         break;
@@ -161578,8 +161755,8 @@ static Option__ref_TypeBinding priv___src_self_typer_til__deposit_sink_binding(T
                 Array__Str_set(&_va_Array_0, hoisted__U32_15, &_til_str_lits.h4d3ab87300de, &_va_Array_0_ek);
                 panic(&_va_Array_0, &hoisted__Str_self_typer_deposit_sink_binding_17);
             }
-            Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_21 = priv___src_self_typer_til__deposit_sink_binding(scope, _bang_ret_0, symbols);
-            return hoisted__Option__ref_TypeBinding_21;
+            Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_21 = priv___src_self_typer_til__deposit_sink_binding(scope, _bang_ret_0, symbols);
+            return hoisted__Option__ref_mut_TypeBinding_21;
         }
         break;
     }
@@ -161588,8 +161765,8 @@ static Option__ref_TypeBinding priv___src_self_typer_til__deposit_sink_binding(T
         Bool hoisted__Bool_24 = Option__ref_Expr_is_some(rso);
         if (hoisted__Bool_24) {
             Expr *hoisted__Expr_22 = Option__ref_Expr_unwrap(&rso);
-            Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_23 = priv___src_self_typer_til__deposit_sink_binding(scope, hoisted__Expr_22, symbols);
-            return hoisted__Option__ref_TypeBinding_23;
+            Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_23 = priv___src_self_typer_til__deposit_sink_binding(scope, hoisted__Expr_22, symbols);
+            return hoisted__Option__ref_mut_TypeBinding_23;
         }
         break;
     }
@@ -161597,7 +161774,7 @@ static Option__ref_TypeBinding priv___src_self_typer_til__deposit_sink_binding(T
         break;
     }
     }
-    return (Option__ref_TypeBinding){.data = NULL};
+    return (Option__ref_mut_TypeBinding){.data = NULL};
 }
 
 static Bool priv___src_self_typer_til__deposit_sink_outlives_owner(TypeScope * scope, TypeBinding * owner, BorrowRoot * sink, SymbolPool * symbols) {
@@ -161632,7 +161809,7 @@ static Bool priv___src_self_typer_til__deposit_sink_outlives_owner(TypeScope * s
         if (_m_Bool_0) {
             switch ((int)((scope->parent).data != NULL)) {
             case 1: {
-                TypeScope *parent = ((void *)((Option__ref_TypeScope *)(&scope->parent))->data);
+                TypeScope *parent = ((void *)((Option__ref_mut_TypeScope *)(&scope->parent))->data);
                 Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_10 = priv___src_self_typer_til__lookup_binding_at(parent, sink, symbols);
                 Bool hoisted__Bool_11 = Option__ref_TypeBinding_is_some(hoisted__Option__ref_TypeBinding_10);
                 return hoisted__Bool_11;
@@ -161646,7 +161823,7 @@ static Bool priv___src_self_typer_til__deposit_sink_outlives_owner(TypeScope * s
     }
     switch ((int)((scope->parent).data != NULL)) {
     case 1: {
-        TypeScope *parent = ((void *)((Option__ref_TypeScope *)(&scope->parent))->data);
+        TypeScope *parent = ((void *)((Option__ref_mut_TypeScope *)(&scope->parent))->data);
         Bool hoisted__Bool_13 = priv___src_self_typer_til__deposit_sink_outlives_owner(parent, owner, sink, symbols);
         return hoisted__Bool_13;
     }
@@ -161990,11 +162167,11 @@ static Bool priv___src_self_typer_til__ref_container_source_stable(Expr * source
 }
 
 static void priv___src_self_typer_til__apply_call_deposit(TypeScope * scope, Expr * sink, Expr * src, Expr * site, Bool source_borrowed, Bool address_borrow, Context * ctx) {
-    Option__ref_TypeBinding bo = priv___src_self_typer_til__deposit_sink_binding(scope, sink, &ctx->symbols);
+    Option__ref_mut_TypeBinding bo = priv___src_self_typer_til__deposit_sink_binding(scope, sink, &ctx->symbols);
     Bool global_sink = priv___src_self_typer_til__expr_names_global_storage(scope, sink, ctx);
     Bool _m_Bool_0 = 0;
     {
-        Bool _sw_Bool_1 = Option__ref_TypeBinding_is_none(bo);
+        Bool _sw_Bool_1 = Option__ref_mut_TypeBinding_is_none(bo);
         Bool hoisted__Bool_4 = 1;
         Bool hoisted__Bool_5 = ((Bool)(_sw_Bool_1 == hoisted__Bool_4));
         if (hoisted__Bool_5) {
@@ -162012,7 +162189,7 @@ static void priv___src_self_typer_til__apply_call_deposit(TypeScope * scope, Exp
     Str source_type = resolved_type_name(hoisted__Type_68, &ctx->symbols);
     Type *hoisted__Type_69 = Expr_til_type(sink);
     Bool borrows_source = priv___src_self_typer_til__aggregate_borrows_type(scope, hoisted__Type_69, &source_type, ctx);
-    Bool hoisted__Bool_70 = Option__ref_TypeBinding_is_some(bo);
+    Bool hoisted__Bool_70 = Option__ref_mut_TypeBinding_is_some(bo);
     if (hoisted__Bool_70) {
         Bool _m_Bool_6 = 0;
         {
@@ -162022,7 +162199,7 @@ static void priv___src_self_typer_til__apply_call_deposit(TypeScope * scope, Exp
                 Bool hoisted__Bool_7 = 1;
                 _m_Bool_6 = hoisted__Bool_7;
             } else {
-                Bool hoisted__Bool_8 = priv___src_self_typer_til__aggregate_borrows_type(scope, &Option__ref_TypeBinding_unwrap(&bo)->type, &source_type, ctx);
+                Bool hoisted__Bool_8 = priv___src_self_typer_til__aggregate_borrows_type(scope, &Option__ref_mut_TypeBinding_unwrap(&bo)->type, &source_type, ctx);
                 _m_Bool_6 = hoisted__Bool_8;
             }
         }
@@ -162130,13 +162307,13 @@ static void priv___src_self_typer_til__apply_call_deposit(TypeScope * scope, Exp
         priv___src_self_typer_til__report_global_escape_roots(scope, site, &deposited, &reported, ctx);
         Set__Str_delete(&reported, 0);
     }
-    Bool hoisted__Bool_74 = Option__ref_TypeBinding_is_none(bo);
+    Bool hoisted__Bool_74 = Option__ref_mut_TypeBinding_is_none(bo);
     if (hoisted__Bool_74) {
         Vec__BorrowRoot_delete(&deposited, 0);
         Str_delete(&source_type, 0);
         return;
     }
-    TypeBinding *b = Option__ref_TypeBinding_unwrap(&bo);
+    TypeBinding *b = Option__ref_mut_TypeBinding_unwrap(&bo);
     Bool _m_Bool_46 = 0;
     {
         Bool _sw_Bool_47 = ((Bool)(!(global_sink)));
@@ -171428,7 +171605,7 @@ static Type priv___src_self_typer_til__match_arm_value_type(TypeScope * scope, E
     arm_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
     arm_scope.func_defs = SymMap__Dynamic_new();
     arm_scope.struct_defs = SymMap__Dynamic_new();
-    arm_scope.parent = safe_ref__TypeScope(scope);
+    arm_scope.parent = safe_ref_mut__TypeScope(scope);
     arm_scope.is_func_root = hoisted__Bool_39;
     arm_scope.current_type_name = _til_str_lits.h000000001505;
     arm_scope.typer_func = ({ TyperFuncState _sc2 = {0};     _sc2.current_top_func_name = _til_str_lits.h000000001505;
@@ -173440,7 +173617,7 @@ static void priv___src_self_typer_til__infer_clike_switch(TypeScope * scope, Exp
                 case_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
                 case_scope.func_defs = SymMap__Dynamic_new();
                 case_scope.struct_defs = SymMap__Dynamic_new();
-                case_scope.parent = safe_ref__TypeScope(scope);
+                case_scope.parent = safe_ref_mut__TypeScope(scope);
                 case_scope.is_func_root = hoisted__Bool_46;
                 case_scope.current_type_name = _til_str_lits.h000000001505;
                 case_scope.typer_func = ({ TyperFuncState _sc1 = {0};                 _sc1.current_top_func_name = _til_str_lits.h000000001505;
@@ -173565,7 +173742,7 @@ static void priv___src_self_typer_til__infer_clike_switch(TypeScope * scope, Exp
                 case_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
                 case_scope.func_defs = SymMap__Dynamic_new();
                 case_scope.struct_defs = SymMap__Dynamic_new();
-                case_scope.parent = safe_ref__TypeScope(scope);
+                case_scope.parent = safe_ref_mut__TypeScope(scope);
                 case_scope.is_func_root = hoisted__Bool_88;
                 case_scope.current_type_name = _til_str_lits.h000000001505;
                 case_scope.typer_func = ({ TyperFuncState _sc4 = {0};                 _sc4.current_top_func_name = _til_str_lits.h000000001505;
@@ -178867,9 +179044,9 @@ static Option__ref_Map__UPtr_ParameterEffects safe_ref__Map__UPtr_ParameterEffec
     return hoisted__Option__ref_Map__UPtr_ParameterEffects_0;
 }
 
-static Option__ref_TypeScope safe_ref__TypeScope(TypeScope * value) {
-    Option__ref_TypeScope hoisted__Option__ref_TypeScope_0 = Option__ref_TypeScope_Some(value);
-    return hoisted__Option__ref_TypeScope_0;
+static Option__ref_mut_TypeScope safe_ref_mut__TypeScope(TypeScope * value) {
+    Option__ref_mut_TypeScope hoisted__Option__ref_mut_TypeScope_0 = Option__ref_mut_TypeScope_Some(value);
+    return hoisted__Option__ref_mut_TypeScope_0;
 }
 
 static Option__ref_Vec__UPtr safe_ref__Vec__UPtr(Vec__UPtr * value) {
@@ -180286,8 +180463,8 @@ static void priv___src_self_desugarer_til__typer_register_lifted_lambda(TypeScop
                 panic(&_va_Array_1, &hoisted__Str_self_desugarer_typer_register_lifted_lambda_9);
             }
             TypeScope_set_func_def_name(scope, &sdecl->name, _bang_ret_0, &ctx->symbols);
-            Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_15 = TypeScope_get_binding_name(scope, &sdecl->name, &ctx->symbols);
-            TypeBinding *fb = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_15);
+            Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_15 = TypeScope_get_binding_name_mut(scope, &sdecl->name, &ctx->symbols);
+            TypeBinding *fb = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_15);
             Bool hoisted__Bool_16 = 1;
             fb->is_func_decl = hoisted__Bool_16;
             fb->is_priv = sdecl->is_priv;
@@ -190414,10 +190591,10 @@ static Expr make_switch_case_condition(TypeScope * scope, Expr * case_body, Expr
                                                 case NodeType_TAG_Ident: {
                                                     IdentData *sw_idn2 = ((void *)((U8 *)(&sw_ref->node_type) + offsetof(NodeType, data)));
                                                     U32 hoisted__U32_128 = IdentData_ident_sym(sw_idn2);
-                                                    Option__ref_TypeBinding sw_b2_o = TypeScope_get_binding_sym(scope, &hoisted__U32_128);
-                                                    Bool hoisted__Bool_129 = Option__ref_TypeBinding_is_some(sw_b2_o);
+                                                    Option__ref_mut_TypeBinding sw_b2_o = TypeScope_get_binding_sym_mut(scope, &hoisted__U32_128);
+                                                    Bool hoisted__Bool_129 = Option__ref_mut_TypeBinding_is_some(sw_b2_o);
                                                     if (hoisted__Bool_129) {
-                                                        TypeBinding *sw_b2 = Option__ref_TypeBinding_unwrap(&sw_b2_o);
+                                                        TypeBinding *sw_b2 = Option__ref_mut_TypeBinding_unwrap(&sw_b2_o);
                                                         Bool hoisted__Bool_127 = 1;
                                                         sw_b2->written = hoisted__Bool_127;
                                                     }
@@ -192747,10 +192924,10 @@ static void prepend_clike_payload_binding(TypeScope * scope, Expr * enum_def, Ex
     U32 hoisted__U32_79 = 0;
     Bool hoisted__Bool_80 = ((Bool)(root_sym != hoisted__U32_79));
     if (hoisted__Bool_80) {
-        Option__ref_TypeBinding rb_o = TypeScope_get_binding_sym(scope, &root_sym);
-        Bool hoisted__Bool_36 = Option__ref_TypeBinding_is_some(rb_o);
+        Option__ref_mut_TypeBinding rb_o = TypeScope_get_binding_sym_mut(scope, &root_sym);
+        Bool hoisted__Bool_36 = Option__ref_mut_TypeBinding_is_some(rb_o);
         if (hoisted__Bool_36) {
-            TypeBinding *rb = Option__ref_TypeBinding_unwrap(&rb_o);
+            TypeBinding *rb = Option__ref_mut_TypeBinding_unwrap(&rb_o);
             if (rb->is_mut) {
                 Bool hoisted__Bool_35 = 1;
                 rb->written = hoisted__Bool_35;
@@ -201230,8 +201407,8 @@ static Expr priv___src_self_desugarer_til__finish_hoist_temp(Context * ctx, Expr
     Bool hoisted__Bool_36 = 0;
     Bool hoisted__Bool_37 = 0;
     TypeScope_set(scope, &tname, &semantic_type, hoisted__Bool_36, &ctx->path, val->line, val->col, hoisted__Bool_37, (OwnType){.tag = OwnType_TAG_Shallow}, &ctx->symbols);
-    Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_38 = TypeScope_get_binding_name(scope, &tname, &ctx->symbols);
-    TypeBinding *tb = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_38);
+    Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_38 = TypeScope_get_binding_name_mut(scope, &tname, &ctx->symbols);
+    TypeBinding *tb = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_38);
     { Str _old = dd->name;
     dd->name = Str_clone(&tname);
     Str_delete(&_old, (Bool){0}); }
@@ -210135,12 +210312,67 @@ static Option__ref_TypeBinding priv___src_self_garbager_til__gc_deposit_binding(
     }
     switch ((int)((scope->parent).data != NULL)) {
     case 1: {
-        TypeScope *parent = ((void *)((Option__ref_TypeScope *)(&scope->parent))->data);
+        TypeScope *parent = ((void *)((Option__ref_mut_TypeScope *)(&scope->parent))->data);
         Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_10 = priv___src_self_garbager_til__gc_deposit_binding(parent, root, symbols);
         return hoisted__Option__ref_TypeBinding_10;
     }
     default: {
         return (Option__ref_TypeBinding){.data = NULL};
+    }
+    }
+    __builtin_unreachable();
+}
+
+static Option__ref_mut_TypeBinding priv___src_self_garbager_til__gc_deposit_binding_mut(TypeScope * scope, BorrowRoot * root, SymbolPool * symbols) {
+    Option__U32 sym = SymbolPool_lookup(symbols, &root->name);
+    Bool hoisted__Bool_13 = Option__U32_is_none(&sym);
+    if (hoisted__Bool_13) {
+        return (Option__ref_mut_TypeBinding){.data = NULL};
+    }
+    U32 hoisted__U32_14 = Option__U32_unwrap(&sym);
+    I64 pos = SymMap__TypeBinding_find(&scope->bindings, hoisted__U32_14);
+    I64 hoisted__I64_15 = 0;
+    Bool hoisted__Bool_16 = ((Bool)(pos >= hoisted__I64_15));
+    if (hoisted__Bool_16) {
+        U32 hoisted__U32_11 = I64_to_usize(pos);
+        TypeBinding *binding = Vec__TypeBinding_unsafe_get_mut(&scope->bindings.values, &hoisted__U32_11);
+        Bool _m_Bool_0 = 0;
+        {
+            {
+                Bool _sw_Bool_1 = ((Bool)(binding->line == root->line));
+                Bool hoisted__Bool_4 = 1;
+                Bool hoisted__Bool_5 = ((Bool)(_sw_Bool_1 == hoisted__Bool_4));
+                if (hoisted__Bool_5) {
+                    Bool hoisted__Bool_2 = ((Bool)(binding->col == root->col));
+                    _m_Bool_0 = hoisted__Bool_2;
+                } else {
+                    Bool hoisted__Bool_3 = 0;
+                    _m_Bool_0 = hoisted__Bool_3;
+                }
+            }
+            Bool hoisted__Bool_8 = 1;
+            Bool hoisted__Bool_9 = ((Bool)(_m_Bool_0 == hoisted__Bool_8));
+            if (hoisted__Bool_9) {
+                Bool hoisted__Bool_6 = Str_eq(&binding->path, &root->path);
+                _m_Bool_0 = hoisted__Bool_6;
+            } else {
+                Bool hoisted__Bool_7 = 0;
+                _m_Bool_0 = hoisted__Bool_7;
+            }
+        }
+        if (_m_Bool_0) {
+            Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_10 = Option__ref_mut_TypeBinding_Some(binding);
+            return hoisted__Option__ref_mut_TypeBinding_10;
+        }
+    }
+    switch ((int)((scope->parent).data != NULL)) {
+    case 1: {
+        TypeScope *parent = ((void *)((Option__ref_mut_TypeScope *)(&scope->parent))->data);
+        Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_12 = priv___src_self_garbager_til__gc_deposit_binding_mut(parent, root, symbols);
+        return hoisted__Option__ref_mut_TypeBinding_12;
+    }
+    default: {
+        return (Option__ref_mut_TypeBinding){.data = NULL};
     }
     }
     __builtin_unreachable();
@@ -216477,7 +216709,7 @@ static Option__U32 priv___src_self_garbager_til__delete_call_free_target_sym(Exp
 static Bool priv___src_self_garbager_til__sym_is_value_global(TypeScope * scope, U32 sym) {
     Bool hoisted__Bool_15 = TypeScope_has_local_binding_sym(scope, sym);
     if (hoisted__Bool_15) {
-        Bool hoisted__Bool_9 = Option__ref_TypeScope_is_some(scope->parent);
+        Bool hoisted__Bool_9 = Option__ref_mut_TypeScope_is_some(scope->parent);
         if (hoisted__Bool_9) {
             Bool hoisted__Bool_0 = 0;
             return hoisted__Bool_0;
@@ -216511,7 +216743,7 @@ static Bool priv___src_self_garbager_til__sym_is_value_global(TypeScope * scope,
     }
     switch ((int)((scope->parent).data != NULL)) {
     case 1: {
-        TypeScope *p = ((void *)((Option__ref_TypeScope *)(&scope->parent))->data);
+        TypeScope *p = ((void *)((Option__ref_mut_TypeScope *)(&scope->parent))->data);
         Bool hoisted__Bool_13 = priv___src_self_garbager_til__sym_is_value_global(p, sym);
         return hoisted__Bool_13;
     }
@@ -218571,7 +218803,7 @@ static Bool priv___src_self_garbager_til__insert_free_calls(Context * ctx, Expr 
             Bool hoisted__Bool_2 = 1;
             _m_Bool_1 = hoisted__Bool_2;
         } else {
-            Bool hoisted__Bool_3 = Option__ref_TypeScope_is_none(scope->parent);
+            Bool hoisted__Bool_3 = Option__ref_mut_TypeScope_is_none(scope->parent);
             _m_Bool_1 = hoisted__Bool_3;
         }
     }
@@ -219125,8 +219357,8 @@ static void priv___src_self_garbager_til__garbager_register_decl(Context * ctx, 
         }
         Bool hoisted__Bool_139 = 0;
         TypeScope_set(scope, &dd->name, &dtype, dd->is_mut, &ctx->path, stmt->line, stmt->col, hoisted__Bool_139, dd->own_type, &ctx->symbols);
-        Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_140 = TypeScope_get_binding_name(scope, &dd->name, &ctx->symbols);
-        TypeBinding *binding = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_140);
+        Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_140 = TypeScope_get_binding_name_mut(scope, &dd->name, &ctx->symbols);
+        TypeBinding *binding = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_140);
         Str *hoisted__Str_self_garbager_garbager_register_decl_141 = type_name_ref(&binding->type, &ctx->symbols);
         Bool hoisted__Bool_142 = priv___src_self_garbager_til__gc_ref_container(hoisted__Str_self_garbager_garbager_register_decl_141, scope, ctx);
         if (hoisted__Bool_142) {
@@ -219184,10 +219416,10 @@ static void priv___src_self_garbager_til__garbager_register_decl(Context * ctx, 
             }
             Bool hoisted__Bool_63 = rhs_is_payload_binding(_bang_ret_0, &ctx->symbols);
             if (hoisted__Bool_63) {
-                Option__ref_TypeBinding grd_bo = TypeScope_get_binding_name(scope, &dd->name, &ctx->symbols);
-                Bool hoisted__Bool_59 = Option__ref_TypeBinding_is_some(grd_bo);
+                Option__ref_mut_TypeBinding grd_bo = TypeScope_get_binding_name_mut(scope, &dd->name, &ctx->symbols);
+                Bool hoisted__Bool_59 = Option__ref_mut_TypeBinding_is_some(grd_bo);
                 if (hoisted__Bool_59) {
-                    TypeBinding *grd_b = Option__ref_TypeBinding_unwrap(&grd_bo);
+                    TypeBinding *grd_b = Option__ref_mut_TypeBinding_unwrap(&grd_bo);
                     Bool hoisted__Bool_58 = 1;
                     grd_b->is_alias = hoisted__Bool_58;
                 }
@@ -219242,10 +219474,10 @@ static void priv___src_self_garbager_til__garbager_register_decl(Context * ctx, 
             U32 hoisted__U32_90 = 0;
             Bool hoisted__Bool_91 = ((Bool)(hoisted__U32_89 > hoisted__U32_90));
             if (hoisted__Bool_91) {
-                Option__ref_TypeBinding vreg_o = TypeScope_get_binding_name(scope, &dd->name, &ctx->symbols);
-                Bool hoisted__Bool_85 = Option__ref_TypeBinding_is_some(vreg_o);
+                Option__ref_mut_TypeBinding vreg_o = TypeScope_get_binding_name_mut(scope, &dd->name, &ctx->symbols);
+                Bool hoisted__Bool_85 = Option__ref_mut_TypeBinding_is_some(vreg_o);
                 if (hoisted__Bool_85) {
-                    TypeBinding *vreg = Option__ref_TypeBinding_unwrap(&vreg_o);
+                    TypeBinding *vreg = Option__ref_mut_TypeBinding_unwrap(&vreg_o);
                     Bool hoisted__Bool_84 = 1;
                     vreg->is_str_view = hoisted__Bool_84;
                     { Str _old = vreg->str_view_base;
@@ -219392,8 +219624,8 @@ static void priv___src_self_garbager_til__garbager_register_decl(Context * ctx, 
                     panic(&_va_Array_5, &hoisted__Str_self_garbager_garbager_register_decl_147);
                 }
                 Vec__BorrowRoot roots = expr_borrow_roots(scope, _bang_ret_2, &ctx->symbols);
-                Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_165 = TypeScope_get_binding_name(scope, &ad->name, &ctx->symbols);
-                TypeBinding *target = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_165);
+                Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_165 = TypeScope_get_binding_name_mut(scope, &ad->name, &ctx->symbols);
+                TypeBinding *target = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_165);
                 {
                     Vec__BorrowRoot *_fc_Vec__BorrowRoot_148 = &roots;
                     USize _fi_USize_148 = 0;
@@ -219517,12 +219749,12 @@ static void priv___src_self_garbager_til__garbager_record_call_deposits(TypeScop
             U32 hoisted__U32_10 = 1;
             U32 hoisted__U32_11 = ((U32)(_fi_USize_0 + hoisted__U32_10));
             _fi_USize_0 = hoisted__U32_11;
-            Option__ref_TypeBinding binding_o = priv___src_self_garbager_til__gc_deposit_binding(scope, &deposit->sink, symbols);
-            Bool hoisted__Bool_12 = Option__ref_TypeBinding_is_none(binding_o);
+            Option__ref_mut_TypeBinding binding_o = priv___src_self_garbager_til__gc_deposit_binding_mut(scope, &deposit->sink, symbols);
+            Bool hoisted__Bool_12 = Option__ref_mut_TypeBinding_is_none(binding_o);
             if (hoisted__Bool_12) {
                 continue;
             }
-            TypeBinding *binding = Option__ref_TypeBinding_unwrap(&binding_o);
+            TypeBinding *binding = Option__ref_mut_TypeBinding_unwrap(&binding_o);
             BorrowRoot root = BorrowRoot_clone(&deposit->source);
             Bool hoisted__Bool_13 = 1;
             root.carried = hoisted__Bool_13;
@@ -219571,13 +219803,13 @@ static void priv___src_self_garbager_til__garbager_record_carried_assignment(Typ
         return;
     }
     Vec__BorrowRoot roots = deposit_src_roots(scope, rhs, symbols);
-    Option__ref_TypeBinding binding_o = TypeScope_get_binding_name(scope, name, symbols);
-    Bool hoisted__Bool_17 = Option__ref_TypeBinding_is_none(binding_o);
+    Option__ref_mut_TypeBinding binding_o = TypeScope_get_binding_name_mut(scope, name, symbols);
+    Bool hoisted__Bool_17 = Option__ref_mut_TypeBinding_is_none(binding_o);
     if (hoisted__Bool_17) {
         Vec__BorrowRoot_delete(&roots, 0);
         return;
     }
-    TypeBinding *binding = Option__ref_TypeBinding_unwrap(&binding_o);
+    TypeBinding *binding = Option__ref_mut_TypeBinding_unwrap(&binding_o);
     {
         Vec__BorrowRoot *_fc_Vec__BorrowRoot_0 = &roots;
         USize _fi_USize_0 = 0;
@@ -219706,7 +219938,7 @@ static void priv___src_self_garbager_til__garbager_register_params(Context * ctx
 static void priv___src_self_garbager_til__garbager_register_own_captures(Context * ctx, Vec__Declaration * captures, TypeScope * scope, U32 line, U32 col) {
     switch ((int)((scope->parent).data != NULL)) {
     case 1: {
-        TypeScope *parent = ((void *)((Option__ref_TypeScope *)(&scope->parent))->data);
+        TypeScope *parent = ((void *)((Option__ref_mut_TypeScope *)(&scope->parent))->data);
         {
             Vec__Declaration *_fc_Vec__Declaration_0 = captures;
             USize _fi_USize_0 = 0;
@@ -219798,7 +220030,7 @@ static void priv___src_self_garbager_til__garbager_walk_type_def(Context * ctx, 
     type_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
     type_scope.func_defs = SymMap__Dynamic_new();
     type_scope.struct_defs = SymMap__Dynamic_new();
-    type_scope.parent = safe_ref__TypeScope(parent);
+    type_scope.parent = safe_ref_mut__TypeScope(parent);
     type_scope.is_func_root = hoisted__Bool_29;
     type_scope.current_type_name = Str_clone(type_name);
     type_scope.typer_func = ({ TyperFuncState _sc2 = {0};     _sc2.current_top_func_name = _til_str_lits.h000000001505;
@@ -219829,7 +220061,7 @@ static void priv___src_self_garbager_til__garbager_walk_type_def(Context * ctx, 
         field_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
         field_scope.func_defs = SymMap__Dynamic_new();
         field_scope.struct_defs = SymMap__Dynamic_new();
-        field_scope.parent = safe_ref__TypeScope(&type_scope);
+        field_scope.parent = safe_ref_mut__TypeScope(&type_scope);
         field_scope.is_func_root = hoisted__Bool_14;
         field_scope.current_type_name = Str_clone(type_name);
         field_scope.typer_func = ({ TyperFuncState _sc5 = {0};         _sc5.current_top_func_name = _til_str_lits.h000000001505;
@@ -219998,7 +220230,7 @@ static void priv___src_self_garbager_til__garbager_walk_expr(Context * ctx, Expr
         func_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
         func_scope.func_defs = SymMap__Dynamic_new();
         func_scope.struct_defs = SymMap__Dynamic_new();
-        func_scope.parent = safe_ref__TypeScope(scope);
+        func_scope.parent = safe_ref_mut__TypeScope(scope);
         func_scope.is_func_root = hoisted__Bool_36;
         func_scope.current_type_name = _til_str_lits.h000000001505;
         func_scope.typer_func = ({ TyperFuncState _sc1 = {0};         _sc1.current_top_func_name = _til_str_lits.h000000001505;
@@ -220078,7 +220310,7 @@ static void priv___src_self_garbager_til__garbager_walk_expr(Context * ctx, Expr
         capture_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
         capture_scope.func_defs = SymMap__Dynamic_new();
         capture_scope.struct_defs = SymMap__Dynamic_new();
-        capture_scope.parent = safe_ref__TypeScope(scope);
+        capture_scope.parent = safe_ref_mut__TypeScope(scope);
         capture_scope.is_func_root = hoisted__Bool_63;
         capture_scope.current_type_name = _til_str_lits.h000000001505;
         capture_scope.typer_func = ({ TyperFuncState _sc4 = {0};         _sc4.current_top_func_name = _til_str_lits.h000000001505;
@@ -220135,7 +220367,7 @@ static void priv___src_self_garbager_til__garbager_walk_expr(Context * ctx, Expr
         value_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
         value_scope.func_defs = SymMap__Dynamic_new();
         value_scope.struct_defs = SymMap__Dynamic_new();
-        value_scope.parent = safe_ref__TypeScope(scope);
+        value_scope.parent = safe_ref_mut__TypeScope(scope);
         value_scope.is_func_root = hoisted__Bool_84;
         value_scope.current_type_name = _til_str_lits.h000000001505;
         value_scope.typer_func = ({ TyperFuncState _sc7 = {0};         _sc7.current_top_func_name = _til_str_lits.h000000001505;
@@ -220174,7 +220406,7 @@ static void priv___src_self_garbager_til__garbager_walk_expr(Context * ctx, Expr
         body_scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
         body_scope.func_defs = SymMap__Dynamic_new();
         body_scope.struct_defs = SymMap__Dynamic_new();
-        body_scope.parent = safe_ref__TypeScope(scope);
+        body_scope.parent = safe_ref_mut__TypeScope(scope);
         body_scope.is_func_root = hoisted__Bool_95;
         body_scope.current_type_name = _til_str_lits.h000000001505;
         body_scope.typer_func = ({ TyperFuncState _sc10 = {0};         _sc10.current_top_func_name = _til_str_lits.h000000001505;
@@ -220377,7 +220609,7 @@ static void garbager_destroy_function(Context * ctx, Expr * fdef, Str * owner, B
     scope.target_uptr_pname = _til_str_lits.h00000b8823a4;
     scope.func_defs = SymMap__Dynamic_new();
     scope.struct_defs = SymMap__Dynamic_new();
-    scope.parent = safe_ref__TypeScope(&ctx->scope);
+    scope.parent = safe_ref_mut__TypeScope(&ctx->scope);
     scope.is_func_root = hoisted__Bool_4;
     scope.current_type_name = Str_clone(owner);
     scope.typer_func = ({ TyperFuncState _sc2 = {0};     _sc2.current_top_func_name = _til_str_lits.h000000001505;
@@ -240694,12 +240926,12 @@ static LoadedProgram repl_clone_loaded_program(LoadedProgram * src) {
 }
 
 static void priv___src_self_loader_til__retarget_alias_binding(TypeScope * scope, Str * alias_name, Str * target_name, SymbolPool * symbols) {
-    Option__ref_TypeBinding alias_binding_o = TypeScope_get_binding_name(scope, alias_name, symbols);
-    Bool hoisted__Bool_2 = Option__ref_TypeBinding_is_none(alias_binding_o);
+    Option__ref_mut_TypeBinding alias_binding_o = TypeScope_get_binding_name_mut(scope, alias_name, symbols);
+    Bool hoisted__Bool_2 = Option__ref_mut_TypeBinding_is_none(alias_binding_o);
     if (hoisted__Bool_2) {
         return;
     }
-    TypeBinding *alias_binding = Option__ref_TypeBinding_unwrap(&alias_binding_o);
+    TypeBinding *alias_binding = Option__ref_mut_TypeBinding_unwrap(&alias_binding_o);
     Option__ref_TypeBinding target_binding_o = TypeScope_get_binding_name(scope, target_name, symbols);
     Bool hoisted__Bool_3 = Option__ref_TypeBinding_is_none(target_binding_o);
     if (hoisted__Bool_3) {
@@ -243919,7 +244151,7 @@ static LoadedProgram load_program(Str * path, Str * bin_dir, Str * cwd, Vec__Str
     _sc16.target_uptr_pname = _til_str_lits.h00000b8823a4;
     _sc16.func_defs = SymMap__Dynamic_new();
     _sc16.struct_defs = SymMap__Dynamic_new();
-    _sc16.parent = (Option__ref_TypeScope){.data = NULL};
+    _sc16.parent = (Option__ref_mut_TypeScope){.data = NULL};
     _sc16.is_func_root = hoisted__Bool_312;
     _sc16.current_type_name = _til_str_lits.h000000001505;
     _sc16.typer_func = ({ TyperFuncState _sc18 = {0};     _sc18.current_top_func_name = _til_str_lits.h000000001505;
@@ -254672,8 +254904,8 @@ static void priv___src_self_loader_til__lazy_flush_pending_decls(LoadedProgram *
                     panic(&_va_Array_2, &hoisted__Str_self_loader_lazy_flush_pending_decls_16);
                 }
                 TypeScope_set_func_def_name(&lp->ctx.scope, &name, _bang_ret_1, &lp->ctx.symbols);
-                Option__ref_TypeBinding hoisted__Option__ref_TypeBinding_23 = TypeScope_get_binding_name(&lp->ctx.scope, &name, &lp->ctx.symbols);
-                TypeBinding *fb = Option__ref_TypeBinding_unwrap(&hoisted__Option__ref_TypeBinding_23);
+                Option__ref_mut_TypeBinding hoisted__Option__ref_mut_TypeBinding_23 = TypeScope_get_binding_name_mut(&lp->ctx.scope, &name, &lp->ctx.symbols);
+                TypeBinding *fb = Option__ref_mut_TypeBinding_unwrap(&hoisted__Option__ref_mut_TypeBinding_23);
                 Bool hoisted__Bool_24 = 1;
                 fb->is_func_decl = hoisted__Bool_24;
                 Bool hoisted__Bool_25 = 1;
@@ -441973,7 +442205,7 @@ static void * priv___src_self_interpreter_til__interp_callback_default(Str * nam
     types.target_uptr_pname = _til_str_lits.h00000b8823a4;
     types.func_defs = SymMap__Dynamic_new();
     types.struct_defs = SymMap__Dynamic_new();
-    types.parent = Option__ref_TypeScope_Some(&ctx->scope);
+    types.parent = safe_ref_mut__TypeScope(&ctx->scope);
     types.is_func_root = hoisted__Bool_12;
     types.current_type_name = _til_str_lits.h000000001505;
     types.typer_func = ({ TyperFuncState _sc2 = {0};     _sc2.current_top_func_name = _til_str_lits.h000000001505;
@@ -488370,7 +488602,7 @@ static void run_repl_session(ReplEditor * ed, Str * mode_name_in, Str * next_mod
             _sc16.target_uptr_pname = _til_str_lits.h00000b8823a4;
             _sc16.func_defs = SymMap__Dynamic_new();
             _sc16.struct_defs = SymMap__Dynamic_new();
-            _sc16.parent = (Option__ref_TypeScope){.data = NULL};
+            _sc16.parent = (Option__ref_mut_TypeScope){.data = NULL};
             _sc16.is_func_root = hoisted__Bool_266;
             _sc16.current_type_name = _til_str_lits.h000000001505;
             _sc16.typer_func = ({ TyperFuncState _sc18 = {0};             _sc18.current_top_func_name = _til_str_lits.h000000001505;
@@ -489027,7 +489259,7 @@ static void run_repl_session(ReplEditor * ed, Str * mode_name_in, Str * next_mod
             _sc55.target_uptr_pname = _til_str_lits.h00000b8823a4;
             _sc55.func_defs = SymMap__Dynamic_new();
             _sc55.struct_defs = SymMap__Dynamic_new();
-            _sc55.parent = (Option__ref_TypeScope){.data = NULL};
+            _sc55.parent = (Option__ref_mut_TypeScope){.data = NULL};
             _sc55.is_func_root = hoisted__Bool_460;
             _sc55.current_type_name = _til_str_lits.h000000001505;
             _sc55.typer_func = ({ TyperFuncState _sc57 = {0};             _sc57.current_top_func_name = _til_str_lits.h000000001505;
@@ -491360,8 +491592,8 @@ int main(int argc, char **argv) {
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
     priv___src_self_builder_til__MAC_DEBUG_ROOT = (Str){.c_str = TIL_OWN_LIT("/proc/self/cwd", 14ULL), .count=14ULL, .cap=TIL_CAP_LIT};
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-332a6e0da", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("332a6e0da498a21aef02c93bccb990d256e8fe47", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-81a10f702", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("81a10f7024c0795dbccea43c669cc41a52cbe98d", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};
@@ -492583,8 +492815,9 @@ static USize dyn_size_of(Str *type_name) {
     if (type_name->count == 15ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), "Vec__BorrowRoot", 15ULL) == 0) return sizeof(Vec__BorrowRoot);
     if (type_name->count == 19ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), "SymMap__TypeBinding", 19ULL) == 0) return sizeof(SymMap__TypeBinding);
     if (type_name->count == 15ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), "SymMap__Dynamic", 15ULL) == 0) return sizeof(SymMap__Dynamic);
-    if (type_name->count == 21ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), "Option__ref_TypeScope", 21ULL) == 0) return sizeof(Option__ref_TypeScope);
+    if (type_name->count == 25ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), "Option__ref_mut_TypeScope", 25ULL) == 0) return sizeof(Option__ref_mut_TypeScope);
     if (type_name->count == 23ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), "Option__ref_TypeBinding", 23ULL) == 0) return sizeof(Option__ref_TypeBinding);
+    if (type_name->count == 27ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), "Option__ref_mut_TypeBinding", 27ULL) == 0) return sizeof(Option__ref_mut_TypeBinding);
     if (type_name->count == 12ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), "Map__U32_Str", 12ULL) == 0) return sizeof(Map__U32_Str);
     if (type_name->count == 20ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), "Map__Str_FFIEntryBox", 20ULL) == 0) return sizeof(Map__Str_FFIEntryBox);
     if (type_name->count == 19ULL && memcmp(TIL_OWN_GET(I8, type_name->c_str), "Map__Str_ExprPtrBox", 19ULL) == 0) return sizeof(Map__Str_ExprPtrBox);

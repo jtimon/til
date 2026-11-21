@@ -28,7 +28,7 @@ priv primitive_type_info := func(name: Str, scope: TypeScope, mut prim: Primitiv
 priv register_body_type_token := func(mut ctx: Context, mut scope: TypeScope) {
     if scope.find_name("Body", ctx.symbols).is(ScopeFind.Found) { return }
     scope.set("Body", Type.Body, false, ctx.path, 0, 0, false, OwnType.Shallow, ctx.symbols)
-    ref mut b : TypeBinding = scope.get_binding_name("Body", ctx.symbols).unwrap()
+    ref mut b : TypeBinding = scope.get_binding_name_mut("Body", ctx.symbols).unwrap()
     b.is_builtin = true
 }
 
@@ -71,7 +71,7 @@ priv register_struct_def_for_stmt := proc(mut ctx: Context, stmt: Expr, mut scop
 
     scope.set(sname, builtin_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
     scope.set_struct_def(sname, stmt.children[0], ctx.symbols)
-    ref mut b : TypeBinding = scope.get_binding_name(sname, ctx.symbols).unwrap()
+    ref mut b : TypeBinding = scope.get_binding_name_mut(sname, ctx.symbols).unwrap()
     b.is_builtin = is_builtin
     b.is_priv = sdecl.is_priv
     b.orig_name = sdecl.orig_name.clone()
@@ -667,7 +667,7 @@ priv register_enum_definition := proc(mut ctx: Context, stmt: Expr, mut scope: T
 
     scope.set(ename, Type.EnumSym(ctx.symbols.intern(ename)), false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
     scope.set_struct_def(ename, stmt.children[0], ctx.symbols)
-    ref mut b : TypeBinding = scope.get_binding_name(ename, ctx.symbols).unwrap()
+    ref mut b : TypeBinding = scope.get_binding_name_mut(ename, ctx.symbols).unwrap()
     b.is_priv = edecl.is_priv
     b.orig_name = edecl.orig_name.clone()
     // Issue #147 step 4: pre-populate ctx.interp_type_defs (see
@@ -1458,7 +1458,7 @@ register_funcsig_alias_for_stmt := func(mut ctx: Context, mut stmt: Expr, mut sc
     sdecl.til_type = Type.FuncPtrSigSym(ctx.symbols.intern(sdecl.name))
     scope.set(sdecl.name, Type.FuncPtr, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
     scope.set_func_def_name(sdecl.name, stmt.children[0], ctx.symbols)
-    ref mut fb : TypeBinding = scope.get_binding_name(sdecl.name, ctx.symbols).unwrap()
+    ref mut fb : TypeBinding = scope.get_binding_name_mut(sdecl.name, ctx.symbols).unwrap()
     fb.is_func_decl = true
 }
 
@@ -1499,7 +1499,7 @@ priv register_type_alias_for_stmt := func(mut ctx: Context, stmt: Expr, mut scop
         }
         scope.set(sdecl.name, target.type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
         if tgt_fd_o.is_some() { scope.set_func_def_name(sdecl.name, tgt_fd_o.unwrap(), ctx.symbols) }
-        ref mut ab : TypeBinding = scope.get_binding_name(sdecl.name, ctx.symbols).unwrap()
+        ref mut ab : TypeBinding = scope.get_binding_name_mut(sdecl.name, ctx.symbols).unwrap()
         tgt_sd_o := scope.struct_def_of_name(target.name, ctx.symbols)
         if tgt_sd_o.is_some() { scope.set_struct_def(sdecl.name, tgt_sd_o.unwrap(), ctx.symbols) }
         ab.is_func_decl = target.is_func_decl
@@ -1523,7 +1523,7 @@ priv register_type_alias_for_stmt := func(mut ctx: Context, stmt: Expr, mut scop
         if til_type.is(Type.Unknown) { return }
         if is_custom_type(til_type) { return }
         scope.set(sdecl.name, til_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
-        ref mut ab : TypeBinding = scope.get_binding_name(sdecl.name, ctx.symbols).unwrap()
+        ref mut ab : TypeBinding = scope.get_binding_name_mut(sdecl.name, ctx.symbols).unwrap()
         ab.is_type_alias = true
         ab.alias_target = target_name
     }
@@ -1569,7 +1569,7 @@ priv register_top_level_value_for_stmt := func(mut ctx: Context, mut stmt: Expr,
                     rhs.set_til_type(external_type.clone())
                     scope.set(ext_decl.name, external_type, ext_decl.is_mut, ctx.path,
                         stmt.line, stmt.col, false, ext_decl.own_type, ctx.symbols)
-                    ref mut ext_binding : TypeBinding = scope.get_binding_name(ext_decl.name, ctx.symbols).unwrap()
+                    ref mut ext_binding : TypeBinding = scope.get_binding_name_mut(ext_decl.name, ctx.symbols).unwrap()
                     ext_binding.is_priv = ext_decl.is_priv
                     ext_binding.orig_name = ext_decl.orig_name.clone()
                     ext_binding.is_external_global = true
@@ -1600,7 +1600,7 @@ priv register_top_level_value_for_stmt := func(mut ctx: Context, mut stmt: Expr,
 
     ref sdecl : Declaration = decl_of(stmt)
     scope.set(sdecl.name, t, sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
-    ref mut tlv_b : TypeBinding = scope.get_binding_name(sdecl.name, ctx.symbols).unwrap()
+    ref mut tlv_b : TypeBinding = scope.get_binding_name_mut(sdecl.name, ctx.symbols).unwrap()
     tlv_b.is_priv = sdecl.is_priv
     tlv_b.orig_name = sdecl.orig_name.clone()
 }
@@ -1629,7 +1629,7 @@ register_function_def_for_stmt := func(mut ctx: Context, mut stmt: Expr, mut sco
     if def.children.len() == 0 {
         scope.set(sdecl.name, Type.FuncPtr, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
         scope.set_func_def_name(sdecl.name, stmt.children[0], ctx.symbols)
-        ref mut fb : TypeBinding = scope.get_binding_name(sdecl.name, ctx.symbols).unwrap()
+        ref mut fb : TypeBinding = scope.get_binding_name_mut(sdecl.name, ctx.symbols).unwrap()
         fb.is_func_decl = true
         fb.is_priv = sdecl.is_priv
         fb.orig_name = sdecl.orig_name.clone()
@@ -1684,7 +1684,7 @@ register_function_def_for_stmt := func(mut ctx: Context, mut stmt: Expr, mut sco
     }
     scope.set(sdecl.name, rt, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
     scope.set_func_def_name(sdecl.name, stmt.children[0], ctx.symbols)
-    ref mut fb : TypeBinding = scope.get_binding_name(sdecl.name, ctx.symbols).unwrap()
+    ref mut fb : TypeBinding = scope.get_binding_name_mut(sdecl.name, ctx.symbols).unwrap()
     fb.is_func_decl = true
     fb.is_priv = sdecl.is_priv
     fb.orig_name = sdecl.orig_name.clone()
@@ -5537,7 +5537,7 @@ priv init_mark_expanded_macro_used := func(mut program: Expr, name: Str, macros:
         }
         panic("missing local declaration for expanded macro '", name, "'")
     }
-    ref mut binding : TypeBinding = scope.get_binding_name(name, symbols).unwrap()
+    ref mut binding : TypeBinding = scope.get_binding_name_mut(name, symbols).unwrap()
     binding.used = true
 }
 

@@ -120,6 +120,11 @@ return-side ~mut~.
   Generated enum clones preserve borrowed payload permissions. Direct mutable
   borrowed-payload constructor returns validate/credit the source's necessary
   grant without recording a write; read-only payloads/None do not justify ~mut~.
+- Implemented: compiler binding writers use ~TypeScope.get_binding_name_mut~
+  and ~get_binding_sym_mut~. These take a mutable receiver and return
+  ~Option(ref mut TypeBinding)~. Parent links carry ~Option(ref mut TypeScope)~;
+  a child must receive writable access when the link is created. The existing
+  read-only lookups retain their contracts.
 - Pending: general source-path and writable-alias creation checks, the plain-ref
   defaults migration, remaining library accessor/reference-permission
   metadata and the C-header binding translator.
@@ -141,8 +146,7 @@ definition.sig.return_type = format("I64")
 Here ~node~ must provide mutable access. ~funcdef_of(node)~ describes a read-only
 result and cannot satisfy a ~returns ref mut FunctionDef~ forwarding contract.
 See ownership.org for complete optional-reference and AST-view examples. These
-APIs prepare the caller migration; mutable scope lookups and the general alias
-checks still need their following stages.
+APIs prepare the caller migration; general alias checks are still pending.
 
 ** Mutability rule (~mut~ vs ~const~)
 

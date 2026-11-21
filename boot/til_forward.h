@@ -314,8 +314,9 @@ typedef struct Vec__ParameterPlace Vec__ParameterPlace;
 typedef struct Vec__BorrowRoot Vec__BorrowRoot;
 typedef struct SymMap__TypeBinding SymMap__TypeBinding;
 typedef struct SymMap__Dynamic SymMap__Dynamic;
-typedef struct Option__ref_TypeScope Option__ref_TypeScope;
+typedef struct Option__ref_mut_TypeScope Option__ref_mut_TypeScope;
 typedef struct Option__ref_TypeBinding Option__ref_TypeBinding;
+typedef struct Option__ref_mut_TypeBinding Option__ref_mut_TypeBinding;
 typedef struct Map__U32_Str Map__U32_Str;
 typedef struct Map__Str_FFIEntryBox Map__Str_FFIEntryBox;
 typedef struct Map__Str_ExprPtrBox Map__Str_ExprPtrBox;
@@ -1108,11 +1109,15 @@ typedef struct SymMap__Dynamic {
 } SymMap__Dynamic;
 
 
-struct Option__ref_TypeScope {
+struct Option__ref_mut_TypeScope {
     TypeScope *data;
 };
 
 struct Option__ref_TypeBinding {
+    TypeBinding *data;
+};
+
+struct Option__ref_mut_TypeBinding {
     TypeBinding *data;
 };
 
@@ -2865,7 +2870,7 @@ typedef struct TypeScope {
     Str target_uptr_pname;
     SymMap__Dynamic func_defs;
     SymMap__Dynamic struct_defs;
-    Option__ref_TypeScope parent;
+    Option__ref_mut_TypeScope parent;
     Bool is_func_root;
     Str current_type_name;
     TyperFuncState typer_func;

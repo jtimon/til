@@ -696,6 +696,22 @@ mutable_ast_view_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "ref mut enum_member: Declaration = def_ns_get_mut(enumeration, \"member\").unwrap()\nenum_member.used = true\n",
         "ref mut enum_members: Vec(Declaration) = def_ns_decls_mut(enumeration)\nref mut enum_listed: Declaration = enum_members.get_mut(0)!\nenum_listed.is_priv = true\n",
         "assert_eq(Str, enumdef_of(enumeration).tag_type, \"U8\")\nassert(def_ns_get(enumeration, \"member\").unwrap().used)\nassert(def_ns_get(enumeration, \"member\").unwrap().is_priv)\n",
+        "mut symbols := SymbolPool()\nmut outer := TypeScope()\n",
+        "outer.set(\"parent_only\", Type.Unknown, false, \"outer\", 1, 1, false, OwnType.Shallow, symbols)\n",
+        "outer.set(\"shadowed\", Type.Unknown, false, \"outer\", 1, 2, false, OwnType.Shallow, symbols)\n",
+        "mut middle := TypeScope(parent = safe_ref_mut(outer))\n",
+        "middle.set(\"shadowed\", Type.Unknown, false, \"middle\", 2, 1, false, OwnType.Shallow, symbols)\n",
+        "mut leaf := TypeScope(parent = safe_ref_mut(middle))\n",
+        "leaf.set(\"local_only\", Type.Unknown, false, \"leaf\", 3, 1, false, OwnType.Shallow, symbols)\n",
+        "found_parent := leaf.get_binding_name_mut(\"parent_only\", symbols)\nconst ref mut parent_binding: TypeBinding = found_parent.unwrap()\nparent_binding.used = true\n",
+        "found_shadow := leaf.get_binding_sym_mut(symbols.lookup(\"shadowed\").unwrap())\nconst ref mut nearest: TypeBinding = found_shadow.unwrap()\nnearest.written = true\n",
+        "found_local := leaf.get_binding_name_mut(\"local_only\", symbols)\nconst ref mut local_binding: TypeBinding = found_local.unwrap()\nlocal_binding.used = true\n",
+        "assert(outer.get_binding_name(\"parent_only\", symbols).unwrap().used)\n",
+        "assert(middle.get_binding_name(\"shadowed\", symbols).unwrap().written)\nassert(outer.get_binding_name(\"shadowed\", symbols).unwrap().written.not())\n",
+        "assert(leaf.get_binding_name(\"local_only\", symbols).unwrap().used)\n",
+        "assert(leaf.get_binding_name_mut(\"uninterned_name\", symbols).is_none())\n",
+        "absent_sym := symbols.intern(\"interned_but_unbound\")\nassert(leaf.get_binding_sym_mut(absent_sym).is_none())\n",
+        "assert_eq(USize, leaf.bindings.len(), 1)\nassert_eq(USize, middle.bindings.len(), 1)\nassert_eq(USize, outer.bindings.len(), 2)\n",
         "println(\"mutable AST views passed\")\n}\n"))
     check(Cmd.new(compiler, "interpret", format(root, "/mutable_ast_views.til")), "mutable AST views passed\n")
     check_run(compiler, root, "mutable_ast_views", "mutable AST views passed\n", asan)
@@ -716,11 +732,15 @@ mutable_ast_view_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "bad_field := func(mut definition: StructDef) returns ref mut Declaration { return definition.field_at(0) }\n",
         "bad_member := func(mut node: Expr) returns ref mut Declaration { return def_ns_get(node, \"member\").unwrap() }\n",
         "bad_owner := func(node: Expr) returns ref mut FunctionDef { return funcdef_of_mut(node) }\n",
+        "bad_scope_read := func(scope: TypeScope, sym: Sym) returns ref mut TypeBinding { return scope.get_binding_sym(sym).unwrap() }\n",
+        "bad_scope_owner := func(scope: TypeScope, sym: Sym) returns Option(ref mut TypeBinding) { return scope.get_binding_sym_mut(sym) }\n",
+        "bad_scope_parent := func(scope: TypeScope) returns TypeScope { return TypeScope(parent = safe_ref_mut(scope)) }\n",
         "main := proc() { assert(TilVm.size() > 0) }\n"))
     denied := "cannot return a writable reference"
     redundant := "redundant 'mut' on parameter 'value'"
     expected := array(Str, "cannot return a writable borrowed payload", "'value' is an immutable binding",
-        redundant, denied, denied, redundant, denied, denied, denied, denied, denied, denied)
+        redundant, denied, denied, redundant, denied, denied, denied, denied, denied, denied,
+        denied, "'scope' is an immutable binding", "'scope' is an immutable binding")
     for action: Str in array(Str, "interpret", "translate") {
         cmd := Cmd.new(compiler, action, invalid)
         cmd.capture()

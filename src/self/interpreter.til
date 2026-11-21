@@ -7952,7 +7952,7 @@ priv interp_call_reset := func(mut ctx: Context) {
 // A zeroed record is not a valid default when it owns separately boxed fields.
 priv interp_callback_default := proc(name: Str, mut scope: Scope, mut ctx: Context) returns Dynamic {
     mut value := make_default_value_expr(name, 0, 0, ctx.symbols)
-    mut types := TypeScope(parent = Option(ref TypeScope).Some(ctx.scope), is_func_root = true)
+    mut types := TypeScope(parent = safe_ref_mut(ctx.scope), is_func_root = true)
     errors_before := ctx.errors
     infer_expr(types, value, 0, ctx)
     if ctx.errors != errors_before { panic("callback error default failed to type: ", name) }

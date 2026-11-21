@@ -427,6 +427,12 @@ priv bindings_lookup_one := func(m: SymMap(TypeBinding), sym: Sym) returns Optio
     return safe_ref(b)
 }
 
+priv bindings_lookup_one_mut := func(mut m: SymMap(TypeBinding), sym: Sym) returns Option(ref mut TypeBinding) {
+    pos := m.find(sym)
+    if pos < 0 { return Option(ref mut TypeBinding).None }
+    return Option(ref mut TypeBinding).Some(m.values.unsafe_get_mut(pos.to_usize()))
+}
+
 TyperFuncState := struct {
     // Empty for namespace methods; those use TypeScope.current_type_name.
     current_top_func_name := ""
@@ -626,7 +632,9 @@ TypeScope := struct {
     struct_defs := SymMap(Dynamic).new()
     // #321: None at the root scope; every lookup below walks the chain
     // until it runs out of parents. Real control flow, not a guard.
-    parent := Option(ref TypeScope).None
+    // Child passes can update ancestor bindings (e.g. use/write credit).
+    // This is an explicit borrowed grant, independent of the child slot.
+    parent := Option(ref mut TypeScope).None
     // #327: true for the scope a function's PARAMETERS are bound in. Block
     // scopes inside the body chain up to it, so a walk that stops here has
     // seen exactly this function's params and locals -- what a redeclaration
@@ -693,6 +701,22 @@ namespace:
         sym_o := symbols.lookup(name)
         if sym_o.is_none() { return Option(ref TypeBinding).None }
         return self.get_binding_sym(sym_o.unwrap())
+    }
+    /// Find the nearest binding for mutation without inserting on a miss.
+    /// The returned view borrows the binding's scope, including on a parent hit.
+    get_binding_sym_mut := func(mut self: TypeScope, sym: Sym) returns Option(ref mut TypeBinding) {
+        found := bindings_lookup_one_mut(self.bindings, sym)
+        if found.is_some() { return found }
+        switch self.parent {
+        case .Some(p): return p.get_binding_sym_mut(sym)
+        case .None: return Option(ref mut TypeBinding).None
+        }
+    }
+    /// Name-keyed writable lookup. Uninterned names are ordinary misses.
+    get_binding_name_mut := func(mut self: TypeScope, name: Str, symbols: SymbolPool) returns Option(ref mut TypeBinding) {
+        sym_o := symbols.lookup(name)
+        if sym_o.is_none() { return Option(ref mut TypeBinding).None }
+        return self.get_binding_sym_mut(sym_o.unwrap())
     }
     find_name := func(self: TypeScope, name: Str, symbols: SymbolPool) returns ScopeFind {
         bo := self.get_binding_name(name, symbols)
@@ -906,7 +930,7 @@ namespace:
     set_func_def_name := func(mut self: TypeScope, name: Str, fdef: Expr, symbols: SymbolPool) {
         sym_o := symbols.lookup(name)
         if sym_o.is_none() { panic("set_func_def_name: binding name is not interned: ", name) }
-        b_o := bindings_lookup_one(self.bindings, sym_o.unwrap())
+        b_o := bindings_lookup_one_mut(self.bindings, sym_o.unwrap())
         if b_o.is_some() {
             ref mut b : TypeBinding = b_o.unwrap()
             b.func_type = func_def_type(fdef)
@@ -986,7 +1010,7 @@ namespace:
             sym := symbols.intern(name)
             existing := self.bindings.find(sym)
             if existing >= 0 {
-                ref mut b : TypeBinding = self.bindings.values.unsafe_get(existing.to_usize())
+                ref mut b : TypeBinding = self.bindings.values.unsafe_get_mut(existing.to_usize())
                 b.type = type
                 b.is_mut = is_mut
                 // path/line/col are declaration-site identity. Preserve them

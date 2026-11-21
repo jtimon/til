@@ -961,7 +961,7 @@ priv validate_fcall_own_args_for_fdef := proc(mut scope: TypeScope, e: Expr, fde
                     // (ownership transfer). The source's `mut` is what
                     // keeps the binding from auto-aliasing into a ref, so
                     // count this as a write-through.
-                    own_arg_b_o := scope.get_binding_sym(an.ident_sym())
+                    own_arg_b_o := scope.get_binding_sym_mut(an.ident_sym())
                     if own_arg_b_o.is_some() {
                         ref mut own_arg_b : TypeBinding = own_arg_b_o.unwrap()
                         own_arg_b.written = true
@@ -1102,7 +1102,7 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
     // struct's own auto-generated or user-written ns methods, which
     // does not count as "used externally".
     if scope.active_type_name().eq(name).not() {
-        sb_used_o := scope.get_binding_sym(name_sym)
+        sb_used_o := scope.get_binding_sym_mut(name_sym)
         if sb_used_o.is_some() {
             ref mut sb_used : TypeBinding = sb_used_o.unwrap()
             sb_used.used = true
@@ -2384,7 +2384,7 @@ priv infer_requested_value_method := proc(mut def: Expr, name_in: Str, method: S
     ref mut body : Expr = def_ns_get(def, method).unwrap().default_expr()
     ref mut generated : FunctionDef = funcdef_of(body)
     generated.typed_on_demand = true
-    mut inner := TypeScope(parent = safe_ref(ctx.scope), current_type_name = name.clone())
+    mut inner := TypeScope(parent = safe_ref_mut(ctx.scope), current_type_name = name.clone())
     infer_namespace_method_body(inner, body, name, method, ctx)
     ref mut member : Declaration = def_ns_get(def, method).unwrap()
     member.til_type = type_from_name(funcdef_of(body).sig.return_type, inner, ctx)
@@ -4470,7 +4470,7 @@ priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: S
     if cfd_o.is_none() {
         panic(ctx.path, ": concrete generic '", mono, "' is not registered")
     }
-    mut cb_used := scope.get_binding_name(mono, ctx.symbols)
+    cb_used := scope.get_binding_name_mut(mono, ctx.symbols)
     if cb_used.is_some() {
         ref mut cbu : TypeBinding = cb_used.unwrap()
         cbu.used = true
@@ -4487,8 +4487,7 @@ priv generic_finish_fcall := proc(mut scope: TypeScope, mut e: Expr, src_name: S
     }
     infer_and_validate_fcall_args_for_fdef(scope, e, cfd, in_func, ctx)
     validate_fcall_own_args_for_fdef(scope, e, cfd, ctx)
-    cb_used = scope.get_binding_name(mono, ctx.symbols)
-    resolve_fcall_return_type(scope, e, mono, cb_used, cfd_o, in_func, ctx)
+    resolve_fcall_return_type(scope, e, mono, scope.get_binding_name(mono, ctx.symbols), cfd_o, in_func, ctx)
 }
 
 // #328 follow-up: is this binding a FUNCTION GENERATOR whose parameters
@@ -4812,7 +4811,8 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
             return
         }
     }
-    mut callee_bind_o := scope.get_binding_sym(callee_sym)
+    callee_write_o := scope.get_binding_sym_mut(callee_sym)
+    mut callee_read_o := Option(ref TypeBinding).None
     mut callee_fdef_o := Option(ref Expr).None
     // #328: set when the callee resolves to a retained generic SOURCE.
     // Recorded as a NAME so the binding borrow above is released before
@@ -4824,8 +4824,8 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
     // released, for the same reason the name above is recorded rather than
     // the binding.
     mut func_gen_src_name := ""
-    if callee_bind_o.is_some() {
-        ref mut callee_bind : TypeBinding = callee_bind_o.unwrap()
+    if callee_write_o.is_some() {
+        ref mut callee_bind : TypeBinding = callee_write_o.unwrap()
         // #187: a call from inside a function is only evidence once that
         // function is itself reachable -- see mark_binding_referenced.
         // The source binding is credited here, before the call is
@@ -4833,6 +4833,7 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
         mark_binding_referenced(scope, ctx, callee_bind)
         note_cross_file_use(ctx, callee_bind.path)
         check_priv_access(e, name, callee_bind, scope, ctx)
+        callee_read_o = Option(ref TypeBinding).Some(callee_bind)
         callee_fdef_o = scope.lookup_func_by_sym(callee_sym, ctx.symbols)
         if callee_fdef_o.is_some() {
             query := type_arg_query_name(name, scope, ctx.symbols)
@@ -4929,12 +4930,12 @@ priv infer_fcall_expr := proc(mut scope: TypeScope, mut e: Expr, in_func: I32, m
         case:
         }
     }
-    infer_and_validate_fcall_args(scope, e, callee_bind_o, callee_fdef_o, in_func, ctx)
+    infer_and_validate_fcall_args(scope, e, callee_read_o, callee_fdef_o, in_func, ctx)
     // Re-resolve: inferring the args above can instantiate a generic,
     // and registering the monomorphization grows the scope's binding
     // map, invalidating any ref taken before the call (same hazard the
     // callee documents).
-    callee_bind_o = scope.get_binding_sym(callee_sym)
+    callee_bind_o := scope.get_binding_sym(callee_sym)
     if callee_is_indirect.not().and(name == "free") { check_free_managed_local(scope, e, ctx) }
     if callee_is_indirect.not().and(name == "is_null") { check_is_null_arg_dynamic(scope, e, ctx) }
     if callee_is_indirect.not().and(name == "memcpy") { check_memcpy_managed_src(scope, e, ctx) }
@@ -5037,7 +5038,7 @@ infer_expr := proc(mut scope: TypeScope, mut expr: Expr, in_func: I32, mut ctx: 
 priv infer_ident_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx: Context) {
     ref id_name : IdentData = ident_of(expr)
     ref name : Str = id_name.ident_name(ctx.symbols.names)
-    ib_o := scope.get_binding_sym(id_name.ident_sym())
+    ib_o := scope.get_binding_sym_mut(id_name.ident_sym())
     mut type := Type.Unknown
     if ib_o.is_some() { type = ib_o.unwrap().type.clone() }
     if type.is(Type.Unknown) {
@@ -5400,7 +5401,7 @@ priv type_struct_fields := proc(mut expr: Expr, mut inner: TypeScope, infer_type
             }
             field_semantic_type := declaration_resolved_type(fd, inner, ctx.symbols)
             inner.set(tc_fname, field_semantic_type, fd.is_mut, ctx.path, expr.line, expr.col, false, fd.own_type, ctx.symbols)
-            ref mut field_binding: TypeBinding = inner.get_binding_name(tc_fname, ctx.symbols).unwrap()
+            ref mut field_binding: TypeBinding = inner.get_binding_name_mut(tc_fname, ctx.symbols).unwrap()
             field_binding.referent_mut = fd.referent_mut
             if field_semantic_type.is_funcptr() {
                 // Registered by the inner.set on the line above.
@@ -5446,7 +5447,7 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
     case .StructDef(sdd): binding_capacity = sdd.fields.len()
     case:
     }
-    mut inner := TypeScope(parent = safe_ref(scope), current_type_name = type_name.clone())
+    mut inner := TypeScope(parent = safe_ref_mut(scope), current_type_name = type_name.clone())
     switch expr.node_type {
     case .StructDef:
         // #450: fields are bound in their OWN child scope. A field default
@@ -5456,7 +5457,7 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
         // the generated to_str included. Fields are reached through a value.
         mut field_scope := TypeScope(
             bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
-            parent = safe_ref(inner), current_type_name = type_name.clone())
+            parent = safe_ref_mut(inner), current_type_name = type_name.clone())
         type_struct_fields(expr, field_scope, false, ctx)
     case .EnumDef(tc_edd):
         // Issue #57: see typer_resolve_enum_payload_types.
@@ -5601,7 +5602,7 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
             tc_nd.til_type =tc_rt.clone()
             inner.set(tc_name, tc_rt, false, ctx.path, 0, 0, false, OwnType.Shallow, ctx.symbols)
             inner.set_func_def_name(tc_name, tc_nd.default_expr(), ctx.symbols)
-            ref mut tc_fb : TypeBinding = inner.get_binding_name(tc_name, ctx.symbols).unwrap()
+            ref mut tc_fb : TypeBinding = inner.get_binding_name_mut(tc_name, ctx.symbols).unwrap()
             tc_fb.is_func_decl = true
             if tc_fd.sig.func_type.is_bodyless() {
                 tc_fb.is_builtin = true
@@ -6112,14 +6113,14 @@ borrow_source_is_writable := func(scope: TypeScope, value: Expr, symbols: Symbol
 priv credit_mutable_return := func(mut scope: TypeScope, value: Expr, symbols: SymbolPool) {
     switch value.node_type {
     case .Ident(id):
-        ref mut b: TypeBinding = scope.get_binding_sym(id.ident_sym()).unwrap()
+        ref mut b: TypeBinding = scope.get_binding_sym_mut(id.ident_sym()).unwrap()
         b.mutable_ref_return = true
         if b.own_type.is(OwnType.Ref).or(b.iface_borrow_explicit) {
             for root: BorrowRoot in b.borrow_roots {
                 // Carried references grant their own permission: the carrier's
                 // mutable slot is not needed merely to return its ref field.
                 if root.carried.and(b.iface_borrow_explicit.not()) { continue }
-                source := lookup_binding_at(scope, root, symbols)
+                source := lookup_binding_at_mut(scope, root, symbols)
                 if source.is_some() {
                     ref mut source_binding: TypeBinding = source.unwrap()
                     source_binding.mutable_ref_return = true
@@ -6387,7 +6388,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         }
         mut func_scope := TypeScope(
             bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
-            parent = safe_ref(scope), is_func_root = true)
+            parent = safe_ref_mut(scope), is_func_root = true)
         func_scope.typer_func.current_top_func_name = top_func_name.clone()
         func_scope.typer_func.proc_def_depth = parent_func_state.proc_def_depth
         func_scope.typer_func.auto_gen_depth = parent_func_state.auto_gen_depth
@@ -6569,7 +6570,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             // normalization above may have refined param.til_type, so this
             // local is the place that still knows a `n: USize`
             // param was written USize rather than the target's U32.
-            pb_o := func_scope.get_binding_name(param.name, ctx.symbols)
+            pb_o := func_scope.get_binding_name_mut(param.name, ctx.symbols)
             if pb_o.is_some() {
                 ref mut pb : TypeBinding = pb_o.unwrap()
                 pb.declared_type_name = ptype_name.clone()
@@ -6892,7 +6893,7 @@ priv propagate_priv_refs := func(mut scope: TypeScope, ctx: Context) {
         if ctx.priv_ref_edges.has(referrer).not() { continue }
         ref referees : Vec(Str) = ctx.priv_ref_edges[referrer]
         for referee : Str in referees {
-            rbo := scope.get_binding_name(referee, ctx.symbols)
+            rbo := scope.get_binding_name_mut(referee, ctx.symbols)
             if rbo.is_none() { continue }
             ref mut rb2 : TypeBinding = rbo.unwrap()
             if rb2.used { continue }
@@ -7366,14 +7367,14 @@ priv infer_if_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32, i
     }
     mut then_scope := TypeScope(
         bindings = SymMap(TypeBinding).with_capacity(typer_body_binding_count(stmt.children[1])),
-        parent = safe_ref(scope))
+        parent = safe_ref_mut(scope))
     infer_body(then_scope, stmt.children[1], in_func, 1, in_loop, returns_ref, 0, ctx)
     check_unused_locals(then_scope, ctx.path, ctx)
     check_unused_mut_locals(then_scope, ctx.path, ctx)
     if stmt.children.len() > 2 {
         mut else_scope := TypeScope(
             bindings = SymMap(TypeBinding).with_capacity(typer_body_binding_count(stmt.children[2])),
-            parent = safe_ref(scope))
+            parent = safe_ref_mut(scope))
         infer_body(else_scope, stmt.children[2], in_func, 1, in_loop, returns_ref, 0, ctx)
         check_unused_locals(else_scope, ctx.path, ctx)
         check_unused_mut_locals(else_scope, ctx.path, ctx)
@@ -7799,7 +7800,7 @@ priv infer_while_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32
     }
     mut while_scope := TypeScope(
         bindings = SymMap(TypeBinding).with_capacity(typer_body_binding_count(stmt.children[1])),
-        parent = safe_ref(scope))
+        parent = safe_ref_mut(scope))
     infer_body(while_scope, stmt.children[1], in_func, 1, 1, returns_ref, 0, ctx)
     check_unused_locals(while_scope, ctx.path, ctx)
     check_unused_mut_locals(while_scope, ctx.path, ctx)
@@ -7858,7 +7859,7 @@ priv infer_decl_type_def := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: 
     }
     scope.set(sname, builtin_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
     scope.set_struct_def(sname, stmt.children[0], ctx.symbols)
-    ref mut b : TypeBinding = scope.get_binding_name(sname, ctx.symbols).unwrap()
+    ref mut b : TypeBinding = scope.get_binding_name_mut(sname, ctx.symbols).unwrap()
     b.is_builtin = is_builtin
     b.is_priv = sdecl.is_priv
     b.orig_name = sdecl.orig_name.clone()
@@ -7914,7 +7915,7 @@ priv infer_decl_func_def := proc(mut scope: TypeScope, mut stmt: Expr, mut ctx: 
         }
         scope.set(sdecl.name, binding_type, false, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
         scope.set_func_def_name(sdecl.name, stmt.children[0], ctx.symbols)
-        ref mut fb : TypeBinding = scope.get_binding_name(sdecl.name, ctx.symbols).unwrap()
+        ref mut fb : TypeBinding = scope.get_binding_name_mut(sdecl.name, ctx.symbols).unwrap()
         fb.is_func_decl = true
         fb.is_priv = sdecl.is_priv
         fb.orig_name = sdecl.orig_name.clone()
@@ -8048,7 +8049,7 @@ priv bind_ext_global_decl := func(mut scope: TypeScope, decl: Declaration,
     // else names the C object itself.
     scope.set(decl.name, external_type, decl.is_mut, path, line, col, false,
         decl.own_type, ctx.symbols)
-    ref mut binding : TypeBinding = scope.get_binding_name(decl.name, ctx.symbols).unwrap()
+    ref mut binding : TypeBinding = scope.get_binding_name_mut(decl.name, ctx.symbols).unwrap()
     binding.mut_explicit = decl.is_mut
     binding.referent_mut = decl.referent_mut
     binding.ref_slot_explicit = decl.ref_slot_explicit
@@ -8250,10 +8251,9 @@ priv infer_interface_payload_call := proc(mut scope: TypeScope, mut call: Expr, 
     }
     mark_fcall_direct(call)
     infer_and_validate_fcall_args_for_fdef(scope, call, fd, in_func, ctx)
-    binding_o := scope.get_binding_name(name, ctx.symbols)
-    ref mut binding : TypeBinding = binding_o.unwrap()
+    ref mut binding : TypeBinding = scope.get_binding_name_mut(name, ctx.symbols).unwrap()
     binding.used = true
-    resolve_fcall_return_type(scope, call, name, binding_o, fdef_o, in_func, ctx)
+    resolve_fcall_return_type(scope, call, name, safe_ref(binding), fdef_o, in_func, ctx)
 }
 
 // #432: the box constructor box_inferred_interface_value builds for a
@@ -8625,7 +8625,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
         }
         semantic_decl_type := declaration_resolved_type(sdecl, scope, ctx.symbols)
         scope.set(sdecl.name, semantic_decl_type, sdecl.is_mut, ctx.path, stmt.line, stmt.col, false, OwnType.Shallow, ctx.symbols)
-        ref mut decl_b : TypeBinding = scope.get_binding_name(sdecl.name, ctx.symbols).unwrap()
+        ref mut decl_b : TypeBinding = scope.get_binding_name_mut(sdecl.name, ctx.symbols).unwrap()
         // #164: snapshot the source-level `mut` keyword here, before any
         // later typer machinery (array/vec literal rewrite, alias
         // promotion etc.) auto-promotes is_mut.
@@ -9205,7 +9205,7 @@ priv infer_body_value_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx
     body_value_check_no_return(body, ctx)
     mut body_scope := TypeScope(
         bindings = SymMap(TypeBinding).with_capacity(typer_body_binding_count(body)),
-        parent = safe_ref(scope))
+        parent = safe_ref_mut(scope))
     mut capture_source_muts := Vec(Bool).new()
     mut capture_source_written := Vec(Bool).new()
     capture_private_mut_begin(scope, captures, capture_source_muts, capture_source_written, ctx.symbols)
@@ -9225,7 +9225,7 @@ priv infer_body_value_expr := proc(mut scope: TypeScope, mut expr: Expr, mut ctx
 // Shared by capture blocks and capturing functions.
 priv validate_captures := proc(mut scope: TypeScope, mut captures: Vec(Declaration), errnode: Expr, mut ctx: Context) {
     for mut cap : Declaration in captures {
-        b_o := scope.get_binding_name(cap.name, ctx.symbols)
+        b_o := scope.get_binding_name_mut(cap.name, ctx.symbols)
         if b_o.is_none() {
             errnode.type_error(format("capture '", cap.name,
                 "': no such variable in the enclosing scope"), ctx)
@@ -9258,7 +9258,7 @@ priv validate_captures := proc(mut scope: TypeScope, mut captures: Vec(Declarati
 priv capture_private_mut_begin := func(mut scope: TypeScope, captures: Vec(Declaration),
         mut source_muts: Vec(Bool), mut source_written: Vec(Bool), symbols: SymbolPool) {
     for cap : Declaration in captures {
-        b_o := scope.get_binding_name(cap.name, symbols)
+        b_o := scope.get_binding_name_mut(cap.name, symbols)
         if b_o.is_none() {
             missing_mut := false
             missing_written := false
@@ -9278,7 +9278,7 @@ priv capture_private_mut_end := func(mut scope: TypeScope, captures: Vec(Declara
     for i in 0..captures.len() {
         ref cap : Declaration = captures[i]
         if cap.is_mut.not().or(cap.own_type.is(OwnType.Ref)) { continue }
-        b_o := scope.get_binding_name(cap.name, symbols)
+        b_o := scope.get_binding_name_mut(cap.name, symbols)
         if b_o.is_none() { continue }
         ref mut b : TypeBinding = b_o.unwrap()
         b.is_mut = source_muts[i]
@@ -9357,7 +9357,7 @@ priv infer_capture_block := proc(mut scope: TypeScope, mut stmt: Expr,
     }
     mut block_scope := TypeScope(
         bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
-        parent = safe_ref(scope))
+        parent = safe_ref_mut(scope))
     infer_body(block_scope, body, in_func, 1, in_loop, returns_ref, 0, ctx)
     ref root : TypeScope = scope_root_ref(scope)
     capture_block_check_refs(body, scope, block_scope, root, captures, ctx)
@@ -9375,7 +9375,7 @@ priv infer_capture_block := proc(mut scope: TypeScope, mut stmt: Expr,
         ref osrc : TypeBinding = osrc_o.unwrap()
         block_scope.set(ocap.name, osrc.type, osrc.is_mut, ctx.path,
             stmt.line, stmt.col, false, OwnType.Own, ctx.symbols)
-        ref mut ob : TypeBinding = block_scope.get_binding_name(ocap.name, ctx.symbols).unwrap()
+        ref mut ob : TypeBinding = block_scope.get_binding_name_mut(ocap.name, ctx.symbols).unwrap()
         ob.used = true
     }
     check_unused_locals(block_scope, ctx.path, ctx)
@@ -9449,7 +9449,7 @@ infer_body_stmt := proc(mut scope: TypeScope, mut body: Expr, mut i: USize, in_f
     case .Body:
         mut block_scope := TypeScope(
             bindings = SymMap(TypeBinding).with_capacity(typer_body_binding_count(stmt)),
-            parent = safe_ref(scope))
+            parent = safe_ref_mut(scope))
         infer_body(block_scope, stmt, in_func, 1, in_loop, returns_ref, 0, ctx)
         check_unused_locals(block_scope, ctx.path, ctx)
         check_unused_mut_locals(block_scope, ctx.path, ctx)
@@ -9487,7 +9487,7 @@ infer_body_stmt := proc(mut scope: TypeScope, mut body: Expr, mut i: USize, in_f
             ref mut body_expr : Expr = stmt.children[2]
             mut catch_scope := TypeScope(
                 bindings = SymMap(TypeBinding).with_capacity(typer_body_binding_count(body_expr)),
-                parent = safe_ref(scope))
+                parent = safe_ref_mut(scope))
             infer_body(catch_scope, body_expr, in_func, 1, in_loop, returns_ref, 0, ctx)
             check_unused_locals(catch_scope, ctx.path, ctx)
             check_unused_mut_locals(catch_scope, ctx.path, ctx)
@@ -9506,7 +9506,7 @@ priv reregister_scope_defs := func(body: Expr, mut scope: TypeScope, symbols: Sy
         ref rfirst : Expr = rstmt.children[0]
         switch rstmt.node_type {
         case .Decl(rdecl):
-            rb_o := scope.get_binding_name(rdecl.name, symbols)
+            rb_o := scope.get_binding_name_mut(rdecl.name, symbols)
             if rb_o.is_some() {
                 ref mut rb : TypeBinding = rb_o.unwrap()
                 if rfirst.node_type.is(NodeType.StructDef).or(rfirst.node_type.is(NodeType.EnumDef)) {
@@ -9934,7 +9934,7 @@ priv comptime_prepare_type := proc(type_name: Str, mut prep: ComptimePreparation
 
     type_methods_from(program, 0, ctx)
     if def.node_type.is(NodeType.StructDef) {
-        mut inner := TypeScope(parent = safe_ref(ctx.scope), current_type_name = name.clone())
+        mut inner := TypeScope(parent = safe_ref_mut(ctx.scope), current_type_name = name.clone())
         type_struct_fields(def, inner, true, ctx)
         ref fields : Vec(Declaration) = structdef_of(def).fields
         for field : Declaration in fields {
@@ -9977,7 +9977,7 @@ priv comptime_prepare_function := proc(name: Str, owner: Str, mut fdef: Expr, mu
     if funcdef_of(fdef).sig.func_type.is_bodyless() { return }
     prep.active.add(own key.clone())
     ref fd : FunctionDef = funcdef_of(fdef)
-    mut local := TypeScope(parent = safe_ref(ctx.scope), current_type_name = owner.clone())
+    mut local := TypeScope(parent = safe_ref_mut(ctx.scope), current_type_name = owner.clone())
     for param : Declaration in fd.sig.params {
         ptype := declaration_resolved_type(param, ctx.scope, ctx.symbols)
         comptime_prepare_type(decl_type_name(param, ctx.symbols), prep, ctx)
@@ -10018,7 +10018,7 @@ priv comptime_prepare_named_function := proc(name_in: Str, mut prep: ComptimePre
     }
     ref mut entry : Expr = prep.definitions[name]
     saved_path := ctx.path.clone()
-    ref mut binding : TypeBinding = ctx.scope.get_binding_name(name, ctx.symbols).unwrap()
+    ref mut binding : TypeBinding = ctx.scope.get_binding_name_mut(name, ctx.symbols).unwrap()
     binding.used = true
     context_enter_file(ctx, binding.path)
     comptime_prepare_function(name, "", entry.children[0].children[0], prep, ctx)
@@ -10042,7 +10042,7 @@ priv comptime_prepare_value := proc(name: Str, path: Str, stmt: Expr, mut prep: 
     prep.active.add(own key.clone())
     saved_path := ctx.path.clone()
     context_enter_file(ctx, path)
-    mut local := TypeScope(parent = safe_ref(ctx.scope))
+    mut local := TypeScope(parent = safe_ref_mut(ctx.scope))
     comptime_prepare_expr(prepared.children[0].children[0], local, prep, ctx)
     // owns_scope: the initializer needs the call lowering every other body
     // gets (variadic packs, keyword maps, collection literals, hoists); the
@@ -10059,10 +10059,10 @@ priv comptime_prepare_value := proc(name: Str, path: Str, stmt: Expr, mut prep: 
     if b_o.is_some() {
         ref b : TypeBinding = b_o.unwrap()
         ctx.scope.set(name, b.type, b.is_mut, path, stmt.line, stmt.col, false, b.own_type, ctx.symbols)
-        ref mut exported_binding: TypeBinding = ctx.scope.get_binding_name(name, ctx.symbols).unwrap()
+        ref mut exported_binding: TypeBinding = ctx.scope.get_binding_name_mut(name, ctx.symbols).unwrap()
         exported_binding.referent_mut = b.referent_mut
         exported_binding.ref_permission_problem = b.ref_permission_problem.clone()
-        ref mut global_binding : TypeBinding = ctx.scope.get_binding_name(name, ctx.symbols).unwrap()
+        ref mut global_binding : TypeBinding = ctx.scope.get_binding_name_mut(name, ctx.symbols).unwrap()
         global_binding.is_priv = decl.is_priv
         global_binding.orig_name = decl.orig_name.clone()
     }
@@ -10157,7 +10157,7 @@ priv comptime_prepare_expr := proc(mut e: Expr, mut scope: TypeScope, mut prep: 
         }
         comptime_prepare_global(name, prep, ctx)
     case .FuncDef(fd):
-        mut local := TypeScope(parent = safe_ref(scope))
+        mut local := TypeScope(parent = safe_ref_mut(scope))
         for param : Declaration in fd.sig.params {
             local.set(param.name, param.til_type, param.is_mut, ctx.path, e.line, e.col, true, param.own_type, ctx.symbols)
         }
@@ -10168,7 +10168,7 @@ priv comptime_prepare_expr := proc(mut e: Expr, mut scope: TypeScope, mut prep: 
         return
     case .ForIn(loop):
         if e.children.len() > 0 { comptime_prepare_expr(e.children[0], scope, prep, ctx) }
-        mut local := TypeScope(parent = safe_ref(scope))
+        mut local := TypeScope(parent = safe_ref_mut(scope))
         local.set(loop.name, loop.til_type, loop.is_mut, ctx.path, e.line, e.col, true, OwnType.Ref, ctx.symbols)
         if loop.name2.len() > 0 { local.set(loop.name2, Type.Unknown, loop.is_mut2, ctx.path, e.line, e.col, true, OwnType.Ref, ctx.symbols) }
         for i in 1..e.children.len() { comptime_prepare_expr(e.children[i], local, prep, ctx) }
@@ -10192,7 +10192,7 @@ priv comptime_prepare_expr := proc(mut e: Expr, mut scope: TypeScope, mut prep: 
         }
     }
     if e.node_type.is(NodeType.Body) {
-        mut local := TypeScope(parent = safe_ref(scope))
+        mut local := TypeScope(parent = safe_ref_mut(scope))
         for mut stmt : Expr in e.children {
             comptime_prepare_expr(stmt, local, prep, ctx)
             switch stmt.node_type {
@@ -10246,7 +10246,7 @@ eval_generator_condition := proc(mut condition: Expr, mut scope: TypeScope, mut 
     swap(Option(ComptimePreparation), ctx.comptime_preparation, saved_preparation)
     ctx.comptime_preparation = Option(ComptimePreparation).Some(own ComptimePreparation())
     ref mut prep : ComptimePreparation = comptime_frame(ctx)
-    mut local := TypeScope(parent = safe_ref(scope))
+    mut local := TypeScope(parent = safe_ref_mut(scope))
     comptime_prepare_expr(condition, local, prep, ctx)
     mut fd := FunctionDef()
     fd.sig.func_type = FuncType.Macro
@@ -10421,7 +10421,7 @@ priv type_repl_delta_fields_from := proc(mut program: Expr, start_idx: USize, mu
         if rhs.node_type.is(NodeType.StructDef).not() { continue }
         switch stmt.node_type {
         case .Decl(d):
-            mut inner := TypeScope(parent = safe_ref(ctx.scope), current_type_name = d.name.clone())
+            mut inner := TypeScope(parent = safe_ref_mut(ctx.scope), current_type_name = d.name.clone())
             type_struct_fields(rhs, inner, true, ctx)
         case:
         }
@@ -10511,7 +10511,7 @@ priv type_fields_file := proc(path: Str, mut ctx: Context) returns I32 {
         if rhs.node_type.is(NodeType.StructDef).not() { continue }
         switch stmt.node_type {
         case .Decl(d):
-            mut inner := TypeScope(parent = safe_ref(ctx.scope), current_type_name = d.name.clone())
+            mut inner := TypeScope(parent = safe_ref_mut(ctx.scope), current_type_name = d.name.clone())
             type_struct_fields(rhs, inner, true, ctx)
         case:
         }
@@ -10720,7 +10720,7 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
     // - Ref bindings: `ref mut x : T = &slot` followed by `x = v` is
     //   the explicit write-through-ref pattern -- the assign is the
     //   whole point of the binding.
-    ub_o := scope.get_binding_name(aname, ctx.symbols)
+    ub_o := scope.get_binding_name_mut(aname, ctx.symbols)
     if ub_o.is_some() {
         ref mut ub : TypeBinding = ub_o.unwrap()
         // #154: writing a cross-file global counts as using its import
@@ -10749,7 +10749,7 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
     if type_carries_borrow_t(scope, rhs.til_type(), ctx.symbols) {
         deposited_393 := deposit_src_roots(scope, rhs, ctx.symbols)
         if deposited_393.len() > 0 {
-            db_o := scope.get_binding_name(aname, ctx.symbols)
+            db_o := scope.get_binding_name_mut(aname, ctx.symbols)
             if db_o.is_some() {
                 ref mut db : TypeBinding = db_o.unwrap()
                 if binding_is_storage(scope, db, ctx.symbols) {
@@ -10816,7 +10816,7 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
     // storage `r` aliases, so the same walker credits its roots.
     if reference_assignment_rebinds(stmt, scope, ctx.symbols) {
         roots := expr_borrow_roots(scope, rhs, ctx.symbols)
-        ref mut target : TypeBinding = scope.get_binding_name(aname, ctx.symbols).unwrap()
+        ref mut target : TypeBinding = scope.get_binding_name_mut(aname, ctx.symbols).unwrap()
         check_reference_rebind_lifetime(scope, target, roots, stmt, ctx)
         // A writable declaration cannot gain permission by rebinding after a
         // read-only source. Such a rebind itself needs #490's eventual error.
@@ -11094,7 +11094,7 @@ type_from_name := func(name: Str, mut scope: TypeScope, mut ctx: Context) return
     sym_o := ctx.symbols.lookup(name)
     if sym_o.is_none() { return Type.Unknown }
     sym := sym_o.unwrap()
-    b_o := scope.get_binding_sym(sym)
+    b_o := scope.get_binding_sym_mut(sym)
     if b_o.is_some() {
         ref mut b : TypeBinding = b_o.unwrap()
         // #154: a type annotation naming a cross-file type uses its
@@ -14011,9 +14011,25 @@ priv lookup_binding_at := func(scope: TypeScope, r: BorrowRoot, symbols: SymbolP
     }
 }
 
-priv mark_roots_written := func(scope: TypeScope, roots: Vec(BorrowRoot), symbols: SymbolPool) {
+priv lookup_binding_at_mut := func(mut scope: TypeScope, r: BorrowRoot, symbols: SymbolPool) returns Option(ref mut TypeBinding) {
+    sym := symbols.lookup(r.name)
+    if sym.is_none() { return Option(ref mut TypeBinding).None }
+    pos := scope.bindings.find(sym.unwrap())
+    if pos >= 0 {
+        ref mut b: TypeBinding = scope.bindings.values.unsafe_get_mut(pos.to_usize())
+        if b.line == r.line && b.col == r.col && b.path == r.path {
+            return Option(ref mut TypeBinding).Some(b)
+        }
+    }
+    switch scope.parent {
+    case .Some(p): return lookup_binding_at_mut(p, r, symbols)
+    case .None: return Option(ref mut TypeBinding).None
+    }
+}
+
+priv mark_roots_written := func(mut scope: TypeScope, roots: Vec(BorrowRoot), symbols: SymbolPool) {
     for r : BorrowRoot in roots {
-        rb_o := lookup_binding_at(scope, r, symbols)
+        rb_o := lookup_binding_at_mut(scope, r, symbols)
         if rb_o.is_none() { continue }
         ref mut rb : TypeBinding = rb_o.unwrap()
         rb.written = true
@@ -14096,7 +14112,7 @@ priv check_writable_root_set := proc(mut scope: TypeScope, site: Expr, roots: Ve
 }
 
 priv mark_name_written_name := func(mut scope: TypeScope, name: Str, symbols: SymbolPool) {
-    bo := scope.get_binding_name(name, symbols)
+    bo := scope.get_binding_name_mut(name, symbols)
     if bo.is_none() { return }
     ref mut b : TypeBinding = bo.unwrap()
     b.written = true
@@ -14104,7 +14120,7 @@ priv mark_name_written_name := func(mut scope: TypeScope, name: Str, symbols: Sy
 }
 
 priv mark_name_written_sym := func(mut scope: TypeScope, sym: Sym, symbols: SymbolPool) {
-    bo := scope.get_binding_sym(sym)
+    bo := scope.get_binding_sym_mut(sym)
     if bo.is_none() { return }
     ref mut b : TypeBinding = bo.unwrap()
     b.written = true
@@ -14158,7 +14174,7 @@ deposit_src_roots := func(scope: TypeScope, src: Expr, symbols: SymbolPool) retu
     return carried_roots_of(scope, expr_borrow_roots(scope, src, symbols), "", symbols)
 }
 
-priv deposit_roots_into_binding := func(scope: TypeScope, mut b: TypeBinding, deposited: Vec(BorrowRoot), symbols: SymbolPool) {
+priv deposit_roots_into_binding := func(mut scope: TypeScope, mut b: TypeBinding, deposited: Vec(BorrowRoot), symbols: SymbolPool) {
     for r : BorrowRoot in deposited {
         // The sink is not a root of its own deposits.
         if r.name.eq(b.name).and(r.line == b.line).and(r.col == b.col) { continue }
@@ -14176,7 +14192,7 @@ priv deposit_roots_into_binding := func(scope: TypeScope, mut b: TypeBinding, de
             if ar.carried.not() { push_root_unique(alias_roots, ar) }
         }
         for ar : BorrowRoot in alias_roots {
-            ab_o := lookup_binding_at(scope, ar, symbols)
+            ab_o := lookup_binding_at_mut(scope, ar, symbols)
             if ab_o.is_none() { continue }
             ref mut ab : TypeBinding = ab_o.unwrap()
             for r : BorrowRoot in deposited {
@@ -14192,13 +14208,12 @@ priv deposit_roots_into_binding := func(scope: TypeScope, mut b: TypeBinding, de
 
 // The binding a deposit's sink argument stores into -- the base of the
 // expression, across field accesses and the raw pointer ops.
-priv deposit_sink_binding := func(scope: TypeScope, sink: Expr, symbols: SymbolPool) returns Option(ref TypeBinding) {
+priv deposit_sink_binding := func(mut scope: TypeScope, sink: Expr, symbols: SymbolPool) returns Option(ref mut TypeBinding) {
     switch sink.node_type {
     case .Ident(id):
-        bo := scope.get_binding_sym(id.ident_sym())
+        bo := scope.get_binding_sym_mut(id.ident_sym())
         if bo.is_some() {
-            ref b : TypeBinding = bo.unwrap()
-            if binding_is_storage(scope, b, symbols) { return safe_ref(b) }
+            if binding_is_storage(scope, bo.unwrap(), symbols) { return bo }
         }
     case .FieldAccess:
         if sink.children.len().gt(0).and(fa_is_ns(sink, scope, symbols).not()) {
@@ -14209,7 +14224,7 @@ priv deposit_sink_binding := func(scope: TypeScope, sink: Expr, symbols: SymbolP
         if rso.is_some() { return deposit_sink_binding(scope, rso.unwrap(), symbols) }
     case:
     }
-    return Option(ref TypeBinding).None
+    return Option(ref mut TypeBinding).None
 }
 
 // Is the sink declared outside the owner's lexical scope? Match declaration
@@ -14305,7 +14320,7 @@ priv ref_container_source_stable := func(source: Expr, scope: TypeScope, symbols
     return expr_is_stable_field_base(source, scope, symbols)
 }
 
-priv apply_call_deposit := proc(scope: TypeScope, sink: Expr, src: Expr, site: Expr, source_borrowed: Bool, address_borrow: Bool, mut ctx: Context) {
+priv apply_call_deposit := proc(mut scope: TypeScope, sink: Expr, src: Expr, site: Expr, source_borrowed: Bool, address_borrow: Bool, mut ctx: Context) {
     bo := deposit_sink_binding(scope, sink, ctx.symbols)
     global_sink := expr_names_global_storage(scope, sink, ctx)
     if bo.is_none().and(global_sink.not()) { return }
@@ -16588,8 +16603,8 @@ priv infer_match_expr := proc(mut scope: TypeScope, mut expr: Expr, in_func: I32
 // Type of one match arm's value-expression. Clones the arm body (so the real
 // node is untouched), prepends the pattern's payload bindings via the shared
 // switch helper, infers the bindings, then infers the value expression.
-priv match_arm_value_type := proc(scope: TypeScope, case_node: Expr, subj: Expr, in_func: I32, mut ctx: Context) returns Type {
-    mut arm_scope := TypeScope(parent = safe_ref(scope))
+priv match_arm_value_type := proc(mut scope: TypeScope, case_node: Expr, subj: Expr, in_func: I32, mut ctx: Context) returns Type {
+    mut arm_scope := TypeScope(parent = safe_ref_mut(scope))
     body_idx := case_node.children.len() - 1
     has_pattern := case_pattern_count(case_node) > 0
     mut trial := case_node.children[body_idx].clone()
@@ -17112,7 +17127,7 @@ priv infer_clike_switch := proc(mut scope: TypeScope, mut stmt: Expr, enum_def_o
         ref mut case_body : Expr = cn.children[body_idx]
         mut case_scope := TypeScope(
             bindings = SymMap(TypeBinding).with_capacity(typer_body_binding_count(case_body)),
-            parent = safe_ref(scope))
+            parent = safe_ref_mut(scope))
         infer_body(case_scope, case_body, in_func, 1, in_loop, returns_ref, 0, ctx)
         check_unused_locals(case_scope, ctx.path, ctx)
         check_unused_mut_locals(case_scope, ctx.path, ctx)

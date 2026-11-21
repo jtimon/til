@@ -354,7 +354,7 @@ priv typer_register_lifted_lambda := func(mut scope: TypeScope, lifted: Expr, mu
         case .FuncDef:
             scope.set(sdecl.name, Type.None, false, ctx.path, lifted.line, lifted.col, false, OwnType.Shallow, ctx.symbols)
             scope.set_func_def_name(sdecl.name, lifted.children[0], ctx.symbols)
-            ref mut fb : TypeBinding = scope.get_binding_name(sdecl.name, ctx.symbols).unwrap()
+            ref mut fb : TypeBinding = scope.get_binding_name_mut(sdecl.name, ctx.symbols).unwrap()
             fb.is_func_decl = true
             fb.is_priv = sdecl.is_priv
         case:
@@ -3540,7 +3540,7 @@ make_switch_case_condition := func(mut scope: TypeScope, mut case_body: Expr, ma
                                         if bind_is_mut {
                                             switch sw_ref.node_type {
                                             case .Ident(sw_idn2):
-                                                sw_b2_o := scope.get_binding_sym(sw_idn2.ident_sym())
+                                                sw_b2_o := scope.get_binding_sym_mut(sw_idn2.ident_sym())
                                                 if sw_b2_o.is_some() {
                                                     ref mut sw_b2 : TypeBinding = sw_b2_o.unwrap()
                                                     sw_b2.written = true
@@ -4049,7 +4049,7 @@ prepend_clike_payload_binding := func(mut scope: TypeScope, enum_def: Expr, sw_e
     // marked -- an immutable root can't be written and keeps its own checks.
     root_sym := lvalue_root_sym(sw_expr)
     if root_sym != 0 {
-        rb_o := scope.get_binding_sym(root_sym)
+        rb_o := scope.get_binding_sym_mut(root_sym)
         if rb_o.is_some() {
             ref mut rb : TypeBinding = rb_o.unwrap()
             if rb.is_mut { rb.written = true }
@@ -6592,7 +6592,7 @@ priv finish_hoist_temp := func(mut ctx: Context, own decl: Expr, mut hoisted: Ve
     mut ident := Expr.new(own ident_node(ctx.symbols.intern(tname)), val.line, val.col)
     ident.set_til_type(semantic_type)
     scope.set(tname, semantic_type, false, ctx.path, val.line, val.col, false, OwnType.Shallow, ctx.symbols)
-    ref mut tb : TypeBinding = scope.get_binding_name(tname, ctx.symbols).unwrap()
+    ref mut tb : TypeBinding = scope.get_binding_name_mut(tname, ctx.symbols).unwrap()
     dd.name = tname.clone()
     dd.is_mut = false
     if val_is_ref {
