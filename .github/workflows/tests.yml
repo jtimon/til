@@ -138,6 +138,37 @@ jobs:
           name: hashes-linux-x64
           path: tmp/hashes/linux-x64.txt
           if-no-files-found: error
+      # Issue #504: the suite again with this host's target pinned -- the
+      # pinned LLVM (make.til LLVM_RELEASE, cached per release and runner
+      # kind) and the Bootlin C library under vendor/linux -- so bin/til,
+      # bin/til_asan and every program the suite builds are what any host
+      # builds for linux-x64. On trial: once a run shows it passing, this
+      # is the job's one suite, from its start. The bin/til hash printed
+      # last is the one to find in the collect job as linux-x64's
+      # "make bin/til" (listed by the windows-x64-build job, the other
+      # Linux x64 runner, and cross-built by the arm64 one).
+      - name: The pinned LLVM release
+        id: llvm
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned LLVM
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm
+          key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Suite with the pinned C library
+        continue-on-error: true
+        timeout-minutes: 120
+        run: |
+          make llvm
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
+          clang --version | grep -q "clang version 23.1.5"
+          ./bin/make vendor/linux/linux-x64
+          make test_asan
+          sha256sum bin/til
 
   android-runtime:
     needs: doc-gate
@@ -399,35 +430,54 @@ jobs:
           name: hashes-binary-mac-linux-arm64
           path: tmp/hashes-binary-mac/linux-arm64.txt
           if-no-files-found: error
-      # Issue #504: the two Linux targets with their pinned C library --
+      # Issue #504: the six Linux targets with their pinned C library --
       # Bootlin's toolchain for each, glibc 2.34, unpacked by bin/make under
       # vendor/linux -- and the pinned LLVM that is first on PATH here. til
       # builds a linux target with clang, lld and that tree wherever it is
-      # unpacked, and bin/make builds the target's libffi and nng the same
-      # way, this host's own included. Both Linux hosts list both targets
-      # (the lists made with each host's own gcc and glibc are gone: their
-      # debug info named the host's header directories). On trial and
-      # continue-on-error. The tree is removed again at the end: the steps
-      # of a job after this one would build this host's programs with it.
+      # unpacked, and bin/make builds the target's archives the same way,
+      # this host's own included. So this host's own bin/til is built again
+      # here, against the tree (bin/make vendor swaps the host's archives,
+      # bin/til depends on them): the list's "make bin/til" for this host's
+      # target is then that file, to compare with the other host's cross
+      # build of it. Run 3199: the two hosts' linux-x64 and linux-arm64
+      # lists were equal but for that item, each host's own gcc build then.
+      # The 32-bit targets list no til: til is not a 32-bit program. On
+      # trial and continue-on-error.
       - name: Write the linux binary hash lists with the pinned C library
         continue-on-error: true
         run: |
           export PATH="$PWD/vendor/llvm/bin:$PATH"
           clang --version | grep -q "clang version 23.1.5"
-          ./bin/make vendor/linux/linux-x64 vendor/linux/linux-arm64
-          ./bin/make vendor/libffi/build-linux-x64/.libs/libffi.a vendor/nng/build-linux-x64/libnng.a
-          ./bin/make vendor/libffi/build-linux-arm64/.libs/libffi.a vendor/nng/build-linux-arm64/libnng.a
-          ./bin/til run test/reproducible_build.til bin/til linux-x64
-          ./bin/til run test/reproducible_build.til bin/til linux-arm64
+          ./bin/make linux_sysroots
+          ./bin/make vendor
+          ./bin/make bin/til
+          sha256sum bin/til
+          for target in linux-x64 linux-arm64 linux-arm32 linux-riscv64 linux-x86 linux-riscv32; do
+            ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a
+            ./bin/til run test/reproducible_build.til bin/til $target
+          done
           mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til linux-x64 linux-arm64
-          rm -rf vendor/linux
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til linux-x64 linux-arm64 linux-arm32 linux-riscv64 linux-x86 linux-riscv32
       - name: Upload the linux binary hash lists
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-linux-arm64
           path: tmp/hashes-binary/linux-arm64.txt
+      # Issue #504: the suite again, on the bin/til just listed and with
+      # everything it builds against the pinned C library (bin/til_asan by
+      # the pinned clang, with clang's sanitizer runtime). On trial: once a
+      # run shows it passing, this is the job's one suite, from its start.
+      # make builds bin/til again; the same bytes, or the last line fails.
+      - name: Suite with the pinned C library
+        continue-on-error: true
+        timeout-minutes: 150
+        run: |
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
+          sha256sum bin/til > tmp/til-pinned.txt
+          cat tmp/til-pinned.txt
+          make test_asan
+          sha256sum -c tmp/til-pinned.txt
       # Issue #473: wasm32 from this host too (see the wasm32 job). The
       # emsdk is installed with the first wasm32 archive bin/make builds.
       - name: Write the wasm32 binary hash list
@@ -1188,29 +1238,34 @@ jobs:
           name: hashes-binary-mac-linux-x64
           path: tmp/hashes-binary-mac/linux-x64.txt
           if-no-files-found: error
-      # Issue #504: the two Linux targets with their pinned C library --
+      # Issue #504: the six Linux targets with their pinned C library --
       # Bootlin's toolchain for each, glibc 2.34, unpacked by bin/make under
       # vendor/linux -- and the pinned LLVM that is first on PATH here. til
       # builds a linux target with clang, lld and that tree wherever it is
-      # unpacked, and bin/make builds the target's libffi and nng the same
-      # way, this host's own included. Both Linux hosts list both targets
-      # (the lists made with each host's own gcc and glibc are gone: their
-      # debug info named the host's header directories). On trial and
-      # continue-on-error. The tree is removed again at the end: the steps
-      # of a job after this one would build this host's programs with it.
+      # unpacked, and bin/make builds the target's archives the same way,
+      # this host's own included. So this host's own bin/til is built again
+      # here, against the tree (bin/make vendor swaps the host's archives,
+      # bin/til depends on them): the list's "make bin/til" for this host's
+      # target is then that file, to compare with the other host's cross
+      # build of it. Run 3199: the two hosts' linux-x64 and linux-arm64
+      # lists were equal but for that item, each host's own gcc build then.
+      # The 32-bit targets list no til: til is not a 32-bit program. On
+      # trial and continue-on-error.
       - name: Write the linux binary hash lists with the pinned C library
         continue-on-error: true
         run: |
           export PATH="$PWD/vendor/llvm/bin:$PATH"
           clang --version | grep -q "clang version 23.1.5"
-          ./bin/make vendor/linux/linux-x64 vendor/linux/linux-arm64
-          ./bin/make vendor/libffi/build-linux-x64/.libs/libffi.a vendor/nng/build-linux-x64/libnng.a
-          ./bin/make vendor/libffi/build-linux-arm64/.libs/libffi.a vendor/nng/build-linux-arm64/libnng.a
-          ./bin/til run test/reproducible_build.til bin/til linux-x64
-          ./bin/til run test/reproducible_build.til bin/til linux-arm64
+          ./bin/make linux_sysroots
+          ./bin/make vendor
+          ./bin/make bin/til
+          sha256sum bin/til
+          for target in linux-x64 linux-arm64 linux-arm32 linux-riscv64 linux-x86 linux-riscv32; do
+            ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a
+            ./bin/til run test/reproducible_build.til bin/til $target
+          done
           mkdir -p tmp/hashes-binary
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til linux-x64 linux-arm64
-          rm -rf vendor/linux
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til linux-x64 linux-arm64 linux-arm32 linux-riscv64 linux-x86 linux-riscv32
       - name: Upload the linux binary hash lists
         continue-on-error: true
         uses: actions/upload-artifact@v4

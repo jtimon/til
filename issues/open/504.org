@@ -190,7 +190,7 @@ llvm-ar), and does not reuse a build directory configured for the other
 C library: cmake's cached "strlcpy found" from the host's glibc 2.39
 failed the compile against 2.34, so a stamp in the directory says which
 it was configured for. The gui and libsecp256k1 archives are not built
-pinned yet: til itself links neither.
+pinned yet: til itself links neither (step 3 does).
 
 Measured here (Linux x64, Ubuntu's clang 18, not yet the pinned LLVM):
 - ~hello_script~ for linux-x64: runs; versioned symbols up to
@@ -212,16 +212,107 @@ their mac lists (the pinned LLVM is first on PATH there), on trial. The
 lists made with each host's own gcc and glibc are removed. The tree is
 deleted at the end of the step, so that nothing after it builds pinned.
 
+**** CI run 3199: the two Linux hosts build the same linux-x64 and linux-arm64
+
+The first run with step 2 (master db9d781). Both Linux hosts listed both
+targets against the pinned tree, with the pinned LLVM 23.1.5:
+
+- linux-x64: 138 items equal at the compact width and 2 at the native
+  one -- til at both widths and the C it was built from, the two
+  programs, the library (archive, object, shared), libffi and nng with
+  every member, and the sections of til and hello_script.
+- linux-arm64: 136 and 2.
+- The one difference, in both: ~make bin/til~, where each host listed
+  its own gcc build of its own target against the other's pinned cross
+  build. Step 3 and the CI steps below are for that item.
+
+**** Step 3, done: the whole suite passes with the host's own target pinned
+
+With ~vendor/linux/linux-x64~ unpacked on a Linux x64 host and the pinned
+LLVM first on PATH, plain ~make~ gives a ~bin/til~ built against the
+tree (GLIBC_2.34 at most), ~make test~ passes (597/597) and so does
+~make test_asan~ (600/600). What it needed:
+
+- ~bin/make vendor~ replaces the Makefile's libffi for the host's target
+  with the pinned build (the Makefile builds its own with the host's
+  compiler before ~bin/make~ exists), so ~bin/til~ links the archive
+  every host builds. Back without the tree, it runs the Makefile's rule
+  again: ~make clean~ keeps vendor builds, and the Makefile took the
+  pinned build's ~.built~ for its own. ~bin/til~ now depends on the
+  libffi and nng archives it links: ~bin/make bin/til~ run directly kept
+  the gcc build after the archives were swapped.
+- The gui archives (raylib, tinyfiledialogs) and libsecp256k1 are built
+  pinned too, with the same stamp in their build directories. Built by
+  the host's gcc against glibc 2.39's headers, raylib named
+  ~__isoc23_sscanf~ and ~__isoc23_strtol~, which a program linked
+  against 2.34 does not resolve: every gui build failed, 22 tests. The
+  interpreter's twins (~.so~) are still linked by the host's compiler
+  from those archives; they are loaded by the til on this machine and
+  are in no list.
+- ~--cc=<compiler>~ is the caller's compiler: the pinned tree's
+  arguments are clang's, so they go only with the ~clang~ til picks
+  (~linux_pinned_with~). ~link_objects~ passes a wrapper script of the
+  host's cc, which got ~--gcc-toolchain~ and ~-print-resource-dir~.
+- The target is named ~<arch>-unknown-linux-gnu~ with
+  ~--gcc-install-dir=vendor/linux/<target>/lib/gcc/<tuple>/<version>~,
+  not Bootlin's ~<arch>-buildroot-linux-gnu~ with ~--gcc-toolchain~:
+  clang looks for its sanitizer runtime under the target's name, and
+  ~--asan~ found none under Bootlin's. The same bytes either way: all
+  698 lines of programs, libraries and archives for the six targets
+  were equal between the two spellings.
+- An interpreter built with ~--asan~ by clang compiles the module it
+  loads (the FFI bridge) with clang, not ~cc~: gcc's
+  ~-fsanitize=address~ makes the module need gcc's libasan, and the load
+  stopped with "Your application is linked against incompatible ASan
+  runtimes" (four tests). ~til_built_with_clang~ in ~ext.c~ answers it.
+- A cross cmake build (nng, libsecp256k1) is configured in an empty
+  directory. In one configured with another clang (Ubuntu's 18, then
+  the pinned 23 found first on PATH) cmake deleted its cache and
+  configured again without the command line's target and sysroot: the
+  linux-arm64 ~libnng.a~ was x86-64 objects, and only the next link
+  said so.
+
+Not covered: a til run from another directory finds no ~vendor/linux~
+there and builds with the host's compiler, as before step 2. The tests
+that do that pass for that reason.
+
+**** Step 4, done: all six targets, locally
+
+With the six trees and the pinned LLVM on a Linux x64 host: libffi and
+nng build for every target; ~test/reproducible_build.til~ passes for
+every target (two checkout roots, same bytes); ~hello_script~ runs for
+linux-x64 natively and for the other five under qemu-user with the
+tree as its sysroot. The collector lists the six (767 lines).
+
+til itself is not a 32-bit program: ~bin/til build --target=linux-arm32
+src/til.til~ stops with 43 type errors (casts between U64 and UPtr), as
+it does without the tree. So the three 32-bit targets list their
+programs, their library and their archives, and no til
+(~examples/ci_collect.til~, ~builds_til~).
+
+**** In CI now (on trial, nothing blocks)
+
+- Both Linux hosts unpack the six trees, build their own ~bin/til~
+  against their own (~bin/make vendor~, ~bin/make bin/til~) and list
+  the six targets. The next run answers: is a host's own pinned
+  ~bin/til~ the file the other host cross-builds?
+- Both Linux native jobs run the ASAN suite a second time, pinned, at
+  their end: ~linux-arm64 (native)~ on the ~bin/til~ it just listed,
+  ~linux-x64~ on one it builds there (its hash is printed, to compare
+  with the lists: the x64 lists come from the ~windows-x64-build~ job).
+  ~make~ builds ~bin/til~ again in that step and the hash is checked.
+
 **** Next
 
-- A run showing the two Linux hosts' lists equal; then strict.
-- The Linux hosts' own ~bin/til~ built pinned, as the Macs' is: the
-  bootstrap compiler (~bin/til_boot~, HEAD's) has to know the rule first,
-  so this needs step 2 merged. And the suite with the tree unpacked:
-  tests that run til from another directory, or an installed til, will
-  not find ~vendor/linux~ (the Macs' 51 failures of run 3178 were this),
-  and ~--asan~ needs a sanitizer runtime for the pinned tuple.
-- The gui and libsecp256k1 archives pinned; the other four targets in
-  the lists.
+- From the next run: if ~make bin/til~ is equal for linux-x64 and
+  linux-arm64, those two targets go strict, and so does each of the
+  other four that is equal; if the pinned suites pass, each native job
+  runs one suite, pinned, from its start (and the x64 lists move to the
+  ~linux-x64~ job, so that the tested file is the listed one).
+- The Linux cross jobs (linux-arm64, -riscv64, -x86, -arm32, -riscv32
+  under qemu) still build with the distribution's cross gcc: they are
+  to build pinned too, and then need no cross gcc.
 - The Macs and Windows as producers. Not looked at yet: unpacking a
   sysroot's symbolic links on a Windows host.
+- The trees are downloaded on every run (six per Linux host): a cache
+  entry, as for the pinned LLVM.

@@ -4079,3 +4079,14 @@ find their files, and collect's "Producer results" names it.
 
 For #472 that leaves the linux targets (#504), wasm32 (switched off) and
 windows-x86 (the Windows session's).
+
+*** Run 3199: the two Linux hosts build the same linux-x64 and linux-arm64 (#504)
+
+Run 3199 (master db9d781): collect green with ~windows-x64-mac~ strict,
+and the first comparison of linux binaries built against the pinned C
+library. Both Linux hosts' lists for linux-x64 (138 + 2 items) and
+linux-arm64 (136 + 2) are equal -- til at both widths, the programs,
+the library, libffi and nng -- but for ~make bin/til~, where each host
+still listed its own gcc build. The record, what the suite needed to
+pass on a pinned host build, the other four targets and what CI tries
+next are in ~issues/open/504.org~.

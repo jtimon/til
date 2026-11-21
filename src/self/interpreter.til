@@ -8977,6 +8977,7 @@ ffi_last_error := ext_proc() returns Str {}
 // folds it -- and bin/til_asan is built by the non-ASAN bin/til, so the fold
 // bakes in `false` and the ASAN flag never reaches the FFI compile (#299).
 til_built_with_asan := ext_proc() returns shallow Bool {}
+til_built_with_clang := ext_proc() returns shallow Bool {}
 
 // `link("vendor/raylib/build-linux-x64/libraylib.a", "linux-x64")` puts a
 // PATH in link_flags. A COMPILED program links that archive and stays
@@ -9178,6 +9179,13 @@ priv ffi_init_user_so := proc(fwd_path: Str, user_c_path: Str, ext_c_path: Str, 
     mut link_kind := " -shared -fPIC"
     if host_os() == "macos" { link_kind = format(" -bundle -bundle_loader ", shell_path(get_exe_path()), " -fPIC") }
     mut compiler := "cc"
+    // The sanitizer runtime is the compiler's own. gcc's -fsanitize=address
+    // makes the module need gcc's libasan, and an interpreter built by
+    // clang (a linux build against the pinned C library, #504) carries
+    // clang's: the load stops with "Your application is linked against
+    // incompatible ASan runtimes". So an ASAN interpreter built by clang
+    // compiles the module with clang.
+    if host_os() == "linux" && til_built_with_asan() && til_built_with_clang() { compiler = "clang" }
     mut host_imports := ""
     if host_os() == "windows" {
         // A PE module resolves every name when it is linked, so those same

@@ -5498,6 +5498,17 @@ Bool til_built_with_asan(void) {
 #endif
 }
 
+// The compiler family this runtime was compiled by: what the interpreter
+// asks before it compiles a module to load into itself under ASAN, whose
+// runtime is the compiler's own (interpreter.til, ffi_init_user_so).
+Bool til_built_with_clang(void) {
+#if defined(__clang__)
+    return 1;
+#else
+    return 0;
+#endif
+}
+
 Str *til_str_left(const Str *s, U64 n) {
     if (!s || n == 0) return ext_str_box_bytes((const char *)"", (size_t)(0));
     USize len = (USize)s->count;
