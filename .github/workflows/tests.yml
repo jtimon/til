@@ -370,8 +370,10 @@ jobs:
           mkdir -p tmp/probe
           (cd tmp/probe && x86_64-w64-mingw32-ar x ../../vendor/libffi/build-windows-x64/.libs/libffi.a types.o)
           x86_64-w64-mingw32-objdump -h -t -s tmp/probe/types.o
+          # The windows-x86 archives, for the same list (on trial).
+          ./bin/make vendor/libffi/build-windows-x86/.libs/libffi.a vendor/nng/build-windows-x86/libnng.a
           mkdir -p tmp/hashes-binary-windows
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary-windows/linux-arm64.txt bin/til windows-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary-windows/linux-arm64.txt bin/til windows-x64 windows-x86
           # Run 3138: the two Linux hosts write the same til.exe and the
           # Windows host another one, with the same vendored objects. til's
           # lines by section, and the strings in the two debug sections that
@@ -1278,8 +1280,10 @@ jobs:
           mkdir -p tmp/probe
           (cd tmp/probe && x86_64-w64-mingw32-ar x ../../vendor/libffi/build-windows-x64/.libs/libffi.a types.o)
           x86_64-w64-mingw32-objdump -h -t -s tmp/probe/types.o
+          # The windows-x86 archives, for the same list (on trial).
+          ./bin/make vendor/libffi/build-windows-x86/.libs/libffi.a vendor/nng/build-windows-x86/libnng.a
           mkdir -p tmp/hashes-binary-windows
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-windows/linux-x64.txt bin/til windows-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-windows/linux-x64.txt bin/til windows-x64 windows-x86
           # Run 3138: the two Linux hosts write the same til.exe and the
           # Windows host another one, with the same vendored objects. til's
           # lines by section, and the strings in the two debug sections that
@@ -1516,9 +1520,9 @@ jobs:
           reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v DriverVersion /t REG_DWORD /d 1 /f
           reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v Flags /t REG_DWORD /d 1 /f
           reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v Version /t REG_DWORD /d 2 /f
-      # The whole suite, as linux-x64 runs it (without ASAN: MinGW has
-      # none), its JVM checks included: the runner's JDK 17 by name, since
-      # the binding compiles at --release 8, which JDK 8 has no option for.
+      # The whole suite, as linux-x64 runs it, its JVM checks included: the
+      # runner's JDK 17 by name, since the binding compiles at --release 8,
+      # which JDK 8 has no option for. The ASAN suite is windows-x64-asan.
       - name: make test
         shell: cmd
         timeout-minutes: 75
@@ -1602,8 +1606,10 @@ jobs:
           mkdir -p tmp/probe
           (cd tmp/probe && x86_64-w64-mingw32-ar x ../../vendor/libffi/build-windows-x64/.libs/libffi.a types.o)
           x86_64-w64-mingw32-objdump -h -t -s tmp/probe/types.o
+          # The windows-x86 archives, for the same list (on trial).
+          ./bin/make vendor/libffi/build-windows-x86/.libs/libffi.a vendor/nng/build-windows-x86/libnng.a
           mkdir -p tmp/hashes-binary-windows
-          ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary windows-x64 tmp/hashes-binary-windows/windows-x64.txt bin/til.exe windows-x64
+          ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary windows-x64 tmp/hashes-binary-windows/windows-x64.txt bin/til.exe windows-x64 windows-x86
           # Run 3138: the two Linux hosts write the same til.exe and the
           # Windows host another one, with the same vendored objects. til's
           # lines by section, and the strings in the two debug sections that
@@ -1618,6 +1624,64 @@ jobs:
         with:
           name: hashes-binary-windows-windows-x64
           path: tmp/hashes-binary-windows/windows-x64.txt
+
+  # The full suite under ASAN on Windows, as the Linux native jobs run it
+  # (make test_asan). llvm-mingw's clang has AddressSanitizer for mingw: an
+  # --asan program imports libclang_rt.asan_dynamic-x86_64.dll, which the
+  # package keeps in x86_64-w64-mingw32/bin, so that goes on PATH too. No
+  # LeakSanitizer on Windows (as on the Macs): memory errors, not leaks.
+  # A job of its own, so that the native job's lists do not wait for it.
+  windows-x64-asan:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
+    name: windows-x64 native (make test_asan)
+    runs-on: windows-latest
+    timeout-minutes: 240
+    env:
+      MSYSTEM: UCRT64
+      CHERE_INVOKING: 1
+      MSYS2_PATH_TYPE: inherit
+      GALLIUM_DRIVER: llvmpipe
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install make, cmake and the bootstrap gcc into MSYS2
+        shell: cmd
+        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed make mingw-w64-ucrt-x86_64-make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake && uname -s && gcc --version"
+      - name: The pinned llvm-mingw release
+        id: llvm-mingw
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
+          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          test -n "$layout"
+          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned llvm-mingw
+        id: llvm-mingw-cache
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm-mingw
+          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Download the pinned llvm-mingw with a bootstrap bin/make
+        if: steps.llvm-mingw-cache.outputs.cache-hit != 'true'
+        shell: cmd
+        run: C:\msys64\usr\bin\bash.exe -lc "make llvm_mingw && rm -rf bin tmp/boot vendor/libffi/build-windows-x64"
+      - name: make
+        shell: cmd
+        run: C:\msys64\usr\bin\bash.exe -lc "export PATH=$PWD/vendor/llvm-mingw/bin:$PATH && make"
+      # As in windows-x64-native: the GUI tests draw with MSYS2's Mesa.
+      - name: Software OpenGL for the GUI tests (Mesa)
+        shell: cmd
+        run: |
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-mesa"
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v DLL /t REG_SZ /d C:\msys64\ucrt64\bin\libgallium_wgl.dll /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v DriverVersion /t REG_DWORD /d 1 /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v Flags /t REG_DWORD /d 1 /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v Version /t REG_DWORD /d 2 /f
+      - name: make test_asan
+        shell: cmd
+        timeout-minutes: 200
+        run: C:\msys64\usr\bin\bash.exe -lc "export PATH=$PWD/vendor/llvm-mingw/bin:$PWD/vendor/llvm-mingw/x86_64-w64-mingw32/bin:$PATH && export JAVA_HOME=$JAVA_HOME_17_X64 && make test_asan"
 
   # Issue #472: the two mac targets from the Windows host, the fifth host
   # that builds them. The pinned LLVM's Windows build (bin/make llvm)
@@ -2028,8 +2092,10 @@ jobs:
           x86_64-w64-mingw32-gcc --version | grep -q clang
           rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
           ./bin/make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
+          # The windows-x86 archives, for the same list (on trial).
+          ./bin/make vendor/libffi/build-windows-x86/.libs/libffi.a vendor/nng/build-windows-x86/libnng.a
           mkdir -p tmp/hashes-binary-windows
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary-windows/macos-arm64.txt bin/til windows-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary-windows/macos-arm64.txt bin/til windows-x64 windows-x86
       - name: Upload the windows binary hash list
         uses: actions/upload-artifact@v4
         with:
@@ -2284,8 +2350,10 @@ jobs:
           x86_64-w64-mingw32-gcc --version | grep -q clang
           rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
           ./bin/make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/nng/build-windows-x64/libnng.a
+          # The windows-x86 archives, for the same list (on trial).
+          ./bin/make vendor/libffi/build-windows-x86/.libs/libffi.a vendor/nng/build-windows-x86/libnng.a
           mkdir -p tmp/hashes-binary-windows
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-x64 tmp/hashes-binary-windows/macos-x64.txt bin/til windows-x64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-x64 tmp/hashes-binary-windows/macos-x64.txt bin/til windows-x64 windows-x86
       - name: Upload the windows binary hash list
         uses: actions/upload-artifact@v4
         with:

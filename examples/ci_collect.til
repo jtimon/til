@@ -244,6 +244,7 @@ gnu_tool_prefix := proc(target: Str) returns Str {
     if target == "linux-arm64" { return "aarch64-linux-gnu-" }
     if target == "linux-x64" { return "x86_64-linux-gnu-" }
     if target == "windows-x64" { return "x86_64-w64-mingw32-" }
+    if target == "windows-x86" { return "i686-w64-mingw32-" }
     fail(format("produce-binary does not know the tools of ", target))
     return ""
 }

@@ -19949,16 +19949,16 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_version_rank_28), "./src/self/builder.til:1394:17", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_version_rank_33), "./src/self/builder.til:1394:47", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_android_version_rank_38), "./src/self/builder.til:1394:74", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_body_21), "./src/self/builder.til:3107:34", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_11), "./src/self/builder.til:2949:28", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_17), "./src/self/builder.til:2950:27", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_23), "./src/self/builder.til:2953:25", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_29), "./src/self/builder.til:2957:30", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_35), "./src/self/builder.til:2958:28", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_5), "./src/self/builder.til:2945:18", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_sidebar_group_8), "./src/self/builder.til:3267:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_sidebar_page_4), "./src/self/builder.til:3236:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_verbatim_block_15), "./src/self/builder.til:3069:26", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_body_21), "./src/self/builder.til:3108:34", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_11), "./src/self/builder.til:2950:28", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_17), "./src/self/builder.til:2951:27", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_23), "./src/self/builder.til:2954:25", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_29), "./src/self/builder.til:2958:30", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_35), "./src/self/builder.til:2959:28", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_file_link_5), "./src/self/builder.til:2946:18", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_sidebar_group_8), "./src/self/builder.til:3268:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_sidebar_page_4), "./src/self/builder.til:3237:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_append_doc_html_verbatim_block_15), "./src/self/builder.til:3070:26", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_build_jni_71), "./src/self/builder.til:1638:30", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_build_jni_78), "./src/self/builder.til:1657:41", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_build_jni_83), "./src/self/builder.til:1657:35", 30ULL},
@@ -19967,9 +19967,9 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_check_generated_sizes_for_target_in_35), "./src/self/builder.til:883:12", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_check_generated_sizes_for_target_in_41), "./src/self/builder.til:887:31", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_check_generated_sizes_for_target_in_6), "./src/self/builder.til:877:13", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_collect_unit_doc_catalog_11), "./src/self/builder.til:2591:41", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_collect_unit_doc_catalog_18), "./src/self/builder.til:2585:36", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_collect_unit_doc_catalog_4), "./src/self/builder.til:2581:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_collect_unit_doc_catalog_11), "./src/self/builder.til:2592:41", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_collect_unit_doc_catalog_18), "./src/self/builder.til:2586:36", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_collect_unit_doc_catalog_4), "./src/self/builder.til:2582:9", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_android_apk_26), "./src/self/builder.til:1480:31", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_android_apk_41), "./src/self/builder.til:1484:73", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_android_apk_52), "./src/self/builder.til:1497:32", 30ULL},
@@ -19979,17 +19979,17 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_compile_lib_327), "./src/self/builder.til:242:17", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_derive_build_paths_13), "./src/self/builder.til:657:32", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_derive_build_paths_89), "./src/self/builder.til:706:11", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_catalog_lookup_16), "./src/self/builder.til:2620:5", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_catalog_page_first_11), "./src/self/builder.til:3225:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_catalog_page_first_4), "./src/self/builder.til:3223:9", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_expand_til_links_27), "./src/self/builder.til:2690:32", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_expand_til_links_33), "./src/self/builder.til:2691:31", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_find_link_end_13), "./src/self/builder.til:2634:5", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_html_path_5), "./src/self/builder.til:2920:43", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_html_sidebar_capacity_17), "./src/self/builder.til:3304:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_ensure_parent_dir_5), "./src/self/builder.til:3566:28", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_expand_doc_catalog_links_12), "./src/self/builder.til:2705:17", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_expand_doc_catalog_links_17), "./src/self/builder.til:2706:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_catalog_lookup_16), "./src/self/builder.til:2621:5", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_catalog_page_first_11), "./src/self/builder.til:3226:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_catalog_page_first_4), "./src/self/builder.til:3224:9", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_expand_til_links_27), "./src/self/builder.til:2691:32", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_expand_til_links_33), "./src/self/builder.til:2692:31", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_find_link_end_13), "./src/self/builder.til:2635:5", 29ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_html_path_5), "./src/self/builder.til:2921:43", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_doc_html_sidebar_capacity_17), "./src/self/builder.til:3305:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_ensure_parent_dir_5), "./src/self/builder.til:3567:28", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_expand_doc_catalog_links_12), "./src/self/builder.til:2706:17", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_expand_doc_catalog_links_17), "./src/self/builder.til:2707:13", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_fold_generated_sizes_in_11), "./src/self/builder.til:819:44", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_fold_generated_sizes_in_6), "./src/self/builder.til:816:17", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_fold_generated_sizes_to_target_11), "./src/self/builder.til:850:53", 29ULL},
@@ -20009,7 +20009,7 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_path_from_dir_92), "./src/self/builder.til:2018:32", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_program_declares_value_macro_21), "./src/self/builder.til:1800:33", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_program_declares_value_macro_6), "./src/self/builder.til:1797:13", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_require_doc_output_9), "./src/self/builder.til:3159:42", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_require_doc_output_9), "./src/self/builder.til:3160:42", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_generated_hashes_in_15), "./src/self/builder.til:921:25", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_generated_hashes_in_20), "./src/self/builder.til:925:17", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_retarget_generated_hashes_in_35), "./src/self/builder.til:934:16", 29ULL},
@@ -20025,12 +20025,12 @@ static void til_loc_lits_init(void) {
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_target_size_literal_4), "./src/self/builder.til:766:9", 28ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_target_size_literal_42), "./src/self/builder.til:771:32", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_target_size_literal_51), "./src/self/builder.til:800:26", 29ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_til_doc_out_path_7), "./src/self/builder.til:3546:13", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_til_doc_out_path_7), "./src/self/builder.til:3547:13", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_translate_ast_12), "./src/self/builder.til:995:11", 29ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_translate_ast_25), "./src/self/builder.til:1000:47", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_translate_ast_32), "./src/self/builder.til:1002:37", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_translation_stamp_line_21), "./src/self/builder.til:2035:11", 30ULL},
-        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_verify_doc_html_body_renderer_5), "./src/self/builder.til:3174:75", 30ULL},
+        {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_builder_verify_doc_html_body_renderer_5), "./src/self/builder.til:3175:75", 30ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_c_codegen_binding_mark_imports_4), "./src/self/codegen/c_codegen.til:8819:9", 39ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_c_codegen_binding_relative_import_15), "./src/self/codegen/c_codegen.til:8797:52", 40ULL},
         {offsetof(__typeof__(*_til_loc_lits_cage), hoisted__Str_self_codegen_c_codegen_binding_relative_import_29), "./src/self/codegen/c_codegen.til:8802:24", 40ULL},
@@ -471497,19 +471497,33 @@ static Str priv___src_self_builder_til__asan_child_options(void) {
         }
         Vec__Str_delete(&_fc_Vec__Str_0, 0);
     }
-    Str hoisted__Str_self_builder_asan_child_options_16 = ({ Str *_hp = (Str *)host_os(); Str _hv = *_hp; if (_hp->cap != TIL_CAP_LIT) { free(_hp); } if (_hv.cap == TIL_CAP_LIT) { _hv.cap = TIL_CAP_VIEW; } _hv; });
-    Bool hoisted__Bool_18 = Str_eq(&hoisted__Str_self_builder_asan_child_options_16, &_til_str_lits.h00310fea53b8);
-    Str_delete(&hoisted__Str_self_builder_asan_child_options_16, 0);
-    if (hoisted__Bool_18) {
-        Str hoisted__Str_self_builder_asan_child_options_14 = (Str){.c_str = TIL_OWN_LIT("detect_leaks=0", 14ULL), .count = 14ULL, .cap = TIL_CAP_LIT};
-        Vec__Str_push(&kept, &hoisted__Str_self_builder_asan_child_options_14);
-    } else {
-        Str hoisted__Str_self_builder_asan_child_options_15 = (Str){.c_str = TIL_OWN_LIT("detect_leaks=1", 14ULL), .count = 14ULL, .cap = TIL_CAP_LIT};
-        Vec__Str_push(&kept, &hoisted__Str_self_builder_asan_child_options_15);
+    Bool _m_Bool_14 = 0;
+    {
+        Str hoisted__Str_self_builder_asan_child_options_20 = ({ Str *_hp = (Str *)host_os(); Str _hv = *_hp; if (_hp->cap != TIL_CAP_LIT) { free(_hp); } if (_hv.cap == TIL_CAP_LIT) { _hv.cap = TIL_CAP_VIEW; } _hv; });
+        Bool _sw_Bool_15 = Str_eq(&hoisted__Str_self_builder_asan_child_options_20, &_til_str_lits.h00310fea53b8);
+        Str_delete(&hoisted__Str_self_builder_asan_child_options_20, 0);
+        Bool hoisted__Bool_22 = 1;
+        Bool hoisted__Bool_23 = ((Bool)(_sw_Bool_15 == hoisted__Bool_22));
+        if (hoisted__Bool_23) {
+            Bool hoisted__Bool_16 = 1;
+            _m_Bool_14 = hoisted__Bool_16;
+        } else {
+            Str hoisted__Str_self_builder_asan_child_options_17 = ({ Str *_hp = (Str *)host_os(); Str _hv = *_hp; if (_hp->cap != TIL_CAP_LIT) { free(_hp); } if (_hv.cap == TIL_CAP_LIT) { _hv.cap = TIL_CAP_VIEW; } _hv; });
+            Bool hoisted__Bool_19 = Str_eq(&hoisted__Str_self_builder_asan_child_options_17, &_til_str_lits.hd0b7c8feca70);
+            Str_delete(&hoisted__Str_self_builder_asan_child_options_17, 0);
+            _m_Bool_14 = hoisted__Bool_19;
+        }
     }
-    Str hoisted__Str_self_builder_asan_child_options_20 = join(&kept, &_til_str_lits.h00000002b5df);
+    if (_m_Bool_14) {
+        Str hoisted__Str_self_builder_asan_child_options_24 = (Str){.c_str = TIL_OWN_LIT("detect_leaks=0", 14ULL), .count = 14ULL, .cap = TIL_CAP_LIT};
+        Vec__Str_push(&kept, &hoisted__Str_self_builder_asan_child_options_24);
+    } else {
+        Str hoisted__Str_self_builder_asan_child_options_25 = (Str){.c_str = TIL_OWN_LIT("detect_leaks=1", 14ULL), .count = 14ULL, .cap = TIL_CAP_LIT};
+        Vec__Str_push(&kept, &hoisted__Str_self_builder_asan_child_options_25);
+    }
+    Str hoisted__Str_self_builder_asan_child_options_27 = join(&kept, &_til_str_lits.h00000002b5df);
     Vec__Str_delete(&kept, 0);
-    { Str _ret = hoisted__Str_self_builder_asan_child_options_20; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
+    { Str _ret = hoisted__Str_self_builder_asan_child_options_27; if (_ret.cap == TIL_CAP_LIT) { _ret.cap = TIL_CAP_VIEW; } return _ret; }
 }
 
 static I32 priv___src_self_builder_til__run_artifact(priv___src_self_builder_til__BuildPaths * paths, Vec__Str * user_argv, Target * target, Bool asan) {
@@ -491346,8 +491360,8 @@ int main(int argc, char **argv) {
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
     priv___src_self_builder_til__MAC_DEBUG_ROOT = (Str){.c_str = TIL_OWN_LIT("/proc/self/cwd", 14ULL), .count=14ULL, .cap=TIL_CAP_LIT};
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-3d4116d48", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("3d4116d48e5f3365b57f54523649ed6210e205df", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-332a6e0da", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("332a6e0da498a21aef02c93bccb990d256e8fe47", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

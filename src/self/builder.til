@@ -2364,7 +2364,8 @@ cmd_install := proc(mut lp: LoadedProgram, install_prefix_in: Str, target: Targe
 // (SIGABRT at dyld init -- this killed every run-phase test of the first
 // mac ASAN suite, issue #25). Pass an explicit =0 there so children still
 // get a deterministic setting; leak checking on darwin needs Apple's
-// `leaks` tooling instead.
+// `leaks` tooling instead. ASAN on Windows (llvm-mingw's
+// libclang_rt.asan_dynamic) has no LeakSanitizer either, so the same =0.
 //
 // Only detect_leaks is overridden: every other option in the inherited
 // ASAN_OPTIONS stays, so a setting the environment made for the whole
@@ -2381,7 +2382,7 @@ priv asan_child_options := proc() returns Str {
         if option.starts_with("detect_leaks=") { continue }
         kept.push(own option.clone())
     }
-    if host_os() == "macos" { kept.push(own "detect_leaks=0") }
+    if host_os().eq("macos").or(host_os().eq("windows")) { kept.push(own "detect_leaks=0") }
     else { kept.push(own "detect_leaks=1") }
     return join(kept, ":")
 }
