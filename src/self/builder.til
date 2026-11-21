@@ -82,7 +82,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     mut compiler := cc_override
     if compiler.len() == 0 { compiler = toolchain_command(target, Lang.C) }
     extra := toolchain_extra_args(target, compiler).format(build_flags, windows_object_args(target, compiler),
-        windows_toolchain_map_args(target, compiler), clang_resource_map_args(target, compiler))
+        windows_toolchain_map_args(target, compiler), clang_resource_map_args(target, compiler, ext_c_dir(ext_c_path), ext_c_dir_mapped(ext_c_dir(ext_c_path))))
 
     // ASAN builds run under the same full -Werror as non-ASAN. Historically
     // -fsanitize=address inserted __asan_* hooks that mutated the CFG enough
@@ -309,6 +309,10 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     // Android archives are GNU ELF archives on every host, including macOS.
     if is_android_target(target).and(host_os() == "macos") { archive = format("llvm-ar --format=gnu rcsD ", a_tmp_path) }
     if is_windows_target(target) { archive = format(windows_archiver(target), " rcsD ", a_tmp_path) }
+    // #504: a linux target built against the pinned C library, too: a
+    // Mac's ar wrote another archive of the same object (CI run 3205,
+    // the arm64 Mac's libci_binary_lib.a against the Linux hosts').
+    if linux_pinned_with(target, compiler) { archive = format("llvm-ar rcsD ", a_tmp_path) }
     cmd = format(archive,
         " ", obj_path, " ", ext_obj,
         user_objs)
@@ -380,7 +384,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         // top of the warning flags; no -Wno-* suppressions here either.
         extra = " -Wall -Wextra -sUSE_GLFW=3 -sASYNCIFY -sALLOW_MEMORY_GROWTH=1"
     }
-    extra = extra.format(build_flags, windows_toolchain_map_args(target, compiler), clang_resource_map_args(target, compiler))
+    extra = extra.format(build_flags, windows_toolchain_map_args(target, compiler), clang_resource_map_args(target, compiler, ext_c_dir(ext_c_path), ext_c_dir_mapped(ext_c_dir(ext_c_path))))
 
     // ASAN builds run under the same full -Werror as non-ASAN (single cc
     // invocation, so the flags cover compile and link in one go).
@@ -1048,6 +1052,22 @@ priv print_translate_success := proc(paths: BuildPaths) {
 // recorded the same ./src/... spelling til bakes for its own locations.
 // A file outside the working directory (an installed compiler's runtime)
 // keeps its real path, as in til's own strings.
+// The directory of the C runtime's sources, as the builds name it for -I.
+priv ext_c_dir := func(ext_c_path: Str) returns Str {
+    slash := ext_c_path.rfind("/")
+    if slash < 0 { return "." }
+    return ext_c_path.substr(0, slash.to_usize()).clone()
+}
+
+// That directory as c_path_map_flags records it: under the working
+// directory it is "./...". Either separator, for a Windows host.
+priv ext_c_dir_mapped := proc(ext_dir: Str) returns Str {
+    root := format(realpath_str(".").replace("\\", "/"), "/")
+    spelled := ext_dir.replace("\\", "/")
+    if spelled.starts_with(root).not() { return spelled }
+    return format("./", spelled.substr(root.len(), spelled.len() - root.len()))
+}
+
 priv c_path_map_flags := proc() returns Str {
     physical := realpath_str(".")
     mut flags := format(" -ffile-prefix-map=", physical, "=.")
@@ -1519,7 +1539,7 @@ priv compile_android_apk := proc(lp: LoadedProgram, paths: BuildPaths, target: T
     mut width := " -DTIL_USIZE32"
     if lp.ctx.target_usize_pname == "U64" { width = " -DTIL_USIZE64" }
     extra := format(toolchain_extra_args(target, compiler), c_build_flags(lp), width,
-        clang_resource_map_args(target, compiler),
+        clang_resource_map_args(target, compiler, ext_c_dir(lp.ext_c_path), ext_c_dir_mapped(ext_c_dir(lp.ext_c_path))),
         " -fPIC -fvisibility=hidden -ffunction-sections -fdata-sections -Werror",
         " -DTIL_ANDROID_GUI -DInitWindow=til_android_init_window -I",
         shell_path(format(root, "/vendor/android/native_app_glue")))
@@ -1626,7 +1646,7 @@ priv build_jni := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_
             " -l:", lp.core_shared_basename(), " -l:", lp.runtime_shared_basename(), " ", target_system_libs(target))
     }
     cmd := compiler.format(toolchain_extra_args(target, compiler), c_build_flags(lp), " -Werror", asan_flags, usize_flags,
-        clang_resource_map_args(target, compiler), windows_toolchain_map_args(target, compiler),
+        clang_resource_map_args(target, compiler, ext_c_dir(lp.ext_c_path), ext_c_dir_mapped(ext_c_dir(lp.ext_c_path))), windows_toolchain_map_args(target, compiler),
         " -shared -fPIC", includes,
         " -I", h_dir, " -I", shell_path(ext_dir), " ", paths.jni_c_path, " -Lgen/lib -l", paths.name,
         rpath, link_extra, " -o ", jni_bridge_path(paths, target))

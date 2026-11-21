@@ -232,7 +232,7 @@ linux_is_pinned := proc(target: Target) returns Bool {
 // A --cc is the caller's own compiler. The pinned tree's arguments are
 // clang's (a gcc rejects --gcc-install-dir), so they go with the compiler
 // til picks for a pinned target and not with another one.
-priv linux_pinned_with := proc(target: Target, compiler: Str) returns Bool {
+linux_pinned_with := proc(target: Target, compiler: Str) returns Bool {
     return compiler == "clang" && linux_is_pinned(target)
 }
 
@@ -403,7 +403,7 @@ windows_toolchain_map_args := proc(target: Target, compiler: Str) returns Str {
 // LLVM installation. Map only that resource tree, not installed til sources.
 // #504: a pinned linux build reads the same headers beside its sysroot,
 // and an ELF carries its debug info in the executable itself.
-clang_resource_map_args := proc(target: Target, compiler: Str) returns Str {
+clang_resource_map_args := proc(target: Target, compiler: Str, ext_dir: Str, ext_dir_mapped: Str) returns Str {
     if is_android_target(target).or(linux_pinned_with(target, compiler)).not() { return "" }
     probe := Cmd.new()
     for word : Str in compiler.split(" ") {
@@ -414,7 +414,23 @@ clang_resource_map_args := proc(target: Target, compiler: Str) returns Str {
     if probe.run() != 0 { panic("cannot locate clang's builtin headers for ", target_to_str(target), ": ", probe.err()) }
     resource := probe.out().trim()
     if resource.len() == 0 { panic("clang reported an empty resource directory for ", target_to_str(target)) }
-    return format(" -ffile-prefix-map=", shell_path(resource), "=clang-resource")
+    if is_android_target(target) { return format(" -ffile-prefix-map=", shell_path(resource), "=clang-resource") }
+    // #504: on a Windows host clang joins the directory it found a header
+    // in and the name the #include gave with a backslash, and an ELF's
+    // .debug_line then read "sysroot/usr/include\bits",
+    // "clang-resource\include" and "./src/self/codegen\../../../boot"
+    // where every other host's has a slash (CI run 3206). A map whose
+    // prefix ends at that join respells it: clang on Windows matches
+    // either separator in a prefix and writes the replacement as given.
+    // On the other hosts these change nothing (the resource map names the
+    // same directory as before, the other two map a prefix to itself).
+    include := format(linux_pinned_dir(target), "/", linux_tuple(target), "/sysroot/usr/include/")
+    // The C runtime's directory is mapped to ext_dir_mapped, what the
+    // working directory's map makes of it (builder.til, ext_c_dir_mapped):
+    // of two maps that match the last one wins.
+    return format(" -ffile-prefix-map=", shell_path(format(resource, "/include")), "=clang-resource/include",
+        " -ffile-prefix-map=", include, "=", include,
+        " -ffile-prefix-map=", shell_path(format(ext_dir, "/")), "=", shell_path(format(ext_dir_mapped, "/")))
 }
 
 // #472: a windows target's static library is archived by the target's own

@@ -347,13 +347,60 @@ failed for the missing producer. What the other hosts show:
   Intel Mac, so its linux step is removed: it cannot build the same
   ELF with that compiler.
 
+**** CI run 3205: the two Linux hosts build the same six targets, their own til included
+
+Run 3205 (master 7e8e3f9; collect green, the one red job the Windows
+host's new ASAN suite, #483).
+
+- The two Linux hosts' lists are equal for all six targets: 116 items
+  each for the three 32-bit ones, 137 + 2 for linux-riscv64, and
+  linux-x64 and linux-arm64 with ~make bin/til~ -- each host's own
+  pinned build against the other's cross build -- and the arm64 Mac's
+  cross build of both.
+- ~linux-arm64 (native)~: the pinned ASAN suite passed, in 29 minutes
+  (the gcc one before it: 28).
+- The five Linux cross jobs passed on their first run pinned.
+- The arm64 Mac differs from the Linux hosts in one item, the
+  library's ~.a~, with its object equal: til archived with the Mac's
+  ~ar~. A pinned linux build archives with ~llvm-ar~ now, on every
+  host.
+- The Windows host: ~.debug_line~ and ~.debug_line_str~ only (and what
+  holds them). Its paths are printed from the next run.
+
+From here the linux targets are strict from the two Linux hosts
+(~ci_collect~, ~target_level~; the list steps and their uploads no
+longer ~continue-on-error~), and ~linux-arm64 (native)~ runs one suite,
+pinned, from its start, as ~linux-x64~ does. The arm64 Mac and the
+Windows host stay on trial (~produce-binary-trial~).
+
+**** CI run 3206: the Windows host's paths
+
+Run 3206 (master 81a10f7): ~linux-x64~ green with its one pinned suite
+(31 minutes for the job). The Windows host printed the paths in
+hello_script's ~.debug_line_str~ for linux-x64:
+
+: ./src/self/codegen\../../../boot
+: clang-resource\include
+: vendor/linux/linux-x64/x86_64-buildroot-linux-gnu/sysroot/usr/include\bits
+
+clang on a Windows host joins the directory it found a header in and
+the name the ~#include~ gave with a backslash. Three more prefix maps
+in a pinned linux build (~clang_resource_map_args~), each with a prefix
+that ends at such a join -- the sysroot's ~usr/include/~, the resource
+directory's ~include~, the C runtime's directory -- and a replacement
+spelled with slashes: clang on Windows matches either separator in a
+prefix. On a Linux host they change nothing (checked here: the strings
+of ~.debug_line_str~, ~.debug_str~ and ~.comment~ of hello_script for
+linux-x64 are the same before and after). Whether they do on Windows is
+for the next run; a program with headers in other directories of its
+own would need the same for those.
+
 **** Next
 
-- From the next run: if ~make bin/til~ is equal for linux-x64 and
-  linux-arm64, those two targets go strict, and so does each of the
-  other four that is equal; if the pinned suites pass, each native job
-  runs one suite, pinned, from its start (and the x64 lists move to the
-  ~linux-x64~ job, so that the tested file is the listed one).
+- The arm64 Mac strict for the linux targets once a run shows its
+  library archive equal.
+- The x64 lists come from the ~windows-x64-build~ job, the suite runs in
+  ~linux-x64~: two runners, one hash so far. To be one job.
 - The Windows host's paths: read them from the next run and fix the
   spelling. The Intel Mac for ELF targets: open (a clang built from
   LLVM's source at the pinned tag would name itself like LLVM's own).

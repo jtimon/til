@@ -719,10 +719,15 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         // job builds and runs its suite with, since those jobs build it
         // with the pinned compiler (CI run 3190: de027be6bf73 for
         // macos-arm64 and ae117fc4fd92 for macos-x64, from all four).
-        // The linux targets are still on trial (#504), and so is any host
-        // that lists with produce-binary-trial.
+        // The six linux targets, built against the pinned C library
+        // (#504): the same from the two Linux hosts, each host's own
+        // bin/til included (CI run 3205; 0d732a2689bc for linux-x64 in run
+        // 3203, from three builds). A host that lists with
+        // produce-binary-trial is on trial for everything.
         mut target_level := "binary-trial"
-        if trial.not() && (target == "windows-x64" || target.starts_with("macos-")) { target_level = "binary" }
+        if trial.not() && (target == "windows-x64" || target.starts_with("macos-") || target.starts_with("linux-")) {
+            target_level = "binary"
+        }
         mut levels := Vec(Str).new()
         mut items := Vec(Str).new()
         mut paths := Vec(Str).new()

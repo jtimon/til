@@ -310,8 +310,37 @@ jobs:
               echo "$tool: not installed"
             fi
           done
+      # Issue #504: this job builds its own target as every host builds
+      # it, from its start: the pinned LLVM (make.til LLVM_RELEASE, cached
+      # per release and runner kind) against the Bootlin C library under
+      # vendor/linux. Run 3205 ran the suite both ways here (600/600
+      # pinned, in the gcc suite's time), and this host's own pinned
+      # bin/til was the file the Linux x64 host and the arm64 Mac
+      # cross-build. The hash printed after the suite is linux-arm64's
+      # "make bin/til" in the collect job.
+      - name: The pinned LLVM release
+        id: llvm
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned LLVM
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm
+          key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      - name: The pinned LLVM and C library for linux-arm64
+        run: |
+          make llvm
+          ./bin/make vendor/linux/linux-arm64
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
+          clang --version | grep -q "clang version 23.1.5"
+          echo "$PWD/vendor/llvm/bin" >> "$GITHUB_PATH"
       - name: Build and run tests
-        run: make test_asan
+        run: |
+          make test_asan
+          sha256sum bin/til | tee tmp/til-tested.txt
       - name: Test target build
         run: |
           ./bin/til build --target=linux-arm64 -o bin/hello_script_arm64_native examples/hello_script.til
@@ -357,7 +386,11 @@ jobs:
       - name: Write the windows binary hash list with the pinned llvm-mingw
         run: |
           make llvm_mingw
-          export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
+          # Last on PATH, as on the Macs: this host's own programs (the
+          # collector here) are built by the pinned LLVM's clang, first
+          # on PATH since the job's start; til finds the windows compiler
+          # by its prefixed name.
+          export PATH="$PATH:$PWD/vendor/llvm-mingw/bin"
           x86_64-w64-mingw32-gcc --version
           x86_64-w64-mingw32-gcc --version | grep -q clang
           rm -rf vendor/libffi/build-windows-x64 vendor/nng/build-windows-x64
@@ -398,18 +431,6 @@ jobs:
       # The pinned LLVM (make.til LLVM_RELEASE), unpacked by `make llvm` into
       # vendor/llvm, kept between runs: one cache entry per release and
       # runner kind.
-      - name: The pinned LLVM release
-        id: llvm
-        shell: bash
-        run: |
-          release=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
-          test -n "$release"
-          echo "release=$release" >> "$GITHUB_OUTPUT"
-      - name: Cache the pinned LLVM
-        uses: actions/cache@v4
-        with:
-          path: vendor/llvm
-          key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: Write the mac and Android binary hash lists with the pinned LLVM
         run: |
           make llvm
@@ -440,19 +461,17 @@ jobs:
       # here, against the tree (bin/make vendor swaps the host's archives,
       # bin/til depends on them): the list's "make bin/til" for this host's
       # target is then that file, to compare with the other host's cross
-      # build of it. Run 3199: the two hosts' linux-x64 and linux-arm64
-      # lists were equal but for that item, each host's own gcc build then.
-      # The 32-bit targets list no til: til is not a 32-bit program. On
-      # trial and continue-on-error.
+      # build of it. Strict since run 3205: the two Linux hosts' lists were
+      # equal for all six targets, each host's own bin/til included.
+      # The 32-bit targets list no til: til is not a 32-bit program.
       - name: Write the linux binary hash lists with the pinned C library
-        continue-on-error: true
         run: |
           export PATH="$PWD/vendor/llvm/bin:$PATH"
           clang --version | grep -q "clang version 23.1.5"
           ./bin/make linux_sysroots
           ./bin/make vendor
           ./bin/make bin/til
-          sha256sum bin/til
+          sha256sum bin/til | cmp - tmp/til-tested.txt
           for target in linux-x64 linux-arm64 linux-arm32 linux-riscv64 linux-x86 linux-riscv32; do
             ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a
             ./bin/til run test/reproducible_build.til bin/til $target
@@ -460,25 +479,11 @@ jobs:
           mkdir -p tmp/hashes-binary
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-arm64 tmp/hashes-binary/linux-arm64.txt bin/til linux-x64 linux-arm64 linux-arm32 linux-riscv64 linux-x86 linux-riscv32
       - name: Upload the linux binary hash lists
-        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-linux-arm64
           path: tmp/hashes-binary/linux-arm64.txt
-      # Issue #504: the suite again, on the bin/til just listed and with
-      # everything it builds against the pinned C library (bin/til_asan by
-      # the pinned clang, with clang's sanitizer runtime). On trial: once a
-      # run shows it passing, this is the job's one suite, from its start.
-      # make builds bin/til again; the same bytes, or the last line fails.
-      - name: Suite with the pinned C library
-        continue-on-error: true
-        timeout-minutes: 150
-        run: |
-          export PATH="$PWD/vendor/llvm/bin:$PATH"
-          sha256sum bin/til > tmp/til-pinned.txt
-          cat tmp/til-pinned.txt
-          make test_asan
-          sha256sum -c tmp/til-pinned.txt
+          if-no-files-found: error
       # Issue #473: wasm32 from this host too (see the wasm32 job). The
       # emsdk is installed with the first wasm32 archive bin/make builds.
       - name: Write the wasm32 binary hash list
@@ -1356,12 +1361,10 @@ jobs:
       # here, against the tree (bin/make vendor swaps the host's archives,
       # bin/til depends on them): the list's "make bin/til" for this host's
       # target is then that file, to compare with the other host's cross
-      # build of it. Run 3199: the two hosts' linux-x64 and linux-arm64
-      # lists were equal but for that item, each host's own gcc build then.
-      # The 32-bit targets list no til: til is not a 32-bit program. On
-      # trial and continue-on-error.
+      # build of it. Strict since run 3205: the two Linux hosts' lists were
+      # equal for all six targets, each host's own bin/til included.
+      # The 32-bit targets list no til: til is not a 32-bit program.
       - name: Write the linux binary hash lists with the pinned C library
-        continue-on-error: true
         run: |
           export PATH="$PWD/vendor/llvm/bin:$PATH"
           clang --version | grep -q "clang version 23.1.5"
@@ -1376,11 +1379,11 @@ jobs:
           mkdir -p tmp/hashes-binary
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary/linux-x64.txt bin/til linux-x64 linux-arm64 linux-arm32 linux-riscv64 linux-x86 linux-riscv32
       - name: Upload the linux binary hash lists
-        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-linux-x64
           path: tmp/hashes-binary/linux-x64.txt
+          if-no-files-found: error
 
   windows-x64-run:
     name: windows-x64/x86 (run .exe on windows)
