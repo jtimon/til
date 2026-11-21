@@ -319,6 +319,34 @@ programs, their library and their archives, and no til
   libffi, the gui build, til cross-built and interpreting (arm64,
   riscv64), the x86 width probes. Not run here: the x86 gui under xvfb.
 
+**** CI run 3203: a host's own pinned til is the cross-built file
+
+Run 3203 (master 3d4116d). ~linux-arm64 (native)~ stopped in its first
+suite on one gui test (~build_popcorn~: "X11: Failed to open display
+:99", the xvfb display, 599/600), so it wrote no list and collect
+failed for the missing producer. What the other hosts show:
+
+- linux-x64's ~make bin/til~ is 0d732a2689bc from three places: the
+  x64 producer's own pinned build, the ~linux-x64~ job's own pinned
+  build (another runner), and the arm64 Mac's cross build. The arm64
+  Mac's whole linux-x64 and linux-arm64 lists equal the Linux x64
+  host's, the toolchain item included.
+- The pinned ASAN suite on the ~linux-x64~ runner: 600/600 in 54
+  minutes (the gcc one before it: 61), and ~make~ rebuilt ~bin/til~ to
+  the same bytes. That job now runs one suite, pinned, from its start.
+- The Windows host unpacked the trees with its own tar and listed both
+  targets. libffi and nng are the Linux host's, member by member; the
+  programs differ in ~.debug_line~ and the string sections only, so in
+  how a path is spelled. Its step now prints the paths in
+  hello_script's sections.
+- The Intel Mac differs in every item, ~.comment~ first: its clang is
+  llvm-mingw's build of 23.1.5, which names itself differently, and an
+  ELF carries the compiler's name (~.comment~, the debug info's
+  producer). A Mach-O executable carries neither, which is why the mac
+  targets are equal from that host. LLVM publishes no package for an
+  Intel Mac, so its linux step is removed: it cannot build the same
+  ELF with that compiler.
+
 **** Next
 
 - From the next run: if ~make bin/til~ is equal for linux-x64 and
@@ -326,7 +354,8 @@ programs, their library and their archives, and no til
   other four that is equal; if the pinned suites pass, each native job
   runs one suite, pinned, from its start (and the x64 lists move to the
   ~linux-x64~ job, so that the tested file is the listed one).
-- The Macs' and the Windows host's lists: read the first run, fix
-  what it shows.
+- The Windows host's paths: read them from the next run and fix the
+  spelling. The Intel Mac for ELF targets: open (a clang built from
+  LLVM's source at the pinned tag would name itself like LLVM's own).
 - The trees are downloaded on every run (six per Linux host): a cache
   entry, as for the pinned LLVM.

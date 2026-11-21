@@ -116,8 +116,38 @@ jobs:
               echo "$tool: not installed"
             fi
           done
+      # Issue #504: this job builds its own target as every host builds
+      # it -- the pinned LLVM (make.til LLVM_RELEASE, cached per release
+      # and runner kind) against the Bootlin C library under vendor/linux
+      # -- so bin/til, bin/til_asan and every program the suite builds are
+      # what any host builds for linux-x64. Run 3203 ran the suite both
+      # ways here: 600/600 pinned, on the bin/til (0d732a2689bc) that the
+      # other Linux x64 runner listed and the arm64 Mac cross-built. The
+      # hash printed after the suite is linux-x64's "make bin/til" in the
+      # collect job.
+      - name: The pinned LLVM release
+        id: llvm
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned LLVM
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm
+          key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      - name: The pinned LLVM and C library for linux-x64
+        run: |
+          make llvm
+          ./bin/make vendor/linux/linux-x64
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
+          clang --version | grep -q "clang version 23.1.5"
+          echo "$PWD/vendor/llvm/bin" >> "$GITHUB_PATH"
       - name: Build and run tests
-        run: make test_asan
+        run: |
+          make test_asan
+          sha256sum bin/til
       - name: Test target build
         run: |
           ./bin/til build --target=linux-x64 -o bin/hello_script_x64 examples/hello_script.til
@@ -138,37 +168,6 @@ jobs:
           name: hashes-linux-x64
           path: tmp/hashes/linux-x64.txt
           if-no-files-found: error
-      # Issue #504: the suite again with this host's target pinned -- the
-      # pinned LLVM (make.til LLVM_RELEASE, cached per release and runner
-      # kind) and the Bootlin C library under vendor/linux -- so bin/til,
-      # bin/til_asan and every program the suite builds are what any host
-      # builds for linux-x64. On trial: once a run shows it passing, this
-      # is the job's one suite, from its start. The bin/til hash printed
-      # last is the one to find in the collect job as linux-x64's
-      # "make bin/til" (listed by the windows-x64-build job, the other
-      # Linux x64 runner, and cross-built by the arm64 one).
-      - name: The pinned LLVM release
-        id: llvm
-        shell: bash
-        run: |
-          release=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
-          test -n "$release"
-          echo "release=$release" >> "$GITHUB_OUTPUT"
-      - name: Cache the pinned LLVM
-        uses: actions/cache@v4
-        with:
-          path: vendor/llvm
-          key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
-      - name: Suite with the pinned C library
-        continue-on-error: true
-        timeout-minutes: 120
-        run: |
-          make llvm
-          export PATH="$PWD/vendor/llvm/bin:$PATH"
-          clang --version | grep -q "clang version 23.1.5"
-          ./bin/make vendor/linux/linux-x64
-          make test_asan
-          sha256sum bin/til
 
   android-runtime:
     needs: doc-gate
@@ -1820,6 +1819,13 @@ jobs:
           done
           mkdir -p tmp/hashes-binary-linux
           ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial windows-x64 tmp/hashes-binary-linux/windows-x64.txt bin/til.exe linux-x64 linux-arm64
+          # Run 3203: this host's archives are the Linux hosts', its
+          # programs differ in .debug_line and the string sections. The
+          # paths in hello_script's sections, to read which.
+          for f in tmp/ci_collect/binary_linux-x64/hello_section_[0-9]*; do
+            echo "== $f"
+            grep -a -o '[ -~]\{6,\}' "$f" | grep -i 'clang\|vendor\|[a-z]:[\\/]\|\\' | sort -u | head -60 || true
+          done
       - name: Upload the linux binary hash list
         if: always()
         continue-on-error: true
@@ -2360,26 +2366,11 @@ jobs:
           name: hashes-binary-windows-macos-x64
           path: tmp/hashes-binary-windows/macos-x64.txt
           if-no-files-found: error
-      # Issue #504: linux-x64 and linux-arm64 from this Mac, against the
-      # pinned C library and with the pinned clang first on PATH, as on
-      # the Linux hosts. A first try: on trial and continue-on-error.
-      - name: Write the linux binary hash list with the pinned C library
-        continue-on-error: true
-        run: |
-          export PATH="$PWD/tmp/mac-tools:$PATH"
-          clang --version | grep -q "clang version 23.1.5"
-          ./bin/make vendor/linux/linux-x64 vendor/linux/linux-arm64
-          for target in linux-x64 linux-arm64; do
-            ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a
-          done
-          mkdir -p tmp/hashes-binary-linux
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial macos-x64 tmp/hashes-binary-linux/macos-x64.txt bin/til linux-x64 linux-arm64
-      - name: Upload the linux binary hash list
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: hashes-binary-linux-macos-x64
-          path: tmp/hashes-binary-linux/macos-x64.txt
+      # Issue #504: no linux lists from this Mac. Its clang is llvm-mingw's
+      # build of 23.1.5 (LLVM publishes none for an Intel Mac), which names
+      # itself differently, and an ELF carries the compiler's name: in
+      # .comment and in the debug info's producer. Run 3203: every linux
+      # item differed here from the three hosts with LLVM's own package.
       # See the macos-arm64 job for what the probe and the dump step
       # are for and why they look like this.
       - name: Guard Malloc probe
