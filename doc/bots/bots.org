@@ -671,6 +671,12 @@ collision, rename the binding to something descriptive instead. When
 translating existing code that uses leading underscores (eg the
 ~_nv~/~_b~ style), drop the underscore on the way through.
 
+Exception: an ~ext_func~/~ext_proc~ binding is named exactly as its C
+symbol (the name is the symbol; ~priv~ would mangle it), so when the
+symbol starts with an underscore, the binding does too -- Microsoft's
+C runtime spells its own functions that way (~_putenv_s~, ~_setmode~,
+~_fileno~). That name is the C library's, not one you chose.
+
 ## Boolean Expressions
 
 Use De Morgan's laws instead of calling ~not()~ on every operand of the same
