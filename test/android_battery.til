@@ -1,13 +1,19 @@
 mode gui
 
-// #462: this NativeActivity calls an Android Java API from its native thread.
-link_c("android_battery.c")
+import("../src/std/android_jni")
 
-android_battery_capacity := ext_proc() returns shallow I32 {}
-android_battery_report := ext_proc(shallow capacity: I32) {}
+// Android's native logger is only the output channel for the smoke driver.
+__android_log_write := ext_proc(shallow priority: I32, tag: I8, text: I8) returns shallow I32 {}
 
 main := proc() {
-    capacity := android_battery_capacity()
-    if capacity < 0 || capacity > 100 { panic("invalid BatteryManager capacity: ", capacity.to_str()) }
-    android_battery_report(capacity)
+    AndroidJni.with_frame(proc() {
+        battery := AndroidJni.find_class("android/os/BatteryManager")
+        manager := AndroidJni.call_object(AndroidJni.activity(), "getSystemService", "(Ljava/lang/Class;)Ljava/lang/Object;", battery)
+        if manager.is_null() { panic("BatteryManager service not available") }
+        property := AndroidJni.static_int(battery, "BATTERY_PROPERTY_CAPACITY")
+        capacity := AndroidJni.call_int(manager, "getIntProperty", "(I)I", property)
+        if capacity < 0 || capacity > 100 { panic("invalid BatteryManager capacity: ", capacity.to_str()) }
+        message := format("BatteryManager capacity: ", capacity.to_str())
+        __android_log_write(4, "TilAndroidSmoke".c_str, message.c_str)
+    })
 }

@@ -1206,6 +1206,35 @@ level "source"). One class, the same from every host, loading natives each
 host has shown to work, is what a merged jar needs; the merge itself is the
 two ~jar~ commands above.
 
+** Calling Android's Java framework from til
+
+In a ~mode gui~ Android APK, import ~src/std/android_jni~ to call Java
+framework APIs from the NativeActivity worker thread. The regular APK
+build links the standard-library bridge through the import; the app only
+writes til. For example, inside ~main~:
+
+#+begin_src til
+AndroidJni.with_frame(proc() {
+    battery := AndroidJni.find_class("android/os/BatteryManager")
+    manager := AndroidJni.call_object(AndroidJni.activity(), "getSystemService",
+        "(Ljava/lang/Class;)Ljava/lang/Object;", battery)
+    if manager.is_null() { panic("BatteryManager service not available") }
+    property := AndroidJni.static_int(battery, "BATTERY_PROPERTY_CAPACITY")
+    capacity := AndroidJni.call_int(manager, "getIntProperty", "(I)I", property)
+    // Use capacity (percent) here; scalar results can outlive the frame.
+})
+#+end_src
+
+The frame attaches the thread to ART as needed and releases Java local
+references when the callback returns. References are valid only inside
+that frame on the same thread. Frames cannot be nested and do not switch
+to the UI thread. Java null results can be checked with ~is_null()~;
+lookup failures and Java exceptions are logged and terminate the app.
+The initial bridge supports static ~int~ fields and instance methods
+with one object argument and an object result, or one ~int~ argument and
+an ~int~ result. The caller supplies the exact JNI method descriptor.
+~test/android_battery.til~ exercises this API in Android runtime CI.
+
 ** Passing a Str to a C string parameter
 
 A til ~Str~ is ~{c_str, count, cap}~ -- length-counted, like a Go

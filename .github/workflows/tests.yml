@@ -157,6 +157,9 @@ jobs:
           - api: 36
             image: google_apis_ps16k
             pages: 16384
+            # Run 3200: lmkd killed the cached Checkers process between Back
+            # and relaunch with the Pixel 2 profile's default 2 GiB.
+            ram: 4096M
     steps:
       - uses: actions/checkout@v5
       - name: Build the host compiler and smoke driver
@@ -185,6 +188,7 @@ jobs:
           target: ${{ matrix.image }}
           arch: x86_64
           profile: pixel_2
+          ram-size: ${{ matrix.ram }}
           avd-name: til-smoke
           disable-linux-hw-accel: false
           emulator-options: -no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim
