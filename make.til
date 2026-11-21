@@ -269,10 +269,11 @@ builds_as_host := proc(b: Build, target: Str) returns Bool {
 /// #504: is ~target~ a linux target whose pinned C library is unpacked
 /// (build_linux_sysroot)? til asks the same question of the same
 /// directory (targets.til, linux_is_pinned), and the two have to agree:
-/// til links the libffi and nng built here. Those two archives are then
-/// built against it on every host, a Linux host's own target included
-/// (not as builds_as_host says). The gui and libsecp256k1 archives are
-/// not yet: nothing til itself links.
+/// til links the archives built here. They are then built against it on
+/// every host, a Linux host's own target included (not as builds_as_host
+/// says): an archive compiled against the host's newer glibc names symbols
+/// the pinned one lacks (raylib's sscanf became __isoc23_sscanf with glibc
+/// 2.38's headers, and no program linked against 2.34 resolved it).
 linux_pinned := proc(target: Str) returns Bool {
     for t : LinuxSysroot in linux_sysroots() {
         if t.target == target { return File.is_dir(format(t.dir(), "/", t.tuple, "/sysroot")) }
@@ -290,7 +291,7 @@ linux_pinned_build_dir := proc(dir: Str, target: Str) {
     if linux_pinned(target) != File.exists(format(dir, "/", LINUX_PINNED_STAMP)) { File.remove_tree(dir) }
 }
 
-/// clang's tuple for a pinned linux target.
+/// The tuple a pinned linux target's tree is named with (Bootlin's).
 linux_pinned_tuple := func(target: Str) returns Str {
     for t : LinuxSysroot in linux_sysroots() {
         if t.target == target { return t.tuple.clone() }
@@ -299,13 +300,19 @@ linux_pinned_tuple := func(target: Str) returns Str {
     return ""
 }
 
+/// clang's --target for a pinned linux target: the tuple without
+/// Bootlin's vendor, as til names it (targets.til, linux_pinned_args).
+linux_pinned_triple := func(target: Str) returns Str {
+    return linux_pinned_tuple(target).replace("-buildroot-", "-unknown-")
+}
+
 /// What clang takes after --target for a pinned linux target, by full
 /// path: configure and cmake run it from their own directories.
 linux_pinned_flags := proc(target: Str) returns Str {
     for t : LinuxSysroot in linux_sysroots() {
         if t.target == target {
-            return format("--sysroot=", get_cwd_str(), "/", t.dir(), "/", t.tuple, "/sysroot --gcc-toolchain=",
-                get_cwd_str(), "/", t.dir())
+            return format("--sysroot=", get_cwd_str(), "/", t.dir(), "/", t.tuple, "/sysroot --gcc-install-dir=",
+                get_cwd_str(), "/", t.dir(), "/lib/gcc/", t.tuple, "/", t.gcc)
         }
     }
     panic("no pinned C library for --target=", target)
@@ -694,6 +701,12 @@ secp256k1_cmake_configure := func(build_dir: Str) returns Vec(Str) {
 build_vendor := proc(mut b: Build) {
     if b.begin("vendor").not() { return }
     if fasm_prepare(get_cwd_str(), false) != 0 { exit(1) }
+    // #504: the host's libffi is the Makefile's, built with the host's
+    // compiler before anything here runs. Where the host's target is
+    // pinned, this replaces it with the pinned build (and where it no
+    // longer is, replaces a pinned one with the Makefile's): bin/til
+    // links it, and has to be the file every host builds.
+    build_libffi_out_of_tree(b, b.host.target_name())
     build_gui_pair(b, b.host.target_name())
     build_ffi_twins(b)
     build_nng(b)
@@ -720,6 +733,11 @@ build_til := proc(mut b: Build) {
     build_vendor(b)
     mut inputs := compiler_sources()
     inputs.push(own BOOT.clone())
+    // REM The archives it links: rebuilt for another C library (#504), they
+    // make another bin/til. Through the Makefile the bootstrap compiler is
+    // always newer anyway; bin/make run directly kept the old file.
+    inputs.push(own libffi_lib(b.host.target_name()))
+    inputs.push(own nng_lib(b.host.target_name()))
     if needs_rebuild(TIL, inputs).not() { return }
     run(BOOT, "build", "--usize=32", "-o", TIL, "-c", "gen/til/til.c", "src/til.til")
     regenerate_boot()
@@ -1332,9 +1350,12 @@ build_gui_raylib := proc(mut b: Build, target: Str) {
         return
     }
     if b.begin(format("raylib-", target)).not() { return }
+    // #504: a pinned linux target's, as for libffi.
+    pinned_linux := linux_pinned(target)
+    linux_pinned_build_dir(format(RAYLIB_DIR, "/build-", target), target)
     output := raylib_lib(target)
     if needs_rebuild(output, no_inputs()).not() { return }
-    if is_host.not() { require_gui_cc(t) }
+    if is_host.or(pinned_linux).not() { require_gui_cc(t) }
 
     stage := format("tmp/raylib-", target)
     File.remove_tree(stage)
@@ -1358,7 +1379,10 @@ build_gui_raylib := proc(mut b: Build, target: Str) {
     if t.platform_os.is_empty().not() {
         argv.push(own format("PLATFORM_OS=", t.platform_os))
     }
-    if is_host.not() {
+    if pinned_linux {
+        argv.push(own format("CC=clang --target=", linux_pinned_triple(target), " ", linux_pinned_flags(target)))
+        argv.push(own "AR=llvm-ar")
+    } else if is_host.not() {
         argv.push(own format("CC=", t.cc))
         argv.push(own format("AR=", t.ar))
     }
@@ -1370,6 +1394,7 @@ build_gui_raylib := proc(mut b: Build, target: Str) {
 
     mkdir_p(format(RAYLIB_DIR, "/build-", target))
     copy(format(stage, "/libraylib.a"), output)
+    if pinned_linux { File.writefile(format(RAYLIB_DIR, "/build-", target, "/", LINUX_PINNED_STAMP), "") }
 }
 
 android_source_inputs := proc(mut inputs: Vec(Str), dir: Str) {
@@ -1413,7 +1438,7 @@ build_android_raylib := proc(mut b: Build, name: Str) {
         stem := source.strip_suffix(".c").replace("/", "_")
         object := format(stage, "/", stem, ".o")
         cmd := Cmd.new(compiler)
-        for flag : Str in toolchain_extra_args(target).split(" ") {
+        for flag : Str in toolchain_extra_args(target, compiler).split(" ") {
             // Use raylib's -Wall policy; -Wextra is for our generated C.
             if flag.len() > 0 && flag != "-Wextra" { cmd.arg(flag) }
         }
@@ -1452,23 +1477,33 @@ build_gui_tinyfd := proc(mut b: Build, target: Str) {
         return
     }
     if b.begin(format("tinyfd-", target)).not() { return }
+    // #504: a pinned linux target's, as for libffi.
+    pinned_linux := linux_pinned(target)
+    linux_pinned_build_dir(format(TINYFD_DIR, "/build-", target), target)
     output := tinyfd_lib(target)
     mut inputs := Vec(Str).new()
     inputs.push(own TINYFD_SRC.clone())
     inputs.push(own SELF_SRC.clone())
     if needs_rebuild(output, inputs).not() { return }
-    if is_host.not() { require_gui_cc(t) }
+    if is_host.or(pinned_linux).not() { require_gui_cc(t) }
     mkdir_p("tmp")
     obj := format("tmp/tinyfiledialogs-", target, ".o")
 
     mut cc := HOST_CC.clone()
     mut ar := "ar"
-    if is_host.not() {
+    if pinned_linux {
+        cc = "clang"
+        ar = "llvm-ar"
+    } else if is_host.not() {
         cc = t.cc.clone()
         ar = t.ar.clone()
     }
     mut argv := Vec(Str).new()
     argv.push(own cc)
+    if pinned_linux {
+        argv.push(own format("--target=", linux_pinned_triple(target)))
+        for flag : Str in linux_pinned_flags(target).split(" ") { argv.push(own flag.clone()) }
+    }
     if is_host {
         argv.push(own "-Wall")
         argv.push(own "-Wextra")
@@ -1485,6 +1520,7 @@ build_gui_tinyfd := proc(mut b: Build, target: Str) {
     mkdir_p(format(TINYFD_DIR, "/build-", target))
     File.remove(output)
     run(ar, "rcs", output, obj)
+    if pinned_linux { File.writefile(format(TINYFD_DIR, "/build-", target, "/", LINUX_PINNED_STAMP), "") }
 }
 
 /// Both of one target's gui archives.
@@ -1607,14 +1643,20 @@ build_libffi_out_of_tree := proc(mut b: Build, name: Str) {
     // host.
     if linux_pinned(name) {
         t.host = linux_pinned_tuple(name)
-        t.cc = format("clang --target=", t.host, " ", linux_pinned_flags(name))
+        t.cc = format("clang --target=", linux_pinned_triple(name), " ", linux_pinned_flags(name))
         t.ldflags = "-fuse-ld=lld"
         t.ar = "llvm-ar"
         t.ranlib = "llvm-ranlib"
     }
     // The host's own is the Makefile's (the bootstrap links it).
     if builds_as_host(b, name).and(linux_pinned(name).not()) {
-        linux_pinned_build_dir(t.dir(), name)
+        // A pinned build left from when the sysroot was unpacked (make
+        // clean keeps vendor builds) is not the host's: the Makefile took
+        // its .built for its own, so its rule is run again here.
+        if File.exists(format(t.dir(), "/", LINUX_PINNED_STAMP)) {
+            File.remove_tree(t.dir())
+            run(GNU_MAKE, format(t.dir(), "/.built"))
+        }
         require_libffi(b)
         return
     }
@@ -1756,7 +1798,7 @@ build_nng_target := proc(mut b: Build, target: Str) {
     pinned_linux := linux_pinned(target)
     if pinned_linux {
         t.cc = "clang"
-        t.clang_target = linux_pinned_tuple(target)
+        t.clang_target = linux_pinned_triple(target)
         t.cflags = linux_pinned_flags(target)
     }
     // The host's own archive is a plain native build; any other target
@@ -1773,7 +1815,16 @@ build_nng_target := proc(mut b: Build, target: Str) {
     mut inputs := Vec(Str).new()
     inputs.push(own SELF_SRC.clone())
     if needs_rebuild(t.lib(), inputs).not() { return }
-    if is_host.not() { require_cross_cc(t.cc, t.cc_option, dir) }
+    if is_host.not() {
+        require_cross_cc(t.cc, t.cc_option, dir)
+        // REM A cross build is configured in an empty directory. In one
+        // configured with another compiler -- "clang" found elsewhere on
+        // PATH is enough -- cmake deletes its cache and configures again
+        // WITHOUT this command line's variables: no target, no sysroot.
+        // The linux-arm64 archive was then x86-64 objects, and only a
+        // later link said so.
+        File.remove_tree(dir)
+    }
     mut argv := Vec(Str).new()
     argv.push(own "cmake")
     argv.push(own "-S")
@@ -1942,7 +1993,15 @@ build_secp256k1_target := proc(mut b: Build, target: Str) {
         }
     }
     if found.not() { panic("no libsecp256k1 build for --target=", target) }
-    is_host := builds_as_host(b, target)
+    // #504: a pinned linux target's, as for libffi and nng.
+    pinned_linux := linux_pinned(target)
+    if pinned_linux {
+        t.cc = "clang"
+        t.clang_target = linux_pinned_triple(target)
+        t.cflags = linux_pinned_flags(target)
+    }
+    is_host := builds_as_host(b, target).and(pinned_linux.not())
+    linux_pinned_build_dir(t.dir(), target)
     if t.emscripten { build_emsdk(b) }
     else if is_host.not().and(t.cc.is_empty()) {
         panic("pass --riscv32-cc=<path to riscv32 gcc> (or set RISCV32_CC), e.g. the Bootlin toolchain")
@@ -1952,6 +2011,10 @@ build_secp256k1_target := proc(mut b: Build, target: Str) {
     inputs.push(own SELF_SRC.clone())
     if needs_rebuild(t.lib(), inputs).not() { return }
     if is_host.not().and(t.emscripten.not()) { require_cross_cc(t.cc, t.cc_option, t.dir()) }
+    // REM A cross build is configured in an empty directory, as for nng
+    // (build_nng_target): cmake drops this command line's variables when
+    // the directory was configured with another compiler.
+    if is_host.not() { File.remove_tree(t.dir()) }
     mut argv := secp256k1_cmake_configure(t.dir())
     if is_host {
         argv.push(own "-DCMAKE_POSITION_INDEPENDENT_CODE=ON")
@@ -1972,6 +2035,14 @@ build_secp256k1_target := proc(mut b: Build, target: Str) {
         if t.clang_target.is_empty().not() {
             argv.push(own format("-DCMAKE_C_COMPILER_TARGET=", t.clang_target))
         }
+        if pinned_linux {
+            // The host's twin is relinked from this archive (build_ffi_twins).
+            argv.push(own "-DCMAKE_POSITION_INDEPENDENT_CODE=ON")
+            argv.append(own host_cmake_generator(b.host))
+            argv.push(own "-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld")
+            argv.push(own "-DCMAKE_AR:STRING=llvm-ar")
+            argv.push(own "-DCMAKE_RANLIB:STRING=llvm-ranlib")
+        }
         if t.sdkless_mac {
             argv.push(own "-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY")
             argv.push(own "-DCMAKE_AR=llvm-ar")
@@ -1983,6 +2054,7 @@ build_secp256k1_target := proc(mut b: Build, target: Str) {
     }
     run_argv(argv)
     run("cmake", "--build", t.dir(), "--parallel")
+    if pinned_linux { File.writefile(format(t.dir(), "/", LINUX_PINNED_STAMP), "") }
 }
 
 /// The windows-HOST twin of the windows-x64 archive: what til.exe's
@@ -2627,7 +2699,7 @@ build_llvm := proc(mut b: Build) {
 // per target. What is unpacked, under LINUX_SYSROOT_DIR/<target>
 // (ignored), is data, not programs -- the sysroot (headers, crt1.o,
 // libc) and gcc's own start files and libgcc -- so it serves a compiler
-// on any host: clang with --sysroot and --gcc-toolchain there. Bootlin's
+// on any host: clang with --sysroot and --gcc-install-dir there. Bootlin's
 // own compiler, an x86-64 Linux program, is not unpacked.
 
 LINUX_SYSROOT_DIR := "vendor/linux"
@@ -2639,6 +2711,8 @@ LinuxSysroot := struct {
     arch := ""
     release := ""
     tuple := ""
+    // The toolchain's gcc: the name of its directory under lib/gcc/<tuple>.
+    gcc := "10.3.0"
     sha256 := ""
 
 namespace:
@@ -2671,7 +2745,7 @@ linux_sysroots := func() returns Vec(LinuxSysroot) {
         tuple = "i686-buildroot-linux-gnu",
         sha256 = "9deb1c61a3196114ba1996c0cbe4c4135af9e82f1a0f9111084c86badee3ff30"))
     out.push(own LinuxSysroot(target = "linux-riscv32", arch = "riscv32-ilp32d", release = "bleeding-edge-2021.11-1",
-        tuple = "riscv32-buildroot-linux-gnu",
+        tuple = "riscv32-buildroot-linux-gnu", gcc = "11.2.0",
         sha256 = "63defd144fdb1d40712316e2c3acd37275d6407b52d70efcd36e7f7129b4a0d0"))
     return out
 }

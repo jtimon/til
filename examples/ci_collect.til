@@ -647,6 +647,42 @@ write_list := proc(list: Str, lines: Vec(Str)) {
     File.writefile(list, format(join(lines, "\n"), "\n"))
 }
 
+/// til's own build for one target, beyond the binary: the C it was built
+/// from, the native-layout til, and the binary's sections.
+list_til_build := proc(compiler: Str, target: Str, target_level: Str, directory: Str, extension: Str,
+        mut lines: Vec(Str)) {
+    til_binary := format(directory, "/til")
+    // The C til was built from, without its reuse stamp line: if this
+    // differs between producers the compilers disagree, not the
+    // toolchains. (#472: it did, by one constant folded on the host.)
+    generated := format(directory, "/til.c.compared")
+    File.writefile(generated, without_stamp(File.readfile(format(directory, "/til.c"))))
+    mut generated_paths := Vec(Str).new()
+    generated_paths.push(own generated)
+    generated_paths.push(own format(directory, "/til_forward.h"))
+    generated_hashes := sha256_of(generated_paths)
+    lines.push(own format(generated_hashes[0], " ", target_level, " ", target, " c 32 src/til.til til.c"))
+    lines.push(own format(generated_hashes[1], " ", target_level, " ", target, " c 32 src/til.til til_forward.h"))
+
+    // til again in the native layout (--usize=64): the other width a
+    // user can build, and it has to be the same from every host too.
+    wide_binary := format(directory, "/til64")
+    wide_build := build_command(compiler, target)
+    wide_build.args("--usize=64", "-o", wide_binary, "-c", format(directory, "/til64.c"), "src/til.til")
+    wide_build.capture()
+    if wide_build.run() != 0 { fail(format(wide_build.render(), " failed:\n", wide_build.out(), wide_build.err())) }
+    wide_generated := format(directory, "/til64.c.compared")
+    File.writefile(wide_generated, without_stamp(File.readfile(format(directory, "/til64.c"))))
+    mut wide_paths := Vec(Str).new()
+    wide_paths.push(own format(wide_binary, extension))
+    wide_paths.push(own wide_generated)
+    wide_hashes := sha256_of(wide_paths)
+    lines.push(own format(wide_hashes[0], " ", target_level, " ", target, " c 64 src/til.til til"))
+    lines.push(own format(wide_hashes[1], " ", target_level, " ", target, " c 64 src/til.til til.c"))
+
+    list_sections(target, target_level, format(til_binary, extension), "src/til.til til", format(directory, "/til_section"), lines)
+}
+
 // Level "binary": artifacts a run has shown equal between producers; a
 // difference fails the collect job. Level "binary-trial": artifacts being
 // tried; compared and printed the same way, never failing. An artifact
@@ -740,52 +776,31 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
             items.push(own format("vendor ", file_stem(format(archive, ".til"))))
             paths.push(own archive.clone())
         }
+        // REM til itself is a 64-bit program: its source does not type-check
+        // for a target whose pointers are 32 bits (casts between U64 and
+        // UPtr). Such a target's list is its programs, its library and
+        // the archives.
+        builds_til := target_uptr_name(target_from_str(target)) == "U64"
         til_binary := format(directory, "/til")
-        til_build := build_command(compiler, target)
-        til_build.args("-o", til_binary, "-c", format(directory, "/til.c"), "src/til.til")
-        til_build.capture()
-        if til_build.run() != 0 { fail(format(til_build.render(), " failed:\n", til_build.out(), til_build.err())) }
-        levels.push(own target_level.clone())
-        items.push(own "src/til.til til")
-        paths.push(own format(til_binary, extension))
-        // The til make builds: the tested file on this target's own host,
-        // the same build in a root of its own on every other.
-        levels.push(own target_level.clone())
-        items.push(own "make bin/til")
-        paths.push(own make_til(compiler, target, directory, extension))
+        if builds_til {
+            til_build := build_command(compiler, target)
+            til_build.args("-o", til_binary, "-c", format(directory, "/til.c"), "src/til.til")
+            til_build.capture()
+            if til_build.run() != 0 { fail(format(til_build.render(), " failed:\n", til_build.out(), til_build.err())) }
+            levels.push(own target_level.clone())
+            items.push(own "src/til.til til")
+            paths.push(own format(til_binary, extension))
+            // The til make builds: the tested file on this target's own host,
+            // the same build in a root of its own on every other.
+            levels.push(own target_level.clone())
+            items.push(own "make bin/til")
+            paths.push(own make_til(compiler, target, directory, extension))
+        }
 
         hashes := sha256_of(paths)
         for i, hash in hashes { lines.push(own format(hash, " ", levels[i], " ", target, " c 32 ", items[i])) }
 
-        // The C til was built from, without its reuse stamp line: if this
-        // differs between producers the compilers disagree, not the
-        // toolchains. (#472: it did, by one constant folded on the host.)
-        generated := format(directory, "/til.c.compared")
-        File.writefile(generated, without_stamp(File.readfile(format(directory, "/til.c"))))
-        mut generated_paths := Vec(Str).new()
-        generated_paths.push(own generated)
-        generated_paths.push(own format(directory, "/til_forward.h"))
-        generated_hashes := sha256_of(generated_paths)
-        lines.push(own format(generated_hashes[0], " ", target_level, " ", target, " c 32 src/til.til til.c"))
-        lines.push(own format(generated_hashes[1], " ", target_level, " ", target, " c 32 src/til.til til_forward.h"))
-
-        // til again in the native layout (--usize=64): the other width a
-        // user can build, and it has to be the same from every host too.
-        wide_binary := format(directory, "/til64")
-        wide_build := build_command(compiler, target)
-        wide_build.args("--usize=64", "-o", wide_binary, "-c", format(directory, "/til64.c"), "src/til.til")
-        wide_build.capture()
-        if wide_build.run() != 0 { fail(format(wide_build.render(), " failed:\n", wide_build.out(), wide_build.err())) }
-        wide_generated := format(directory, "/til64.c.compared")
-        File.writefile(wide_generated, without_stamp(File.readfile(format(directory, "/til64.c"))))
-        mut wide_paths := Vec(Str).new()
-        wide_paths.push(own format(wide_binary, extension))
-        wide_paths.push(own wide_generated)
-        wide_hashes := sha256_of(wide_paths)
-        lines.push(own format(wide_hashes[0], " ", target_level, " ", target, " c 64 src/til.til til"))
-        lines.push(own format(wide_hashes[1], " ", target_level, " ", target, " c 64 src/til.til til.c"))
-
-        list_sections(target, target_level, format(til_binary, extension), "src/til.til til", format(directory, "/til_section"), lines)
+        if builds_til { list_til_build(compiler, target, target_level, directory, extension, lines) }
         list_sections(target, target_level, format(directory, "/hello_script", extension), "examples/hello_script.til hello_script",
             format(directory, "/hello_section"), lines)
         if target.starts_with("macos-") {

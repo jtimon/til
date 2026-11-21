@@ -216,19 +216,39 @@ priv linux_pinned_dir := func(target: Target) returns Str {
     return format("vendor/linux/", target_to_str(target))
 }
 
+// The gcc whose start files and libgcc a pinned tree carries (its
+// lib/gcc/<tuple>/<version>): the Bootlin release's, make.til's table.
+priv linux_pinned_gcc := func(target: Target) returns Str {
+    if target.is(Target.LinuxRiscv32) { return "11.2.0" }
+    return "10.3.0"
+}
+
 linux_is_pinned := proc(target: Target) returns Bool {
     tuple := linux_tuple(target)
     if tuple.is_empty() { return false }
     return File.is_dir(format(linux_pinned_dir(target), "/", tuple, "/sysroot"))
 }
 
+// A --cc is the caller's own compiler. The pinned tree's arguments are
+// clang's (a gcc rejects --gcc-install-dir), so they go with the compiler
+// til picks for a pinned target and not with another one.
+priv linux_pinned_with := proc(target: Target, compiler: Str) returns Bool {
+    return compiler == "clang" && linux_is_pinned(target)
+}
+
 // The compile arguments of a pinned linux build: clang reads the target's
 // headers from the sysroot and gcc's start files and libgcc from beside
-// it (--gcc-toolchain finds lib/gcc/<tuple>/<version>).
+// it. The target is named without Bootlin's vendor, and gcc's directory
+// in full: clang looks for its own runtimes (--asan's, the profiler's)
+// under the target's name, and its packages have them for
+// <arch>-unknown-linux-gnu. Under <arch>-buildroot-linux-gnu, which
+// --gcc-toolchain needs to find the directory by itself, --asan found
+// none. The vendor changes nothing else: the same bytes either way.
 priv linux_pinned_args := func(target: Target) returns Str {
     tuple := linux_tuple(target)
     dir := linux_pinned_dir(target)
-    return format(" --target=", tuple, " --sysroot=", dir, "/", tuple, "/sysroot --gcc-toolchain=", dir)
+    return format(" --target=", tuple.replace("-buildroot-", "-unknown-"), " --sysroot=", dir, "/", tuple,
+        "/sysroot --gcc-install-dir=", dir, "/lib/gcc/", tuple, "/", linux_pinned_gcc(target))
 }
 
 // proc, not func: the LinuxX64 case is host-dependent
@@ -384,7 +404,7 @@ windows_toolchain_map_args := proc(target: Target, compiler: Str) returns Str {
 // #504: a pinned linux build reads the same headers beside its sysroot,
 // and an ELF carries its debug info in the executable itself.
 clang_resource_map_args := proc(target: Target, compiler: Str) returns Str {
-    if is_android_target(target).or(linux_is_pinned(target)).not() { return "" }
+    if is_android_target(target).or(linux_pinned_with(target, compiler)).not() { return "" }
     probe := Cmd.new()
     for word : Str in compiler.split(" ") {
         if word.len() > 0 { probe.arg(word) }
@@ -416,7 +436,7 @@ windows_archiver := func(target: Target) returns Str {
 // nothing on -c compiles and clang -Werror rejects them as unused
 // arguments there, so the builder appends these only to command lines
 // that actually link.
-target_link_extra_args := proc(target: Target) returns Str {
+target_link_extra_args := proc(target: Target, compiler: Str) returns Str {
     if is_android_target(target) {
         // Keep host clang's builtin headers, but supply the target's compiler-rt
         // explicitly instead of the host driver's default libgcc/resource path.
@@ -431,7 +451,7 @@ target_link_extra_args := proc(target: Target) returns Str {
     // typing make.til (CI run 3150, the bootstrap's exit 127; reproduced
     // under wine as a stack overflow), where the same build on Linux runs.
     if is_windows_target(target) { return " -Wl,--no-insert-timestamp -Wl,--stack,8388608" }
-    if linux_is_pinned(target) { return " -fuse-ld=lld" }
+    if linux_pinned_with(target, compiler) { return " -fuse-ld=lld" }
     if macos_is_cross(target).not() { return "" }
     // #472: -syslibroot, so that the libraries libSystem.tbd re-exports
     // come from the stub itself on every host. lld looks for an absolute
@@ -455,14 +475,14 @@ target_links_named_objects := proc(target: Target) returns Bool {
     return macos_is_cross(target)
 }
 
-toolchain_extra_args := proc(target: Target) returns Str {
+toolchain_extra_args := proc(target: Target, compiler: Str) returns Str {
     if target.is(Target.TempleosX86) {
         panic("HolyC doesn't support these flags")
     }
     mut prefix := target_prefix_args(target)
     // REM Not beside the host's: linux-x86's -m32 and its multiarch
     // directory belong to the host gcc's build of that target.
-    if linux_is_pinned(target) { prefix = linux_pinned_args(target) }
+    if linux_pinned_with(target, compiler) { prefix = linux_pinned_args(target) }
     mut out := prefix
     // -fsigned-char: til's I8 is plain C char (it must match libc
     // prototypes in ext_func bindings), and plain char is unsigned on

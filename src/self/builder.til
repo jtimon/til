@@ -81,7 +81,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
 
     mut compiler := cc_override
     if compiler.len() == 0 { compiler = toolchain_command(target, Lang.C) }
-    extra := toolchain_extra_args(target).format(build_flags, windows_object_args(target, compiler),
+    extra := toolchain_extra_args(target, compiler).format(build_flags, windows_object_args(target, compiler),
         windows_toolchain_map_args(target, compiler), clang_resource_map_args(target, compiler))
 
     // ASAN builds run under the same full -Werror as non-ASAN. Historically
@@ -161,7 +161,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
             return 1
         }
         identity_args := runtime_link_identity_args(target, runtime_basename, runtime_import_tmp)
-        cmd = compiler.format(extra, asan_flags, target_link_extra_args(target),
+        cmd = compiler.format(extra, asan_flags, target_link_extra_args(target, compiler),
             " -shared -o ", runtime_shared_tmp, " ", runtime_obj_tmp,
             identity_args, " ", target_system_libs(target))
         result = system_cmd(cmd)
@@ -194,7 +194,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
         core_identity_args := runtime_link_identity_args(target, core_basename, core_import_tmp)
         core_runtime_dependency := runtime_dependency_args(target,
             runtime_shared_path, runtime_import_path)
-        cmd = compiler.format(extra, asan_flags, target_link_extra_args(target),
+        cmd = compiler.format(extra, asan_flags, target_link_extra_args(target, compiler),
             " -shared -o ", core_shared_tmp, " ", core_obj_tmp,
             core_runtime_dependency, core_identity_args, core_gc_link_args(target),
             " ", target_system_libs(target))
@@ -284,7 +284,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
         lib_identity = runtime_link_identity_args(target, "", format("gen/lib/lib", lib_name, ".dll.a"))
     }
     if is_android_target(target) { lf = format(lf, " ", target_system_libs(target)) }
-    cmd = compiler.format(extra, asan_flags, target_link_extra_args(target), " -shared -o ", so_path, lib_identity,
+    cmd = compiler.format(extra, asan_flags, target_link_extra_args(target, compiler), " -shared -o ", so_path, lib_identity,
         " ", shared_obj_path, core_dependency, runtime_dependency, user_objs, lf)
     result = system_cmd(cmd)
     if result != 0 {
@@ -374,7 +374,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         if wasm_gui { compiler = "emcc" }
         else { compiler = toolchain_command(target, Lang.C) }
     }
-    mut extra := toolchain_extra_args(target).format(windows_object_args(target, compiler))
+    mut extra := toolchain_extra_args(target, compiler).format(windows_object_args(target, compiler))
     if wasm_gui {
         // emcc (clang-based) needs the emscripten -s link/runtime flags on
         // top of the warning flags; no -Wno-* suppressions here either.
@@ -512,11 +512,11 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
 
     if target_links_named_objects(target) {
         return compile_c_named_objects(compiler, extra, format(werr, asan_flags, prof_flags, usize_flags, stamp_flag),
-            format(asan_flags, prof_link_flags, target_link_extra_args(target), dyn_flag),
+            format(asan_flags, prof_link_flags, target_link_extra_args(target, compiler), dyn_flag),
             ext_dir, bin_path, c_path, ext_c_arg, format(user_part, lf, " ", sys_libs))
     }
 
-    cmd := compiler.format(extra, werr, asan_flags, prof_flags, usize_flags, stamp_flag, prof_link_flags, target_link_extra_args(target), wasm_js_flags, " -g", dyn_flag, " -I", ext_dir,
+    cmd := compiler.format(extra, werr, asan_flags, prof_flags, usize_flags, stamp_flag, prof_link_flags, target_link_extra_args(target, compiler), wasm_js_flags, " -g", dyn_flag, " -I", ext_dir,
         " -o ", bin_path, " ", c_path,
         " ", ext_c_arg, user_part, lf,
         " ", sys_libs)
@@ -1518,7 +1518,7 @@ priv compile_android_apk := proc(lp: LoadedProgram, paths: BuildPaths, target: T
     if compiler.len() == 0 { compiler = toolchain_command(target, Lang.C) }
     mut width := " -DTIL_USIZE32"
     if lp.ctx.target_usize_pname == "U64" { width = " -DTIL_USIZE64" }
-    extra := format(toolchain_extra_args(target), c_build_flags(lp), width,
+    extra := format(toolchain_extra_args(target, compiler), c_build_flags(lp), width,
         clang_resource_map_args(target, compiler),
         " -fPIC -fvisibility=hidden -ffunction-sections -fdata-sections -Werror",
         " -DTIL_ANDROID_GUI -DInitWindow=til_android_init_window -I",
@@ -1543,7 +1543,7 @@ priv compile_android_apk := proc(lp: LoadedProgram, paths: BuildPaths, target: T
     links := shell_args(kept, "")
     cmd := format(compiler, extra, " -g -I", shell_path(ext_dir),
         " -shared -Wl,--gc-sections,-z,defs -Wl,--wrap=eglChooseConfig,--wrap=ALooper_pollOnce -Wl,-u,ANativeActivity_onCreate -Wl,-soname,", lib_name,
-        target_link_extra_args(target), " -o ", shell_path(shared), " ", shell_path(paths.c_path),
+        target_link_extra_args(target, compiler), " -o ", shell_path(shared), " ", shell_path(paths.c_path),
         " ", shell_path(lp.ext_c_path), objects, links, " ", target_system_libs(target))
     if system_cmd(cmd) != 0 { println("error: Android native application link failed"); return 1 }
     unsigned := format(stage, "/unsigned.apk")
@@ -1616,16 +1616,16 @@ priv build_jni := proc(lp: LoadedProgram, paths: BuildPaths, target: Target, cc_
     // into the til runtime and core go through their import libraries, as
     // a library's own do (compile_lib).
     if is_windows_target(target) {
-        link_extra = format(target_link_extra_args(target),
+        link_extra = format(target_link_extra_args(target, compiler),
             " gen/lib/lib", lp.runtime_stem(), ".dll.a gen/lib/lib", lp.core_stem(), ".dll.a")
     }
     if is_android_target(target) {
         includes = ""
         rpath = ""
-        link_extra = format(target_link_extra_args(target), " -Wl,-z,defs,-soname,lib", paths.name, "_jni.so",
+        link_extra = format(target_link_extra_args(target, compiler), " -Wl,-z,defs,-soname,lib", paths.name, "_jni.so",
             " -l:", lp.core_shared_basename(), " -l:", lp.runtime_shared_basename(), " ", target_system_libs(target))
     }
-    cmd := compiler.format(toolchain_extra_args(target), c_build_flags(lp), " -Werror", asan_flags, usize_flags,
+    cmd := compiler.format(toolchain_extra_args(target, compiler), c_build_flags(lp), " -Werror", asan_flags, usize_flags,
         clang_resource_map_args(target, compiler), windows_toolchain_map_args(target, compiler),
         " -shared -fPIC", includes,
         " -I", h_dir, " -I", shell_path(ext_dir), " ", paths.jni_c_path, " -Lgen/lib -l", paths.name,
