@@ -2775,7 +2775,10 @@ build_linux_sysroot := proc(mut b: Build, target: Str) {
     if got != t.sha256 {
         panic(download, " has sha256 ", got, ", expected ", t.sha256)
     }
-    unpack := Cmd.new("tar", "-xf", download, "-C", t.dir(), "--strip-components=1")
+    // Windows' own tar, as for the pinned LLVM (build_llvm).
+    mut tar := "tar"
+    if b.host.os == "windows" { tar = format(get_env("SystemRoot").replace("\\", "/"), "/System32/tar.exe") }
+    unpack := Cmd.new(tar, "-xf", download, "-C", t.dir(), "--strip-components=1")
     // REM GNU tar matches member patterns only when asked; a bsdtar
     // always does and does not know the option.
     if b.host.os == "linux" { unpack.arg("--wildcards") }

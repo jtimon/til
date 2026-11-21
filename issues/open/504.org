@@ -302,6 +302,12 @@ programs, their library and their archives, and no til
   with the lists: the x64 lists come from the ~windows-x64-build~ job).
   ~make~ builds ~bin/til~ again in that step and the hash is checked.
 
+- The two Macs and the Windows host list linux-x64 and linux-arm64 too
+  (~produce-binary-trial~), a first try: nothing of this was run on
+  those hosts before. On Windows the trees are unpacked by Windows' own
+  tar, as the pinned LLVM is; whether it makes the trees' symbolic
+  links is what the run shows.
+
 **** Next
 
 - From the next run: if ~make bin/til~ is equal for linux-x64 and
@@ -312,7 +318,7 @@ programs, their library and their archives, and no til
 - The Linux cross jobs (linux-arm64, -riscv64, -x86, -arm32, -riscv32
   under qemu) still build with the distribution's cross gcc: they are
   to build pinned too, and then need no cross gcc.
-- The Macs and Windows as producers. Not looked at yet: unpacking a
-  sysroot's symbolic links on a Windows host.
+- The Macs' and the Windows host's lists: read the first run, fix
+  what it shows.
 - The trees are downloaded on every run (six per Linux host): a cache
   entry, as for the pinned LLVM.
