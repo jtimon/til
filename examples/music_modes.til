@@ -23,7 +23,7 @@ SEVEN_CYCLE : I32 = 12
 // -- Derived metrics --
 MARGIN : I32 = WINDOW_WIDTH / 48
 BTN_W : I32 = (WINDOW_WIDTH - MARGIN * 2) / SEVEN_NATURAL_COUNT.to_i32()
-SYSTEM_BTN_W : I32 = (WINDOW_WIDTH - MARGIN * 2) / 5
+SYSTEM_BTN_W : I32 = (WINDOW_WIDTH - MARGIN * 2) / 6
 BTN_H : I32 = WINDOW_HEIGHT / 27
 GAP : I32 = WINDOW_HEIGHT / 90
 FONT : I32 = WINDOW_HEIGHT / 45
@@ -88,7 +88,15 @@ LANGS := array(Array__Str, LANG_PT, LANG_ES, LANG_EN)
 
 NOTE_LABELS := array(Str, "Nota", "Nota", "Note")
 TRIAD_LABELS := array(Str, "Triade", "Triada", "Triad")
-FOUR_LABELS := array(Str, "4 notas", "4 notas", "4 notes")
+DYAD_LABELS := array(Str, "Diade", "Diada", "Dyad")
+FOUR_LABELS := array(Str, "Tetrade", "Tetrada", "Tetrad")
+DYAD_KIND : I32 = -2
+voicing_label := func(choice: USize, lang: USize) returns ref Str {
+    if choice.eq(0) { return NOTE_LABELS[lang] }
+    if choice.eq(1) { return DYAD_LABELS[lang] }
+    if choice.eq(2) { return TRIAD_LABELS[lang] }
+    return FOUR_LABELS[lang]
+}
 // First choice: stack degrees in the current mode. Other choices specify
 // root-relative chromatic intervals, independent of that mode.
 FOUR_PT := array(Str, "Da escala", "Setima maior", "Setima da dominante", "Setima menor", "Meio diminuto", "Setima diminuta", "Triade aumentada com setima maior", "Sexta adicionada")
@@ -272,6 +280,7 @@ play_freqs := proc(freqs: Array(F32)) {
 }
 
 voice_count_for := func(chord_mode: Bool, kind: I32) returns USize {
+    if kind.eq(DYAD_KIND) { return 2 }
     if kind.gte(0) { return 4 }
     if chord_mode { return 3 }
     return 1
@@ -409,7 +418,7 @@ draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USiz
         ref nn_base : Str = seven_note_name(use_letters, nd.to_usize())
         nn_acc := acc_text(na.cast(I64))
         label = format(nn_base, nn_acc)
-        if kind.lt(0).and(dni.lt(SEVEN_NATURAL_COUNT)) {
+        if kind.eq(-1).and(dni.lt(SEVEN_NATURAL_COUNT)) {
             ref trt2 : U32 = sc_triad[dni]
             chord := format(LETTER_DIATONIC_NOTE_NAMES[nd.to_usize()], nn_acc, TRIAD_SUFFIXES[trt2.cast(USize)])
             if use_letters {
@@ -593,7 +602,8 @@ chord_description := func(five_system: Bool, use_nathex: Bool, use_letters: Bool
         text = format(text, label)
     }
     mut quality := DEGREE_LABELS[lang].clone()
-    if kind.gte(0) {
+    if kind.eq(DYAD_KIND) { quality = format(DYAD_LABELS[lang], " 1-3") }
+    else if kind.gte(0) {
         ref names : Array(Str) = FOUR_NAMES[lang]
         quality = names[kind.to_usize()].clone()
         if kind.eq(0) { quality = format(quality, " 1-3-5-7") }
@@ -620,15 +630,19 @@ delian_ratio := macro() returns F32 {
 }
 DELIAN := delian_ratio()
 SERIES_C4 : F32 = 261.625565
-SERIES_TUNINGS := array(I32, 12, 8, 16)
+SERIES_TUNINGS := array(I32, 8, 12, 16)
 SERIES_TITLES := array(Str, "Comparar afinacoes", "Comparar afinaciones", "Tuning comparison")
 JUST_TITLES := array(Str, "Harmonicos e escala justa", "Armonicos y escala justa", "Harmonics and just scale")
 JUST_PLAY := array(Str, "Tocar", "Tocar", "Play")
 JUST_STOP := array(Str, "Parar", "Parar", "Stop")
 JUST_KEY := array(Str, "Do maior (Jonio)", "Do mayor (Jonico)", "C major (Ionian)")
 FIRST_EIGHT := array(Str, "Harmonicos 1-8", "Armonicos 1-8", "Harmonics 1-8")
-// Approximate staff positions (C4 = 0); these never determine the sound.
-PARTIAL_POS := array(USize, 0, 7, 11, 14, 16, 18, 20, 21)
+FIRST_SIXTEEN := array(Str, "Harmonicos 1-16", "Armonicos 1-16", "Harmonics 1-16")
+FIRST_THIRTY_TWO := array(Str, "Harmonicos 1-32", "Armonicos 1-32", "Harmonics 1-32")
+SERIES_B2 : F32 = 123.470825
+// Nearest staff spelling (use flats for Eb, Ab and Bb); never quantize audio.
+STAFF_PC := array(I32, 0,0,1,2,2,3,3,4,5,5,6,6)
+STAFF_ACC := array(Str, "","#","","b","","","#","","b","","b","")
 JUST_NUM := array(I32, 1, 9, 5, 4, 3, 5, 15)
 JUST_DEN := array(I32, 1, 8, 4, 3, 2, 3, 8)
 
@@ -644,21 +658,33 @@ just_frequency := func(degree: USize) returns F32 {
 }
 
 JustStaff := struct {
-    harmonics : Bool = true
+    partials : USize = 8  // 0 selects just Ionian.
     full : Bool = true
     playing : Bool = false
     selected : I32 = -1
     timer : I32 = 0
+    low_base : Bool = true
+    voices : USize = 1
 }
 
-staff_frequency := func(harmonics: Bool, degree: USize) returns F32 {
-    if harmonics { return SERIES_C4 * (degree + 1).to_f32() }
+staff_frequency := func(harmonics: Bool, degree: USize, low_base: Bool = false) returns F32 {
+    if harmonics {
+        if low_base { return SERIES_B2 * (degree + 1).to_f32() }
+        return SERIES_C4 * (degree + 1).to_f32()
+    }
     return just_frequency(degree)
 }
 
+staff_voicing := func(s: JustStaff, degree: USize) returns Array(F32) {
+    mut freqs := Array(F32).new(s.voices)
+    for v : USize in 0..s.voices {
+        freqs[v] = staff_frequency(s.partials.gt(0), degree + v * 2, s.low_base)
+    }
+    return freqs
+}
 just_play := proc(mut s: JustStaff, degree: USize) {
     stop_viewer_sound()
-    play_freqs(array(F32, staff_frequency(s.harmonics, degree)))
+    play_freqs(staff_voicing(s, degree))
     s.selected = degree.to_i32()
     s.timer = 350
 }
@@ -670,20 +696,35 @@ SERIES_SPANS := array(Array__Str, SPAN_PT, SPAN_ES, SPAN_EN)
 
 just_frame := proc(mut s: JustStaff, fnt: Font, mut lang: USize, dt: I32) {
     ref spans : Array(Str) = SERIES_SPANS[lang]
-    if series_button(fnt, FIRST_EIGHT[lang], MARGIN, QUALITY_ROW_Y + GAP, BTN_W, s.harmonics) {
-        s.harmonics = true; s.selected = -1; s.playing = false; stop_viewer_sound()
+    if series_button(fnt, FIRST_EIGHT[lang], MARGIN, QUALITY_ROW_Y + GAP, BTN_W, s.partials.eq(8)) {
+        s.partials = 8; s.selected = -1; s.playing = false; stop_viewer_sound()
     }
-    if series_button(fnt, JUST_KEY[lang], MARGIN + BTN_W, QUALITY_ROW_Y + GAP, BTN_W, s.harmonics.not()) {
-        s.harmonics = false; s.selected = -1; s.playing = false; stop_viewer_sound()
+    if series_button(fnt, FIRST_SIXTEEN[lang], MARGIN + BTN_W, QUALITY_ROW_Y + GAP, BTN_W, s.partials.eq(16)) {
+        s.partials = 16; s.selected = -1; s.playing = false; stop_viewer_sound()
     }
+    if series_button(fnt, FIRST_THIRTY_TWO[lang], MARGIN + BTN_W * 2, QUALITY_ROW_Y + GAP, BTN_W, s.partials.eq(32)) {
+        s.partials = 32; s.selected = -1; s.playing = false; stop_viewer_sound()
+    }
+    if series_button(fnt, JUST_KEY[lang], MARGIN + BTN_W * 3, QUALITY_ROW_Y + GAP, BTN_W, s.partials.eq(0)) {
+        s.partials = 0; s.selected = -1; s.playing = false; stop_viewer_sound()
+    }
+    harmonics := s.partials.gt(0)
     for i : USize in 0..2 {
-        if s.harmonics { break }
-        if series_button(fnt, spans[i * 2 + 1], MARGIN + i.to_i32() * BTN_W, PLAYBACK_ROW_Y, BTN_W, s.full.eq(i.eq(1))) {
-            s.full = i.eq(1); s.playing = false; s.selected = -1; stop_viewer_sound()
+        mut label := spans[i * 2 + 1].clone()
+        mut on := s.full.eq(i.eq(1))
+        if harmonics {
+            label = "f0 = B2 (Si2)"
+            if i.eq(1) { label = "f0 = C4 (Do4)" }
+            on = s.low_base.eq(i.eq(0))
+        }
+        if series_button(fnt, label, MARGIN + i.to_i32() * BTN_W, PLAYBACK_ROW_Y, BTN_W, on) {
+            if harmonics { s.low_base = i.eq(0) } else { s.full = i.eq(1) }
+            s.playing = false; s.selected = -1; stop_viewer_sound()
         }
     }
     mut count := SEVEN_ONCE_SCALE_NOTES
-    if s.full.and(s.harmonics.not()) { count = SEVEN_FULL_SCALE_NOTES }
+    if harmonics { count = s.partials }
+    else if s.full { count = SEVEN_FULL_SCALE_NOTES }
     mut action := JUST_PLAY[lang].clone()
     if s.playing { action = JUST_STOP[lang].clone() }
     if series_button(fnt, action, MARGIN + BTN_W * 2 + GAP, PLAYBACK_ROW_Y, BTN_W, s.playing) {
@@ -692,53 +733,77 @@ just_frame := proc(mut s: JustStaff, fnt: Font, mut lang: USize, dt: I32) {
     for li : USize in 0..3 {
         if series_button(fnt, lang_str(li, 0), MARGIN + BTN_W * 3 + GAP * 2 + li.to_i32() * LANG_BTN_W, PLAYBACK_ROW_Y, LANG_BTN_W, lang.eq(li)) { lang = li }
     }
+    for v : USize in 0..4 {
+        if series_button(fnt, voicing_label(v, lang), MARGIN + v.to_i32() * BTN_W, NOTE_ROW_Y + GAP, BTN_W, s.voices.eq(v + 1)) {
+            s.voices = v + 1; s.playing = false; s.selected = -1; stop_viewer_sound()
+        }
+    }
     if s.playing {
         s.timer = s.timer - dt
         if s.timer.lte(0) {
-            next := (s.selected + 1).to_usize()
-            if next.lt(count) { just_play(s, next) }
+            mut next := (s.selected + 1).to_usize()
+            if harmonics.and(s.voices.gt(1)).and(s.selected.gte(0)) { next++ }
+            if (next + (s.voices - 1) * 2).lt(count) { just_play(s, next) }
             else { s.playing = false }
         }
     }
     mut title := JUST_KEY[lang].clone()
-    if s.harmonics { title = FIRST_EIGHT[lang].clone() }
-    series_text(fnt, format(title, "  |  Do4 = 1/1 = ", SERIES_C4.to_str(), " Hz"), MARGIN, NOTE_ROW_Y + BTN_H)
+    if s.partials.eq(8) { title = FIRST_EIGHT[lang].clone() }
+    if s.partials.eq(16) { title = FIRST_SIXTEEN[lang].clone() }
+    if s.partials.eq(32) { title = FIRST_THIRTY_TWO[lang].clone() }
+    series_text(fnt, format(title, "  |  1/1 = ", staff_frequency(harmonics, 0, s.low_base).to_str(), " Hz"), MARGIN, NOTE_ROW_Y + BTN_H + GAP)
+    mut baseline := STAFF_BASE_Y
+    if harmonics.and(s.low_base) { baseline = baseline - STAFF_SP * 8 }
     gray := Color(r = 115, g = 115, b = 115, a = 255)
     for line : USize in 0..5 {
-        DrawRectangle(STAFF_X, STAFF_BASE_Y - line.to_i32() * 2 * STAFF_SP, STAFF_W, 2, gray)
+        DrawRectangle(STAFF_X, baseline - line.to_i32() * 2 * STAFF_SP, STAFF_W, 2, gray)
     }
     for d : USize in 0..count {
-        mut pos := d
-        if s.harmonics { pos = PARTIAL_POS[d].clone() }
-        i := pos % SEVEN_NATURAL_COUNT
+        mut pos := d.to_i32() + 28
+        mut accidental := ""
+        if harmonics {
+            mut base := 48
+            if s.low_base { base = 35 }
+            chrom := base.to_i32() + nearest_step((d + 1).to_f32(), 12)
+            pc := (chrom % 12).to_usize()
+            pos = (chrom / 12) * 7 + STAFF_PC[pc]
+            accidental = STAFF_ACC[pc].clone()
+        }
+        i := (pos % 7).to_usize()
         x := note_x(d, count)
-        y := staff_y(false, i.to_i32(), (pos / SEVEN_NATURAL_COUNT).to_i32())
-        mut ledger := STAFF_BASE_Y + STAFF_SP * 2
+        y := baseline - (pos - 30) * STAFF_SP
+        mut ledger := baseline + STAFF_SP * 2
         while ledger.lte(y) { DrawRectangle(x - NOTE_R * 2, ledger, NOTE_R * 4, 2, gray); ledger = ledger + STAFF_SP * 2 }
-        ledger = STAFF_BASE_Y - STAFF_SP * 10
+        ledger = baseline - STAFF_SP * 10
         while ledger.gte(y) { DrawRectangle(x - NOTE_R * 2, ledger, NOTE_R * 4, 2, gray); ledger = ledger - STAFF_SP * 2 }
-        if IsMouseButtonPressed(0).and((GetMouseX() - x).abs().lt(NOTE_R * 2)).and((GetMouseY() - y).abs().lt(NOTE_R * 2)) {
+        if (d + (s.voices - 1) * 2).lt(count).and(IsMouseButtonPressed(0)).and((GetMouseX() - x).abs().lt(NOTE_R * 2)).and((GetMouseY() - y).abs().lt(NOTE_R * 2)) {
             s.playing = false; just_play(s, d)
         }
         mut color := Color(r = 245, g = 195, b = 65, a = 255)
-        if s.selected.eq(d.to_i32()) { color = Color(r = 0, g = 195, b = 215, a = 255) }
+        if s.selected.gte(0) {
+            for v : USize in 0..s.voices {
+                if d.eq(s.selected.to_usize() + v * 2) { color = Color(r = 0, g = 195, b = 215, a = 255) }
+            }
+        }
         DrawCircle(x, y, NOTE_R.to_f32(), color)
         mut name := SOLFEGE_NOTE_NAMES[i].clone()
-        if s.harmonics.and(d.eq(6)) {
-            name = "~Sib"
-            series_text(fnt, "b", x - NOTE_R * 3, y - NOTE_R)
+        if accidental.is_empty().not() {
+            name = format(name, accidental)
+            series_text(fnt, accidental, x - NOTE_R * 2, y - NOTE_R)
         }
-        series_text(fnt, format(name, (pos / SEVEN_NATURAL_COUNT + 4).to_str()), x - NOTE_R, LABEL_Y)
+        series_text(fnt, format(name, (pos / 7).to_str()), x - NOTE_R, LABEL_Y)
         mut ratio := format((JUST_NUM[i] * just_multiplier(d)).to_str(), "/", JUST_DEN[i].to_str())
-        if s.harmonics { ratio = format((d + 1).to_str(), "/1") }
+        if harmonics { ratio = format((d + 1).to_str(), "/1") }
         series_text(fnt, ratio, x - NOTE_R, LABEL_Y + BTN_H)
     }
-    if s.selected.gte(0) { series_text(fnt, format(staff_frequency(s.harmonics, s.selected.to_usize()).to_str(), " Hz"), MARGIN, LABEL_Y + BTN_H * 2) }
+    if s.selected.gte(0) { series_text(fnt, format(staff_frequency(harmonics, s.selected.to_usize(), s.low_base).to_str(), " Hz"), MARGIN, LABEL_Y + BTN_H * 2) }
 }
 
 test_harmonics_vs_ionian := test() {
     assert_eq(F32, staff_frequency(true, 6), SERIES_C4 * 7)
     assert_eq(F32, staff_frequency(true, 7), SERIES_C4 * 8)
+    assert_eq(F32, staff_frequency(true, 15), SERIES_C4 * 16)
+    assert_eq(F32, staff_frequency(true, 31, true), SERIES_B2 * 32)
     assert_eq(F32, staff_frequency(false, 7), SERIES_C4 * 2)
     assert_eq(F32, staff_frequency(false, 14), SERIES_C4 * 4)
     assert_eq(F32, staff_frequency(false, 4), SERIES_C4 * 1.5)
@@ -776,7 +841,7 @@ series_note_name := func(step: I32, n: I32) returns Str {
 
 SeriesView := struct {
     span : USize = 3
-    tuning : USize = 0
+    tuning : USize = 1  // Start with the 12-TET reference.
     first : I32 = 4
     current : I32 = 0
     timer : I32 = 0
@@ -837,8 +902,9 @@ series_frame := proc(mut s: SeriesView, fnt: Font, mut lang: USize, dt: I32) {
     if s.running {
         s.timer = s.timer - dt
         if s.timer.lte(0) {
-            if s.current.eq(last) { s.running = false }
-            else { s.current++; series_tone(s.current, s.first, n, s.grid); s.timer = 350 }
+            next := s.current + 1
+            if next.gt(last) { s.running = false }
+            else { s.current = next; series_tone(s.current, s.first, n, s.grid); s.timer = 350 }
         }
     }
     // Linear Hz plot. Include the nearest grid point even if it falls just
@@ -879,6 +945,99 @@ series_frame := proc(mut s: SeriesView, fnt: Font, mut lang: USize, dt: I32) {
     }
 }
 
+CIRCLE_TITLE := array(Str, "Ciclo de quintas/quartas", "Circulo de quintas/cuartas", "Circle of fifths/fourths")
+FIFTH_LABEL := array(Str, "Quinta ->", "Quinta ->", "Fifth ->")
+FOURTH_LABEL := array(Str, "<- Quarta", "<- Cuarta", "<- Fourth")
+CIRCLE_NAMES := array(Str, "C", "G", "D", "A", "E", "B", "F#/Gb", "Db", "Ab", "Eb", "Bb", "F")
+CIRCLE_SOLFEGE := array(Str, "Do", "Sol", "Re", "La", "Mi", "Si", "Fa#/Solb", "Reb", "Lab", "Mib", "Sib", "Fa")
+
+CircleView := struct {
+    index : I32 = 0
+    next_key : I32 = -1
+    timer : I32 = 0
+}
+
+circle_key := func(i: I32) returns I32 { return i.mul(7).mod(12) }
+circle_sound := proc(key: I32) {
+    stop_viewer_sound()
+    play_freqs(array(F32, SERIES_C4 * grid_ratio(key, 12)))
+}
+
+circle_move := proc(mut c: CircleView, fifth: Bool) {
+    root := circle_key(c.index)
+    circle_sound(root)
+    c.timer = 320
+    if fifth { c.index = (c.index + 1) % 12; c.next_key = root + 7 }
+    else { c.index = (c.index + 11) % 12; c.next_key = root + 5 }
+}
+
+test_fifths_and_fourths := test() {
+    sound_enabled = false
+    mut c := CircleView()
+    mut seen := Array(Bool).new(12)
+    for _ in 0..12 {
+        root := circle_key(c.index)
+        assert(seen[root.to_usize()].not())
+        seen[root.to_usize()] = true
+        circle_move(c, true)
+        assert_eq(I32, c.next_key, root + 7)
+        assert_eq(I32, circle_key(c.index), c.next_key.mod(12))
+        circle_move(c, false)
+        assert_eq(I32, circle_key(c.index), root)
+        assert_eq(I32, c.next_key.mod(12), root)
+        circle_move(c, true)
+    }
+    assert_eq(I32, c.index, 0)
+    sound_enabled = true
+}
+
+test_skip_one_voicings := test() {
+    mut s := JustStaff(partials = 32, voices = 2)
+    pair := staff_voicing(s, 2)
+    assert_eq(F32, pair[0], SERIES_B2 * 3)
+    assert_eq(F32, pair[1], SERIES_B2 * 5)
+    s.voices = 4
+    upper := staff_voicing(s, 25)
+    assert_eq(F32, upper[3], SERIES_B2 * 32)
+    s.partials = 0
+    chord := staff_voicing(s, 0)
+    assert_eq(F32, chord[3], SERIES_C4 * 15 / 8)
+    sound_enabled = false
+    major := array(I32, 0, 2, 4, 5, 7, 9, 11)
+    play_degree(true, false, false, major, 6, DYAD_KIND)
+    assert_eq(I32, active_keys[0], 11)
+    assert_eq(I32, active_keys[1], 14)
+    assert_eq(I32, active_keys[2], -1)
+    stop_viewer_sound()
+    sound_enabled = true
+}
+
+circle_frame := proc(mut c: CircleView, fnt: Font, mut lang: USize, dt: I32) {
+    if c.next_key.gte(0) {
+        c.timer = c.timer - dt
+        if c.timer.lte(0) { circle_sound(c.next_key); c.next_key = -1 }
+    }
+    if series_button(fnt, FOURTH_LABEL[lang], MARGIN, PLAYBACK_ROW_Y, BTN_W, false) { circle_move(c, false) }
+    if series_button(fnt, FIFTH_LABEL[lang], MARGIN + BTN_W, PLAYBACK_ROW_Y, BTN_W, false) { circle_move(c, true) }
+    for li : USize in 0..3 {
+        if series_button(fnt, lang_str(li, 0), MARGIN + BTN_W * 2 + GAP + li.to_i32() * LANG_BTN_W, PLAYBACK_ROW_Y, LANG_BTN_W, lang.eq(li)) { lang = li }
+    }
+    cx := WINDOW_WIDTH / 2
+    cy := WINDOW_HEIGHT / 2
+    radius := WINDOW_HEIGHT / 3
+    DrawCircleLines(cx, cy, radius.to_f32(), Color(r = 128, g = 128, b = 128, a = 255))
+    for i : I32 in 0..12 {
+        angle : F32 = i.to_f32() * 0.5235987756
+        x := cx + (radius.to_f32() * sinf(angle)).to_i64().to_i32()
+        y := cy - (radius.to_f32() * sinf(angle + 1.5707963268)).to_i64().to_i32()
+        label := format(CIRCLE_NAMES[i.to_usize()], " / ", CIRCLE_SOLFEGE[i.to_usize()])
+        if series_button(fnt, label, x - 88, y - BTN_H / 2, 176, c.index.eq(i)) {
+            c.index = i; c.next_key = -1; circle_sound(circle_key(i))
+        }
+    }
+    series_text(fnt, format("12-TET: ", CIRCLE_NAMES[c.index.to_usize()]), cx - 60, cy)
+}
+
 main := proc() {
     init_window(WINDOW_WIDTH, WINDOW_HEIGHT, "music modes")
     SetTargetFPS(FPS)
@@ -897,6 +1056,7 @@ main := proc() {
     // State. Default is 7 Greek modes.
     mut use_five := false
     mut active_tab : USize = 0
+    mut circle := CircleView()
     mut just := JustStaff()
     mut series := SeriesView()
     mut use_nathex := false
@@ -933,7 +1093,8 @@ main := proc() {
         mut five_system := active_five_system(use_five, use_nathex)
         mut note_count := active_note_count(use_five, use_nathex, full_span)
 
-        if IsMouseButtonPressed(0).and(GetMouseY().gte(SYSTEM_ROW_Y)).and(GetMouseY().lt(SYSTEM_ROW_Y + BTN_H)).and(GetMouseX().gte(MARGIN)).and(GetMouseX().lt(MARGIN + SYSTEM_BTN_W * 5)) {
+        if IsMouseButtonPressed(0).and(GetMouseY().gte(SYSTEM_ROW_Y)).and(GetMouseY().lt(SYSTEM_ROW_Y + BTN_H)).and(GetMouseX().gte(MARGIN)).and(GetMouseX().lt(MARGIN + SYSTEM_BTN_W * 6)) {
+            circle.next_key = -1
             active_tab = ((GetMouseX() - MARGIN) / SYSTEM_BTN_W).to_usize()
             just.playing = false; just.selected = -1
             series.running = false
@@ -978,10 +1139,11 @@ main := proc() {
 
             root_count := active_root_count(five_system)
 
-            if my.gte(PLAYBACK_ROW_Y).and(my.lt(PLAYBACK_ROW_Y + BTN_H)).and(mx.gte(MARGIN)).and(mx.lt(MARGIN + BTN_W * 3)) {
+            if my.gte(PLAYBACK_ROW_Y).and(my.lt(PLAYBACK_ROW_Y + BTN_H)).and(mx.gte(MARGIN)).and(mx.lt(MARGIN + BTN_W * 4)) {
                 chord_mode = mx.gte(MARGIN + BTN_W)
                 kind = -1
-                if mx.gte(MARGIN + BTN_W * 2) { kind = 0 }
+                if ((mx - MARGIN) / BTN_W).eq(1) { kind = DYAD_KIND }
+                if mx.gte(MARGIN + BTN_W * 3) { kind = 0 }
                 playing = false
                 clicked_note = -1
                 described_note = -1
@@ -1144,7 +1306,7 @@ main := proc() {
         ClearBackground(BLACK)
 
         // -- System buttons --
-        for si : USize in 0..5 {
+        for si : USize in 0..6 {
             sx := MARGIN + si.to_i32() * SYSTEM_BTN_W
             mut s_color := BTN_INACTIVE
             if si.eq(active_tab) { s_color = BTN_ACTIVE }
@@ -1154,31 +1316,31 @@ main := proc() {
             if si.eq(2) { slabel = "5 Nathex modes" }
             if si.eq(3) { slabel = SERIES_TITLES[sel_lang].clone() }
             if si.eq(4) { slabel = JUST_TITLES[sel_lang].clone() }
-            DrawTextEx(fnt, slabel.c_str, Vector2(x = (sx + PAD_X).to_f32(), y = (SYSTEM_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1, BUTTON_LABEL)
+            if si.eq(5) { slabel = CIRCLE_TITLE[sel_lang].clone() }
+            DrawTextEx(fnt, slabel.c_str, Vector2(x = (sx + PAD_X).to_f32(), y = (SYSTEM_ROW_Y + PAD_Y).to_f32()), FONT_SM.to_f32(), 1, BUTTON_LABEL)
         }
 
         if active_tab.gte(3) {
             if active_tab.eq(3) { series_frame(series, fnt, sel_lang, dt) }
-            else { just_frame(just, fnt, sel_lang, dt) }
+            else if active_tab.eq(4) { just_frame(just, fnt, sel_lang, dt) }
+            else { circle_frame(circle, fnt, sel_lang, dt) }
             EndDrawing()
             continue
         }
         root_count := active_root_count(five_system)
         // -- Note / Triad radio buttons, shared by all three systems --
-        for choice : USize in 0..3 {
+        for choice : USize in 0..4 {
             x := MARGIN + choice.to_i32() * BTN_W
             mut color := BTN_INACTIVE
-            if choice.eq(0).and(chord_mode.not()).or(choice.eq(1).and(chord_mode).and(kind.lt(0))).or(choice.eq(2).and(kind.gte(0))) { color = BTN_ACTIVE }
+            if choice.eq(voice_count_for(chord_mode, kind) - 1) { color = BTN_ACTIVE }
             DrawRectangle(x, PLAYBACK_ROW_Y, BTN_W - 2, BTN_H - 2, color)
-            mut label := NOTE_LABELS[sel_lang].clone()
-            if choice.eq(1) { label = TRIAD_LABELS[sel_lang].clone() }
-            if choice.eq(2) { label = FOUR_LABELS[sel_lang].clone() }
+            ref label : Str = voicing_label(choice, sel_lang)
             DrawTextEx(fnt, label.c_str, Vector2(x = (x + PAD_X).to_f32(), y = (PLAYBACK_ROW_Y + PAD_Y).to_f32()), FONT.to_f32(), 1, BUTTON_LABEL)
         }
         if chord_mode.and(described_note.gte(0)) {
             description := chord_description(five_system, use_nathex, use_letters, sel_lang,
                 described_note.to_usize(), sc_chrom, sc_diat, sc_span, sc_acc, sc_triad, kind)
-            DrawTextEx(fnt, description.c_str, Vector2(x = (MARGIN + BTN_W * 3 + GAP).to_f32(), y = (PLAYBACK_ROW_Y + PAD_Y).to_f32()), FONT_SM.to_f32(), 1, BUTTON_LABEL)
+            DrawTextEx(fnt, description.c_str, Vector2(x = (MARGIN + BTN_W * 4 + GAP).to_f32(), y = (PLAYBACK_ROW_Y + PAD_Y).to_f32()), FONT_SM.to_f32(), 1, BUTTON_LABEL)
         }
         if kind.gte(0) {
             ref names : Array(Str) = FOUR_NAMES[sel_lang]
@@ -1325,7 +1487,8 @@ main := proc() {
         if chord_mode {
             for lang : USize in 0..3 {
                 mut name := TRIAD_LABELS[lang].clone()
-                if kind.gte(0) {
+                if kind.eq(DYAD_KIND) { name = format(DYAD_LABELS[lang], ": 1-3") }
+                else if kind.gte(0) {
                     ref names : Array(Str) = FOUR_NAMES[lang]
                     name = names[kind.to_usize()].clone()
                 } else if described_note.gte(0).and(five_system.not()) {
@@ -1351,6 +1514,7 @@ main := proc() {
 }
 
 test_harmonic_series_reference := test() {
+    assert_eq(I32, nearest_step(partial_ratio(13, 4), 8), nearest_step(partial_ratio(14, 4), 8))
     assert_eq(I32, (series_ratio(0) * 4).to_i64().to_i32(), 6)
     assert_eq(I32, (series_ratio(1) * 4).to_i64().to_i32(), 8)
     assert_eq(I32, (series_ratio(2) * 4).to_i64().to_i32(), 10)

@@ -311,7 +311,9 @@ intervals, not proof that all such choices form mutually pure chords.
 
 The Tuning comparison tab plays exact partials (n*f0) or their nearest
 C4-anchored 12-, 8-, or 16-TET pitches. Click either frequency in a row or
-listen to its column in sequence. Positive cents mean the grid is sharp.
+listen to its column in sequence. Keep one beat per harmonic even when the
+approximation repeats a pitch (13 and 14 in the C2/8-TET comparison).
+Positive cents mean the grid is sharp.
 The display starts at C4: choose f0=C2 for partials 4..16 over two octaves,
 or f0=C4 for partials 1..4. Choose one regular hextave (800 cents), one
 octave (1200), two regular hextaves (1600), or two octaves (2400).
@@ -319,15 +321,26 @@ The Delian constant D = cube root of 2 is computed at compile time. From
 the same starting pitch, a regular hextave spans 2/D, a Nathex hextave 2:
 their endpoint ratio is D. Both system names are retained.
 
-The separate Harmonics and just scale staff defaults to playing partials
-1..8 of C4 in order, at their actual frequencies: C4, C5, approximately
-G5, C6, approximately E6, G6, Bb6, then C7. In particular, harmonic 7
-is about 31 cents flatter than equal-tempered Bb6. These eight harmonics
-span three octaves. The series itself has no Ionian/Dorian mode selector.
+The separate Harmonics and just scale staff has partial ranges 1..8, 1..16
+and 1..32, starting on B2 by default (C4 is also available). Partial 32
+is five octaves above the fundamental. The spacing in Hz is constant;
+the step from n to n+1 in cents is 1200*log2((n+1)/n), so it shrinks.
+This follows from frequency ratios, not from volume or the Delian constant.
+Dyads skip one partial: (1,3), (3,5), (5,7), etc. Extend the same stack
+to triads or tetrads. Clicking another starting partial auditions that stack
+if all its voices are in range. A dyad is any pair of pitches; this is one
+particular way to select them. Greek, Global, Nathex and just Ionian also
+offer degree 1+3 dyads. Use PT/ES/EN Tetrade/Tetrada/Tetrad for four notes.
+The series has no Ionian/Dorian modes.
 For comparison, its C major (Ionian) control plays one five-limit just
 intonation: 1, 9/8, 5/4, 4/3, 3/2, 5/3, 15/8, 2. It repeats at double
 frequency for the second octave (15 notes including the shared boundary).
 This is one diatonic tuning, not Bach's uniquely intended original scale.
+
+The separate 12-TET circle starts on C. Click any pitch class, or play
+an ascending fifth (+7 semitones) clockwise or fourth (+5) anticlockwise.
+Each move sounds the starting note followed by the interval; after twelve
+steps either direction returns to the starting pitch class.
 
 Separate listening idea: make D itself the frequency ratio of one whole
 eight-step hextave. Then one step is D^(1/8) = 2^(1/24), or 50 cents;
@@ -431,6 +444,44 @@ to the reference?" and "Which would I use in a song?" Repeat as needed.
 7. Later research: revisit BP, 833 cents, and A12; verify the Khon-Juander
    reference before comparing it. Keep standard harmony and Nathex listening first.
 
+*** Proposed interactive exercises: listen, explore, then Check
+
+Build a chord from a chosen root. Play any key to set the root; the prompt
+names a quality, e.g. "Build Dm7 on Re." Listen plays the target as often as
+needed without revealing its keys on the staff, keyboard, or piano roll.
+Try candidate chords on the keyboard; deliberately wrong notes are part of
+practice. Only Check submits the currently chosen chord. No automatic success,
+red keys, penalties, or attempts counted while exploring or replaying the clue.
+
+On Check, answer yes/no. Accept Re-Fa-La-Do in any order, octave, or doubling
+for Dm7 unless the prompt explicitly asks for an inversion or register.
+Re-Fa#-La-Do is a useful near miss: offer "Listen to the third" after checking,
+then let the learner retry the same root. Use PT/ES/EN names and symbols.
+
+Other exercises can use the same Listen / explore / Check interaction:
+- Change one voice: start with C major and make it minor while keeping Do and
+  Sol. On Check compare the two thirds, then repeat from a different root.
+- Find the inversion: hear a triad and put its third in the bass. Here Check
+  tests the lowest sounding pitch as well as the three pitch classes.
+- Match a harmonic: play partial 7, then ask for its octave partner among
+  partials 8..16. Let the learner audition freely; on Check, 14 is correct
+  because 14*f0 is twice 7*f0, regardless of its approximate staff spelling.
+- Hear a tuning difference: alternate a pure 3:2 fifth with its nearest
+  8-TET fifth from the same bass. Ask which upper pitch is sharper; replay
+  both on demand. After Check show 750 vs 701.96 cents. Ask which the learner
+  prefers separately: preference is not a graded answer.
+
+*** Next piano input: play a real MIDI keyboard
+
+Receive live MIDI Note On/Off alongside the existing QWERTY and mouse
+inputs in ~examples/piano.til~. MIDI is the message protocol: a class-
+compliant USB-MIDI keyboard and a five-pin DIN keyboard connected through
+a MIDI interface can feed the same input port abstraction. No MIDI file
+or audio capture is needed. Start with MIDI notes 48..83 (C3..B5); middle
+C (60) should light C4, or ca4 in Nathex. Use velocity, handle Note On
+with zero velocity as release, and verify overlapping notes in the piano
+roll, including release/disconnection without stuck notes.
+
 *** Later instrument design: virtual flute before printing
 
 - Explore target scale, range, fingering, hole count, spacing, bore, hole sizes,
@@ -442,10 +493,11 @@ to the reference?" and "Which would I use in a song?" Repeat as needed.
   Printable format/tooling and physical layout remain to be decided explicitly.
 - Measure and tune physical prototypes; label predicted results as estimates.
 
-*** Eventual extraction into a dedicated music repository
+*** Eventual extraction into dawtil
 
 The music application and its learning material will eventually have their
-own repository. The precedent is tiled, which grew out of the editor example
+own repository, named ~dawtil~ (a play on Spanish /datil/, the fruit of
+the date palm). The precedent is tiled, which grew out of the editor example
 and took tilminal with it. nostril is another til project with its own repo.
 
 - Before extraction, consider retaining reusable music functionality as a
@@ -479,7 +531,7 @@ and took tilminal with it. nostril is another til project with its own repo.
   version from outside the compiler checkout. Verify asset lookup, GUI/audio
   dependencies, and supported platforms without relying on til's local
   ~bin/~, ~tmp/~, or source-tree-relative imports.
-- Choose the repository name, ownership, layout, and migration timing with
+- Choose repository ownership, layout, and migration timing with
   the user. Transfer the relevant documentation, references, tests, and open
   plans along with the application so this discussion is not lost.
 - Make the new repository the single maintained home for the music
