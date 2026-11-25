@@ -1216,8 +1216,9 @@ writes til. For example, inside ~main~:
 #+begin_src til
 AndroidJni.with_frame(proc() {
     battery := AndroidJni.find_class("android/os/BatteryManager")
+    service := AndroidJni.new_string("batterymanager")
     manager := AndroidJni.call_object(AndroidJni.activity(), "getSystemService",
-        "(Ljava/lang/Class;)Ljava/lang/Object;", battery)
+        "(Ljava/lang/String;)Ljava/lang/Object;", service)
     if manager.is_null() { panic("BatteryManager service not available") }
     property := AndroidJni.static_int(battery, "BATTERY_PROPERTY_CAPACITY")
     capacity := AndroidJni.call_int(manager, "getIntProperty", "(I)I", property)
@@ -1230,10 +1231,15 @@ references when the callback returns. References are valid only inside
 that frame on the same thread. Frames cannot be nested and do not switch
 to the UI thread. Java null results can be checked with ~is_null()~;
 lookup failures and Java exceptions are logged and terminate the app.
-The initial bridge supports static ~int~ fields and instance methods
-with one object argument and an object result, or one ~int~ argument and
-an ~int~ result. The caller supplies the exact JNI method descriptor.
-~test/android_battery.til~ exercises this API in Android runtime CI.
+The bridge supports static ~int~ fields and instance methods with zero or
+one object argument and an object result, or one ~int~ argument and an
+~int~ result. The caller supplies the exact JNI method descriptor.
+~new_string~ converts a til ~Str~ to a frame-local Java ~String~;
+~read_string~ copies a non-null Java ~String~ to a til ~Str~ that can
+outlive the frame. Both use Java's standard UTF-8 conversions (including
+their replacement behavior for malformed input), preserving embedded NULs
+and supplementary characters. ~test/android_battery.til~ exercises this
+API in Android runtime CI, including reading ~getPackageName()~.
 
 ** Passing a Str to a C string parameter
 

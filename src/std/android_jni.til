@@ -7,6 +7,8 @@ til_android_jni_enter := ext_proc() {}
 til_android_jni_leave := ext_proc() {}
 til_android_jni_activity := ext_proc() returns shallow U64 {}
 til_android_jni_find_class := ext_proc(name: I8) returns shallow U64 {}
+til_android_jni_new_string := ext_proc(value: Str) returns shallow U64 {}
+til_android_jni_read_string := ext_proc(shallow token: U64) returns Str {}
 til_android_jni_static_int := ext_proc(shallow cls: U64, name: I8) returns shallow I32 {}
 til_android_jni_call_object := ext_proc(shallow receiver: U64, name: I8, sig: I8, shallow arg: U64) returns shallow U64 {}
 til_android_jni_call_int := ext_proc(shallow receiver: U64, name: I8, sig: I8, shallow arg: I32) returns shallow I32 {}
@@ -51,9 +53,20 @@ namespace:
         return til_android_jni_static_int(cls.token, cname.c_str)
     }
 
-    /// Invoke an instance method taking one object and returning an object.
+    /// Copy UTF-8 text into a frame-local Java String.
+    new_string := proc(value: Str) returns AndroidJavaRef {
+        return AndroidJavaRef(token = til_android_jni_new_string(value))
+    }
+
+    /// Copy a non-null Java String to UTF-8 text that can outlive the frame.
+    read_string := proc(value: AndroidJavaRef) returns Str {
+        return til_android_jni_read_string(value.token)
+    }
+
+    /// Invoke an instance method taking zero or one object and returning an object.
+    /// For a one-argument descriptor the default reference passes Java null.
     /// The returned reference can be null.
-    call_object := proc(receiver: AndroidJavaRef, name: Str, sig: Str, arg: AndroidJavaRef) returns AndroidJavaRef {
+    call_object := proc(receiver: AndroidJavaRef, name: Str, sig: Str, arg: AndroidJavaRef = AndroidJavaRef()) returns AndroidJavaRef {
         cname := name.clone()
         descriptor := sig.clone()
         return AndroidJavaRef(token = til_android_jni_call_object(receiver.token, cname.c_str, descriptor.c_str, arg.token))

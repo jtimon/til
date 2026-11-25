@@ -7,8 +7,21 @@ __android_log_write := ext_proc(shallow priority: I32, tag: I8, text: I8) return
 
 main := proc() {
     AndroidJni.with_frame(proc() {
+        activity := AndroidJni.activity()
+        package := AndroidJni.call_object(activity, "getPackageName", "()Ljava/lang/String;")
+        if AndroidJni.read_string(package) != "org.til.android_battery" { panic("unexpected Android package name") }
+
+        // Java concat must preserve a NUL, a BMP character, and a supplementary character.
+        // Pass a view so the bridge cannot rely on its end being NUL-terminated.
+        text := "x\0\xc3\xa9\xf0\x9f\x98\x80Z"
+        part := text.substr(0, text.len() - 1)
+        joined := AndroidJni.call_object(AndroidJni.new_string(part), "concat", "(Ljava/lang/String;)Ljava/lang/String;", AndroidJni.new_string("!"))
+        if AndroidJni.read_string(joined) != format(part, "!") { panic("Java UTF-8 round trip failed") }
+        if AndroidJni.read_string(AndroidJni.new_string("")) != "" { panic("empty Java String round trip failed") }
+
         battery := AndroidJni.find_class("android/os/BatteryManager")
-        manager := AndroidJni.call_object(AndroidJni.activity(), "getSystemService", "(Ljava/lang/Class;)Ljava/lang/Object;", battery)
+        service := AndroidJni.new_string("batterymanager")
+        manager := AndroidJni.call_object(activity, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", service)
         if manager.is_null() { panic("BatteryManager service not available") }
         property := AndroidJni.static_int(battery, "BATTERY_PROPERTY_CAPACITY")
         capacity := AndroidJni.call_int(manager, "getIntProperty", "(I)I", property)

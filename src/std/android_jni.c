@@ -111,6 +111,62 @@ uint64_t til_android_jni_find_class(const char *name) {
     return keep_ref(cls);
 }
 
+// Use Java's standard UTF-8 byte-array conversions. JNI's NewStringUTF
+// and GetStringUTFChars use modified UTF-8 instead of til's byte encoding.
+uint64_t til_android_jni_new_string(const Str *value) {
+    JNIEnv *env = current_env();
+    require_jni(env, (uint64_t)value->count <= INT32_MAX, "UTF-8 input exceeds Java array length");
+    jsize count = (jsize)value->count;
+    jbyteArray bytes = (*env)->NewByteArray(env, count);
+    require_jni(env, bytes != NULL, "NewByteArray for Java String");
+    if (count > 0) {
+        (*env)->SetByteArrayRegion(env, bytes, 0, count, (const jbyte *)TIL_OWN_GET(I8, value->c_str));
+        require_jni(env, true, "copy UTF-8 into Java byte array");
+    }
+    jclass cls = (*env)->FindClass(env, "java/lang/String");
+    require_jni(env, cls != NULL, "java/lang/String");
+    jmethodID constructor = (*env)->GetMethodID(env, cls, "<init>", "([BLjava/lang/String;)V");
+    require_jni(env, constructor != NULL, "String(byte[], String)");
+    jstring charset = (*env)->NewStringUTF(env, "UTF-8");
+    require_jni(env, charset != NULL, "UTF-8 charset name");
+    jvalue args[] = {{.l = bytes}, {.l = charset}};
+    jobject result = (*env)->NewObjectA(env, cls, constructor, args);
+    require_jni(env, result != NULL, "construct Java String from UTF-8");
+    (*env)->DeleteLocalRef(env, charset);
+    (*env)->DeleteLocalRef(env, cls);
+    (*env)->DeleteLocalRef(env, bytes);
+    return keep_ref(result);
+}
+
+Str *til_android_jni_read_string(uint64_t token) {
+    JNIEnv *env = current_env();
+    jobject value = get_ref(token, false);
+    jclass cls = (*env)->FindClass(env, "java/lang/String");
+    require_jni(env, cls != NULL, "java/lang/String");
+    jboolean matches = (*env)->IsInstanceOf(env, value, cls);
+    require_jni(env, matches, "read_string needs a String reference");
+    jmethodID get_bytes = (*env)->GetMethodID(env, cls, "getBytes", "(Ljava/lang/String;)[B");
+    require_jni(env, get_bytes != NULL, "String.getBytes lookup");
+    jstring charset = (*env)->NewStringUTF(env, "UTF-8");
+    require_jni(env, charset != NULL, "UTF-8 charset name");
+    jvalue arg = {.l = charset};
+    jbyteArray bytes = (*env)->CallObjectMethodA(env, value, get_bytes, &arg);
+    require_jni(env, bytes != NULL, "String.getBytes(UTF-8)");
+    jsize count = (*env)->GetArrayLength(env, bytes);
+    I8 *buf = malloc((size_t)count + 1);
+    Str *result = malloc(sizeof(*result));
+    require_jni(env, buf != NULL && result != NULL, "allocate til Str");
+    (*env)->GetByteArrayRegion(env, bytes, 0, count, (jbyte *)buf);
+    require_jni(env, true, "copy Java UTF-8 into til Str");
+    buf[count] = 0;
+    *result = (Str){.count = (USize)count, .cap = (USize)count + 1};
+    TIL_OWN_SET(result->c_str, buf);
+    (*env)->DeleteLocalRef(env, bytes);
+    (*env)->DeleteLocalRef(env, charset);
+    (*env)->DeleteLocalRef(env, cls);
+    return result;
+}
+
 int32_t til_android_jni_static_int(uint64_t token, const char *name) {
     JNIEnv *env = current_env();
     jobject cls = get_ref(token, false);
@@ -137,10 +193,21 @@ static jmethodID method_id(JNIEnv *env, jobject receiver, const char *name, cons
 
 uint64_t til_android_jni_call_object(uint64_t token, const char *name, const char *sig, uint64_t arg_token) {
     JNIEnv *env = current_env();
+    if (strncmp(sig, "()L", 3) == 0) {
+        const char *end = strchr(sig + 3, ';');
+        if (!end || end == sig + 3 || end[1] != '\0' || arg_token != 0) {
+            __android_log_assert("JNI descriptor", "til", "Android JNI: call_object expects no argument for ()Lclass;, got %s", sig);
+        }
+        jobject receiver = get_ref(token, false);
+        jmethodID method = method_id(env, receiver, name, sig);
+        jobject result = (*env)->CallObjectMethodA(env, receiver, method, NULL);
+        require_jni(env, true, name);
+        return keep_ref(result);
+    }
     const char *arg_end = strncmp(sig, "(L", 2) == 0 ? strchr(sig + 2, ';') : NULL;
     const char *ret_end = arg_end && strncmp(arg_end + 1, ")L", 2) == 0 ? strchr(arg_end + 3, ';') : NULL;
     if (!ret_end || arg_end == sig + 2 || ret_end == arg_end + 3 || ret_end[1] != '\0') {
-        __android_log_assert("JNI descriptor", "til", "Android JNI: call_object expects (Lclass;)Lclass;, got %s", sig);
+        __android_log_assert("JNI descriptor", "til", "Android JNI: call_object expects ()Lclass; or (Lclass;)Lclass;, got %s", sig);
     }
     jobject receiver = get_ref(token, false);
     jmethodID method = method_id(env, receiver, name, sig);
