@@ -26,6 +26,29 @@ android_apk_stage := func(c_path: Str, target: Str, width: Str) returns Str {
     return format(c_path.strip_suffix(".c"), "_android/", target, "/U", width)
 }
 
+// The cross-build producers and the runtime test build independently with
+// the same relative C path (part of the native library's debug info).
+android_smoke_stage := func(width: Str) returns Str { return format("tmp/android_smoke/U", width) }
+
+// The signed apk at stem.apk is the one passed to adb. Hash the exact
+// aligned file that apksigner consumed, before the per-job key matters.
+build_checkers_record := proc(compiler: Str, target: Str, width: Str, level: Str) returns Str {
+    stage := android_smoke_stage(width)
+    if mkdir_p(stage) != 0 { panic("cannot create ", stage) }
+    c_path := format(stage, "/checkers.c")
+    Cmd.new(compiler, "build", "--force-rebuild", format("--target=", target), format("--usize=", width),
+        "-o", format(stage, "/checkers.apk"), "-c", c_path, "examples/checkers.til").run_checked()
+    payload := format(android_apk_stage(c_path, target, width), "/aligned.apk")
+    mut hash := Cmd.new("sha256sum")
+    if host_os() == "macos" { hash = Cmd.new("shasum", "-a", "256") }
+    hash.arg(payload)
+    hash.capture_out()
+    hash.run_checked()
+    digest := hash.out().split(" ")[0].clone()
+    if digest.len() != 64 { panic("invalid SHA-256 for ", payload, ": ", digest) }
+    return format(digest, " ", level, " ", target, " c ", width, " examples/checkers.til aligned.apk")
+}
+
 android_apk_inputs := proc(sdk: Str) {
     println("APK SDK: ", sdk)
     for kind : Str in array(Str, "build-tools", "platforms") {

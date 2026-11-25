@@ -36,6 +36,7 @@ import("../test/jni_support")
 //       Android's proven native artifacts use "binary"; SDK producers list
 //       the aligned unsigned APK and its native library in a separate "apk"
 //       group, so SDK-less hosts do not participate in that comparison.
+//       "tested-apk" compares Checkers with the payload exercised on each AVD.
 //
 //   ci_collect produce-binary-trial <producer> <list file> <compiler> <target>...
 //       The same list with binary/APK lines at "binary-trial"/"apk-trial": for a host whose
@@ -530,6 +531,11 @@ produce_android_binary := proc(compiler: Str, target: Str, mut lines: Vec(Str), 
             apk_hashes := sha256_of(apk_paths)
             for i, hash in apk_hashes {
                 lines.push(own format(hash, " ", apk_level, " ", target, " c ", width, " examples/hello_gui.til ", apk_items[i]))
+            }
+            if target == "android-x64" {
+                mut tested_level := "tested-apk"
+                if trial { tested_level = "tested-apk-trial" }
+                lines.push(own build_checkers_record(compiler, target, width, tested_level))
             }
         }
         hashes := sha256_of(paths)

@@ -534,6 +534,21 @@ jobs:
           mkdir -p tmp/android-smoke-home tmp/android_smoke
           make
           bin/til build test/android_smoke.til
+      - name: The pinned LLVM release
+        id: llvm
+        run: |
+          release=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned LLVM
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm
+          key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Use the cross-build producers' LLVM for Android
+        run: |
+          make llvm
+          echo "$PWD/vendor/llvm/bin" >> "$GITHUB_PATH"
       - name: Install APK tools and enable KVM
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-37.0" "build-tools;36.0.0"
@@ -570,6 +585,12 @@ jobs:
       - name: Remove disposable AVD and debug key
         if: always()
         run: rm -rf tmp/android-smoke-home
+      - name: Upload the tested Checkers hash list
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-android-api-${{ matrix.api }}
+          path: tmp/android_smoke/android-api-${{ matrix.api }}.txt
+          if-no-files-found: error
       - name: Upload smoke diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
@@ -2507,7 +2528,7 @@ jobs:
   # arrived, and it failed saying so.
   collect:
     name: collect (compare the producers' hash lists)
-    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-native, macos-arm64, macos-x64]
+    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-native, macos-arm64, macos-x64, android-runtime]
     if: always() && needs.doc-gate.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -2517,12 +2538,13 @@ jobs:
           LINUX_X64: ${{ needs.linux-x64.result }}
           LINUX_ARM64: ${{ needs.linux-arm64-native.result }}
           WINDOWS_X64_NATIVE: ${{ needs.windows-x64-native.result }}
+          ANDROID_RUNTIME: ${{ needs.android-runtime.result }}
           MACOS_ARM64: ${{ needs.macos-arm64.result }}
           MACOS_X64: ${{ needs.macos-x64.result }}
         run: |
           status=0
           for pair in "linux-x64=$LINUX_X64" "linux-arm64-native=$LINUX_ARM64" \
-            "windows-x64-native=$WINDOWS_X64_NATIVE" \
+            "windows-x64-native=$WINDOWS_X64_NATIVE" "android-runtime=$ANDROID_RUNTIME" \
             "macos-arm64=$MACOS_ARM64" "macos-x64=$MACOS_X64"; do
             echo "$pair"
             if [ "${pair#*=}" != success ]; then status=1; fi
@@ -2545,3 +2567,13 @@ jobs:
         run: |
           find hashes -type f | sort
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til collect hashes
+          # collect compares all participating lists. Also require every
+          # intended participant, even if it omitted an entire width or list.
+          for list in hashes/hashes-binary-mac-linux-x64/linux-x64.txt \
+                      hashes/hashes-binary-macos-arm64/macos-arm64.txt \
+                      hashes/hashes-android-api-28/android-api-28.txt \
+                      hashes/hashes-android-api-36/android-api-36.txt; do
+            for width in 32 64; do
+              grep -Ex "[0-9a-f]{64} tested-apk android-x64 c $width examples/checkers[.]til aligned[.]apk" "$list"
+            done
+          done

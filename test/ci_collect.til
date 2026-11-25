@@ -195,6 +195,19 @@ main := proc(args: ..Str) {
     list(apk_alone, "arm", android_native)
     collect(collector, apk_alone, "", 0, "apk android-x64 c 32: 1 producers", "1 equal, 0 different, 0 missing, 2 not compared")
 
+    // Only Checkers is exercised by the two runtime jobs. They must agree
+    // with both SDK cross-builders without having to list hello_gui too.
+    tested := fixture("android_tested_apk")
+    tested_key := " tested-apk android-x64 c 32 examples/checkers.til aligned.apk"
+    same := format(HASH_A, tested_key)
+    list(tested, "linux-x64", same, apk_payload)
+    list(tested, "macos-arm64", same, apk_payload)
+    list(tested, "android-api-28", same)
+    list(tested, "android-api-36", same)
+    collect(collector, tested, "", 0, "tested-apk android-x64 c 32: 4 producers", "2 equal, 0 different, 0 missing")
+    list(tested, "android-api-36", format(HASH_C, tested_key))
+    collect(collector, tested, "", 1, "DIFFERENT tested-apk android-x64 c 32: examples/checkers.til aligned.apk")
+
     // An artifact on trial: a difference is printed and does not fail.
     trial_tools := format(HASH_A, " binary-trial linux-arm64 c 32 - toolchain")
     trial := fixture("trial")

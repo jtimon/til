@@ -420,16 +420,18 @@ main := proc(args: ..Str) {
     println("Android ", abi, " API ", api, ": ", device.adb("shell", "getprop", "ro.build.fingerprint").trim())
     if device.serial.starts_with("emulator-") { device.adb("shell", "input", "keyevent", "82") }
 
+    mut records := ""
     for width : Str in array(Str, "32", "64") {
-        stage := format("tmp/android_smoke/U", width)
+        stage := android_smoke_stage(width)
         File.remove_tree(stage)
         if mkdir_p(stage) != 0 { panic("cannot create ", stage) }
         apk := format(stage, "/checkers.apk")
-        Cmd.new("bin/til", "build", format("--target=", target), format("--usize=", width),
-            "-o", apk, "-c", format(stage, "/checkers.c"), "examples/checkers.til").run_checked()
+        record := build_checkers_record("bin/til", target, width, "tested-apk")
         check_cli(device, stage, width, target)
         check_jni(device, sdk, stage, width, pages, abi)
         check_android_battery(device, stage, width, target)
         check_checkers(device, stage, width, apk)
+        records = format(records, record, "\n")
     }
+    File.writefile(format("tmp/android_smoke/android-api-", api, ".txt"), records)
 }
