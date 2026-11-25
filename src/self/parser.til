@@ -906,6 +906,8 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
     // that exists only inside the macro. Expansion substitutes H and
     // instantiates the concrete type.
     active_type_params_start := p.active_type_params.len()
+    mut input_origin := ""
+    mut origin_index: I32 = -1
     while check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
         mut own_type := OwnType.Ref
         if check(p, TokenType.KwShallow) { advance(p); own_type = OwnType.Shallow }
@@ -916,7 +918,17 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             parse_fail(p, peek_line(p), peek_col(p), "redundant 'const' on parameter: parameters are immutable by default; drop it")
         }
         if check(p, TokenType.KwRef) {
-            parse_fail(p, peek_line(p), peek_col(p), "no need for 'ref' on parameter; parameters are borrowed by default")
+            advance(p)
+            if check(p, TokenType.LBracket).not() {
+                parse_fail(p, peek_line(p), peek_col(p), "no need for 'ref' on parameter; parameters are borrowed by default")
+            } else {
+                advance(p)
+                if origin_index >= 0 { parse_fail(p, kw_line, kw_col, "only one origin-labelled input is supported") }
+                if is_mut.or(own_type.is(OwnType.Ref).not()) { parse_fail(p, kw_line, kw_col, "a labelled input must be a plain borrow") }
+                input_origin = expect_text(p, TokenType.Ident)
+                expect_token(p, TokenType.RBracket)
+                origin_index = fd.sig.params.len().to_i32()
+            }
         }
 
         pname_line := peek_line(p)
@@ -1007,6 +1019,12 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             param_decl.default_value = Option(Expr).Some(own parse_expr_for_decl_type(p, decl_type_name_ref(param_decl, p.symbols)))
             has_default = true
         }
+        if origin_index == fd.sig.params.len().to_i32() && (has_default || is_variadic || is_kwargs) {
+            parse_fail(p, pname_line, pname_col, "origin requires an explicit nonvariadic argument")
+        }
+        if origin_index == fd.sig.params.len().to_i32() && decl_type_name_ref(param_decl, p.symbols) == "Type" {
+            parse_fail(p, pname_line, pname_col, "origin must name a runtime storage parameter")
+        }
         if fd.sig.variadic_index.neq(-1).and(is_variadic.or(is_kwargs).or(has_default).not()) {
             parse_fail(p, peek_line(p), peek_col(p), "positional param not allowed after variadic")
         }
@@ -1032,6 +1050,14 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             advance(p)
             fd.sig.return_own_type = OwnType.Ref
             if check(p, TokenType.KwMut) { advance(p); fd.sig.return_ref_mut = true }
+            if check(p, TokenType.LBracket) {
+                advance(p)
+                label := expect_text(p, TokenType.Ident)
+                expect_token(p, TokenType.RBracket)
+                if label != input_origin || origin_index < 0 { parse_fail(p, kw_line, kw_col, "unbound result origin '", label, "'") }
+                if fd.sig.return_ref_mut { parse_fail(p, kw_line, kw_col, "a linked result cannot also specify mut") }
+                fd.sig.return_origin_param = origin_index
+            }
         } else if check(p, TokenType.KwOwn) {
             parse_fail(p, peek_line(p), peek_col(p), "no need for 'own' in return type; returns are owned by default")
         } else if check(p, TokenType.KwShallow) {
@@ -1041,6 +1067,8 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         }
         fd.sig.return_type = parse_type_ref(p)
     }
+    if origin_index >= 0 && fd.sig.return_origin_param < 0 { parse_fail(p, kw_line, kw_col, "input origin must be used by the reference result") }
+    if origin_index >= 0 && ft.is_plain().or(ft.is_ext()).not() { parse_fail(p, kw_line, kw_col, "origin labels require a func or proc signature") }
 
     // Issue #198: optional 'throws T1, T2, ...' clause after returns.
     // Stored as a list of type-name strings on FunctionDef.sig. Validation

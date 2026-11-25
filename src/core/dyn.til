@@ -184,6 +184,7 @@ func_sig_return_own_type := ext_func(type_name: Str) returns shallow I64 {}
 func_sig_return_shallow_explicit := ext_func(type_name: Str) returns shallow I64 {}
 // Keep this query private: func_sig_of exposes the existing FuncSig field.
 priv func_sig_return_ref_mut := ext_func(type_name: Str) returns shallow I64 {}
+priv func_sig_return_origin_param := ext_func(type_name: Str) returns shallow I64 {}
 func_sig_throw_count := ext_func(type_name: Str) returns shallow I64 {}
 func_sig_throw_type := ext_func(type_name: Str, shallow index: I64) returns Str {}
 
@@ -254,6 +255,7 @@ func_sig_of := func(type_name: Str) returns FuncSig {
     sig.return_own_type = own_type_from_i64(func_sig_return_own_type(type_name))
     sig.return_shallow_explicit = func_sig_return_shallow_explicit(type_name) == 1
     sig.return_ref_mut = func_sig_return_ref_mut(type_name) == 1
+    sig.return_origin_param = func_sig_return_origin_param(type_name).to_i32()
     if func_sig_return_count(type_name) == 1 {
         sig.return_type = func_sig_return_type(type_name, 0)
     }

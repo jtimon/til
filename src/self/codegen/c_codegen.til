@@ -8543,6 +8543,7 @@ priv emit_binding_expr := proc(f: File, e: Expr, ctx: Context, owner: Str = "") 
 }
 
 priv emit_binding_param := proc(f: File, param: Declaration, fd: FunctionDef, index: USize, wrapper: Bool, ctx: Context, owner: Str = "") {
+    if index.to_i32() == fd.sig.return_origin_param { f.write("ref[a] ") }
     if param.own_type.is(OwnType.Own) { f.write("own ") }
     if param.own_type.is(OwnType.Shallow) {
         if wrapper.and(is_scalar_type_name(decl_type_name_ref(param, ctx.symbols))).not() { f.write("shallow ") }
@@ -8585,6 +8586,14 @@ priv emit_binding_throws := proc(f: File, fd: FunctionDef, ctx: Context) {
     }
 }
 
+priv emit_binding_return_ref := proc(f: File, sig: FuncSig) {
+    if sig.return_own_type.is(OwnType.Ref) {
+        if sig.return_origin_param >= 0 { f.write("ref[a] ") }
+        else if sig.return_ref_mut { f.write("ref mut ") }
+        else { f.write("ref ") }
+    }
+}
+
 priv emit_binding_func_decl := proc(f: File, indent: Str, name: Str, fd: FunctionDef, ctx: Context) {
     mut kw := "ext_func"
     if fd.sig.func_type.is(FuncType.Proc).or(fd.sig.func_type.is(FuncType.Test)) { kw = "ext_proc" }
@@ -8593,10 +8602,7 @@ priv emit_binding_func_decl := proc(f: File, indent: Str, name: Str, fd: Functio
     f.write(")")
     if fd.sig.return_type.len() > 0 {
         f.write(" returns ")
-        if fd.sig.return_own_type.is(OwnType.Ref) {
-            f.write("ref ")
-            if fd.sig.return_ref_mut { f.write("mut ") }
-        }
+        emit_binding_return_ref(f, fd.sig)
         if func_returns_c_value(fd) { f.write("shallow ") }
         f.write(binding_type_name(fd.sig.return_type, ctx))
     }
@@ -8614,10 +8620,7 @@ priv emit_binding_wrapper := proc(f: File, indent: Str, name: Str, actual: Str,
     f.write(")")
     if fd.sig.return_type.len() > 0 {
         f.write(" returns ")
-        if fd.sig.return_own_type.is(OwnType.Ref) {
-            f.write("ref ")
-            if fd.sig.return_ref_mut { f.write("mut ") }
-        }
+        emit_binding_return_ref(f, fd.sig)
         // `shallow` is part of an ext declaration's ABI but redundant (and
         // rejected) on an ordinary wrapper returning a primitive by value.
         if fd.sig.return_own_type.is(OwnType.Shallow).and(is_scalar_type_name(fd.sig.return_type).not()) {
@@ -8682,10 +8685,7 @@ priv emit_binding_funcsig := proc(f: File, name: Str, fd: FunctionDef, ctx: Cont
     f.write(")")
     if fd.sig.return_type.len() > 0 {
         f.write(" returns ")
-        if fd.sig.return_own_type.is(OwnType.Ref) {
-            f.write("ref ")
-            if fd.sig.return_ref_mut { f.write("mut ") }
-        }
+        emit_binding_return_ref(f, fd.sig)
         if fd.sig.return_own_type.is(OwnType.Shallow) { f.write("shallow ") }
         f.write(binding_type_name(fd.sig.return_type, ctx))
     }

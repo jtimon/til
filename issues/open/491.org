@@ -53,7 +53,7 @@ referent access. Top-level const on a pointer returned by value (~T *const~)
 does not fix the caller's pointer slot; it receives a copy. Native declarations
 must describe the actual foreign contract, including read-only pointer results.
 
-*** Origin-linked borrows: design decision (not implemented)
+*** Origin-linked borrows
 
 Keep the two fixed contracts above. Add a third: ~ref[a]~ on a parameter
 names a borrowed origin, and ~returns ref[a] T~ promises a view of storage
@@ -64,7 +64,7 @@ The label is local to the signature. Its spelling is arbitrary; which input
 and result share it is significant.
 
 #+begin_src til
-// Proposed syntax. Cell is owned inline by Box.
+// Implemented for ordinary functions. Cell is owned inline by Box.
 Cell := struct { n: I64 = 0 }
 Box := struct { cell := Cell() }
 cell_of := func(ref[a] box: Box) returns ref[a] Cell { return box.cell }
@@ -215,6 +215,29 @@ results while still failing to record their actual const contract.
 including ~const ref mut~ fields. Both issues affect this generator.
 
 *** Implementation and acceptance
+
+**** Single-origin getter and forwarding use step
+
+The parser resolves one ~ref[a]~ runtime input and one ~returns ref[a]~ result
+to a parameter index. Named signatures compare by that index, independent of
+label spelling. A linked definition checks its parameter as read-only for body
+writes and proves each successful return separately: it must be the marked
+parameter, a mutable owned/inline field path from it, or a linked call on such
+a path. This first proof does not infer local alias chains or permit crossing a
+stored reference. External declarations describe a trusted foreign contract.
+
+A call requires stable argument storage and substitutes that argument's access
+and owner. Reflection restores the index via the prepared private query. Generated
+Til library declarations, wrappers and named FuncSigs emit matching canonical
+labels. ~mutable_ast_view_checks~ exercises getters, forwarding, labelled
+non-first arguments, callable views and reflection, with per-line rejections for
+immutable access, incorrect origins, restricted fields, temporary and escaping
+owners. ~library_namespace~ checks the exported contracts. Collection getters,
+iteration, multi-origin signatures and general alias migration are later steps.
+
+Verification on ~d34890b03~: the clean two-pass suite passed 597/597 (65.56s
+suite wall time, 32.38s native self-translation). The batched ~mutable_views~
+family also passed with compiled ASAN fixtures.
 
 **** Origin metadata bootstrap preparation
 

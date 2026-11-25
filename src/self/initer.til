@@ -1656,6 +1656,8 @@ register_function_def_for_stmt := func(mut ctx: Context, mut stmt: Expr, mut sco
                 if fdef.sig.return_type.len() > 0 {
                     if fdef.sig.return_own_type.is(OwnType.Ref) != sigdef.sig.return_own_type.is(OwnType.Ref) {
                         defer_generic_error(stmt.line, stmt.col, "function return differs in 'ref' from its declared signature", ctx)
+                    } else if sigdef.sig.return_origin_param != fdef.sig.return_origin_param {
+                        defer_generic_error(stmt.line, stmt.col, "borrowed result has a different source parameter from its declared signature", ctx)
                     } else if sigdef.sig.return_ref_mut.and(fdef.sig.return_ref_mut.not()) {
                         defer_generic_error(stmt.line, stmt.col, "function return differs in 'ref mut': a read-only reference cannot fill a writable-return signature", ctx)
                     }
@@ -4592,6 +4594,7 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
                 case .FuncDef(cfd):
                     mut kept := Vec(Declaration).new()
                     mut vidx : I32 = cfd.sig.variadic_index
+                    source_origin := cfd.sig.return_origin_param
                     mut kidx : I32 = cfd.sig.kwargs_index
                     for ci in 0..cfd.sig.params.len() {
                         ref kp : Declaration = cfd.sig.params[ci]
@@ -4603,6 +4606,7 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
                             if kidx > cpos { kidx = kidx - 1 }
                             continue
                         }
+                        if ci.to_i32() == source_origin { cfd.sig.return_origin_param = kept.len().to_i32() }
                         kept.push(own kp.clone())
                     }
                     cfd.sig.params.clear()

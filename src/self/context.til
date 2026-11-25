@@ -266,6 +266,8 @@ TypeBinding := struct {
     // Preserve a denied source's explanation through aliases and lowered call
     // temporaries, so return diagnostics name the getter, not _bang_ret_N.
     ref_permission_problem := ""
+    // This binding's referent permission was instantiated from a linked view.
+    linked_view := false
 namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns Bool {
         return a.name == b.name
@@ -438,6 +440,7 @@ TyperFuncState := struct {
     current_top_func_name := ""
     // Declared return type of the function currently being checked.
     typer_return_type_name := ""
+    return_origin_name := ""
     proc_calls_count : I32 = 0
     proc_def_depth : I32 = 0
     auto_gen_depth : I32 = 0

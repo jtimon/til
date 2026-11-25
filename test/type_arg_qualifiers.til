@@ -658,6 +658,11 @@ priv check_wrong_mutable_view := proc(cmd: Cmd, kind: Str) {
 mutable_ast_view_checks := proc(compiler: Str, root: Str, asan: Bool) {
     File.writefile(format(root, "/mutable_ast_views.til"), format("mode cli\nimport(\"std/tilvm\")\n",
         "Item := struct { n: I64 = 0 }\n",
+        "Box491 := struct { cell := Item() }\n",
+        "Linked491 := func(I64, ref[src] Box491) returns ref[src] Item\n",
+        "cell491 := func(ref[a] owner: Box491) returns ref[a] Item { return owner.cell }\n",
+        "forward491 := func(tag: I64, ref[b] owner: Box491) returns ref[b] Item { assert(tag == 7); return cell491(owner) }\n",
+        "write491view := func(mut owner: Box491) returns ref mut Item { return forward491(7, owner) }\n",
         "BorrowedViews := enum { None, Read: ref Item, const Write: ref mut Item }\n",
         "from_optional := func(value: Option(ref mut Item)) returns ref mut Item { switch value { case .Some(item): return item; case: panic(\"missing\") } }\n",
         "from_tagged := func(value: BorrowedViews) returns ref mut Item { switch value { case .Write(item): return item; case: panic(\"wrong variant\") } }\n",
@@ -666,6 +671,9 @@ mutable_ast_view_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "function_view := func(mut node: Expr) returns ref mut FunctionDef { return funcdef_of_mut(node) }\n",
         "member_view := func(mut node: Expr) returns ref mut Declaration { return def_ns_get_mut(node, \"member\").unwrap() }\n",
         "main := proc() {\nassert(TilVm.size() > 0)\nmut item := Item()\noptional := safe_ref_mut(item)\n",
+        "frozen := Box491()\nmut editable := Box491()\nref read_only := forward491(7, frozen)\nassert(read_only.n == 0)\n",
+        "ref mut write_view := write491view(editable)\nwrite_view.n = 8\nref restricted := cell491(editable)\nassert(restricted.n == 8)\n",
+        "callback: Linked491 = forward491\nref mut indirect := callback(7, editable)\nindirect.n = 9\nassert(editable.cell.n == 9)\nassert(func_sig_of(\"Linked491\").return_origin_param == 1)\n",
         "const ref mut value: Item = optional.unwrap()\nvalue.n = 1\nassert_eq(I64, item.n, 1)\n",
         "direct := direct_option(item)\nref mut forwarded: Item = direct.unwrap()\nforwarded.n = 2\nassert_eq(I64, item.n, 2)\n",
         "copied := optional.clone()\nref mut cloned: Item = copied.unwrap()\ncloned.n = 3\nassert_eq(I64, item.n, 3)\n",
@@ -735,12 +743,27 @@ mutable_ast_view_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "bad_scope_read := func(scope: TypeScope, sym: Sym) returns ref mut TypeBinding { return scope.get_binding_sym(sym).unwrap() }\n",
         "bad_scope_owner := func(scope: TypeScope, sym: Sym) returns Option(ref mut TypeBinding) { return scope.get_binding_sym_mut(sym) }\n",
         "bad_scope_parent := func(scope: TypeScope) returns TypeScope { return TypeScope(parent = safe_ref_mut(scope)) }\n",
+        "bad_local := func(ref[a] src: Item) returns ref[a] Item { local := Item(n = src.n); return local }\n",
+        "bad_other := func(ref[a] src: Item, other: Item) returns ref[a] Item { assert(src.n == 0); return other }\n",
+        "bad_global := func(ref[a] src: Item) returns ref[a] Item { assert(src.n == 0); return origin_global }\n",
+        "bad_write := func(ref[a] src: Item) returns ref[a] Item { src.n = 3; return src }\n",
+        "bad_actual := func(src: Item) { ref mut bad := identity491(src); bad.n = 1 }\n",
+        "bad_restrict := func(mut src: Item) { src.n = 1; ref bad := identity491(src); bad.n = 2 }\n",
+        "bad_temp := func() returns ref Item { return identity491(Item()) }\n",
+        "bad_escape := func() returns ref Item { local := Item(); return identity491(local) }\n",
+        "bad_const := func(ref[a] src: FrozenBox491) returns ref[a] Item { return src.cell }\n",
+        "bad_carried := func(ref[a] src: RefBox491) returns ref[a] Item { return src.cell }\n",
+        "FrozenBox491 := struct { const cell := Item() }\nRefBox491 := struct { const ref mut cell: Item }\n",
+        "origin_global := Item()\nidentity491 := func(ref[a] src: Item) returns ref[a] Item { return src }\n",
         "main := proc() { assert(TilVm.size() > 0) }\n"))
     denied := "cannot return a writable reference"
     redundant := "redundant 'mut' on parameter 'value'"
     expected := array(Str, "cannot return a writable borrowed payload", "'value' is an immutable binding",
         redundant, denied, denied, redundant, denied, denied, denied, denied, denied, denied,
-        denied, "'scope' is an immutable binding", "'scope' is an immutable binding")
+        denied, "'scope' is an immutable binding", "'scope' is an immutable binding",
+        "linked return must borrow", "linked return must borrow", "linked return must borrow",
+        "cannot assign", "cannot take a writable linked borrow", "cannot assign", "stable argument storage",
+        "cannot return a borrow of local", "linked return must borrow", "linked return must borrow")
     for action: Str in array(Str, "interpret", "translate") {
         cmd := Cmd.new(compiler, action, invalid)
         cmd.capture()

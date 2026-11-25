@@ -2465,12 +2465,14 @@ typedef struct TypeBinding {
     Bool ref_slot_explicit;
     Bool mutable_ref_return;
     Str ref_permission_problem;
+    Bool linked_view;
 } TypeBinding;
 
 
 typedef struct TyperFuncState {
     Str current_top_func_name;
     Str typer_return_type_name;
+    Str return_origin_name;
     I32 proc_calls_count;
     I32 proc_def_depth;
     I32 auto_gen_depth;
