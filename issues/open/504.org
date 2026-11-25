@@ -444,6 +444,19 @@ So linux-x64 and linux-arm64 are the same from every host that has the
 pinned LLVM (two Linux, the arm64 Mac, Windows), and the other four
 linux targets from the two Linux hosts.
 
+**** CI run 3219: the folded jobs
+
+Run 3219 (master fc5ff60), the first with one Windows job: ~linux-x64~
+green in 52 minutes with the windows builds and the windows, mac and
+Android lists as its steps; ~windows-x64-native~ green in 39 minutes
+with the mac and linux lists and the windows-x86 programs built and run
+there. The Windows host built libsecp256k1 for linux-x64 and
+linux-arm64.
+
+The arm64 Mac and the Windows host list the other four linux targets
+too now (linux-arm32, -riscv64, -x86, -riscv32), a second list each, on
+trial: until now only the two Linux hosts built those.
+
 **** Next
 
 - libsecp256k1 is in the linux lists, the archive and its members, on
