@@ -895,7 +895,7 @@ check_usize64 := proc(mut b: Build) {
     build_tests(b)
     run(TIL, "build", "--usize=64", "--asan", "-o", USIZE64, "src/til.til")
     c := suite_cmd(b, "--til-bin", USIZE64, "--asan", "--usize=64")
-    c.run_checked()
+    run_suite(b, c)
 }
 
 /// The emitted C must compile clean under gcc AND clang: the local
@@ -915,6 +915,26 @@ check_clang := proc(mut b: Build) {
     println("check_clang: generated C is clang-clean")
 }
 
+XVFB_LOG := "tmp/xvfb.log"
+
+/// Run a suite command (suite_cmd). When it fails under xvfb-run, what
+/// the X server wrote is printed first: one gui test of a run stopping
+/// with "X11: Failed to open display :99" while every other one opened
+/// it (CI runs 3203, 3210 and 3218) cannot be told from the tests' own
+/// output.
+run_suite := proc(b: Build, c: Cmd) {
+    println(c.render())
+    status := c.run()
+    if status == 0 { return }
+    if b.host.needs_xvfb() {
+        if File.exists(XVFB_LOG) { println("--- ", XVFB_LOG, ":\n", File.readfile(XVFB_LOG), "--- end ", XVFB_LOG) }
+        else { println("--- ", XVFB_LOG, ": not written") }
+    }
+    mut why := format("exited with ", status.to_str())
+    if status < 0 { why = format("was killed by signal ", (0 - status).to_str()) }
+    panic("command failed (", why, "): ", c.render())
+}
+
 /// The suite runner, with the host's window server and the caller's
 /// -j. Built here rather than spelled out at each call site so the
 /// three suite commands cannot drift apart.
@@ -923,6 +943,10 @@ suite_cmd := proc(b: Build, extra: ..Str) returns Cmd {
     if b.host.needs_xvfb() {
         c.arg("xvfb-run")
         c.arg("--auto-servernum")
+        // REM What Xvfb and xauth say goes to a file: xvfb-run's default is
+        // /dev/null, and a gui test that could not open the display then
+        // left nothing to read (run_suite prints it when the suite fails).
+        c.arg(format("--error-file=", XVFB_LOG))
     }
     c.arg("bin/tests")
     mut i : USize = 0
@@ -968,7 +992,7 @@ run_test_asan := proc(mut b: Build) {
     layout_regressions(b, true)
     check_clang(b)
     c := suite_cmd(b, "--til-bin", ASAN, "--asan")
-    c.run_checked()
+    run_suite(b, c)
     refresh_constfold()
 }
 
@@ -983,7 +1007,7 @@ run_test_fast := proc(mut b: Build) {
     layout_regressions(b, false)
     check_clang(b)
     c := suite_cmd(b)
-    c.run_checked()
+    run_suite(b, c)
     refresh_constfold()
 }
 
@@ -1000,7 +1024,7 @@ run_test_regen := proc(mut b: Build) {
     build_plot(b)
     build_tests(b)
     c := suite_cmd(b, "--regen")
-    c.run_checked()
+    run_suite(b, c)
     refresh_constfold()
 }
 
@@ -1038,7 +1062,7 @@ run_test_two_pass := proc(mut b: Build) {
     b.begin("plot")
     b.begin("tests")
     c := suite_cmd(b)
-    c.run_checked()
+    run_suite(b, c)
     refresh_constfold()
 }
 
