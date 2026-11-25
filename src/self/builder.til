@@ -27,14 +27,18 @@ priv runtime_link_identity_args := func(target: Target, basename: Str, import_pa
     }
 }
 
-priv runtime_dependency_args := func(target: Target, shared_path: Str, import_path: Str) returns Str {
+// proc: the quoting is the host shell's (shell_path). Single quotes around
+// $ORIGIN are sh's; cmd.exe passes them on, and a linux library linked
+// on a Windows host then carried the run path '$ORIGIN', quotes and all
+// (CI run 3210: that host's .so was the one item unlike the others').
+priv runtime_dependency_args := proc(target: Target, shared_path: Str, import_path: Str) returns Str {
     switch target {
     case .WindowsX64, .WindowsX86:
         return format(" ", import_path)
     case .MacosX64, .MacosArm64:
         return format(" ", shared_path, " -Wl,-rpath,@loader_path")
     case:
-        return format(" ", shared_path, " -Wl,-rpath,'$ORIGIN'")
+        return format(" ", shared_path, " -Wl,-rpath,", shell_path("$ORIGIN"))
     }
 }
 

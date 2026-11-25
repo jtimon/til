@@ -1102,3 +1102,11 @@ Left for two levels:
   hosts first and then each of them again. Two levels by its nature;
   whether it stays, moves into collect's level, or changes shape is not
   decided.
+
+*** macos-host-cross-linux-run is gone (2026-11-22)
+
+The arm64 Mac lists linux-x64 and linux-arm64, built against the pinned
+C library (#504), strict since CI run 3210, so the Linux program it
+built with a cross gcc to be run by a job of its own is no longer
+built, and that job is removed. Third-level jobs left:
+~windows-x64-run~ (the Windows session's).
