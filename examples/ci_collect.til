@@ -782,6 +782,16 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
             items.push(own format("vendor ", file_stem(format(archive, ".til"))))
             paths.push(own archive.clone())
         }
+        // #504: libsecp256k1 too, for a pinned linux target: std/crypto
+        // links it, and til does not, so nothing above shows a host
+        // building another one. On trial until a run shows it equal.
+        secp := format("vendor/secp256k1/build-", target, "/lib/libsecp256k1.a")
+        if linux_pinned(target) {
+            if File.is_file(secp).not() { fail(format(secp, " is not built; run bin/make ", secp, " first")) }
+            levels.push(own "binary-trial")
+            items.push(own "vendor libsecp256k1")
+            paths.push(own secp.clone())
+        }
         // REM til itself is a 64-bit program: its source does not type-check
         // for a target whose pointers are 32 bits (casts between U64 and
         // UPtr). Such a target's list is its programs, its library and
@@ -819,6 +829,9 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
             format(directory, "/libffi_members"), lines)
         list_members(target, target_level, format("vendor/nng/build-", target, "/libnng.a"), "vendor libnng.a",
             format(directory, "/libnng_members"), lines)
+        if linux_pinned(target) {
+            list_members(target, "binary-trial", secp, "vendor libsecp256k1.a", format(directory, "/libsecp_members"), lines)
+        }
     }
     write_list(list, lines)
     // The til binaries' own lines, in this job's log: the binary that

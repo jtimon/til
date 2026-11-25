@@ -491774,8 +491774,8 @@ int main(int argc, char **argv) {
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
     priv___src_self_builder_til__MAC_DEBUG_ROOT = (Str){.c_str = TIL_OWN_LIT("/proc/self/cwd", 14ULL), .count=14ULL, .cap=TIL_CAP_LIT};
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-0970a0ce7", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("0970a0ce7507d06d05bc80da35c36f475406791d", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-a76203837", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("a7620383767b94520ef39d727ad1e5542103925e", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};

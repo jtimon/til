@@ -180,7 +180,7 @@ jobs:
           ./bin/make bin/til
           sha256sum bin/til | cmp - tmp/til-tested.txt
           for target in linux-x64 linux-arm64 linux-arm32 linux-riscv64 linux-x86 linux-riscv32; do
-            ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a
+            ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a vendor/secp256k1/build-$target/lib/libsecp256k1.a
             ./bin/til run test/reproducible_build.til bin/til $target
           done
           mkdir -p tmp/hashes-binary
@@ -496,7 +496,7 @@ jobs:
           ./bin/make bin/til
           sha256sum bin/til | cmp - tmp/til-tested.txt
           for target in linux-x64 linux-arm64 linux-arm32 linux-riscv64 linux-x86 linux-riscv32; do
-            ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a
+            ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a vendor/secp256k1/build-$target/lib/libsecp256k1.a
             ./bin/til run test/reproducible_build.til bin/til $target
           done
           mkdir -p tmp/hashes-binary
@@ -1809,7 +1809,7 @@ jobs:
           export PATH="$PWD/vendor/llvm/bin:$PWD/vendor/llvm-mingw/bin:$PATH"
           ./bin/make vendor/linux/linux-x64 vendor/linux/linux-arm64
           for target in linux-x64 linux-arm64; do
-            ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a
+            ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a vendor/secp256k1/build-$target/lib/libsecp256k1.a
           done
           mkdir -p tmp/hashes-binary-linux
           ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial windows-x64 tmp/hashes-binary-linux/windows-x64.txt bin/til.exe linux-x64 linux-arm64
@@ -2078,7 +2078,7 @@ jobs:
           clang --version | grep -q "clang version 23.1.5"
           ./bin/make vendor/linux/linux-x64 vendor/linux/linux-arm64
           for target in linux-x64 linux-arm64; do
-            ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a
+            ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a vendor/secp256k1/build-$target/lib/libsecp256k1.a
           done
           mkdir -p tmp/hashes-binary-linux
           ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary-linux/macos-arm64.txt bin/til linux-x64 linux-arm64
