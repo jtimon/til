@@ -1,0 +1,39 @@
+# priority: medium
+# category: features
+** OPEN #506 An ext_func/ext_proc binding whose til name is not its C symbol
+
+An ~ext_func~ / ~ext_proc~ binding's name IS the C symbol it calls: the
+builder emits a prototype under that name, the interpreter looks it up by
+that name (dlsym, or GetProcAddress over the loaded modules on Windows),
+and ~priv~ would mangle it, so a binding is always public and spelled as
+the C library spells it. ~ext_global~ already separates the two:
+
+#+begin_src til
+COUNT := ext_global(I64, "library_count")
+#+end_src
+
+The function bindings have no such form. Where a C library's name does
+not suit til, the til name has to follow it anyway. The case that showed
+this: Microsoft's C runtime spells its own functions with a leading
+underscore (~_putenv_s~, ~_setmode~, ~_fileno~), which til reserves for
+codegen temporaries and deliberately unused variables. CLAUDE.md's Naming
+rule now carries an exception for such bindings; with this feature the
+exception can go.
+
+*** To decide
+
+- The syntax. Not decided yet: what carries the symbol (an argument, as
+  ~ext_global~ does; a string after the signature; something else), and
+  whether it is allowed on ~priv~ bindings, which could then be private
+  to their file under any til name.
+- What the generated bindings (~gen/til/*.til~, Python, JNI) do with a
+  renamed function: which name each side shows.
+
+*** Not solved by this
+
+Binding ~_putenv_s~ directly on Windows also fails in C: mingw's
+stdlib.h declares it ~_CRTIMP~ (~__declspec(dllimport)~), til's own
+prototype for the binding has no such attribute, and clang stops on
+~-Winconsistent-dllimport~ under ~-Werror~. That holds whatever the til
+name is; it was found writing Windows twins of test/ext_libc.til and
+test/cstr_view.til (#483).
