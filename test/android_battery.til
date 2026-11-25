@@ -5,12 +5,16 @@ import("../src/std/android_jni")
 // Android's native logger is only the output channel for the smoke driver.
 __android_log_write := ext_proc(shallow priority: I32, tag: I8, text: I8) returns shallow I32 {}
 
+priv mut package_name := ""
+
 main := proc() {
     AndroidJni.with_frame(proc() {
-        activity := AndroidJni.activity()
-        package := AndroidJni.call_object(activity, "getPackageName", "()Ljava/lang/String;")
-        if AndroidJni.read_string(package) != "org.til.android_battery" { panic("unexpected Android package name") }
+        package := AndroidJni.call_object(AndroidJni.activity(), "getPackageName", "()Ljava/lang/String;")
+        package_name = AndroidJni.read_string(package)
+    })
+    if package_name != "org.til.android_battery" { panic("unexpected Android package name after JNI frame closed") }
 
+    AndroidJni.with_frame(proc() {
         // Java concat must preserve a NUL, a BMP character, and a supplementary character.
         // Pass a view so the bridge cannot rely on its end being NUL-terminated.
         text := "x\0\xc3\xa9\xf0\x9f\x98\x80Z"
@@ -21,7 +25,7 @@ main := proc() {
 
         battery := AndroidJni.find_class("android/os/BatteryManager")
         service := AndroidJni.new_string("batterymanager")
-        manager := AndroidJni.call_object(activity, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", service)
+        manager := AndroidJni.call_object(AndroidJni.activity(), "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", service)
         if manager.is_null() { panic("BatteryManager service not available") }
         property := AndroidJni.static_int(battery, "BATTERY_PROPERTY_CAPACITY")
         capacity := AndroidJni.call_int(manager, "getIntProperty", "(I)I", property)
