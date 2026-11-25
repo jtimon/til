@@ -186,7 +186,7 @@ jobs:
       # Issue #504: the six Linux targets from this host, listed by the job
       # that runs the suite: "make bin/til" for linux-x64 is the file
       # tested above (checked), and collect holds it to the arm64 hosts'
-      # cross builds. (Until run 3210 the windows-x64-build job, another
+      # cross builds. (Until run 3210 a job of its own on another
       # Linux x64 runner, wrote this list: the same hash from both.) The
       # 32-bit targets list no til: til is not a 32-bit program.
       - name: Write the linux binary hash lists with the pinned C library
@@ -205,6 +205,186 @@ jobs:
         with:
           name: hashes-binary-linux-x64
           path: tmp/hashes-binary/linux-x64.txt
+          if-no-files-found: error
+      # Issue #473: what this Linux host builds for the other platforms, in
+      # the job that runs its suite. The windows programs were built by a
+      # job of their own and run by another on a Windows runner; a file
+      # that every host builds to the same bytes, and that the Windows host
+      # tests itself, needs no second run (collect holds windows-x64 to
+      # that, strict). They are still built here: that a Linux host can
+      # build them is this job's to show. llvm-mingw goes last on PATH:
+      # this host's own programs keep the pinned LLVM's clang, and til
+      # finds the windows compiler by its prefixed name.
+      - name: The pinned llvm-mingw release
+        id: llvm-mingw
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
+          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          test -n "$layout"
+          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned llvm-mingw
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm-mingw
+          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      - name: The pinned llvm-mingw last on PATH
+        run: |
+          make llvm_mingw
+          echo "PATH=$PATH:$PWD/vendor/llvm-mingw/bin" >> "$GITHUB_ENV"
+      - name: Cross-compile for windows-x64 and windows-x86
+        run: |
+          ./bin/til build --target=windows-x64 -o bin/hello_script.exe examples/hello_script.til
+          file bin/hello_script.exe | grep -q "PE32+"
+          # windows-x86 (32-bit, mingw i686) -- issue #232
+          ./bin/til build --target=windows-x86 -o bin/hello_script-x86.exe examples/hello_script.til
+          file bin/hello_script-x86.exe | grep -q -E "Intel (80386|i386)"
+      # Issue #472 (L3a): the driver of the suite's reproducible_build row,
+      # for the two windows targets. mingw's ld wrote the link time into
+      # every PE; til now links them with --no-insert-timestamp. A program
+      # and a library, from two checkout roots and at two times, compared
+      # byte for byte.
+      - name: Build for windows-x64 and windows-x86 reproducibly
+        run: |
+          ./bin/til run test/reproducible_build.til bin/til windows-x64
+          ./bin/til run test/reproducible_build.til bin/til windows-x86
+      # Issue #472 (F1a): see the linux-arm64 job. Build only: the asserts
+      # are checked by the compiler, and this file is not in the artifact
+      # the windows runner executes.
+      - name: Build the layout corpus for windows-x64 and windows-x86
+        run: |
+          for width in 32 64; do
+            ./bin/til build --target=windows-x64 --usize=$width -o bin/layout_corpus.exe test/layout_corpus.til
+            ./bin/til build --target=windows-x86 --usize=$width -o bin/layout_corpus-x86.exe test/layout_corpus.til
+          done
+      # Issue #232: prove mode gui cross-links for BOTH windows arches. mingw
+      # ships the win32/win64 GL/GDI backend, so raylib/tinyfd cross-build
+      # from source with no X11 sysroot. Build-only (a raylib window cannot
+      # open on a headless runner) -- the file-format check is the proof, the
+      # same shape as the mac gui-cross job.
+      - name: Cross-compile a GUI example for windows-x64 and windows-x86
+        run: |
+          make vendor/raylib/build-windows-x64/libraylib.a vendor/tinyfiledialogs/build-windows-x64/libtinyfd.a
+          make vendor/raylib/build-windows-x86/libraylib.a vendor/tinyfiledialogs/build-windows-x86/libtinyfd.a
+          ./bin/til build --target=windows-x64 -o bin/hello_gui.exe examples/hello_gui.til
+          file bin/hello_gui.exe | grep -q "PE32+"
+          ./bin/til build --target=windows-x86 -o bin/hello_gui-x86.exe examples/hello_gui.til
+          file bin/hello_gui-x86.exe | grep -q -E "Intel (80386|i386)"
+          # The retained editor example covers a larger GUI app than the smoke
+          # example. Full editor development now lives in jtimon/tiled.
+          ./bin/til build --target=windows-x64 -o bin/editor.exe examples/editor.til
+          file bin/editor.exe | grep -q "PE32+"
+          ./bin/til build --target=windows-x86 -o bin/editor-x86.exe examples/editor.til
+          file bin/editor-x86.exe | grep -q -E "Intel (80386|i386)"
+      # Issue #235: std/crypto on windows. libsecp256k1 cross-builds from
+      # the vendored source for both arches (mingw is the whole toolchain
+      # change; no shims, unlike nng), and test/crypto.til -- the FIPS
+      # 180-4 SHA-256 and BIP-340 vectors through the std wrapper -- links
+      # against those archives and RUNS on the windows runner below.
+      - name: Cross-compile the std/crypto test for windows-x64 and windows-x86
+        run: |
+          make vendor/secp256k1/build-windows-x64/lib/libsecp256k1.a vendor/secp256k1/build-windows-x86/lib/libsecp256k1.a
+          ./bin/til build --target=windows-x64 -o bin/crypto.exe test/crypto.til
+          file bin/crypto.exe | grep -q "PE32+"
+          ./bin/til build --target=windows-x86 -o bin/crypto-x86.exe test/crypto.til
+          file bin/crypto-x86.exe | grep -q -E "Intel (80386|i386)"
+      # Issue #420: both mingw libffi archives, called directly by
+      # test/ffi_prep.til (the win64 one is otherwise only exercised through
+      # til.exe's interpreter, the win32 one not at all); the programs run
+      # on the windows runner below.
+      - name: Cross-compile the libffi test for windows-x64 and windows-x86
+        run: |
+          make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/libffi/build-windows-x86/.libs/libffi.a
+          ./bin/til build --target=windows-x64 -o bin/ffi_prep.exe test/ffi_prep.til
+          file bin/ffi_prep.exe | grep -q "PE32+"
+          ./bin/til build --target=windows-x86 -o bin/ffi_prep-x86.exe test/ffi_prep.til
+          file bin/ffi_prep-x86.exe | grep -q -E "Intel (80386|i386)"
+      # Issue #422: nng for both windows arches, from make.til's per-target
+      # table; test/nng_pair.til (a one-process round trip over inproc://)
+      # runs on the windows runner below.
+      - name: Cross-compile the nng test for windows-x64 and windows-x86
+        run: |
+          make vendor/nng/build-windows-x64/libnng.a vendor/nng/build-windows-x86/libnng.a
+          ./bin/til build --target=windows-x64 --extra-modes=examples/custom_modes.til -o bin/nng_pair.exe test/nng_pair.til
+          file bin/nng_pair.exe | grep -q "PE32+"
+          ./bin/til build --target=windows-x86 --extra-modes=examples/custom_modes.til -o bin/nng_pair-x86.exe test/nng_pair.til
+          file bin/nng_pair-x86.exe | grep -q -E "Intel (80386|i386)"
+      # Issue #472: this host's windows-x64 binary hash list, with the
+      # pinned llvm-mingw every windows step of this job uses (see the top
+      # of the job). Strict: see the linux-arm64-native job's step.
+      - name: Write the windows binary hash list with the pinned llvm-mingw
+        run: |
+          x86_64-w64-mingw32-gcc --version
+          x86_64-w64-mingw32-gcc --version | grep -q clang
+          # Run 3130: til.exe's code was the same from all three hosts, but
+          # every C object of libffi and nng differed between each pair of
+          # them. One small object in full, to read what differs from the
+          # three logs.
+          mkdir -p tmp/probe
+          (cd tmp/probe && x86_64-w64-mingw32-ar x ../../vendor/libffi/build-windows-x64/.libs/libffi.a types.o)
+          x86_64-w64-mingw32-objdump -h -t -s tmp/probe/types.o
+          # The windows-x86 archives, for the same list (on trial).
+          ./bin/make vendor/libffi/build-windows-x86/.libs/libffi.a vendor/nng/build-windows-x86/libnng.a
+          mkdir -p tmp/hashes-binary-windows
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-windows/linux-x64.txt bin/til windows-x64 windows-x86
+          # Run 3138: the two Linux hosts write the same til.exe and the
+          # Windows host another one, with the same vendored objects. til's
+          # lines by section, and the strings in the two debug sections that
+          # differ (run 3138: .debug_info and .debug_line), to read from the
+          # three logs what differs.
+          grep "src/til.til til" tmp/hashes-binary-windows/linux-x64.txt
+          x86_64-w64-mingw32-objcopy --dump-section .debug_line=tmp/probe/debug_line --dump-section .debug_info=tmp/probe/debug_info tmp/ci_collect/binary_windows-x64/til.exe tmp/probe/til_copy.exe
+          x86_64-w64-mingw32-strings -a tmp/probe/debug_line | grep -E '[/\\]|\.[ch]$' | sort -u | head -80
+          x86_64-w64-mingw32-strings -a tmp/probe/debug_info | grep -E '[/\\]|\.[ch]$' | sort -u | head -20
+          # windows-x86 (on trial): the Windows host's hello_script differed
+          # from the other four in .debug_info and .debug_line alone (CI run
+          # 3210). Their strings, to read from two logs what differs.
+          i686-w64-mingw32-objcopy --dump-section .debug_line=tmp/probe/x86_line --dump-section .debug_info=tmp/probe/x86_info tmp/ci_collect/binary_windows-x86/hello_script.exe tmp/probe/hello_x86_copy.exe
+          i686-w64-mingw32-strings -a tmp/probe/x86_line | grep -E '[/\\]|\.[ch]$' | sort -u | head -80
+          i686-w64-mingw32-strings -a tmp/probe/x86_info | grep -E '[/\\]|\.[ch]$' | sort -u | head -20
+      - name: Upload the windows binary hash list
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-windows-linux-x64
+          path: tmp/hashes-binary-windows/linux-x64.txt
+      # Issue #472: the mac targets with the one compiler every host uses
+      # for them, LLVM's own release (clang, lld, dsymutil, the llvm tools)
+      # at one pinned version, published for Linux x64 and arm64 and macOS
+      # arm64 hosts. `make llvm` downloads it, checks its sha256 and unpacks
+      # only the tools til and bin/make run; they go first on PATH. Headers and libSystem are vendor/macos, as
+      # before. Mac equality remains on trial; Android producer failures are
+      # blocking after run 3167. The mac binaries the Macs RUN are built by
+      # macos-cross-build with Ubuntu's clang.
+      # The pinned LLVM (make.til LLVM_RELEASE), unpacked by `make llvm` into
+      # vendor/llvm, kept between runs: one cache entry per release and
+      # runner kind.
+      - name: Write the mac and Android binary hash lists with the pinned LLVM
+        run: |
+          make llvm
+          export PATH="$PWD/vendor/llvm/bin:$PATH"
+          clang --version
+          clang --version | grep -q "clang version 23.1.5"
+          ld64.lld --version
+          rm -rf vendor/libffi/build-macos-arm64 vendor/libffi/build-macos-x64 vendor/nng/build-macos-arm64 vendor/nng/build-macos-x64
+          make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
+          make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
+          # SDK-capable x64 producer: local checks compare signed APKs with
+          # one debug key; the collector hashes the aligned unsigned payload.
+          export TMPDIR="$PWD/tmp"
+          export JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=$PWD/tmp"
+          test -d "$ANDROID_HOME"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-37.0" "build-tools;36.0.0"
+          make vendor/raylib/build-android-x64/libraylib.a vendor/raylib/build-android-arm64/libraylib.a
+          ./bin/til run test/reproducible_build.til bin/til android-x64
+          ./bin/til run test/reproducible_build.til bin/til android-arm64
+          mkdir -p tmp/hashes-binary-mac
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-mac/linux-x64.txt bin/til macos-arm64 macos-x64 android-x64 android-arm64
+      - name: Upload the mac binary hash lists
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashes-binary-mac-linux-x64
+          path: tmp/hashes-binary-mac/linux-x64.txt
           if-no-files-found: error
 
   android-runtime:
@@ -1246,295 +1426,6 @@ jobs:
           name: hashes-binary-wasm-linux-x64
           path: tmp/hashes-binary-wasm/linux-x64.txt
 
-  windows-x64-build:
-    needs: doc-gate
-    if: needs.doc-gate.outputs.code == 'true'
-    name: windows-x64/x86 (cross-compile on linux)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 libgl1 xvfb libgl1-mesa-dri cmake
-      - name: Create test tmp directory
-        run: mkdir -p tmp
-      # Issue #483: the pinned llvm-mingw (make.til LLVM_MINGW_RELEASE and
-      # _LAYOUT) builds everything for the windows targets, on every host:
-      # its bin goes first on PATH before anything is built. It carries the
-      # x86_64-w64-mingw32-gcc, -ar, -windres and -dlltool names til and
-      # bin/make run, as clang and the llvm tools. `make llvm_mingw` unpacks
-      # it into vendor/llvm-mingw, kept between runs: one cache entry per
-      # release and runner kind.
-      - name: The pinned llvm-mingw release
-        id: llvm-mingw
-        shell: bash
-        run: |
-          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
-          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
-          test -n "$release"
-          test -n "$layout"
-          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
-      - name: Cache the pinned llvm-mingw
-        uses: actions/cache@v4
-        with:
-          path: vendor/llvm-mingw
-          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
-      - name: The pinned llvm-mingw first on PATH
-        run: |
-          make llvm_mingw
-          echo "$PWD/vendor/llvm-mingw/bin" >> "$GITHUB_PATH"
-      - name: Record the C toolchain
-        run: |
-          for tool in gcc x86_64-w64-mingw32-gcc i686-w64-mingw32-gcc x86_64-w64-mingw32-ld; do
-            if command -v "$tool" >/dev/null 2>&1; then
-              echo "$tool: $("$tool" --version 2>&1 | head -1)"
-            else
-              echo "$tool: not installed"
-            fi
-          done
-      - name: Build bin/til (native)
-        run: make
-      - name: Cross-compile for windows-x64 and windows-x86
-        run: |
-          ./bin/til build --target=windows-x64 -o bin/hello_script.exe examples/hello_script.til
-          file bin/hello_script.exe | grep -q "PE32+"
-          # windows-x86 (32-bit, mingw i686) -- issue #232
-          ./bin/til build --target=windows-x86 -o bin/hello_script-x86.exe examples/hello_script.til
-          file bin/hello_script-x86.exe | grep -q -E "Intel (80386|i386)"
-      # Issue #472 (L3a): the driver of the suite's reproducible_build row,
-      # for the two windows targets. mingw's ld wrote the link time into
-      # every PE; til now links them with --no-insert-timestamp. A program
-      # and a library, from two checkout roots and at two times, compared
-      # byte for byte.
-      - name: Build for windows-x64 and windows-x86 reproducibly
-        run: |
-          ./bin/til run test/reproducible_build.til bin/til windows-x64
-          ./bin/til run test/reproducible_build.til bin/til windows-x86
-      # Issue #472 (F1a): see the linux-arm64 job. Build only: the asserts
-      # are checked by the compiler, and this file is not in the artifact
-      # the windows runner executes.
-      - name: Build the layout corpus for windows-x64 and windows-x86
-        run: |
-          for width in 32 64; do
-            ./bin/til build --target=windows-x64 --usize=$width -o bin/layout_corpus.exe test/layout_corpus.til
-            ./bin/til build --target=windows-x86 --usize=$width -o bin/layout_corpus-x86.exe test/layout_corpus.til
-          done
-      # Issue #232: prove mode gui cross-links for BOTH windows arches. mingw
-      # ships the win32/win64 GL/GDI backend, so raylib/tinyfd cross-build
-      # from source with no X11 sysroot. Build-only (a raylib window cannot
-      # open on a headless runner) -- the file-format check is the proof, the
-      # same shape as the mac gui-cross job.
-      - name: Cross-compile a GUI example for windows-x64 and windows-x86
-        run: |
-          make vendor/raylib/build-windows-x64/libraylib.a vendor/tinyfiledialogs/build-windows-x64/libtinyfd.a
-          make vendor/raylib/build-windows-x86/libraylib.a vendor/tinyfiledialogs/build-windows-x86/libtinyfd.a
-          ./bin/til build --target=windows-x64 -o bin/hello_gui.exe examples/hello_gui.til
-          file bin/hello_gui.exe | grep -q "PE32+"
-          ./bin/til build --target=windows-x86 -o bin/hello_gui-x86.exe examples/hello_gui.til
-          file bin/hello_gui-x86.exe | grep -q -E "Intel (80386|i386)"
-          # The retained editor example covers a larger GUI app than the smoke
-          # example. Full editor development now lives in jtimon/tiled.
-          ./bin/til build --target=windows-x64 -o bin/editor.exe examples/editor.til
-          file bin/editor.exe | grep -q "PE32+"
-          ./bin/til build --target=windows-x86 -o bin/editor-x86.exe examples/editor.til
-          file bin/editor-x86.exe | grep -q -E "Intel (80386|i386)"
-      # Issue #235: std/crypto on windows. libsecp256k1 cross-builds from
-      # the vendored source for both arches (mingw is the whole toolchain
-      # change; no shims, unlike nng), and test/crypto.til -- the FIPS
-      # 180-4 SHA-256 and BIP-340 vectors through the std wrapper -- links
-      # against those archives and RUNS on the windows runner below.
-      - name: Cross-compile the std/crypto test for windows-x64 and windows-x86
-        run: |
-          make vendor/secp256k1/build-windows-x64/lib/libsecp256k1.a vendor/secp256k1/build-windows-x86/lib/libsecp256k1.a
-          ./bin/til build --target=windows-x64 -o bin/crypto.exe test/crypto.til
-          file bin/crypto.exe | grep -q "PE32+"
-          ./bin/til build --target=windows-x86 -o bin/crypto-x86.exe test/crypto.til
-          file bin/crypto-x86.exe | grep -q -E "Intel (80386|i386)"
-      # Issue #420: both mingw libffi archives, called directly by
-      # test/ffi_prep.til (the win64 one is otherwise only exercised through
-      # til.exe's interpreter, the win32 one not at all); the programs run
-      # on the windows runner below.
-      - name: Cross-compile the libffi test for windows-x64 and windows-x86
-        run: |
-          make vendor/libffi/build-windows-x64/.libs/libffi.a vendor/libffi/build-windows-x86/.libs/libffi.a
-          ./bin/til build --target=windows-x64 -o bin/ffi_prep.exe test/ffi_prep.til
-          file bin/ffi_prep.exe | grep -q "PE32+"
-          ./bin/til build --target=windows-x86 -o bin/ffi_prep-x86.exe test/ffi_prep.til
-          file bin/ffi_prep-x86.exe | grep -q -E "Intel (80386|i386)"
-      # Issue #422: nng for both windows arches, from make.til's per-target
-      # table; test/nng_pair.til (a one-process round trip over inproc://)
-      # runs on the windows runner below.
-      - name: Cross-compile the nng test for windows-x64 and windows-x86
-        run: |
-          make vendor/nng/build-windows-x64/libnng.a vendor/nng/build-windows-x86/libnng.a
-          ./bin/til build --target=windows-x64 --extra-modes=examples/custom_modes.til -o bin/nng_pair.exe test/nng_pair.til
-          file bin/nng_pair.exe | grep -q "PE32+"
-          ./bin/til build --target=windows-x86 --extra-modes=examples/custom_modes.til -o bin/nng_pair-x86.exe test/nng_pair.til
-          file bin/nng_pair-x86.exe | grep -q -E "Intel (80386|i386)"
-      # Issue #473 (C1): every file of the upload below, by name. The upload
-      # action accepts a list with a member missing, and the runner would
-      # then test a partial set. Keep this list and the upload's the same.
-      - name: Check the .exe artifact is complete
-        run: |
-          status=0
-          for f in hello_script crypto ffi_prep nng_pair; do
-            for e in "$f.exe" "$f-x86.exe"; do
-              if [ ! -f "bin/$e" ] || [ ! -s "bin/$e" ]; then
-                echo "missing or empty: bin/$e"; status=1
-              fi
-            done
-          done
-          exit $status
-      - name: Upload .exe artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: hello_script-windows
-          if-no-files-found: error
-          path: |
-            bin/hello_script.exe
-            bin/hello_script-x86.exe
-            bin/crypto.exe
-            bin/crypto-x86.exe
-            bin/ffi_prep.exe
-            bin/ffi_prep-x86.exe
-            bin/nng_pair.exe
-            bin/nng_pair-x86.exe
-      # Issue #472: this host's windows-x64 binary hash list, with the
-      # pinned llvm-mingw every windows step of this job uses (see the top
-      # of the job). Strict: see the linux-arm64-native job's step.
-      - name: Write the windows binary hash list with the pinned llvm-mingw
-        run: |
-          x86_64-w64-mingw32-gcc --version
-          x86_64-w64-mingw32-gcc --version | grep -q clang
-          # Run 3130: til.exe's code was the same from all three hosts, but
-          # every C object of libffi and nng differed between each pair of
-          # them. One small object in full, to read what differs from the
-          # three logs.
-          mkdir -p tmp/probe
-          (cd tmp/probe && x86_64-w64-mingw32-ar x ../../vendor/libffi/build-windows-x64/.libs/libffi.a types.o)
-          x86_64-w64-mingw32-objdump -h -t -s tmp/probe/types.o
-          # The windows-x86 archives, for the same list (on trial).
-          ./bin/make vendor/libffi/build-windows-x86/.libs/libffi.a vendor/nng/build-windows-x86/libnng.a
-          mkdir -p tmp/hashes-binary-windows
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-windows/linux-x64.txt bin/til windows-x64 windows-x86
-          # Run 3138: the two Linux hosts write the same til.exe and the
-          # Windows host another one, with the same vendored objects. til's
-          # lines by section, and the strings in the two debug sections that
-          # differ (run 3138: .debug_info and .debug_line), to read from the
-          # three logs what differs.
-          grep "src/til.til til" tmp/hashes-binary-windows/linux-x64.txt
-          x86_64-w64-mingw32-objcopy --dump-section .debug_line=tmp/probe/debug_line --dump-section .debug_info=tmp/probe/debug_info tmp/ci_collect/binary_windows-x64/til.exe tmp/probe/til_copy.exe
-          x86_64-w64-mingw32-strings -a tmp/probe/debug_line | grep -E '[/\\]|\.[ch]$' | sort -u | head -80
-          x86_64-w64-mingw32-strings -a tmp/probe/debug_info | grep -E '[/\\]|\.[ch]$' | sort -u | head -20
-          # windows-x86 (on trial): the Windows host's hello_script differed
-          # from the other four in .debug_info and .debug_line alone (CI run
-          # 3210). Their strings, to read from two logs what differs.
-          i686-w64-mingw32-objcopy --dump-section .debug_line=tmp/probe/x86_line --dump-section .debug_info=tmp/probe/x86_info tmp/ci_collect/binary_windows-x86/hello_script.exe tmp/probe/hello_x86_copy.exe
-          i686-w64-mingw32-strings -a tmp/probe/x86_line | grep -E '[/\\]|\.[ch]$' | sort -u | head -80
-          i686-w64-mingw32-strings -a tmp/probe/x86_info | grep -E '[/\\]|\.[ch]$' | sort -u | head -20
-      - name: Upload the windows binary hash list
-        uses: actions/upload-artifact@v4
-        with:
-          name: hashes-binary-windows-linux-x64
-          path: tmp/hashes-binary-windows/linux-x64.txt
-      # Issue #472: the mac targets with the one compiler every host uses
-      # for them, LLVM's own release (clang, lld, dsymutil, the llvm tools)
-      # at one pinned version, published for Linux x64 and arm64 and macOS
-      # arm64 hosts. `make llvm` downloads it, checks its sha256 and unpacks
-      # only the tools til and bin/make run; they go first on PATH. Headers and libSystem are vendor/macos, as
-      # before. Mac equality remains on trial; Android producer failures are
-      # blocking after run 3167. The mac binaries the Macs RUN are built by
-      # macos-cross-build with Ubuntu's clang.
-      # The pinned LLVM (make.til LLVM_RELEASE), unpacked by `make llvm` into
-      # vendor/llvm, kept between runs: one cache entry per release and
-      # runner kind.
-      - name: The pinned LLVM release
-        id: llvm
-        shell: bash
-        run: |
-          release=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
-          test -n "$release"
-          echo "release=$release" >> "$GITHUB_OUTPUT"
-      - name: Cache the pinned LLVM
-        uses: actions/cache@v4
-        with:
-          path: vendor/llvm
-          key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
-      - name: Write the mac and Android binary hash lists with the pinned LLVM
-        run: |
-          make llvm
-          export PATH="$PWD/vendor/llvm/bin:$PATH"
-          clang --version
-          clang --version | grep -q "clang version 23.1.5"
-          ld64.lld --version
-          rm -rf vendor/libffi/build-macos-arm64 vendor/libffi/build-macos-x64 vendor/nng/build-macos-arm64 vendor/nng/build-macos-x64
-          make vendor/libffi/build-macos-arm64/.libs/libffi.a vendor/libffi/build-macos-x64/.libs/libffi.a
-          make vendor/nng/build-macos-arm64/libnng.a vendor/nng/build-macos-x64/libnng.a
-          # SDK-capable x64 producer: local checks compare signed APKs with
-          # one debug key; the collector hashes the aligned unsigned payload.
-          export TMPDIR="$PWD/tmp"
-          export JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=$PWD/tmp"
-          test -d "$ANDROID_HOME"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-37.0" "build-tools;36.0.0"
-          make vendor/raylib/build-android-x64/libraylib.a vendor/raylib/build-android-arm64/libraylib.a
-          ./bin/til run test/reproducible_build.til bin/til android-x64
-          ./bin/til run test/reproducible_build.til bin/til android-arm64
-          mkdir -p tmp/hashes-binary-mac
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary linux-x64 tmp/hashes-binary-mac/linux-x64.txt bin/til macos-arm64 macos-x64 android-x64 android-arm64
-      - name: Upload the mac binary hash lists
-        uses: actions/upload-artifact@v4
-        with:
-          name: hashes-binary-mac-linux-x64
-          path: tmp/hashes-binary-mac/linux-x64.txt
-          if-no-files-found: error
-
-  windows-x64-run:
-    name: windows-x64/x86 (run .exe on windows)
-    needs: windows-x64-build
-    runs-on: windows-latest
-    steps:
-      - name: Download .exe artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: hello_script-windows
-      # Issue #473 (C1): the eight files windows-x64-build uploads, before
-      # any of them runs.
-      - name: Check the downloaded .exe artifact is complete
-        shell: bash
-        run: |
-          status=0
-          for f in hello_script crypto ffi_prep nng_pair; do
-            for e in "$f.exe" "$f-x86.exe"; do
-              if [ ! -f "$e" ] || [ ! -s "$e" ]; then
-                echo "missing or empty: $e"; status=1
-              fi
-            done
-          done
-          exit $status
-      - name: Run .exe (x64 + x86 via WOW64)
-        shell: bash
-        run: |
-          ./hello_script.exe
-          ./hello_script.exe | grep -q "Hello World"
-          ./hello_script-x86.exe
-          ./hello_script-x86.exe | grep -q "Hello World"
-      # Issue #235: a failing vector panics and exits nonzero, which fails
-      # the step; the pass lines are in the log for reading.
-      - name: Run the std/crypto test (x64 + x86 via WOW64)
-        shell: bash
-        run: |
-          ./crypto.exe
-          ./crypto-x86.exe
-      - name: Run the libffi test (x64 + x86 via WOW64)
-        shell: bash
-        run: |
-          ./ffi_prep.exe | grep -q "ffi_prep ok"
-          ./ffi_prep-x86.exe | grep -q "ffi_prep ok"
-      - name: Run the nng test (x64 + x86 via WOW64)
-        shell: bash
-        run: |
-          ./nng_pair.exe | grep -q "nng pair ok"
-          ./nng_pair-x86.exe | grep -q "nng pair ok"
-
   # Issue #25: til itself running on a windows HOST. bin/til.exe is the
   # compiler cross-built for windows (build_win_host) on linux, then run
   # on a real windows runner: `til.exe interpret` and `til.exe translate`
@@ -1562,7 +1453,7 @@ jobs:
     if: needs.doc-gate.outputs.code == 'true'
     name: windows-x64 native (make, make install)
     runs-on: windows-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     env:
       MSYSTEM: UCRT64
       CHERE_INVOKING: 1
@@ -1692,7 +1583,7 @@ jobs:
       # Issue #472: this host's own windows-x64 build -- til.exe, two
       # programs, a library, the vendored archives -- with the pinned
       # llvm-mingw, the third producer beside the two Linux hosts' cross
-      # builds (see the windows-x64-build job), which it has to equal.
+      # builds (see the linux-x64 job), which it has to equal.
       # bin/til.exe only drives the build: what it builds must not depend
       # on what built it. Strict since CI runs 3159 to 3166 showed this
       # host's files equal to theirs, its tested bin/til.exe included.
@@ -1734,119 +1625,22 @@ jobs:
         with:
           name: hashes-binary-windows-windows-x64
           path: tmp/hashes-binary-windows/windows-x64.txt
-
-  # The full suite under ASAN on Windows, as the Linux native jobs run it
-  # (make test_asan). llvm-mingw's clang has AddressSanitizer for mingw: an
-  # --asan program imports libclang_rt.asan_dynamic-x86_64.dll, which the
-  # package keeps in x86_64-w64-mingw32/bin, so that goes on PATH too. No
-  # LeakSanitizer on Windows (as on the Macs): memory errors, not leaks.
-  # A job of its own, so that the native job's lists do not wait for it.
-  windows-x64-asan:
-    needs: doc-gate
-    if: needs.doc-gate.outputs.code == 'true'
-    name: windows-x64 native (make test_asan)
-    runs-on: windows-latest
-    timeout-minutes: 240
-    env:
-      MSYSTEM: UCRT64
-      CHERE_INVOKING: 1
-      MSYS2_PATH_TYPE: inherit
-      GALLIUM_DRIVER: llvmpipe
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install make, cmake and the bootstrap gcc into MSYS2
-        shell: cmd
-        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed make mingw-w64-ucrt-x86_64-make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake && uname -s && gcc --version"
-      - name: The pinned llvm-mingw release
-        id: llvm-mingw
+      # Issue #473: this host as a builder of the other platforms, in the job
+      # that runs its suite (a job of its own while it was on trial). The
+      # mac targets with the pinned LLVM, strict since CI run 3198; the
+      # linux targets against the pinned C library (#504), on trial.
+      - name: The pinned LLVM release
+        id: llvm
         shell: bash
         run: |
-          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
-          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
+          release=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
           test -n "$release"
-          test -n "$layout"
-          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
-      - name: Cache the pinned llvm-mingw
-        id: llvm-mingw-cache
-        uses: actions/cache@v4
-        with:
-          path: vendor/llvm-mingw
-          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
-      - name: Download the pinned llvm-mingw with a bootstrap bin/make
-        if: steps.llvm-mingw-cache.outputs.cache-hit != 'true'
-        shell: cmd
-        run: C:\msys64\usr\bin\bash.exe -lc "make llvm_mingw && rm -rf bin tmp/boot vendor/libffi/build-windows-x64"
-      - name: make
-        shell: cmd
-        run: C:\msys64\usr\bin\bash.exe -lc "export PATH=$PWD/vendor/llvm-mingw/bin:$PATH && make"
-      # As in windows-x64-native: the GUI tests draw with MSYS2's Mesa.
-      - name: Software OpenGL for the GUI tests (Mesa)
-        shell: cmd
-        run: |
-          C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-mesa"
-          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v DLL /t REG_SZ /d C:\msys64\ucrt64\bin\libgallium_wgl.dll /f
-          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v DriverVersion /t REG_DWORD /d 1 /f
-          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v Flags /t REG_DWORD /d 1 /f
-          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v Version /t REG_DWORD /d 2 /f
-      - name: make test_asan
-        shell: cmd
-        timeout-minutes: 200
-        run: C:\msys64\usr\bin\bash.exe -lc "export PATH=$PWD/vendor/llvm-mingw/bin:$PWD/vendor/llvm-mingw/x86_64-w64-mingw32/bin:$PATH && export JAVA_HOME=$JAVA_HOME_17_X64 && make test_asan"
-
-  # Issue #472: the two mac targets from the Windows host, the fifth host
-  # that builds them. The pinned LLVM's Windows build (bin/make llvm)
-  # first on PATH, as on the Linux hosts and the arm64 Mac; llvm-mingw
-  # stays this host's own compiler by its own names. A job of its own, so
-  # that it neither waits for the suite nor stops with it. One step per
-  # stage, each run whatever the one before did, to read every failing
-  # stage from one round. Strict since CI run 3198, where this host wrote
-  # the other hosts' til for both targets at both widths: a difference
-  # fails collect, and so does this job failing.
-  windows-x64-mac:
-    needs: doc-gate
-    if: needs.doc-gate.outputs.code == 'true'
-    name: windows-x64 (mac targets with the pinned LLVM)
-    runs-on: windows-latest
-    timeout-minutes: 90
-    env:
-      MSYSTEM: UCRT64
-      CHERE_INVOKING: 1
-      MSYS2_PATH_TYPE: inherit
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install make, cmake and the bootstrap gcc into MSYS2
-        shell: cmd
-        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed make mingw-w64-ucrt-x86_64-make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake && uname -s && gcc --version"
-      - name: The pinned llvm-mingw and LLVM releases
-        id: pinned
-        shell: bash
-        run: |
-          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
-          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
-          llvm=$(sed -n 's/^LLVM_RELEASE := "\(.*\)"$/\1/p' make.til)
-          test -n "$release"
-          test -n "$layout"
-          test -n "$llvm"
-          echo "llvm-mingw=$release-$layout" >> "$GITHUB_OUTPUT"
-          echo "llvm=$llvm" >> "$GITHUB_OUTPUT"
-      - name: Cache the pinned llvm-mingw
-        id: llvm-mingw-cache
-        uses: actions/cache@v4
-        with:
-          path: vendor/llvm-mingw
-          key: llvm-mingw-${{ steps.pinned.outputs.llvm-mingw }}-${{ runner.os }}-${{ runner.arch }}
+          echo "release=$release" >> "$GITHUB_OUTPUT"
       - name: Cache the pinned LLVM
         uses: actions/cache@v4
         with:
           path: vendor/llvm
-          key: llvm-${{ steps.pinned.outputs.llvm }}-${{ runner.os }}-${{ runner.arch }}
-      - name: Download the pinned llvm-mingw with a bootstrap bin/make
-        if: steps.llvm-mingw-cache.outputs.cache-hit != 'true'
-        shell: cmd
-        run: C:\msys64\usr\bin\bash.exe -lc "make llvm_mingw && rm -rf bin tmp/boot vendor/libffi/build-windows-x64"
-      - name: make
-        shell: cmd
-        run: C:\msys64\usr\bin\bash.exe -lc "export PATH=$PWD/vendor/llvm-mingw/bin:$PATH && gcc --version && make"
+          key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
       - name: The pinned LLVM
         shell: C:\msys64\usr\bin\bash.exe -leo pipefail {0}
         run: |
@@ -1915,9 +1709,11 @@ jobs:
           name: hashes-binary-mac-x64-windows-x64
           path: tmp/hashes-binary-mac-x64/windows-x64.txt
           if-no-files-found: error
-      # Issue #504: linux-x64 and linux-arm64 from the Windows host. A
-      # first try, on trial and continue-on-error: the trees hold symbolic
-      # links, which Windows' tar has to be able to make.
+      # Issue #504: linux-x64 and linux-arm64 from the Windows host, with
+      # the trees unpacked by Windows' own tar. Listed strict since CI run
+      # 3211: both lists were the Linux hosts' and the arm64 Mac's, every
+      # item. The step itself may still fail without failing the job until
+      # a run has shown libsecp256k1 for these targets building here.
       - name: Write the linux binary hash list with the pinned C library
         if: always()
         continue-on-error: true
@@ -1929,12 +1725,7 @@ jobs:
             ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a vendor/secp256k1/build-$target/lib/libsecp256k1.a
           done
           mkdir -p tmp/hashes-binary-linux
-          ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial windows-x64 tmp/hashes-binary-linux/windows-x64.txt bin/til.exe linux-x64 linux-arm64
-          # Run 3210: everything this host builds for the two targets is
-          # the Linux hosts' but the library's .so. Its strings that name
-          # a path or a library, to read which differs.
-          sha256sum tmp/ci_collect/binary_linux-x64/libci_binary_lib.so
-          grep -a -o '[ -~]\{4,\}' tmp/ci_collect/binary_linux-x64/libci_binary_lib.so | grep -i 'ORIGIN\|\.so\|lib\|[/\\]' | sort -u | head -80 || true
+          ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary windows-x64 tmp/hashes-binary-linux/windows-x64.txt bin/til.exe linux-x64 linux-arm64
       - name: Upload the linux binary hash list
         if: always()
         continue-on-error: true
@@ -1942,6 +1733,83 @@ jobs:
         with:
           name: hashes-binary-linux-windows-x64
           path: tmp/hashes-binary-linux/windows-x64.txt
+      # Issue #473: windows-x86 has no host of its own; this one runs its
+      # programs (WOW64). They were cross-built on Linux and run here by a
+      # second job; this host builds windows-x86 itself, so it builds and
+      # runs them in one place. The x64 ones need no such step: the suite
+      # above is this host's.
+      - name: Build and run the windows-x86 programs
+        shell: C:\msys64\usr\bin\bash.exe -leo pipefail {0}
+        run: |
+          export PATH="$PWD/vendor/llvm-mingw/bin:$PATH"
+          ./bin/make vendor/libffi/build-windows-x86/.libs/libffi.a vendor/nng/build-windows-x86/libnng.a vendor/secp256k1/build-windows-x86/lib/libsecp256k1.a
+          mkdir -p tmp/x86
+          ./bin/til.exe build --target=windows-x86 -o tmp/x86/hello_script.exe examples/hello_script.til
+          ./bin/til.exe build --target=windows-x86 -o tmp/x86/crypto.exe test/crypto.til
+          ./bin/til.exe build --target=windows-x86 -o tmp/x86/ffi_prep.exe test/ffi_prep.til
+          ./bin/til.exe build --target=windows-x86 --extra-modes=examples/custom_modes.til -o tmp/x86/nng_pair.exe test/nng_pair.til
+          ./tmp/x86/hello_script.exe | grep -q "Hello World"
+          ./tmp/x86/crypto.exe
+          ./tmp/x86/ffi_prep.exe | grep -q "ffi_prep ok"
+          ./tmp/x86/nng_pair.exe | grep -q "nng pair ok"
+
+  # The full suite under ASAN on Windows, as the Linux native jobs run it
+  # (make test_asan). llvm-mingw's clang has AddressSanitizer for mingw: an
+  # --asan program imports libclang_rt.asan_dynamic-x86_64.dll, which the
+  # package keeps in x86_64-w64-mingw32/bin, so that goes on PATH too. No
+  # LeakSanitizer on Windows (as on the Macs): memory errors, not leaks.
+  # A job of its own, so that the native job's lists do not wait for it.
+  windows-x64-asan:
+    needs: doc-gate
+    if: needs.doc-gate.outputs.code == 'true'
+    name: windows-x64 native (make test_asan)
+    runs-on: windows-latest
+    timeout-minutes: 240
+    env:
+      MSYSTEM: UCRT64
+      CHERE_INVOKING: 1
+      MSYS2_PATH_TYPE: inherit
+      GALLIUM_DRIVER: llvmpipe
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install make, cmake and the bootstrap gcc into MSYS2
+        shell: cmd
+        run: C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed make mingw-w64-ucrt-x86_64-make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake && uname -s && gcc --version"
+      - name: The pinned llvm-mingw release
+        id: llvm-mingw
+        shell: bash
+        run: |
+          release=$(sed -n 's/^LLVM_MINGW_RELEASE := "\(.*\)"$/\1/p' make.til)
+          layout=$(sed -n 's/^LLVM_MINGW_LAYOUT := "\(.*\)"$/\1/p' make.til)
+          test -n "$release"
+          test -n "$layout"
+          echo "release=$release-$layout" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned llvm-mingw
+        id: llvm-mingw-cache
+        uses: actions/cache@v4
+        with:
+          path: vendor/llvm-mingw
+          key: llvm-mingw-${{ steps.llvm-mingw.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Download the pinned llvm-mingw with a bootstrap bin/make
+        if: steps.llvm-mingw-cache.outputs.cache-hit != 'true'
+        shell: cmd
+        run: C:\msys64\usr\bin\bash.exe -lc "make llvm_mingw && rm -rf bin tmp/boot vendor/libffi/build-windows-x64"
+      - name: make
+        shell: cmd
+        run: C:\msys64\usr\bin\bash.exe -lc "export PATH=$PWD/vendor/llvm-mingw/bin:$PATH && make"
+      # As in windows-x64-native: the GUI tests draw with MSYS2's Mesa.
+      - name: Software OpenGL for the GUI tests (Mesa)
+        shell: cmd
+        run: |
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-mesa"
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v DLL /t REG_SZ /d C:\msys64\ucrt64\bin\libgallium_wgl.dll /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v DriverVersion /t REG_DWORD /d 1 /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v Flags /t REG_DWORD /d 1 /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\MSOGL" /v Version /t REG_DWORD /d 2 /f
+      - name: make test_asan
+        shell: cmd
+        timeout-minutes: 200
+        run: C:\msys64\usr\bin\bash.exe -lc "export PATH=$PWD/vendor/llvm-mingw/bin:$PWD/vendor/llvm-mingw/x86_64-w64-mingw32/bin:$PATH && export JAVA_HOME=$JAVA_HOME_17_X64 && make test_asan"
 
   # Issue #25 phase 1: native macOS. No continue-on-error anywhere: a
   # failed job fails the run, honestly red until the remaining darwin
@@ -2098,7 +1966,7 @@ jobs:
           if-no-files-found: error
       # Issue #472: this Mac's own build of its target with the pinned LLVM
       # release the Linux hosts use for the mac targets (see the
-      # windows-x64-build job). With that clang first on PATH til builds the
+      # linux-x64 job). With that clang first on PATH til builds the
       # mac targets here as it does everywhere else -- vendor/macos, lld,
       # named objects -- not with Apple's SDK and linker (targets.til,
       # macos_is_cross), and bin/make builds this host's own libffi and nng
@@ -2701,7 +2569,7 @@ jobs:
   # arrived, and it failed saying so.
   collect:
     name: collect (compare the producers' hash lists)
-    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-native, windows-x64-build, macos-arm64, macos-x64, macos-cross-build, windows-x64-mac]
+    needs: [doc-gate, linux-x64, linux-arm64-native, windows-x64-native, macos-arm64, macos-x64, macos-cross-build]
     if: always() && needs.doc-gate.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -2714,13 +2582,12 @@ jobs:
           MACOS_ARM64: ${{ needs.macos-arm64.result }}
           MACOS_X64: ${{ needs.macos-x64.result }}
           MACOS_CROSS: ${{ needs.macos-cross-build.result }}
-          WINDOWS_X64_MAC: ${{ needs.windows-x64-mac.result }}
         run: |
           status=0
           for pair in "linux-x64=$LINUX_X64" "linux-arm64-native=$LINUX_ARM64" \
             "windows-x64-native=$WINDOWS_X64_NATIVE" \
             "macos-arm64=$MACOS_ARM64" "macos-x64=$MACOS_X64" \
-            "macos-cross-build=$MACOS_CROSS" "windows-x64-mac=$WINDOWS_X64_MAC"; do
+            "macos-cross-build=$MACOS_CROSS"; do
             echo "$pair"
             if [ "${pair#*=}" != success ]; then status=1; fi
           done

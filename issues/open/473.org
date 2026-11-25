@@ -1110,3 +1110,27 @@ C library (#504), strict since CI run 3210, so the Linux program it
 built with a cross gcc to be run by a job of its own is no longer
 built, and that job is removed. Third-level jobs left:
 ~windows-x64-run~ (the Windows session's).
+
+*** One Windows job fewer than three; no second level but collect (Jorge, 2026-11-25)
+
+Jorge: every host builds the windows programs and uploads their hashes,
+so why cross-build them in a job of their own and run them again in
+another; and the Windows job that runs the suite can build the mac and
+linux targets itself.
+
+- ~windows-x64-build~ (a Linux x64 runner cross-building .exe files and
+  uploading them) and ~windows-x64-run~ (a Windows runner running them,
+  the last second-level job beside collect) are removed. The Linux
+  side's builds and its windows and mac lists are steps of ~linux-x64~
+  now, after its suite. The x64 programs are not run again: collect
+  holds them to what the Windows host builds and tests. windows-x86,
+  which has no host, is built and run (WOW64) by a step of
+  ~windows-x64-native~.
+- ~windows-x64-mac~ (the Windows host building the mac and linux
+  targets) is steps of ~windows-x64-native~ too.
+
+Levels now: producers, then collect. Windows jobs left: the native one
+and ~windows-x64-asan~, the Windows session's second suite (#483).
+Still of the old shape, on the mac side: ~macos-cross-build~ and
+~macos-gui-cross~, Linux runners cross-building mac programs that
+nothing runs.

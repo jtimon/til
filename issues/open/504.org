@@ -430,9 +430,22 @@ The x64 lists of the linux targets are written by the ~linux-x64~ job
 itself now, after its suite: its "make bin/til" is the tested file,
 checked by hash, as in ~linux-arm64 (native)~.
 
+**** CI run 3211: the Windows host builds the same linux-x64 and linux-arm64
+
+Run 3211 (master 775c26a; collect green, the one red job the Windows
+host's ASAN suite, #483). With ~$ORIGIN~ quoted for its shell, the
+Windows host's lists for linux-x64 (139 + 2 items) and linux-arm64
+(137 + 2) are the two Linux hosts' and the arm64 Mac's: four hosts, one
+file each. It lists with ~produce-binary~ now. ~linux-x64~ wrote the
+x64 lists itself, after its suite, with its ~bin/til~ still the tested
+file.
+
+So linux-x64 and linux-arm64 are the same from every host that has the
+pinned LLVM (two Linux, the arm64 Mac, Windows), and the other four
+linux targets from the two Linux hosts.
+
 **** Next
 
-- The Windows host strict once a run shows its ~.so~ equal.
 - libsecp256k1 is in the linux lists, the archive and its members, on
   trial (the four hosts that list linux targets build it in their
   list steps): strict once a run shows it equal.
