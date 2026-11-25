@@ -722,10 +722,14 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         // The six linux targets, built against the pinned C library
         // (#504): the same from the two Linux hosts, each host's own
         // bin/til included (CI run 3205; 0d732a2689bc for linux-x64 in run
-        // 3203, from three builds). A host that lists with
-        // produce-binary-trial is on trial for everything.
+        // 3203, from three builds). windows-x86: its programs, library and
+        // archives (no til: a 32-bit target) the same from the Windows host
+        // and the other hosts (CI run 3218, 111 items from four producers,
+        // once the Windows host's i686 headers had the others' directory
+        // name). A host that lists with produce-binary-trial is on trial
+        // for everything.
         mut target_level := "binary-trial"
-        if trial.not() && (target == "windows-x64" || target.starts_with("macos-") || target.starts_with("linux-")) {
+        if trial.not() && (target.starts_with("windows-") || target.starts_with("macos-") || target.starts_with("linux-")) {
             target_level = "binary"
         }
         mut levels := Vec(Str).new()
