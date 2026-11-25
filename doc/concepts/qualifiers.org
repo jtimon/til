@@ -64,8 +64,10 @@ meanings. See [[../../issues/open/491.org::*Origin-linked borrows][#491]] for th
   linked input/result pair. ~FuncSig.return_origin_param~ records the source
   by zero-based position (-1 for fixed contracts). ~func_sig_of~ restores it.
   The return proof handles the parameter, mutable inline/owned field paths,
-  and forwarding calls. Collection accessors and iteration still use the
-  contracts below.
+  forwarding calls and the core ~ptr_add~ intrinsic on an owned byte-buffer
+  field of that path. A checked getter can throw instead of returning an
+  element; only its compiler-generated final error return carries no borrow.
+  Core collection accessors and iteration still use the contracts below.
 - Implemented: parsing/AST metadata for explicit local/field slot qualifiers,
   ~returns ref mut T~ on named/inline signatures, writable enum payloads, and
   ~Name(ref mut T)~ type arguments. Generic substitution/identity and AST

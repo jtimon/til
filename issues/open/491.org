@@ -216,6 +216,30 @@ including ~const ref mut~ fields. Both issues affect this generator.
 
 *** Implementation and acceptance
 
+**** Owned-buffer indexing: bootstrap preparation
+
+On ~2eb0f6b50~, trying linked ~get~ and ~unsafe_get~ in Vec's owned branch
+failed in ~bin/til_boot build -o bin/make make.til~. The old typer reported
+~linked return must borrow the labelled parameter 'self' or its mutable owned
+storage~ for both the buffer address in ~unsafe_get~ and the synthesized final
+error return of the throwing ~get~. The same trial exposed mutable loop receiver
+temporaries that lose the source grant and read-only call paths that still need
+migration. Land the proof before using it in core (doc/self.org, "When a
+preparation commit is needed").
+
+An offset into an owned U8 field reached through the labelled argument can
+inherit that argument's origin. This recognizes core ~ptr_add~, not a general
+cast or a load from the allocation. Offset validity is the unsafe primitive's
+precondition. A throwing linked getter must prove every source return; the
+compiler's final null error-ABI return supplies no caller-visible reference.
+The existing ~mutable_views~ fixture exercises both using a collection whose
+buffer is owned through a nested field. The same subscript permits a writable
+element alias on mutable storage and reads on a read-only receiver, and a bad
+index raises ~OutOfBounds~. Batched rejections cover read-only access, a base
+owned by another argument, a borrowed buffer field, a loaded pointer, and a
+throwing getter that returns unrelated storage on success. Core Vec/Array/Map
+signatures still require the use step.
+
 **** Single-origin getter and forwarding use step
 
 The parser resolves one ~ref[a]~ runtime input and one ~returns ref[a]~ result

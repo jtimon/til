@@ -659,6 +659,10 @@ mutable_ast_view_checks := proc(compiler: Str, root: Str, asan: Bool) {
     File.writefile(format(root, "/mutable_ast_views.til"), format("mode cli\nimport(\"std/tilvm\")\n",
         "Item := struct { n: I64 = 0 }\n",
         "Box491 := struct { cell := Item() }\n",
+        "Rows491 := struct { items := Vec(Item).new()\nnamespace:\n",
+        "unsafe_get := func(ref[a] self: Rows491, i: USize) returns ref[a] Item { return ptr_add(self.items.data, i.to_uptr().mul(Item.size().to_uptr())) }\n",
+        "get := func(ref[a] self: Rows491, i: USize) returns ref[a] Item throws OutOfBounds { if i < self.items.len() { return self.unsafe_get(i) }; throw OutOfBounds() } }\n",
+        "read_row := func(rows: Rows491) returns I64 { ref row := rows[0]; return row.n }\n",
         "Linked491 := func(I64, ref[src] Box491) returns ref[src] Item\n",
         "cell491 := func(ref[a] owner: Box491) returns ref[a] Item { return owner.cell }\n",
         "forward491 := func(tag: I64, ref[b] owner: Box491) returns ref[b] Item { assert(tag == 7); return cell491(owner) }\n",
@@ -671,6 +675,9 @@ mutable_ast_view_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "function_view := func(mut node: Expr) returns ref mut FunctionDef { return funcdef_of_mut(node) }\n",
         "member_view := func(mut node: Expr) returns ref mut Declaration { return def_ns_get_mut(node, \"member\").unwrap() }\n",
         "main := proc() {\nassert(TilVm.size() > 0)\nmut item := Item()\noptional := safe_ref_mut(item)\n",
+        "mut rows := Rows491()\nrows.items.push(own Item(n = 7))\nrows.items.push(own Item(n = 8))\n",
+        "ref mut row := rows[1]\nrow.n = 9\nassert(read_row(rows) == 7 && rows.items[1].n == 9)\n",
+        "mut caught := false\nrows.get(2)? catch (e: OutOfBounds) { caught = true }\nassert(caught)\n",
         "frozen := Box491()\nmut editable := Box491()\nref read_only := forward491(7, frozen)\nassert(read_only.n == 0)\n",
         "ref mut write_view := write491view(editable)\nwrite_view.n = 8\nref restricted := cell491(editable)\nassert(restricted.n == 8)\n",
         "callback: Linked491 = forward491\nref mut indirect := callback(7, editable)\nindirect.n = 9\nassert(editable.cell.n == 9)\nassert(func_sig_of(\"Linked491\").return_origin_param == 1)\n",
@@ -753,6 +760,12 @@ mutable_ast_view_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "bad_escape := func() returns ref Item { local := Item(); return identity491(local) }\n",
         "bad_const := func(ref[a] src: FrozenBox491) returns ref[a] Item { return src.cell }\n",
         "bad_carried := func(ref[a] src: RefBox491) returns ref[a] Item { return src.cell }\n",
+        "bad_buffer := func(ref[a] src: Vec(Item), other: Vec(Item)) returns ref[a] Item { assert(src.count == 0); return ptr_add(other.data, 0) }\n",
+        "bad_ref_buffer := func(ref[a] src: BufferBorrow491) returns ref[a] Item { return ptr_add(src.data, 0) }\n",
+        "bad_loaded := func(ref[a] src: Vec(Item)) returns ref[a] Item { return deref(ptr_add(src.data, 0)) }\n",
+        "bad_checked := func(ref[a] src: Vec(Item), other: Item) returns ref[a] Item throws OutOfBounds { if src.len() == 0 { throw OutOfBounds() }; return other }\n",
+        "bad_buffer_write := func(src: Vec(Item)) { ref mut v := buffer491(src); v.n = 1 }\n",
+        "buffer491 := func(ref[a] src: Vec(Item)) returns ref[a] Item { return ptr_add(src.data, 0) }\nBufferBorrow491 := struct { ref mut data: U8 }\n",
         "FrozenBox491 := struct { const cell := Item() }\nRefBox491 := struct { const ref mut cell: Item }\n",
         "origin_global := Item()\nidentity491 := func(ref[a] src: Item) returns ref[a] Item { return src }\n",
         "main := proc() { assert(TilVm.size() > 0) }\n"))
@@ -763,7 +776,8 @@ mutable_ast_view_checks := proc(compiler: Str, root: Str, asan: Bool) {
         denied, "'scope' is an immutable binding", "'scope' is an immutable binding",
         "linked return must borrow", "linked return must borrow", "linked return must borrow",
         "cannot assign", "cannot take a writable linked borrow", "cannot assign", "stable argument storage",
-        "cannot return a borrow of local", "linked return must borrow", "linked return must borrow")
+        "cannot return a borrow of local", "linked return must borrow", "linked return must borrow",
+        "linked return must borrow", "linked return must borrow", "linked return must borrow", "linked return must borrow", "cannot take a writable linked borrow")
     for action: Str in array(Str, "interpret", "translate") {
         cmd := Cmd.new(compiler, action, invalid)
         cmd.capture()

@@ -150,6 +150,13 @@ read-only result; an immutable box permits only a read-only one. Bind a
 temporary box to a local before borrowing its cell. A getter returning an
 unrelated fallback or crossing a stored reference cannot prove this contract.
 
+A linked getter can also return ~ptr_add(self.data, offset)~ when ~data~ is
+a mutable ~own U8~ field reached through the labelled receiver's own storage.
+The buffer supplies the origin; the offset does not grant permission. This is
+an ownership check, not a bounds or alignment check. An unchecked accessor's
+caller must still supply a valid element index. Loading a pointer from the
+buffer with ~deref~ does not establish that the loaded pointee belongs to it.
+
 ~TilVm.shared_i64()~ now explicitly returns a writable borrow. Its stable cell
 still belongs to the VM; the reference does not retain the VM or survive its
 destruction. Writable-return diagnostics preserve a denied source through

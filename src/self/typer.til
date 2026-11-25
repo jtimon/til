@@ -6062,6 +6062,26 @@ priv linked_return_source := func(scope: TypeScope, value: Expr, name: Str, symb
         if field.unwrap().own_type.is(OwnType.Ref).or(field.unwrap().is_mut.not()) { return false }
         return linked_return_source(scope, value.children[0], name, symbols)
     case .FCall:
+        // ptr_add computes an address in its base allocation; the offset
+        // selects the element, not its owner. Only an owned byte buffer on
+        // the proved path qualifies. A pointer loaded from it is a separate
+        // origin. The unsafe operation still requires an in-bounds offset.
+        if value.children.len() == 3 {
+            switch value.children[0].node_type {
+            case .Ident(id):
+                if id.ident_name(symbols.names) == "ptr_add" {
+                    def := scope.lookup_func_by_sym(id.ident_sym(), symbols)
+                    if def.is_some().and(funcdef_of(def.unwrap()).sig.func_type.is(FuncType.CoreFunc)) {
+                        ref base: Expr = value.children[1]
+                        member := fieldaccess_field_decl(scope, base, symbols)
+                        if member.is_some() && member.unwrap().own_type.is(OwnType.Own) && type_is_primitive(declaration_resolved_type(member.unwrap(), scope, symbols), Primitive.U8) {
+                            return linked_return_source(scope, base, name, symbols)
+                        }
+                    }
+                }
+            case:
+            }
+        }
         arg := linked_borrow_argument(scope, value, symbols)
         if arg.is_some() { return linked_return_source(scope, arg.unwrap(), name, symbols) }
     case:
@@ -6714,7 +6734,11 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
                 validate_captures(scope, fdef.captures, expr, ctx)
                 capture_private_mut_begin(scope, fdef.captures, capture_source_muts, capture_source_written, ctx.symbols)
             }
-            infer_body(func_scope, expr.children[0], in_func_val, 1, 0, returns_ref_val, 0, ctx)
+            // Throw lowering appended a final null return for the failure ABI.
+            // Its value is never lent to the caller. Only this outer body's
+            // final fallback is exempt from proving a linked success result.
+            linked_fallback := returns_ref_val.eq(3).and(fdef.sig.throw_types.len() > 0).and(fdef.auto_generated.not()).and(fdef.sig.func_type.is_bodyless().not())
+            infer_body(func_scope, expr.children[0], in_func_val, 1, 0, returns_ref_val, 0, ctx, linked_fallback)
             if fdef.captures.len() > 0 {
                 capture_private_mut_end(scope, fdef.captures, capture_source_muts, capture_source_written, ctx.symbols)
             }
@@ -9663,14 +9687,22 @@ reregister_repl_scope_defs := func(body: Expr, mut scope: TypeScope, symbols: Sy
 
 // Type-inference walk for a single body. Asap destruction runs once after
 // typing, in garbager_destroy's post-order whole-program walk (#158).
-infer_body := proc(mut scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, mut ctx: Context) {
+infer_body := proc(mut scope: TypeScope, mut body: Expr, in_func: I32, owns_scope: I32, in_loop: I32, returns_ref: I32, in_type_body: I32, mut ctx: Context, linked_throw_fallback: Bool = false) {
     body.set_til_type(Type.None)
     mut i : USize = 0
     while i < body.children.len() {
         if scope.parent.is_none().and(in_func.eq(0)).and(in_type_body.eq(0)) {
             context_set_mode_from_path(ctx, ctx.path)
         }
-        infer_body_stmt(scope, body, i, in_func, in_loop, returns_ref, in_type_body, ctx)
+        mut stmt_returns_ref := returns_ref
+        if linked_throw_fallback && i + 1 == body.children.len() {
+            ref fallback: Expr = body.children[i]
+            if fallback.node_type.is(NodeType.Return).and(fallback.children.len() == 1).and(fallback.children[0].node_type.is_literal_null()).not() {
+                panic(__LOC__, "expected lowered null return for throwing linked getter")
+            }
+            stmt_returns_ref = 1
+        }
+        infer_body_stmt(scope, body, i, in_func, in_loop, stmt_returns_ref, in_type_body, ctx)
         i++
     }
     if body_pre_passes(ctx, body, scope, owns_scope, returns_ref) {
