@@ -1664,6 +1664,20 @@ test_reflected_return_permission := test() {
     write_inline := reflect_return_permission491(inline_holder.params[1].type_name())
     assert(read_inline.return_ref_mut.not() && write_inline.return_ref_mut)
     assert_eq(I64, func_sig_return_ref_mut(), 37)
+
+    // Existing fixed contracts have no linked source. In the AST the
+    // relation is by position: choosing another input of the same type
+    // changes the contract even when all pointer layouts match.
+    assert(readonly.return_origin_param == -1 && writable.return_origin_param == -1)
+    mut first := readonly.clone()
+    first.params.push(own first.params[0].clone())
+    first.return_origin_param = 0
+    mut second := first.clone()
+    assert(first == second && second.return_origin_param == 0)
+    second.return_origin_param = 1
+    assert((first == second).not())
+    second.return_origin_param = -1
+    assert((first == second).not())
 }
 
 ReflectVariadicDefaults := proc(mut prefix: Str, values: ..I64,

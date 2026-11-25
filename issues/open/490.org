@@ -214,10 +214,12 @@ the preferred direction preserves Til's declaration-prefix style above.
 
 *** Semantics to settle
 
-Return-specific contract enforcement and the related getter/indexing/generator
-API decisions are tracked in [[491.org][#491]]. The return grammar/metadata is already
-prepared; its enforcement remains an integration requirement for this issue's
-no-permission-upgrade guarantees.
+[[491.org::*Origin-linked borrows: design decision (not implemented)][#491's origin-linked borrow plan]] records the agreed ~ref[a]~ direction for
+getters, forwarding and indexing. Fixed return permissions already have
+grammar and metadata; labelled origins do not. A result label connects a
+borrow to its source, while this issue's leading ~mut~ / ~const~ still governs
+whether the caller can replace its own reference slot. Test those independently:
+a view may rebind to a history entry without gaining permission to write to it.
 
 - Preserve the ordinary mutable-slot default for fields and immutable-slot
   default for locals/parameters, while specifying how explicit slot ~mut~

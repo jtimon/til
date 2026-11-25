@@ -53,24 +53,139 @@ referent access. Top-level const on a pointer returned by value (~T *const~)
 does not fix the caller's pointer slot; it receives a copy. Native declarations
 must describe the actual foreign contract, including read-only pointer results.
 
-*** Accessor direction and remaining decisions
+*** Origin-linked borrows: design decision (not implemented)
 
-The existing Vec/Array ~get~ and ~unsafe_get~, and Map ~get~, return plain
-~ref~. Once that means read-only, writable element access needs an explicit
-contract. Downstream review approved explicit Vec/Array ~get_mut~ and
-~unsafe_get_mut~, Map ~get_mut~, and writable contracts for genuinely writable
-SDK getters, including ~TilVm.shared_i64()~. The implementation/use step below
-now provides these methods; the earlier preparation checkpoints did not.
+Keep the two fixed contracts above. Add a third: ~ref[a]~ on a parameter
+names a borrowed origin, and ~returns ref[a] T~ promises a view of storage
+reached through that input, with the access it supplies. The caller infers
+the origin; it never spells ~[a]~ at a call. A receiving declaration may
+restrict the result to ~ref~, but asking for ~ref mut~ cannot upgrade it.
+The label is local to the signature. Its spelling is arbitrary; which input
+and result share it is significant.
 
-- Use the approved separate writable getters. Read-only getters plus setters
-  alone cannot provide writable element aliases. Stored read-only ~ref T~
-  elements must not become writable through a mutable container.
-- Separately decide whether indexing/iteration stays read-only with explicit
-  mutable accessor calls, or selects a writable accessor in explicitly mutable
-  contexts. The latter is convenient but adds context-sensitive lowering.
-- Separately decide whether generators get a public ~type_arg_is_ref_mut(T)~
-  query or permission inspection remains internal. This implementation prepares
-  an internal-only query; no public qualifier query has been approved.
+#+begin_src til
+// Proposed syntax. Cell is owned inline by Box.
+Cell := struct { n: I64 = 0 }
+Box := struct { cell := Cell() }
+cell_of := func(ref[a] box: Box) returns ref[a] Cell { return box.cell }
+forward := func(ref[b] box: Box) returns ref[b] Cell { return cell_of(box) }
+
+main := proc() {
+    frozen := Box()
+    mut editable := Box()
+    ref r := forward(frozen)          // read-only
+    ref s := forward(editable)        // caller restricts a writable result
+    ref mut w := forward(editable)    // writes editable.cell
+    w.n = 7
+    // ref mut bad := forward(frozen) // error at the attempted upgrade
+}
+#+end_src
+
+Check the definition for both read-only and writable inputs. An unconditional
+write to ~box.cell~ fails the read-only case. A branch returning a shared
+read-only fallback fails the writable promise AND the claimed origin, even if
+every current caller passes a mutable box. Such a query can instead declare
+~returns ref Cell~. Conversely, a setter that always needs write access still
+takes ~mut box: Box~. Most functions need no origin label.
+
+~ref [mut]~ would suggest optional mutability but cannot tell which of two
+inputs supplies a result. For example, with hypothetical multiple returns,
+~(ref[a] x: Cell, ref[b] y: Cell) returns (ref[b] Cell, ref[a] Cell)~ could
+return ~(y, x)~: with writable x and read-only y, only the second result is
+writable. Even two read-only inputs can have different owners. This explains
+the choice of labels; multiple returns are not a prerequisite or a new feature
+of the first stage. Rules for a result selected from *either* of two independent
+origins, and for repeated labels on inputs, remain open; do not guess an origin.
+
+**** Why this matters for indexing
+
+Today ~params[pi]~ uses a plain-ref getter. The parser's original
+~ref mut pp: Declaration = sfd.sig.params[pi]~ was legal: the legacy checker
+could credit a write to the mutable owner without rejecting the read-only
+getter at alias creation. Always returning ~ref mut~ would require a writable
+receiver even for reads of owned elements. Always returning plain ~ref~ would
+reject valid writable aliases once checking is strict. In the proposed design
+the signature for *owned elements* inside Vec(T) would be:
+
+#+begin_src til
+get := func(ref[a] self: Vec(T), i: USize) returns ref[a] T throws OutOfBounds {
+    if i < self.count { return self.unsafe_get(i) }
+    throw OutOfBounds()
+}
+#+end_src
+
+~unsafe_get~ would have the same relation without the bounds check. Both
+reads and writable borrows of ~params[pi]~ could use ~params.get(pi)!~;
+the receiver supplies permission before the destination binding is checked.
+Implement ordinary forwarding functions first. Keep the shipped ~get_mut~ /
+~unsafe_get_mut~ methods as a bridge. Do not implement a Rust-style dispatch
+stage first or require wholesale rewrites of valid indexed borrows. No decision
+to remove those methods or change indexed assignment's setter semantics.
+
+Access to container storage stops at a stored reference: a mutable
+~Vec(ref Cell)~ may replace its element slot, but reading through the stored
+reference still yields a read-only Cell. A container of ~ref mut Cell~ may
+carry write permission from the *original Cell owner*. Distinguish the borrow
+of the slot from the borrow it carries; ~ref[a]~ on the receiver alone cannot
+prove the lifetime or permissions of that second owner. Specify these paths
+before generalizing the owned-element example. No public type-argument query
+is required by this decision.
+
+**** Alternatives checked in other languages
+
+- Mojo's ~List.__getitem__(ref self, idx: Int)~ returns
+  ~ref[Self._InteriorOrigin[origin_of(self)]] Self.T~; its borrowing iterator
+  also carries the receiver's origin. See ~Mojo/stdlib/std/collections/list.mojo~
+  and ~test_list_iter_mutable~ in ~Mojo/stdlib/test/collections/test_list.mojo~.
+  This is the useful part for Til: a named getter or wrapper can state the
+  relationship in its signature, independently of bracket syntax.
+- Rust uses ~Index~ / ~IndexMut~ selected by place context (~library/core/src/ops/index.rs~).
+  Both bracket operations check bounds; the slice methods ~get~ / ~get_mut~
+  instead return options. ~&mut items[i]~ on ~Vec<&Cell>~ is ~&mut &Cell~,
+  writable access to the slot, not to the Cell. Contextual dispatch would
+  preserve the parser example, but would not express the ordinary wrapper's
+  contract and would add an intermediate lowering to replace later.
+- Odin indexes array storage directly and uses ~for &v in items~ to iterate
+  by reference (~tests/core/runtime/test_core_runtime.odin~). Roc's ~List.set~
+  returns an updated list (~test/cli/RcListSet.roc~). Neither requires Til to
+  give up writable element aliases to update a record's fields.
+
+**** Implementation and acceptance sequence
+
+1. Start with one labelled input and one borrowed result on ordinary functions.
+   Define signature-local binding, reject unbound result labels, and compare
+   input/result relationships rather than label text. Carry the relation through
+   parsing, AST cloning/substitution, callable signatures, reflection, generated
+   bindings and native/TilVm schema checks. Equal pointer layout is not proof
+   of equal contracts. Stage bootstrap metadata before core starts using it.
+2. At each call substitute the actual access path; in the body prove every
+   return comes from the declared source with sufficient permission. Compose
+   through ~forward~ and preserve field-sensitive and payload-owner provenance.
+   Reject returns of locals, the wrong input and unrelated globals. Exercise
+   typed function values as well as direct calls. Do not infer a foreign or
+   erased pointer's ownership/lifetime from constness or pointer shape.
+3. Apply the proved rule to checked and unchecked getters for owned Vec/Array
+   elements and Map values. Test immutable reads, writable record/scalar
+   updates, read-only restriction, bounds/key failures and the parser example.
+   Verify ~[]~ borrows through the same getter in both contexts. Retain the
+   explicit writable APIs for existing programs during migration.
+4. Carry origins through iterators, including mutable iteration, then through
+   stored references, nested containers, clones and forwarding. Check both the
+   slot and the referent with distinct owners. Cover read-only rendering with a
+   shared fallback and writable editor updates without copying a whole record.
+5. Re-run the compiler/core/std migration audit *under these rules*. Migrate
+   remaining genuine permission upgrades, then enforce at alias creation,
+   rebind and write-through. For Tiled, ~mut ref view~ must rebind from
+   ~node.view~ to ~node.history.get(i)!~ without gaining write permission;
+   ~mut ref mut fold~ must rebind and write through ~get_mut~ when permitted.
+   For Nostril, a mutable ~Option(ref nng_msg)~ output slot must remain valid
+   without granting writable pointee access or implying a transfer on failure.
+   Batch frontend rejection tests with per-site diagnostics, check interpreted
+   and compiled/ASAN behavior, native self-translation and suite wall time.
+
+Keep [[490.org][#490]]'s independent slot migration and the C-header audit below in scope;
+neither the origin notation nor these acceptance cases implement them. The
+outer-interpreted bare-callback failure in #370 remains a separate boundary bug.
 
 *** C-to-Til draft binding generator impact
 
@@ -100,6 +215,30 @@ results while still failing to record their actual const contract.
 including ~const ref mut~ fields. Both issues affect this generator.
 
 *** Implementation and acceptance
+
+**** Origin metadata bootstrap preparation
+
+~FuncSig.return_origin_param~ is a signed, zero-based source parameter index;
+-1 represents all existing fixed contracts. Signature equality, callable
+comparison, AST observation and signature-copy paths retain the distinction.
+The existing first-class tests exercise cloning and changing only the origin
+index between two same-typed inputs. No source syntax sets the field yet.
+
+The C/MLIR bridge, interpreter and HolyC scalar emitter are prepared for the
+private ~func_sig_return_origin_param~ query. Enabling its call in ~func_sig_of~
+on base ~806d6518c~ reproduced the pass-1 bootstrap dependency:
+
+#+begin_example
+gen/til/til.c:45692:27: error: implicit declaration of function 'priv___src_core_dyn_til__func_sig_return_origin_param'
+#+end_example
+
+The clean preparation passed ~make test_two_pass~ (597/597, 61.64s suite wall
+time). With the query temporarily consumed using the newly built compiler,
+the first-class tests passed 150/150 interpreted and 150/150 compiled with
+ASAN. Per ~doc/self.org~, land this emitter before enabling its core use.
+Next: reconstruct the index in reflection, resolve labels to positions in
+ordinary signatures, and check the getter and forwarding cases above before
+using the contract for collections.
 
 **** Reflection bootstrap sequence
 
@@ -443,6 +582,33 @@ shadowing, absent symbols and names, and rejection of permission upgrades.
 On ~7e8e3f9c3~, ~make clean && make test_two_pass~ passed 597/597 with
 65.80s suite wall time (56.70s for ~mutable_views~ and 32.82s for native
 self-translation). The focused ~mutable_views~ family also passed with ASAN.
+
+**** Writable-alias migration audit
+
+Trial diagnostics at alias creation and rebinding on ~bc82c6dda~ found 502
+type errors when translating ~src/til.til~. Migrate compiler writable aliases
+of AST payloads, defaults and namespace members to the existing mutable views,
+and migrate parser/initializer collection aliases to writable getters. Repeating
+the trial after these changes produced 397 errors. The count is diagnostics,
+not distinct sites; a single read-only origin can also affect a later alias.
+
+Remaining cases include collection aliases in other passes; mutable iteration
+lowered through ~unsafe_get~; type/definition registries, interpreter heap and
+scope lookups that return read-only handles; and writes through erased storage.
+The trial checks were used to locate migration sites; general enforcement is
+not enabled by this caller migration.
+
+Verification: ~make clean && make test_two_pass~ passed 597/597, with 70.12s
+suite wall time and 35.63s for native self-translation. No suite rows were
+added for this caller migration.
+
+Nostril reported 43/43 interpreted, compiled and leak-detecting ASAN tests
+with the matching installed ~bc82c6dda~ SDK and no source changes. This covers
+application compatibility, including the WebSocket/image-cache writes and
+empty-PATH init/callback/rollback paths. Its NNG ~nng_msg**~ output borrows a
+mutable ~Option(ref nng_msg)~ slot: C can replace the pointer without granting
+Til writable access through the stored borrow. Failed-send retention and
+successful-send transfer remain separate ownership checks.
 
 **** Initial signature implementation
 

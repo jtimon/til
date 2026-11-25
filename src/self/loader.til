@@ -608,7 +608,7 @@ retarget_loaded_aliases := func(mut lp: LoadedProgram) {
 priv mark_storage_size_reads_in := proc(mut e: Expr, symbols: SymbolPool) {
     for mut child : Expr in e.children { mark_storage_size_reads_in(child, symbols) }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
-        ref mut members : Vec(Declaration) = def_ns_decls(e)
+        ref mut members : Vec(Declaration) = def_ns_decls_mut(e)
         for mut member : Declaration in members {
             if member.default_value.is_none() { continue }
             mark_storage_size_reads_in(member.default_expr(), symbols)
@@ -626,7 +626,7 @@ priv mark_storage_size_reads_in := proc(mut e: Expr, symbols: SymbolPool) {
     case:
     }
     if is_size_query.not() { return }
-    ref mut call : FCallData = fcall_of(e)
+    ref mut call : FCallData = fcall_of_mut(e)
     call.storage_size_read = true
 }
 

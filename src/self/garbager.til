@@ -5091,7 +5091,7 @@ priv garbager_walk_type_def := proc(mut ctx: Context, mut type_def: Expr, type_n
     case:
         return
     }
-    ref mut ns_decls : Vec(Declaration) = def_ns_decls(type_def)
+    ref mut ns_decls : Vec(Declaration) = def_ns_decls_mut(type_def)
     for ns_i, mut ns_decl in ns_decls {
         if ns_decl.default_value.is_some() {
             // Members carry no name of their own (push_member): the index does.

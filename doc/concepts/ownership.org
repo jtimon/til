@@ -133,6 +133,21 @@ reference elements still borrow their original owners. Storage invalidation and
 referent lifetimes are unchanged. Indexing/iteration selection is not migrated
 by adding these methods.
 
+The agreed next design, not yet implemented, names the borrow's source:
+~cell_of := func(ref[a] box: Box) returns ref[a] Cell { return box.cell }~
+for a Box with an inline Cell. Here ~a~ relates the result to this particular
+box. It is not a destruction time or a caller-written lifetime annotation.
+The existing garbager still tracks last uses, escapes and ownership transfers.
+It must keep the owner alive through uses of the returned borrow, and reject
+one that would outlive the owner. An ~own~ argument or an owning constructor
+payload can transfer storage; a borrowed generic payload such as
+~Option(ref T).Some(value)~ carries a borrow instead. A label changes none of
+those ownership decisions. See [[../../issues/open/491.org::*Origin-linked borrows: design decision (not implemented)][#491]] for forwarding, indexing and iterator plans.
+
+Preparation status: the callable AST can record which source parameter a
+borrowed result follows. All current source signatures use the fixed-contract
+default. This metadata alone does not grant write access or keep an owner alive.
+
 ~TilVm.shared_i64()~ now explicitly returns a writable borrow. Its stable cell
 still belongs to the VM; the reference does not retain the VM or survive its
 destruction. Writable-return diagnostics preserve a denied source through
@@ -169,6 +184,10 @@ Compiler member access uses ~member_get_mut~, ~def_ns_get_mut~ and
 ~def_ns_decls_mut~; optional lookups return ~Option(ref mut Declaration)~ and
 retain None on a missing member. These views neither clone nor take ownership.
 Wrong-kind/default-absence panic contracts match the read-only accessors.
+Compiler AST edits now request these writable views explicitly when extracting
+node payloads or namespace declarations. Parser and initializer aliases into
+collection storage use the writable collection getters where they edit the
+stored element. General alias creation/rebinding checks are still pending.
 
 Compiler scope writers use ~TypeScope.get_binding_name_mut~ and
 ~get_binding_sym_mut~ to borrow the nearest binding as

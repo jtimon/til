@@ -1873,6 +1873,9 @@ priv holyc_private_permission_query := func(name: Str, ctx: Context) returns Str
     if name.ends_with("func_sig_return_ref_mut") {
         query = "func_sig_return_ref_mut"
         owner_name = "func_sig_of"
+    } else if name.ends_with("func_sig_return_origin_param") {
+        query = "func_sig_return_origin_param"
+        owner_name = "func_sig_of"
     } else if name.ends_with("struct_field_referent_mut") {
         query = "struct_field_referent_mut"
         owner_name = "struct_def_of"
@@ -2306,6 +2309,7 @@ priv holyc_metadata_reflection := func(ctx: Context, state: HolyCEmitState) retu
                         if sig.return_shallow_explicit { values.push(own "1") } else { values.push(own "0") }
                     case "func_sig_return_ref_mut":
                         if sig.return_ref_mut { values.push(own "1") } else { values.push(own "0") }
+                    case "func_sig_return_origin_param": values.push(own sig.return_origin_param.to_str())
                     case "func_sig_throw_count": values.push(own sig.throw_types.len().to_str())
                     case "func_sig_throw_type":
                         for type : Str in sig.throw_types { values.push(own type.clone()) }

@@ -503,7 +503,7 @@ priv expr_is_constfold_value := func(e: Expr) returns Bool {
 // FCall stores it; the other two kinds are already self-identifying above.
 priv mark_constfold_value := func(mut e: Expr) {
     if e.node_type.is(NodeType.FCall).not() { return }
-    ref mut fcd : FCallData = fcall_of(e)
+    ref mut fcd : FCallData = fcall_of_mut(e)
     fcd.constfold_value = true
 }
 
@@ -2038,7 +2038,7 @@ process_body := proc(mut scope: Scope, mut body: Expr, mut ctx: Context, at_glob
             // Fold method bodies under their own known-value views and data
             // from interpreter_init_ns's completed dependency-ordered table.
             ref owner_decl : Declaration = decl_of(stmt)
-            ref mut pb_ns : Vec(Declaration) = def_ns_decls(rhs)
+            ref mut pb_ns : Vec(Declaration) = def_ns_decls_mut(rhs)
             mut pb_i : USize = 0
             for mut nsd : Declaration in pb_ns {
                 cur_pb_i := pb_i

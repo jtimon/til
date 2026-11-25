@@ -1087,14 +1087,14 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
         }
         advance(p) // consume '='
         expect_token(p, TokenType.LParen)
-        ref mut sfd : FunctionDef = funcdef_of(def)
+        ref mut sfd : FunctionDef = funcdef_of_mut(def)
         mut pi : USize = 0
         while check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
             pn := expect_text(p, TokenType.Ident)
             if pi >= sfd.sig.params.len() {
                 parse_fail(p, peek_line(p), peek_col(p), "too many param names for FuncSig form (got more than ", sfd.sig.params.len().to_str(), ")")
             }
-            ref mut pp : Declaration = sfd.sig.params[pi]
+            ref mut pp : Declaration = sfd.sig.params.get_mut(pi)!
             pp.name = pn.clone()
             pi++
             if check(p, TokenType.Comma) { advance(p) }
@@ -1255,7 +1255,7 @@ priv parse_struct_def := proc(mut p: Parser, c_tag: Str) returns Expr {
 
     mut def := Expr.new(own NodeType.StructDef(StructDef()), kw_line, kw_col)
     // The caller just built this node as a StructDef.
-    ref mut sdd : StructDef = structdef_of(def)
+    ref mut sdd : StructDef = structdef_of_mut(def)
     if is_ext {
         sdd.c_tag = c_tag.clone()
     }
@@ -1418,7 +1418,7 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
             advance(p)
             expect_token(p, TokenType.Colon)
             p.pending_doc = ""
-            ref mut ns_sdd : StructDef = structdef_of(def)
+            ref mut ns_sdd : StructDef = structdef_of_mut(def)
             ns_sdd.interface_ns_marker = true
             continue
         }
@@ -1450,7 +1450,7 @@ priv parse_interface_def := proc(mut p: Parser) returns Expr {
             doc = m_doc,
             is_priv = member_priv,
             default_value = Option(Expr).Some(own m_value))
-        ref mut sdd : StructDef = structdef_of(def)
+        ref mut sdd : StructDef = structdef_of_mut(def)
         sdd.push_member(own m_dd)
     }
     expect_token(p, TokenType.RBrace)
@@ -1466,7 +1466,7 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
 
     mut def := Expr.new(own NodeType.EnumDef(EnumDef()), kw_line, kw_col)
     // The caller just built this node as an EnumDef.
-    ref mut edd : EnumDef = enumdef_of(def)
+    ref mut edd : EnumDef = enumdef_of_mut(def)
 
     // #264: optional discriminant type, `enum(Type) { ... }`. Only the
     // paren form is accepted (symmetry with ext_struct("tag") and an
@@ -1623,12 +1623,12 @@ priv parse_enum_def := proc(mut p: Parser) returns Expr {
 // boilerplate to one call. Parser-only, so they live here rather than in
 // ast.til (unlike set_own_arg, which the typer/initer also use).
 priv set_fcall_throw := func(mut fcall: Expr) {
-    ref mut fcd : FCallData = fcall_of(fcall)
+    ref mut fcd : FCallData = fcall_of_mut(fcall)
     fcd.does_throw = true
 }
 
 priv set_fcall_bang := func(mut fcall: Expr) {
-    ref mut fcd : FCallData = fcall_of(fcall)
+    ref mut fcd : FCallData = fcall_of_mut(fcall)
     fcd.is_bang = true
 }
 
@@ -1638,7 +1638,7 @@ priv set_fcall_bang := func(mut fcall: Expr) {
 // non-throwing get keep the sugar instead of being told to remove a `!` that
 // is not in the source.
 priv set_fcall_subscript_bang := func(mut fcall: Expr) {
-    ref mut fcd : FCallData = fcall_of(fcall)
+    ref mut fcd : FCallData = fcall_of_mut(fcall)
     fcd.is_bang = true
     fcd.is_subscript = true
 }
@@ -1729,7 +1729,7 @@ priv parse_subscript_assign := proc(mut p: Parser, own lhs: Expr) returns Expr {
     }
     if is_bang.not() { return lhs }
     if lhs.children.len() != 2 { return lhs }
-    ref mut callee : Expr = lhs.children[0]
+    ref mut callee : Expr = lhs.children.get_mut(0)!
     if callee.node_type.is(NodeType.FieldAccess).not() { return lhs }
     mut is_get := false
     switch callee.node_type {
@@ -2574,7 +2574,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                     if stmt.children.len() > 0 {
                         ns_dd.default_value = Option(Expr).Some(own stmt.children[0].clone())
                     }
-                    ref mut sdd : StructDef = structdef_of(def)
+                    ref mut sdd : StructDef = structdef_of_mut(def)
                     sdd.push_member(own ns_dd)
                 case:
                 }
@@ -3500,7 +3500,7 @@ field_access_node := func(name: Sym) returns NodeType {
 FCALL_ARG_BITS : USize = 64
 
 set_own_arg := func(mut fcall: Expr, arg_index: USize) {
-    ref mut fcd : FCallData = fcall_of(fcall)
+    ref mut fcd : FCallData = fcall_of_mut(fcall)
     mut bit : U64 = 1
     for _ in 0..arg_index { bit = bit * 2 }
     fcd.own_args = fcd.own_args.bor(bit)
@@ -3517,7 +3517,7 @@ get_own_arg := func(fcall: Expr, arg_index: USize) returns Bool {
 // bit indexing as own_args.
 // #342: record which argument carried `..`; nonzero also means some did.
 set_splat_arg := func(mut fcall: Expr, arg_index: USize) {
-    ref mut fcd : FCallData = fcall_of(fcall)
+    ref mut fcd : FCallData = fcall_of_mut(fcall)
     mut bit : U64 = 1
     for _ in 0..arg_index { bit = bit * 2 }
     fcd.splat_args = fcd.splat_args.bor(bit)
@@ -3534,7 +3534,7 @@ get_splat_arg := func(fcall: Expr, arg_index: USize) returns Bool {
 }
 
 set_ref_arg := func(mut fcall: Expr, arg_index: USize, referent_mut: Bool = false) {
-    ref mut fcd : FCallData = fcall_of(fcall)
+    ref mut fcd : FCallData = fcall_of_mut(fcall)
     mut bit : U64 = 1
     for _ in 0..arg_index { bit = bit * 2 }
     fcd.ref_args = fcd.ref_args.bor(bit)
@@ -3567,7 +3567,7 @@ fcall_data_has_arg_markers := func(fcd: FCallData) returns Bool {
 }
 
 set_keep_outer_arg := func(mut fcall: Expr, arg_index: USize) {
-    ref mut fcd : FCallData = fcall_of(fcall)
+    ref mut fcd : FCallData = fcall_of_mut(fcall)
     mut bit : U64 = 1
     for _ in 0..arg_index { bit = bit * 2 }
     fcd.keep_outer_args = fcd.keep_outer_args.bor(bit)

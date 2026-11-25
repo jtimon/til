@@ -433,6 +433,9 @@ FuncSig := struct {
     // user's original intent across re-inference so the check stays idempotent.
     return_shallow_explicit := false
     return_ref_mut := false
+    // Source parameter index for a linked reference result, independent of
+    // label spelling. -1 is the existing fixed-permission result contract.
+    return_origin_param : I32 = -1
 namespace:
     eq := func(a: FuncSig, b: FuncSig) returns Bool {
         if a.func_type != b.func_type { return false }
@@ -447,6 +450,7 @@ namespace:
         if a.return_type != b.return_type { return false }
         if a.return_own_type != b.return_own_type { return false }
         if a.return_ref_mut != b.return_ref_mut { return false }
+        if a.return_origin_param != b.return_origin_param { return false }
         if a.variadic_index != b.variadic_index { return false }
         if a.kwargs_index != b.kwargs_index { return false }
         if a.throw_types.len() != b.throw_types.len() { return false }

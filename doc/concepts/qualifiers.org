@@ -48,8 +48,22 @@ referent permission. The receiving caller chooses its slot's mutability;
 there is no ~returns const ref mut T~. Ordinary owned returns need no
 return-side ~mut~.
 
+*** Design direction: origin-linked results (not implemented)
+
+~func(ref[a] x: T) returns ref[a] U~ would borrow a U through x, carrying the
+access available through that path. The caller supplies no label. With a
+writable x the caller can take a writable or read-only view; with a read-only
+x a writable alias must be rejected. The body must work for both. Unlike an
+optional ~[mut]~ spelling, labels identify which input a result follows when
+there is more than one. Fixed ~returns ref~ and ~returns ref mut~ keep their
+meanings. See [[../../issues/open/491.org::*Origin-linked borrows: design decision (not implemented)][#491]] for the proposed getter signature and migration sequence.
+
 *** Implemented and pending
 
+- Prepared: ~FuncSig.return_origin_param~ records the source parameter by
+  zero-based position (-1 for existing fixed contracts). Signature equality
+  distinguishes different positions. The bootstrap can emit the private
+  reflection query; parsing and checking ~ref[a]~ are still pending.
 - Implemented: parsing/AST metadata for explicit local/field slot qualifiers,
   ~returns ref mut T~ on named/inline signatures, writable enum payloads, and
   ~Name(ref mut T)~ type arguments. Generic substitution/identity and AST
@@ -120,6 +134,9 @@ return-side ~mut~.
   Generated enum clones preserve borrowed payload permissions. Direct mutable
   borrowed-payload constructor returns validate/credit the source's necessary
   grant without recording a write; read-only payloads/None do not justify ~mut~.
+- Migrated: compiler writable aliases of AST payload/member views use the
+  explicit writable accessors. Parser and initializer mutable collection aliases
+  use explicit writable getters; this does not change indexing/iteration rules.
 - Implemented: compiler binding writers use ~TypeScope.get_binding_name_mut~
   and ~get_binding_sym_mut~. These take a mutable receiver and return
   ~Option(ref mut TypeBinding)~. Parent links carry ~Option(ref mut TypeScope)~;

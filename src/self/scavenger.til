@@ -1700,7 +1700,7 @@ priv body_dce_walk := proc(mut e: Expr, at_top_level: Bool, scope: TypeScope, mu
 }
 
 priv body_dce_ns := proc(mut rhs: Expr, scope: TypeScope, mut symbols: SymbolPool) {
-    ref mut dce_ns : Vec(Declaration) = def_ns_decls(rhs)
+    ref mut dce_ns : Vec(Declaration) = def_ns_decls_mut(rhs)
     for mut nsd : Declaration in dce_ns {
         if nsd.default_value.is_none() { continue }
         if nsd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }

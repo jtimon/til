@@ -416,7 +416,7 @@ priv fasm_collect := func(mut e: Expr, path: Str, mut program: FasmProgram) {
             }
             fasm_collect_closures(value, path, position, -1, Vec(USize).new(), program)
             if value.node_type.is(NodeType.StructDef).or(value.node_type.is(NodeType.EnumDef)) {
-                ref mut members : Vec(Declaration) = def_ns_decls(value)
+                ref mut members : Vec(Declaration) = def_ns_decls_mut(value)
                 for i in 0..members.len() {
                     if members[i].default_value.is_some() {
                         fasm_collect_closures(members[i].default_expr(), path, position, i.to_i64(), Vec(USize).new(), program)

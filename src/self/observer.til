@@ -229,6 +229,7 @@ priv put_funcsig := func(mut line: Vec(Str), sig: FuncSig) {
     put(line, "return_own_type", own_text(sig.return_own_type))
     put_bool(line, "return_shallow_explicit", sig.return_shallow_explicit)
     put_bool(line, "return_ref_mut", sig.return_ref_mut)
+    put(line, "return_origin_param", sig.return_origin_param.to_str())
 }
 
 priv put_function := func(mut line: Vec(Str), fd: FunctionDef) {

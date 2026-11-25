@@ -5460,10 +5460,10 @@ priv namespace_func_qname := func(func_def: Expr, member: Str, ctx: Context) ret
 // Generic and inherited definitions can arrive as clones of another method,
 // so overwrite a different inherited spelling with this aggregate's name.
 priv set_namespace_func_identity := func(owner: Option(ref Declaration), mut def: Expr) {
-    ref mut decls : Vec(Declaration) = def_ns_decls(def)
+    ref mut decls : Vec(Declaration) = def_ns_decls_mut(def)
     for mut d : Declaration in decls {
         if d.default_value.is_none() { continue }
-        ref mut value : Expr = d.default_expr()
+        ref mut value : Expr = d.default_expr_mut()
         switch value.node_type {
         case .FuncDef(fd):
             fd.namespace_decl = owner
@@ -6391,7 +6391,7 @@ interpreter_init_ns := proc(mut ctx: Context, mut global: Scope, mut program: Ex
             // reference a sibling method (`MAX : U64 = U64.bnot(0)`);
             // register every function member first (their eval needs no
             // siblings), then evaluate the constants.
-            ref mut reg_ns : Vec(Declaration) = def_ns_decls(sdef)
+            ref mut reg_ns : Vec(Declaration) = def_ns_decls_mut(sdef)
             mut nfi : USize = 0
             for mut nsf : Declaration in reg_ns {
                 cur_nfi := nfi
@@ -8552,13 +8552,13 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
                     if rhs.node_type.is(NodeType.StructDef).or(rhs.node_type.is(NodeType.EnumDef)) {
                         switch stmt.node_type {
                         case .Decl(sdd):
-                            ref mut tni_ns : Vec(Declaration) = def_ns_decls(rhs)
+                            ref mut tni_ns : Vec(Declaration) = def_ns_decls_mut(rhs)
                             mut tni : USize = 0
                             for mut nsd : Declaration in tni_ns {
                                 cur_tni := tni
                                 tni = tni + 1
                                 if nsd.default_value.is_none() { continue }
-                                ref mut nsfdef : Expr = nsd.default_expr()
+                                ref mut nsfdef : Expr = nsd.default_expr_mut()
                                 switch nsfdef.node_type {
                                 case .FuncDef(nsfd):
                                     if nsfd.sig.func_type.is(FuncType.Test).not() { continue }
@@ -10327,6 +10327,16 @@ priv h_func_sig_throw_count := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, m
     return true
 }
 
+priv h_func_sig_return_origin_param := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
+    type_name := eval_str_owned(s, e.children[1], ctx)
+    node_o := interp_lookup_funcsig(s, e, type_name, "func_sig_return_origin_param", ctx)
+    if node_o.is_none() { return true }
+    ref node : Expr = node_o.unwrap()
+    ref fd : FunctionDef = funcdef_of(node)
+    write_i64(r, fd.sig.return_origin_param.cast(I64))
+    return true
+}
+
 priv h_func_sig_throw_type := proc(mut s: Scope, mut e: Expr, mut r: Dynamic, mut ctx: Context) returns Bool {
     type_name := eval_str_owned(s, e.children[1], ctx)
     idx := eval_index_arg(s, e, ctx)
@@ -11315,6 +11325,8 @@ priv dispatch_init := func(mut ctx: Context) {
     reg_dispatch("func_sig_return_shallow_explicit", h_func_sig_return_shallow_explicit, ctx)
     reg_dispatch(priv_c_name(ctx.scope.get_binding_name("func_sig_of", ctx.symbols).unwrap().path,
         "func_sig_return_ref_mut"), h_func_sig_return_ref_mut, ctx)
+    reg_dispatch(priv_c_name(ctx.scope.get_binding_name("func_sig_of", ctx.symbols).unwrap().path,
+        "func_sig_return_origin_param"), h_func_sig_return_origin_param, ctx)
     reg_dispatch("func_sig_throw_count", h_func_sig_throw_count, ctx)
     reg_dispatch("func_sig_throw_type", h_func_sig_throw_type, ctx)
     reg_dispatch("dyn_type_to_str", h_dyn_type_to_str, ctx)

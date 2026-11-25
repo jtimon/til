@@ -352,6 +352,7 @@ typedef struct HashMap__Str_USize HashMap__Str_USize;
 typedef struct Map__Str_Bool Map__Str_Bool;
 typedef struct Map__Str_Dynamic Map__Str_Dynamic;
 typedef struct Map__Str_Expr Map__Str_Expr;
+typedef struct Option__ref_mut_Declaration Option__ref_mut_Declaration;
 typedef struct Option__ref_Expr Option__ref_Expr;
 typedef struct Vec__TypeBinding Vec__TypeBinding;
 typedef struct Vec__FFIEntryBox Vec__FFIEntryBox;
@@ -1228,6 +1229,10 @@ typedef struct Map__Str_Expr {
     Vec__Expr values;
 } Map__Str_Expr;
 
+
+struct Option__ref_mut_Declaration {
+    Declaration *data;
+};
 
 struct Option__ref_Expr {
     Expr *data;
@@ -2295,6 +2300,7 @@ typedef struct FuncSig {
     OwnType return_own_type;
     Bool return_shallow_explicit;
     Bool return_ref_mut;
+    I32 return_origin_param;
 } FuncSig;
 
 

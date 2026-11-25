@@ -828,7 +828,7 @@ priv fold_generated_sizes_in := proc(mut e: Expr, ctx: Context) {
     }
     // Namespace members live outside the children tree.
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
-        ref mut members : Vec(Declaration) = def_ns_decls(e)
+        ref mut members : Vec(Declaration) = def_ns_decls_mut(e)
         for mut member : Declaration in members {
             if member.default_value.is_none() { continue }
             fold_generated_sizes_in(member.default_expr(), ctx)
@@ -931,7 +931,7 @@ priv retarget_generated_hashes_in := proc(mut program: Expr, ctx: Context) {
         mut primitive := Primitive.U8
         if builtin_primitive_from_name(type_name, primitive) { continue }
         ref mut def : Expr = stmt.children[0]
-        ref mut members : Vec(Declaration) = def_ns_decls(def)
+        ref mut members : Vec(Declaration) = def_ns_decls_mut(def)
         mut index : USize = 0
         for mut member : Declaration in members {
             member_index := index
@@ -949,7 +949,7 @@ priv retarget_generated_hashes_in := proc(mut program: Expr, ctx: Context) {
 priv size_for_target_calls_to_size := proc(mut e: Expr, ctx: Context) {
     for mut child : Expr in e.children { size_for_target_calls_to_size(child, ctx) }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
-        ref mut members : Vec(Declaration) = def_ns_decls(e)
+        ref mut members : Vec(Declaration) = def_ns_decls_mut(e)
         for mut member : Declaration in members {
             if member.default_value.is_none() { continue }
             size_for_target_calls_to_size(member.default_expr(), ctx)

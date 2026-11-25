@@ -493,7 +493,7 @@ priv try_ufcs_rewrite := proc(mut scope: TypeScope, mut e: Expr, fa: Expr, mut o
     }
     if ufcs_match == 0 { return false }
     check_ufcs_arg_bitmap(e, ctx)
-    ref mut flags : FCallData = fcall_of(e)
+    ref mut flags : FCallData = fcall_of_mut(e)
     flags.own_args = shift_fcall_bitmap_for_ufcs(flags.own_args)
     flags.keep_outer_args = shift_fcall_bitmap_for_ufcs(flags.keep_outer_args)
     flags.ref_args = shift_fcall_bitmap_for_ufcs(flags.ref_args)
@@ -1140,7 +1140,7 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
         e.set_til_type(Type.EnumSym(ctx.symbols.intern(resolve_type_alias(scope, name, ctx.symbols))))
         return true
     }
-    ref mut ctor_sdd : StructDef = structdef_of(sdef)
+    ref mut ctor_sdd : StructDef = structdef_of_mut(sdef)
     // #432: an interface has no values of its own -- only a struct or enum
     // that implements it does. The typer's boxes (make_owned_iface_box,
     // box_inferred_interface_value) and a lowered throw's placeholder result
@@ -1171,7 +1171,7 @@ priv infer_struct_constructor_fcall_impl := proc(mut scope: TypeScope, mut sdef:
                 arg.type_error(msg, ctx)
             }
             if slot >= 0 {
-                ref mut ctor_fld : Declaration = ctor_sdd.field_at(slot.to_usize())
+                ref mut ctor_fld : Declaration = ctor_sdd.field_at_mut(slot.to_usize())
                 check_member_priv(arg, name, aname, ctor_fld.is_priv, scope, ctx)
                 if func_state.auto_gen_depth == 0 { ctor_fld.used = true }
                 // #321: a 0 arg for a Dynamic field is the null spelling.
@@ -1524,6 +1524,9 @@ priv fdef_sig_mismatch := func(got: FunctionDef, want: FunctionDef, scope: TypeS
     }
     if got.sig.return_own_type.is(OwnType.Ref) != want.sig.return_own_type.is(OwnType.Ref) {
         return "return differs in 'ref'"
+    }
+    if got.sig.return_origin_param != want.sig.return_origin_param {
+        return "borrowed result has a different source parameter"
     }
     // Return permission is covariant: a caller may restrict a writable
     // borrow, but a read-only result cannot satisfy a writable contract.
@@ -2381,12 +2384,12 @@ priv infer_requested_value_method := proc(mut def: Expr, name_in: Str, method: S
     // spelling for the rest of this call.
     name := Str.clone(name_in)
     if generate_requested_value_method(def, name, method, ctx.scope, ctx.symbols).not() { return }
-    ref mut body : Expr = def_ns_get(def, method).unwrap().default_expr()
-    ref mut generated : FunctionDef = funcdef_of(body)
+    ref mut member : Declaration = def_ns_get_mut(def, method).unwrap()
+    ref mut body : Expr = member.default_expr_mut()
+    ref mut generated : FunctionDef = funcdef_of_mut(body)
     generated.typed_on_demand = true
     mut inner := TypeScope(parent = safe_ref_mut(ctx.scope), current_type_name = name.clone())
     infer_namespace_method_body(inner, body, name, method, ctx)
-    ref mut member : Declaration = def_ns_get(def, method).unwrap()
     member.til_type = type_from_name(funcdef_of(body).sig.return_type, inner, ctx)
 }
 
@@ -2760,7 +2763,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
         // Keep every child-indexed call flag aligned with the argument it
         // describes when UFCS inserts self at position 1.
         check_ufcs_arg_bitmap(e, ctx)
-        ref mut ufcs_fcd : FCallData = fcall_of(e)
+        ref mut ufcs_fcd : FCallData = fcall_of_mut(e)
         ufcs_fcd.own_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.own_args)
         ufcs_fcd.keep_outer_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.keep_outer_args)
         ufcs_fcd.ref_args = shift_fcall_bitmap_for_ufcs(ufcs_fcd.ref_args)
@@ -2834,7 +2837,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
     // Erasing them to dyn_call here loses own/ref/effect information and
     // duplicates the receiver. Backends dispatch this ordinary call instead.
     if def_is_interface(sdef2_o) {
-        ref mut abs_fd : FunctionDef = funcdef_of(ns_func2)
+        ref mut abs_fd : FunctionDef = funcdef_of_mut(ns_func2)
         if abs_fd.sig.func_type.is_ext() {
             // A caller can precede the interface's body sweep.
             abs_kind := abs_fd.sig.func_type
@@ -2922,7 +2925,7 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             // If bit 0 (callee) was set by the parser's 'own expr' handler,
             // propagate it to bit 1 (the UFCS self arg) and clear bit 0.
             if get_own_arg(e, 0) {
-                ref mut ufcs_fcd2 : FCallData = fcall_of(e)
+                ref mut ufcs_fcd2 : FCallData = fcall_of_mut(e)
                 ufcs_fcd2.own_args = ufcs_fcd2.own_args - 1
                 set_own_arg(e, 1)
             }
@@ -4541,6 +4544,7 @@ priv make_direct_generic_twin := func(macro_fd: Expr, tmpl: Expr, symbols: Symbo
         twin.sig.return_type = tfd.sig.return_type.clone()
         twin.sig.return_own_type = tfd.sig.return_own_type
         twin.sig.return_ref_mut = tfd.sig.return_ref_mut
+        twin.sig.return_origin_param = tfd.sig.return_origin_param
         twin.noreturn = tfd.noreturn
         for t : Str in tfd.sig.throw_types { twin.sig.throw_types.push(own t.clone()) }
         switch macro_fd.node_type {
@@ -5587,7 +5591,7 @@ priv infer_type_def_expr := proc(mut scope: TypeScope, mut expr: Expr, type_name
     //      constant declared later),
     //   3. infer function bodies (they may read any sibling constant's
     //      settled type).
-    ref mut tc_ns : Vec(Declaration) = def_ns_decls(expr)
+    ref mut tc_ns : Vec(Declaration) = def_ns_decls_mut(expr)
     mut tcni : USize = 0
     for mut tc_nd : Declaration in tc_ns {
         ref tc_name : Str = def_ns_name_at(expr, tcni)
@@ -5761,7 +5765,7 @@ priv is_auto_shallow_type := func(t: Type, type_name: Str, scope: TypeScope, ctx
 }
 
 priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr, mut symbols: SymbolPool) {
-    ref mut fdef : FunctionDef = funcdef_of(expr)
+    ref mut fdef : FunctionDef = funcdef_of_mut(expr)
     // Issue #223 step 1: a function-pointer signature must match the
     // auto-shallow ABI of the ordinary func/proc it will hold, so
     // normalize primitive params/returns to Shallow here too. Otherwise
@@ -5924,7 +5928,7 @@ priv fdef_return_carries_borrow := func(fdef: FunctionDef, scope: TypeScope, sym
 
 priv check_ref_function_returns := proc(func_scope: TypeScope, mut expr: Expr, mut ctx: Context) {
     mut throws_count : USize = 0
-    ref mut fdef : FunctionDef = funcdef_of(expr)
+    ref mut fdef : FunctionDef = funcdef_of_mut(expr)
     if fdef.sig.return_own_type.is(OwnType.Ref).not() { return }
     // The source-level summary distinguishes an alias INTO an input from
     // a borrow that input merely carries (including Option(ref T).take).
@@ -7453,7 +7457,7 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
             // Search struct fields from payload
             switch sdef.node_type {
             case .StructDef(fa_sdd):
-                fld_o := member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
+                fld_o := member_get_mut(fa_sdd.fields_index, fa_sdd.fields, fname)
                 if fld_o.is_some() {
                     ref mut fld : Declaration = fld_o.unwrap()
                     mut field_type := fld.til_type.clone()
@@ -7473,7 +7477,7 @@ priv infer_field_access_expr := proc(mut scope: TypeScope, mut expr: Expr, in_fu
             // Search namespace declarations from payload ns_decls
             if found.not() {
                 infer_requested_value_method(sdef, obj_sname, fname, ctx)
-                nsd_o := def_ns_get(sdef, fname)
+                nsd_o := def_ns_get_mut(sdef, fname)
                 if nsd_o.is_some() {
                     ref mut nsd : Declaration = nsd_o.unwrap()
                     expr.set_til_type(declaration_resolved_type(nsd, scope, ctx.symbols))
@@ -7599,7 +7603,7 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
             mut found := false
             switch sdef.node_type {
             case .StructDef(fa_sdd):
-                fld_o := member_get(fa_sdd.fields_index, fa_sdd.fields, fname)
+                fld_o := member_get_mut(fa_sdd.fields_index, fa_sdd.fields, fname)
                 if fld_o.is_some() {
                     ref mut fld : Declaration = fld_o.unwrap()
                     found = true
@@ -8868,7 +8872,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
     // so late inference can clone a fully prepared body from it;
     // init_retire_generic_sources drops it once every body is typed.
     if init_stmt_is_generic_source(stmt, ctx.symbols) { return }
-    ref mut ext_decl : Declaration = decl_of(stmt)
+    ref mut ext_decl : Declaration = decl_of_mut(stmt)
     if ext_decl.external_symbol.len() > 0 {
         external_type := type_from_name(decl_type_name_ref(ext_decl, ctx.symbols), scope, ctx)
         stmt.children[0].set_til_type(external_type.clone())
@@ -8949,6 +8953,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
                                     rhs_fd.sig.return_type = sig_fd.sig.return_type.clone()
                                     if sig_fd.sig.return_own_type.is(OwnType.Shallow).not() { rhs_fd.sig.return_own_type = sig_fd.sig.return_own_type }
                                     rhs_fd.sig.return_ref_mut = sig_fd.sig.return_ref_mut
+                                    rhs_fd.sig.return_origin_param = sig_fd.sig.return_origin_param
                                 }
                             case:
                             }
@@ -9015,7 +9020,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
     if infer_decl_type_def(scope, stmt, ctx) { return }
     if infer_decl_func_def(scope, stmt, ctx) { return }
     if infer_decl_type_alias_passthrough(scope, stmt, ctx.symbols) { return }
-    ref mut sdecl : Declaration = decl_of(stmt)
+    ref mut sdecl : Declaration = decl_of_mut(stmt)
     if sdecl.infer_call_ownership {
         sdecl.own_type = OwnType.Shallow
         if fcall_returns_ref(stmt.children[0], scope, ctx.symbols) != 0 {
@@ -10108,9 +10113,9 @@ priv comptime_prepare_member := proc(mut e: Expr, scope: TypeScope, mut prep: Co
     comptime_prepare_type(name, prep, ctx)
     def_o := ctx.scope.get_struct(name, ctx.symbols)
     if def_o.is_none() { return }
-    member_o := def_ns_get(def_o.unwrap(), method)
+    member_o := def_ns_get_mut(def_o.unwrap(), method)
     if member_o.is_none().or(member_o.unwrap().default_value.is_none()) { return }
-    ref mut body : Expr = member_o.unwrap().default_expr()
+    ref mut body : Expr = member_o.unwrap().default_expr_mut()
     if body.node_type.is(NodeType.FuncDef) {
         comptime_prepare_function(method, name, body, prep, ctx)
     } else {
@@ -10368,7 +10373,7 @@ priv normalize_interface_requirements := func(mut stmt: Expr) {
         if sd.is_interface.not() { return }
         for mut member : Declaration in sd.ns_decls {
             if member.default_value.is_none() { continue }
-            ref mut method : Expr = member.default_expr()
+            ref mut method : Expr = member.default_expr_mut()
             switch method.node_type {
             case .FuncDef(fd):
                 if fd.sig.func_type.is_plain().and(method.children.len() == 0) {
@@ -11758,10 +11763,10 @@ gen_size_for_target_method_for_stmt := func(mut stmt: Expr, scope: TypeScope, mu
     func_def.add_child(own body)
     member := Declaration(name = "size_for_target", default_value = Option(Expr).Some(own func_def))
     if def.node_type.is(NodeType.StructDef) {
-        ref mut sd : StructDef = structdef_of(def)
+        ref mut sd : StructDef = structdef_of_mut(def)
         sd.push_member(own member)
     } else {
-        ref mut ed : EnumDef = enumdef_of(def)
+        ref mut ed : EnumDef = enumdef_of_mut(def)
         ed.push_member(own member)
     }
 }
@@ -17981,7 +17986,7 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
     // must fill those itself; capture their default expressions here while
     // get_def is in scope. Empty (no-op) for the common get(self, i) shape.
     mut get_trailing_defaults := Vec(Expr).new()
-    ref mut get_def : FunctionDef = funcdef_of(get_func)
+    ref mut get_def : FunctionDef = funcdef_of_mut(get_func)
     // A throwing get gets its signature extended in place with
     // synthetic _err_kind/payload params below. Allow either
     // the original (self, idx) shape or the already-extended one
