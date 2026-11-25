@@ -105,17 +105,19 @@ prev_fret_step := func(use_nathex: Bool, use_microtones: Bool, step: I32) return
     return 0
 }
 
-fret_x := func(use_nathex: Bool, use_microtones: Bool, step: I32) returns I32 {
-    if step.lte(0) { return BOARD_X }
-
-    ratio := active_step_ratio(use_nathex, use_microtones)
-
+// Fraction of the ideal open-string length from the nut to fret center.
+fret_fraction := func(ratio: F32, step: I32) returns F32 {
     mut inv_pow : F32 = 1
     for _ in 0..step.to_usize() {
         inv_pow = inv_pow.div(ratio)
     }
 
-    span : F32 = (1 - inv_pow).div(FRETBOARD_END_FRACTION)
+    fraction : F32 = 1 - inv_pow
+    return fraction
+}
+
+fret_x := func(use_nathex: Bool, use_microtones: Bool, step: I32) returns I32 {
+    span := fret_fraction(active_step_ratio(use_nathex, use_microtones), step).div(FRETBOARD_END_FRACTION)
     return BOARD_X + span.mul(BOARD_W.to_f32()).to_i64().to_i32()
 }
 
@@ -286,6 +288,106 @@ draw_toggle := proc(fnt: Font, x: I32, y: I32, label: Str, active: Bool, active_
     DrawTextEx(fnt, label.c_str, Vector2(x = (x + 14).to_f32(), y = (y + 8).to_f32()), FONT, 1, text_color)
 }
 
+SPACING_TETS := array(I32, 8, 12, 16, 24, 32)
+SPACING_X : I32 = MARGIN + (BTN_W + BTN_GAP) * 7
+
+spacing_ratio := func(tet: I32) returns F32 {
+    if tet.eq(8) { return active_step_ratio(true, false) }
+    if tet.eq(12) { return STANDARD_FRET_RATIO }
+    if tet.eq(16) { return NATHEX_MICRO_FRET_RATIO }
+    if tet.eq(24) { return STANDARD_MICRO_FRET_RATIO }
+    if tet.eq(32) { return calculate_sqrt(NATHEX_MICRO_FRET_RATIO) }
+    panic("Unknown fret division: ", tet.to_str())
+    return 0
+}
+
+spacing_text := proc(fnt: Font, s: Str, x: I32, y: I32, color: Color) {
+    DrawTextEx(fnt, s.c_str, Vector2(x=x.to_f32(), y=y.to_f32()), FONT, 1, color)
+}
+
+mm_label := func(mm: F32) returns Str {
+    hundredths := (mm * 100 + 0.5).to_i64()
+    fraction := hundredths % 100
+    mut point := "."
+    if fraction.lt(10) { point = ".0" }
+    return format((hundredths / 100).to_str(), point, fraction.to_str())
+}
+
+Spacing := struct {
+    length_mm := ""
+    tet : I32 = 12
+    partial : Bool = false
+}
+
+spacing_frame := proc(mut s: Spacing, fnt: Font, active: Color, inactive: Color, text: Color) {
+    // This view has one numeric field: accept mm with either decimal separator.
+    mut ch := GetCharPressed()
+    while ch.gt(0) {
+        if s.length_mm.len().lt(9) {
+            if ch.gte(48).and(ch.lte(57)) { s.length_mm = format(s.length_mm, (ch - 48).to_str()) }
+            if ch.eq(46).or(ch.eq(44)) {
+                if s.length_mm.contains(".").not() {
+                    if s.length_mm.is_empty() { s.length_mm = "0" }
+                    s.length_mm = format(s.length_mm, ".")
+                }
+            }
+        }
+        ch = GetCharPressed()
+    }
+    if IsKeyPressed(259).and(s.length_mm.is_empty().not()) { s.length_mm = s.length_mm.substr(0, s.length_mm.len() - 1) }
+    spacing_text(fnt, format("Scale length (mm): ", s.length_mm, "_    Type a length; Backspace to edit."), MARGIN, TOP_Y, text)
+    spacing_text(fnt, "Use nominal scale length. On a standard guitar, double the nut-to-12th-fret distance. Measure from the nut's string contact edge to fret centers.", MARGIN, TOP_Y + BTN_H, text)
+    row := TOP_Y + BTN_H * 2
+    click := IsMouseButtonPressed(0).and(GetMouseY().gte(row)).and(GetMouseY().lt(row + BTN_H))
+    for i : USize in 0..SPACING_TETS.len() {
+        x := MARGIN + i.to_i32() * (BTN_W + BTN_GAP)
+        n := SPACING_TETS[i].clone()
+        if click.and(GetMouseX().gte(x)).and(GetMouseX().lt(x + BTN_W)) { s.tet = n }
+        draw_toggle(fnt, x, row, format(n.to_str(), "-TET"), s.tet.eq(n), active, inactive, text)
+    }
+    if s.tet.eq(24) {
+        x := MARGIN + SPACING_TETS.len().to_i32() * (BTN_W + BTN_GAP)
+        if click.and(GetMouseX().gte(x)).and(GetMouseX().lt(x + BTN_W)) { s.partial = s.partial.not() }
+        mut label := "Full 24-TET"
+        if s.partial { label = "Partial 24-TET" }
+        draw_toggle(fnt, x, row, label, s.partial, active, inactive, text)
+    }
+    if s.length_mm.is_empty() { return }
+    length := s.length_mm.to_f32()
+    if length.lte(0) { spacing_text(fnt, "Enter a positive length in millimeters.", MARGIN, BOARD_Y, text); return }
+    spacing_text(fnt, "Two octaves | Nut = 0.00 mm | Gap measured from previous installed fret (from nut for first fret). Ideal, uncompensated positions.", MARGIN, BOARD_Y - 24, text)
+    mut slot : I32 = 0
+    mut previous : F32 = 0
+    ratio := spacing_ratio(s.tet)
+    for i : USize in 1..(s.tet * 2 + 1).to_usize() {
+        step := i.to_i32()
+        if s.tet.eq(24).and(s.partial).and(is_fret_step(false, true, step).not()) { continue }
+        pos := length * fret_fraction(ratio, step)
+        x := MARGIN + (slot / 16) * ((WINDOW_WIDTH - MARGIN * 2) / 4)
+        if slot.mod(16).eq(0) {
+            spacing_text(fnt, "Fret   Step    From nut (mm)    Gap (mm)", x, BOARD_Y + BTN_H, text)
+        }
+        y := BOARD_Y + BTN_H * 2 + slot.mod(16) * BTN_H
+        spacing_text(fnt, (slot + 1).to_str(), x, y, text)
+        spacing_text(fnt, step.to_str(), x + 62, y, text)
+        spacing_text(fnt, mm_label(pos), x + 137, y, text)
+        spacing_text(fnt, mm_label(pos - previous), x + 290, y, text)
+        previous = pos
+        slot++
+    }
+}
+
+test_fret_layout := test() {
+    for n : I32 in SPACING_TETS {
+        ratio := spacing_ratio(n)
+        assert_eq(Str, mm_label(fret_fraction(ratio, n) * 648), "324.00")
+        assert_eq(Str, mm_label(fret_fraction(ratio, n * 2) * 648), "486.00")
+    }
+    ratio := spacing_ratio(24)
+    assert_eq(Str, mm_label(fret_fraction(ratio, 1) * 648), "18.45")
+    assert_eq(I32, prev_fret_step(false, true, 32), 30)
+}
+
 main := proc() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "guitar".c_str)
     SetTargetFPS(FPS)
@@ -302,6 +404,8 @@ main := proc() {
     mut song_idx : USize = 0
     mut song_timer : I64 = 0
     mut use_microtones := false
+    mut show_spacing := false
+    mut spacing := Spacing()
 
     BG_COLOR := Color(r = 20, g = 20, b = 30, a = 255)
     BOARD_COLOR := Color(r = 80, g = 55, b = 35, a = 255)
@@ -320,6 +424,21 @@ main := proc() {
         use_nathex := display_mode.eq(DISPLAY_MODE_NATHEX)
         max_step := active_step_max(use_nathex, use_microtones)
         board_end := fret_x(use_nathex, use_microtones, max_step)
+
+        if IsMouseButtonPressed(0).and(GetMouseX().gte(SPACING_X)).and(GetMouseX().lt(SPACING_X + BTN_W)).and(GetMouseY().gte(TOP_Y)).and(GetMouseY().lt(TOP_Y + BTN_H)) {
+            show_spacing = show_spacing.not()
+            if show_spacing {
+                spacing.tet = active_step_max(use_nathex, use_microtones) / 2
+                spacing.partial = use_microtones.and(use_nathex.not())
+                song_playing = false; song_id = SONG_NONE
+            }
+        }
+        if show_spacing {
+            BeginDrawing(); ClearBackground(BG_COLOR)
+            draw_toggle(fnt, SPACING_X, TOP_Y, "Back to guitar", true, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+            spacing_frame(spacing, fnt, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+            EndDrawing(); continue
+        }
 
         if IsMouseButtonPressed(0) {
             mx := GetMouseX()
@@ -432,6 +551,7 @@ main := proc() {
         micro_x := MARGIN + (BTN_W + BTN_GAP) * 5
         draw_toggle(fnt, micro_x, TOP_Y, "Tones", !use_microtones, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
         draw_toggle(fnt, micro_x + BTN_W + BTN_GAP, TOP_Y, "Microtones", use_microtones, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
+        draw_toggle(fnt, SPACING_X, TOP_Y, "Fret spacing", false, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)
 
         tuning_x := MARGIN
         draw_toggle(fnt, tuning_x, ROW2_Y, "Standard", !all_fourths, BTN_ACTIVE, BTN_INACTIVE, TEXT_COLOR)

@@ -1,0 +1,27 @@
+# priority: medium
+# category: features
+** OPEN #507 Reusable input boxes for mode gui
+
+First use: [[24.org][#24]], ~examples/guitar.til~. Open Fret spacing and try to enter
+the scale length in millimeters. The user reports that typing as instructed
+does not work. The view draws a string with a trailing underscore and polls
+~GetCharPressed~; there is no field to click or visible focus state. The
+existing layout test verifies fret arithmetic, not interactive entry.
+
+Give mode gui a single-line input control with a label, editable value,
+visible focus and caret, and normal keyboard editing. Keep text while it is
+being edited (e.g. ~648.~); parse and validate the length separately so an
+empty or invalid field is distinguishable from zero.
+
+Core raylib provides drawing and keyboard events. Its vendored examples
+include the separate raygui ~GuiTextBox~ control; evaluate it for the native
+implementation before writing one. If it does not fit, implement the field
+with raylib primitives. Describe the control by what it does, independent of
+the renderer: a future web GUI backend should be able to render a labeled
+HTML ~<input>~ and use browser focus/editing and input events directly.
+
+Acceptance: in the guitar example, click or Tab into Scale length, enter
+~648.5~, and verify the 12-TET octave fret reads ~324.25 mm~. Edit the value
+with Backspace, clear it, and enter ~648,5~ for the same result. After focus
+moves elsewhere, typing must no longer change the field. Verify actual GUI
+interaction in addition to the calculation test.

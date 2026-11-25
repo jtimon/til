@@ -630,7 +630,7 @@ delian_ratio := macro() returns F32 {
 }
 DELIAN := delian_ratio()
 SERIES_C4 : F32 = 261.625565
-SERIES_TUNINGS := array(I32, 8, 12, 16)
+SERIES_TUNINGS := array(I32, 8, 12, 16, 24, 32)
 SERIES_TITLES := array(Str, "Comparar afinacoes", "Comparar afinaciones", "Tuning comparison")
 JUST_TITLES := array(Str, "Harmonicos e escala justa", "Armonicos y escala justa", "Harmonics and just scale")
 JUST_PLAY := array(Str, "Tocar", "Tocar", "Play")
@@ -829,14 +829,20 @@ nearest_step := func(ratio: F32, n: I32) returns I32 {
 grid_ratio := func(step: I32, n: I32) returns F32 { return exp2f(step.to_f32() / n.to_f32()) }
 
 series_note_name := func(step: I32, n: I32) returns Str {
-    if n.eq(12) { return format(SOLFEGE_CHROMATIC_NAMES[(step % 12).to_usize()], (step / 12 + 4).to_str()) }
-    mut index := step
-    mut micro := ""
-    if n.eq(16) {
-        index = step / 2
-        if step.mod(2).eq(1) { micro = "t" }
+    if n.eq(12).or(n.eq(24)) {
+        index := step / (n / 12)
+        mut suffix := ""
+        if n.eq(24).and(step.mod(2).eq(1)) { suffix = "t" }
+        return format(SOLFEGE_CHROMATIC_NAMES[(index % 12).to_usize()], suffix, (index / 12 + 4).to_str())
     }
-    return format(FIVE_NAMES[(index % 8).to_usize()], micro, (index / 8 + 4).to_str())
+    subdivisions := n / 8
+    index := step / subdivisions
+    mut micro := ""
+    part := step % subdivisions
+    if (part * 2).eq(subdivisions) { micro = "t" }
+    base := format(FIVE_NAMES[(index % 8).to_usize()], micro, (index / 8 + 4).to_str())
+    if n.eq(32).and(part.mod(2).eq(1)) { return format(base, "+", part.to_str(), "/4") }
+    return base
 }
 
 SeriesView := struct {
@@ -880,13 +886,16 @@ series_frame := proc(mut s: SeriesView, fnt: Font, mut lang: USize, dt: I32) {
         }
     }
     y := PLAYBACK_ROW_Y + BTN_H + GAP
-    for i : USize in 0..3 {
+    for i : USize in 0..SERIES_TUNINGS.len() {
         label := format(SERIES_TUNINGS[i].to_str(), "-TET")
         if series_button(fnt, label, MARGIN + i.to_i32() * 140, y, 140, s.tuning.eq(i)) { s.tuning = i; changed = true }
-        if series_button(fnt, lang_str(i, 0), MARGIN + 900 + i.to_i32() * 90, y, 90, lang.eq(i)) { lang = i }
     }
-    if series_button(fnt, "f0 = C2", MARGIN + 480, y, 170, s.first.eq(4)) { s.first = 4; changed = true }
-    if series_button(fnt, "f0 = C4", MARGIN + 650, y, 170, s.first.eq(1)) { s.first = 1; changed = true }
+    base_x := MARGIN + SERIES_TUNINGS.len().to_i32() * 140 + GAP
+    if series_button(fnt, "f0 = C2", base_x, y, 170, s.first.eq(4)) { s.first = 4; changed = true }
+    if series_button(fnt, "f0 = C4", base_x + 170, y, 170, s.first.eq(1)) { s.first = 1; changed = true }
+    for i : USize in 0..3 {
+        if series_button(fnt, lang_str(i, 0), base_x + 340 + GAP + i.to_i32() * 90, y, 90, lang.eq(i)) { lang = i }
+    }
     if changed { s.running = false; s.current = 0; stop_viewer_sound() }
     n := SERIES_TUNINGS[s.tuning].clone()
     limit := series_ratio(s.span)
@@ -1523,6 +1532,12 @@ test_harmonic_series_reference := test() {
     assert_eq(I32, nearest_step(partial_ratio(6, 4), 8), 5)
     assert_eq(I32, nearest_step(partial_ratio(6, 4), 16), 9)
     assert_eq(Str, series_note_name(9, 16), "#fit4")
+    // Harmonic 11 (relative to partial 8): the two finer grids pick
+    // different pitches, 550 and 562.5 cents above the octave boundary.
+    assert_eq(I32, nearest_step(partial_ratio(11, 8), 24), 11)
+    assert_eq(I32, nearest_step(partial_ratio(11, 8), 32), 15)
+    assert_eq(Str, series_note_name(11, 24), "Fat4")
+    assert_eq(Str, series_note_name(15, 32), "fi4+3/4")
     for n : I32 in SERIES_TUNINGS {
         assert_eq(F32, grid_ratio(nearest_step(partial_ratio(16, 4), n), n), 4)
     }
