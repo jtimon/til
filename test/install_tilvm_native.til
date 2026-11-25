@@ -171,6 +171,9 @@ main := proc(args: ..Str) returns I64 {
     // fixture's DLLs (and matching core/runtime dependencies) alongside it.
     if host_os() == "windows" {
         assert_eq(I32, copy_tree(format(work, "/gen/lib"), format(work, "/bin")), 0)
+        // And the sanitizer's runtime DLLs, for a host built with --asan (CI
+        // run 3217: every family failed with 0xC0000135).
+        if asan { copy_windows_asan_runtime(format(work, "/bin")) }
     }
     if action == "build" {
         println("install TilVm native build PASS")

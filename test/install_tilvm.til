@@ -72,11 +72,9 @@ main := proc(args: ..Str) returns I64 {
     vm_build.cwd(work)
     vm_build.run_checked()
     // The families run the host with an empty PATH, so a Windows host built
-    // with --asan needs the sanitizer's runtime DLL beside it (CI run 3210:
-    // every family failed, saying nothing).
-    if asan.and(host_os() == "windows") {
-        assert_eq(I32, copy_file(windows_asan_runtime(), format(work, "/bin/libclang_rt.asan_dynamic-x86_64.dll")), 0)
-    }
+    // with --asan needs the sanitizer's runtime DLLs beside it (CI runs 3210
+    // and 3217: every family failed with 0xC0000135, saying nothing).
+    if asan.and(host_os() == "windows") { copy_windows_asan_runtime(format(work, "/bin")) }
     if action == "build" {
         println("install TilVm build PASS")
         return 0

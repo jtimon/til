@@ -20,16 +20,30 @@ library_search_in := proc(command: Cmd, dir: Str) {
 }
 
 // The AddressSanitizer runtime a Windows program built with --asan
-// imports, llvm-mingw's libclang_rt.asan_dynamic-x86_64.dll, from this
-// process's PATH (the windows-x64-asan CI job puts its directory there).
-// A test that runs such a program with an empty PATH puts this beside it,
-// as it does the program's other DLLs.
-windows_asan_runtime := proc() returns Str {
+// imports, llvm-mingw's libclang_rt.asan_dynamic-x86_64.dll, and the DLLs
+// it imports in turn from the same directory: libc++, which imports
+// libunwind. Windows resolves a DLL's imports from the program's directory
+// and PATH, not from the importing DLL's directory (CI run 3217: with the
+// runtime alone beside it, a host still failed with 0xC0000135).
+WINDOWS_ASAN_DLLS := array(Str, "libclang_rt.asan_dynamic-x86_64.dll", "libc++.dll", "libunwind.dll")
+
+// Copy those DLLs beside a program built with --asan that runs with an
+// empty PATH, as such a test does the program's other DLLs. They come from
+// the directory on this process's PATH that holds the runtime (the
+// windows-x64-asan CI job puts it there).
+copy_windows_asan_runtime := proc(dest_dir: Str) {
+    mut found := ""
     for dir : Str in get_env("PATH").split(";") {
         if dir.len() == 0 { continue }
-        candidate := format(dir, "/libclang_rt.asan_dynamic-x86_64.dll")
-        if File.is_file(candidate) { return candidate }
+        if File.is_file(format(dir, "/", WINDOWS_ASAN_DLLS[0])) {
+            found = dir.clone()
+            break
+        }
     }
-    panic("libclang_rt.asan_dynamic-x86_64.dll is on no PATH directory: ", get_env("PATH"))
-    return ""
+    if found.len() == 0 { panic(WINDOWS_ASAN_DLLS[0], " is on no PATH directory: ", get_env("PATH")) }
+    for name : Str in WINDOWS_ASAN_DLLS {
+        if copy_file(format(found, "/", name), format(dest_dir, "/", name)) != 0 {
+            panic("cannot copy ", found, "/", name, " to ", dest_dir)
+        }
+    }
 }

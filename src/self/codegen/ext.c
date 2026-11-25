@@ -611,15 +611,42 @@ static U8 **til_cage_slot(void) {
     return &til_cage_base;
 }
 
+#ifndef TIL_CAGE_ASAN
+// A symbol of any image loaded in the process, NULL when none exports it:
+// dlsym(RTLD_DEFAULT) on POSIX, every loaded module's export table on
+// Windows (where llvm-mingw's libclang_rt.asan_dynamic exports the
+// sanitizer's entry points).
+static void *til_cage_process_symbol(const char *name) TIL_CAGE_FN;
+static void *til_cage_process_symbol(const char *name) {
+#ifdef _WIN32
+    HMODULE mods[256];
+    DWORD needed = 0;
+    if (EnumProcessModules(GetCurrentProcess(), mods, sizeof(mods), &needed)) {
+        DWORD count = needed / sizeof(HMODULE);
+        if (count > 256) count = 256;
+        for (DWORD i = 0; i < count; i++) {
+            FARPROC p = GetProcAddress(mods[i], name);
+            if (p) return (void *)p;
+        }
+    }
+    return NULL;
+#else
+    return dlsym(RTLD_DEFAULT, name);
+#endif
+}
+#endif
+
 static void til_cage_attach(void) TIL_CAGE_FN;
 static void til_cage_attach(void) {
     // Keyed on this copy's own state pointer, not on til_cage_base: on ELF
     // hosts a shared runtime's til_cage_base reference binds to the
     // executable's variable, already set by the executable's own attach.
     if (til_cage != NULL) return;
-#if !defined(TIL_CAGE_ASAN) && !defined(_WIN32)
-    til_cage_poison_fn = (TilCageShadowFn)dlsym(RTLD_DEFAULT, "__asan_poison_memory_region");
-    til_cage_unpoison_fn = (TilCageShadowFn)dlsym(RTLD_DEFAULT, "__asan_unpoison_memory_region");
+    // REM On Windows too (CI run 3217: ffi_cage_shadow's use-after-poison in
+    // a non-ASAN library's til_cage_lit, under the ASAN interpreter).
+#ifndef TIL_CAGE_ASAN
+    til_cage_poison_fn = (TilCageShadowFn)til_cage_process_symbol("__asan_poison_memory_region");
+    til_cage_unpoison_fn = (TilCageShadowFn)til_cage_process_symbol("__asan_unpoison_memory_region");
 #endif
     U8 **slot = til_cage_slot();
     if (*slot == NULL) *slot = til_cage_reserve();
