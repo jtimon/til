@@ -137,6 +137,21 @@ jobs:
         with:
           path: vendor/llvm
           key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      # The pinned C library trees (make.til, linux_sysroots), kept between
+      # runs like the pinned LLVM: one cache entry per job and table, so a
+      # run does not depend on the Bootlin server being reachable.
+      - name: The pinned C library table
+        id: linux-trees
+        shell: bash
+        run: |
+          key=$(sed -n '/^linux_sysroots := /,/^}/p' make.til | sha256sum | cut -c1-16)
+          test -n "$key"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned C library
+        uses: actions/cache@v4
+        with:
+          path: vendor/linux
+          key: linux-trees-linux-x64-${{ steps.linux-trees.outputs.key }}
       - name: The pinned LLVM and C library for linux-x64
         run: |
           make llvm
@@ -353,6 +368,21 @@ jobs:
         with:
           path: vendor/llvm
           key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      # The pinned C library trees (make.til, linux_sysroots), kept between
+      # runs like the pinned LLVM: one cache entry per job and table, so a
+      # run does not depend on the Bootlin server being reachable.
+      - name: The pinned C library table
+        id: linux-trees
+        shell: bash
+        run: |
+          key=$(sed -n '/^linux_sysroots := /,/^}/p' make.til | sha256sum | cut -c1-16)
+          test -n "$key"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned C library
+        uses: actions/cache@v4
+        with:
+          path: vendor/linux
+          key: linux-trees-linux-arm64-native-${{ steps.linux-trees.outputs.key }}
       - name: The pinned LLVM and C library for linux-arm64
         run: |
           make llvm
@@ -566,6 +596,21 @@ jobs:
         with:
           path: vendor/llvm
           key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      # The pinned C library trees (make.til, linux_sysroots), kept between
+      # runs like the pinned LLVM: one cache entry per job and table, so a
+      # run does not depend on the Bootlin server being reachable.
+      - name: The pinned C library table
+        id: linux-trees
+        shell: bash
+        run: |
+          key=$(sed -n '/^linux_sysroots := /,/^}/p' make.til | sha256sum | cut -c1-16)
+          test -n "$key"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned C library
+        uses: actions/cache@v4
+        with:
+          path: vendor/linux
+          key: linux-trees-linux-arm64-${{ steps.linux-trees.outputs.key }}
       - name: The pinned LLVM and C library for linux-arm64
         run: |
           make llvm
@@ -673,6 +718,21 @@ jobs:
         with:
           path: vendor/llvm
           key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      # The pinned C library trees (make.til, linux_sysroots), kept between
+      # runs like the pinned LLVM: one cache entry per job and table, so a
+      # run does not depend on the Bootlin server being reachable.
+      - name: The pinned C library table
+        id: linux-trees
+        shell: bash
+        run: |
+          key=$(sed -n '/^linux_sysroots := /,/^}/p' make.til | sha256sum | cut -c1-16)
+          test -n "$key"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned C library
+        uses: actions/cache@v4
+        with:
+          path: vendor/linux
+          key: linux-trees-linux-riscv64-${{ steps.linux-trees.outputs.key }}
       - name: The pinned LLVM and C library for linux-riscv64
         run: |
           make llvm
@@ -776,6 +836,21 @@ jobs:
         with:
           path: vendor/llvm
           key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      # The pinned C library trees (make.til, linux_sysroots), kept between
+      # runs like the pinned LLVM: one cache entry per job and table, so a
+      # run does not depend on the Bootlin server being reachable.
+      - name: The pinned C library table
+        id: linux-trees
+        shell: bash
+        run: |
+          key=$(sed -n '/^linux_sysroots := /,/^}/p' make.til | sha256sum | cut -c1-16)
+          test -n "$key"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned C library
+        uses: actions/cache@v4
+        with:
+          path: vendor/linux
+          key: linux-trees-linux-x86-${{ steps.linux-trees.outputs.key }}
       - name: The pinned LLVM and C library for linux-x86
         run: |
           make llvm
@@ -910,6 +985,21 @@ jobs:
         with:
           path: vendor/llvm
           key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      # The pinned C library trees (make.til, linux_sysroots), kept between
+      # runs like the pinned LLVM: one cache entry per job and table, so a
+      # run does not depend on the Bootlin server being reachable.
+      - name: The pinned C library table
+        id: linux-trees
+        shell: bash
+        run: |
+          key=$(sed -n '/^linux_sysroots := /,/^}/p' make.til | sha256sum | cut -c1-16)
+          test -n "$key"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned C library
+        uses: actions/cache@v4
+        with:
+          path: vendor/linux
+          key: linux-trees-linux-arm32-${{ steps.linux-trees.outputs.key }}
       - name: The pinned LLVM and C library for linux-arm32
         run: |
           make llvm
@@ -1015,6 +1105,21 @@ jobs:
         with:
           path: vendor/llvm
           key: llvm-${{ steps.llvm.outputs.release }}-${{ runner.os }}-${{ runner.arch }}
+      # The pinned C library trees (make.til, linux_sysroots), kept between
+      # runs like the pinned LLVM: one cache entry per job and table, so a
+      # run does not depend on the Bootlin server being reachable.
+      - name: The pinned C library table
+        id: linux-trees
+        shell: bash
+        run: |
+          key=$(sed -n '/^linux_sysroots := /,/^}/p' make.til | sha256sum | cut -c1-16)
+          test -n "$key"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned C library
+        uses: actions/cache@v4
+        with:
+          path: vendor/linux
+          key: linux-trees-linux-riscv32-${{ steps.linux-trees.outputs.key }}
       - name: The pinned LLVM and C library for linux-riscv32
         run: |
           make llvm
@@ -2072,6 +2177,21 @@ jobs:
       # pinned C library and with the pinned clang first on PATH, as on
       # the Linux hosts. Strict since CI run 3210: both lists were the
       # Linux hosts', every item.
+      # The pinned C library trees (make.til, linux_sysroots), kept between
+      # runs like the pinned LLVM: one cache entry per job and table, so a
+      # run does not depend on the Bootlin server being reachable.
+      - name: The pinned C library table
+        id: linux-trees
+        shell: bash
+        run: |
+          key=$(sed -n '/^linux_sysroots := /,/^}/p' make.til | sha256sum | cut -c1-16)
+          test -n "$key"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned C library
+        uses: actions/cache@v4
+        with:
+          path: vendor/linux
+          key: linux-trees-macos-arm64-${{ steps.linux-trees.outputs.key }}
       - name: Write the linux binary hash list with the pinned C library
         run: |
           export PATH="$PWD/vendor/llvm/bin:$PATH"

@@ -439,5 +439,6 @@ checked by hash, as in ~linux-arm64 (native)~.
 - The Windows host's paths: read them from the next run and fix the
   spelling. The Intel Mac for ELF targets: open (a clang built from
   LLVM's source at the pinned tag would name itself like LLVM's own).
-- The trees are downloaded on every run (six per Linux host): a cache
-  entry, as for the pinned LLVM.
+- The trees are cached in CI, as the pinned LLVM is: one entry per job
+  and per table in ~make.til~ (the seven Linux jobs and the arm64 Mac;
+  not the Windows host, whose trees hold links its tar made).
