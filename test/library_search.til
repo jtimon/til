@@ -4,6 +4,7 @@ mode lib
 // (link("-l...")): the place the loader looks, on every host.
 
 import("../src/std/sys")
+import("../src/std/file")
 
 // Run `command` with the libraries in `dir` loadable by name:
 // LD_LIBRARY_PATH on Linux, DYLD_LIBRARY_PATH on macOS, and on Windows the
@@ -16,4 +17,19 @@ library_search_in := proc(command: Cmd, dir: Str) {
     if host_os() == "windows" {
         command.env("PATH", format(dir.replace("/", "\\"), ";", get_env("PATH")))
     }
+}
+
+// The AddressSanitizer runtime a Windows program built with --asan
+// imports, llvm-mingw's libclang_rt.asan_dynamic-x86_64.dll, from this
+// process's PATH (the windows-x64-asan CI job puts its directory there).
+// A test that runs such a program with an empty PATH puts this beside it,
+// as it does the program's other DLLs.
+windows_asan_runtime := proc() returns Str {
+    for dir : Str in get_env("PATH").split(";") {
+        if dir.len() == 0 { continue }
+        candidate := format(dir, "/libclang_rt.asan_dynamic-x86_64.dll")
+        if File.is_file(candidate) { return candidate }
+    }
+    panic("libclang_rt.asan_dynamic-x86_64.dll is on no PATH directory: ", get_env("PATH"))
+    return ""
 }

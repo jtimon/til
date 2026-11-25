@@ -39,7 +39,8 @@ main := proc(args: ..Str) {
     consumer.env("LIBRARY_PATH", "gen/lib")
     library_search_in(consumer, "gen/lib")
     consumer.capture()
-    consumer.run_checked()
+    status := consumer.run()
+    if status != 0 { panic("consumer failed (exit ", status.to_str(), "): ", consumer.out(), consumer.err()) }
     if consumer.out().contains("cage shadow ok").not() {
         panic("consumer did not finish: ", consumer.out(), consumer.err())
     }

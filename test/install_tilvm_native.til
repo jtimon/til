@@ -61,7 +61,8 @@ run_native_family := proc(work: Str, fixture: Str, family: Str) {
     child.env("HOME", realpath_str(format(directory, "/home")))
     library_search_in(child, library_dir)
     child.capture()
-    if child.run() != 0 { panic("installed native TilVm ", family, " failed: ", child.out(), child.err()) }
+    status := child.run()
+    if status != 0 { panic("installed native TilVm ", family, " failed (exit ", status.to_str(), "): ", child.out(), child.err()) }
     check_native_output(format("tilvm_native_", family), child.out(), child.err())
     println("install TilVm native ", family, " PASS")
 }

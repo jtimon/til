@@ -3,6 +3,7 @@ mode cli
 import("../src/std/sys")
 import("../src/std/file")
 import("../src/self/install")
+import("library_search")
 
 // The compiler under the host's executable name (bin/til.exe on Windows,
 // where a Win32 file check does not add the .exe).
@@ -21,7 +22,8 @@ run_family := proc(work: Str, fixture: Str, family: Str) {
     child.cwd(directory)
     child.env("PATH", "")
     child.capture()
-    if child.run() != 0 { panic("installed TilVm ", family, " failed: ", child.out(), child.err()) }
+    status := child.run()
+    if status != 0 { panic("installed TilVm ", family, " failed (exit ", status.to_str(), "): ", child.out(), child.err()) }
     if child.out().contains("TilVm host survived errors and teardown").not() {
         panic("installed TilVm ", family, " did not finish: ", child.out(), child.err())
     }
@@ -69,6 +71,12 @@ main := proc(args: ..Str) returns I64 {
     vm_build.args("-o", "bin/tilvm_host", "tilvm_host.til")
     vm_build.cwd(work)
     vm_build.run_checked()
+    // The families run the host with an empty PATH, so a Windows host built
+    // with --asan needs the sanitizer's runtime DLL beside it (CI run 3210:
+    // every family failed, saying nothing).
+    if asan.and(host_os() == "windows") {
+        assert_eq(I32, copy_file(windows_asan_runtime(), format(work, "/bin/libclang_rt.asan_dynamic-x86_64.dll")), 0)
+    }
     if action == "build" {
         println("install TilVm build PASS")
         return 0

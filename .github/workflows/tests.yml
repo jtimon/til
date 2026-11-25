@@ -1425,6 +1425,12 @@ jobs:
           x86_64-w64-mingw32-objcopy --dump-section .debug_line=tmp/probe/debug_line --dump-section .debug_info=tmp/probe/debug_info tmp/ci_collect/binary_windows-x64/til.exe tmp/probe/til_copy.exe
           x86_64-w64-mingw32-strings -a tmp/probe/debug_line | grep -E '[/\\]|\.[ch]$' | sort -u | head -80
           x86_64-w64-mingw32-strings -a tmp/probe/debug_info | grep -E '[/\\]|\.[ch]$' | sort -u | head -20
+          # windows-x86 (on trial): the Windows host's hello_script differed
+          # from the other four in .debug_info and .debug_line alone (CI run
+          # 3210). Their strings, to read from two logs what differs.
+          i686-w64-mingw32-objcopy --dump-section .debug_line=tmp/probe/x86_line --dump-section .debug_info=tmp/probe/x86_info tmp/ci_collect/binary_windows-x86/hello_script.exe tmp/probe/hello_x86_copy.exe
+          i686-w64-mingw32-strings -a tmp/probe/x86_line | grep -E '[/\\]|\.[ch]$' | sort -u | head -80
+          i686-w64-mingw32-strings -a tmp/probe/x86_info | grep -E '[/\\]|\.[ch]$' | sort -u | head -20
       - name: Upload the windows binary hash list
         uses: actions/upload-artifact@v4
         with:
@@ -1717,6 +1723,12 @@ jobs:
           x86_64-w64-mingw32-objcopy --dump-section .debug_line=tmp/probe/debug_line --dump-section .debug_info=tmp/probe/debug_info tmp/ci_collect/binary_windows-x64/til.exe tmp/probe/til_copy.exe
           x86_64-w64-mingw32-strings -a tmp/probe/debug_line | grep -E '[/\\]|\.[ch]$' | sort -u | head -80
           x86_64-w64-mingw32-strings -a tmp/probe/debug_info | grep -E '[/\\]|\.[ch]$' | sort -u | head -20
+          # windows-x86 (on trial): the Windows host's hello_script differed
+          # from the other four in .debug_info and .debug_line alone (CI run
+          # 3210). Their strings, to read from two logs what differs.
+          i686-w64-mingw32-objcopy --dump-section .debug_line=tmp/probe/x86_line --dump-section .debug_info=tmp/probe/x86_info tmp/ci_collect/binary_windows-x86/hello_script.exe tmp/probe/hello_x86_copy.exe
+          i686-w64-mingw32-strings -a tmp/probe/x86_line | grep -E '[/\\]|\.[ch]$' | sort -u | head -80
+          i686-w64-mingw32-strings -a tmp/probe/x86_info | grep -E '[/\\]|\.[ch]$' | sort -u | head -20
       - name: Upload the windows binary hash list
         uses: actions/upload-artifact@v4
         with:
