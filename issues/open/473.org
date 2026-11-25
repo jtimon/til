@@ -1131,6 +1131,15 @@ linux targets itself.
 
 Levels now: producers, then collect. Windows jobs left: the native one
 and ~windows-x64-asan~, the Windows session's second suite (#483).
-Still of the old shape, on the mac side: ~macos-cross-build~ and
-~macos-gui-cross~, Linux runners cross-building mac programs that
-nothing runs.
+
+~macos-cross-build~ and ~macos-gui-cross~, two Linux runners
+cross-building mac programs that nothing ran, with Ubuntu's clang 18,
+are steps of ~linux-x64~ too now, with the pinned LLVM (every one of
+those steps was run here first with it: the programs, til, the gui
+examples, the reproducibility test, the -Werror pass over the corpus).
+
+Jobs now, 16 and collect: one per host that runs a suite (linux-x64,
+linux-arm64 native, windows-x64, macos-arm64, macos-x64); the five
+linux targets run under qemu, wasm32, TempleOS, the Android emulators;
+~linux-x64 (--usize=64)~ and ~windows-x64-asan~, second suites on a
+host that already has a job.
