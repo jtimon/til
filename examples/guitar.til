@@ -416,7 +416,7 @@ main := proc() {
     TEXT_COLOR := Color(r = 220, g = 220, b = 220, a = 255)
     LABEL_COLOR := Color(r = 245, g = 245, b = 235, a = 255)
     MUTED_TEXT := Color(r = 120, g = 120, b = 130, a = 255)
-    BTN_ACTIVE := Color(r = 0, g = 150, b = 155, a = 255)
+    BTN_ACTIVE := TEAL
     BTN_INACTIVE := Color(r = 50, g = 50, b = 50, a = 255)
 
     while !WindowShouldClose() {

@@ -81,14 +81,14 @@ main := proc() {
     ROLL_BG := Color(r = 10, g = 10, b = 20, a = 255)
     GRID_BLACK := Color(r = 15, g = 15, b = 25, a = 255)
     GRID_LINE := Color(r = 40, g = 40, b = 60, a = 255)
-    KEY_WHITE_PRESSED := Color(r = 0, g = 200, b = 210, a = 255)
+    KEY_WHITE_PRESSED := TEAL
     KEY_WHITE := Color(r = 240, g = 240, b = 240, a = 255)
     KEY_LABEL_COLOR := Color(r = 80, g = 80, b = 80, a = 255)
-    KEY_BLACK_PRESSED := Color(r = 0, g = 150, b = 155, a = 255)
+    KEY_BLACK_PRESSED := DARK_TEAL
     KEY_BLACK := Color(r = 20, g = 20, b = 20, a = 255)
-    KEY_LABEL_BLACK := Color(r = 180, g = 180, b = 180, a = 255)
+    KEY_LABEL_BLACK := HINT_GRAY
     LABEL_COLOR := Color(r = 60, g = 60, b = 80, a = 255)
-    BTN_ACTIVE := Color(r = 0, g = 150, b = 155, a = 255)
+    BTN_ACTIVE := TEAL
     BTN_INACTIVE := Color(r = 50, g = 50, b = 50, a = 255)
     BUTTON_LABEL := Color(r = 220, g = 220, b = 220, a = 255)
 
@@ -315,7 +315,7 @@ main := proc() {
             if ew < 2 { ew = 2 }
 
             // Color: teal with brightness per display cycle.
-            mut note_color := Color(r = 0, g = 150, b = 155, a = 255)
+            mut note_color := DARK_TEAL
             mut cycle : I32 = en / 12
             if hextave_display { cycle = en / FIVE_CYCLE.to_i32() }
             if cycle == 1 { note_color = Color(r = 0, g = 165, b = 170, a = 255) }

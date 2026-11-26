@@ -32,15 +32,12 @@ main := proc() {
     mut next_dx2 : I32 = -1
     mut next_dy2 : I32 = 0
 
-    BLACK := Color(r = 0, g = 0, b = 0, a = 255)
     GREEN := Color(r = 0, g = 200, b = 0, a = 255)
     YELLOW := Color(r = 255, g = 255, b = 0, a = 255)
-    CYAN := Color(r = 0, g = 200, b = 210, a = 255)
-    WHITE := Color(r = 255, g = 255, b = 255, a = 255)
     RED := Color(r = 230, g = 41, b = 55, a = 255)
     GRAY := Color(r = 200, g = 200, b = 200, a = 255)
     DARK_GRAY := Color(r = 80, g = 80, b = 80, a = 255)
-    BTN_ACTIVE := Color(r = 60, g = 60, b = 60, a = 255)
+    BTN_ACTIVE := TEAL
     BTN_INACTIVE := Color(r = 30, g = 30, b = 30, a = 255)
 
     mut frame := 0
@@ -382,13 +379,13 @@ main := proc() {
                 ref seg2 : I32 = body2[k2]
                 sx2 := (seg2 % COLS) * CELL + 2
                 sy2 := (seg2 / COLS) * CELL + 2 + BAR_H
-                DrawRectangle(sx2, sy2, CELL - 4, CELL - 4, CYAN)
+                DrawRectangle(sx2, sy2, CELL - 4, CELL - 4, TEAL)
                 k2++
             }
             ref head2 : I32 = body2[0]
             hx2 := (head2 % COLS) * CELL + CELL / 2
             hy2 := (head2 / COLS) * CELL + CELL / 2 + BAR_H
-            DrawCircle(hx2, hy2, (CELL / 2 - 1).to_f32(), CYAN)
+            DrawCircle(hx2, hy2, (CELL / 2 - 1).to_f32(), TEAL)
         }
 
         // Score
@@ -402,7 +399,7 @@ main := proc() {
                     DrawText("DRAW".c_str, W / 2 - 50, gy, 40, RED)
                 } else {
                     if p1_dead {
-                        DrawText("P2 WINS!".c_str, W / 2 - 80, gy, 40, CYAN)
+                        DrawText("P2 WINS!".c_str, W / 2 - 80, gy, 40, TEAL)
                     } else {
                         DrawText("P1 WINS!".c_str, W / 2 - 80, gy, 40, YELLOW)
                     }

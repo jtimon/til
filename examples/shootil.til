@@ -61,9 +61,9 @@ v3_lerp := func(a: Vector3, b: Vector3, t: F32) returns Vector3 {
 
 draw_menu_item := proc(text: Str, x: I32, y: I32, selected: Bool) {
     if selected {
-        DrawText(text.c_str, x, y, 28, Color(r = 0, g = 200, b = 210, a = 255))
+        DrawText(text.c_str, x, y, 28, TEAL)
     } else {
-        DrawText(text.c_str, x, y, 28, Color(r = 255, g = 255, b = 255, a = 255))
+        DrawText(text.c_str, x, y, 28, WHITE)
     }
 }
 
@@ -126,9 +126,6 @@ floor_half := floor_size.x / 2
 total_boxes := cube_positions.len() + tall_positions.len() + small_positions.len()
 mut aabbs := Array(BoundingBox).new(total_boxes)
 cam_radius : F32 = 1 / 2
-TEAL := Color(r = 0, g = 200, b = 210, a = 255)
-WHITE := Color(r = 255, g = 255, b = 255, a = 255)
-BLACK := Color(r = 0, g = 0, b = 0, a = 255)
 zero_f : F32 = 0
 one_f : F32 = 1
 mut vel_y := zero_f
@@ -434,28 +431,28 @@ shootil_frame := proc() {
         if !menu_open {
             sw := GetScreenWidth()
             if god_mode {
-                DrawText("G: normal".c_str, sw - 180, 10, 20, Color(r = 180, g = 180, b = 180, a = 255))
+                DrawText("G: normal".c_str, sw - 180, 10, 20, HINT_GRAY)
             } else {
-                DrawText("G: god mode".c_str, sw - 180, 10, 20, Color(r = 180, g = 180, b = 180, a = 255))
+                DrawText("G: god mode".c_str, sw - 180, 10, 20, HINT_GRAY)
             }
             if touch_look {
-                DrawText("Drag to look".c_str, sw - 220, 32, 20, Color(r = 180, g = 180, b = 180, a = 255))
+                DrawText("Drag to look".c_str, sw - 220, 32, 20, HINT_GRAY)
             } else {
-                DrawText("ESC / M: menu".c_str, sw - 220, 32, 20, Color(r = 180, g = 180, b = 180, a = 255))
+                DrawText("ESC / M: menu".c_str, sw - 220, 32, 20, HINT_GRAY)
             }
         }
 
         if menu_open {
             sw := GetScreenWidth()
             sh := GetScreenHeight()
-            DrawRectangle(0, 0, sw, sh, Color(r = 0, g = 0, b = 0, a = 180))
-            DrawText("MENU".c_str, sw / 2 - 50, sh / 2 - 160, 36, Color(r = 255, g = 255, b = 255, a = 255))
+            DrawRectangle(0, 0, sw, sh, MENU_OVERLAY)
+            DrawText("MENU".c_str, sw / 2 - 50, sh / 2 - 160, 36, WHITE)
             base_x := sw / 2 - 180
             base_y := sh / 2 - 80
             draw_menu_item("Resume", base_x, base_y, menu_sel == MENU_RESUME)
             draw_menu_item("Toggle Fullscreen (F11)", base_x, base_y + 50, menu_sel == MENU_FULLSCREEN)
             draw_menu_item("Quit", base_x, base_y + 100, menu_sel == MENU_QUIT)
-            DrawText("ESC / M: close   Enter: select".c_str, base_x - 40, base_y + 170, 18, Color(r = 180, g = 180, b = 180, a = 255))
+            DrawText("ESC / M: close   Enter: select".c_str, base_x - 40, base_y + 170, 18, HINT_GRAY)
         }
         EndDrawing()
 

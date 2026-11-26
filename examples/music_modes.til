@@ -368,9 +368,7 @@ draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USiz
 
     GRAY := Color(r = 100, g = 100, b = 100, a = 255)
     YELLOW := Color(r = 255, g = 255, b = 0, a = 255)
-    CYAN := Color(r = 0, g = 200, b = 210, a = 255)
-    WHITE := Color(r = 255, g = 255, b = 255, a = 255)
-    LIGHT_GRAY := Color(r = 180, g = 180, b = 180, a = 255)
+    LIGHT_GRAY := HINT_GRAY
 
     // Ledger lines.
     if staff_pos.lt(0) {
@@ -395,7 +393,7 @@ draw_note := proc(use_five: Bool, use_nathex: Bool, use_letters: Bool, dni: USiz
         note_color = Color(r = 100, g = 100, b = 0, a = 255)
     }
     if clicked_note.eq(dni.to_i32()) {
-        note_color = CYAN
+        note_color = TEAL
     }
 
     DrawCircle(dnx, dny, NOTE_R.to_f32(), note_color)
@@ -547,12 +545,12 @@ piano_key_label := func(five_system: Bool, key: I32) returns Str {
 }
 
 draw_piano := proc(five_system: Bool, last_key: I32, fnt: Font) {
-    KEY_WHITE_PRESSED := Color(r = 0, g = 200, b = 210, a = 255)
+    KEY_WHITE_PRESSED := TEAL
     KEY_WHITE := Color(r = 240, g = 240, b = 240, a = 255)
     KEY_LABEL_COLOR := Color(r = 80, g = 80, b = 80, a = 255)
-    KEY_BLACK_PRESSED := Color(r = 0, g = 150, b = 155, a = 255)
+    KEY_BLACK_PRESSED := DARK_TEAL
     KEY_BLACK := Color(r = 20, g = 20, b = 20, a = 255)
-    KEY_LABEL_BLACK := Color(r = 180, g = 180, b = 180, a = 255)
+    KEY_LABEL_BLACK := HINT_GRAY
 
     white_count := piano_white_count(five_system, last_key)
     white_w := STAFF_W / white_count.to_i32()
@@ -1088,11 +1086,10 @@ main := proc() {
     mut described_note : I32 = -1
     mut clicked_timer : I32 = 0
 
-    BLACK := Color(r = 0, g = 0, b = 0, a = 255)
     GRAY := Color(r = 100, g = 100, b = 100, a = 255)
     TICK_GRAY := Color(r = 60, g = 60, b = 60, a = 255)
 
-    BTN_ACTIVE := Color(r = 0, g = 150, b = 155, a = 255)
+    BTN_ACTIVE := TEAL
     BTN_INACTIVE := Color(r = 50, g = 50, b = 50, a = 255)
     BUTTON_LABEL := Color(r = 220, g = 220, b = 220, a = 255)
     TICK_LABEL := Color(r = 80, g = 80, b = 80, a = 255)

@@ -4,7 +4,6 @@ main := proc() {
     InitWindow(800, 450, "hello from til!".c_str)
     SetTargetFPS(60)
 
-    BLACK := Color(r = 0, g = 0, b = 0, a = 255)
     RED := Color(r = 230, g = 41, b = 55, a = 255)
 
     mut x : I32 = 0

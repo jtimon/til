@@ -25,14 +25,12 @@ main := proc() {
     mut first_click := true
     mut flags : I32 = 0
 
-    BLACK := Color(r = 0, g = 0, b = 0, a = 255)
     YELLOW := Color(r = 255, g = 255, b = 0, a = 255)
     GREEN := Color(r = 0, g = 200, b = 0, a = 255)
     RED := Color(r = 230, g = 41, b = 55, a = 255)
     GRAY := Color(r = 150, g = 150, b = 150, a = 255)
     GRID_HIDDEN := Color(r = 60, g = 60, b = 60, a = 255)
     GRID_REVEALED := Color(r = 30, g = 30, b = 30, a = 255)
-    WHITE := Color(r = 255, g = 255, b = 255, a = 255)
 
     // Flood fill stack
     mut stack := Vec(I32).new()
@@ -249,7 +247,7 @@ main := proc() {
                             if dc == 4 { nc = Color(r = 160, g = 32,  b = 240, a = 255) }
                             if dc == 5 { nc = Color(r = 160, g = 82,  b = 45,  a = 255) }
                             if dc == 6 { nc = Color(r = 0,   g = 200, b = 200, a = 255) }
-                            if dc == 7 { nc = Color(r = 180, g = 180, b = 180, a = 255) }
+                            if dc == 7 { nc = HINT_GRAY }
                             if dc == 8 { nc = Color(r = 100, g = 100, b = 100, a = 255) }
                             DrawText(dc.to_str().c_str, px + 9, py + 5, 20, nc)
                         }
