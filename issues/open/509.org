@@ -1,0 +1,40 @@
+# priority: medium
+# category: features
+** OPEN #509 Add an opt-in default font for GUI text drawing and measurement
+
+~examples/editor.til~ draws text at 16 px with raylib's ~DrawText~, which
+scales the built-in bitmap font. It also hard-codes character width and line
+height. ~examples/gui_terminal_grid.til~ uses the same drawing function in a
+fixed-cell rendering test. Keep the built-in font and current defaults for
+existing callers at first; let applications choose a more readable font.
+
+Tiled and tilminal already get better results by loading a font explicitly.
+Their shared ~src/font_paths.til~ uses a configured path or resolves the
+system monospace choice through ~fc-match~. On the observed Linux desktop
+that selects DejaVu Sans Mono. Both default to 28 px and load the font at
+the requested size with ~LoadFontEx~. They retain their own font handles and
+metrics for zoom, glyph coverage and reload. There's no global raylib font
+replacement in Tiled.
+
+*** Proposed direction
+
+- Consider a convenience API such as ~Gui.set_global_default_font~. The
+  setting would be an application default for the portable GUI helpers in
+  [[file:508.org][#508]], scoped to the GUI context if the facade exposes more than one.
+  Keep raw raylib ~DrawText~ and ~GetFontDefault~ behavior intact.
+- Pair default-font drawing with measurement using the same font and size,
+  so cursor columns, line spacing and layout follow the override. Keep an
+  explicit-font path for callers that use multiple fonts or sizes, as Tiled
+  does. An explicit font file is enough for a first slice; system font
+  discovery can be a separate, platform-aware helper rather than a mandatory
+  fontconfig dependency.
+- Define who owns the loaded font, when replacement and reset release it,
+  and how load failure preserves the previous default. A facade default
+  should help small examples without requiring editors to give up control
+  of their font atlases or requiring every backend to expose raylib handles.
+
+Acceptance: let the editor example opt in to a monospace font at a readable
+size. Verify that drawn text, cursor columns and row spacing agree, a failed
+override leaves the prior font usable, and a caller that makes no override
+still gets its current default. Keep the fixed terminal-grid pixel test
+deterministic.

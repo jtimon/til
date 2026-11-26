@@ -43,6 +43,7 @@
 *** [[./open/506.org][#506]] An ext_func/ext_proc binding whose til name is not its C symbol
 *** [[./open/507.org][#507]] Reusable input boxes for mode gui
 *** [[./open/508.org][#508]] Separate the portable GUI facade from direct raylib access
+*** [[./open/509.org][#509]] Add an opt-in default font for GUI text drawing and measurement
 ** Low
 *** [[./open/156.org][#156]] Improve til-mode indentation rules
 *** [[./open/201.org][#201]] More built-in error types and safe_* methods
