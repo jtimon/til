@@ -3230,6 +3230,24 @@ main := proc(args: ..Str) returns I64 {
     add_count(tests, "import_ns_unknown_symbol_build", "typer",
         "no public symbol", 1,
         format(til_bin, " build", asan_flag, " test/import_ns_unknown_symbol.til"))
+    for action in "interpret build".split(" ") {
+        mut cmd := format(til_bin, " ", action)
+        if action == "build" { cmd = format(cmd, asan_flag) }
+        for form in "qualified wildcard".split(" ") {
+            base := format("test/imports/palette_", form)
+            mut check := format(cmd, " ", base, ".til")
+            if action == "build" { check = format(check, " '&&' bin/", base) }
+            add_single(tests, format("palette_", form, "_", action), "typer", 0, "", check)
+        }
+        for form in "collision private hidden selective_hidden alias_hidden unselected".split(" ") {
+            mut expected := "'UNRELATED' is not imported"
+            if form == "collision" { expected = ":2:1: error: wildcard import conflicts with declaration 'BLACK'" }
+            if form == "private" { expected = "undefined symbol 'SECRET'" }
+            if form == "selective_hidden" { expected = "undefined symbol 'BLACK'" }
+            add_count(tests, format("palette_", form, "_", action), "typer", expected, 1,
+                format(cmd, " test/imports/palette_", form, ".til"))
+        }
+    }
     add_count(tests, "priv_unused_error_interp", "typer",
         "unused priv", 8,
         format(til_bin, " interpret test/priv_unused_error.til"))

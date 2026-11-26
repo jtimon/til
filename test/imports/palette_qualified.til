@@ -1,0 +1,5 @@
+mode script
+import("palette", Colors)
+BLACK := 22
+assert_eq(I64, BLACK, 22)
+assert_eq(I64, Colors.BLACK, 11)

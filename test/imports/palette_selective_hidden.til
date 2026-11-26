@@ -1,0 +1,4 @@
+mode script
+import("palette", Colors)
+println(Colors.BLACK)
+println(BLACK)

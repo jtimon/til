@@ -1,0 +1,4 @@
+mode script
+import("palette", Colors.*)
+BLACK := 22
+println(BLACK)

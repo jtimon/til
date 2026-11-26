@@ -450,6 +450,7 @@ typedef struct ProgramUnit ProgramUnit;
 typedef struct TargetLink TargetLink;
 typedef struct LoadedProgram LoadedProgram;
 typedef struct DocMeta DocMeta;
+typedef struct priv___src_self_loader_til__ImportNames priv___src_self_loader_til__ImportNames;
 typedef struct priv___src_self_loader_til__ImportCheckEntry priv___src_self_loader_til__ImportCheckEntry;
 typedef struct Vec__TargetLink Vec__TargetLink;
 typedef struct Vec__ProgramUnit Vec__ProgramUnit;
@@ -1655,6 +1656,15 @@ typedef struct DocMeta {
     Str deprecated;
     Bool hidden;
 } DocMeta;
+
+
+typedef struct priv___src_self_loader_til__ImportNames {
+    Map__Str_Str aliases;
+    Set__Str members;
+    Map__Str_Str owners;
+    Set__Str restricted;
+    Set__Str visible;
+} priv___src_self_loader_til__ImportNames;
 
 
 typedef struct priv___src_self_loader_til__ImportCheckEntry {

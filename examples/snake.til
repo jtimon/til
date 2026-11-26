@@ -1,4 +1,5 @@
 mode gui
+import("../src/modes/gui", Colors.*)
 
 main := proc() {
     COLS : I32 = 32

@@ -3,6 +3,7 @@ mode lib
 import("std/tilvm")
 import("std/file")
 native := import("./gen/til/vm_native")
+import("./gen/til/vm_native", NativeConfig, NativeError)
 
 // install_tilvm_native.til builds the native library and this host through an
 // installed compiler. The host creates every guest AFTER it was compiled,

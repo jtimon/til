@@ -1,6 +1,13 @@
 # priority: medium
 # category: features
-** OPEN #510 Import public members of a namespace with ~Colors.*~
+** FIXED #510 Import public members of a namespace with ~Colors.*~
+
+The parser treated selectors as ordinary expressions. Alias rewriting then
+left bare names to be resolved against the whole program's definition scope.
+The loader now binds wildcard uses to the original public namespace members
+and checks unselected names and conflicts in the importing file. Namespace
+sugar preserves member privacy. The GUI palette and examples use ~Colors~.
+The ~test/imports/palette*.til~ fixtures exercise both interpret and build.
 
 Today ~import(path, Name)~ accepts a top-level declaration, but the parser
 rejects ~Colors.*~ with ~expected 'identifier', found '*'~. Qualified and

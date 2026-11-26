@@ -2211,79 +2211,60 @@ build_doc_init_line_org_files := func(index_path: Str, packed_user_info: Str, pa
 // duplicated the imported bodies in the binary. With an explicit symbol
 // list (`name := import("x", a, b)`) only the listed symbols are
 // rewritable; each listed symbol is validated to exist in x.
-priv desugar_one_import := func(mut imp_stmt: Expr, decl_name: Str, ctx: Context, resolved_path: Str, mut ns_alias_names: Set(Str), mut ns_alias_members: Set(Str), mut ns_alias_paths: Map(Str, Str)) returns Bool {
-    mut handled := false
-    if imp_stmt.children.len() >= 1 {
-        switch imp_stmt.children[0].node_type {
-        case .Ident(id):
-            if id.ident_name(ctx.symbols.names) == "import" {
-                if imp_stmt.children.len() > 1 {
-                    mut path := ""
-                    switch imp_stmt.children[1].node_type {
-                    case .Literal(Literal.Str(p)):
-                        path = format(p, ".til")
-                    case:
-                    }
+priv ImportNames := struct {
+    aliases := Map(Str, Str).new() // alias -> module path
+    members := Set(Str).new()      // alias|public declaration
+    owners := Map(Str, Str).new()  // bare wildcard member -> namespace
+    restricted := Set(Str).new()   // loaded for a limited import
+    visible := Set(Str).new()      // own declarations and bare imports
+}
 
-                    if path.len() > 0 {
-                        mut exp_symbols := Vec(Str).new()
-                        if imp_stmt.children.len() > 2 {
-                            for arg_i in 2..imp_stmt.children.len() {
-                                switch imp_stmt.children[arg_i].node_type {
-                                case .Ident(sym_id):
-                                    exp_symbols.push(own Str.clone(sym_id.ident_name(ctx.symbols.names)))
-                                case:
-                                }
-                            }
-                        } else {
-                            if ctx.imported.has(resolved_path) {
-                                ref iu : ImportUnit = ctx.imported[resolved_path]
-                                for child : Expr in iu.ast.children {
-                                    if child.node_type.is(NodeType.Decl) {
-                                        switch child.node_type {
-                                        case .Decl(dd):
-                                            if dd.is_priv.not() {
-                                                exp_symbols.push(own dd.name.clone())
-                                            }
-                                        case:
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        handled = true
-                        if ctx.imported.has(resolved_path) {
-                            ref iu : ImportUnit = ctx.imported[resolved_path]
-                            for sym : Str in exp_symbols {
-                                mut found := false
-                                for dd : Expr in iu.ast.children {
-                                    switch dd.node_type {
-                                    case .Decl(cd):
-                                        if cd.name == sym { found = true }
-                                    case:
-                                    }
-                                    if found { break }
-                                }
-                                if found.not() {
-                                    imp_stmt.error(resolved_path, format("symbol '", sym, "' not found in '", resolved_path, "'"))
-                                    return false
-                                }
-                                // Members keyed "alias|member" (til's
-                                // parser rejects nested generics like
-                                // Map(Str, Set(Str)) in param types).
-                                ns_alias_members.add(own format(decl_name, "|", sym))
-                            }
-                        }
-                        ns_alias_names.add(own decl_name.clone())
-                        ns_alias_paths.set(decl_name, own resolved_path.clone())
-                    }
-                }
-            }
-        case:
+priv collect_import_names := proc(call: Expr, alias: Str, dep: Str, path: Str,
+        implicit_bare: Bool, mut names: ImportNames, mut ctx: Context) {
+    if alias.len() > 0 { names.aliases.set(alias, own dep.clone()) }
+    mut selections := Set(Str).new()
+    for i in 2..call.children.len() {
+        switch call.children[i].node_type {
+        case .Ident(id): selections.add(own Str.clone(id.ident_name(ctx.symbols.names)))
+        case: type_error_at(path, call.line, call.col, "expected an import selector", ctx)
         }
     }
-    return handled
+    all_names := selections.len() == 0
+    for stmt : Expr in ctx.imported[dep].ast.children {
+        if stmt.node_type.is(NodeType.Decl).not() { continue }
+        ref d : Declaration = decl_of(stmt)
+        if d.is_priv { continue }
+        if implicit_bare { names.visible.add(own d.name.clone()) }
+        if all_names.or(selections.has(d.name)) {
+            if alias.len() == 0 {
+                if names.owners.has(d.name) {
+                    type_error_at(path, call.line, call.col, format("import conflicts with wildcard member '", d.name, "'"), ctx)
+                }
+                names.visible.add(own d.name.clone())
+            }
+            else { names.members.add(own format(alias, "|", d.name)) }
+            selections.remove(d.name)
+        }
+        if alias.len() > 0 || !all_names { names.restricted.add(own d.name.clone()) }
+        wildcard := format(d.name, ".*")
+        if selections.has(wildcard).not() { continue }
+        selections.remove(wildcard)
+        if alias.len() > 0 || stmt.children.len() == 0 || !stmt.children[0].node_type.is(NodeType.StructDef) {
+            type_error_at(path, call.line, call.col, "expected a namespace for bare wildcard import", ctx)
+            continue
+        }
+        ref def : StructDef = structdef_of(stmt.children[0])
+        for j in 0..def.ns_decls.len() {
+            if def.ns_decls[j].is_priv { continue }
+            ref member : Str = def.member_name_at(j)
+            if names.visible.has(member).or(names.owners.has(member)) {
+                type_error_at(path, call.line, call.col, format("wildcard import conflicts with declaration '", member, "'"), ctx)
+            } else { names.owners.set(member, own d.name.clone()) }
+        }
+    }
+    for sym in selections {
+        type_error_at(path, call.line, call.col, format("no public symbol '", sym, "' in '", dep, "'"), ctx)
+    }
 }
 
 // Collect the binder names a switch-case pattern introduces for its
@@ -2303,21 +2284,44 @@ priv collect_case_pattern_binders := func(pat: Expr, mut out: Set(Str), symbols:
     }
 }
 
-// Rewrite-or-recurse for one child slot: if it is an `alias.sym`
-// FieldAccess whose base names a (non-shadowed) namespace-import alias,
-// replace it with a direct `sym` Ident; a member outside the alias's
-// public set is a load-time error (same stage as the selective-import
-// symbol-not-found error). Anything else recurses.
-priv ns_alias_rewrite_child := proc(mut e: Expr, i: USize, alias_names: Set(Str), alias_members: Set(Str), alias_paths: Map(Str, Str), path: Str, shadowed: Set(Str), mut ctx: Context) {
-    ref mut c : Expr = e.children[i]
+priv check_import_name := proc(name: Str, names: ImportNames, path: Str, site: Expr, shadowed: Set(Str), mut ctx: Context) {
+    if names.restricted.has(name).and(names.visible.has(name).or(shadowed.has(name)).not()) {
+        type_error_at(path, site.line, site.col, format("'", name, "' is not imported"), ctx)
+    }
+}
+
+// Bind source spellings before init sees the shared definition scope.
+// Rewriting to the original member (rather than copying its initializer)
+// preserves its home file, mutable storage and callable identity.
+priv rewrite_ns_alias_uses := proc(mut c: Expr, names: ImportNames, path: Str, shadowed: Set(Str), mut ctx: Context) {
     mut alias_name := ""
     mut member := ""
     switch c.node_type {
+    case .Ident(id):
+        ref name : Str = id.ident_name(ctx.symbols.names)
+        if shadowed.has(name) { return }
+        if names.owners.has(name) {
+            owner := ctx.symbols.intern(names.owners[name])
+            c.node_type = field_access_node(id.ident_sym())
+            c.add_child(own Expr.new(own ident_node(owner), c.line, c.col))
+        } else { check_import_name(name, names, path, c, shadowed, ctx) }
+        return
+    case .Assign(ad):
+        if names.owners.has(ad.name).and(shadowed.has(ad.name).not()) {
+            owner := ctx.symbols.intern(names.owners[ad.name])
+            c.node_type = NodeType.FieldAssign(FieldAssignData(name = ad.name.clone()))
+            rewrite_ns_alias_uses(c.children[0], names, path, shadowed, ctx)
+            rhs := c.children.take()
+            c.add_child(own Expr.new(own ident_node(owner), c.line, c.col))
+            c.add_child(own rhs[0].clone())
+            return
+        }
+        check_import_name(ad.name, names, path, c, shadowed, ctx)
     case .FieldAccess(fan):
         if c.children.len() > 0 {
             switch c.children[0].node_type {
             case .Ident(base_id):
-                if alias_names.has(base_id.ident_name(ctx.symbols.names)).and(shadowed.has(base_id.ident_name(ctx.symbols.names)).not()) {
+                if names.aliases.has(base_id.ident_name(ctx.symbols.names)).and(shadowed.has(base_id.ident_name(ctx.symbols.names)).not()) {
                     alias_name = Str.clone(base_id.ident_name(ctx.symbols.names))
                     member = Str.clone(fan.field_access_name(ctx.symbols.names))
                 }
@@ -2327,7 +2331,7 @@ priv ns_alias_rewrite_child := proc(mut e: Expr, i: USize, alias_names: Set(Str)
     case:
     }
     if alias_name.len() > 0 {
-        if alias_members.has(format(alias_name, "|", member)).not() {
+        if names.members.has(format(alias_name, "|", member)).not() {
             // A member the alias does not export is ordinary user error: a
             // typo is enough, and the REPL's auto-echo reaches it just by
             // echoing the alias (`sys` wraps to `sys.to_str`). This used to
@@ -2336,15 +2340,14 @@ priv ns_alias_rewrite_child := proc(mut e: Expr, i: USize, alias_names: Set(Str)
             // alone; type_program_errors returns before the initer walks it.
             type_error_at(path, c.line, c.col,
                 format("no public symbol '", member, "' in namespace import '",
-                    alias_name, "' of '", alias_paths[alias_name], "'"), ctx)
+                    alias_name, "' of '", names.aliases[alias_name], "'"), ctx)
             return
         }
-        mut idn := Expr.new(own ident_node(ctx.symbols.intern(member)), c.line, c.col)
-        // Vec.set deep-deletes the replaced FieldAccess subtree.
-        e.children[i] = idn
-    } else {
-        rewrite_ns_alias_uses(c, alias_names, alias_members, alias_paths, path, shadowed, ctx)
+        c.node_type = ident_node(ctx.symbols.intern(member))
+        c.children.clear()
+        return
     }
+    rewrite_import_children(c, names, path, shadowed, ctx)
 }
 
 // Rewrite every `alias.sym` FieldAccess whose base is a namespace-import
@@ -2354,31 +2357,37 @@ priv ns_alias_rewrite_child := proc(mut e: Expr, i: USize, alias_names: Set(Str)
 // params/captures, body locals (from their decl point onward), for-in
 // loop vars, switch-case payload binders, and catch vars -- so a local
 // that shadows the alias name is left alone.
-priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_members: Set(Str), alias_paths: Map(Str, Str), path: Str, shadowed: Set(Str), mut ctx: Context) {
+priv rewrite_import_children := proc(mut e: Expr, names: ImportNames, path: Str, shadowed: Set(Str), mut ctx: Context) {
     switch e.node_type {
+    case .Decl(d): check_import_name(decl_type_name_ref(d, ctx.symbols), names, path, e, shadowed, ctx)
     case .StructDef(sdd):
         for mut fd : Declaration in sdd.fields {
+            check_import_name(decl_type_name_ref(fd, ctx.symbols), names, path, e, shadowed, ctx)
             if fd.default_value.is_some() {
-                rewrite_ns_alias_uses(fd.default_expr(), alias_names, alias_members, alias_paths, path, shadowed, ctx)
+                rewrite_ns_alias_uses(fd.default_expr(), names, path, shadowed, ctx)
             }
         }
         for mut nd : Declaration in sdd.ns_decls {
+            check_import_name(decl_type_name_ref(nd, ctx.symbols), names, path, e, shadowed, ctx)
             if nd.default_value.is_some() {
-                rewrite_ns_alias_uses(nd.default_expr(), alias_names, alias_members, alias_paths, path, shadowed, ctx)
+                rewrite_ns_alias_uses(nd.default_expr(), names, path, shadowed, ctx)
             }
         }
         return
     case .EnumDef(edd):
         for mut nd2 : Declaration in edd.ns_decls {
             if nd2.default_value.is_some() {
-                rewrite_ns_alias_uses(nd2.default_expr(), alias_names, alias_members, alias_paths, path, shadowed, ctx)
+                rewrite_ns_alias_uses(nd2.default_expr(), names, path, shadowed, ctx)
             }
         }
         return
     case .FuncDef(fdd):
+        check_import_name(fdd.sig.return_type, names, path, e, shadowed, ctx)
+        for thrown in fdd.sig.throw_types { check_import_name(thrown, names, path, e, shadowed, ctx) }
         for mut pd : Declaration in fdd.sig.params {
+            check_import_name(decl_type_name_ref(pd, ctx.symbols), names, path, e, shadowed, ctx)
             if pd.default_value.is_some() {
-                rewrite_ns_alias_uses(pd.default_expr(), alias_names, alias_members, alias_paths, path, shadowed, ctx)
+                rewrite_ns_alias_uses(pd.default_expr(), names, path, shadowed, ctx)
             }
         }
         mut fn_shadow := shadowed.clone()
@@ -2389,7 +2398,7 @@ priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_mem
             fn_shadow.add(own cap.name.clone())
         }
         for fi in 0..e.children.len() {
-            ns_alias_rewrite_child(e, fi, alias_names, alias_members, alias_paths, path, fn_shadow, ctx)
+            rewrite_ns_alias_uses(e.children[fi], names, path, fn_shadow, ctx)
         }
         return
     case .Body:
@@ -2397,7 +2406,7 @@ priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_mem
         // AFTER each Decl child is walked (its RHS still sees the alias).
         mut body_shadow := shadowed.clone()
         for bi in 0..e.children.len() {
-            ns_alias_rewrite_child(e, bi, alias_names, alias_members, alias_paths, path, body_shadow, ctx)
+            rewrite_ns_alias_uses(e.children[bi], names, path, body_shadow, ctx)
             switch e.children[bi].node_type {
             case .Decl(bd):
                 body_shadow.add(own bd.name.clone())
@@ -2407,25 +2416,23 @@ priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_mem
         return
     case .ForIn(fid):
         if e.children.len() >= 2 {
-            ns_alias_rewrite_child(e, 0, alias_names, alias_members, alias_paths, path, shadowed, ctx)
+            rewrite_ns_alias_uses(e.children[0], names, path, shadowed, ctx)
             mut loop_shadow := shadowed.clone()
             loop_shadow.add(own fid.name.clone())
             if fid.name2.len() > 0 { loop_shadow.add(own fid.name2.clone()) }
-            ns_alias_rewrite_child(e, 1, alias_names, alias_members, alias_paths, path, loop_shadow, ctx)
+            rewrite_ns_alias_uses(e.children[1], names, path, loop_shadow, ctx)
             return
         }
     case .Case:
-        // [pattern x N, body]: payload binders in the patterns shadow the
-        // body. Guarded cases keep falling through to the generic recursion
-        // below, exactly as they did before #334's pattern lists.
-        if case_has_guard(e).not().and(case_pattern_count(e).gte(1)) {
+        // Payload binders shadow both the guard (if any) and the body.
+        if case_pattern_count(e).gte(1) {
             pc := case_pattern_count(e)
             mut case_shadow := shadowed.clone()
             for pi in 0..pc {
-                ns_alias_rewrite_child(e, pi, alias_names, alias_members, alias_paths, path, shadowed, ctx)
                 collect_case_pattern_binders(e.children[pi], case_shadow, ctx.symbols)
+                rewrite_ns_alias_uses(e.children[pi], names, path, case_shadow, ctx)
             }
-            ns_alias_rewrite_child(e, pc, alias_names, alias_members, alias_paths, path, case_shadow, ctx)
+            for ci in pc..e.children.len() { rewrite_ns_alias_uses(e.children[ci], names, path, case_shadow, ctx) }
             return
         }
     case .Catch:
@@ -2437,80 +2444,64 @@ priv rewrite_ns_alias_uses := proc(mut e: Expr, alias_names: Set(Str), alias_mem
                 catch_shadow.add(own Str.clone(cvid.ident_name(ctx.symbols.names)))
             case:
             }
-            ns_alias_rewrite_child(e, 2, alias_names, alias_members, alias_paths, path, catch_shadow, ctx)
+            rewrite_ns_alias_uses(e.children[1], names, path, shadowed, ctx)
+            rewrite_ns_alias_uses(e.children[2], names, path, catch_shadow, ctx)
             return
         }
     case:
     }
     for i in 0..e.children.len() {
-        ns_alias_rewrite_child(e, i, alias_names, alias_members, alias_paths, path, shadowed, ctx)
+        rewrite_ns_alias_uses(e.children[i], names, path, shadowed, ctx)
     }
 }
 
-priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, mut ctx: Context) {
+priv desugar_namespace_imports := proc(path: Str, mut iu: ImportUnit, core: Vec(ProgramUnit), mut ctx: Context) {
+    // Ordinary dependency calls need no name rewriting.
+    mut limited := false
+    for stmt : Expr in iu.ast.children {
+        if import_path_for_stmt(stmt, path, ctx.symbols).len() == 0 { continue }
+        if stmt.node_type.is(NodeType.Decl).or(stmt.children.len() > 2) { limited = true; break }
+    }
+    if limited.not() { return }
     mut old := iu.ast.children.take()
     mut new_ch := Vec(Expr).new()
-    mut ns_alias_names := Set(Str).new()
-    mut ns_alias_members := Set(Str).new()
-    mut ns_alias_paths := Map(Str, Str).new()
+    mut names := ImportNames()
+    for stmt : Expr in old {
+        switch stmt.node_type {
+        case .Decl(d): names.visible.add(own d.name.clone())
+        case:
+        }
+    }
 
     for i in 0..old.len() {
         ref mut stmt : Expr = old[i]
 
-        mut is_imp := false
-        mut is_decl_rhs := false
-        mut decl_name := ""
-
-        if stmt.node_type.is(NodeType.FCall) {
-            is_imp = true
-        } else if stmt.node_type.is(NodeType.Decl).and(stmt.children.len().gt(0)) {
-            if stmt.children[0].node_type.is(NodeType.FCall) {
-                is_imp = true
-                is_decl_rhs = true
-                switch stmt.node_type {
-                case .Decl(dd):
-                    decl_name = dd.name.clone()
-                case:
-                }
-            }
-        }
-
-        mut handled := false
-        if is_imp {
-            resolved := resolve_import_for_stmt(stmt, path, iu,
-                ctx.import_cwd, ctx.imported, ctx.symbols, ctx.import_support_dir)
-            if resolved.len() > 0 {
-                if is_decl_rhs.and(decl_name.starts_with("_")) {
-                    // #154: `_name := import(...)` is the unused-import
-                    // opt-out. The alias is deliberately never read, so
-                    // no rewrite map entry is needed. The file itself
-                    // stays loaded; only the alias binding is dropped.
-                    handled = true
-                } else if is_decl_rhs {
-                    handled = desugar_one_import(stmt.children[0], decl_name, ctx, resolved, ns_alias_names, ns_alias_members, ns_alias_paths)
-                }
-                // Bare import stmts are kept as-is; the loader already
-                // resolved them and the typer walks them for recursion.
-            }
-        }
-
-        if handled {
-            // Keep the dependency edge as a bare call after removing the
-            // namespace alias declaration. Later phase walks recurse from
-            // source AST calls rather than a parallel import list.
+        resolved := resolve_import_for_stmt(stmt, path, iu,
+            ctx.import_cwd, ctx.imported, ctx.symbols, ctx.import_support_dir)
+        if resolved.len() == 0 { new_ch.push_take(old, i); continue }
+        mut implicit := resolved == iu.mode_import
+        for unit : ProgramUnit in core { if unit.path == resolved { implicit = true; break } }
+        switch stmt.node_type {
+        case .Decl(dd):
+            // `_ := import(...)` discards the binding; generated API layers
+            // use it for an intentional bare re-export (#154).
+            mut alias := dd.name.clone()
+            if alias == "_" { alias = "" }
+            collect_import_names(stmt.children[0], alias, resolved, path, implicit, names, ctx)
+            // Preserve the dependency call for init and typer recursion.
             new_ch.push_take(stmt.children, 0)
-        } else {
+        case:
+            collect_import_names(stmt, "", resolved, path, implicit, names, ctx)
             new_ch.push_take(old, i)
         }
     }
 
     // Second pass: rewrite `alias.sym` uses in the kept statements into
     // direct references to the original decls.
-    if ns_alias_names.len() > 0 {
-        no_shadows := Set(Str).new()
-        for mut nc : Expr in new_ch {
-            rewrite_ns_alias_uses(nc, ns_alias_names, ns_alias_members, ns_alias_paths, path, no_shadows, ctx)
-        }
+    no_shadows := Set(Str).new()
+    for mut nc : Expr in new_ch {
+        if import_path_for_stmt(nc, path, ctx.symbols).len() > 0 { continue }
+        rewrite_ns_alias_uses(nc, names, path, no_shadows, ctx)
     }
 
     iu.ast.children.move_from(own new_ch)
@@ -4738,7 +4729,7 @@ type_program_errors := proc(mut lp: LoadedProgram, run_tests: Bool) returns I32 
     // Desugar namespace imports BEFORE init_file runs, so the initer
     // only ever sees direct references to the original decls.
     for upath : Str in lp.unit_paths() {
-        desugar_namespace_imports(upath, lp.ctx.imported[upath], lp.ctx)
+        desugar_namespace_imports(upath, lp.ctx.imported[upath], lp.core_units, lp.ctx)
     }
     // An `alias.member` the alias does not export is left unrewritten, so the
     // initer would walk a FieldAccess whose base names no value. Stop here:

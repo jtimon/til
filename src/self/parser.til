@@ -1785,6 +1785,11 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
     expect_token(p, TokenType.LParen)
 
     mut call := Expr.new(own NodeType.FCall(FCallData()), call_line, call_col)
+    mut import_call := false
+    switch callee.node_type {
+    case .Ident(id): import_call = id.ident_name(p.symbols.names) == "import"
+    case:
+    }
     if check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
         call.children = Vec(Expr).with_capacity(CALL_INITIAL_CHILD_CAPACITY)
     }
@@ -1792,6 +1797,21 @@ priv parse_call := proc(mut p: Parser, own callee: Expr, call_line: U32, call_co
 
     // parse arguments
     while check(p, TokenType.RParen).or(check(p, TokenType.Eof)).not() {
+        // Import selectors are names, not expressions. Keep the wildcard
+        // on the selector until the loader has the exporting file's AST.
+        if import_call.and(call.children.len() >= 2).and(check(p, TokenType.Ident)) {
+            line := peek_line(p)
+            col := peek_col(p)
+            mut selector := expect_text(p, TokenType.Ident)
+            if check(p, TokenType.Dot) {
+                advance(p)
+                expect_token(p, TokenType.Star)
+                selector = format(selector, ".*")
+            }
+            call.add_child(own Expr.new(own ident_node(p.symbols.intern(selector)), line, col))
+            if check(p, TokenType.Comma) { advance(p) }
+            continue
+        }
         if parse_named_arg(p, call) { continue }
         // Splat arg: ..expr  OR  rest-pattern marker `..` (followed by
         // a comma or the closing paren, no expression). Splat records the
@@ -2597,8 +2617,7 @@ priv parse_statement_ident := proc(mut p: Parser, is_mut: Bool, shallow own_type
                 mut stmt := parse_statement(p)
                 switch stmt.node_type {
                 case .Decl(dd):
-                    mut ns_dd := Declaration(name = dd.name.clone(), is_mut = dd.is_mut,
-                        til_type = dd.til_type.clone(), own_type = dd.own_type)
+                    mut ns_dd := dd.clone()
                     if stmt.children.len() > 0 {
                         ns_dd.default_value = Option(Expr).Some(own stmt.children[0].clone())
                     }

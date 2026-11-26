@@ -1,0 +1,4 @@
+mode script
+import("palette", Colors.*)
+println(BLACK)
+println(UNRELATED)

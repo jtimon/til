@@ -48,12 +48,14 @@ link("imm32", "windows-x64 windows-x86")
 link_macos("OpenGL Cocoa IOKit CoreAudio CoreVideo")
 
 // Til's brand color and default accent for active controls.
-TEAL := Color(r = 0, g = 200, b = 210, a = 255)
-DARK_TEAL := Color(r = 0, g = 150, b = 155, a = 255)
-WHITE := Color(r = 255, g = 255, b = 255, a = 255)
-BLACK := Color(r = 0, g = 0, b = 0, a = 255)
-HINT_GRAY := Color(r = 180, g = 180, b = 180, a = 255)
-MENU_OVERLAY := Color(r = 0, g = 0, b = 0, a = 180)
+Colors := namespace {
+    TEAL := Color(r = 0, g = 200, b = 210, a = 255)
+    DARK_TEAL := Color(r = 0, g = 150, b = 155, a = 255)
+    WHITE := Color(r = 255, g = 255, b = 255, a = 255)
+    BLACK := Color(r = 0, g = 0, b = 0, a = 255)
+    HINT_GRAY := Color(r = 180, g = 180, b = 180, a = 255)
+    MENU_OVERLAY := Color(r = 0, g = 0, b = 0, a = 180)
+}
 
 // Math FFI (from libm)
 sinf := ext_func(shallow x: F32) returns shallow F32 {}

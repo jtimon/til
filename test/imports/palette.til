@@ -1,0 +1,9 @@
+mode lib
+
+UNRELATED := 33
+Colors := namespace {
+    BLACK := 11
+    mut shade := 0
+    priv SECRET := 44
+    teal := func() returns I64 { return Colors.SECRET }
+}

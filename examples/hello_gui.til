@@ -1,4 +1,5 @@
 mode gui
+import("../src/modes/gui", Colors.*)
 
 main := proc() {
     InitWindow(800, 450, "hello from til!".c_str)

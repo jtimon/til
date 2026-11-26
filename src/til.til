@@ -379,7 +379,7 @@ repl_refresh_user_doc_cache := proc(mode_str: Str, accum: Str, tmp_path: Str, bi
     combined = combined.format("mode ", mode_str, "\n")
     // Committed turns may contain help() calls, whose symbols live in
     // std/doc since it left core (same injection as run_repl_session).
-    combined = combined.format("_doc := import(\"", bin_dir, "/src/std/doc\")\n")
+    combined = combined.format("_ := import(\"", bin_dir, "/src/std/doc\")\n")
     combined = combined.format(accum)
     File.writefile(tmp_path, combined)
 
@@ -421,9 +421,9 @@ run_repl_session := proc(mut ed: ReplEditor, mode_name_in: Str, mut next_mode_ou
     // std/doc no longer lives in core, but help() must stay ambient in the
     // REPL, so every program the REPL loads imports it explicitly. The path
     // is absolute (the loader resolves those as-is) because tmp_path's
-    // directory floats with the user's cwd; the `_doc :=` prefix opts out
+    // directory floats with the user's cwd; the `_ :=` prefix opts out
     // of the unused-import check for turns that never call help().
-    doc_import_line := format("_doc := import(\"", bin_dir, "/src/std/doc\")\n")
+    doc_import_line := format("_ := import(\"", bin_dir, "/src/std/doc\")\n")
     doc_index_path := bin_dir.format("/", REPL_DOC_INDEX)
     // Accumulated user source across REPL inputs for this session.
     mut accum := ""

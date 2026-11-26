@@ -1,4 +1,5 @@
 mode gui
+import("../src/modes/gui", Colors.*)
 import("../src/std/sys")
 
 // 3D shooter prototype: teal cubes scattered on a white floor in a black void.

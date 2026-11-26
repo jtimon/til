@@ -1,0 +1,4 @@
+mode script
+palette := import("palette")
+println(palette.UNRELATED)
+println(UNRELATED)
