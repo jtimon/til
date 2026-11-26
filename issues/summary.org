@@ -44,6 +44,7 @@
 *** [[./open/507.org][#507]] Reusable input boxes for mode gui
 *** [[./open/508.org][#508]] Separate the portable GUI facade from direct raylib access
 *** [[./open/509.org][#509]] Add an opt-in default font for GUI text drawing and measurement
+*** [[./open/510.org][#510]] Import public members of a namespace with ~Colors.*~
 ** Low
 *** [[./open/156.org][#156]] Improve til-mode indentation rules
 *** [[./open/201.org][#201]] More built-in error types and safe_* methods

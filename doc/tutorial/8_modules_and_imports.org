@@ -80,7 +80,7 @@ Natural imports work in either case.
 
 ** Namespace imports
 
-Assign an import when its declarations should stay behind a local namespace:
+Assign an import to refer to its public declarations through a file-local alias:
 
 #+begin_src til :doctest-file modules/namespace_app.til :doctest-run
 math := import("math")
@@ -93,13 +93,17 @@ helps the call read clearly.
 
 ** Selective imports
 
-Names after the path import only those public declarations:
+Names after the path select public top-level declarations to use by their bare names:
 
 #+begin_src til :doctest-file modules/selective_app.til :doctest-run
 import("math", sum_of_squares)
 answer := sum_of_squares(3, 4)
 assert_eq(I64, answer, 25)
 #+end_src
+
+Current limitation: with either a namespace or a selective import, the
+compiler can still resolve unselected public names without a prefix. Do not
+rely on this for access or on the import alone to prevent name collisions.
 
 An import cannot expose a ~priv~ declaration. Top-level privacy is a cross-file
 boundary; struct fields and namespace members use the stricter rules described
@@ -108,17 +112,25 @@ in chapter 7. The full visibility table is in
 
 *** Namespace wildcard (agreed syntax, not yet implemented)
 
-With a ~Colors~ namespace in the GUI module, importing ~Colors~ keeps
-the prefix: ~ClearBackground(Colors.BLACK)~. Importing ~Colors.*~ brings
-all public members of that namespace into the importing file as bare names:
+Today ~mode gui~ exposes ~BLACK~ and ~TEAL~ as top-level constants. The
+planned palette moves them into a ~Colors~ namespace. Once it exists, the
+current selective import syntax can select the namespace itself:
+
+#+begin_src til
+import("../src/modes/gui", Colors)
+ClearBackground(Colors.BLACK)
+#+end_src
+
+The agreed wildcard syntax ([[file:../../issues/open/510.org][#510]]) will bring all public members of ~Colors~
+into the importing file as bare names. The current parser rejects the ~*~:
 
 #+begin_src til
 import("../src/modes/gui", Colors.*)
 ClearBackground(BLACK)
 #+end_src
 
-A collision with the file's own ~BLACK~ is a compile error. Use the
-qualified form ~Colors.BLACK~ if both names are needed.
+A wildcard import that collides with the file's own ~BLACK~ will be a
+compile error. Use the qualified form ~Colors.BLACK~ to keep both names.
 
 Modes remain per file. An application may therefore import several ~mode lib~
 files while its entry file uses ~mode script~, ~mode cli~, or ~mode gui~.

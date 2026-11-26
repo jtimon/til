@@ -1,0 +1,28 @@
+# priority: medium
+# category: features
+** OPEN #510 Import public members of a namespace with ~Colors.*~
+
+Today ~import(path, Name)~ accepts a top-level declaration, but the parser
+rejects ~Colors.*~ with ~expected 'identifier', found '*'~. Qualified and
+selective imports can also leave unselected public names visible by their
+bare names. The GUI palette currently declares ~BLACK~, ~TEAL~ and its
+other colors at module scope.
+
+Implement the agreed distinction in [[file:../../doc/tutorial/8_modules_and_imports.org][Modules and imports]]:
+
+#+begin_src til
+import("../src/modes/gui", Colors)
+ClearBackground(Colors.BLACK)
+#+end_src
+
+#+begin_src til
+import("../src/modes/gui", Colors.*)
+ClearBackground(BLACK)
+#+end_src
+
+Only the wildcard introduces all public members of ~Colors~ as bare names
+in the importing file. It must not expose private members or unrelated
+module declarations. Report a collision with a file's own ~BLACK~ at the
+import; the qualified form lets both names coexist. Cover both forms and
+their visibility and collision cases in interpreted and compiled tests.
+Move the GUI palette into ~Colors~ and migrate GUI examples that use it.
