@@ -106,6 +106,20 @@ boundary; struct fields and namespace members use the stricter rules described
 in chapter 7. The full visibility table is in
 [[file:../concepts/qualifiers.org::*Visibility (priv keyword)][the qualifier reference]].
 
+*** Namespace wildcard (agreed syntax, not yet implemented)
+
+With a ~Colors~ namespace in the GUI module, importing ~Colors~ keeps
+the prefix: ~ClearBackground(Colors.BLACK)~. Importing ~Colors.*~ brings
+all public members of that namespace into the importing file as bare names:
+
+#+begin_src til
+import("../src/modes/gui", Colors.*)
+ClearBackground(BLACK)
+#+end_src
+
+A collision with the file's own ~BLACK~ is a compile error. Use the
+qualified form ~Colors.BLACK~ if both names are needed.
+
 Modes remain per file. An application may therefore import several ~mode lib~
 files while its entry file uses ~mode script~, ~mode cli~, or ~mode gui~.
 

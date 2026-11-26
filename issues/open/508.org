@@ -1,0 +1,18 @@
+# priority: medium
+# category: features
+** OPEN #508 Separate the portable GUI facade from direct raylib access
+
+~mode gui~ currently imports the vendored raylib bindings and adds til's
+own palette, window, audio and file-dialog helpers. A program that wants
+raylib directly (see ~examples/raylib.til~) has to repeat imports and
+target-specific link directives to avoid taking the whole GUI facade.
+
+Provide ~mode raylib~ for programs written against the vendored raylib API.
+Keep ~mode gui~ as the portable til API: it can use raylib on targets where
+that makes sense, while another target can implement the facade without
+providing raylib. Keep GUI-only helpers and palette names out of the raw
+mode, and share raylib link settings wherever both modes use it.
+
+Acceptance: a direct raylib example builds without spelling out archive
+paths or platform libraries; GUI examples continue to work on raylib-backed
+targets and the TempleOS GUI path does not acquire a raylib dependency.
