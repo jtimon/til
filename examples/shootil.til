@@ -1,4 +1,5 @@
 mode gui
+import("../src/std/sys")
 
 // 3D shooter prototype: teal cubes scattered on a white floor in a black void.
 //
@@ -10,6 +11,7 @@ mode gui
 //
 // Controls:
 //   WASD/arrows + mouse  -- move and look (Quake-style)
+//   Android: drag one finger anywhere to look; lift to reposition it.
 //   Space                 -- jump (with gravity + ground check)
 //   F11                   -- toggle fullscreen anywhere
 //   M                     -- open/close the in-game menu
@@ -138,9 +140,28 @@ mut prev_pos := Vector3()
 mut prev_target := Vector3()
 mut accumulator := zero_f
 mut wants_jump := false
+mut touch_look := false
+mut look_finger : I32 = -1
+mut last_touch := Vector2()
+
+look_delta := proc() returns Vector2 {
+    if !touch_look { return GetMouseDelta() }
+    if GetTouchPointCount() != 1 {
+        look_finger = -1
+        return Vector2()
+    }
+    id := GetTouchPointId(0)
+    pos := GetTouchPosition(0)
+    mut delta := Vector2()
+    if id == look_finger { delta = Vector2(x = pos.x - last_touch.x, y = pos.y - last_touch.y) }
+    look_finger = id
+    last_touch = pos
+    return delta
+}
 
 toggle_menu := proc() {
     menu_open = !menu_open
+    look_finger = -1
     accumulator = zero_f
     wants_jump = false
     if menu_open {
@@ -154,6 +175,8 @@ toggle_menu := proc() {
 }
 
 shootil_setup := proc() {
+    touch_look = host_os() == "android"
+    look_finger = -1
     SetConfigFlags((FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED).cast(U32))
     InitWindow(WINDOW_W, WINDOW_H, "shootil".c_str)
     SetExitKey(0)
@@ -280,9 +303,9 @@ shootil_frame := proc() {
             // last render left in `camera`.
             camera.position = sim_pos
             camera.target = sim_target
-            mouse := GetMouseDelta()
+            mouse := look_delta()
             delta_mag := mouse.x * mouse.x + mouse.y * mouse.y
-            if delta_mag < 10000 {
+            if touch_look || delta_mag < 10000 {
                 yaw := mouse.x * MOUSE_SENS
                 pitch := mouse.y * MOUSE_SENS
                 rotation := Vector3(x = yaw, y = pitch, z = zero_f)
@@ -415,7 +438,11 @@ shootil_frame := proc() {
             } else {
                 DrawText("G: god mode".c_str, sw - 180, 10, 20, Color(r = 180, g = 180, b = 180, a = 255))
             }
-            DrawText("ESC / M: menu".c_str, sw - 220, 32, 20, Color(r = 180, g = 180, b = 180, a = 255))
+            if touch_look {
+                DrawText("Drag to look".c_str, sw - 220, 32, 20, Color(r = 180, g = 180, b = 180, a = 255))
+            } else {
+                DrawText("ESC / M: menu".c_str, sw - 220, 32, 20, Color(r = 180, g = 180, b = 180, a = 255))
+            }
         }
 
         if menu_open {

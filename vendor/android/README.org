@@ -115,6 +115,11 @@ portrait/fullscreen configuration. Release versioning is tracked in #492.
 APK execution still requires installing/launching on Android; ~til run~
 does not select a device. APK --asan/--prof packaging is not implemented.
 
+For a phone demo, build ~examples/shootil.til~ with ~--target=android-arm64~
+and install ~bin/examples/shootil.apk~. Drag one finger to turn the camera;
+lifting it and touching down elsewhere starts a new drag. Touch does not
+move the player. The keyboard controls remain available with a keyboard.
+
 The APK build redirects InitWindow through an Android-only runtime hook.
 It leaves Back key events to NativeActivity's normal OS handler and forwards
 other input to raylib, so legacy Back closes the activity rather than being
@@ -148,6 +153,21 @@ After equal cross-host results in CI run 3167, native Android artifacts are
 enforced at the collector's ~binary~ level. SDK producers' aligned APKs and
 native libraries are enforced in a separate ~apk~ group, so SDK-less hosts
 are not required to supply APKs. Toolchain metadata remains informational.
+
+** Running til on Android versus building for Android
+
+The experimental ~til.apk~ is a host for single-file ~mode script~
+programs. Open a file, tap Run, and read its output in the app. The prototype
+packages the interpreter executable for ARM64 and x86_64, along with core,
+std and mode sources. It does not bundle a C compiler, linker or APK tools.
+It cannot compile native code even for its own Android ABI, cross-compile,
+or rebuild itself. This is a limitation of this app, not of ~android-arm64~
+or ~android-x64~ as targets of the desktop compiler.
+
+GUI APKs such as Shootil are compiled on the desktop with raylib and run
+as NativeActivities. Opening ~shootil.til~ in the interpreter app is not
+equivalent: it would need a live window and interpreter bindings for the
+GUI calls. Native ~link_c~ compilation is also unavailable there.
 
 ** JNI libraries for Android apps
 
