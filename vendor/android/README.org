@@ -116,9 +116,10 @@ APK execution still requires installing/launching on Android; ~til run~
 does not select a device. APK --asan/--prof packaging is not implemented.
 
 For a phone demo, build ~examples/shootil.til~ with ~--target=android-arm64~
-and install ~bin/examples/shootil.apk~. Drag one finger to turn the camera;
-lifting it and touching down elsewhere starts a new drag. Touch does not
-move the player. The keyboard controls remain available with a keyboard.
+and install ~bin/examples/shootil.apk~. Touch the left half to place the
+movement stick; drag and hold to walk or strafe, then lift to stop. Drag
+on the right half to turn the camera while moving. Each thumb keeps its
+role until lifted. Keyboard controls remain available.
 
 The APK build redirects InitWindow through an Android-only runtime hook.
 It leaves Back key events to NativeActivity's normal OS handler and forwards

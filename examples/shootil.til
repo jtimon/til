@@ -12,7 +12,7 @@ import("../src/std/sys")
 //
 // Controls:
 //   WASD/arrows + mouse  -- move and look (Quake-style)
-//   Android: drag one finger anywhere to look; lift to reposition it.
+//   Android: left thumb moves with a floating stick; right thumb drags to look.
 //   Space                 -- jump (with gravity + ground check)
 //   F11                   -- toggle fullscreen anywhere
 //   M                     -- open/close the in-game menu
@@ -40,6 +40,9 @@ MOVE_SPEED : F32 = 12                  // 12 u/s (was 0.1/frame @ 120 Hz)
 JUMP_SPEED : F32 = 36                  // 36 u/s
 GRAVITY    : F32 = 144                 // 144 u/s^2
 MOUSE_SENS : F32 = 5 / 100    // pixel-based, framerate-independent
+STICK_RADIUS : F32 = 72       // logical screen pixels from touch-down to full speed
+STICK_DEAD_ZONE : F32 = 6
+sqrtf := ext_func(shallow x: F32) returns shallow F32 {}
 FRAME_CAP  : F32 = 1 / 4      // clamp frame_time to 0.25 s
 
 MENU_RESUME := 0
@@ -138,28 +141,63 @@ mut prev_pos := Vector3()
 mut prev_target := Vector3()
 mut accumulator := zero_f
 mut wants_jump := false
-mut touch_look := false
+mut touch_controls := false
+mut previous_touches : I64 = 0
+mut move_finger : I32 = -1
 mut look_finger : I32 = -1
+mut stick_origin := Vector2()
+mut stick_axis := Vector2()
 mut last_touch := Vector2()
 
-look_delta := proc() returns Vector2 {
-    if !touch_look { return GetMouseDelta() }
-    if GetTouchPointCount() != 1 {
+// Android pointer IDs fit in 32 bits of a mask. A point's index can change
+// when the other thumb lifts; only a newly seen ID may acquire a control.
+sample_touches := proc() returns Vector2 {
+    count := GetTouchPointCount()
+    mut down : I64 = 0
+    for i in 0..count.cast(I64) {
+        down = down.bor(1.shl(GetTouchPointId(i.to_i32()).cast(I64)))
+    }
+    old := previous_touches.clone()
+    previous_touches = down
+    stick_axis = Vector2()
+    if menu_open {
+        move_finger = -1
         look_finger = -1
         return Vector2()
     }
-    id := GetTouchPointId(0)
-    pos := GetTouchPosition(0)
+    if move_finger >= 0 && down.band(1.shl(move_finger.cast(I64))) == 0 { move_finger = -1 }
+    if look_finger >= 0 && down.band(1.shl(look_finger.cast(I64))) == 0 { look_finger = -1 }
     mut delta := Vector2()
-    if id == look_finger { delta = Vector2(x = pos.x - last_touch.x, y = pos.y - last_touch.y) }
-    look_finger = id
-    last_touch = pos
+    for i in 0..count.cast(I64) {
+        id := GetTouchPointId(i.to_i32())
+        pos := GetTouchPosition(i.to_i32())
+        if old.band(1.shl(id.cast(I64))) == 0 {
+            if pos.x < GetScreenWidth().to_f32() / 2 {
+                if move_finger < 0 { move_finger = id; stick_origin = pos }
+            } else if look_finger < 0 {
+                look_finger = id
+                last_touch = pos
+            }
+        }
+        if id == move_finger {
+            dx := pos.x - stick_origin.x
+            dy := pos.y - stick_origin.y
+            length := sqrtf(dx * dx + dy * dy)
+            if length > STICK_DEAD_ZONE {
+                mut strength := (length - STICK_DEAD_ZONE) / (STICK_RADIUS - STICK_DEAD_ZONE)
+                if strength > 1 { strength = one_f }
+                stick_axis = Vector2(x = dx / length * strength, y = dy / length * strength)
+            }
+        } else if id == look_finger {
+            delta = Vector2(x = pos.x - last_touch.x, y = pos.y - last_touch.y)
+            last_touch = pos
+        }
+    }
     return delta
 }
 
 toggle_menu := proc() {
     menu_open = !menu_open
-    look_finger = -1
     accumulator = zero_f
     wants_jump = false
     if menu_open {
@@ -173,7 +211,9 @@ toggle_menu := proc() {
 }
 
 shootil_setup := proc() {
-    touch_look = host_os() == "android"
+    touch_controls = host_os() == "android"
+    previous_touches = 0
+    move_finger = -1
     look_finger = -1
     SetConfigFlags((FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED).cast(U32))
     InitWindow(WINDOW_W, WINDOW_H, "shootil".c_str)
@@ -252,6 +292,8 @@ shootil_frame := proc() {
             }
         }
 
+        mut look := Vector2()
+        if touch_controls { look = sample_touches() }
         if menu_open {
             if IsKeyPressed(KEY_UP).or(IsKeyPressed(KEY_W)) {
                 menu_sel = (menu_sel - 1 + MENU_COUNT) % MENU_COUNT
@@ -274,8 +316,8 @@ shootil_frame := proc() {
             wants_jump = false
         } else {
             // ---- Gather once-per-frame input ----
-            mut fwd := zero_f
-            mut strafe := zero_f
+            mut fwd := zero_f - stick_axis.y
+            mut strafe := stick_axis.x.clone()
             mut vertical := zero_f
             if IsKeyDown(KEY_W)                            { fwd = one_f }
             if IsKeyDown(KEY_S)                            { fwd = zero_f - one_f }
@@ -301,11 +343,11 @@ shootil_frame := proc() {
             // last render left in `camera`.
             camera.position = sim_pos
             camera.target = sim_target
-            mouse := look_delta()
-            delta_mag := mouse.x * mouse.x + mouse.y * mouse.y
-            if touch_look || delta_mag < 10000 {
-                yaw := mouse.x * MOUSE_SENS
-                pitch := mouse.y * MOUSE_SENS
+            if !touch_controls { look = GetMouseDelta() }
+            delta_mag := look.x * look.x + look.y * look.y
+            if touch_controls || delta_mag < 10000 {
+                yaw := look.x * MOUSE_SENS
+                pitch := look.y * MOUSE_SENS
                 rotation := Vector3(x = yaw, y = pitch, z = zero_f)
                 UpdateCameraPro(camera, Vector3(x = zero_f, y = zero_f, z = zero_f), rotation, zero_f)
             }
@@ -436,8 +478,14 @@ shootil_frame := proc() {
             } else {
                 DrawText("G: god mode".c_str, sw - 180, 10, 20, HINT_GRAY)
             }
-            if touch_look {
-                DrawText("Drag to look".c_str, sw - 220, 32, 20, HINT_GRAY)
+            if touch_controls {
+                DrawText("Left: move   Right: look".c_str, 10, 32, 20, HINT_GRAY)
+                if move_finger >= 0 {
+                    DrawCircleV(stick_origin, STICK_RADIUS, MENU_OVERLAY)
+                    DrawCircleLinesV(stick_origin, STICK_RADIUS, TEAL)
+                    knob := Vector2(x = stick_origin.x + stick_axis.x * STICK_RADIUS, y = stick_origin.y + stick_axis.y * STICK_RADIUS)
+                    DrawCircleV(knob, 12, TEAL)
+                }
             } else {
                 DrawText("ESC / M: menu".c_str, sw - 220, 32, 20, HINT_GRAY)
             }
