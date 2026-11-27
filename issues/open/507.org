@@ -1,6 +1,24 @@
 # priority: medium
 # category: features
-** OPEN #507 Reusable input boxes for mode gui
+** OPEN #507 Reusable interactive controls for mode gui
+
+The goal is to write one ~mode gui~ program and run it on every supported
+target, including the browser. [[file:../fixed/228.org][#228]] introduced the browser WASM target;
+[[file:../fixed/377.org][#377]] made the ordinary raylib frame loop work there. That loop must yield
+through ~WindowShouldClose()~, and native-only APIs such as desktop file
+dialogs cannot be used unchanged. The controls should let the application
+handle the same edits, selections and actions regardless of renderer.
+
+Give ~mode gui~ a common set of labeled controls that work with both
+pointer and keyboard input. Tab moves focus between controls, and the
+focused control is visible. Describe each control by what the user does:
+
+- A text field lets the user edit a single line of text.
+- A button triggers an action once per click or keyboard activation.
+- Radio buttons let the user choose one option in a group. Selecting a
+  new option clears the previous selection.
+- A slider lets the user drag to a value within a range or adjust it by
+  one step with the arrow keys. Neither action moves past the endpoints.
 
 First use: [[24.org][#24]], ~examples/guitar.til~. Open Fret spacing and try to enter
 the scale length in millimeters. The user reports that typing as instructed
@@ -14,14 +32,17 @@ being edited (e.g. ~648.~); parse and validate the length separately so an
 empty or invalid field is distinguishable from zero.
 
 Core raylib provides drawing and keyboard events. Its vendored examples
-include the separate raygui ~GuiTextBox~ control; evaluate it for the native
-implementation before writing one. If it does not fit, implement the field
-with raylib primitives. Describe the control by what it does, independent of
-the renderer: a future web GUI backend should be able to render a labeled
-HTML ~<input>~ and use browser focus/editing and input events directly.
+include the separate raygui controls; evaluate them for the native
+implementation, starting with ~GuiTextBox~. A future web GUI backend should
+be able to use a labeled text input, ~<button>~, radio inputs and a range
+input, with the browser handling focus and input events directly.
 
 Acceptance: in the guitar example, click or Tab into Scale length, enter
 ~648.5~, and verify the 12-TET octave fret reads ~324.25 mm~. Edit the value
 with Backspace, clear it, and enter ~648,5~ for the same result. After focus
 moves elsewhere, typing must no longer change the field. Verify actual GUI
 interaction in addition to the calculation test.
+
+For the other controls, verify that an action fires only once, changing a
+radio selection leaves exactly one option selected, and a slider respects
+its range and step. Exercise each with the pointer and keyboard.

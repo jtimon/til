@@ -19,6 +19,9 @@
   [[file:../../examples/hello_gui.til][examples/hello_gui.til]] builds with ~bin/til build --target=wasm32~ as a
   second standard-loop program. ~make clean && make test~ passes 402/402.
 
+  [[file:../open/507.org][#507]] tracks portable GUI controls so the same program can handle text
+  edits, button presses and value changes on desktop and in the browser.
+
 *** Original report
 
   Follow-up from #228. The first browser target supported

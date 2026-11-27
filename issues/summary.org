@@ -41,7 +41,7 @@
 *** [[./open/492.org][#492]] Virtual release target builds all available targets for a mode
 *** [[./open/504.org][#504]] Linux targets: the host's C library leaks into the binary (header paths in debug info today, more with other hosts)
 *** [[./open/506.org][#506]] An ext_func/ext_proc binding whose til name is not its C symbol
-*** [[./open/507.org][#507]] Reusable input boxes for mode gui
+*** [[./open/507.org][#507]] Reusable interactive controls for mode gui
 *** [[./open/509.org][#509]] Add an opt-in default font for GUI text drawing and measurement
 ** Low
 *** [[./open/156.org][#156]] Improve til-mode indentation rules
