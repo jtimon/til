@@ -1,0 +1,6 @@
+mode raylib
+
+main := proc() {
+    pixel := Color(r = 1, g = 2, b = 3, a = 255)
+    assert_eq(U8, pixel.b, 3)
+}

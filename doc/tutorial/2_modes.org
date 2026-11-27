@@ -87,15 +87,12 @@ main := proc() {
     InitWindow(800, 450, "hello from til!".c_str)
     SetTargetFPS(60)
 
-    BLACK := Color(r = 0, g = 0, b = 0, a = 255)
-    RED := Color(r = 230, g = 41, b = 55, a = 255)
-
     mut x : I32 = 0
     mut y : I32 = 0
     while !WindowShouldClose() {
         BeginDrawing()
-        ClearBackground(BLACK)
-        DrawRectangle(x, y, 50, 50, RED)
+        ClearBackground(Colors.BLACK)
+        DrawRectangle(x, y, 50, 50, Colors.RED)
         EndDrawing()
         x++
         y++
@@ -103,6 +100,11 @@ main := proc() {
     CloseWindow()
 }
 #+end_src
+
+For direct access to the vendored raylib API, use ~mode raylib~ with a
+~main~ procedure. The [[file:../../examples/raylib.til][raw raylib example]] needs no binding import or platform link
+directives. Til's ~Colors~ palette, audio helpers and file dialogs belong
+to ~mode gui~. Use the GUI mode for programs that target TempleOS.
 
 It can also be interpreted or compiled and run:
 

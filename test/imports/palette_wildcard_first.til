@@ -1,0 +1,3 @@
+mode script
+_ := import("palette_wildcard")
+_ := import("palette_selective_hidden")

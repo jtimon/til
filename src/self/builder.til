@@ -332,13 +332,13 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
 }
 
 // The module, not the spelling of an auto_import, determines GUI linking.
-// A user mode may import gui through another support file, and an unrelated
-// support file named gui must not turn a wasm program into an HTML build.
+// Both gui and raw raylib need graphical packaging on wasm and Android.
+// Check the actual backend module, including through composed modes.
 priv loads_gui_module := proc(lp: LoadedProgram) returns Bool {
     root := lp.ctx.import_support_dir.clone()
-    gui_path := realpath_str(format(root, "/src/modes/gui.til"))
+    raylib_path := realpath_str(format(root, "/src/modes/raylib.til"))
     for unit_path : Str in lp.unit_paths() {
-        if realpath_str(unit_path) == gui_path { return true }
+        if realpath_str(unit_path) == raylib_path { return true }
     }
     return false
 }
@@ -504,7 +504,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
     // A non-gui wasm32 program (issue #424) links to ONE .js file with the
     // wasm embedded, run as `node prog.js`, with growable memory. A mode
     // gui one is a browser page instead: the same single file inside
-    // raylib's HTML shell (its archive comes from src/modes/gui.til's
+    // raylib's HTML shell (its archive comes from src/modes/raylib.til's
     // wasm32 link(); the emscripten settings above, in `extra`). Link-only,
     // so it is kept off the user-C object compiles, which share `extra`.
     mut wasm_js_flags := ""

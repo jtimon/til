@@ -3,6 +3,8 @@ mode mode
 script := Mode(decls_only = false)
 cli    := Mode(needs_main = true, decls_only = false)
 gui    := Mode(needs_main = true, auto_import = "src/modes/gui", decls_only = false)
+raylib := Mode(needs_main = true, auto_import = "src/modes/raylib", decls_only = false,
+    targets = "linux-x64 linux-arm64 linux-riscv64 linux-x86 linux-arm32 linux-riscv32 windows-x64 windows-x86 macos-x64 macos-arm64 wasm32 android-x64 android-arm64")
 theme  := Mode(auto_import = "src/modes/theme", is_library = true, is_pure = true, decls_only = false)
 test   := Mode(run_tests = true, decls_only = false)
 pure   := Mode(is_library = true, is_pure = true, decls_only = false)

@@ -65,11 +65,11 @@ check_gui_link := proc(compiler: Str, root: Str, source: Str, has_gui: Bool) {
     cmd.capture()
     status := cmd.run()
     output := format(cmd.out(), cmd.err())
-    // A gui program links wasm32's own raylib (src/modes/gui.til, issue
+    // A graphical program links wasm32's own raylib (src/modes/raylib.til, issue
     // #422), which only a tree that built it has (CI's wasm job does; the
     // suite does not need emscripten). Without it the build stops before
     // compiling, naming the archive and the goal that builds it -- and
-    // only a program that loaded gui.til has that link.
+    // both graphical modes load that module.
     wasm_raylib := "vendor/raylib/build-wasm32/libraylib.a"
     if has_gui.and(File.exists(format(root, "/", wasm_raylib)).not()) {
         if status == 0 || output.contains(format("links ", wasm_raylib, " for --target=wasm32, and it is not built")).not()
@@ -154,6 +154,7 @@ main := proc(args: ..Str) {
             "Unknown target 'linux-x46'", false, asan)
     }
     for command : Str in array(Str, "interpret", "translate") {
+        check_mode_policy(compiler, root, command, "mode_raylib_no_gui.til", "undefined symbol 'Colors'", false)
         check_mode_policy(compiler, root, command, "mode_decls_only_bad.til",
             "mode allows declarations and imports only", false)
         check_mode_policy(compiler, root, command, "mode_decls_import.til",
@@ -161,6 +162,7 @@ main := proc(args: ..Str) {
         check_mode_policy(compiler, root, command, "mode_decls_only_valid.til", "", true)
     }
     check_gui_link(compiler, root, "mode_gui_composed.til", true)
+    check_gui_link(compiler, root, "mode_raylib.til", true)
     check_gui_link(compiler, root, "mode_gui_name_only.til", false)
     check_mode_targets(compiler, root)
     println("mode loading passed")

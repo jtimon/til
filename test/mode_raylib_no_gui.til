@@ -1,0 +1,5 @@
+mode raylib
+
+main := proc() {
+    ClearBackground(Colors.BLACK)
+}

@@ -1,6 +1,12 @@
 # priority: medium
 # category: features
-** OPEN #508 Separate the portable GUI facade from direct raylib access
+** FIXED #508 Separate the portable GUI facade from direct raylib access
+
+The raylib bindings and platform links used to live in GUI support, so
+the raw example repeated its own subset of link directives. Both modes
+now use ~src/modes/raylib.til~; only GUI adds the palette, helpers and
+tinyfd. The raw example exercises the native build, and ~test/mode_loading.til~
+checks the wasm link path and that the raw mode cannot see ~Colors~.
 
 ~mode gui~ currently imports the vendored raylib bindings and adds til's
 own palette, window, audio and file-dialog helpers. A program that wants

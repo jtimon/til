@@ -85806,10 +85806,10 @@ static void priv___src_self_initer_til__generate_struct_cmp_method(Expr * struct
             NodeType hoisted__NodeType_27 = ident_node(hoisted__U32_26);
             Expr tmp_id = Expr_new(&hoisted__NodeType_27, line, col);
             Expr neq_call = make_method_call_fcall(&tmp_id, &_til_str_lits.h00000b889449, line, col, symbols);
-            LiteralNumData hoisted__LiteralNumData_g97 = {0};
-            hoisted__LiteralNumData_g97.text = _til_str_lits.h00000002b5d5;
-            hoisted__LiteralNumData_g97.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-            NodeType hoisted__NodeType_30 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g97) })[0]);
+            LiteralNumData hoisted__LiteralNumData_g103 = {0};
+            hoisted__LiteralNumData_g103.text = _til_str_lits.h00000002b5d5;
+            hoisted__LiteralNumData_g103.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+            NodeType hoisted__NodeType_30 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g103) })[0]);
             Expr hoisted__Expr_31 = Expr_new(&hoisted__NodeType_30, line, col);
             Expr_add_child(&neq_call, &hoisted__Expr_31);
             Expr ret_tmp = Expr_new(&(NodeType){.tag = NodeType_TAG_Return}, line, col);
@@ -85827,10 +85827,10 @@ static void priv___src_self_initer_til__generate_struct_cmp_method(Expr * struct
         }
     }
     Expr ret_zero = Expr_new(&(NodeType){.tag = NodeType_TAG_Return}, line, col);
-    LiteralNumData hoisted__LiteralNumData_g98 = {0};
-    hoisted__LiteralNumData_g98.text = _til_str_lits.h00000002b5d5;
-    hoisted__LiteralNumData_g98.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_38 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g98) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g104 = {0};
+    hoisted__LiteralNumData_g104.text = _til_str_lits.h00000002b5d5;
+    hoisted__LiteralNumData_g104.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_38 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g104) })[0]);
     Expr hoisted__Expr_39 = Expr_new(&hoisted__NodeType_38, line, col);
     Expr_add_child(&ret_zero, &hoisted__Expr_39);
     Expr_add_child(&func_body, &ret_zero);
@@ -88462,10 +88462,10 @@ static void priv___src_self_initer_til__generate_enum_cmp_method(Expr * enum_def
                 Type_delete(&vt_resolved, 0);
                 if (_m_Bool_12) {
                     Expr ret_zero = Expr_new(&(NodeType){.tag = NodeType_TAG_Return}, line, col);
-                    LiteralNumData hoisted__LiteralNumData_g99 = {0};
-                    hoisted__LiteralNumData_g99.text = _til_str_lits.h00000002b5d5;
-                    hoisted__LiteralNumData_g99.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-                    NodeType hoisted__NodeType_19 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g99) })[0]);
+                    LiteralNumData hoisted__LiteralNumData_g105 = {0};
+                    hoisted__LiteralNumData_g105.text = _til_str_lits.h00000002b5d5;
+                    hoisted__LiteralNumData_g105.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+                    NodeType hoisted__NodeType_19 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g105) })[0]);
                     Expr hoisted__Expr_20 = Expr_new(&hoisted__NodeType_19, line, col);
                     Expr_add_child(&ret_zero, &hoisted__Expr_20);
                     Expr_add_child(&same_body, &ret_zero);
@@ -88502,10 +88502,10 @@ static void priv___src_self_initer_til__generate_enum_cmp_method(Expr * enum_def
                 }
             } else {
                 Expr ret_zero = Expr_new(&(NodeType){.tag = NodeType_TAG_Return}, line, col);
-                LiteralNumData hoisted__LiteralNumData_g100 = {0};
-                hoisted__LiteralNumData_g100.text = _til_str_lits.h00000002b5d5;
-                hoisted__LiteralNumData_g100.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-                NodeType hoisted__NodeType_47 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g100) })[0]);
+                LiteralNumData hoisted__LiteralNumData_g106 = {0};
+                hoisted__LiteralNumData_g106.text = _til_str_lits.h00000002b5d5;
+                hoisted__LiteralNumData_g106.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+                NodeType hoisted__NodeType_47 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g106) })[0]);
                 Expr hoisted__Expr_48 = Expr_new(&hoisted__NodeType_47, line, col);
                 Expr_add_child(&ret_zero, &hoisted__Expr_48);
                 Expr_add_child(&same_body, &ret_zero);
@@ -88515,10 +88515,10 @@ static void priv___src_self_initer_til__generate_enum_cmp_method(Expr * enum_def
             Expr_add_child(&same_if, &same_body);
             Expr_add_child(&then_body, &same_if);
             Expr ret_neg = Expr_new(&(NodeType){.tag = NodeType_TAG_Return}, line, col);
-            LiteralNumData hoisted__LiteralNumData_g101 = {0};
-            hoisted__LiteralNumData_g101.text = _til_str_lits.h000000597043;
-            hoisted__LiteralNumData_g101.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-            NodeType hoisted__NodeType_59 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g101) })[0]);
+            LiteralNumData hoisted__LiteralNumData_g107 = {0};
+            hoisted__LiteralNumData_g107.text = _til_str_lits.h000000597043;
+            hoisted__LiteralNumData_g107.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+            NodeType hoisted__NodeType_59 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g107) })[0]);
             Expr hoisted__Expr_60 = Expr_new(&hoisted__NodeType_59, line, col);
             Expr_add_child(&ret_neg, &hoisted__Expr_60);
             Expr_add_child(&then_body, &ret_neg);
@@ -88532,10 +88532,10 @@ static void priv___src_self_initer_til__generate_enum_cmp_method(Expr * enum_def
             Expr b_only_is = make_is_tag_check_fcall(&_til_str_lits.h00000002b607, ename, vn, hoisted__U32_64, line, col, symbols);
             Expr b_only_body = Expr_new(&(NodeType){.tag = NodeType_TAG_Body}, line, col);
             Expr ret_pos = Expr_new(&(NodeType){.tag = NodeType_TAG_Return}, line, col);
-            LiteralNumData hoisted__LiteralNumData_g102 = {0};
-            hoisted__LiteralNumData_g102.text = _til_str_lits.h00000002b5d6;
-            hoisted__LiteralNumData_g102.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-            NodeType hoisted__NodeType_66 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g102) })[0]);
+            LiteralNumData hoisted__LiteralNumData_g108 = {0};
+            hoisted__LiteralNumData_g108.text = _til_str_lits.h00000002b5d6;
+            hoisted__LiteralNumData_g108.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+            NodeType hoisted__NodeType_66 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g108) })[0]);
             Expr hoisted__Expr_67 = Expr_new(&hoisted__NodeType_66, line, col);
             Expr_add_child(&ret_pos, &hoisted__Expr_67);
             Expr_add_child(&b_only_body, &ret_pos);
@@ -88546,10 +88546,10 @@ static void priv___src_self_initer_til__generate_enum_cmp_method(Expr * enum_def
         }
     }
     Expr ret_end = Expr_new(&(NodeType){.tag = NodeType_TAG_Return}, line, col);
-    LiteralNumData hoisted__LiteralNumData_g103 = {0};
-    hoisted__LiteralNumData_g103.text = _til_str_lits.h00000002b5d5;
-    hoisted__LiteralNumData_g103.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_69 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g103) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g109 = {0};
+    hoisted__LiteralNumData_g109.text = _til_str_lits.h00000002b5d5;
+    hoisted__LiteralNumData_g109.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_69 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g109) })[0]);
     Expr hoisted__Expr_70 = Expr_new(&hoisted__NodeType_69, line, col);
     Expr_add_child(&ret_end, &hoisted__Expr_70);
     Expr_add_child(&func_body, &ret_end);
@@ -91897,10 +91897,10 @@ static void gen_cmp_derived_for_stmt(Expr * stmt, SymbolPool * symbols) {
         Expr b_id = Expr_new(&hoisted__NodeType_37, stmt->line, stmt->col);
         Expr_add_child(&cmp_call, &b_id);
         Expr eq_call = make_method_call_fcall(&cmp_call, &_til_str_lits.h0000005977bb, stmt->line, stmt->col, symbols);
-        LiteralNumData hoisted__LiteralNumData_g104 = {0};
-        hoisted__LiteralNumData_g104.text = _til_str_lits.h00000002b5d5;
-        hoisted__LiteralNumData_g104.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-        NodeType hoisted__NodeType_40 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g104) })[0]);
+        LiteralNumData hoisted__LiteralNumData_g110 = {0};
+        hoisted__LiteralNumData_g110.text = _til_str_lits.h00000002b5d5;
+        hoisted__LiteralNumData_g110.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+        NodeType hoisted__NodeType_40 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g110) })[0]);
         Expr zero = Expr_new(&hoisted__NodeType_40, stmt->line, stmt->col);
         Expr_add_child(&eq_call, &zero);
         Expr ret = Expr_new(&(NodeType){.tag = NodeType_TAG_Return}, stmt->line, stmt->col);
@@ -92067,16 +92067,16 @@ static void gen_cmp_derived_for_stmt(Expr * stmt, SymbolPool * symbols) {
         Expr b_id = Expr_new(&hoisted__NodeType_106, stmt->line, stmt->col);
         Expr_add_child(&cmp_call, &b_id);
         Expr eq_call = make_method_call_fcall(&cmp_call, &_til_str_lits.h0000005977bb, stmt->line, stmt->col, symbols);
-        LiteralNumData hoisted__LiteralNumData_g105 = {0};
-        hoisted__LiteralNumData_g105.text = _til_str_lits.h00000002b5d5;
-        hoisted__LiteralNumData_g105.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-        NodeType hoisted__NodeType_109 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g105) })[0]);
+        LiteralNumData hoisted__LiteralNumData_g111 = {0};
+        hoisted__LiteralNumData_g111.text = _til_str_lits.h00000002b5d5;
+        hoisted__LiteralNumData_g111.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+        NodeType hoisted__NodeType_109 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g111) })[0]);
         Expr zero = Expr_new(&hoisted__NodeType_109, stmt->line, stmt->col);
         Expr neg1_call = make_method_call_fcall(&zero, &_til_str_lits.h00000b88ab8f, stmt->line, stmt->col, symbols);
-        LiteralNumData hoisted__LiteralNumData_g106 = {0};
-        hoisted__LiteralNumData_g106.text = _til_str_lits.h00000002b5d6;
-        hoisted__LiteralNumData_g106.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-        NodeType hoisted__NodeType_112 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g106) })[0]);
+        LiteralNumData hoisted__LiteralNumData_g112 = {0};
+        hoisted__LiteralNumData_g112.text = _til_str_lits.h00000002b5d6;
+        hoisted__LiteralNumData_g112.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+        NodeType hoisted__NodeType_112 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g112) })[0]);
         Expr one = Expr_new(&hoisted__NodeType_112, stmt->line, stmt->col);
         Expr_add_child(&neg1_call, &one);
         Expr_add_child(&eq_call, &neg1_call);
@@ -92244,10 +92244,10 @@ static void gen_cmp_derived_for_stmt(Expr * stmt, SymbolPool * symbols) {
         Expr b_id = Expr_new(&hoisted__NodeType_178, stmt->line, stmt->col);
         Expr_add_child(&cmp_call, &b_id);
         Expr eq_call = make_method_call_fcall(&cmp_call, &_til_str_lits.h0000005977bb, stmt->line, stmt->col, symbols);
-        LiteralNumData hoisted__LiteralNumData_g107 = {0};
-        hoisted__LiteralNumData_g107.text = _til_str_lits.h00000002b5d6;
-        hoisted__LiteralNumData_g107.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-        NodeType hoisted__NodeType_181 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g107) })[0]);
+        LiteralNumData hoisted__LiteralNumData_g113 = {0};
+        hoisted__LiteralNumData_g113.text = _til_str_lits.h00000002b5d6;
+        hoisted__LiteralNumData_g113.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+        NodeType hoisted__NodeType_181 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g113) })[0]);
         Expr one = Expr_new(&hoisted__NodeType_181, stmt->line, stmt->col);
         Expr_add_child(&eq_call, &one);
         Expr ret = Expr_new(&(NodeType){.tag = NodeType_TAG_Return}, stmt->line, stmt->col);
@@ -108982,10 +108982,10 @@ static Expr priv___src_self_initer_til__iface_dyn_clone_call(Expr * stmt, Symbol
     NodeType hoisted__NodeType_27 = NodeType_Literal(&((Literal[]){ Literal_Str(&_til_str_lits.h00310f3b99b6) })[0]);
     Expr hoisted__Expr_28 = Expr_new(&hoisted__NodeType_27, stmt->line, stmt->col);
     Expr_add_child(&dc, &hoisted__Expr_28);
-    LiteralNumData hoisted__LiteralNumData_g108 = {0};
-    hoisted__LiteralNumData_g108.text = _til_str_lits.h00000002b5d6;
-    hoisted__LiteralNumData_g108.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_30 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g108) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g114 = {0};
+    hoisted__LiteralNumData_g114.text = _til_str_lits.h00000002b5d6;
+    hoisted__LiteralNumData_g114.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_30 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g114) })[0]);
     Expr hoisted__Expr_31 = Expr_new(&hoisted__NodeType_30, stmt->line, stmt->col);
     Expr_add_child(&dc, &hoisted__Expr_31);
     Expr hoisted__Expr_33 = priv___src_self_initer_til__iface_self_field(stmt, &_til_str_lits.hcbc3f47b36df, symbols);
@@ -109041,10 +109041,10 @@ static Expr priv___src_self_initer_til__iface_dyn_delete_call(Expr * stmt, Symbo
     NodeType hoisted__NodeType_27 = NodeType_Literal(&((Literal[]){ Literal_Str(&_til_str_lits.h0652f8838478) })[0]);
     Expr hoisted__Expr_28 = Expr_new(&hoisted__NodeType_27, stmt->line, stmt->col);
     Expr_add_child(&dc, &hoisted__Expr_28);
-    LiteralNumData hoisted__LiteralNumData_g109 = {0};
-    hoisted__LiteralNumData_g109.text = _til_str_lits.h00000002b5d7;
-    hoisted__LiteralNumData_g109.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_30 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g109) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g115 = {0};
+    hoisted__LiteralNumData_g115.text = _til_str_lits.h00000002b5d7;
+    hoisted__LiteralNumData_g115.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_30 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g115) })[0]);
     Expr hoisted__Expr_31 = Expr_new(&hoisted__NodeType_30, stmt->line, stmt->col);
     Expr_add_child(&dc, &hoisted__Expr_31);
     Expr hoisted__Expr_33 = priv___src_self_initer_til__iface_self_field(stmt, &_til_str_lits.hcbc3f47b36df, symbols);
@@ -179647,10 +179647,10 @@ static Bool priv___src_self_typer_til__desugar_for_in_collection_stmt(TypeScope 
     Declaration hoisted__Declaration_385 = decl_typed(&ctx->symbols, &idx_type, &idx_name, &_til_str_lits.h000000001505, hoisted__Bool_379, hoisted__Bool_380, hoisted__Bool_381, hoisted__Bool_382, &(OwnType){.tag = OwnType_TAG_Shallow}, hoisted__Bool_383, hoisted__Bool_384);
     NodeType hoisted__NodeType_386 = NodeType_Decl(&hoisted__Declaration_385);
     Expr idx_decl = Expr_new(&hoisted__NodeType_386, line, col);
-    LiteralNumData hoisted__LiteralNumData_g110 = {0};
-    hoisted__LiteralNumData_g110.text = _til_str_lits.h00000002b5d5;
-    hoisted__LiteralNumData_g110.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_388 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g110) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g116 = {0};
+    hoisted__LiteralNumData_g116.text = _til_str_lits.h00000002b5d5;
+    hoisted__LiteralNumData_g116.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_388 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g116) })[0]);
     Expr zero = Expr_new(&hoisted__NodeType_388, line, col);
     Expr_add_child(&idx_decl, &zero);
     Expr_add_child(&block, &idx_decl);
@@ -179947,10 +179947,10 @@ static Bool priv___src_self_typer_til__desugar_for_in_collection_stmt(TypeScope 
     NodeType hoisted__NodeType_419 = ident_node(hoisted__U32_418);
     Expr idx_ident_inc = Expr_new(&hoisted__NodeType_419, line, col);
     Expr add_call = make_method_call_fcall(&idx_ident_inc, &_til_str_lits.h00000b885cce, line, col, &ctx->symbols);
-    LiteralNumData hoisted__LiteralNumData_g111 = {0};
-    hoisted__LiteralNumData_g111.text = _til_str_lits.h00000002b5d6;
-    hoisted__LiteralNumData_g111.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_422 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g111) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g117 = {0};
+    hoisted__LiteralNumData_g117.text = _til_str_lits.h00000002b5d6;
+    hoisted__LiteralNumData_g117.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_422 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g117) })[0]);
     Expr one = Expr_new(&hoisted__NodeType_422, line, col);
     Expr_add_child(&add_call, &one);
     Expr_add_child(&idx_assign, &add_call);
@@ -180365,10 +180365,10 @@ static Bool priv___src_self_typer_til__desugar_for_in_kv_stmt(TypeScope * scope,
     Declaration hoisted__Declaration_180 = decl_typed(&ctx->symbols, &_til_str_lits.h00310e307535, &idx_name, &_til_str_lits.h000000001505, hoisted__Bool_174, hoisted__Bool_175, hoisted__Bool_176, hoisted__Bool_177, &(OwnType){.tag = OwnType_TAG_Shallow}, hoisted__Bool_178, hoisted__Bool_179);
     NodeType hoisted__NodeType_181 = NodeType_Decl(&hoisted__Declaration_180);
     Expr idx_decl = Expr_new(&hoisted__NodeType_181, line, col);
-    LiteralNumData hoisted__LiteralNumData_g112 = {0};
-    hoisted__LiteralNumData_g112.text = _til_str_lits.h00000002b5d5;
-    hoisted__LiteralNumData_g112.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_183 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g112) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g118 = {0};
+    hoisted__LiteralNumData_g118.text = _til_str_lits.h00000002b5d5;
+    hoisted__LiteralNumData_g118.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_183 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g118) })[0]);
     Expr hoisted__Expr_184 = Expr_new(&hoisted__NodeType_183, line, col);
     Expr_add_child(&idx_decl, &hoisted__Expr_184);
     Expr_add_child(&block, &idx_decl);
@@ -180457,10 +180457,10 @@ static Bool priv___src_self_typer_til__desugar_for_in_kv_stmt(TypeScope * scope,
     NodeType hoisted__NodeType_209 = ident_node(hoisted__U32_208);
     Expr idx_ident_inc_kv = Expr_new(&hoisted__NodeType_209, line, col);
     Expr add_call_kv = make_method_call_fcall(&idx_ident_inc_kv, &_til_str_lits.h00000b885cce, line, col, &ctx->symbols);
-    LiteralNumData hoisted__LiteralNumData_g113 = {0};
-    hoisted__LiteralNumData_g113.text = _til_str_lits.h00000002b5d6;
-    hoisted__LiteralNumData_g113.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_212 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g113) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g119 = {0};
+    hoisted__LiteralNumData_g119.text = _til_str_lits.h00000002b5d6;
+    hoisted__LiteralNumData_g119.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_212 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g119) })[0]);
     Expr hoisted__Expr_213 = Expr_new(&hoisted__NodeType_212, line, col);
     Expr_add_child(&add_call_kv, &hoisted__Expr_213);
     Expr_add_child(&idx_assign_kv, &add_call_kv);
@@ -185207,10 +185207,10 @@ static Expr make_default_value_expr(Str * type_name, U32 line, U32 col, SymbolPo
             _fi_USize_19 = hoisted__U32_26;
             Bool hoisted__Bool_27 = Str_eq(type_name, prim_name);
             if (hoisted__Bool_27) {
-                LiteralNumData hoisted__LiteralNumData_g114 = {0};
-                hoisted__LiteralNumData_g114.text = _til_str_lits.h00000002b5d5;
-                hoisted__LiteralNumData_g114.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-                NodeType hoisted__NodeType_22 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g114) })[0]);
+                LiteralNumData hoisted__LiteralNumData_g120 = {0};
+                hoisted__LiteralNumData_g120.text = _til_str_lits.h00000002b5d5;
+                hoisted__LiteralNumData_g120.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+                NodeType hoisted__NodeType_22 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g120) })[0]);
                 Expr hoisted__Expr_23 = Expr_new(&hoisted__NodeType_22, line, col);
                 return hoisted__Expr_23;
             }
@@ -185231,10 +185231,10 @@ static Expr make_default_value_expr(Str * type_name, U32 line, U32 col, SymbolPo
             _fi_USize_28 = hoisted__U32_35;
             Bool hoisted__Bool_36 = Str_eq(type_name, alias_name);
             if (hoisted__Bool_36) {
-                LiteralNumData hoisted__LiteralNumData_g115 = {0};
-                hoisted__LiteralNumData_g115.text = _til_str_lits.h00000002b5d5;
-                hoisted__LiteralNumData_g115.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-                NodeType hoisted__NodeType_31 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g115) })[0]);
+                LiteralNumData hoisted__LiteralNumData_g121 = {0};
+                hoisted__LiteralNumData_g121.text = _til_str_lits.h00000002b5d5;
+                hoisted__LiteralNumData_g121.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+                NodeType hoisted__NodeType_31 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g121) })[0]);
                 Expr hoisted__Expr_32 = Expr_new(&hoisted__NodeType_31, line, col);
                 return hoisted__Expr_32;
             }
@@ -196353,10 +196353,10 @@ static void priv___src_self_desugarer_til__build_variadic_err_slots(Str * va_nam
     Type hoisted__Type_14 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_I64});
     Expr_set_til_type(&ek, hoisted__Type_14);
     Type_delete(&hoisted__Type_14, 0);
-    LiteralNumData hoisted__LiteralNumData_g116 = {0};
-    hoisted__LiteralNumData_g116.text = _til_str_lits.h00000002b5d5;
-    hoisted__LiteralNumData_g116.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_16 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g116) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g122 = {0};
+    hoisted__LiteralNumData_g122.text = _til_str_lits.h00000002b5d5;
+    hoisted__LiteralNumData_g122.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_16 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g122) })[0]);
     Expr ek_init = Expr_new(&hoisted__NodeType_16, line, col);
     Type hoisted__Type_17 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_I64});
     Expr_set_til_type(&ek_init, hoisted__Type_17);
@@ -449120,10 +449120,10 @@ static void priv___src_self_interpreter_til__interp_numeric_cast_panic(Scope * s
     NodeType hoisted__NodeType_57 = ident_node(hoisted__U32_56);
     Expr hoisted__Expr_58 = Expr_new(&hoisted__NodeType_57, e->line, e->col);
     Expr_add_child(&stop, &hoisted__Expr_58);
-    LiteralNumData hoisted__LiteralNumData_g117 = {0};
-    hoisted__LiteralNumData_g117.text = _til_str_lits.h00000002b5d6;
-    hoisted__LiteralNumData_g117.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
-    NodeType hoisted__NodeType_60 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g117) })[0]);
+    LiteralNumData hoisted__LiteralNumData_g123 = {0};
+    hoisted__LiteralNumData_g123.text = _til_str_lits.h00000002b5d6;
+    hoisted__LiteralNumData_g123.til_type = Type_clone(&(Type){.tag = Type_TAG_Unknown});
+    NodeType hoisted__NodeType_60 = NodeType_Literal(&((Literal[]){ Literal_Num(&hoisted__LiteralNumData_g123) })[0]);
     Expr status = Expr_new(&hoisted__NodeType_60, e->line, e->col);
     Type hoisted__Type_61 = Type_Primitive(&(Primitive){.tag = Primitive_TAG_I64});
     Expr_set_til_type(&status, hoisted__Type_61);
@@ -465310,11 +465310,11 @@ static Bool priv___src_self_builder_til__loads_gui_module(LoadedProgram * lp) {
     Str hoisted__Str_self_builder_loads_gui_module_10 = Str_clone(&root);
     Array__Str_set(&_va_Array_0, hoisted__U32_9, &hoisted__Str_self_builder_loads_gui_module_10, &_va_Array_0_ek);
     U32 hoisted__U32_11 = 1;
-    Str hoisted__Str_self_builder_loads_gui_module_12 = (Str){.c_str = TIL_OWN_LIT("/src/modes/gui.til", 18ULL), .count = 18ULL, .cap = TIL_CAP_LIT};
+    Str hoisted__Str_self_builder_loads_gui_module_12 = (Str){.c_str = TIL_OWN_LIT("/src/modes/raylib.til", 21ULL), .count = 21ULL, .cap = TIL_CAP_LIT};
     Array__Str_set(&_va_Array_0, hoisted__U32_11, &hoisted__Str_self_builder_loads_gui_module_12, &_va_Array_0_ek);
     Str hoisted__Str_self_builder_loads_gui_module_13 = format(&_va_Array_0);
     Str_delete(&root, 0);
-    Str gui_path = ({ Str *_hp = (Str *)realpath_str(&hoisted__Str_self_builder_loads_gui_module_13); Str _hv = *_hp; if (_hp->cap != TIL_CAP_LIT) { free(_hp); } if (_hv.cap == TIL_CAP_LIT) { _hv.cap = TIL_CAP_VIEW; } _hv; });
+    Str raylib_path = ({ Str *_hp = (Str *)realpath_str(&hoisted__Str_self_builder_loads_gui_module_13); Str _hv = *_hp; if (_hp->cap != TIL_CAP_LIT) { free(_hp); } if (_hv.cap == TIL_CAP_LIT) { _hv.cap = TIL_CAP_VIEW; } _hv; });
     Str_delete(&hoisted__Str_self_builder_loads_gui_module_13, 0);
     {
         Vec__Str _fc_Vec__Str_0 = LoadedProgram_unit_paths(lp);
@@ -465330,18 +465330,18 @@ static Bool priv___src_self_builder_til__loads_gui_module(LoadedProgram * lp) {
             U32 hoisted__U32_5 = ((U32)(_fi_USize_0 + hoisted__U32_4));
             _fi_USize_0 = hoisted__U32_5;
             Str hoisted__Str_self_builder_loads_gui_module_6 = ({ Str *_hp = (Str *)realpath_str(unit_path); Str _hv = *_hp; if (_hp->cap != TIL_CAP_LIT) { free(_hp); } if (_hv.cap == TIL_CAP_LIT) { _hv.cap = TIL_CAP_VIEW; } _hv; });
-            Bool hoisted__Bool_7 = Str_eq(&hoisted__Str_self_builder_loads_gui_module_6, &gui_path);
+            Bool hoisted__Bool_7 = Str_eq(&hoisted__Str_self_builder_loads_gui_module_6, &raylib_path);
             Str_delete(&hoisted__Str_self_builder_loads_gui_module_6, 0);
             if (hoisted__Bool_7) {
                 Bool hoisted__Bool_2 = 1;
                 Vec__Str_delete(&_fc_Vec__Str_0, 0);
-                Str_delete(&gui_path, 0);
+                Str_delete(&raylib_path, 0);
                 return hoisted__Bool_2;
             }
         }
         Vec__Str_delete(&_fc_Vec__Str_0, 0);
     }
-    Str_delete(&gui_path, 0);
+    Str_delete(&raylib_path, 0);
     Bool hoisted__Bool_14 = 0;
     return hoisted__Bool_14;
 }
@@ -494867,8 +494867,8 @@ int main(int argc, char **argv) {
     priv___src_self_codegen_c_codegen_til__REFLECT_FOUND_DECL = (Str){.c_str = TIL_OWN_LIT("    Bool _found = 0;\n", 21ULL), .count=21ULL, .cap=TIL_CAP_LIT};
     priv___src_self_interpreter_til__scope_pool = Vec__priv___src_self_interpreter_til__DynPtrBox_new();
     priv___src_self_builder_til__MAC_DEBUG_ROOT = (Str){.c_str = TIL_OWN_LIT("/proc/self/cwd", 14ULL), .count=14ULL, .cap=TIL_CAP_LIT};
-    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-3b1b5afe2", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
-    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("3b1b5afe2a95fc1eaaefb9ed553fd5dbdeee7968", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
+    VERSION = (Str){.c_str = TIL_OWN_LIT("0.0.1-c692e0d68", 15ULL), .count=15ULL, .cap=TIL_CAP_LIT};
+    COMPILER_REVISION = (Str){.c_str = TIL_OWN_LIT("c692e0d680a80de30d95d8d7216acaa83dde83e0", 40ULL), .count=40ULL, .cap=TIL_CAP_LIT};
     int _va_argc = argc - 1;
     USize _va_cap = _va_argc;
     Array__Str _va_main_args = {0};
