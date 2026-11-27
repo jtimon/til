@@ -2083,3 +2083,15 @@ producer. Any host can be one of its producers on equal terms.
   ~hashes-<name>~) plus its name in ~collect~'s ~needs~.
 - A difference is fixed where it is introduced, never by normalizing it
   away in the comparison (#472, "Rules for every step").
+
+*** CI steps taken over from #473 (Jorge, 2026-11-27)
+
+[[./473.org][#473]] no longer waits for these; they are this issue's:
+
+- TempleOS first builds and tests til for TempleOS. Its own target is
+  sufficient for the initial host milestone.
+- After a native self-rebuilding FASM is available, TempleOS -> Linux
+  x64/FASM production, the binary exported and run on Linux. No
+  GCC/Clang/LLVM inside TempleOS.
+- Frontend, emitted-source and ELF comparisons with the other producers
+  (the collector, ~examples/ci_collect.til~), as each becomes possible.

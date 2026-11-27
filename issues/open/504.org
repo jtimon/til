@@ -468,9 +468,7 @@ the Windows host's linux list step may no longer fail quietly.
 
 - The other four linux targets from the arm64 Mac and the Windows
   host: strict once a run shows them equal.
-- The Windows host's paths: read them from the next run and fix the
-  spelling. The Intel Mac for ELF targets: open (a clang built from
-  LLVM's source at the pinned tag would name itself like LLVM's own).
+- The Intel Mac for ELF targets: its own issue, [[./511.org][#511]].
 - The trees are cached in CI, as the pinned LLVM is: one entry per job
   and per table in ~make.til~ (the seven Linux jobs and the arm64 Mac;
   not the Windows host, whose trees hold links its tar made).

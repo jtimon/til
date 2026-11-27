@@ -79,6 +79,8 @@
 *** [[./open/411.org][#411]] Explicit GPU/device execution model for til
 *** [[./open/437.org][#437]] wasm32 follow-ups to #424: an html console page, and mode lib as a JS module
 *** [[./open/462.org][#462]] Android through the C backend and the NDK
+*** [[./open/511.org][#511]] The Intel Mac as a host: it cannot build the linux targets to the same bytes; keep it at all?
+*** [[./open/512.org][#512]] wasm32: the same output from every host
 * Experiments
 ** Low
 *** [[./open/84.org][#84]] mode theme: cross-editor theme generation

@@ -1,0 +1,36 @@
+# priority: low
+# category: backends
+** OPEN #512 wasm32: the same output from every host
+
+Split from [[./472.org][#472]] and [[./473.org][#473]] (Jorge, 2026-11-27): the other targets'
+binaries are compared between hosts and strict; wasm32's comparison was
+started and switched off (Jorge, 2026-11-20, "not a priority right
+now"), and continues here.
+
+*** State
+
+- The ~wasm32~ job builds programs with the vendored emsdk and runs them
+  under node. That is a functional test, on one host.
+- The collector can list wasm32 (~examples/ci_collect.til~,
+  ~produce_wasm_binary~): ~hello_script~ and ~layout_corpus~ at both
+  widths, as emcc writes them, one ~.js~ with the module inside, level
+  ~binary-trial~.
+- Three producers have the list steps, all ~if: false~ now: the
+  ~wasm32~ job, ~linux-arm64 (native)~ and ~macos-arm64~. ~collect~
+  does not wait for the ~wasm32~ job.
+- The one comparison made, CI run 3186: ~hello_script.js~ differed on
+  the Mac from the Linux hosts. Not looked into.
+
+*** To do
+
+- Resume: remove the three ~if: false~ pairs and put ~wasm32~ back in
+  ~collect~'s ~needs~ (or move its list step into ~linux-x64~, which
+  holds the other lists of that host since #473's fold).
+- Find what differs in the ~.js~ between hosts: emcc embeds the module
+  in generated JavaScript, so a path, a version string or the host's
+  node can reach the file; the emsdk is downloaded per host
+  ([[./378.org][#378]]), so the first thing to compare is whether the three hosts
+  have the same emscripten at all.
+- Then strict, like the other targets: a producer that lists with
+  ~produce-binary~, and the Windows host and libsecp256k1 for wasm32 in
+  the lists.

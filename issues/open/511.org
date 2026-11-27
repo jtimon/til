@@ -1,0 +1,45 @@
+# priority: low
+# category: backends
+** OPEN #511 The Intel Mac as a host: it cannot build the linux targets to the same bytes; keep it at all?
+
+Split from [[./504.org][#504]] and [[./472.org][#472]] (Jorge, 2026-11-27).
+
+*** What works there
+
+~macos-x64 (native)~ (runner ~macos-15-intel~) builds til for its own
+target with a pinned compiler, runs the suite on it, and lists the two
+mac targets and windows-x64/x86: all strict, the same bytes as every
+other host's (CI runs 3193, 3198, 3219). macos-x64 as a TARGET does not
+depend on that host: the two Linux hosts, the arm64 Mac and the Windows
+host build it to the same bytes.
+
+*** What does not
+
+LLVM publishes no package of the pinned release (23.1.5) for an Intel
+Mac. The compiler used there is llvm-mingw's clang 23.1.5 with its
+~lld~ linked as ~ld64.lld~ and ~ld.lld~ (~tmp/mac-tools~). That clang
+names itself differently from LLVM's own build, and an ELF carries the
+compiler's name: in ~.comment~, and as the producer in the debug info.
+A Mach-O executable and a PE carry neither, which is why the mac and
+windows targets are equal from that host.
+
+CI run 3203, the one time it listed linux-x64 and linux-arm64: every
+item differed from the three hosts that use LLVM's package, ~.comment~
+first (and with it every object of libffi and nng). Its linux list step
+was removed after that run. So the linux targets are the same bytes
+from two Linux hosts, the arm64 Mac and the Windows host, and not
+buildable to those bytes on the Intel Mac.
+
+*** The question
+
+- Whether to keep the Intel Mac as a host at all. To check before
+  deciding, not known for certain here: Apple's support for Intel Macs
+  (the last macOS release that runs on them, and until when it gets
+  updates), and how long GitHub offers an Intel macOS runner
+  (~macos-15-intel~ is, as far as known here, the last such image).
+- If it stays: a clang 23.1.5 built from LLVM's source at the pinned
+  tag for that host would name itself like LLVM's packages; not tried.
+  It would also replace the llvm-mingw clang there for the mac targets.
+- If it goes: the ~macos-x64~ job is removed; macos-x64 stays a target,
+  built by four hosts, but then no CI job RUNS a macos-x64 binary
+  (the arm64 runners could run one under Rosetta: not tried).

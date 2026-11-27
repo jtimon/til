@@ -204,8 +204,10 @@ The CI sequence is:
   by source and compatible-toolchain binary groups as each becomes ready.
 - [ ] Altered/missing/wrong-configuration artifacts and native test failures
   are covered by collector validation; incomplete runs cannot pass equality.
-- [ ] TempleOS first self-builds/tests til for itself, then gains a native
-  self-rebuilding FASM and Linux-x64/FASM production with execution on Linux.
+- Moved to [[./151.org][#151]] (Jorge, 2026-11-27: the work-in-progress backends are
+  not part of finishing this issue): TempleOS first self-builds/tests
+  til for itself, then gains a native self-rebuilding FASM and
+  Linux-x64/FASM production with execution on Linux.
 - [ ] Report remaining host/target/backend gaps and measured runner costs;
   full compiler, vendor-library and additional-target coverage expands from
   the demonstrated cells rather than being assumed from target names.
@@ -1145,3 +1147,10 @@ linux-arm64 native, windows-x64, macos-arm64, macos-x64); the five
 linux targets run under qemu, wasm32, TempleOS, the Android emulators;
 ~linux-x64 (--usize=64)~ and ~windows-x64-asan~, second suites on a
 host that already has a job.
+
+*** What continues elsewhere (Jorge, 2026-11-27)
+
+- wasm32's comparison between hosts: [[./512.org][#512]].
+- TempleOS as a producer: [[./151.org][#151]] (its CI steps, listed above under
+  "TempleOS as a staged future producer", are that issue's now).
+- The Intel Mac as a host, and the linux targets there: [[./511.org][#511]].

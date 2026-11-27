@@ -4096,3 +4096,9 @@ the library, libffi and nng -- but for ~make bin/til~, where each host
 still listed its own gcc build. The record, what the suite needed to
 pass on a pinned host build, the other four targets and what CI tries
 next are in ~issues/open/504.org~.
+
+*** What continues elsewhere (Jorge, 2026-11-27)
+
+wasm32's comparison between hosts is [[./512.org][#512]]; the Intel Mac as a host,
+which cannot build the linux targets to the other hosts' bytes, is
+[[./511.org][#511]]. Neither holds this issue open.
