@@ -78,20 +78,20 @@ main := proc() {
 
     mut timer : I64 = 0
 
-    BG_COLOR := Color(r = 20, g = 20, b = 30, a = 255)
-    ROLL_BG := Color(r = 10, g = 10, b = 20, a = 255)
-    GRID_BLACK := Color(r = 15, g = 15, b = 25, a = 255)
-    GRID_LINE := Color(r = 40, g = 40, b = 60, a = 255)
+    BG_COLOR := DARK_SLATE
+    ROLL_BG := MIDNIGHT
+    GRID_BLACK := MIDNIGHT_GRID
+    GRID_LINE := SLATE_GRID
     KEY_WHITE_PRESSED := TEAL
-    KEY_WHITE := Color(r = 240, g = 240, b = 240, a = 255)
-    KEY_LABEL_COLOR := Color(r = 80, g = 80, b = 80, a = 255)
+    KEY_WHITE := GRAY_240
+    KEY_LABEL_COLOR := GRAY_80
     KEY_BLACK_PRESSED := DARK_TEAL
-    KEY_BLACK := Color(r = 20, g = 20, b = 20, a = 255)
+    KEY_BLACK := GRAY_20
     KEY_LABEL_BLACK := HINT_GRAY
-    LABEL_COLOR := Color(r = 60, g = 60, b = 80, a = 255)
+    LABEL_COLOR := SLATE_LABEL
     BTN_ACTIVE := TEAL
-    BTN_INACTIVE := Color(r = 50, g = 50, b = 50, a = 255)
-    BUTTON_LABEL := Color(r = 220, g = 220, b = 220, a = 255)
+    BTN_INACTIVE := GRAY_50
+    BUTTON_LABEL := GRAY_220
 
     while !WindowShouldClose() {
         dt := (GetFrameTime() * 1000).to_i64()
@@ -319,10 +319,10 @@ main := proc() {
             mut note_color := DARK_TEAL
             mut cycle : I32 = en / 12
             if hextave_display { cycle = en / FIVE_CYCLE.to_i32() }
-            if cycle == 1 { note_color = Color(r = 0, g = 165, b = 170, a = 255) }
-            if cycle == 2 { note_color = Color(r = 0, g = 180, b = 185, a = 255) }
-            if cycle == 3 { note_color = Color(r = 0, g = 195, b = 200, a = 255) }
-            if cycle == 4 { note_color = Color(r = 0, g = 210, b = 215, a = 255) }
+            if cycle == 1 { note_color = NOTE_TEAL_1 }
+            if cycle == 2 { note_color = NOTE_TEAL_2 }
+            if cycle == 3 { note_color = NOTE_TEAL_3 }
+            if cycle == 4 { note_color = NOTE_TEAL_4 }
 
             DrawRectangle(x_right, ey, ew, note_h - 1, note_color)
         }

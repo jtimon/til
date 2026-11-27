@@ -12,11 +12,7 @@ main := proc(args: ..Str) {
     SetTargetFPS(60)
     InitAudioDevice()
 
-    YELLOW := Color(r = 255, g = 255, b = 0, a = 255)
-    DARK_GRAY := Color(r = 150, g = 150, b = 155, a = 255)
-    GREEN := Color(r = 0, g = 200, b = 0, a = 255)
-    LIGHT_GRAY := Color(r = 200, g = 200, b = 200, a = 255)
-    BG_GRAY := Color(r = 80, g = 80, b = 80, a = 128)
+    BG_GRAY := GRAY_OVERLAY
 
     // Popcorn melody (Gershon Kingsley, 1969)
     // Frequencies in Hz, 0 = rest
@@ -67,7 +63,7 @@ main := proc(args: ..Str) {
 
         // Title
         DrawText("POPCORN".c_str, 150, 30, 30, YELLOW)
-        DrawText("Gershon Kingsley, 1969".c_str, 130, 70, 16, DARK_GRAY)
+        DrawText("Gershon Kingsley, 1969".c_str, 130, 70, 16, COOL_GRAY)
 
         // Visualizer: bouncing bars for current note
          if note_idx > 0 && note_idx <= num_notes {
@@ -86,7 +82,7 @@ main := proc(args: ..Str) {
             DrawText("done!".c_str, 200, 140, 20, GREEN)
         } else {
             DrawText(format(note_idx.to_str(), " / ", num_notes.to_str()).c_str,
-                      200, 140, 16, LIGHT_GRAY)
+                      200, 140, 16, GRAY_200)
         }
 
         // Progress bar

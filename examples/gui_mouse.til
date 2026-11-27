@@ -1,4 +1,5 @@
 mode gui
+import("../src/modes/gui", Colors.*)
 
 // Drag cells, wheel to scroll, middle-click to reset one pane, right-click for all.
 // Enter or Escape returns to the caller so the same loaded module can run again.
@@ -111,38 +112,33 @@ mouse_step := proc(mut state: MouseDemo) {
 }
 
 mouse_draw := proc(state: MouseDemo) {
-    black := Color(r=0, g=0, b=0, a=255)
-    blue := Color(r=0, g=0, b=170, a=255)
-    green := Color(r=0, g=170, b=0, a=255)
-    red := Color(r=170, g=0, b=0, a=255)
-    white := Color(r=255, g=255, b=255, a=255)
     BeginDrawing()
-    ClearBackground(black)
-    DrawText("DRAG WHEEL MID: PANE R: ALL ENTER".c_str, 40, 16, 16, white)
+    ClearBackground(BLACK)
+    DrawText("DRAG WHEEL MID: PANE R: ALL ENTER".c_str, 40, 16, 16, WHITE)
     for pane in 0..2 {
         left := mouse_left(pane.to_i32())
-        mut paper := blue.clone()
-        if pane == 1 { paper = green.clone() }
+        mut paper := VGA_BLUE.clone()
+        if pane == 1 { paper = VGA_GREEN.clone() }
         BeginScissorMode(left, 40, 240, 180)
         ClearBackground(paper)
         if state.pane == pane.to_i32() {
-            DrawRectangle(left, 40, 240, 4, white)
-            DrawRectangle(left + mouse_first(state) * 20, 88, (mouse_last(state) - mouse_first(state) + 1) * 20, 24, red)
+            DrawRectangle(left, 40, 240, 4, WHITE)
+            DrawRectangle(left + mouse_first(state) * 20, 88, (mouse_last(state) - mouse_first(state) + 1) * 20, 24, VGA_RED)
         }
         for column in 0..12 {
             label := column.to_str()
-            DrawText(label.c_str, left + column.to_i32() * 20, 124, 16, white)
+            DrawText(label.c_str, left + column.to_i32() * 20, 124, 16, WHITE)
         }
         mut first_row := state.left_row.clone()
         if pane == 1 { first_row = state.right_row.clone() }
         for visible in 0..3 {
             label := format("ROW ", (first_row + visible).to_str())
-            DrawText(label.c_str, left + 8, (152 + visible * 16).to_i32(), 16, white)
+            DrawText(label.c_str, left + 8, (152 + visible * 16).to_i32(), 16, WHITE)
         }
-        DrawRectangle(left + 228, (first_row / 2).to_i32() + 148, 8, 6, white)
+        DrawRectangle(left + 228, (first_row / 2).to_i32() + 148, 8, 6, WHITE)
         EndScissorMode()
     }
-    if IsMouseButtonDown(MOUSE_BUTTON_MIDDLE) { DrawRectangle(40, 236, 520, 4, white) }
+    if IsMouseButtonDown(MOUSE_BUTTON_MIDDLE) { DrawRectangle(40, 236, 520, 4, WHITE) }
     EndDrawing()
 }
 
@@ -167,9 +163,9 @@ mouse_check_pixels := proc(state: MouseDemo) {
     // Native readback includes the pointer. Check visible colors over regions
     // so manually hovering over a probe point cannot create a false failure.
     selected := mouse_count_pixels(image, left + mouse_first(state) * 20, 88,
-        (mouse_last(state) - mouse_first(state) + 1) * 20, 24, Color(r=170, g=0, b=0, a=255))
-    active := mouse_count_pixels(image, left, 40, 240, 4, Color(r=255, g=255, b=255, a=255))
-    gutter := mouse_count_pixels(image, 290, 88, 20, 24, Color(r=0, g=0, b=0, a=255))
+        (mouse_last(state) - mouse_first(state) + 1) * 20, 24, VGA_RED)
+    active := mouse_count_pixels(image, left, 40, 240, 4, WHITE)
+    gutter := mouse_count_pixels(image, 290, 88, 20, 24, BLACK)
     UnloadImage(image)
     if selected == 0 { panic("mouse selection pixel mismatch") }
     if active == 0 { panic("mouse active pane pixel mismatch") }

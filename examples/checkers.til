@@ -793,87 +793,75 @@ main := proc() {
 
         // --- DRAW ---
         BeginDrawing()
-        ClearBackground(Color(r = 30, g = 30, b = 30, a = 255))
+        ClearBackground(GRAY_30)
 
         // Status bar
         if game_over == 0 {
             if turn == 1 {
-                DrawText("Red to move".c_str, 10, 10, FONT_SZ, Color(r = 220, g = 60, b = 60, a = 255))
+                DrawText("Red to move".c_str, 10, 10, FONT_SZ, CHECKER_LABEL)
             } else {
-                DrawText("Black to move".c_str, 10, 10, FONT_SZ, Color(r = 180, g = 180, b = 180, a = 255))
+                DrawText("Black to move".c_str, 10, 10, FONT_SZ, HINT_GRAY)
             }
             if must_capture {
-                DrawText("MUST CAPTURE!".c_str, 250, 10, FONT_SZ, Color(r = 255, g = 200, b = 0, a = 255))
+                DrawText("MUST CAPTURE!".c_str, 250, 10, FONT_SZ, GOLD)
             }
             if multi_jump_idx >= 0 {
-                DrawText("MULTI-JUMP!".c_str, 450, 10, FONT_SZ, Color(r = 255, g = 200, b = 0, a = 255))
+                DrawText("MULTI-JUMP!".c_str, 450, 10, FONT_SZ, GOLD)
             }
         } else {
             if game_over == 1 {
-                DrawText("RED WINS!".c_str, 10, 10, FONT_SZ, Color(r = 255, g = 255, b = 0, a = 255))
+                DrawText("RED WINS!".c_str, 10, 10, FONT_SZ, YELLOW)
             }
             if game_over == 2 {
-                DrawText("BLACK WINS!".c_str, 10, 10, FONT_SZ, Color(r = 255, g = 255, b = 0, a = 255))
+                DrawText("BLACK WINS!".c_str, 10, 10, FONT_SZ, YELLOW)
             }
             if game_over == 3 {
-                DrawText("DRAW!".c_str, 10, 10, FONT_SZ, Color(r = 200, g = 200, b = 0, a = 255))
+                DrawText("DRAW!".c_str, 10, 10, FONT_SZ, DARK_YELLOW)
             }
         }
 
         // --- HEADER BUTTONS: restart (leftmost) + color + mode + difficulty (1P only) ---
         // Restart button (always-on color, distinct from radios)
-        DrawRectangle(RESTART_X, RADIO_Y, RESTART_BTN_W - 2, BTN_H - 2, Color(r = 130, g = 70, b = 30, a = 255))
-        DrawText("Restart".c_str, RESTART_X + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 240, g = 240, b = 240, a = 255))
+        DrawRectangle(RESTART_X, RADIO_Y, RESTART_BTN_W - 2, BTN_H - 2, RESTART_BROWN)
+        DrawText("Restart".c_str, RESTART_X + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, GRAY_240)
 
         // Color radio
         mut bi : I32 = 0
         while bi < 2 {
             cx := COLOR_X + bi * COLOR_BTN_W
-            mut br := 40
-            mut bg := 40
-            mut bb := 40
+            mut button_color := GRAY_40
             if bi.cast(I64) == sel_color {
-                br = 0
-                bg = 150
-                bb = 155
+                button_color = DARK_TEAL
             }
-            DrawRectangle(cx, RADIO_Y, COLOR_BTN_W - 2, BTN_H - 2, Color(r = br.to_u8(), g = bg.to_u8(), b = bb.to_u8(), a = 255))
-            DrawText(COLOR_LABELS[bi.to_usize()].c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            DrawRectangle(cx, RADIO_Y, COLOR_BTN_W - 2, BTN_H - 2, button_color)
+            DrawText(COLOR_LABELS[bi.to_usize()].c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, GRAY_220)
             bi = bi + 1
         }
         // Mode radio
         bi = 0
         while bi < 2 {
             mxp := MODE_X + bi * MODE_BTN_W
-            mut mr := 40
-            mut mg := 40
-            mut mb := 40
+            mut button_color := GRAY_40
             if bi.cast(I64) == sel_2p {
-                mr = 0
-                mg = 150
-                mb = 155
+                button_color = DARK_TEAL
             }
-            DrawRectangle(mxp, RADIO_Y, MODE_BTN_W - 2, BTN_H - 2, Color(r = mr.to_u8(), g = mg.to_u8(), b = mb.to_u8(), a = 255))
-            DrawText(MODE_LABELS[bi.to_usize()].c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            DrawRectangle(mxp, RADIO_Y, MODE_BTN_W - 2, BTN_H - 2, button_color)
+            DrawText(MODE_LABELS[bi.to_usize()].c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, GRAY_220)
             bi = bi + 1
         }
         // Difficulty label + 5 buttons (only when 1P selected)
         if sel_2p == 0 {
-            DrawText("Difficulty".c_str, DIFF_LABEL_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 200, g = 200, b = 200, a = 255))
+            DrawText("Difficulty".c_str, DIFF_LABEL_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, GRAY_200)
             bi = 0
             while bi < 5 {
                 diff_val := bi + 1
                 dx := DIFF_X + bi * DIFF_BTN_W
-                mut dr_btn := 40
-                mut dg_btn := 40
-                mut db_btn := 40
+                mut button_color := GRAY_40
                 if diff_val.cast(I64) == sel_difficulty {
-                    dr_btn = 0
-                    dg_btn = 150
-                    db_btn = 155
+                    button_color = DARK_TEAL
                 }
-                DrawRectangle(dx, RADIO_Y, DIFF_BTN_W - 2, BTN_H - 2, Color(r = dr_btn.to_u8(), g = dg_btn.to_u8(), b = db_btn.to_u8(), a = 255))
-                DrawText(diff_val.cast(I64).to_str().c_str, dx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+                DrawRectangle(dx, RADIO_Y, DIFF_BTN_W - 2, BTN_H - 2, button_color)
+                DrawText(diff_val.cast(I64).to_str().c_str, dx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, GRAY_220)
                 bi = bi + 1
             }
         }
@@ -888,23 +876,17 @@ main := proc() {
                 idx := (dr * 8 + dc).cast(I64)
 
                 // Square color
-                mut sq_r := 238
-                mut sq_g := 238
-                mut sq_b := 210
+                mut square_color := BOARD_LIGHT
                 if (dr + dc) % 2 == 1 {
-                    sq_r = 118
-                    sq_g = 150
-                    sq_b = 86
+                    square_color = BOARD_DARK
                 }
 
                 // Highlight selected square
                 if idx == selected {
-                    sq_r = 186
-                    sq_g = 202
-                    sq_b = 68
+                    square_color = BOARD_SELECTED
                 }
 
-                DrawRectangle(px, py, CELL, CELL, Color(r = sq_r.to_u8(), g = sq_g.to_u8(), b = sq_b.to_u8(), a = 255))
+                DrawRectangle(px, py, CELL, CELL, square_color)
 
                 // Draw valid move indicators
                 mut vi := 0
@@ -913,12 +895,12 @@ main := proc() {
                     if vm.eq(idx) {
                         ref dp : I64 = board[idx.to_usize()]
                         if dp.eq(0) {
-                            DrawCircle(px + CELL / 2, py + CELL / 2, 8, Color(r = 100, g = 100, b = 100, a = 128))
+                            DrawCircle(px + CELL / 2, py + CELL / 2, 8, MOVE_MARKER)
                         } else {
-                            DrawRectangle(px, py, 12, 12, Color(r = 200, g = 50, b = 50, a = 180))
-                            DrawRectangle(px + CELL - 12, py, 12, 12, Color(r = 200, g = 50, b = 50, a = 180))
-                            DrawRectangle(px, py + CELL - 12, 12, 12, Color(r = 200, g = 50, b = 50, a = 180))
-                            DrawRectangle(px + CELL - 12, py + CELL - 12, 12, 12, Color(r = 200, g = 50, b = 50, a = 180))
+                            DrawRectangle(px, py, 12, 12, CAPTURE_MARKER)
+                            DrawRectangle(px + CELL - 12, py, 12, 12, CAPTURE_MARKER)
+                            DrawRectangle(px, py + CELL - 12, 12, 12, CAPTURE_MARKER)
+                            DrawRectangle(px + CELL - 12, py + CELL - 12, 12, 12, CAPTURE_MARKER)
                         }
                     }
                     vi++
@@ -931,16 +913,16 @@ main := proc() {
                     cy := py + CELL / 2
 
                     if is_red(piece) {
-                        DrawCircle(cx, cy, 30, Color(r = 180, g = 30, b = 30, a = 255))
-                        DrawCircle(cx, cy, 26, Color(r = 220, g = 50, b = 50, a = 255))
+                        DrawCircle(cx, cy, 30, CHECKER_RIM)
+                        DrawCircle(cx, cy, 26, CHECKER_RED)
                         if is_king(piece) {
-                            DrawText("K".c_str, cx - 8, cy - 12, 24, Color(r = 255, g = 255, b = 200, a = 255))
+                            DrawText("K".c_str, cx - 8, cy - 12, 24, PALE_YELLOW)
                         }
                     } else {
-                        DrawCircle(cx, cy, 30, Color(r = 20, g = 20, b = 20, a = 255))
-                        DrawCircle(cx, cy, 26, Color(r = 50, g = 50, b = 50, a = 255))
+                        DrawCircle(cx, cy, 30, GRAY_20)
+                        DrawCircle(cx, cy, 26, GRAY_50)
                         if is_king(piece) {
-                            DrawText("K".c_str, cx - 8, cy - 12, 24, Color(r = 200, g = 200, b = 200, a = 255))
+                            DrawText("K".c_str, cx - 8, cy - 12, 24, GRAY_200)
                         }
                     }
                 }
@@ -951,9 +933,9 @@ main := proc() {
 
         // Capture counts
         cap_str := format("captures  R:", red_caps.to_str(), "  B:", black_caps.to_str())
-        DrawText(cap_str.c_str, 10, WINDOW_HEIGHT - 55, 16, Color(r = 150, g = 150, b = 150, a = 255))
+        DrawText(cap_str.c_str, 10, WINDOW_HEIGHT - 55, 16, GRAY_150)
 
-        DrawText("click a piece to select, click destination to move".c_str, 10, WINDOW_HEIGHT - 30, 14, Color(r = 80, g = 80, b = 80, a = 255))
+        DrawText("click a piece to select, click destination to move".c_str, 10, WINDOW_HEIGHT - 30, 14, GRAY_80)
 
         EndDrawing()
     }

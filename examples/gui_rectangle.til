@@ -1,11 +1,12 @@
 mode gui
+import("../src/modes/gui", Colors.*)
 
 // The same finite program exercises raylib and the TempleOS GUI backend.
 main := proc() {
     InitWindow(640, 480, "til GUI rectangle".c_str)
     SetTargetFPS(30)
-    background := Color(r=0, g=0, b=0, a=255)
-    foreground := Color(r=170, g=0, b=0, a=255)
+    background := BLACK
+    foreground := VGA_RED
     for frame in 0..30 {
         BeginDrawing()
         ClearBackground(background)

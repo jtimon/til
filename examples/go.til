@@ -1,4 +1,5 @@
 mode gui
+import("../src/modes/gui", Colors.*)
 import("lib/alphabeta")
 
 // Go (Weiqi / Baduk)
@@ -16,9 +17,6 @@ FONT_LG : I32 = 40
 MAX_CELLS : I32 = 361
 
 // Board colors
-BOARD_R : I32 = 220
-BOARD_G : I32 = 179
-BOARD_B : I32 = 92
 
 // Header buttons (radio + restart) layout
 RADIO_Y : I32 = 15
@@ -798,21 +796,21 @@ main := proc() {
 
         // --- DRAW ---
         BeginDrawing()
-        ClearBackground(Color(r = 30, g = 30, b = 30, a = 255))
+        ClearBackground(GRAY_30)
 
         // Board background: extend full window width and cover top/bottom
         // label rows so coordinate text isn't drawn over the dark window bg.
         DrawRectangle(0, board_py - margin,
                        WINDOW_WIDTH, grid_span + margin * 2,
-                       Color(r = BOARD_R.cast(I64).to_u8(), g = BOARD_G.cast(I64).to_u8(), b = BOARD_B.cast(I64).to_u8(), a = 255))
+                       GO_WOOD)
 
         // Grid lines
         mut gi : I32 = 0
         while gi < board_size.to_i32() {
             hy := board_py + gi * cell_size
-            DrawRectangle(board_px, hy, grid_span, 1, Color(r = 40, g = 30, b = 10, a = 255))
+            DrawRectangle(board_px, hy, grid_span, 1, GO_GRID)
             vx := board_px + gi * cell_size
-            DrawRectangle(vx, board_py, 1, grid_span, Color(r = 40, g = 30, b = 10, a = 255))
+            DrawRectangle(vx, board_py, 1, grid_span, GO_GRID)
             gi = gi + 1
         }
 
@@ -823,7 +821,7 @@ main := proc() {
             while hi < 10 {
                 ref hr : I64 = HOSHI[hi.to_usize()]
                 ref hc : I64 = HOSHI[(hi + 1).to_usize()]
-                DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4, Color(r = 40, g = 30, b = 10, a = 255))
+                DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4, GO_GRID)
                 hi = hi + 2
             }
         }
@@ -833,7 +831,7 @@ main := proc() {
             while hi < 10 {
                 ref hr : I64 = HOSHI[hi.to_usize()]
                 ref hc : I64 = HOSHI[(hi + 1).to_usize()]
-                DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4, Color(r = 40, g = 30, b = 10, a = 255))
+                DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4, GO_GRID)
                 hi = hi + 2
             }
         }
@@ -843,7 +841,7 @@ main := proc() {
             while hi < 18 {
                 ref hr : I64 = HOSHI[hi.to_usize()]
                 ref hc : I64 = HOSHI[(hi + 1).to_usize()]
-                DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4, Color(r = 40, g = 30, b = 10, a = 255))
+                DrawCircle(board_px + hc.to_i32() * cell_size, board_py + hr.to_i32() * cell_size, 4, GO_GRID)
                 hi = hi + 2
             }
         }
@@ -854,12 +852,12 @@ main := proc() {
         while ci < board_size.to_i32() {
             ref cl : Str = COL_LABELS[ci.to_usize()]
             lx := board_px + ci * cell_size - 4
-            DrawText(cl.c_str, lx, board_py - margin / 2 - 6, 14, Color(r = 80, g = 60, b = 30, a = 255))
-            DrawText(cl.c_str, lx, board_py + grid_span + margin / 2 - 6, 14, Color(r = 80, g = 60, b = 30, a = 255))
+            DrawText(cl.c_str, lx, board_py - margin / 2 - 6, 14, GO_LABEL)
+            DrawText(cl.c_str, lx, board_py + grid_span + margin / 2 - 6, 14, GO_LABEL)
             row_num := (board_size - ci.cast(I64)).to_str()
             ry := board_py + ci * cell_size - 6
-            DrawText(row_num.c_str, board_px - margin / 2 - 10, ry, 14, Color(r = 80, g = 60, b = 30, a = 255))
-            DrawText(row_num.c_str, board_px + grid_span + margin / 2 - 4, ry, 14, Color(r = 80, g = 60, b = 30, a = 255))
+            DrawText(row_num.c_str, board_px - margin / 2 - 10, ry, 14, GO_LABEL)
+            DrawText(row_num.c_str, board_px + grid_span + margin / 2 - 4, ry, 14, GO_LABEL)
             ci = ci + 1
         }
 
@@ -874,18 +872,18 @@ main := proc() {
                 sy := board_py + sr * cell_size
 
                 if sp.eq(1) {
-                    DrawCircle(sx, sy, stone_r.to_f32(), Color(r = 10, g = 10, b = 10, a = 255))
-                    DrawCircle(sx - stone_r / 4, sy - stone_r / 4, (stone_r / 3).to_f32(), Color(r = 60, g = 60, b = 60, a = 120))
+                    DrawCircle(sx, sy, stone_r.to_f32(), GRAY_10)
+                    DrawCircle(sx - stone_r / 4, sy - stone_r / 4, (stone_r / 3).to_f32(), BLACK_STONE_GLEAM)
                 } else {
-                    DrawCircle(sx, sy, stone_r.to_f32(), Color(r = 230, g = 230, b = 230, a = 255))
-                    DrawCircle(sx - stone_r / 4, sy - stone_r / 4, (stone_r / 3).to_f32(), Color(r = 255, g = 255, b = 255, a = 120))
+                    DrawCircle(sx, sy, stone_r.to_f32(), GRAY_230)
+                    DrawCircle(sx - stone_r / 4, sy - stone_r / 4, (stone_r / 3).to_f32(), WHITE_STONE_GLEAM)
                 }
 
                 if si.cast(I64) == last_move {
                     if sp.eq(1) {
-                        DrawCircle(sx, sy, 4, Color(r = 255, g = 255, b = 255, a = 255))
+                        DrawCircle(sx, sy, 4, WHITE)
                     } else {
-                        DrawCircle(sx, sy, 4, Color(r = 10, g = 10, b = 10, a = 255))
+                        DrawCircle(sx, sy, 4, GRAY_10)
                     }
                 }
             }
@@ -910,9 +908,9 @@ main := proc() {
                             hx := board_px + hcol * cell_size
                             hy := board_py + hrow * cell_size
                             if turn == 1 {
-                                DrawCircle(hx, hy, stone_r.to_f32(), Color(r = 30, g = 30, b = 30, a = 100))
+                                DrawCircle(hx, hy, stone_r.to_f32(), BLACK_STONE_PREVIEW)
                             } else {
-                                DrawCircle(hx, hy, stone_r.to_f32(), Color(r = 220, g = 220, b = 220, a = 100))
+                                DrawCircle(hx, hy, stone_r.to_f32(), WHITE_STONE_PREVIEW)
                             }
                         }
                     }
@@ -922,74 +920,58 @@ main := proc() {
 
         // --- HEADER BUTTONS: restart (leftmost) + color + mode + size + difficulty (1P only) ---
         // Restart button (always-on color, distinct from radios)
-        DrawRectangle(RESTART_X, RADIO_Y, RESTART_BTN_W - 2, BTN_H - 2, Color(r = 130, g = 70, b = 30, a = 255))
-        DrawText("Restart".c_str, RESTART_X + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 240, g = 240, b = 240, a = 255))
+        DrawRectangle(RESTART_X, RADIO_Y, RESTART_BTN_W - 2, BTN_H - 2, RESTART_BROWN)
+        DrawText("Restart".c_str, RESTART_X + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, GRAY_240)
 
         // Color radio
         mut bi : I32 = 0
         while bi < 2 {
             cx := COLOR_X + bi * COLOR_BTN_W
-            mut br := 40
-            mut bg := 40
-            mut bb := 40
+            mut button_color := GRAY_40
             if bi.cast(I64) == sel_color {
-                br = 0
-                bg = 150
-                bb = 155
+                button_color = DARK_TEAL
             }
-            DrawRectangle(cx, RADIO_Y, COLOR_BTN_W - 2, BTN_H - 2, Color(r = br.to_u8(), g = bg.to_u8(), b = bb.to_u8(), a = 255))
-            DrawText(COLOR_LABELS[bi.to_usize()].c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            DrawRectangle(cx, RADIO_Y, COLOR_BTN_W - 2, BTN_H - 2, button_color)
+            DrawText(COLOR_LABELS[bi.to_usize()].c_str, cx + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, GRAY_220)
             bi = bi + 1
         }
         // Mode radio
         bi = 0
         while bi < 2 {
             mxp := MODE_X + bi * MODE_BTN_W
-            mut mr := 40
-            mut mg := 40
-            mut mb := 40
+            mut button_color := GRAY_40
             if bi.cast(I64) == sel_2p {
-                mr = 0
-                mg = 150
-                mb = 155
+                button_color = DARK_TEAL
             }
-            DrawRectangle(mxp, RADIO_Y, MODE_BTN_W - 2, BTN_H - 2, Color(r = mr.to_u8(), g = mg.to_u8(), b = mb.to_u8(), a = 255))
-            DrawText(MODE_LABELS[bi.to_usize()].c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            DrawRectangle(mxp, RADIO_Y, MODE_BTN_W - 2, BTN_H - 2, button_color)
+            DrawText(MODE_LABELS[bi.to_usize()].c_str, mxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, GRAY_220)
             bi = bi + 1
         }
         // Size radio
         bi = 0
         while bi < 3 {
             sxp := SIZE_X + bi * SIZE_BTN_W
-            mut sr := 40
-            mut sg := 40
-            mut sb := 40
+            mut button_color := GRAY_40
             if bi.cast(I64) == sel_size {
-                sr = 0
-                sg = 150
-                sb = 155
+                button_color = DARK_TEAL
             }
-            DrawRectangle(sxp, RADIO_Y, SIZE_BTN_W - 2, BTN_H - 2, Color(r = sr.to_u8(), g = sg.to_u8(), b = sb.to_u8(), a = 255))
-            DrawText(SIZE_LABELS[bi.to_usize()].c_str, sxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+            DrawRectangle(sxp, RADIO_Y, SIZE_BTN_W - 2, BTN_H - 2, button_color)
+            DrawText(SIZE_LABELS[bi.to_usize()].c_str, sxp + BTN_PAD_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, GRAY_220)
             bi = bi + 1
         }
         // Difficulty label + 5 buttons (only when 1P selected)
         if sel_2p == 0 {
-            DrawText("Difficulty".c_str, DIFF_LABEL_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 200, g = 200, b = 200, a = 255))
+            DrawText("Difficulty".c_str, DIFF_LABEL_X, RADIO_Y + BTN_PAD_Y, FONT_SZ, GRAY_200)
             bi = 0
             while bi < 5 {
                 diff_val := bi + 1
                 dx := DIFF_X + bi * DIFF_BTN_W
-                mut dr_btn := 40
-                mut dg_btn := 40
-                mut db_btn := 40
+                mut button_color := GRAY_40
                 if diff_val.cast(I64) == sel_difficulty {
-                    dr_btn = 0
-                    dg_btn = 150
-                    db_btn = 155
+                    button_color = DARK_TEAL
                 }
-                DrawRectangle(dx, RADIO_Y, DIFF_BTN_W - 2, BTN_H - 2, Color(r = dr_btn.to_u8(), g = dg_btn.to_u8(), b = db_btn.to_u8(), a = 255))
-                DrawText(diff_val.cast(I64).to_str().c_str, dx + BTN_PAD_X / 2, RADIO_Y + BTN_PAD_Y, FONT_SZ, Color(r = 220, g = 220, b = 220, a = 255))
+                DrawRectangle(dx, RADIO_Y, DIFF_BTN_W - 2, BTN_H - 2, button_color)
+                DrawText(diff_val.cast(I64).to_str().c_str, dx + BTN_PAD_X / 2, RADIO_Y + BTN_PAD_Y, FONT_SZ, GRAY_220)
                 bi = bi + 1
             }
         }
@@ -1005,28 +987,28 @@ main := proc() {
             ws_int := wsx10 / 10
             ws_frac := wsx10 % 10
             ws_str := format("  White: ", ws_int.to_str(), ".", ws_frac.to_str(), " (komi 6.5)")
-            DrawText(bs_str.c_str, 10, status_y, FONT_SZ, Color(r = 255, g = 255, b = 255, a = 255))
-            DrawText(ws_str.c_str, 160, status_y, FONT_SZ, Color(r = 200, g = 200, b = 200, a = 255))
+            DrawText(bs_str.c_str, 10, status_y, FONT_SZ, WHITE)
+            DrawText(ws_str.c_str, 160, status_y, FONT_SZ, GRAY_200)
             if bsx10 > wsx10 {
-                DrawText("Black wins!".c_str, 10, status_y + 28, FONT_SZ, Color(r = 255, g = 255, b = 0, a = 255))
+                DrawText("Black wins!".c_str, 10, status_y + 28, FONT_SZ, YELLOW)
             } else {
                 if bsx10 == wsx10 {
-                    DrawText("Draw!".c_str, 10, status_y + 28, FONT_SZ, Color(r = 255, g = 255, b = 0, a = 255))
+                    DrawText("Draw!".c_str, 10, status_y + 28, FONT_SZ, YELLOW)
                 } else {
-                    DrawText("White wins!".c_str, 10, status_y + 28, FONT_SZ, Color(r = 255, g = 255, b = 0, a = 255))
+                    DrawText("White wins!".c_str, 10, status_y + 28, FONT_SZ, YELLOW)
                 }
             }
         } else {
             if turn == 1 {
-                DrawText("Black to play".c_str, 10, status_y, FONT_SZ, Color(r = 255, g = 255, b = 255, a = 255))
+                DrawText("Black to play".c_str, 10, status_y, FONT_SZ, WHITE)
             } else {
-                DrawText("White to play".c_str, 10, status_y, FONT_SZ, Color(r = 200, g = 200, b = 200, a = 255))
+                DrawText("White to play".c_str, 10, status_y, FONT_SZ, GRAY_200)
             }
             cap_str := format("captures  B:", black_caps.to_str(), "  W:", white_caps.to_str(), "  move:", move_num.to_str())
-            DrawText(cap_str.c_str, 10, status_y + 25, 16, Color(r = 150, g = 150, b = 150, a = 255))
+            DrawText(cap_str.c_str, 10, status_y + 25, 16, GRAY_150)
         }
 
-        DrawText("P=pass".c_str, WINDOW_WIDTH - 80, status_y, 16, Color(r = 100, g = 100, b = 100, a = 255))
+        DrawText("P=pass".c_str, WINDOW_WIDTH - 80, status_y, 16, GRAY_100)
 
         EndDrawing()
     }

@@ -1,4 +1,5 @@
 mode gui
+import("../src/modes/gui", Colors.*)
 
 // Fixed-cell rendering proof: no shell/session or terminal parser is needed.
 grid_colors_equal := func(a: Color, b: Color) returns Bool {
@@ -6,9 +7,9 @@ grid_colors_equal := func(a: Color, b: Color) returns Bool {
 }
 
 grid_paper := func(row: I64) returns Color {
-    if row == 0 { return Color(r=0, g=0, b=170, a=255) }
-    if row == 1 { return Color(r=0, g=170, b=0, a=255) }
-    return Color(r=0, g=0, b=0, a=255)
+    if row == 0 { return VGA_BLUE }
+    if row == 1 { return VGA_GREEN }
+    return BLACK
 }
 
 grid_check_pixel := func(image: Image, x: I32, y: I32, expected: Color) {
@@ -31,12 +32,10 @@ grid_check_glyph := func(image: Image, x: I32, y: I32, ink: Color) {
 main := proc() {
     InitWindow(640, 480, "til terminal grid".c_str)
     SetTargetFPS(30)
-    black := Color(r=0, g=0, b=0, a=255)
-    white := Color(r=255, g=255, b=255, a=255)
     rows := array(Str, "READY>", "GREEN", "CURSOR")
     for frame in 0..30 {
         BeginDrawing()
-        ClearBackground(black)
+        ClearBackground(BLACK)
         // Backgrounds precede glyphs, as in tilminal's terminal view.
         for row in 0..rows.len() {
             paper := grid_paper(row.to_i64())
@@ -48,10 +47,10 @@ main := proc() {
             ref text : Str = rows[row]
             for column in 0..text.len() {
                 glyph := text.get_char(column).clone()
-                DrawText(glyph.c_str, (42 + column.to_i64() * 20).to_i32(), (44 + row.to_i64() * 24).to_i32(), 16, white)
+                DrawText(glyph.c_str, (42 + column.to_i64() * 20).to_i32(), (44 + row.to_i64() * 24).to_i32(), 16, WHITE)
             }
         }
-        DrawRectangle(160, 88, 20, 24, white)
+        DrawRectangle(160, 88, 20, 24, WHITE)
         EndDrawing()
         // REM: read after the scene's second frame. GL leaves the back buffer
         // undefined after a swap; Mesa on Windows exchanges buffers, so a read
@@ -59,11 +58,11 @@ main := proc() {
         // 3141). Two identical frames make the read the drawn scene either way.
         if frame == 1 {
             image := LoadImageFromScreen()
-            grid_check_pixel(image, 20, 20, black)
+            grid_check_pixel(image, 20, 20, BLACK)
             grid_check_pixel(image, 190, 50, grid_paper(0))
             grid_check_pixel(image, 190, 74, grid_paper(1))
-            grid_check_pixel(image, 170, 100, white)
-            grid_check_glyph(image, 42, 44, white)
+            grid_check_pixel(image, 170, 100, WHITE)
+            grid_check_glyph(image, 42, 44, WHITE)
             UnloadImage(image)
         }
     }

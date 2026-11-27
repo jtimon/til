@@ -17,12 +17,7 @@ main := proc() {
     InitWindow(GRID_W, GRID_H + BAR_H, "game of life".c_str)
     SetTargetFPS(60)
 
-    GREEN := Color(r = 0, g = 200, b = 0, a = 255)
-    YELLOW := Color(r = 200, g = 200, b = 0, a = 255)
-    LIGHT_GRAY := Color(r = 200, g = 200, b = 200, a = 255)
-    DARK_GRAY := Color(r = 150, g = 150, b = 150, a = 255)
-    GRAY := Color(r = 80, g = 80, b = 80, a = 255)
-    GRID_GRAY := Color(r = 30, g = 30, b = 30, a = 255)
+    GRID_GRAY := GRAY_30
 
     mut grid : Array(I64) = ca_new_grid(COLS.cast(I64), ROWS.cast(I64))
     mut next : Array(I64) = ca_new_grid(COLS.cast(I64), ROWS.cast(I64))
@@ -83,11 +78,11 @@ main := proc() {
         if running {
             DrawText("RUNNING".c_str, 10, 7, 16, GREEN)
         } else {
-            DrawText("PAUSED".c_str, 10, 7, 16, YELLOW)
+            DrawText("PAUSED".c_str, 10, 7, 16, DARK_YELLOW)
         }
-        DrawText(format("gen: ", generation.to_str()).c_str, 120, 7, 16, LIGHT_GRAY)
-        DrawText("SPACE=run/pause  C=clear  click=toggle".c_str, GRID_W - 370, 7, 14, DARK_GRAY)
-        DrawRectangle(0, BAR_H - 1, GRID_W, 1, GRAY)
+        DrawText(format("gen: ", generation.to_str()).c_str, 120, 7, 16, GRAY_200)
+        DrawText("SPACE=run/pause  C=clear  click=toggle".c_str, GRID_W - 370, 7, 14, GRAY_150)
+        DrawRectangle(0, BAR_H - 1, GRID_W, 1, GRAY_80)
 
         // Grid cells
         mut di : I32 = 0

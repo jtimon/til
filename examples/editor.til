@@ -1,4 +1,5 @@
 mode gui
+import("../src/modes/gui", Colors.*)
 
 // Small standalone GUI/compiler example, also used for cross-target builds.
 // Full editor and IDE development lives in https://github.com/jtimon/tiled.
@@ -323,7 +324,7 @@ main := proc(args: ..Str) {
 
         // Draw
         BeginDrawing()
-        ClearBackground(Color(r = 30, g = 30, b = 40, a = 255))
+        ClearBackground(EDITOR_SLATE)
 
         // Text area
         mut row : I32 = 0
@@ -333,20 +334,20 @@ main := proc(args: ..Str) {
                 // Line number
                 lnum := (line_idx + 1).to_str()
                 DrawText(lnum.c_str, left_margin - lnum.len().to_i32() * char_w - 4,
-                         top_margin + row * line_h, font_size, Color(r = 80, g = 80, b = 100, a = 255))
+                         top_margin + row * line_h, font_size, SLATE_GUTTER)
 
                 // Line text
                 ref line : Str = lines[line_idx.to_usize()]
                 if line.len() > 0 {
                     DrawText(line.c_str, left_margin, top_margin + row * line_h,
-                             font_size, Color(r = 200, g = 200, b = 200, a = 255))
+                             font_size, GRAY_200)
                 }
 
                 // Cursor
                 if line_idx == cursor_y {
                     cx := left_margin + cursor_x * char_w
                     cy := top_margin + row * line_h
-                    DrawRectangle(cx, cy, 2, line_h, Color(r = 255, g = 200, b = 0, a = 255))
+                    DrawRectangle(cx, cy, 2, line_h, GOLD)
                 }
             }
             row++
@@ -354,26 +355,26 @@ main := proc(args: ..Str) {
 
         // Status bar
         sy := h - status_h
-        DrawRectangle(0, sy, w, status_h, Color(r = 50, g = 50, b = 70, a = 255))
+        DrawRectangle(0, sy, w, status_h, SLATE_BAR)
 
         // Filename
         mut disp_name := filename
         if filename.len() == 0 { disp_name = "[new file]" }
         mut title := disp_name
         if dirty { title = format(title, " *") }
-        DrawText(title.c_str, 8, sy + 4, font_size, Color(r = 220, g = 220, b = 220, a = 255))
+        DrawText(title.c_str, 8, sy + 4, font_size, GRAY_220)
 
         // Cursor position
         pos_str := format("Ln ", (cursor_y + 1).to_str(), " Col ", (cursor_x + 1).to_str())
-        DrawText(pos_str.c_str, w - 140, sy + 4, font_size, Color(r = 180, g = 180, b = 180, a = 255))
+        DrawText(pos_str.c_str, w - 140, sy + 4, font_size, HINT_GRAY)
 
         // Status message
         if status_msg.len() > 0 {
-            DrawText(status_msg.c_str, w / 2 - 40, sy + 4, font_size, Color(r = 0, g = 255, b = 0, a = 255))
+            DrawText(status_msg.c_str, w / 2 - 40, sy + 4, font_size, LIME)
         }
 
         // Help
-        DrawText("Ctrl+O=Open  Ctrl+S=Save  Esc=Quit".c_str, w - 400, sy + 4, 14, Color(r = 120, g = 120, b = 140, a = 255))
+        DrawText("Ctrl+O=Open  Ctrl+S=Save  Esc=Quit".c_str, w - 400, sy + 4, 14, SLATE_HINT)
 
         EndDrawing()
     }

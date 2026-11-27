@@ -40,13 +40,9 @@ main := proc() {
         fonts[i] = f
     }
 
-    BG_DARK := Color(r = 20, g = 20, b = 30, a = 255)
-    GRAY := Color(r = 100, g = 100, b = 100, a = 255)
-    LIGHT_GRAY := HINT_GRAY
-    YELLOW := Color(r = 255, g = 255, b = 0, a = 255)
-    OFF_WHITE := Color(r = 200, g = 200, b = 200, a = 255)
-    BG_BAR := Color(r = 40, g = 40, b = 80, a = 255)
-    BG_PREVIEW := Color(r = 10, g = 10, b = 20, a = 255)
+    BG_DARK := DARK_SLATE
+    BG_BAR := INDIGO_BAR
+    BG_PREVIEW := MIDNIGHT
 
     mut sel : USize = 0
 
@@ -62,7 +58,7 @@ main := proc() {
         ClearBackground(BG_DARK)
 
         // Header
-        DrawText("Click to cycle fonts (left=next, right=prev)".c_str, 30, 10, 20, GRAY)
+        DrawText("Click to cycle fonts (left=next, right=prev)".c_str, 30, 10, 20, GRAY_100)
 
         // Show all fonts, each rendering its own name
         mut y : I32 = 50
@@ -73,7 +69,7 @@ main := proc() {
                 DrawRectangle(0, y - 2, 1200, 30, BG_BAR)
                 DrawTextEx(font, path.c_str, Vector2(x = 30, y = y.to_f32()), 24, 1, YELLOW)
             } else {
-                DrawTextEx(font, path.c_str, Vector2(x = 30, y = y.to_f32()), 24, 1, LIGHT_GRAY)
+                DrawTextEx(font, path.c_str, Vector2(x = 30, y = y.to_f32()), 24, 1, HINT_GRAY)
             }
             y = y + 30
         }
@@ -82,7 +78,7 @@ main := proc() {
         ref cur_font : Font = fonts[sel]
         DrawRectangle(0, y + 10, 1200, 100, BG_PREVIEW)
         DrawTextEx(cur_font, "Do Re Mi Fa Sol La Si — C D E F G A B — 1234567890".c_str, Vector2(x = 30, y = (y + 20).to_f32()), 36, 1, WHITE)
-        DrawTextEx(cur_font, "do#-M  reb-m  mi-dim  Fa-M  Sol-M  La-m  Si-dim".c_str, Vector2(x = 30, y = (y + 62).to_f32()), 28, 1, OFF_WHITE)
+        DrawTextEx(cur_font, "do#-M  reb-m  mi-dim  Fa-M  Sol-M  La-m  Si-dim".c_str, Vector2(x = 30, y = (y + 62).to_f32()), 28, 1, GRAY_200)
 
         EndDrawing()
     }

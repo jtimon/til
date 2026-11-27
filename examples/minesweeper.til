@@ -26,12 +26,8 @@ main := proc() {
     mut first_click := true
     mut flags : I32 = 0
 
-    YELLOW := Color(r = 255, g = 255, b = 0, a = 255)
-    GREEN := Color(r = 0, g = 200, b = 0, a = 255)
-    RED := Color(r = 230, g = 41, b = 55, a = 255)
-    GRAY := Color(r = 150, g = 150, b = 150, a = 255)
-    GRID_HIDDEN := Color(r = 60, g = 60, b = 60, a = 255)
-    GRID_REVEALED := Color(r = 30, g = 30, b = 30, a = 255)
+    GRID_HIDDEN := GRAY_60
+    GRID_REVEALED := GRAY_30
 
     // Flood fill stack
     mut stack := Vec(I32).new()
@@ -210,7 +206,7 @@ main := proc() {
                 DrawText("BOOM!".c_str, GRID_W / 2 - 35, 15, 20, RED)
             }
         }
-        DrawText("R=restart".c_str, GRID_W - 120, 15, 16, GRAY)
+        DrawText("R=restart".c_str, GRID_W - 120, 15, 16, GRAY_150)
 
         // Grid
         mut di : I32 = 0
@@ -242,14 +238,14 @@ main := proc() {
                         if dc > 0 {
                             // Number colors
                             mut nc := WHITE
-                            if dc == 1 { nc = Color(r = 80,  g = 120, b = 255, a = 255) }
-                            if dc == 2 { nc = Color(r = 0,   g = 200, b = 0,   a = 255) }
-                            if dc == 3 { nc = Color(r = 230, g = 41,  b = 55,  a = 255) }
-                            if dc == 4 { nc = Color(r = 160, g = 32,  b = 240, a = 255) }
-                            if dc == 5 { nc = Color(r = 160, g = 82,  b = 45,  a = 255) }
-                            if dc == 6 { nc = Color(r = 0,   g = 200, b = 200, a = 255) }
+                            if dc == 1 { nc = CORNFLOWER_BLUE }
+                            if dc == 2 { nc = GREEN }
+                            if dc == 3 { nc = RED }
+                            if dc == 4 { nc = PURPLE }
+                            if dc == 5 { nc = SIENNA }
+                            if dc == 6 { nc = DARK_CYAN }
                             if dc == 7 { nc = HINT_GRAY }
-                            if dc == 8 { nc = Color(r = 100, g = 100, b = 100, a = 255) }
+                            if dc == 8 { nc = GRAY_100 }
                             DrawText(dc.to_str().c_str, px + 9, py + 5, 20, nc)
                         }
                     }

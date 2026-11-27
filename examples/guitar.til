@@ -408,17 +408,17 @@ main := proc() {
     mut show_spacing := false
     mut spacing := Spacing()
 
-    BG_COLOR := Color(r = 20, g = 20, b = 30, a = 255)
-    BOARD_COLOR := Color(r = 80, g = 55, b = 35, a = 255)
-    FRET_COLOR := Color(r = 170, g = 170, b = 155, a = 255)
-    STRING_COLOR := Color(r = 210, g = 210, b = 200, a = 255)
-    CELL_ACTIVE := Color(r = 0, g = 120, b = 125, a = 255)
-    DOT_COLOR := Color(r = 180, g = 150, b = 100, a = 255)
-    TEXT_COLOR := Color(r = 220, g = 220, b = 220, a = 255)
-    LABEL_COLOR := Color(r = 245, g = 245, b = 235, a = 255)
-    MUTED_TEXT := Color(r = 120, g = 120, b = 130, a = 255)
+    BG_COLOR := DARK_SLATE
+    BOARD_COLOR := FRETBOARD
+    FRET_COLOR := FRET_METAL
+    STRING_COLOR := STRING_METAL
+    CELL_ACTIVE := FRET_TEAL
+    DOT_COLOR := FRET_DOT
+    TEXT_COLOR := GRAY_220
+    LABEL_COLOR := IVORY
+    MUTED_TEXT := MUTED_SLATE
     BTN_ACTIVE := TEAL
-    BTN_INACTIVE := Color(r = 50, g = 50, b = 50, a = 255)
+    BTN_INACTIVE := GRAY_50
 
     while !WindowShouldClose() {
         dt : I32 = (GetFrameTime() * 1000).to_i64().to_i32()
