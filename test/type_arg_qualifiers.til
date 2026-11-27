@@ -887,8 +887,8 @@ writable_accessor_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "Item := struct implements MutableItem { n: I64 = 0\nnamespace:\n",
         "value := func(self: Item) returns I64 { return self.n }\nset_value := func(mut self: Item, n: I64) { self.n = n } }\n",
         "vec_item := func(mut items: Vec(Item), index: USize) returns ref mut Item { return items.get_mut(index)! }\n",
-        "array_item := func(mut items: Array(Item), index: USize) returns ref mut Item { return items.get_mut(index)! }\n",
-        "map_item := func(mut items: Map(Str, Item), key: Str) returns ref mut Item { return items.get_mut(key)! }\n")
+        "array_item := func(mut items: Array(Item), index: USize) returns ref mut Item { return items[index] }\n",
+        "map_item := func(mut items: Map(Str, Item), key: Str) returns ref mut Item { return items[key] }\n")
     source := format(prelude,
         "main := proc() {\n",
         "mut items := Vec(Item).new()\nitems.push(own Item(n = 1))\n",
@@ -896,7 +896,8 @@ writable_accessor_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "ref mut unchecked: Item = items.unsafe_get_mut(0)\nunchecked.n = 3\nassert_eq(I64, items[0].n, 3)\n",
         "mut fixed := Array(Item).new(1)\nfixed.set(0, own Item(n = 4))!\n",
         "ref mut array_value: Item = array_item(fixed, 0)\narray_value.n = 5\n",
-        "ref mut array_unchecked: Item = fixed.unsafe_get_mut(0)\narray_unchecked.n = 6\nassert_eq(I64, fixed[0].n, 6)\n",
+        "ref mut array_unchecked: Item = fixed.unsafe_get(0)\narray_unchecked.n = 6\nassert_eq(I64, fixed[0].n, 6)\n",
+        "for mut entry in fixed { entry.n++ }\nassert_eq(I64, fixed[0].n, 7)\n",
         "mut values := Map(Str, Item).new()\nvalues.set(\"b\", own Item(n = 7))\nvalues.set(\"a\", own Item(n = 8))\n",
         "ref mut map_value: Item = map_item(values, \"b\")\nmap_value.n = 9\nassert_eq(I64, values[\"b\"].n, 9)\nassert_eq(I64, values[\"a\"].n, 8)\n",
         "mut owned_numbers := vec(I64, 1)\nref mut owned_scalar: I64 = owned_numbers.get_mut(0)!\nowned_scalar = 2\nassert_eq(I64, owned_numbers[0], 2)\n",
@@ -944,8 +945,8 @@ writable_accessor_checks := proc(compiler: Str, root: Str, asan: Bool) {
     check_run(compiler, root, "alternate_writable_accessors", "writable accessors passed\n", asan)
     for definition: Str in array(Str,
         "bad := func(mut items: Vec(Item)) returns ref mut Item { return items.get(0)! }\n",
-        "bad := func(mut items: Array(Item)) returns ref mut Item { return items.unsafe_get(0) }\n",
-        "bad := func(mut items: Map(Str, Item)) returns ref mut Item { return items.get(\"key\")! }\n",
+        "bad := func(items: Array(Item)) returns ref mut Item { return items.unsafe_get(0) }\n",
+        "bad := func(items: Map(Str, Item)) returns ref mut Item { return items.get(\"key\")! }\n",
         "bad := func(mut items: Vec(ref Item)) returns ref mut Item { return items.get_mut(0)! }\n",
         "bad := func(mut items: Vec(ref Item)) returns ref mut Item { return items.unsafe_get_mut(0) }\n",
         "bad := func(mut items: Vec(ref Item)) returns ref mut Item { copy := items.clone(); return copy.get_mut(0)! }\n",

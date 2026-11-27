@@ -147,7 +147,7 @@ priv fasm_namespace_name := func(e: Expr, lp: LoadedProgram, state: FasmState) r
 }
 
 priv FasmState := struct {
-    ref program : FasmProgram
+    const ref mut program : FasmProgram
     text := ""
     slots : USize = 0
     labels : USize = 0

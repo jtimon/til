@@ -5735,6 +5735,7 @@ Bool TilDynHasMethod(TilStr *name,TilStr *method)
   if (TilStrNameEq(name,"I8") && TilStrNameEq(method,"clone")) return TRUE;
   if (TilStrNameEq(name,"I8") && TilStrNameEq(method,"delete")) return TRUE;
   if (TilStrNameEq(name,"I8") && TilStrNameEq(method,"size")) return TRUE;
+  if (TilStrNameEq(name,"Map__CustomOrderedKey_I64") && TilStrNameEq(method,"value_position")) return TRUE;
   if (TilStrNameEq(name,"Map__CustomOrderedKey_I64") && TilStrNameEq(method,"get")) return TRUE;
   if (TilStrNameEq(name,"Map__CustomOrderedKey_I64") && TilStrNameEq(method,"key_size")) return TRUE;
   if (TilStrNameEq(name,"Map__CustomOrderedKey_I64") && TilStrNameEq(method,"value_size")) return TRUE;
@@ -5747,6 +5748,7 @@ Bool TilDynHasMethod(TilStr *name,TilStr *method)
   if (TilStrNameEq(name,"Map__CustomOrderedKey_I64") && TilStrNameEq(method,"delete")) return TRUE;
   if (TilStrNameEq(name,"Map__CustomOrderedKey_I64") && TilStrNameEq(method,"clone")) return TRUE;
   if (TilStrNameEq(name,"Map__CustomOrderedKey_I64") && TilStrNameEq(method,"size")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_Str") && TilStrNameEq(method,"value_position")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_Str") && TilStrNameEq(method,"get")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_Str") && TilStrNameEq(method,"key_size")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_Str") && TilStrNameEq(method,"value_size")) return TRUE;
@@ -5759,6 +5761,7 @@ Bool TilDynHasMethod(TilStr *name,TilStr *method)
   if (TilStrNameEq(name,"Map__I64_Str") && TilStrNameEq(method,"delete")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_Str") && TilStrNameEq(method,"clone")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_Str") && TilStrNameEq(method,"size")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_StructNamedPoint") && TilStrNameEq(method,"value_position")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_StructNamedPoint") && TilStrNameEq(method,"get")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_StructNamedPoint") && TilStrNameEq(method,"key_size")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_StructNamedPoint") && TilStrNameEq(method,"value_size")) return TRUE;
@@ -5771,6 +5774,7 @@ Bool TilDynHasMethod(TilStr *name,TilStr *method)
   if (TilStrNameEq(name,"Map__I64_StructNamedPoint") && TilStrNameEq(method,"delete")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_StructNamedPoint") && TilStrNameEq(method,"clone")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_StructNamedPoint") && TilStrNameEq(method,"size")) return TRUE;
+  if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"value_position")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"get")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"key_size")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"value_size")) return TRUE;
@@ -5784,6 +5788,7 @@ Bool TilDynHasMethod(TilStr *name,TilStr *method)
   if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"clone")) return TRUE;
   if (TilStrNameEq(name,"Map__I64_Vec__I64") && TilStrNameEq(method,"size")) return TRUE;
   if (TilStrNameEq(name,"Map__OrderedKey_Str") && TilStrNameEq(method,"has")) return TRUE;
+  if (TilStrNameEq(name,"Map__OrderedKey_Str") && TilStrNameEq(method,"value_position")) return TRUE;
   if (TilStrNameEq(name,"Map__OrderedKey_Str") && TilStrNameEq(method,"get")) return TRUE;
   if (TilStrNameEq(name,"Map__OrderedKey_Str") && TilStrNameEq(method,"key_size")) return TRUE;
   if (TilStrNameEq(name,"Map__OrderedKey_Str") && TilStrNameEq(method,"value_size")) return TRUE;
@@ -5796,6 +5801,7 @@ Bool TilDynHasMethod(TilStr *name,TilStr *method)
   if (TilStrNameEq(name,"Map__OrderedKey_Str") && TilStrNameEq(method,"delete")) return TRUE;
   if (TilStrNameEq(name,"Map__OrderedKey_Str") && TilStrNameEq(method,"clone")) return TRUE;
   if (TilStrNameEq(name,"Map__OrderedKey_Str") && TilStrNameEq(method,"size")) return TRUE;
+  if (TilStrNameEq(name,"Map__OrderedTag_I64") && TilStrNameEq(method,"value_position")) return TRUE;
   if (TilStrNameEq(name,"Map__OrderedTag_I64") && TilStrNameEq(method,"get")) return TRUE;
   if (TilStrNameEq(name,"Map__OrderedTag_I64") && TilStrNameEq(method,"key_size")) return TRUE;
   if (TilStrNameEq(name,"Map__OrderedTag_I64") && TilStrNameEq(method,"value_size")) return TRUE;
@@ -5807,6 +5813,7 @@ Bool TilDynHasMethod(TilStr *name,TilStr *method)
   if (TilStrNameEq(name,"Map__OrderedTag_I64") && TilStrNameEq(method,"delete")) return TRUE;
   if (TilStrNameEq(name,"Map__OrderedTag_I64") && TilStrNameEq(method,"clone")) return TRUE;
   if (TilStrNameEq(name,"Map__OrderedTag_I64") && TilStrNameEq(method,"size")) return TRUE;
+  if (TilStrNameEq(name,"Map__ReverseTag_I64") && TilStrNameEq(method,"value_position")) return TRUE;
   if (TilStrNameEq(name,"Map__ReverseTag_I64") && TilStrNameEq(method,"get")) return TRUE;
   if (TilStrNameEq(name,"Map__ReverseTag_I64") && TilStrNameEq(method,"key_size")) return TRUE;
   if (TilStrNameEq(name,"Map__ReverseTag_I64") && TilStrNameEq(method,"value_size")) return TRUE;
@@ -5821,6 +5828,7 @@ Bool TilDynHasMethod(TilStr *name,TilStr *method)
   if (TilStrNameEq(name,"Map__Str_I64") && TilStrNameEq(method,"len")) return TRUE;
   if (TilStrNameEq(name,"Map__Str_I64") && TilStrNameEq(method,"clear")) return TRUE;
   if (TilStrNameEq(name,"Map__Str_I64") && TilStrNameEq(method,"has")) return TRUE;
+  if (TilStrNameEq(name,"Map__Str_I64") && TilStrNameEq(method,"value_position")) return TRUE;
   if (TilStrNameEq(name,"Map__Str_I64") && TilStrNameEq(method,"get")) return TRUE;
   if (TilStrNameEq(name,"Map__Str_I64") && TilStrNameEq(method,"key_size")) return TRUE;
   if (TilStrNameEq(name,"Map__Str_I64") && TilStrNameEq(method,"value_size")) return TRUE;

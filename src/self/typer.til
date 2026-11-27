@@ -18220,7 +18220,9 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
     if iter.node_type.is(NodeType.Ident).or(iter.node_type.is(NodeType.FieldAccess)) {
         col_own_type = OwnType.Ref
     }
-    mut col_decl := Expr.new(own NodeType.Decl(Declaration(name = col_name.clone(), own_type = col_own_type)), line, col)
+    mut col_decl := Expr.new(own NodeType.Decl(Declaration(name = col_name.clone(), own_type = col_own_type,
+        referent_mut = forin_is_mut.and(col_own_type.is(OwnType.Ref)),
+        is_mut = forin_is_mut.and(col_own_type.is(OwnType.Ref).not()))), line, col)
     col_decl.add_child(own iter.clone())
     block.add_child(own col_decl)
 
@@ -18272,7 +18274,7 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
 
     mut forin_own := OwnType.Shallow
     if get_returns_ref { forin_own = OwnType.Ref }
-    mut elem_decl := Expr.new(own NodeType.Decl(decl_typed(ctx.symbols, name = var_name, type_name = elem_type, own_type = forin_own, is_mut = forin_is_mut)), line, col)
+    mut elem_decl := Expr.new(own NodeType.Decl(decl_typed(ctx.symbols, name = var_name, type_name = elem_type, own_type = forin_own, is_mut = forin_is_mut, referent_mut = forin_is_mut.and(get_returns_ref))), line, col)
     mut col_ident_get := Expr.new(own ident_node(ctx.symbols.intern(col_name)), line, col)
     mut get_call := make_method_call_fcall(own col_ident_get, method_name, line, col, ctx.symbols)
     mut idx_ident_get := Expr.new(own ident_node(ctx.symbols.intern(idx_name)), line, col)
@@ -18504,7 +18506,9 @@ priv desugar_for_in_kv_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_i
     if iter.node_type.is(NodeType.Ident).or(iter.node_type.is(NodeType.FieldAccess)) {
         col_own_type = OwnType.Ref
     }
-    mut col_decl := Expr.new(own NodeType.Decl(Declaration(name = col_name.clone(), own_type = col_own_type)), line, col)
+    mut col_decl := Expr.new(own NodeType.Decl(Declaration(name = col_name.clone(), own_type = col_own_type,
+        referent_mut = forin_is_mut2.and(col_own_type.is(OwnType.Ref)),
+        is_mut = forin_is_mut2.and(col_own_type.is(OwnType.Ref).not()))), line, col)
     col_decl.add_child(own iter.clone())
     block.add_child(own col_decl)
 
@@ -18540,7 +18544,7 @@ priv desugar_for_in_kv_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_i
 
     // ref [mut] v : V = _fc.values.unsafe_get(_fi)
     if var_name2.eq("_").not() {
-        mut val_decl := Expr.new(own NodeType.Decl(decl_typed(ctx.symbols, name = var_name2, type_name = val_elem, own_type = OwnType.Ref, is_mut = forin_is_mut2)), line, col)
+        mut val_decl := Expr.new(own NodeType.Decl(decl_typed(ctx.symbols, name = var_name2, type_name = val_elem, own_type = OwnType.Ref, is_mut = forin_is_mut2, referent_mut = forin_is_mut2)), line, col)
         mut vals_recv := Expr.new(own field_access_node(ctx.symbols.intern("values")), line, col)
         vals_recv.add_child(own Expr.new(own ident_node(ctx.symbols.intern(col_name)), line, col))
         mut val_get := make_method_call_fcall(own vals_recv, "unsafe_get", line, col, ctx.symbols)

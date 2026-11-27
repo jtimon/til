@@ -124,7 +124,7 @@ namespace:
     /// unchecked core that ~get~ wraps; for-in uses it directly because
     /// its ~_fi < len()~ termination test already proves the index in
     /// bounds (issue #284).
-    unsafe_get := func(self: Array(T), i: USize) returns ref T {
+    unsafe_get := func(ref[a] self: Array(T), i: USize) returns ref[a] T {
         return ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
     }
 
@@ -141,7 +141,7 @@ namespace:
 
     /// Ref to the element at index ~i~. Throws OutOfBounds if ~i~ is
     /// past the end; call as ~arr.get(i)!~ to panic on a bad index.
-    get := func(self: Array(T), shallow i: USize) returns ref T throws OutOfBounds {
+    get := func(ref[a] self: Array(T), shallow i: USize) returns ref[a] T throws OutOfBounds {
         // Throw LAST, so the throws lowering has no following statement to
         // wrap in its `if _err_kind == 0` re-check. Same shape as Vec.get.
         if i < self.cap {

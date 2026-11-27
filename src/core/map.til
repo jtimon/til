@@ -8,20 +8,27 @@ import("str")
 
 priv type_arg_is_ref_mut := core_func(type: Type) returns Bool {}
 
+priv map_get := macro(K: Type, V: Type) returns FuncDef {
+    if type_arg_is_ref(V) {
+        return func(self: Map(K, V), key: K) returns ref V throws KeyNotFound {
+            pos := self.value_position(key)?
+            return self.values.unsafe_get(pos)
+        }
+    } else {
+        return func(ref[a] self: Map(K, V), key: K) returns ref[a] V throws KeyNotFound {
+            pos := self.value_position(key)?
+            return ptr_add(self.values.data, pos.to_uptr().mul(V.size().to_uptr()))
+        }
+    }
+}
+
 priv map_get_mut := macro(K: Type, V: Type) returns FuncDef {
     if type_arg_is_ref(V).and(type_arg_is_ref_mut(V).not()) {
         return func(self: Map(K, V), key: K) returns ref V throws KeyNotFound { return self.get(key)? }
     } else {
         return func(mut self: Map(K, V), key: K) returns ref mut V throws KeyNotFound {
-            mut lo: USize = 0
-            mut hi: USize = self.keys.count
-            while lo < hi {
-                mid: USize = lo.add(hi.sub(lo) / 2)
-                c: I64 = K.cmp(self.keys.unsafe_get(mid), key)
-                if c < 0 { lo = mid + 1 }
-                else { if c > 0 { hi = mid } else { return self.values.unsafe_get_mut(mid) } }
-            }
-            throw KeyNotFound()
+            pos := self.value_position(key)?
+            return self.values.unsafe_get_mut(pos)
         }
     }
 }
@@ -120,10 +127,7 @@ namespace:
         return false
     }
 
-    /// Return a ref to the value for ~key~. Throws KeyNotFound if
-    /// ~key~ is absent; call as ~map.get(k)!~ (or ~map[k]~) to panic
-    /// on a missing key.
-    get := func(self: Map(K, V), key: K) returns ref V throws KeyNotFound {
+    priv value_position := func(self: Map(K, V), key: K) returns USize throws KeyNotFound {
         mut lo : USize = 0
         mut hi : USize = self.keys.count
         while lo < hi {
@@ -132,11 +136,15 @@ namespace:
             if c < 0 { lo = mid + 1 }
             else {
                 if c > 0 { hi = mid }
-                else { return self.values.unsafe_get(mid) }
+                else { return mid }
             }
         }
         throw KeyNotFound()
     }
+
+    /// Borrow the value for key; owned values inherit the receiver's access.
+    /// Throws KeyNotFound on a miss. A stored borrow retains its own owner.
+    get := map_get(K, V)
 
     /// Writable value borrow when V owns storage or carries writable access.
     /// A read-only ref V stays read-only; map mutation invalidates slot borrows.

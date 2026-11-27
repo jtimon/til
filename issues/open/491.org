@@ -216,6 +216,29 @@ including ~const ref mut~ fields. Both issues affect this generator.
 
 *** Implementation and acceptance
 
+**** Array/Map getter migration and Vec bootstrap
+
+Array's owned-element ~get~ and ~unsafe_get~ and Map's owned-value ~get~ use
+~ref[a] self~ / ~returns ref[a]~. The map's key search is shared with its
+explicit writable getter. Missing keys still throw ~KeyNotFound~; out-of-bounds
+checked array accesses still throw ~OutOfBounds~. Neither the borrowed-element
+specializations nor the caller's reference-slot permissions change.
+
+Existing collection loops lower through a temporary collection receiver. The
+lowering now requests referent write permission on that temporary for a mutable
+element binding, and on the binding itself. Normal declaration checking limits
+the grant to what the source provides. Map key/value iteration requests that
+access for the value, not the key. No context-sensitive getter selection is
+needed.
+
+Switching Vec's unchecked getter in the same commit fails pass 1 on ~e12e56449~:
+~bin/til_boot build -o bin/make make.til~ rejects writes through the old
+~_fc_Vec__VariantDef_10~ loop receiver. The new lowering must land first. Vec
+checked indexing alone also exposed writes through the old unchecked loop
+bindings. Switch the Vec pair together on the prepared bootstrap and migrate
+the remaining read-only compiler paths. The existing batched qualifier fixture
+covers the Array and Map subscript writes and mutable Array loop in this step.
+
 **** Owned-buffer indexing: bootstrap preparation
 
 On ~2eb0f6b50~, trying linked ~get~ and ~unsafe_get~ in Vec's owned branch

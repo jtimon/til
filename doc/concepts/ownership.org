@@ -122,7 +122,14 @@ fixed ~const ref mut~ alias uses its referent grant, not slot replacement, to
 permit writes. Opaque, raw and recursively widened origins retain conservative
 provenance rather than treating a partially known return as the only origin.
 
-Writable collection access uses explicit ~Vec~ / ~Array~ ~get_mut~ and
+For owned Array elements and owned Map values, subscripting borrows through
+the receiver: ~ref mut item := items[i]~ can change the stored element if
+~items~ supplies writable access. The same expression through a read-only
+receiver lends a read-only element. Array's unchecked getter follows the
+same rule. Vec's owned-element getter migration is staged after the loop
+lowering change; its writable accessor is still explicit at this checkpoint.
+
+Explicit writable collection access uses ~Vec~ / ~Array~ ~get_mut~ and
 ~unsafe_get_mut~, and ~Map.get_mut~. Owned elements and elements stored as
 ~ref mut T~ yield ~returns ref mut T~ through a mutable receiver. Elements
 stored as read-only ~ref T~ retain a read-only result, even through these method
@@ -130,8 +137,9 @@ names or a cloned container; those specializations need no mutable receiver.
 The checked methods retain ~OutOfBounds~ / ~KeyNotFound~ behavior. These are
 borrows, not ownership transfers: owned elements remain in the container, and
 reference elements still borrow their original owners. Storage invalidation and
-referent lifetimes are unchanged. Indexing/iteration selection is not migrated
-by adding these methods.
+referent lifetimes are unchanged. A mutable loop binding requests element
+write access through its collection temporary, subject to the source and
+getter contract; it does not select a different method name.
 
 An ordinary getter can now name its borrowed result's source:
 ~cell_of := func(ref[a] box: Box) returns ref[a] Cell { return box.cell }~

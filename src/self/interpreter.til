@@ -6034,6 +6034,13 @@ priv callable_env := func(b: InterpCallableBox) returns ref Scope {
     }
 }
 
+priv callable_env_mut := func(mut b: InterpCallableBox) returns ref mut Scope {
+    switch b.env {
+    case .Some(e): return e
+    case .None: panic(__LOC__, "callable box env absent")
+    }
+}
+
 priv callable_box_is := func(ptr: Dynamic) returns Bool {
     if ptr.is_null() { return false }
     ref magic : U64 = ptr
@@ -6147,7 +6154,7 @@ priv eval_callable_clone := proc(value: Dynamic, site: Expr, mut ctx: Context) r
 priv eval_callable_capture_delete := proc(mut value: Dynamic, site: Expr, mut ctx: Context) {
     if callable_box_is(value).not() { return } // Static function values own no environment.
     ref mut box : InterpCallableBox = to_ptr(value)
-    ref mut env : Scope = callable_env(box)
+    ref mut env : Scope = callable_env_mut(box)
     for name in env.heap_bindings.keys {
         ref mut hb : HeapBinding = env.heap_bindings[name]
         if hb.is_borrowed.or(hb.moved_out).or(hb.payload_released) { continue }

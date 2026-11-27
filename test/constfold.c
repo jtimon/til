@@ -255,6 +255,7 @@ static void test_block_constants_do_not_escape_their_scope(void);
 static void test_serialized_binding_keeps_assignment(void);
 static void Array__I64_delete(Array__I64 * self, Bool call_free);
 static Array__I64 Array__I64_clone(Array__I64 * self);
+static USize Map__Str_I64_value_position(Map__Str_I64 * self, Str * key, I64 * _err_kind);
 static I64 * Map__Str_I64_get(Map__Str_I64 * self, Str * key, I64 * _err_kind);
 static void Map__Str_I64_delete(Map__Str_I64 * self, Bool call_free);
 static void Vec__I64_clear(Vec__I64 * self);
@@ -2517,7 +2518,7 @@ static Array__I64 Array__I64_clone(Array__I64 * self) {
     return hoisted__Array__I64_15;
 }
 
-static I64 * Map__Str_I64_get(Map__Str_I64 * self, Str * key, I64 * _err_kind) {
+static USize Map__Str_I64_value_position(Map__Str_I64 * self, Str * key, I64 * _err_kind) {
     USize lo = 0;
     USize hi = self->keys.count;
     while (1) {
@@ -2525,32 +2526,46 @@ static I64 * Map__Str_I64_get(Map__Str_I64 * self, Str * key, I64 * _err_kind) {
         if (!(_wcond_Bool_0)) {
             break;
         }
-        U32 hoisted__U32_7 = ((U32)(hi - lo));
-        U32 hoisted__U32_8 = 2;
-        U32 hoisted__U32_9 = ({ U32 _cf_a = hoisted__U32_7; U32 _cf_b = hoisted__U32_8; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
-        USize mid = ((U32)(lo + hoisted__U32_9));
-        Str *hoisted__Str_Map__Str_I64_get_10 = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (self->keys.data))) + (((U64)(((U64)(mid)) * ((U64)(12))))))));
-        I64 c = Str_cmp(hoisted__Str_Map__Str_I64_get_10, key);
-        I64 hoisted__I64_11 = 0;
-        Bool hoisted__Bool_12 = ((Bool)(c < hoisted__I64_11));
-        if (hoisted__Bool_12) {
+        U32 hoisted__U32_6 = ((U32)(hi - lo));
+        U32 hoisted__U32_7 = 2;
+        U32 hoisted__U32_8 = ({ U32 _cf_a = hoisted__U32_6; U32 _cf_b = hoisted__U32_7; (U32)((_cf_b == 0) ? 0 : (_cf_a / _cf_b)); });
+        USize mid = ((U32)(lo + hoisted__U32_8));
+        Str *hoisted__Str_Map__Str_I64_value_position_9 = ((Str *)((void *)((U8 *)(TIL_OWN_GET(U8, (self->keys.data))) + (((U64)(((U64)(mid)) * ((U64)(12))))))));
+        I64 c = Str_cmp(hoisted__Str_Map__Str_I64_value_position_9, key);
+        I64 hoisted__I64_10 = 0;
+        Bool hoisted__Bool_11 = ((Bool)(c < hoisted__I64_10));
+        if (hoisted__Bool_11) {
             U32 hoisted__U32_1 = 1;
             U32 hoisted__U32_2 = ((U32)(mid + hoisted__U32_1));
             lo = hoisted__U32_2;
         } else {
-            I64 hoisted__I64_5 = 0;
-            Bool hoisted__Bool_6 = ((Bool)(c > hoisted__I64_5));
-            if (hoisted__Bool_6) {
+            I64 hoisted__I64_4 = 0;
+            Bool hoisted__Bool_5 = ((Bool)(c > hoisted__I64_4));
+            if (hoisted__Bool_5) {
                 U32 hoisted__U32_3 = (mid);
                 hi = hoisted__U32_3;
             } else {
-                I64 *hoisted__I64_4 = ((I64 *)((void *)((U8 *)(TIL_OWN_GET(U8, (self->values.data))) + (((U64)(((U64)(mid)) * 8ULL))))));
-                return hoisted__I64_4;
+                return mid;
             }
         }
     }
-    I64 hoisted__I64_13 = 4;
-    *_err_kind = hoisted__I64_13;
+    I64 hoisted__I64_12 = 4;
+    *_err_kind = hoisted__I64_12;
+    U32 hoisted__U32_13 = 0;
+    return hoisted__U32_13;
+}
+
+static I64 * Map__Str_I64_get(Map__Str_I64 * self, Str * key, I64 * _err_kind) {
+    U32 pos = Map__Str_I64_value_position(self, key, _err_kind);
+    I64 hoisted__I64_5 = 0;
+    Bool hoisted__Bool_6 = ((Bool)(DEREF(_err_kind) == hoisted__I64_5));
+    if (hoisted__Bool_6) {
+        U64 hoisted__U64_1 = ((U64)(pos));
+        U64 hoisted__U64_2 = 8ULL;
+        U64 hoisted__U64_3 = ((U64)(hoisted__U64_1 * hoisted__U64_2));
+        void *hoisted__v_4 = ((void *)((U8 *)(TIL_OWN_GET(U8, (self->values.data))) + (hoisted__U64_3)));
+        return hoisted__v_4;
+    }
     return NULL;
 }
 
