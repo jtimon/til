@@ -33,6 +33,57 @@ TOGGLE_H : I32 = 34
 TOGGLE_GAP : I32 = 10
 SONG_BTN_X : I32 = TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 5
 SONG_BTN_W : I32 = 240
+MAP_BTN_X : I32 = SONG_BTN_X + SONG_BTN_W + TOGGLE_GAP
+PUZZLE_X : I32 = MAP_BTN_X + SONG_BTN_W + TOGGLE_GAP
+PUZZLE_Y : I32 = TOGGLE_Y - TOGGLE_H - TOGGLE_GAP
+
+// Grade the held pitch classes, independent of doubling, octave or inversion.
+puzzle_matches := func(held: Array(I32), root: USize, minor: Bool) returns Bool {
+    mut third : USize = 4
+    if minor { third = 3 }
+    mut found := Array(Bool).new(12)
+    for i : USize in 0..held.len() {
+        if held[i].eq(0) { continue }
+        interval := (i + 12 - root % 12) % 12
+        if interval.eq(0).or(interval.eq(third)).or(interval.eq(7)).not() { return false }
+        found[interval] = true
+    }
+    return found[0].and(found[third]).and(found[7])
+}
+
+test_puzzle_minor := test() {
+    mut held := Array(I32).new(NUM_KEYS)
+    held[5] = 1; held[9] = 1; held[14] = 1; held[26] = 1
+    assert(puzzle_matches(held, 14, true))
+    assert(puzzle_matches(held, 14, false).not())
+    held[6] = 1
+    assert(puzzle_matches(held, 14, true).not())
+    held[5] = 0
+    assert(puzzle_matches(held, 14, false))
+    held[9] = 0
+    assert(puzzle_matches(held, 14, false).not())
+}
+
+// Four-row QWERTY adaptation of Janko's six-row keyboard. In 12-TET
+// Q/Z start at C4, 1/A at C#4; each horizontal move is a whole tone.
+// https://en.wikipedia.org/wiki/Jank%C3%B3_keyboard
+janko_note := func(key: USize) returns USize {
+    if key.lt(10) { return PIANO_C4_KEY_OFFSET + key * 2 + 1 }
+    if key.lt(20) { return PIANO_C4_KEY_OFFSET + (key - 10) * 2 }
+    if key.lt(29) { return PIANO_C4_KEY_OFFSET + (key - 20) * 2 + 1 }
+    return PIANO_C4_KEY_OFFSET + (key - 29) * 2
+}
+
+test_janko_chords := test() {
+    // Q-E-F and W-R-G: the same major triad translated one column.
+    for k : USize in array(USize, 10, 12, 23) {
+        assert_eq(USize, janko_note(k + 1), janko_note(k) + 2)
+    }
+    assert_eq(USize, janko_note(12) - janko_note(10), 4)
+    assert_eq(USize, janko_note(23) - janko_note(10), 7)
+    assert_eq(USize, janko_note(10), janko_note(29))
+    assert_eq(USize, janko_note(0), janko_note(20))
+}
 
 main := proc() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "piano".c_str)
@@ -63,6 +114,22 @@ main := proc() {
     mut song_playing := false
     mut song_idx : USize = 0
     mut song_timer : I64 = 0
+    mut janko := false
+    mut puzzle := false
+    mut puzzle_root : I32 = -1
+    mut minor := true
+    mut feedback := ""
+    mut clue := Array(Sound).new(3)
+    mut clue_loaded := false
+    mut janko_labels := Array(Str).new(NUM_KEYS)
+    for k : USize in 0..NUM_KEYS {
+        note := janko_note(k)
+        if janko_labels[note].is_empty() {
+            janko_labels[note] = PIANO_KEY_LABELS[k].clone()
+        } else {
+            janko_labels[note] = format(janko_labels[note], "/", PIANO_KEY_LABELS[k])
+        }
+    }
 
     // Pre-generate all 36 sounds for polyphony.
     mut sounds := Array(Sound).new(NUM_KEYS)
@@ -94,6 +161,8 @@ main := proc() {
     BUTTON_LABEL := GRAY_220
 
     while !WindowShouldClose() {
+        mut check_now := false
+        mut listen_now := false
         dt := (GetFrameTime() * 1000).to_i64()
         timer = timer + dt
 
@@ -104,19 +173,16 @@ main := proc() {
         white_w := WINDOW_WIDTH / white_key_count.to_i32()
         black_w := white_w * 3 / 5
 
-        // -- Input: reset key_down, then set from keyboard + mouse --
-        for i in 0..NUM_KEYS {
-            if IsKeyDown(PIANO_KEYCODES[i]) {
-                key_down[i] = 1
-            } else {
-                key_down[i] = 0
-            }
-        }
-
         if IsMouseButtonPressed(0) {
             mx := GetMouseX()
             my := GetMouseY()
             if my >= TOGGLE_Y && my < TOGGLE_Y + TOGGLE_H {
+                if mx >= PUZZLE_X && mx < PUZZLE_X + SONG_BTN_W {
+                    puzzle = puzzle.not(); puzzle_root = -1; feedback = ""
+                    song_playing = false
+                    if puzzle.and(nathex_display) { display_mode = DISPLAY_MODE_SOLFEGE }
+                }
+                if mx >= MAP_BTN_X && mx < MAP_BTN_X + SONG_BTN_W { janko = janko.not() }
                 if mx >= TOGGLE_X && mx < TOGGLE_X + TOGGLE_W {
                     display_mode = DISPLAY_MODE_SOLFEGE
                 }
@@ -131,12 +197,34 @@ main := proc() {
                 nx := lx + TOGGLE_W + TOGGLE_GAP
                 if mx >= nx && mx < nx + TOGGLE_W {
                     display_mode = DISPLAY_MODE_NATHEX
+                    puzzle = false
                 }
                 if mx >= SONG_BTN_X && mx < SONG_BTN_X + SONG_BTN_W {
+                    puzzle = false
                     song_playing = true
                     song_idx = 0
                     song_timer = 0
                 }
+            }
+            if puzzle.and(my.gte(PUZZLE_Y)).and(my.lt(PUZZLE_Y + TOGGLE_H)).and(mx.gte(TOGGLE_X)) {
+                col := (mx - TOGGLE_X) / (TOGGLE_W + TOGGLE_GAP)
+                if ((mx - TOGGLE_X) % (TOGGLE_W + TOGGLE_GAP)).lt(TOGGLE_W) {
+                    if col.eq(0) { puzzle_root = -1; feedback = "" }
+                    if col.eq(1) { minor = minor.not(); feedback = "" }
+                    if col.eq(2) { listen_now = true }
+                    if col.eq(3) { check_now = true }
+                }
+            }
+        }
+
+        // OR all held keys into note state so releasing an alias does not
+        // silence its pitch while another touch point is still held.
+        for i in 0..NUM_KEYS { key_down[i] = 0 }
+        for i in 0..NUM_KEYS {
+            if IsKeyDown(PIANO_KEYCODES[i]) {
+                mut note := i
+                if janko { note = janko_note(i) }
+                key_down[note] = 1
             }
         }
 
@@ -212,6 +300,33 @@ main := proc() {
         }
 
         // Detect press/release by comparing with prev_down
+        if puzzle {
+            if puzzle_root.lt(0) {
+                for i : USize in 0..NUM_KEYS {
+                    if key_down[i].eq(1).and(prev_down[i].eq(0)) { puzzle_root = i.to_i32(); break }
+                }
+            }
+            if puzzle_root.gte(0) {
+                if listen_now {
+                    // Independent sounds: never light answer keys, record clue
+                    // notes in the roll, or cut off a player's held notes.
+                    offsets := array(USize, 0, 4, 7)
+                    for v : USize in 0..3 {
+                        if clue_loaded { UnloadSound(clue[v]) }
+                        mut index := puzzle_root.to_usize() + offsets[v]
+                        if minor.and(v.eq(1)) { index = index - 1 }
+                        ref hz : I64 = piano_key_freq(false, index)
+                        clue[v] = make_tone(hz, 700, 0.1)
+                    }
+                    clue_loaded = true
+                    for v : USize in 0..3 { PlaySound(clue[v]) }
+                }
+                if check_now.or(IsKeyPressed(257)) {
+                    feedback = "Try again"
+                    if puzzle_matches(key_down, puzzle_root.to_usize(), minor) { feedback = "Correct!" }
+                }
+            }
+        }
         for i in 0..NUM_KEYS {
             ref kd : I32 = key_down[i]
             ref pd : I32 = prev_down[i]
@@ -349,7 +464,8 @@ main := proc() {
                 }
                 DrawRectangle(kx, PIANO_Y, white_w - 2, WHITE_H, k_color)
                 if chrom.to_usize() < NUM_KEYS {
-                    ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
+                    mut lbl := PIANO_KEY_LABELS[chrom.to_usize()].clone()
+                    if janko { lbl = janko_labels[chrom.to_usize()].clone() }
                     DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + white_w / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18, 1, KEY_LABEL_COLOR)
                 }
             }
@@ -366,7 +482,8 @@ main := proc() {
                     }
                     DrawRectangle(bx, PIANO_Y, black_w, BLACK_H, kb_color)
                     if chrom.to_usize() < NUM_KEYS {
-                        ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
+                        mut lbl := PIANO_KEY_LABELS[chrom.to_usize()].clone()
+                        if janko { lbl = janko_labels[chrom.to_usize()].clone() }
                         DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + black_w / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14, 1, KEY_LABEL_BLACK)
                     }
                 }
@@ -385,7 +502,8 @@ main := proc() {
                 }
                 DrawRectangle(kx, PIANO_Y, white_w - 2, WHITE_H, k_color)
                 if chrom.to_usize() < NUM_KEYS {
-                    ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
+                    mut lbl := PIANO_KEY_LABELS[chrom.to_usize()].clone()
+                    if janko { lbl = janko_labels[chrom.to_usize()].clone() }
                     DrawTextEx(fnt, lbl.c_str, Vector2(x = (kx + white_w / 4).to_f32(), y = (PIANO_Y + WHITE_H - 30).to_f32()), 18, 1, KEY_LABEL_COLOR)
                 }
             }
@@ -402,7 +520,8 @@ main := proc() {
                     }
                     DrawRectangle(bx, PIANO_Y, black_w, BLACK_H, kb_color)
                     if chrom.to_usize() < NUM_KEYS {
-                        ref lbl : Str = PIANO_KEY_LABELS[chrom.to_usize()]
+                        mut lbl := PIANO_KEY_LABELS[chrom.to_usize()].clone()
+                        if janko { lbl = janko_labels[chrom.to_usize()].clone() }
                         DrawTextEx(fnt, lbl.c_str, Vector2(x = (bx + black_w / 4).to_f32(), y = (PIANO_Y + BLACK_H - 20).to_f32()), 14, 1, KEY_LABEL_BLACK)
                     }
                 }
@@ -437,8 +556,32 @@ main := proc() {
         DrawTextEx(fnt, "Hextaves".c_str, Vector2(x = (TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 2 + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
         DrawTextEx(fnt, "Nathex".c_str, Vector2(x = (TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 3 + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
         DrawTextEx(fnt, "Happy Birthday".c_str, Vector2(x = (SONG_BTN_X + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
+        mut map_label := "QWERTY: Linear"
+        mut map_color := BTN_INACTIVE
+        if janko { map_label = "QWERTY: Janko"; map_color = BTN_ACTIVE }
+        DrawRectangle(MAP_BTN_X, TOGGLE_Y, SONG_BTN_W, TOGGLE_H, map_color)
+        DrawTextEx(fnt, map_label.c_str, Vector2(x = (MAP_BTN_X + 14).to_f32(), y = (TOGGLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
 
         // Hint
+        mut puzzle_color := BTN_INACTIVE
+        if puzzle { puzzle_color = BTN_ACTIVE }
+        DrawRectangle(PUZZLE_X, TOGGLE_Y, SONG_BTN_W, TOGGLE_H, puzzle_color)
+        DrawTextEx(fnt, "Chord puzzle".c_str, Vector2(x=(PUZZLE_X + 14).to_f32(), y=(TOGGLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
+        if puzzle {
+            mut quality := "Major"
+            if minor { quality = "Minor" }
+            labels := array(Str, "New root", quality, "Listen", "Check (Enter)")
+            for col : USize in 0..4 {
+                x := TOGGLE_X + col.to_i32() * (TOGGLE_W + TOGGLE_GAP)
+                DrawRectangle(x, PUZZLE_Y, TOGGLE_W, TOGGLE_H, BTN_INACTIVE)
+                DrawTextEx(fnt, labels[col].c_str, Vector2(x=(x + 12).to_f32(), y=(PUZZLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
+            }
+            mut prompt := "Play a key to choose the root."
+            if puzzle_root.gte(0) {
+                prompt = format("Build: ", freqs_letter_note_name(PIANO_C3_FREQ_OFFSET.to_i32() + puzzle_root), " ", quality, " triad. Hold your answer and Check.  ", feedback)
+            }
+            DrawTextEx(fnt, prompt.c_str, Vector2(x=(TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 4).to_f32(), y=(PUZZLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
+        }
         mut hint := "Solfege display: same keys and sounds"
         if display_mode.eq(DISPLAY_MODE_LETTERS) {
             hint = "Letters display: same keys and sounds"
@@ -449,6 +592,7 @@ main := proc() {
         if nathex_display {
             hint = "Nathex: same keys, separate 8-step doubling sounds, C4 key=ca4"
         }
+        if janko { hint = "Janko: Q/Z share a pitch; 1/A are one step higher. Move right for two steps." }
         if song_playing {
             hint = "Playing Happy Birthday"
         }
@@ -464,6 +608,7 @@ main := proc() {
         UnloadSound(s)
     }
     UnloadFont(fnt)
+    if clue_loaded { for v : USize in 0..3 { UnloadSound(clue[v]) } }
     CloseAudioDevice()
     CloseWindow()
 }
