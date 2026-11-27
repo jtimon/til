@@ -4,6 +4,10 @@
 
 *** Bootstrap plan and progress
 
+Element insertion into a ~ref mut T~ specialization requires a writable
+argument. Typed collection getters preserve their result contract through
+local aliases; a mutable slot cannot upgrade a stored read-only borrow.
+
 Read-only tree traversal cursors now use ~mut ref~ to replace the cursor
 without requesting write access to its target. A fixed writable local used
 to initialize the interpreter's closure box keeps its original destination

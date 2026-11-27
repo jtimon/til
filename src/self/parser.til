@@ -1757,7 +1757,7 @@ priv parse_subscript_assign := proc(mut p: Parser, own lhs: Expr) returns Expr {
     }
     if is_bang.not() { return lhs }
     if lhs.children.len() != 2 { return lhs }
-    ref mut callee : Expr = lhs.children.get_mut(0)!
+    ref mut callee : Expr = lhs.children[0]
     if callee.node_type.is(NodeType.FieldAccess).not() { return lhs }
     mut is_get := false
     switch callee.node_type {

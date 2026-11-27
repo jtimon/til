@@ -2334,7 +2334,7 @@ priv gc_deposit_binding_mut := func(mut scope: TypeScope, root: BorrowRoot, symb
     if sym.is_none() { return Option(ref mut TypeBinding).None }
     pos := scope.bindings.find(sym.unwrap())
     if pos >= 0 {
-        ref mut binding: TypeBinding = scope.bindings.values.unsafe_get_mut(pos.to_usize())
+        ref mut binding: TypeBinding = scope.bindings.values.unsafe_get(pos.to_usize())
         if binding.line == root.line && binding.col == root.col && binding.path == root.path {
             return Option(ref mut TypeBinding).Some(binding)
         }

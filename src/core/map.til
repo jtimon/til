@@ -10,25 +10,28 @@ priv type_arg_is_ref_mut := core_func(type: Type) returns Bool {}
 
 priv map_get := macro(K: Type, V: Type) returns FuncDef {
     if type_arg_is_ref(V) {
-        return func(self: Map(K, V), key: K) returns ref V throws KeyNotFound {
-            pos := self.value_position(key)?
-            return self.values.unsafe_get(pos)
+        if type_arg_is_ref_mut(V) {
+            if type_arg_is_interface(V) {
+                return func(ref[a] self: Map(K, V), key: K) returns ref[a] V throws KeyNotFound {
+                    pos := self.value_position(key)?
+                    return self.values.unsafe_get(pos)
+                }
+            } else {
+                return func(self: Map(K, V), key: K) returns ref mut V throws KeyNotFound {
+                    pos := self.value_position(key)?
+                    return self.values.unsafe_get(pos)
+                }
+            }
+        } else {
+            return func(self: Map(K, V), key: K) returns ref V throws KeyNotFound {
+                pos := self.value_position(key)?
+                return self.values.unsafe_get(pos)
+            }
         }
     } else {
         return func(ref[a] self: Map(K, V), key: K) returns ref[a] V throws KeyNotFound {
             pos := self.value_position(key)?
             return ptr_add(self.values.data, pos.to_uptr().mul(V.size().to_uptr()))
-        }
-    }
-}
-
-priv map_get_mut := macro(K: Type, V: Type) returns FuncDef {
-    if type_arg_is_ref(V).and(type_arg_is_ref_mut(V).not()) {
-        return func(self: Map(K, V), key: K) returns ref V throws KeyNotFound { return self.get(key)? }
-    } else {
-        return func(mut self: Map(K, V), key: K) returns ref mut V throws KeyNotFound {
-            pos := self.value_position(key)?
-            return self.values.unsafe_get_mut(pos)
         }
     }
 }
@@ -145,10 +148,6 @@ namespace:
     /// Borrow the value for key; owned values inherit the receiver's access.
     /// Throws KeyNotFound on a miss. A stored borrow retains its own owner.
     get := map_get(K, V)
-
-    /// Writable value borrow when V owns storage or carries writable access.
-    /// A read-only ref V stays read-only; map mutation invalidates slot borrows.
-    get_mut := map_get_mut(K, V)
 
     priv key_size := func() returns USize {
         if type_arg_is_ref(K).and(type_arg_is_interface(K).not()) { return UPtr.size() }

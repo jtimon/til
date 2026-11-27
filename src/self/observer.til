@@ -236,6 +236,7 @@ priv put_function := func(mut line: Vec(Str), fd: FunctionDef) {
     put_funcsig(line, fd.sig)
     put_bool(line, "auto_generated", fd.auto_generated)
     put_bool(line, "typed_on_demand", fd.typed_on_demand)
+    put_bool(line, "specialized_ref_result", fd.specialized_ref_result)
     put_bool(line, "is_enum_variant_ctor", fd.is_enum_variant_ctor)
     put_bool(line, "noreturn", fd.noreturn)
     put(line, "captures", fd.captures.len().to_str())

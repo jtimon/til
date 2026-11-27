@@ -4,6 +4,12 @@
 
 *** Existing preparation
 
+Collection migration complete: use indexing or ~get~ (and ~unsafe_get~ for
+unchecked access). The separate ~get_mut~/~unsafe_get_mut~ methods described
+in earlier checkpoints below are removed. The generics fixture exercises the
+public methods on owned, stored-reference and interface elements, including
+clones, writes, rejected grants, bounds and missing keys.
+
 Owned ~Vec.get~ and ~Vec.unsafe_get~ now link the returned element to the
 receiver, including ordinary subscripts in the compiler itself. The
 ~generics~ fixture exercises both mutable and read-only receivers. The

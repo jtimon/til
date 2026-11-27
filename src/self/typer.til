@@ -1843,6 +1843,12 @@ priv infer_and_validate_fcall_args_for_fdef := proc(mut scope: TypeScope, mut e:
             if param1.is_mut {
                 check_write_roots_mut(scope, e.children[ci], e.children[ci],
                     format("pass this to the 'mut' parameter '", param1.name, "'"), ctx)
+            } else if param1.referent_mut.and(param1.own_type.is(OwnType.Ref)) {
+                // Instantiating an element parameter with ref mut T grants
+                // write access to the stored referent, even for a pure store.
+                problem := writable_borrow_problem(scope, e.children[ci], ctx.symbols)
+                if problem.is_empty() { credit_mutable_return(scope, e.children[ci], ctx.symbols) }
+                else { e.children[ci].type_error(format("cannot supply a writable reference for '", param1.name, "': ", problem), ctx) }
             }
             ci++
             pi++
@@ -6089,15 +6095,19 @@ priv linked_return_source := func(scope: TypeScope, value: Expr, name: Str, symb
     return false
 }
 
-priv is_linked_view := func(scope: TypeScope, value: Expr, symbols: SymbolPool) returns Bool {
+priv is_checked_view := func(scope: TypeScope, value: Expr, symbols: SymbolPool) returns Bool {
     switch value.node_type {
     case .Ident(id):
         b := scope.get_binding_sym(id.ident_sym())
-        return b.is_some().and(b.unwrap().linked_view)
+        return b.is_some().and(b.unwrap().checked_view)
     case .FieldAccess:
         if fa_is_ns(value, scope, symbols).or(fieldaccess_crosses_borrow(scope, value, symbols)) { return false }
-        return is_linked_view(scope, value.children[0], symbols)
-    case .FCall: return linked_borrow_argument(scope, value, symbols).is_some()
+        return is_checked_view(scope, value.children[0], symbols)
+    case .FCall:
+        definition := borrow_call_contract(value, scope, symbols)
+        if definition.is_none() { return false }
+        ref fd: FunctionDef = funcdef_of(definition.unwrap())
+        return fd.sig.return_origin_param.gte(0).or(fd.specialized_ref_result)
     case: return false
     }
 }
@@ -6661,7 +6671,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
                 pb.referent_mut = param.own_type.is(OwnType.Ref).and(param.is_mut.or(param.referent_mut))
                 // Check ordinary body uses under the read-only instantiation.
                 // Only the linked return proof can pass on this parameter's grant.
-                pb.linked_view = i.to_i32() == fdef.sig.return_origin_param
+                pb.checked_view = i.to_i32() == fdef.sig.return_origin_param
             }
         }
         mut in_func_val : I32 = 0
@@ -8870,9 +8880,9 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
                 problem := writable_borrow_problem(scope, rhs, ctx.symbols)
                 decl_b.referent_mut = decl_b.referent_mut.and(problem.is_empty())
                 decl_b.ref_permission_problem = problem.clone()
-                decl_b.linked_view = is_linked_view(scope, rhs, ctx.symbols)
-                if decl_b.linked_view && sdecl.referent_mut && problem.is_empty().not() {
-                    stmt.type_error(format("cannot take a writable linked borrow: ", problem), ctx)
+                decl_b.checked_view = is_checked_view(scope, rhs, ctx.symbols)
+                if decl_b.checked_view && sdecl.referent_mut && problem.is_empty().not() {
+                    stmt.type_error(format("cannot take a writable borrow: ", problem), ctx)
                 }
             }
             // #211: payload binding `ref T = get_payload(<ident>)` is the
@@ -10934,9 +10944,9 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         // A writable declaration cannot gain permission by rebinding after a
         // read-only source. Such a rebind itself needs #490's eventual error.
         problem := writable_borrow_problem(scope, rhs, ctx.symbols)
-        target.linked_view = target.linked_view.or(is_linked_view(scope, rhs, ctx.symbols))
-        if target.linked_view {
-            if target.referent_mut && problem.is_empty().not() { stmt.type_error(format("cannot rebind to a read-only linked borrow: ", problem), ctx) }
+        target.checked_view = target.checked_view.or(is_checked_view(scope, rhs, ctx.symbols))
+        if target.checked_view {
+            if target.referent_mut && problem.is_empty().not() { stmt.type_error(format("cannot rebind to a read-only borrow: ", problem), ctx) }
         }
         target.referent_mut = target.referent_mut.and(problem.is_empty())
         if target.ref_permission_problem.is_empty().and(problem.is_empty().not()) {
@@ -10948,8 +10958,8 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
         // for branches/loops, as with the existing carried-borrow summaries.
         for root : BorrowRoot in roots { push_root_unique(target.borrow_roots, root) }
     } else {
-        if ub_o.is_some() && ub_o.unwrap().linked_view && ub_o.unwrap().referent_mut.not() {
-            stmt.type_error(format("cannot write through read-only linked borrow '", aname, "'"), ctx)
+        if ub_o.is_some() && ub_o.unwrap().checked_view && ub_o.unwrap().referent_mut.not() {
+            stmt.type_error(format("cannot write through read-only borrow '", aname, "'"), ctx)
         }
         mark_name_written_name(scope, aname, ctx.symbols)
     }
@@ -14145,7 +14155,7 @@ priv lookup_binding_at_mut := func(mut scope: TypeScope, r: BorrowRoot, symbols:
     if sym.is_none() { return Option(ref mut TypeBinding).None }
     pos := scope.bindings.find(sym.unwrap())
     if pos >= 0 {
-        ref mut b: TypeBinding = scope.bindings.values.unsafe_get_mut(pos.to_usize())
+        ref mut b: TypeBinding = scope.bindings.values.unsafe_get(pos.to_usize())
         if b.line == r.line && b.col == r.col && b.path == r.path {
             return Option(ref mut TypeBinding).Some(b)
         }
@@ -14209,7 +14219,7 @@ priv root_carries_own_qualifier := func(b: TypeBinding, r: BorrowRoot) returns B
 // handing a raw pointer to a callee is a guess about what the callee does
 // with it, and a guess must not produce a rejection.
 priv check_write_roots_mut := proc(mut scope: TypeScope, site: Expr, obj: Expr, what: Str, mut ctx: Context) {
-    if is_linked_view(scope, obj, ctx.symbols) {
+    if is_checked_view(scope, obj, ctx.symbols) {
         problem := writable_borrow_problem(scope, obj, ctx.symbols)
         if problem.is_empty().not() { site.type_error(format("cannot ", what, ": ", problem), ctx); return }
     }
@@ -14555,6 +14565,10 @@ priv carried_roots_of := func(scope: TypeScope, roots: Vec(BorrowRoot), fname: S
             if br_o.is_none() { continue }
             ref brb : TypeBinding = br_o.unwrap()
             for cr : BorrowRoot in brb.borrow_roots {
+                // A ref to a carrier aliases the carrier itself. That alias
+                // is already in the flattened root set; it is not also a
+                // pointer stored inside the carrier (e.g. a loop's _fc).
+                if brb.own_type.is(OwnType.Ref).and(cr.carried.or(cr.deposited).not()) { continue }
                 if field_path_matches(cr.field, fname).not() { continue }
                 mut ccr := cr.clone()
                 ccr.carried = true
@@ -18213,7 +18227,8 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
     // written here -- otherwise check_unused_mut_locals later flags
     // `mut coll` as "never written through", forcing the user to drop a
     // `mut` that actually reflects the loop's intent.
-    if forin_is_mut {
+    stored_grant := get_returns_ref && get_def.sig.return_ref_mut && get_def.sig.params[0].is_mut.not()
+    if forin_is_mut && stored_grant.not() {
         mark_written_through(scope, iter, ctx.symbols, safe_ref(ctx.parameter_effects))
         check_write_roots_mut(scope, stmt, iter, "mutate the elements of this collection", ctx)
     }
@@ -18238,7 +18253,7 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
         col_own_type = OwnType.Ref
     }
     mut col_decl := Expr.new(own NodeType.Decl(Declaration(name = col_name.clone(), own_type = col_own_type,
-        referent_mut = forin_is_mut.and(col_own_type.is(OwnType.Ref)),
+        referent_mut = forin_is_mut.and(stored_grant.not()).and(col_own_type.is(OwnType.Ref)),
         is_mut = forin_is_mut.and(col_own_type.is(OwnType.Ref).not()))), line, col)
     col_decl.add_child(own iter.clone())
     block.add_child(own col_decl)

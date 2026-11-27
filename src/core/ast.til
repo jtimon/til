@@ -474,6 +474,9 @@ FunctionDef := struct {
     // #274: a requested generated method has already gone through the
     // typer at its use site; the later namespace sweep must not lower it again.
     typed_on_demand := false
+    // Specialization bound the result type parameter to a stored reference.
+    // The slot's grant is known even when the caller uses an unchecked getter.
+    specialized_ref_result := false
     is_enum_variant_ctor := false
     // #303: true when calling this function never returns control to the
     // caller. Seeded on core exit (an ext_func whose libc binding is
@@ -802,7 +805,7 @@ namespace:
     }
     /// Writable field view; the caller proves i is a declaration position.
     field_at_mut := func(mut self: StructDef, i: USize) returns ref mut Declaration {
-        return self.fields.unsafe_get_mut(i)
+        return self.fields.unsafe_get(i)
     }
     /// Namespace member name at declaration position i.
     member_name_at := func(self: StructDef, i: USize) returns ref Str {

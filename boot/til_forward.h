@@ -2312,6 +2312,7 @@ typedef struct FunctionDef {
     FuncSig sig;
     Bool auto_generated;
     Bool typed_on_demand;
+    Bool specialized_ref_result;
     Bool is_enum_variant_ctor;
     Bool noreturn;
     Vec__Declaration captures;
@@ -2469,7 +2470,7 @@ typedef struct TypeBinding {
     Bool ref_slot_explicit;
     Bool mutable_ref_return;
     Str ref_permission_problem;
-    Bool linked_view;
+    Bool checked_view;
 } TypeBinding;
 
 

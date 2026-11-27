@@ -267,7 +267,7 @@ TypeBinding := struct {
     // temporaries, so return diagnostics name the getter, not _bang_ret_N.
     ref_permission_problem := ""
     // This binding's referent permission was instantiated from a linked view.
-    linked_view := false
+    checked_view := false
 namespace:
     eq := func(a: TypeBinding, b: TypeBinding) returns Bool {
         return a.name == b.name
@@ -432,7 +432,7 @@ priv bindings_lookup_one := func(m: SymMap(TypeBinding), sym: Sym) returns Optio
 priv bindings_lookup_one_mut := func(mut m: SymMap(TypeBinding), sym: Sym) returns Option(ref mut TypeBinding) {
     pos := m.find(sym)
     if pos < 0 { return Option(ref mut TypeBinding).None }
-    return Option(ref mut TypeBinding).Some(m.values.unsafe_get_mut(pos.to_usize()))
+    return Option(ref mut TypeBinding).Some(m.values.unsafe_get(pos.to_usize()))
 }
 
 TyperFuncState := struct {
@@ -1013,7 +1013,7 @@ namespace:
             sym := symbols.intern(name)
             existing := self.bindings.find(sym)
             if existing >= 0 {
-                ref mut b : TypeBinding = self.bindings.values.unsafe_get_mut(existing.to_usize())
+                ref mut b : TypeBinding = self.bindings.values.unsafe_get(existing.to_usize())
                 b.type = type
                 b.is_mut = is_mut
                 // path/line/col are declaration-site identity. Preserve them
@@ -3168,7 +3168,7 @@ member_get := func(idx: Map(Str, USize), v: Vec(Declaration), name: Str) returns
 member_get_mut := func(idx: Map(Str, USize), mut v: Vec(Declaration), name: Str) returns Option(ref mut Declaration) {
     ref p: USize = idx.get(name)?
     catch (e: KeyNotFound) { return Option(ref mut Declaration).None }
-    return Option(ref mut Declaration).Some(v.unsafe_get_mut(p))
+    return Option(ref mut Declaration).Some(v.unsafe_get(p))
 }
 
 // #307: members are declaration-ordered Vecs with a name -> position
