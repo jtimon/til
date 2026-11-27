@@ -7,7 +7,7 @@ import("context")
 // This entry is used before the normal file-body folding sweep: generators
 // need the Boolean result in order to declare the selected definition.
 constfolder_eval_generator_function := proc(mut scope: Scope, mut function: Expr,
-        definitions: Map(Str, Expr), mut globals: Expr, mut ctx: Context) returns I32 {
+        definitions: Map(Str, Expr), globals: Expr, mut ctx: Context) returns I32 {
     mut saved_ns := Option(Scope).None
     swap(Option(Scope), ctx.eval.ns_fields, saved_ns)
     ctx.eval.ns_fields = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
@@ -529,7 +529,7 @@ priv add_known_call_arg := func(mut scope: Scope, mut call: Expr, raw: Dynamic, 
 }
 
 priv add_serialized_call_arg := proc(mut scope: Scope, mut call: Expr, e: Expr, idx: USize, mut ctx: Context) {
-    mut value := e.clone()
+    value := e.clone()
     raw : Dynamic = eval_expr_raw(scope, value, ctx)
     add_known_call_arg(scope, call, raw, e.til_type(), e, idx, ctx)
 }
@@ -1279,7 +1279,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
 priv track_literal := proc(mut scope: Scope, name: Str, rhs: Expr, mut ctx: Context) {
     mut raw : Dynamic = is_known(ctx, rhs)
     if raw.is_null().and(expr_is_serialized_value(rhs)) {
-        mut value := rhs.clone()
+        value := rhs.clone()
         raw = eval_expr_raw(scope, value, ctx)
     }
     if raw.is_null().not() {
@@ -1300,7 +1300,7 @@ priv track_literal := proc(mut scope: Scope, name: Str, rhs: Expr, mut ctx: Cont
 priv track_literal_known_only := proc(mut scope: Scope, name: Str, rhs: Expr, mut ctx: Context) {
     mut raw : Dynamic = is_known(ctx, rhs)
     if raw.is_null().and(expr_is_serialized_value(rhs)) {
-        mut value := rhs.clone()
+        value := rhs.clone()
         raw = eval_expr_raw(scope, value, ctx)
     }
     if raw.is_null().not() {
@@ -1535,7 +1535,7 @@ priv va_consumer_args_ok := func(call: Expr, va: Str, mut ctx: Context) returns 
 priv fold_va_calls := proc(mut scope: Scope, mut e: Expr, va: Str, mut ctx: Context) {
     for i in 0..e.children.len() {
         fold_va_calls(scope, e.children[i], va, ctx)
-        ref mut child : Expr = e.children[i]
+        ref child : Expr = e.children[i]
         if child.node_type.is(NodeType.FCall).and(is_func_call(child, ctx)).and(expr_uses_var_p(child, va, ctx)).and(va_consumer_args_ok(child, va, ctx)).and(is_delete_call_on(child, va, ctx.symbols).not()) {
             // Bind the consumer's other comptime-known args (e.g. a positional
             // arg's hoist like `hoisted__I64 := 100` in prefix_sum(100, va))

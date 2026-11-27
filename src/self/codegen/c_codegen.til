@@ -2978,7 +2978,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         aname := ad.name
         assign_sym := ctx.symbols.intern(aname)
         acname := builder_resolve_c_ident_name(aname, ctx)
-        ref mut rhs : Expr = e.children[0]
+        mut ref rhs : Expr = e.children[0]
         mut e_sname := ""
         e_sname_o := expr_type_name_ref(e, ctx.symbols)
         if e_sname_o.is_some() {
@@ -3250,7 +3250,7 @@ priv emit_stmt := proc(f: File, e: Expr, depth: I32, mut ctx: Context) {
         }
         fname := fad.name
         ref obj : Expr = e.children[0]
-        ref mut rhs_fa : Expr = e.children[1]
+        mut ref rhs_fa : Expr = e.children[1]
         // #302 stage 4: same marked-move substitution as the Assign arm.
         if fad.is_move.and(rhs_is_clone_fcall(rhs_fa, ctx.symbols)).and(rhs_fa.children.len().gte(2)) {
             rhs_fa = rhs_fa.children[1]

@@ -3335,7 +3335,7 @@ priv check_memcpy_managed_src := proc(scope: TypeScope, e: Expr, mut ctx: Contex
     // managed value became the Dynamic that memcpy then blitted. Looking
     // through it is what lets this fire on the shape the issue recorded,
     // rather than only on the naked-identifier one.
-    ref mut src : Expr = e.children[2]
+    mut ref src : Expr = e.children[2]
     switch src.node_type {
     case .FCall:
         if src.children.len() == 2 {
@@ -10001,7 +10001,7 @@ priv type_check_unit := proc(path: Str, mut program: Expr, mut scope: TypeScope,
 // A generator condition is typed and interpreted using temporary prepared
 // definitions. Restore the source registries before releasing these clones:
 // the ordinary whole-program sweeps still own validation of the source AST.
-priv comptime_frame := func(ctx: Context) returns ref ComptimePreparation {
+priv comptime_frame := func(mut ctx: Context) returns ref mut ComptimePreparation {
     switch ctx.comptime_preparation {
     case .Some(frame): return frame
     case .None: panic("compile-time preparation requested outside its frame")
@@ -15111,6 +15111,10 @@ DepositAcc := struct {
     global := RootBits()
     locals := Vec(Str).new()
     global_aliases := Set(Str).new()
+    // A fixed reference keeps the same address even as fields at that
+    // address acquire new borrows. Record the initial storage separately
+    // from the evolving contents used for return and escape effects.
+    fixed_storage := Map(Str, RootBits).new()
 namespace:
     eq := func(a: DepositAcc, b: DepositAcc) returns Bool { return a.m.eq(b.m).and(a.borrowed == b.borrowed).and(a.retained == b.retained) }
     to_str := func(self: DepositAcc) returns Str { return self.m.to_str() }
@@ -15591,6 +15595,13 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
                 }
                 if roots.has(d.name).and(rhs_is_payload_binding(e.children[0], symbols)) { return RootBits() }
                 db := summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)
+                if d.ref_slot_explicit.and(d.is_mut.not()) {
+                    // The extra receivers are unique, unshadowed top-level
+                    // struct locals discovered by summary_receiver_declarations.
+                    for ri in params.len()..receivers.len() {
+                        if receivers[ri].name == d.name { acc.fixed_storage.set(d.name, own db.clone()); break }
+                    }
+                }
                 if db.is_zero().not() { roots.set(d.name, own db.clone()) }
             } else if e.children[0].node_type.is(NodeType.FCall) {
                 db := summary_expr_bits(e.children[0], roots, scope, self_type, params, symbols, ctx)
@@ -15656,7 +15667,13 @@ priv summary_walk := func(e: Expr, mut roots: Map(Str, RootBits), mut acc: Depos
                 if acc.retain_mask.neq(0).and(summary_fieldassign_targets_ref(e, scope, self_type, receivers, symbols)) {
                     acc.retained = acc.retained.bor(summary_ctor_wrap(src_bits).into)
                 }
-                sink_bits := summary_effect_sink_bits(e.children[0], roots, scope, self_type, receivers, symbols, ctx)
+                mut sink_bits := summary_effect_sink_bits(e.children[0], roots, scope, self_type, receivers, symbols, ctx)
+                switch e.children[0].node_type {
+                case .Ident(id):
+                    ref receiver: Str = id.ident_name(symbols.names)
+                    if acc.fixed_storage.has(receiver) { sink_bits = acc.fixed_storage[receiver] }
+                case:
+                }
                 if summary_target_expr_global(e.children[0], acc, scope, self_type, receivers, ctx) {
                     if summary_global_ref_field(e, scope, self_type, receivers, symbols, ctx) {
                         acc.global = acc.global.bor(summary_ctor_wrap(src_bits))
@@ -17322,25 +17339,25 @@ priv infer_clike_switch := proc(mut scope: TypeScope, mut stmt: Expr, enum_def_o
 // the enum name left blank, because only the switch subject knows it.
 // Returns the empty-Ident child of `pat` to fill in, or None. Sees through
 // the FCall wrapper a payload binding adds (`.Decl(dd)`).
-priv dotted_pattern_receiver := func(pat: Expr, symbols: SymbolPool) returns Option(ref Expr) {
-    mut fa_o : Option(ref Expr) = Option(ref Expr).None
+priv dotted_pattern_receiver := func(mut pat: Expr, symbols: SymbolPool) returns Option(ref mut Expr) {
+    mut fa_o := Option(ref mut Expr).None
     if pat.node_type.is(NodeType.FieldAccess) {
-        fa_o = safe_ref(pat)
+        fa_o = safe_ref_mut(pat)
     } else if pat.node_type.is(NodeType.FCall).and(pat.children.len().gt(0)) {
         if pat.children[0].node_type.is(NodeType.FieldAccess) {
-            fa_o = safe_ref(pat.children[0])
+            fa_o = safe_ref_mut(pat.children[0])
         }
     }
-    if fa_o.is_none() { return Option(ref Expr).None }
-    ref fa : Expr = fa_o.unwrap()
-    if fa.children.len() == 0 { return Option(ref Expr).None }
+    if fa_o.is_none() { return Option(ref mut Expr).None }
+    const ref mut fa : Expr = fa_o.unwrap()
+    if fa.children.len() == 0 { return Option(ref mut Expr).None }
     ref mut recv : Expr = fa.children[0]
     switch recv.node_type {
     case .Ident(rid):
-        if rid.ident_name(symbols.names).len() == 0 { return safe_ref(recv) }
+        if rid.ident_name(symbols.names).len() == 0 { return safe_ref_mut(recv) }
     case:
     }
-    return Option(ref Expr).None
+    return Option(ref mut Expr).None
 }
 
 // #341: fill in the enum name a leading-dot expression elided, taking it
@@ -17350,7 +17367,7 @@ priv dotted_pattern_receiver := func(pat: Expr, symbols: SymbolPool) returns Opt
 // position's own type check reports the mismatch, and a dotted expression
 // with no enum to resolve against is caught by infer_ident_expr's "needs a
 // known enum type in this position".
-priv qualify_dotted_expr := func(e: Expr, expected: Type, mut symbols: SymbolPool) {
+priv qualify_dotted_expr := func(mut e: Expr, expected: Type, mut symbols: SymbolPool) {
     recv_o := dotted_pattern_receiver(e, symbols)
     if recv_o.is_none() { return }
     if is_enum_type(expected).not() { return }
@@ -17365,10 +17382,10 @@ priv qualify_dotted_expr := func(e: Expr, expected: Type, mut symbols: SymbolPoo
 // what it sees today. A dotted pattern over a non-enum subject has no enum
 // to resolve against and is rejected here rather than left to fail as a
 // baffling "no variant" further down.
-priv qualify_dotted_case_patterns := proc(stmt: Expr, sw_type: Type, mut ctx: Context) {
+priv qualify_dotted_case_patterns := proc(mut stmt: Expr, sw_type: Type, mut ctx: Context) {
     ref sname : Str = type_name_ref(sw_type, ctx.symbols)
     for ci in 1..stmt.children.len() {
-        ref cnode : Expr = stmt.children[ci]
+        const ref mut cnode : Expr = stmt.children[ci]
         if cnode.node_type.is(NodeType.Case).not() { continue }
         for pi in 0..case_pattern_count(cnode) {
             recv_o := dotted_pattern_receiver(cnode.children[pi], ctx.symbols)

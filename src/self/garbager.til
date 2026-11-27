@@ -2504,7 +2504,7 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
         if stmt.node_type.is(NodeType.FieldAssign).not() { continue }
         if stmt.fa_own_type(scope, symbols).is(OwnType.Ref).not() { continue }
         if stmt.children.len() < 2 { continue }
-        ref mut target : Expr = stmt.children[0]
+        mut ref target : Expr = stmt.children[0]
         while target.node_type.is(NodeType.FieldAccess).and(target.children.len().gt(0)) {
             target = target.children[0]
         }
@@ -2560,7 +2560,7 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
             }
         }
         if ref_last == -1 { ref_last = i.to_i64() }
-        ref mut rhs : Expr = stmt.children[0]
+        ref rhs : Expr = stmt.children[0]
         switch rhs.node_type {
         case .Ident(src_name):
             gc_add_borrow_edge(edges, src_name.ident_name(symbols.names), dd_name, ref_last)
@@ -2568,15 +2568,8 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
         case:
         }
         if rhs.node_type.is(NodeType.FieldAccess) {
-            ref mut root : Expr = rhs
-            while root.node_type.is(NodeType.FieldAccess).and(root.children.len().gt(0)) {
-                root = root.children[0]
-            }
-            switch root.node_type {
-            case .Ident(src_name):
-                gc_add_borrow_edge(edges, src_name.ident_name(symbols.names), dd_name, ref_last)
-            case:
-            }
+            source := expr_root_ident_name(rhs, symbols)
+            if source.len() > 0 { gc_add_borrow_edge(edges, source, dd_name, ref_last) }
             continue
         }
         if rhs.node_type.is(NodeType.FCall).not() { continue }
@@ -2585,7 +2578,7 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
             // through its caller-side local. keep_outer marks destructor
             // calls that retain the outer shell, so those remain borrowers.
             if get_own_arg(rhs, a).and(get_keep_outer_arg(rhs, a).not()) { continue }
-            ref mut arg : Expr = rhs.children[a]
+            mut ref arg : Expr = rhs.children[a]
             while arg.node_type.is(NodeType.FieldAccess).and(arg.children.len().gt(0)) {
                 arg = arg.children[0]
             }

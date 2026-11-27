@@ -410,6 +410,7 @@ typedef struct Option__ref_Vec__UPtr Option__ref_Vec__UPtr;
 typedef struct Map__Str_RootBits Map__Str_RootBits;
 typedef struct Map__Str_priv___src_self_typer_til__ParameterPlaces Map__Str_priv___src_self_typer_til__ParameterPlaces;
 typedef struct Vec__priv___src_self_typer_til__CoverageNode Vec__priv___src_self_typer_til__CoverageNode;
+typedef struct Option__ref_mut_Expr Option__ref_mut_Expr;
 typedef struct Vec__priv___src_self_typer_til__ParameterPlaces Vec__priv___src_self_typer_til__ParameterPlaces;
 typedef struct PendingRefBinding PendingRefBinding;
 typedef struct priv___src_self_desugarer_til__StmtDesugarNeeds priv___src_self_desugarer_til__StmtDesugarNeeds;
@@ -1387,17 +1388,6 @@ typedef struct priv___src_self_typer_til__ReturnEscapeRoots {
 } priv___src_self_typer_til__ReturnEscapeRoots;
 
 
-typedef struct DepositAcc {
-    U64 m;
-    U64 borrowed;
-    U64 retained;
-    U64 retain_mask;
-    RootBits global;
-    Vec__Str locals;
-    Set__Str global_aliases;
-} DepositAcc;
-
-
 typedef struct priv___src_self_typer_til__ParameterPlaces {
     Vec__ParameterPlace values;
     Bool is_reference;
@@ -1431,6 +1421,10 @@ typedef struct Vec__priv___src_self_typer_til__CoverageNode {
     USize cap;
 } Vec__priv___src_self_typer_til__CoverageNode;
 
+
+struct Option__ref_mut_Expr {
+    Expr *data;
+};
 
 typedef struct Vec__priv___src_self_typer_til__ParameterPlaces {
     TIL_OWN_PTR(U8) data;
@@ -2656,6 +2650,18 @@ typedef struct FactIndex {
     U64 filt;
     Map__Str_USize idx;
 } FactIndex;
+
+
+typedef struct DepositAcc {
+    U64 m;
+    U64 borrowed;
+    U64 retained;
+    U64 retain_mask;
+    RootBits global;
+    Vec__Str locals;
+    Set__Str global_aliases;
+    Map__Str_RootBits fixed_storage;
+} DepositAcc;
 
 
 typedef struct priv___src_self_typer_til__CoverageNode {

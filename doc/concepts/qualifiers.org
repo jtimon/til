@@ -118,11 +118,11 @@ meanings. See [[../../issues/open/491.org::*Origin-linked borrows][#491]] for th
   mutable receiver. A specialization storing read-only ~ref T~ returns read-only
   ~ref T~ instead and needs no mutable receiver; the method name cannot upgrade
   an element's grant. Checked methods retain bounds/key errors. These borrows
-  neither transfer ownership nor extend storage validity. For owned Array
+  neither transfer ownership nor extend storage validity. For owned Vec and Array
   elements, ~get~ and ~unsafe_get~ now have receiver-linked results, as does
   ~Map.get~ for owned values. Borrowed-element specializations keep their
   existing contracts. Mutable iteration preserves the receiver's grant
-  through lowering. Vec's getter signature switch follows that bootstrap step.
+  through lowering.
 - Implemented: ~TilVm.shared_i64()~ explicitly returns ~ref mut I64~. The scalar
   remains VM-owned. Denied writable-return paths retain their source explanation
   across aliases/temporaries, naming getters instead of compiler temporary slots.

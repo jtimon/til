@@ -4,6 +4,16 @@
 
 *** Existing preparation
 
+Owned ~Vec.get~ and ~Vec.unsafe_get~ now link the returned element to the
+receiver, including ordinary subscripts in the compiler itself. The
+~generics~ fixture exercises both mutable and read-only receivers. The
+installed SDK callback fixture reads its host-owned Tuple after deleting the
+VM: writing the environment of an interpreted closure must not deposit a
+borrow in the separately stored function definition. The evaluator borrows
+the definition read-only for both static and captured callables. A resolved
+external target and a specialized return type belong to the current call;
+dispatch does not rewrite the shared AST to communicate them.
+
 This is enforcement and source/API migration work, not a request for a new
 owned-return qualifier. The parser/AST preparation in ~ceca22348~ already
 accepts ~returns ref mut T~ on named functions/signatures and inline ~Fn~

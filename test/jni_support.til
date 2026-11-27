@@ -44,7 +44,8 @@ build_checkers_record := proc(compiler: Str, target: Str, width: Str, level: Str
     hash.arg(payload)
     hash.capture_out()
     hash.run_checked()
-    digest := hash.out().split(" ")[0].clone()
+    words := hash.out().split(" ")
+    digest := words[0].clone()
     if digest.len() != 64 { panic("invalid SHA-256 for ", payload, ": ", digest) }
     return format(digest, " ", level, " ", target, " c ", width, " examples/checkers.til aligned.apk")
 }

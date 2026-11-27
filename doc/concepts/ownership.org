@@ -122,12 +122,12 @@ fixed ~const ref mut~ alias uses its referent grant, not slot replacement, to
 permit writes. Opaque, raw and recursively widened origins retain conservative
 provenance rather than treating a partially known return as the only origin.
 
-For owned Array elements and owned Map values, subscripting borrows through
+For owned Vec and Array elements and owned Map values, subscripting borrows through
 the receiver: ~ref mut item := items[i]~ can change the stored element if
 ~items~ supplies writable access. The same expression through a read-only
-receiver lends a read-only element. Array's unchecked getter follows the
-same rule. Vec's owned-element getter migration is staged after the loop
-lowering change; its writable accessor is still explicit at this checkpoint.
+receiver lends a read-only element. Vec and Array's unchecked getters follow
+the same rule. Bind an owned collection result to a local before borrowing an
+element from it: the local keeps the backing allocation alive.
 
 Explicit writable collection access uses ~Vec~ / ~Array~ ~get_mut~ and
 ~unsafe_get_mut~, and ~Map.get_mut~. Owned elements and elements stored as

@@ -431,7 +431,7 @@ priv fasm_definition := func(name: Str, program: FasmProgram, lp: LoadedProgram)
     ref location : FasmDefinition = program.definitions[name]
     ref unit : ImportUnit = lp.ctx.imported[location.path]
     ref declaration : Expr = unit.ast.children.unsafe_get(location.declaration)
-    ref mut value : Expr = declaration.children.unsafe_get(0)
+    mut ref value : Expr = declaration.children.unsafe_get(0)
     if location.member >= 0 { value = def_ns_decls(value)[location.member.to_usize()].default_expr() }
     for index : USize in location.nested { value = value.children[index] }
     return value
@@ -2582,7 +2582,7 @@ priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram, 
             fasm_bind(dd.name, t, own slot, false, pointer, boxed, dd.own_type.is(OwnType.Ref), state)
         case .Assign(dd):
             if state.values.has(dd.name).not() { fasm_error(stmt, "unknown assignment storage", lp); continue }
-            ref mut rhs : Expr = stmt.children[0]
+            mut ref rhs : Expr = stmt.children[0]
             if dd.is_move && rhs_is_clone_fcall(rhs, lp.ctx.symbols) { rhs = rhs.children[1] }
             t := state.value_types[dd.name].clone()
             if type_is_callable_storage(t) {
@@ -2649,7 +2649,7 @@ priv fasm_body := proc(body: Expr, mut state: FasmState, mut lp: LoadedProgram, 
                 continue
             }
             ref owner : Expr = stmt.children[0]
-            ref mut rhs : Expr = stmt.children[1]
+            mut ref rhs : Expr = stmt.children[1]
             if fd.is_move && rhs_is_clone_fcall(rhs, lp.ctx.symbols) { rhs = rhs.children[1] }
             if fasm_aggregate(owner.til_type(), lp).not() { fasm_error(stmt, "unsupported field assignment", lp); continue }
             ref field : Declaration = fasm_field_decl(owner, fd.name, lp)

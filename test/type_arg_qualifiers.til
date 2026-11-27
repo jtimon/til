@@ -886,14 +886,14 @@ writable_accessor_checks := proc(compiler: Str, root: Str, asan: Bool) {
         "MutableItem := interface { value := func(self: MutableItem) returns I64\nset_value := func(mut self: MutableItem, n: I64) }\n",
         "Item := struct implements MutableItem { n: I64 = 0\nnamespace:\n",
         "value := func(self: Item) returns I64 { return self.n }\nset_value := func(mut self: Item, n: I64) { self.n = n } }\n",
-        "vec_item := func(mut items: Vec(Item), index: USize) returns ref mut Item { return items.get_mut(index)! }\n",
+        "vec_item := func(mut items: Vec(Item), index: USize) returns ref mut Item { return items[index] }\n",
         "array_item := func(mut items: Array(Item), index: USize) returns ref mut Item { return items[index] }\n",
         "map_item := func(mut items: Map(Str, Item), key: Str) returns ref mut Item { return items[key] }\n")
     source := format(prelude,
         "main := proc() {\n",
         "mut items := Vec(Item).new()\nitems.push(own Item(n = 1))\n",
         "ref mut first: Item = vec_item(items, 0)\nfirst.n = 2\n",
-        "ref mut unchecked: Item = items.unsafe_get_mut(0)\nunchecked.n = 3\nassert_eq(I64, items[0].n, 3)\n",
+        "ref mut unchecked: Item = items.unsafe_get(0)\nunchecked.n = 3\nassert_eq(I64, items[0].n, 3)\n",
         "mut fixed := Array(Item).new(1)\nfixed.set(0, own Item(n = 4))!\n",
         "ref mut array_value: Item = array_item(fixed, 0)\narray_value.n = 5\n",
         "ref mut array_unchecked: Item = fixed.unsafe_get(0)\narray_unchecked.n = 6\nassert_eq(I64, fixed[0].n, 6)\n",
@@ -944,7 +944,7 @@ writable_accessor_checks := proc(compiler: Str, root: Str, asan: Bool) {
     check(Cmd.new(compiler, "interpret", format(root, "/alternate_writable_accessors.til")), "writable accessors passed\n")
     check_run(compiler, root, "alternate_writable_accessors", "writable accessors passed\n", asan)
     for definition: Str in array(Str,
-        "bad := func(mut items: Vec(Item)) returns ref mut Item { return items.get(0)! }\n",
+        "bad := func(items: Vec(Item)) returns ref mut Item { return items.get(0)! }\n",
         "bad := func(items: Array(Item)) returns ref mut Item { return items.unsafe_get(0) }\n",
         "bad := func(items: Map(Str, Item)) returns ref mut Item { return items.get(\"key\")! }\n",
         "bad := func(mut items: Vec(ref Item)) returns ref mut Item { return items.get_mut(0)! }\n",
@@ -960,7 +960,7 @@ writable_accessor_checks := proc(compiler: Str, root: Str, asan: Bool) {
         reject_generic(compiler, root, format(prelude, definition, "main := proc() {}\n"), "cannot return a writable reference")
     }
     reject_generic(compiler, root, format(prelude,
-        "bad := func(mut items: Vec(Item), index: USize) returns ref mut Item { return items[index] }\nmain := proc() {}\n"),
+        "bad := func(mut items: Vec(ref Item), index: USize) returns ref mut Item { return items[index] }\nmain := proc() {}\n"),
         "call to 'get' has no 'returns ref mut' contract")
     reject_generic(compiler, root, format(prelude,
         "bad := func(mut items: Vec(ref Item)) returns ref mut Item { return items.get_mut(0)! }\nmain := proc() {}\n"),

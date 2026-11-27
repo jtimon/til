@@ -1705,7 +1705,7 @@ priv body_dce_ns := proc(mut rhs: Expr, scope: TypeScope, mut symbols: SymbolPoo
         if nsd.default_value.is_none() { continue }
         if nsd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
         if nsd.default_expr().children.len() == 0 { continue }
-        body_dce_walk(nsd.default_expr().children[0], false, scope, symbols)
+        body_dce_walk(nsd.default_expr_mut().children[0], false, scope, symbols)
     }
 }
 

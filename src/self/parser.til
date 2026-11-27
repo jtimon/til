@@ -1122,7 +1122,7 @@ priv parse_func_def := proc(mut p: Parser) returns Expr {
             if pi >= sfd.sig.params.len() {
                 parse_fail(p, peek_line(p), peek_col(p), "too many param names for FuncSig form (got more than ", sfd.sig.params.len().to_str(), ")")
             }
-            ref mut pp : Declaration = sfd.sig.params.get_mut(pi)!
+            ref mut pp : Declaration = sfd.sig.params[pi]
             pp.name = pn.clone()
             pi++
             if check(p, TokenType.Comma) { advance(p) }

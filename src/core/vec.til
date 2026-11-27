@@ -336,7 +336,7 @@ namespace:
     /// This is the unchecked core that ~get~ wraps; for-in uses it
     /// directly because its ~_fi < len()~ termination test already
     /// proves the index in bounds (issue #284).
-    unsafe_get := func(self: Vec(T), i: USize) returns ref T {
+    unsafe_get := func(ref[a] self: Vec(T), i: USize) returns ref[a] T {
         return ptr_add(self.data, i.to_uptr().mul(T.size().to_uptr()))
     }
 
@@ -356,7 +356,7 @@ namespace:
     /// OutOfBounds if ~i~ is past the end; call as ~vec[i]~
     /// to panic on a bad index. The reference is valid until the
     /// next mutation.
-    get := func(self: Vec(T), shallow i: USize) returns ref T throws OutOfBounds {
+    get := func(ref[a] self: Vec(T), shallow i: USize) returns ref[a] T throws OutOfBounds {
         // In-range case FIRST so the throw is the body's LAST statement.
         // The throws lowering guards every statement that FOLLOWS a throw
         // with `if _err_kind == 0 { ... }`, and that guard re-reads the

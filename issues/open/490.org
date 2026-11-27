@@ -4,6 +4,12 @@
 
 *** Bootstrap plan and progress
 
+Read-only tree traversal cursors now use ~mut ref~ to replace the cursor
+without requesting write access to its target. A fixed writable local used
+to initialize the interpreter's closure box keeps its original destination
+when other borrows are stored in its fields. General alias creation and
+rebinding enforcement are still pending.
+
 This is a parser-contract migration, using ~doc/self.org~ "Staged migration
 across master merges". The old bootstrap compiler cannot parse the new
 writable/fixed-reference field spelling needed by the compiler's own sources:
