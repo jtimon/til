@@ -1849,11 +1849,9 @@ jobs:
       # Issue #504: linux-x64 and linux-arm64 from the Windows host, with
       # the trees unpacked by Windows' own tar. Listed strict since CI run
       # 3211: both lists were the Linux hosts' and the arm64 Mac's, every
-      # item. The step itself may still fail without failing the job until
-      # a run has shown libsecp256k1 for these targets building here.
+      # item (libsecp256k1 too, run 3219).
       - name: Write the linux binary hash list with the pinned C library
         if: always()
-        continue-on-error: true
         shell: C:\msys64\usr\bin\bash.exe -leo pipefail {0}
         run: |
           export PATH="$PWD/vendor/llvm/bin:$PWD/vendor/llvm-mingw/bin:$PATH"
@@ -1865,11 +1863,11 @@ jobs:
           ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary windows-x64 tmp/hashes-binary-linux/windows-x64.txt bin/til.exe linux-x64 linux-arm64
       - name: Upload the linux binary hash list
         if: always()
-        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-linux-windows-x64
           path: tmp/hashes-binary-linux/windows-x64.txt
+          if-no-files-found: error
       # Issue #504: the other four linux targets from this host, a first
       # try: on trial and continue-on-error (the two Linux hosts' lists of
       # them are strict and equal).

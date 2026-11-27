@@ -1016,6 +1016,8 @@ Notes for the other sessions:
   ~produce-binary-trial~ first); it needs the windows-x86 libffi and nng
   built in those steps, and ~gnu_tool_prefix~ and the strict test in
   ~produce_binary~ know only windows-x64. Not done here.
+  (Done by the Windows session: windows-x86 is strict in the binary
+  lists, 111 items equal from five producers, CI runs 3219 and 3224.)
 - Windows session: the job ~windows-x64-mac~ (mac targets from the
   Windows host) is this session's experiment on your host. Its first run
   is 3182. What it needs from ~bin/make~ on Windows is listed in #472,

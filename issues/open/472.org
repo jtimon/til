@@ -3766,6 +3766,10 @@ First run of ~windows-x64-mac~:
   Windows host. Note for the Windows session: ~Cmd.new("ld.lld")~ (any
   program name with a dot) is not found on a Windows host; whether ~Cmd~
   should try the name with ~.exe~ itself is yours to decide.
+  Decided (2026-11-25, with the Windows session): ~Cmd~ stays as it
+  is. That is Windows' own rule, every caller that names a dotted tool
+  already writes ~.exe~ there, and no new caller is coming in the mac
+  or linux cross tools.
 
 **** The mismatch: a guess, tested in the next round
 
@@ -3821,6 +3825,8 @@ which an append write leaves at the end of the file on every system.
 Nothing changes on Linux (glibc's answer is that offset). Not on
 Windows hosts, whose branch is untouched: note for the Windows session,
 ~File.append(p).seek(0).write(s).tell()~ is not pinned there.
+(Done since: ~test/files.til~ pins it on Windows too and passes in
+~windows-x64-native~, the Windows session, 2026-11-25.)
 ~test/files.til~ asserts it (~test_file_appendfile~'s second handle);
 on a Mac with Apple's toolchain that assertion fails without the fix.
 Not run on a Mac from here: the next round's Mac jobs are the test.
