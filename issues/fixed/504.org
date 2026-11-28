@@ -1,6 +1,52 @@
 # priority: medium
 # category: features
-** WIP #504 Linux targets: the host's C library leaks into the binary (header paths in debug info today, more with other hosts)
+** FIXED #504 Linux targets: the host's C library leaks into the binary (header paths in debug info today, more with other hosts)
+
+*** Post-mortem (2026-11-28)
+
+Root cause: glibc was the one part of a linux build taken from the host.
+Its header paths were in every binary's debug info, its version decided
+which symbols an object named, and each host's gcc and binutils wrote
+their own bytes around it, so a linux binary depended on the machine
+that built it.
+
+What changed (decided by Jorge, 2026-11-20: bundle the C library):
+
+- ~bin/make linux_sysroots~ (and ~vendor/linux/<target>~ for one)
+  downloads, checks by sha256 and unpacks the target side of Bootlin's
+  toolchains, glibc 2.34, for the six linux targets (~make.til~,
+  ~linux_sysroots~).
+- Where that tree is unpacked, til builds the target with clang, lld and
+  the tree on every host (~targets.til~: ~linux_is_pinned~,
+  ~linux_pinned_args~, ~clang_resource_map_args~), archives with
+  ~llvm-ar~, and ~bin/make~ builds libffi, nng, libsecp256k1, raylib
+  and tinyfiledialogs the same way. Without the tree nothing changes.
+- Found on the way, each from a CI run that showed it: clang's sanitizer
+  runtime wants the generic tuple (~--gcc-install-dir~); an ASAN
+  interpreter built by clang compiles its FFI module with clang; a
+  cross cmake build starts from an empty directory; a Mac's ~ar~ and a
+  Windows host's ~cmd.exe~ quoting of ~$ORIGIN~ and its backslash in
+  header paths each made one host's bytes differ.
+
+Result (CI run 3237, collect green): the six linux targets are the same
+bytes from four hosts -- Linux x64, Linux arm64, the arm64 Mac and
+Windows -- til at both widths, each Linux host's own tested ~bin/til~,
+the programs, a library, libffi, nng and libsecp256k1. The two Linux
+native jobs and the five qemu jobs build and run exactly those builds.
+
+Regression tests: the collector's ~binary~ level for the linux targets
+(~examples/ci_collect.til~, ~produce_binary~; a difference from any of
+the four hosts fails the ~collect~ job), and ~test/reproducible_build.til~
+run for each of the six targets in the Linux hosts' list steps.
+
+The second acceptance item, a host with another glibc: the host's glibc
+no longer enters a pinned build, and three of the four hosts have none
+or another one (glibc 2.39 on the Linux runners, none on the Mac and on
+Windows). A host WITHOUT the tree unpacked builds with its own compiler
+and C library as before, and that build is outside the guarantee. The
+Intel Mac, which has no LLVM package of the pinned release, is
+[[../open/511.org][#511]].
+
 
 Split from [[./472.org][#472]] (Jorge, 2026-11-16): which model to follow
 is undecided, so it gets its own issue. #472 and #473 cannot finish for
@@ -120,10 +166,10 @@ adds a tree, so each needs Jorge's yes.
 
 *** Acceptance
 
-- [ ] For linux-arm64 and linux-x64, til built natively and cross-built
+- [X] For linux-arm64 and linux-x64, til built natively and cross-built
   on the other architecture's host is the same bytes, whole file, in a
   CI run (the collector's ~binary~ level, #472).
-- [ ] The answer is written down for a host with another glibc version:
+- [X] The answer is written down for a host with another glibc version:
   either the same bytes there too, or stated as outside the guarantee.
 
 *** Decided (Jorge, 2026-11-20): bundle the C library, from Bootlin, for all six targets
@@ -464,11 +510,16 @@ the windows targets from five. libsecp256k1 for the linux targets was
 equal wherever it was built, so it is at its target's level now, and
 the Windows host's linux list step may no longer fail quietly.
 
-**** Next
+**** CI run 3237: all six targets from four hosts
 
-- The other four linux targets from the arm64 Mac and the Windows
-  host: strict once a run shows them equal.
-- The Intel Mac for ELF targets: its own issue, [[./511.org][#511]].
-- The trees are cached in CI, as the pinned LLVM is: one entry per job
-  and per table in ~make.til~ (the seven Linux jobs and the arm64 Mac;
-  not the Windows host, whose trees hold links its tar made).
+Run 3237 (master 4a46bb0; every job green). The arm64 Mac and the
+Windows host built linux-arm32, -riscv64, -x86 and -riscv32 for the
+first time, and every item was the two Linux hosts': 120 items each for
+the 32-bit targets, 141 + 2 for linux-riscv64. Those two hosts list all
+six with ~produce-binary~ now, in one list each.
+
+**** Left when this closed
+
+- The Intel Mac: [[../open/511.org][#511]].
+- raylib and tinyfiledialogs are built pinned but are in no list; they
+  go with [[../open/472.org][#472]]'s remaining item.

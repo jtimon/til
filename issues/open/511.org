@@ -2,7 +2,7 @@
 # category: backends
 ** OPEN #511 The Intel Mac as a host: it cannot build the linux targets to the same bytes; keep it at all?
 
-Split from [[./504.org][#504]] and [[./472.org][#472]] (Jorge, 2026-11-27).
+Split from [[../fixed/504.org][#504]] and [[./472.org][#472]] (Jorge, 2026-11-27).
 
 *** What works there
 

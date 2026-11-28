@@ -2571,7 +2571,7 @@ strict producers differing (fails).
 Jorge, 2026-11-16: which model to follow for the host's C library on the
 Linux targets (rewrite the recorded paths as Rust does, use no C library
 as Go does, or bundle the headers as Zig does) is undecided, and is now
-[[./504.org][#504]], with the measurements, what those languages do and
+[[../fixed/504.org][#504]], with the measurements, what those languages do and
 the options. Nothing left in this issue for linux-arm64 and linux-x64
 moves until it is decided; the mac targets and S7 do not depend on it.
 
@@ -4095,7 +4095,7 @@ linux-arm64 (136 + 2) are equal -- til at both widths, the programs,
 the library, libffi and nng -- but for ~make bin/til~, where each host
 still listed its own gcc build. The record, what the suite needed to
 pass on a pinned host build, the other four targets and what CI tries
-next are in ~issues/open/504.org~.
+next are in ~issues/fixed/504.org~.
 
 *** What continues elsewhere (Jorge, 2026-11-27)
 

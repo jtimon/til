@@ -1846,21 +1846,21 @@ jobs:
           name: hashes-binary-mac-x64-windows-x64
           path: tmp/hashes-binary-mac-x64/windows-x64.txt
           if-no-files-found: error
-      # Issue #504: linux-x64 and linux-arm64 from the Windows host, with
-      # the trees unpacked by Windows' own tar. Listed strict since CI run
-      # 3211: both lists were the Linux hosts' and the arm64 Mac's, every
-      # item (libsecp256k1 too, run 3219).
+      # Issue #504: the six linux targets from the Windows host, with the
+      # trees unpacked by Windows' own tar. Strict: linux-x64 and
+      # linux-arm64 since CI run 3211, the other four since run 3237,
+      # every item the Linux hosts' and the arm64 Mac's.
       - name: Write the linux binary hash list with the pinned C library
         if: always()
         shell: C:\msys64\usr\bin\bash.exe -leo pipefail {0}
         run: |
           export PATH="$PWD/vendor/llvm/bin:$PWD/vendor/llvm-mingw/bin:$PATH"
-          ./bin/make vendor/linux/linux-x64 vendor/linux/linux-arm64
-          for target in linux-x64 linux-arm64; do
+          ./bin/make linux_sysroots
+          for target in linux-x64 linux-arm64 linux-arm32 linux-riscv64 linux-x86 linux-riscv32; do
             ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a vendor/secp256k1/build-$target/lib/libsecp256k1.a
           done
           mkdir -p tmp/hashes-binary-linux
-          ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary windows-x64 tmp/hashes-binary-linux/windows-x64.txt bin/til.exe linux-x64 linux-arm64
+          ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary windows-x64 tmp/hashes-binary-linux/windows-x64.txt bin/til.exe linux-x64 linux-arm64 linux-arm32 linux-riscv64 linux-x86 linux-riscv32
       - name: Upload the linux binary hash list
         if: always()
         uses: actions/upload-artifact@v4
@@ -1868,28 +1868,6 @@ jobs:
           name: hashes-binary-linux-windows-x64
           path: tmp/hashes-binary-linux/windows-x64.txt
           if-no-files-found: error
-      # Issue #504: the other four linux targets from this host, a first
-      # try: on trial and continue-on-error (the two Linux hosts' lists of
-      # them are strict and equal).
-      - name: Write the hash list of the other four linux targets
-        if: always()
-        continue-on-error: true
-        shell: C:\msys64\usr\bin\bash.exe -leo pipefail {0}
-        run: |
-          export PATH="$PWD/vendor/llvm/bin:$PWD/vendor/llvm-mingw/bin:$PATH"
-          ./bin/make vendor/linux/linux-arm32 vendor/linux/linux-riscv64 vendor/linux/linux-x86 vendor/linux/linux-riscv32
-          for target in linux-arm32 linux-riscv64 linux-x86 linux-riscv32; do
-            ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a vendor/secp256k1/build-$target/lib/libsecp256k1.a
-          done
-          mkdir -p tmp/hashes-binary-linux4
-          ./bin/til.exe run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial windows-x64 tmp/hashes-binary-linux4/windows-x64.txt bin/til.exe linux-arm32 linux-riscv64 linux-x86 linux-riscv32
-      - name: Upload the hash list of the other four linux targets
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: hashes-binary-linux4-windows-x64
-          path: tmp/hashes-binary-linux4/windows-x64.txt
       # Issue #473: windows-x86 has no host of its own; this one runs its
       # programs (WOW64). They were cross-built on Linux and run here by a
       # second job; this host builds windows-x86 itself, so it builds and
@@ -2210,10 +2188,10 @@ jobs:
           name: hashes-binary-windows-macos-arm64
           path: tmp/hashes-binary-windows/macos-arm64.txt
           if-no-files-found: error
-      # Issue #504: linux-x64 and linux-arm64 from this Mac, against the
-      # pinned C library and with the pinned clang first on PATH, as on
-      # the Linux hosts. Strict since CI run 3210: both lists were the
-      # Linux hosts', every item.
+      # Issue #504: the six linux targets from this Mac, against the pinned
+      # C library and with the pinned clang first on PATH, as on the Linux
+      # hosts. Strict: linux-x64 and linux-arm64 since CI run 3210, the
+      # other four since run 3237, every item the Linux hosts'.
       # The pinned C library trees (make.til, linux_sysroots), kept between
       # runs like the pinned LLVM: one cache entry per job and table, so a
       # run does not depend on the Bootlin server being reachable.
@@ -2228,42 +2206,23 @@ jobs:
         uses: actions/cache@v4
         with:
           path: vendor/linux
-          key: linux-trees-macos-arm64-${{ steps.linux-trees.outputs.key }}
+          key: linux-trees-macos-arm64-six-${{ steps.linux-trees.outputs.key }}
       - name: Write the linux binary hash list with the pinned C library
         run: |
           export PATH="$PWD/vendor/llvm/bin:$PATH"
           clang --version | grep -q "clang version 23.1.5"
-          ./bin/make vendor/linux/linux-x64 vendor/linux/linux-arm64
-          for target in linux-x64 linux-arm64; do
+          ./bin/make linux_sysroots
+          for target in linux-x64 linux-arm64 linux-arm32 linux-riscv64 linux-x86 linux-riscv32; do
             ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a vendor/secp256k1/build-$target/lib/libsecp256k1.a
           done
           mkdir -p tmp/hashes-binary-linux
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary-linux/macos-arm64.txt bin/til linux-x64 linux-arm64
+          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary macos-arm64 tmp/hashes-binary-linux/macos-arm64.txt bin/til linux-x64 linux-arm64 linux-arm32 linux-riscv64 linux-x86 linux-riscv32
       - name: Upload the linux binary hash list
         uses: actions/upload-artifact@v4
         with:
           name: hashes-binary-linux-macos-arm64
           path: tmp/hashes-binary-linux/macos-arm64.txt
           if-no-files-found: error
-      # Issue #504: the other four linux targets from this host, a first
-      # try: on trial and continue-on-error (the two Linux hosts' lists of
-      # them are strict and equal).
-      - name: Write the hash list of the other four linux targets
-        continue-on-error: true
-        run: |
-          export PATH="$PWD/vendor/llvm/bin:$PATH"
-          ./bin/make vendor/linux/linux-arm32 vendor/linux/linux-riscv64 vendor/linux/linux-x86 vendor/linux/linux-riscv32
-          for target in linux-arm32 linux-riscv64 linux-x86 linux-riscv32; do
-            ./bin/make vendor/libffi/build-$target/.libs/libffi.a vendor/nng/build-$target/libnng.a vendor/secp256k1/build-$target/lib/libsecp256k1.a
-          done
-          mkdir -p tmp/hashes-binary-linux4
-          ./bin/til run -o bin/c/ci_collect -c gen/c/ci_collect.c examples/ci_collect.til produce-binary-trial macos-arm64 tmp/hashes-binary-linux4/macos-arm64.txt bin/til linux-arm32 linux-riscv64 linux-x86 linux-riscv32
-      - name: Upload the hash list of the other four linux targets
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: hashes-binary-linux4-macos-arm64
-          path: tmp/hashes-binary-linux4/macos-arm64.txt
       # Issue #473: wasm32 from this Mac too (see the wasm32 job).
       - name: Write the wasm32 binary hash list
         if: false
