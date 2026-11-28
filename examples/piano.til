@@ -37,18 +37,29 @@ MAP_BTN_X : I32 = SONG_BTN_X + SONG_BTN_W + TOGGLE_GAP
 PUZZLE_X : I32 = MAP_BTN_X + SONG_BTN_W + TOGGLE_GAP
 PUZZLE_Y : I32 = TOGGLE_Y - TOGGLE_H - TOGGLE_GAP
 
+PuzzleQuality := struct {
+    name : Str = ""
+    middle : USize = 0
+    upper : USize = 0
+}
+PUZZLE_QUALITIES := array(PuzzleQuality,
+    PuzzleQuality(name="Minor", middle=3, upper=7),
+    PuzzleQuality(name="Major", middle=4, upper=7),
+    PuzzleQuality(name="Diminished", middle=3, upper=6),
+    PuzzleQuality(name="Augmented", middle=4, upper=8),
+    PuzzleQuality(name="Sus2", middle=2, upper=7),
+    PuzzleQuality(name="Sus4", middle=5, upper=7))
+
 // Grade the held pitch classes, independent of doubling, octave or inversion.
-puzzle_matches := func(held: Array(I32), root: USize, minor: Bool) returns Bool {
-    mut third : USize = 4
-    if minor { third = 3 }
+puzzle_matches := func(held: Array(I32), root: USize, quality: PuzzleQuality) returns Bool {
     mut found := Array(Bool).new(12)
     for i : USize in 0..held.len() {
         if held[i].eq(0) { continue }
         interval := (i + 12 - root % 12) % 12
-        if interval.eq(0).or(interval.eq(third)).or(interval.eq(7)).not() { return false }
+        if interval.eq(0).or(interval.eq(quality.middle)).or(interval.eq(quality.upper)).not() { return false }
         found[interval] = true
     }
-    return found[0].and(found[third]).and(found[7])
+    return found[0].and(found[quality.middle]).and(found[quality.upper])
 }
 
 puzzle_note_name := func(i: USize, mode: I32) returns Str {
@@ -56,7 +67,7 @@ puzzle_note_name := func(i: USize, mode: I32) returns Str {
     return SOLFEGE_CHROMATIC_NAMES[i % 12].clone()
 }
 
-puzzle_check := func(held: Array(I32), root: USize, minor: Bool, mode: I32) returns Str {
+puzzle_check := func(held: Array(I32), root: USize, quality: PuzzleQuality, mode: I32) returns Str {
     mut seen := Array(Bool).new(12)
     mut notes := ""
     for i : USize in 0..held.len() {
@@ -66,7 +77,7 @@ puzzle_check := func(held: Array(I32), root: USize, minor: Bool, mode: I32) retu
         notes = format(notes, puzzle_note_name(i, mode))
     }
     if notes.is_empty() { return "Play your chord first, then release it and press Check." }
-    if puzzle_matches(held, root, minor) { return format("Correct! You played ", notes, ". Choose New root to try another.") }
+    if puzzle_matches(held, root, quality) { return format("Correct! You played ", notes, ". Choose New root to try another.") }
     return format("Last check: you played ", notes, ". Listen again, then try changing one note.")
 }
 
@@ -97,14 +108,14 @@ test_puzzle_release_before_check := test() {
 test_puzzle_minor := test() {
     mut held := Array(I32).new(NUM_KEYS)
     held[5] = 1; held[9] = 1; held[14] = 1; held[26] = 1
-    assert(puzzle_matches(held, 14, true))
-    assert(puzzle_matches(held, 14, false).not())
+    assert(puzzle_matches(held, 14, PUZZLE_QUALITIES[0]))
+    assert(puzzle_matches(held, 14, PUZZLE_QUALITIES[1]).not())
     held[6] = 1
-    assert(puzzle_matches(held, 14, true).not())
+    assert(puzzle_matches(held, 14, PUZZLE_QUALITIES[0]).not())
     held[5] = 0
-    assert(puzzle_matches(held, 14, false))
+    assert(puzzle_matches(held, 14, PUZZLE_QUALITIES[1]))
     held[9] = 0
-    assert(puzzle_matches(held, 14, false).not())
+    assert(puzzle_matches(held, 14, PUZZLE_QUALITIES[1]).not())
 }
 
 // Four-row QWERTY adaptation of Janko's six-row keyboard. In 12-TET
@@ -129,30 +140,30 @@ test_janko_chords := test() {
 }
 
 // Keep the clue and its highlighted keys in the playable keyboard range.
-puzzle_clue_keys := func(root: USize, minor: Bool, janko: Bool) returns Array(USize) {
+puzzle_clue_keys := func(root: USize, quality: PuzzleQuality, janko: Bool) returns Array(USize) {
     mut bottom := root
     mut limit := NUM_KEYS
     if janko {
         limit = janko_note(9) + 1
         if bottom.lt(PIANO_C4_KEY_OFFSET) { bottom = bottom + 12 }
     }
-    if (bottom + 7).gte(limit) { bottom = bottom - 12 }
-    mut third : USize = 4
-    if minor { third = 3 }
-    return array(USize, bottom, bottom + third, bottom + 7)
+    if (bottom + quality.upper).gte(limit) { bottom = bottom - 12 }
+    return array(USize, bottom, bottom + quality.middle, bottom + quality.upper)
 }
 
 test_puzzle_clue_voicing := test() {
     for root in 0..NUM_KEYS {
-        for minor : Bool in array(Bool, false, true) {
+        for q in 0..PUZZLE_QUALITIES.len() {
             for janko : Bool in array(Bool, false, true) {
-                notes := puzzle_clue_keys(root, minor, janko)
+                notes := puzzle_clue_keys(root, PUZZLE_QUALITIES[q], janko)
                 mut held := Array(I32).new(NUM_KEYS)
                 for i : USize in notes {
                     if janko { assert(i.gte(PIANO_C4_KEY_OFFSET).and(i.lte(janko_note(9)))) }
                     held[i] = 1
                 }
-                assert(puzzle_matches(held, root, minor))
+                for other in 0..PUZZLE_QUALITIES.len() {
+                    assert_eq(Bool, puzzle_matches(held, root, PUZZLE_QUALITIES[other]), q.eq(other))
+                }
             }
         }
     }
@@ -193,7 +204,7 @@ main := proc() {
     mut last_chord := Array(I32).new(NUM_KEYS)
     mut reveal := false
     mut answer_keys := Array(Bool).new(NUM_KEYS)
-    mut minor := true
+    mut quality_idx : USize = 0
     mut feedback := ""
     mut clue := Array(Sound).new(3)
     mut clue_loaded := false
@@ -288,7 +299,7 @@ main := proc() {
                 if ((mx - TOGGLE_X) % (TOGGLE_W + TOGGLE_GAP)).lt(TOGGLE_W) {
                     if col.eq(0) { puzzle_root = -1; feedback = ""; reveal = false }
                     if col.eq(1) {
-                        minor = minor.not(); feedback = ""; reveal = false
+                        quality_idx = (quality_idx + 1) % PUZZLE_QUALITIES.len(); feedback = ""; reveal = false
                         for i : USize in 0..NUM_KEYS { last_chord[i] = 0 }
                     }
                     if col.eq(2) { listen_now = true }
@@ -395,7 +406,7 @@ main := proc() {
                     // Both use independent clue sounds; Cheat also shows the keys.
                     reveal = cheat_now
                     for i in 0..NUM_KEYS { answer_keys[i] = false }
-                    notes := puzzle_clue_keys(puzzle_root.to_usize(), minor, janko)
+                    notes := puzzle_clue_keys(puzzle_root.to_usize(), PUZZLE_QUALITIES[quality_idx], janko)
                     for v : USize in 0..3 {
                         if clue_loaded { UnloadSound(clue[v]) }
                         index := notes[v].clone()
@@ -407,7 +418,7 @@ main := proc() {
                     for v : USize in 0..3 { PlaySound(clue[v]) }
                 }
                 if check_now.or(IsKeyPressed(257)) {
-                    feedback = puzzle_check(last_chord, puzzle_root.to_usize(), minor, display_mode)
+                    feedback = puzzle_check(last_chord, puzzle_root.to_usize(), PUZZLE_QUALITIES[quality_idx], display_mode)
                 }
             }
         }
@@ -656,9 +667,8 @@ main := proc() {
         DrawRectangle(PUZZLE_X, TOGGLE_Y, SONG_BTN_W, TOGGLE_H, puzzle_color)
         DrawTextEx(fnt, "Chord puzzle".c_str, Vector2(x=(PUZZLE_X + 14).to_f32(), y=(TOGGLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
         if puzzle {
-            mut quality := "Major"
-            if minor { quality = "Minor" }
-            labels := array(Str, "New root", quality, "Listen", "Cheat", "Check (Enter)")
+            ref quality : PuzzleQuality = PUZZLE_QUALITIES[quality_idx]
+            labels := array(Str, "New root", format(quality.name, " >"), "Listen", "Cheat", "Check (Enter)")
             for col : USize in 0..labels.len() {
                 x := TOGGLE_X + col.to_i32() * (TOGGLE_W + TOGGLE_GAP)
                 DrawRectangle(x, PUZZLE_Y, TOGGLE_W, TOGGLE_H, BTN_INACTIVE)
@@ -668,7 +678,7 @@ main := proc() {
             if janko { middle_c = "Q or Z" }
             mut prompt := format("1. Tap a piano key to choose the root. Try Do (C4): press ", middle_c, ".")
             if puzzle_root.gte(0) {
-                prompt = format("Build a ", puzzle_note_name(puzzle_root.to_usize(), display_mode), " ", quality, " triad (three notes).")
+                prompt = format("Build a ", puzzle_note_name(puzzle_root.to_usize(), display_mode), " ", quality.name, " chord (three notes).")
                 guide := "2. Listen by ear, or click Cheat to see the gold keys.   3. Play your chord, release it, then Check."
                 DrawTextEx(fnt, guide.c_str, Vector2(x=MARGIN, y=(ROLL_H + 5).to_f32()), FONT, 1, BUTTON_LABEL)
                 DrawTextEx(fnt, feedback.c_str, Vector2(x=MARGIN, y=(ROLL_H + 32).to_f32()), FONT, 1, BUTTON_LABEL)
