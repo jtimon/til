@@ -242,8 +242,7 @@ priv compile_lib := proc(c_path: Str, lib_name: Str, ext_c_path: Str,
     mut user_objs := ""
     if uc.len() > 0 {
         files : Vec(Str) = uc.split(" ")
-        for fi in 0..files.len() {
-            ref file : Str = files[fi]
+        for fi, file in files {
             if file.len() == 0 { continue }
             user_obj := format("gen/lib/", lib_name, "_user_", fi.to_str(), ".o")
             cmd = compiler.format(extra, werr, asan_flags, usize_flags, " -fPIC -include ", fwd_path, " -I", ext_dir, ifl,
@@ -460,8 +459,7 @@ priv compile_c := proc(c_path: Str, bin_path: Str, ext_c_path: Str, user_c_path:
         // Split space-separated link_c files and compile each individually
         files : Vec(Str) = uc.split(" ")
         mut all_objs := ""
-        for fi in 0..files.len() {
-            ref file : Str = files[fi]
+        for fi, file in files {
             if file.len() == 0 { continue }
             // The forward header and object belong to this program. A
             // directory-wide user_0.o lets concurrent builds overwrite
@@ -2726,9 +2724,8 @@ priv expand_doc_catalog_links := func(mut catalog: DocCatalog) {
     for e : DocEntry in catalog.entries {
         expanded.push(own doc_expand_til_links(e.body, catalog, e.name))
     }
-    for i in 0..expanded.len() {
+    for i, body in expanded {
         ref mut e : DocEntry = catalog.entries[i]
-        ref body : Str = expanded[i]
         e.body = body.clone()
     }
 }
@@ -3288,8 +3285,7 @@ priv append_doc_html_sidebar_group := func(mut out: Str, catalog: DocCatalog, gr
     out.push_str("<h2>")
     if group.is_empty() { out.push_str("Ungrouped") } else { out.push_str(doc_html_escape(group)) }
     out.push_str("</h2><ul>\n")
-    for i in 0..catalog.entries.len() {
-        ref entry : DocEntry = catalog.entries[i]
+    for i, entry in catalog.entries {
         if entry.group == group {
             if doc_catalog_page_first(catalog, i) { append_doc_html_sidebar_page(out, catalog, i, current_page) }
         }
@@ -3325,8 +3321,7 @@ priv doc_html_sidebar_capacity := func(catalog: DocCatalog, current_page: Str) r
     for group in groups { total = total + group.len().mul(6) + 64 }
     mut has_ungrouped := false
     prefix_len := doc_html_relative_prefix(current_page).len()
-    for i in 0..catalog.entries.len() {
-        ref entry : DocEntry = catalog.entries[i]
+    for i, entry in catalog.entries {
         if entry.group.is_empty() { has_ungrouped = true }
         if doc_catalog_page_first(catalog, i) {
             // .org -> .html adds one byte to the target path.

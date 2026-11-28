@@ -138,8 +138,7 @@ check_test_prerequisites := func(tests: Vec(Test)) {
 // Keep registration order among ready rows. A waiting dependent consumes no
 // slot, so unrelated work can proceed while its build is running.
 next_ready_test := proc(mut tests: Vec(Test), mut fail: I64) returns Option(USize) {
-    for i in 0..tests.len() {
-        ref mut t : Test = tests[i]
+    for i, mut t in tests {
         if t.pid.neq(0).or(t.finished) { continue }
         switch t.prerequisite {
         case .Some(parent):

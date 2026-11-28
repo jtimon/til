@@ -11,8 +11,8 @@ main := proc(compiler_arg: Str) {
     // Shared cast failures are tested without the optional LLVM toolchain.
     targets := array(Str,"I8","U8","I16","U16","I32","U32","I64","U64")
     upper := array(Str,"128","256","32768","65536","2147483648","4294967296","9223372036854775808","18446744073709551616")
-    for i in 0..targets.len() {
-        File.writefile(format(work,"/invalid_numeric.til"),format("mode cli\nmain:=proc(arg:Str){value:=arg.to_f64();println(value.cast(",targets[i],").to_str())}\n"))
+    for i, target in targets {
+        File.writefile(format(work,"/invalid_numeric.til"),format("mode cli\nmain:=proc(arg:Str){value:=arg.to_f64();println(value.cast(",target,").to_str())}\n"))
         mut expected := ""
         for command in array(Str,"interpret","run") {
             invalid := Cmd.new(compiler,command,"invalid_numeric.til",upper[i])
@@ -174,8 +174,8 @@ main := proc(compiler_arg: Str) {
             "mode pure\nWide:=Simd(F32,8)\nCallback:=func(shallow x:Wide) returns F32\ninvoke:=func(callback:Callback,shallow x:Wide) returns F32{return callback(x)}\n",
             "mode pure\nLarge:=struct{a:I64=0;b:I64=0;c:I64=0}\nCallback:=func() returns Large\ninvoke:=func(callback:Callback) returns Large{return callback()}\n")
         callback_errors := array(Str, "indirect narrow scalar arguments", "indirect aggregate stack arguments", "indirect result requires unsupported call-site ABI attributes")
-        for i in 0..rejected_callbacks.len() {
-            File.writefile(format(work, "/callback_rejected.til"), rejected_callbacks[i])
+        for i, rejected_callback in rejected_callbacks {
+            File.writefile(format(work, "/callback_rejected.til"), rejected_callback)
             rejected := Cmd.new(compiler, "translate", "--backend=mlir", "callback_rejected.til")
             rejected.cwd(work).capture()
             rejected_status := rejected.run()

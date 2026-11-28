@@ -440,8 +440,7 @@ namespace:
     eq := func(a: FuncSig, b: FuncSig) returns Bool {
         if a.func_type != b.func_type { return false }
         if a.params.len() != b.params.len() { return false }
-        for i in 0..a.params.len() {
-            ref ap : Declaration = a.params[i]
+        for i, ap in a.params {
             ref bp : Declaration = b.params[i]
             if ap.til_type != bp.til_type { return false }
             if ap.own_type != bp.own_type { return false }
@@ -454,8 +453,8 @@ namespace:
         if a.variadic_index != b.variadic_index { return false }
         if a.kwargs_index != b.kwargs_index { return false }
         if a.throw_types.len() != b.throw_types.len() { return false }
-        for i in 0..a.throw_types.len() {
-            if a.throw_types[i] != b.throw_types[i] { return false }
+        for i, throw_type in a.throw_types {
+            if throw_type != b.throw_types[i] { return false }
         }
         return true
     }

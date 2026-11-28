@@ -54,10 +54,10 @@ check_floating_point := proc(compiler: Str, work: Str) {
         "runtime(9223372036854775808.0)","runtime(18446744073709551616.0)",
         "runtime(0.0)/runtime(0.0)","runtime(1.0)/runtime(0.0)","runtime(18446744073709551616.0)")
     targets:=array(Str,"I8","I8","U8","U8","I64","U64","U64","I32","UPtr")
-    for i in 0..expressions.len() {
+    for i, expression in expressions {
         path:=format(work,"/float_invalid_",i.to_str(),".til")
         File.writefile(path,format("mode cli\nruntime:=proc(value:F64) returns F64 { noop_proc(); return value }\n",
-            "main:=proc() { value:=",expressions[i],"; value.cast(",targets[i],") }\n"))
+            "main:=proc() { value:=",expression,"; value.cast(",targets[i],") }\n"))
         check_shared(compiler,work,path,1)
     }
 }

@@ -507,8 +507,8 @@ priv collect_default_c_sources := func(cmd: Str, mut out: Vec(Str)) {
     mut overridden := false
     mut retargeted := false
     mut skip_next := false
-    for ti in 0..toks.len() {
-        tok := unquoted(toks[ti])
+    for ti, quoted in toks {
+        tok := unquoted(quoted)
         if skip_next {
             skip_next = false
             continue
@@ -587,8 +587,8 @@ priv check_gen_c_collisions := proc(tests: Vec(Test)) returns I64 {
         }
         for src : Str in mine {
             mut seen := -1
-            for i in 0..sources.len() {
-                if sources[i] == src { seen = i.to_i64() }
+            for i, source in sources {
+                if source == src { seen = i.to_i64() }
             }
             if seen >= 0 {
                 println("FAIL: tests '", owners[seen.to_usize()], "' and '", t.label,
@@ -626,8 +626,8 @@ priv check_result_file_collisions := proc(tests: Vec(Test)) returns I64 {
     mut clashes := 0
     for t : Test in tests {
         mut seen := -1
-        for i in 0..files.len() {
-            if files[i] == t.outfile { seen = i.to_i64() }
+        for i, file in files {
+            if file == t.outfile { seen = i.to_i64() }
         }
         if seen >= 0 {
             println("FAIL: tests '", owners[seen.to_usize()], "' and '", t.label,
@@ -671,8 +671,7 @@ priv is_bare_shell_operator := func(tok: Str) returns Bool {
 
 priv one_command_only := func(label: Str, cmd_suffix: Str) {
     toks := cmd_suffix.split(" ")
-    for ti in 0..toks.len() {
-        ref tok : Str = toks[ti]
+    for tok : Str in toks {
         if is_bare_shell_operator(tok) {
             panic("test '", label, "' hands the outer shell a bare '", tok, "': ", cmd_suffix,
                 " -- quote it as '", tok, "' so test_runner runs it,",
@@ -737,8 +736,7 @@ add_counts := func(mut tests: Vec(Test), label: Str, category: Str,
         if checks.len() == 0 { panic("add_counts requires at least one check") }
         one_command_only(label, cmd_suffix)
         mut runner_cmd := format(RUNNER, " count ", label)
-        for i in 0..checks.len() {
-            ref check : CountCheck = checks[i]
+        for check : CountCheck in checks {
             quoted_needle := check.needle.replace("'", "'\\''")
             runner_cmd = format(runner_cmd, " '", quoted_needle, "' ", check.expected_count.to_str())
         }

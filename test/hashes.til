@@ -134,8 +134,8 @@ test_fnv1a_unaligned_blocks_and_tails := test() {
         3523728802823422880, 3634789006931186377,
         6301751478826961295, 6033111077508075168,
         zero.sub(7153822116625471767), zero.sub(9065767969908926257))
-    for i in 0..lengths.len() {
-        assert_eq(U64, fnv1a(start, lengths[i]), expected[i])
+    for i, length in lengths {
+        assert_eq(U64, fnv1a(start, length), expected[i])
     }
 }
 

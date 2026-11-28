@@ -688,6 +688,13 @@ also has non-negated operands. This preserves operand order while removing
 redundant negations. Postfix ~!~ is unrelated in til: it means panic on throw,
 not Boolean negation.
 
+## Loops
+
+Iterate collections with ~for x in v~, or ~for i, x in v~ when the index is
+needed, not ~for i in 0..v.len()~ plus ~v[i]~: it is shorter and skips the
+per-element bounds check. Keep the range only when the body changes ~v~'s
+length or stores an owned value into ~v[i]~.
+
 ## Commits
 
 - Always include ALL modified files. When boot files are regenerated,

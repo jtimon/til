@@ -353,9 +353,9 @@ priv rejection_checks := proc(image : Str, assembly : Str, object : Str) {
     sizes := array(U64, 1, 1, 2, 2, 8, 8, 2, 2)
     messages := array(Str, "little-endian ELF64", "little-endian ELF64", "relocatable object", "x86-64 ELF machine",
         "process entry", "outside object", "header sizes", "section table")
-    for i in 0..offsets.len() {
+    for i, offset in offsets {
         mut changed := image.clone()
-        patch_word(changed, offsets[i], values[i], sizes[i])
+        patch_word(changed, offset, values[i], sizes[i])
         reject_object(changed, messages[i])
     }
     sections := elf_word(image, 40, 8)!
@@ -368,9 +368,9 @@ priv rejection_checks := proc(image : Str, assembly : Str, object : Str) {
     more_sizes := array(U64, 8, 8, 8, 8, 8, 4, 2, 8)
     more_messages := array(Str, "outside object", "outside object", "allocatable section", "text alignment", "symbol entry size",
         "string table link", "unresolved ELF symbol", "entry outside text")
-    for i in 0..more_offsets.len() {
+    for i, more_offset in more_offsets {
         mut changed := image.clone()
-        patch_word(changed, more_offsets[i], more_values[i], more_sizes[i])
+        patch_word(changed, more_offset, more_values[i], more_sizes[i])
         reject_object(changed, more_messages[i])
     }
     mut renamed := image.clone()

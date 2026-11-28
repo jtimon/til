@@ -146,8 +146,7 @@ write_drive := proc(tag: Str, chunks: Vec(Str), waits: Vec(Str), start_wait: Str
         "  if [ -n \"$2\" ]; then wait_tail \"$2\" $base; fi\n",
         "}\n",
         "wait_tail \"", start_wait, "\" 0\n")
-    for i in 0..chunks.len() {
-        ref c : Str = chunks[i]
+    for i, c in chunks {
         ref w : Str = waits[i]
         if c.starts_with("!") {
             // A step that runs on THIS side of the pty instead of being

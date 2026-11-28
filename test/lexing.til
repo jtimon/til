@@ -46,8 +46,7 @@ check_eof := func(src: Str, tokens: Vec(Token), count: USize, line: U32, col: U3
 // Two token streams are equal field by field (kind, span, location).
 check_same_tokens := func(a: Vec(Token), b: Vec(Token)) {
     assert_eq(USize, a.len(), b.len())
-    for i in 0..a.len() {
-        ref ta : Token = a[i]
+    for i, ta in a {
         ref tb : Token = b[i]
         ta_type := ta.type
         tb_type := tb.type
@@ -180,10 +179,9 @@ test_keywords := test() {
     expected.push(own TokenType.KwFalse)
     expected.push(own TokenType.KwPriv)
     assert_eq(USize, tokens.len(), expected.len() + 1)
-    for i in 0..expected.len() {
+    for i, want in expected {
         ref t : Token = tokens[i]
         tt := t.type
-        ref want : TokenType = expected[i]
         if tt.eq(want).not() { panic("keyword ", i.to_str(), ": expected ", want.to_str(), " got ", tt.to_str()) }
         // The keyword spelling and tok_name agree in both directions.
         assert_eq(Str, tok_name(want), src.substr(t.start, t.len))
