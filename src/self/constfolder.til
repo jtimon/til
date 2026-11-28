@@ -10,7 +10,7 @@ constfolder_eval_generator_function := proc(mut scope: Scope, mut function: Expr
         definitions: Map(Str, Expr), globals: Expr, mut ctx: Context) returns I32 {
     mut saved_ns := Option(Scope).None
     swap(Option(Scope), ctx.eval.ns_fields, saved_ns)
-    ctx.eval.ns_fields = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
+    ctx.eval.ns_fields = Option(Scope).Some(own scope_new_owned(Option(ref mut Scope).None))
     name := "hoisted__generator_condition"
     mut raw : Dynamic = EvalHeap.heap_alloc(Dynamic.size())
     write_ptr(raw, function)
@@ -27,7 +27,7 @@ constfolder_eval_generator_function := proc(mut scope: Scope, mut function: Expr
     ctx.eval.eval_aborted = false
     mut saved_known := Option(Scope).None
     swap(Option(Scope), ctx.constfolder_known, saved_known)
-    ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
+    ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref mut Scope).None))
     mut saved_foldables := Map(Str, FuncType).new()
     swap(Map(Str, FuncType), ctx.constfolder_foldables, saved_foldables)
     mut saved_assigned := Set(Str).new()
@@ -91,7 +91,7 @@ constfolder_clear_known := func(mut ctx: Context) {
 
 constfolder_reset_state := func(mut ctx: Context) {
     constfolder_clear_known(ctx)
-    ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
+    ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref mut Scope).None))
     ctx.constfolder_foldables = Map(Str, FuncType).new()
     ctx.constfolder_assigned = Set(Str).new()
     ctx.precomputed_sequence_counter = 0
@@ -1065,7 +1065,7 @@ priv try_eval_call := proc(mut scope: Scope, fcall: Expr, require_known: Bool, m
     ec.set_til_type(fcall.til_type())
     ec.add_child(own fcall.children[0].clone())
     mark_fcall_direct(ec)
-    mut eval_scope := scope_new(safe_ref(scope))
+    mut eval_scope := scope_new(safe_ref_mut(scope))
 
     for i in 0..nargs {
         ref arg : Expr = fcall.children[i + 1]
@@ -1734,9 +1734,9 @@ priv fold_body_scoped := proc(mut scope: Scope, mut e: Expr, mut ctx: Context) {
     swap(Option(Scope), ctx.constfolder_known, snapshot_fd)
     switch snapshot_fd {
     case .Some(real_known):
-        ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(safe_ref(real_known)))
+        ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(safe_ref_mut(real_known)))
     case .None:
-        ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref Scope).None))
+        ctx.constfolder_known = Option(Scope).Some(own scope_new_owned(Option(ref mut Scope).None))
     }
     switch e.node_type {
     case .FuncDef(fd):
@@ -1960,7 +1960,7 @@ priv fold_subtree_inner := proc(mut scope: Scope, mut e: Expr, mut ctx: Context)
                 // temporary inputs to this fold, not globals. Keep them in a
                 // child scope so its cache-owned values can be reclaimed
                 // immediately after the consumer is folded.
-                mut va_scope := scope_new(safe_ref(scope))
+                mut va_scope := scope_new(safe_ref_mut(scope))
                 if materialize_va(va_scope, e, m, vn, ctx) {
                     for mut vc : Expr in e.children {
                         fold_va_calls(va_scope, vc, vn, ctx)

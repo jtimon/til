@@ -4,6 +4,10 @@
 
 *** Existing preparation
 
+Interpreter scope parents lend writable scope storage to evaluation. Heap
+binding lookup can therefore refresh the binding it returns, while exported
+callable validation returns a restricted ~Option(ref HeapBinding)~.
+
 A getter result used to replace a typed writable reference field must grant
 write access; the field does not upgrade a read-only result. The compiler
 checks subsequent field writes against the stored grant.

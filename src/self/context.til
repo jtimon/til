@@ -651,7 +651,7 @@ TypeScope := struct {
     // Lexical child scopes carry an unused default and resolve through parent.
     typer_func := TyperFuncState()
 namespace:
-    typer_func_state := func(mut self: TypeScope) returns ref TyperFuncState {
+    typer_func_state := func(mut self: TypeScope) returns ref mut TyperFuncState {
         if self.is_func_root { return self.typer_func }
         switch self.parent {
         case .Some(p): return p.typer_func_state()
@@ -1642,7 +1642,7 @@ EvalState := struct {
     // session. See h_exit.
     repl_session := false
     embedded := false
-    callback_global := Option(ref Scope).None
+    callback_global := Option(ref mut Scope).None
     exit_status := Option(I64).None
     failure_site := SourceDiagnostic()
     guest_output := ""

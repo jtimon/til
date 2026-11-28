@@ -325,7 +325,7 @@ typedef struct Map__Str_NativeCallableThunk Map__Str_NativeCallableThunk;
 typedef struct Map__Str_FuncSig Map__Str_FuncSig;
 typedef struct Vec__UPtr Vec__UPtr;
 typedef struct Vec__ComptimeDefinition Vec__ComptimeDefinition;
-typedef struct Option__ref_Scope Option__ref_Scope;
+typedef struct Option__ref_mut_Scope Option__ref_mut_Scope;
 enum {
     Option__I64_TAG_None,
     Option__I64_TAG_Some
@@ -538,6 +538,7 @@ typedef struct Option__ref_InterpSession Option__ref_InterpSession;
 typedef struct Option__ref_U8 Option__ref_U8;
 typedef struct Vec__priv___src_self_interpreter_til__InterfaceCallBox Vec__priv___src_self_interpreter_til__InterfaceCallBox;
 typedef struct Option__ref_TypeInstanceArg Option__ref_TypeInstanceArg;
+typedef struct Option__ref_mut_HeapBinding Option__ref_mut_HeapBinding;
 typedef struct Map__Str_HeapBinding Map__Str_HeapBinding;
 typedef struct Option__ref_Dynamic Option__ref_Dynamic;
 typedef struct Option__FuncSig Option__FuncSig;
@@ -1144,7 +1145,7 @@ typedef struct Vec__ComptimeDefinition {
 } Vec__ComptimeDefinition;
 
 
-struct Option__ref_Scope {
+struct Option__ref_mut_Scope {
     Scope *data;
 };
 
@@ -2121,6 +2122,10 @@ struct Option__ref_TypeInstanceArg {
     TypeInstanceArg *data;
 };
 
+struct Option__ref_mut_HeapBinding {
+    HeapBinding *data;
+};
+
 struct Option__ref_Dynamic {
     void *data;
 };
@@ -2937,7 +2942,7 @@ typedef struct EvalState {
     Bool eval_aborted;
     Bool repl_session;
     Bool embedded;
-    Option__ref_Scope callback_global;
+    Option__ref_mut_Scope callback_global;
     Option__I64 exit_status;
     SourceDiagnostic failure_site;
     Str guest_output;
@@ -3210,7 +3215,7 @@ typedef struct priv___src_self_codegen_holyc_codegen_til__HolyCEmitState {
 typedef struct Scope {
     Map__Str_HeapBinding heap_bindings;
     Map__Str_Str heap_aliases;
-    Option__ref_Scope parent;
+    Option__ref_mut_Scope parent;
     Bool is_call_scope;
 } Scope;
 

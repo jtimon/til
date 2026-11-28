@@ -4,6 +4,11 @@
 
 *** Bootstrap plan and progress
 
+The ~read_cursor~ case in ~mutable_views~ starts a replaceable read-only
+local at a read-only parameter, rebinds to another, and reads its value.
+The interpreter now distinguishes a writable scope-chain cursor that returns
+a live binding from a read-only lookup handed back to the guest-call API.
+
 The ~mutable_views~ fixture exercises independent history-view and fold
 fields: both slots rebind, only the writable fold can write, and rebinding
 the fold to the read-only view is rejected. Explicit local slot qualifiers

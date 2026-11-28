@@ -34,6 +34,9 @@ in every context; ~mut~ after ~ref~ grants write access. A leading ~const~ or
 | ~mut ref value: T~ | ~ref value: T~ | replaceable | read-only |
 | ~mut ref mut value: T~ | ~ref mut value: T~ | replaceable | writable |
 
+A local ~mut ref cursor: T~ can start at a read-only argument. The leading
+~mut~ permits replacing the cursor; it does not require write access to ~T~.
+
 Rebinding a reference field does not change its grant. For example, if
 ~view~ is declared ~ref view: Item~, assigning ~node.view = node.history[i]~
 is allowed on a writable node, but ~node.view.n = 9~ is rejected. A field

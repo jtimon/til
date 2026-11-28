@@ -8400,12 +8400,12 @@ priv iface_decl_owns_payload := proc(scope: TypeScope, stmt: Expr, iface_name: S
         // A temporary has no storage to borrow: box it owned and let the
         // Decl's own ref-from-owned-value checks report the `ref`.
         if expr_is_borrow_source(rhs, scope, ctx.symbols).not() { return true }
-        if sdecl.is_mut {
+        if sdecl.referent_mut {
             switch rhs.node_type {
             case .Ident(rid):
                 rb_o := scope.get_binding_sym(rid.ident_sym())
                 if rb_o.is_some() {
-                    if rb_o.unwrap().is_mut.not() {
+                    if rb_o.unwrap().is_mut.or(rb_o.unwrap().referent_mut).not() {
                         stmt.type_error("'ref mut' cannot bind to an immutable source; declare the source as 'mut' or 'ref mut'", ctx)
                     }
                 }
@@ -8903,13 +8903,13 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
             // whole value happens to carry through its other fields.
             decl_b.borrow_roots = lvalue_write_roots(scope, rhs, ctx.symbols, safe_ref(ctx.parameter_effects))
             decl_b.aliases_global_storage = expr_names_global_storage(scope, rhs, ctx)
-            if sdecl.is_mut {
+            if sdecl.is_mut.and(sdecl.referent_mut) {
                 switch rhs.node_type {
                 case .Ident(rid):
                     rb_o := scope.get_binding_sym(rid.ident_sym())
                     if rb_o.is_some() {
                         ref rb : TypeBinding = rb_o.unwrap()
-                        if rb.is_mut.not() {
+                        if rb.is_mut.or(rb.referent_mut).not() {
                             stmt.type_error("'ref mut' cannot bind to an immutable source; declare the source as 'mut' or 'ref mut'", ctx)
                         }
                     }
@@ -10387,7 +10387,7 @@ eval_generator_condition := proc(mut condition: Expr, mut scope: TypeScope, mut 
     }
     mut result : I32 = -1
     if ctx.errors == 0 {
-        mut runtime := scope_new_owned(Option(ref Scope).None)
+        mut runtime := scope_new_owned(Option(ref mut Scope).None)
         for mut program : Expr in prep.definitions.values {
             populate_cached_aggregate_defs(ctx, program)
         }

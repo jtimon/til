@@ -3731,7 +3731,7 @@ priv sink_transfer_path_wrapper_free := func(mut node: Expr, local: LocalInfo, s
                 if child.children.len() == 0 { continue }
                 bi = child.children.len() - 1
             }
-            ref mut arm : Expr = child
+            mut ref mut arm : Expr = child
             if child.node_type.is(NodeType.Case) { arm = child.children[bi] }
             if expr_transfers_own(arm, local.name, scope, ctx).not() { continue }
             if sink_transfer_path_wrapper_free(arm, local, scope, ctx) { any = true }
