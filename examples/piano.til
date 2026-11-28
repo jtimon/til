@@ -51,6 +51,49 @@ puzzle_matches := func(held: Array(I32), root: USize, minor: Bool) returns Bool 
     return found[0].and(found[third]).and(found[7])
 }
 
+puzzle_note_name := func(i: USize, mode: I32) returns Str {
+    if mode.eq(DISPLAY_MODE_LETTERS) { return LETTER_NOTE_NAMES[i % 12].clone() }
+    return SOLFEGE_CHROMATIC_NAMES[i % 12].clone()
+}
+
+puzzle_check := func(held: Array(I32), root: USize, minor: Bool, mode: I32) returns Str {
+    mut seen := Array(Bool).new(12)
+    mut notes := ""
+    for i : USize in 0..held.len() {
+        if held[i].eq(0).or(seen[i % 12]) { continue }
+        seen[i % 12] = true
+        if notes.is_empty().not() { notes = format(notes, " - ") }
+        notes = format(notes, puzzle_note_name(i, mode))
+    }
+    if notes.is_empty() { return "Play your chord first, then release it and press Check." }
+    if puzzle_matches(held, root, minor) { return format("Correct! You played ", notes, ". Choose New root to try another.") }
+    return format("Last check: you played ", notes, ". Listen again, then try changing one note.")
+}
+
+// Snapshot on a new note, not on release: lifting fingers one at a time
+// must not turn the last chord into its last remaining note.
+remember_puzzle_chord := func(mut saved: Array(I32), down: Array(I32), previous: Array(I32)) {
+    for i : USize in 0..down.len() {
+        if down[i].eq(1).and(previous[i].eq(0)) {
+            for k : USize in 0..down.len() { saved[k] = down[k].clone() }
+            break
+        }
+    }
+}
+
+test_puzzle_release_before_check := test() {
+    mut saved := array(I32, 0, 0, 0)
+    silent := array(I32, 0, 0, 0)
+    chord := array(I32, 1, 1, 1)
+    tail := array(I32, 0, 1, 0)
+    remember_puzzle_chord(saved, chord, silent)
+    remember_puzzle_chord(saved, tail, chord)
+    remember_puzzle_chord(saved, silent, tail)
+    for k : USize in 0..3 { assert_eq(I32, saved[k], 1) }
+    remember_puzzle_chord(saved, tail, silent)
+    for k : USize in 0..3 { assert_eq(I32, saved[k], tail[k]) }
+}
+
 test_puzzle_minor := test() {
     mut held := Array(I32).new(NUM_KEYS)
     held[5] = 1; held[9] = 1; held[14] = 1; held[26] = 1
@@ -85,6 +128,36 @@ test_janko_chords := test() {
     assert_eq(USize, janko_note(0), janko_note(20))
 }
 
+// Keep the clue and its highlighted keys in the playable keyboard range.
+puzzle_clue_keys := func(root: USize, minor: Bool, janko: Bool) returns Array(USize) {
+    mut bottom := root
+    mut limit := NUM_KEYS
+    if janko {
+        limit = janko_note(9) + 1
+        if bottom.lt(PIANO_C4_KEY_OFFSET) { bottom = bottom + 12 }
+    }
+    if (bottom + 7).gte(limit) { bottom = bottom - 12 }
+    mut third : USize = 4
+    if minor { third = 3 }
+    return array(USize, bottom, bottom + third, bottom + 7)
+}
+
+test_puzzle_clue_voicing := test() {
+    for root in 0..NUM_KEYS {
+        for minor : Bool in array(Bool, false, true) {
+            for janko : Bool in array(Bool, false, true) {
+                notes := puzzle_clue_keys(root, minor, janko)
+                mut held := Array(I32).new(NUM_KEYS)
+                for i : USize in notes {
+                    if janko { assert(i.gte(PIANO_C4_KEY_OFFSET).and(i.lte(janko_note(9)))) }
+                    held[i] = 1
+                }
+                assert(puzzle_matches(held, root, minor))
+            }
+        }
+    }
+}
+
 main := proc() {
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "piano".c_str)
     SetTargetFPS(FPS)
@@ -117,6 +190,9 @@ main := proc() {
     mut janko := false
     mut puzzle := false
     mut puzzle_root : I32 = -1
+    mut last_chord := Array(I32).new(NUM_KEYS)
+    mut reveal := false
+    mut answer_keys := Array(Bool).new(NUM_KEYS)
     mut minor := true
     mut feedback := ""
     mut clue := Array(Sound).new(3)
@@ -163,6 +239,7 @@ main := proc() {
     while !WindowShouldClose() {
         mut check_now := false
         mut listen_now := false
+        mut cheat_now := false
         dt := (GetFrameTime() * 1000).to_i64()
         timer = timer + dt
 
@@ -178,11 +255,11 @@ main := proc() {
             my := GetMouseY()
             if my >= TOGGLE_Y && my < TOGGLE_Y + TOGGLE_H {
                 if mx >= PUZZLE_X && mx < PUZZLE_X + SONG_BTN_W {
-                    puzzle = puzzle.not(); puzzle_root = -1; feedback = ""
+                    puzzle = puzzle.not(); puzzle_root = -1; feedback = ""; reveal = false
                     song_playing = false
                     if puzzle.and(nathex_display) { display_mode = DISPLAY_MODE_SOLFEGE }
                 }
-                if mx >= MAP_BTN_X && mx < MAP_BTN_X + SONG_BTN_W { janko = janko.not() }
+                if mx >= MAP_BTN_X && mx < MAP_BTN_X + SONG_BTN_W { janko = janko.not(); reveal = false }
                 if mx >= TOGGLE_X && mx < TOGGLE_X + TOGGLE_W {
                     display_mode = DISPLAY_MODE_SOLFEGE
                 }
@@ -209,10 +286,14 @@ main := proc() {
             if puzzle.and(my.gte(PUZZLE_Y)).and(my.lt(PUZZLE_Y + TOGGLE_H)).and(mx.gte(TOGGLE_X)) {
                 col := (mx - TOGGLE_X) / (TOGGLE_W + TOGGLE_GAP)
                 if ((mx - TOGGLE_X) % (TOGGLE_W + TOGGLE_GAP)).lt(TOGGLE_W) {
-                    if col.eq(0) { puzzle_root = -1; feedback = "" }
-                    if col.eq(1) { minor = minor.not(); feedback = "" }
+                    if col.eq(0) { puzzle_root = -1; feedback = ""; reveal = false }
+                    if col.eq(1) {
+                        minor = minor.not(); feedback = ""; reveal = false
+                        for i : USize in 0..NUM_KEYS { last_chord[i] = 0 }
+                    }
                     if col.eq(2) { listen_now = true }
-                    if col.eq(3) { check_now = true }
+                    if col.eq(3) { cheat_now = true }
+                    if col.eq(4) { check_now = true }
                 }
             }
         }
@@ -302,19 +383,23 @@ main := proc() {
         // Detect press/release by comparing with prev_down
         if puzzle {
             if puzzle_root.lt(0) {
+                for i : USize in 0..NUM_KEYS { last_chord[i] = 0 }
                 for i : USize in 0..NUM_KEYS {
                     if key_down[i].eq(1).and(prev_down[i].eq(0)) { puzzle_root = i.to_i32(); break }
                 }
+            } else {
+                remember_puzzle_chord(last_chord, key_down, prev_down)
             }
             if puzzle_root.gte(0) {
-                if listen_now {
-                    // Independent sounds: never light answer keys, record clue
-                    // notes in the roll, or cut off a player's held notes.
-                    offsets := array(USize, 0, 4, 7)
+                if listen_now.or(cheat_now) {
+                    // Both use independent clue sounds; Cheat also shows the keys.
+                    reveal = cheat_now
+                    for i in 0..NUM_KEYS { answer_keys[i] = false }
+                    notes := puzzle_clue_keys(puzzle_root.to_usize(), minor, janko)
                     for v : USize in 0..3 {
                         if clue_loaded { UnloadSound(clue[v]) }
-                        mut index := puzzle_root.to_usize() + offsets[v]
-                        if minor.and(v.eq(1)) { index = index - 1 }
+                        index := notes[v].clone()
+                        answer_keys[index] = true
                         ref hz : I64 = piano_key_freq(false, index)
                         clue[v] = make_tone(hz, 700, 0.1)
                     }
@@ -322,8 +407,7 @@ main := proc() {
                     for v : USize in 0..3 { PlaySound(clue[v]) }
                 }
                 if check_now.or(IsKeyPressed(257)) {
-                    feedback = "Try again"
-                    if puzzle_matches(key_down, puzzle_root.to_usize(), minor) { feedback = "Correct!" }
+                    feedback = puzzle_check(last_chord, puzzle_root.to_usize(), minor, display_mode)
                 }
             }
         }
@@ -461,6 +545,7 @@ main := proc() {
                 if chrom.to_usize() < NUM_KEYS {
                     ref kd : I32 = key_down[chrom.to_usize()]
                     if kd == 1 { k_color = KEY_WHITE_PRESSED }
+                    if puzzle.and(reveal).and(answer_keys[chrom.to_usize()]) { k_color = GOLD }
                 }
                 DrawRectangle(kx, PIANO_Y, white_w - 2, WHITE_H, k_color)
                 if chrom.to_usize() < NUM_KEYS {
@@ -479,6 +564,7 @@ main := proc() {
                     if chrom.to_usize() < NUM_KEYS {
                         ref kd : I32 = key_down[chrom.to_usize()]
                         if kd == 1 { kb_color = KEY_BLACK_PRESSED }
+                        if puzzle.and(reveal).and(answer_keys[chrom.to_usize()]) { kb_color = GOLD }
                     }
                     DrawRectangle(bx, PIANO_Y, black_w, BLACK_H, kb_color)
                     if chrom.to_usize() < NUM_KEYS {
@@ -499,6 +585,7 @@ main := proc() {
                 if chrom.to_usize() < NUM_KEYS {
                     ref kd : I32 = key_down[chrom.to_usize()]
                     if kd == 1 { k_color = KEY_WHITE_PRESSED }
+                    if puzzle.and(reveal).and(answer_keys[chrom.to_usize()]) { k_color = GOLD }
                 }
                 DrawRectangle(kx, PIANO_Y, white_w - 2, WHITE_H, k_color)
                 if chrom.to_usize() < NUM_KEYS {
@@ -517,6 +604,7 @@ main := proc() {
                     if chrom.to_usize() < NUM_KEYS {
                         ref kd : I32 = key_down[chrom.to_usize()]
                         if kd == 1 { kb_color = KEY_BLACK_PRESSED }
+                        if puzzle.and(reveal).and(answer_keys[chrom.to_usize()]) { kb_color = GOLD }
                     }
                     DrawRectangle(bx, PIANO_Y, black_w, BLACK_H, kb_color)
                     if chrom.to_usize() < NUM_KEYS {
@@ -570,17 +658,22 @@ main := proc() {
         if puzzle {
             mut quality := "Major"
             if minor { quality = "Minor" }
-            labels := array(Str, "New root", quality, "Listen", "Check (Enter)")
-            for col : USize in 0..4 {
+            labels := array(Str, "New root", quality, "Listen", "Cheat", "Check (Enter)")
+            for col : USize in 0..labels.len() {
                 x := TOGGLE_X + col.to_i32() * (TOGGLE_W + TOGGLE_GAP)
                 DrawRectangle(x, PUZZLE_Y, TOGGLE_W, TOGGLE_H, BTN_INACTIVE)
                 DrawTextEx(fnt, labels[col].c_str, Vector2(x=(x + 12).to_f32(), y=(PUZZLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
             }
-            mut prompt := "Play a key to choose the root."
+            mut middle_c := "E"
+            if janko { middle_c = "Q or Z" }
+            mut prompt := format("1. Tap a piano key to choose the root. Try Do (C4): press ", middle_c, ".")
             if puzzle_root.gte(0) {
-                prompt = format("Build: ", freqs_letter_note_name(PIANO_C3_FREQ_OFFSET.to_i32() + puzzle_root), " ", quality, " triad. Hold your answer and Check.  ", feedback)
+                prompt = format("Build a ", puzzle_note_name(puzzle_root.to_usize(), display_mode), " ", quality, " triad (three notes).")
+                guide := "2. Listen by ear, or click Cheat to see the gold keys.   3. Play your chord, release it, then Check."
+                DrawTextEx(fnt, guide.c_str, Vector2(x=MARGIN, y=(ROLL_H + 5).to_f32()), FONT, 1, BUTTON_LABEL)
+                DrawTextEx(fnt, feedback.c_str, Vector2(x=MARGIN, y=(ROLL_H + 32).to_f32()), FONT, 1, BUTTON_LABEL)
             }
-            DrawTextEx(fnt, prompt.c_str, Vector2(x=(TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * 4).to_f32(), y=(PUZZLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
+            DrawTextEx(fnt, prompt.c_str, Vector2(x=(TOGGLE_X + (TOGGLE_W + TOGGLE_GAP) * labels.len().to_i32()).to_f32(), y=(PUZZLE_Y + 7).to_f32()), FONT, 1, BUTTON_LABEL)
         }
         mut hint := "Solfege display: same keys and sounds"
         if display_mode.eq(DISPLAY_MODE_LETTERS) {
