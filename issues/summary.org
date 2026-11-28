@@ -94,3 +94,6 @@
 * Deferred
 ** High
 *** [[./open/378.org][#378]] Vendor browser WASM toolchain source instead of cloning emsdk
+* Reconsider
+** Low
+*** [[./open/514.org][#514]] Windows environment: the C runtime's copy (Python's way) or the OS's (Rust's way)

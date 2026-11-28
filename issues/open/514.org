@@ -1,0 +1,45 @@
+# priority: low
+# category: reconsider
+** OPEN #514 Windows environment: the C runtime's copy (Python's way) or the OS's (Rust's way)
+
+*** The decision
+
+A Windows process holds two environments: the OS's, set with
+~SetEnvironmentVariable~ and inherited by child processes, and the C
+runtime's copy, taken from it at startup, which ~getenv~ reads. Unix has
+one. til reads with ~getenv~ (~get_env~ in ~src/std/sys.til~) on every
+platform, and ~til_setenv~ (~src/self/codegen/ext.c~) now writes with
+~_putenv_s~ on Windows, which updates both copies. Before, it called
+~SetEnvironmentVariableA~ alone, so ~getenv~ kept answering the old
+value. This is what Python's ~os.environ~ does on Windows.
+
+*** The alternative: the Win32 calls both ways
+
+Rust (~std::env::set_var~ / ~var~), Go (~os.Setenv~ / ~Getenv~) and Odin
+(~core:os~ ~set_env~ / ~get_env~) skip the C runtime: they read with
+~GetEnvironmentVariableW~ and write with ~SetEnvironmentVariableW~. For
+til that means ~get_env~ on Windows calling ~GetEnvironmentVariable~, and
+~til_setenv~ going back to ~SetEnvironmentVariable~.
+
+Pros:
+- The OS environment is the one source of truth, the one child
+  processes inherit; no C runtime state in between.
+- The W calls take UTF-16, so names and values outside the ANSI code
+  page work (the C runtime's narrow ~getenv~ / ~_putenv_s~ go through
+  the process code page).
+- The same calls whatever C runtime a program links (ucrt, msvcrt, a
+  static one), each of which keeps its own copy.
+
+Cons:
+- A C library in the process that reads with ~getenv~ (raylib, Mesa,
+  nng, anything til binds) does not see what til set. That is the bug
+  this was a fix for, moved from til's side to theirs.
+- ~get_env~ needs its own Windows branch instead of plain ~getenv~.
+
+*** Why Python's way was taken
+
+til programs call into C libraries a lot, and those read ~getenv~; one
+environment that til and they agree on matters more here than the
+points above. Likely cancelled; kept open in case one of the pros
+starts to bite (a non-ANSI variable, a library linked against another C
+runtime).

@@ -497,7 +497,7 @@ defaults. Do not maintain a separate leak baseline.
   (e.g. `issues/open/189.org`). Each file starts with
   `# priority: high|medium|low`, then `# category: <cat>`, then
   `** OPEN #NNN Title`. Categories: bugs, cleanups, features,
-  optimizations, backends, experiments, examples, deferred (or
+  optimizations, backends, experiments, examples, deferred, reconsider (or
   `unknown` if none fit). Process is in `issues/process.org`; the counter is in
   `issues/NEXT_ISSUE.txt` (increment it manually). New issues go at
   the top of their priority, numbered from the counter. When work

@@ -1480,14 +1480,16 @@ static I64 *new_i64(I64 v) { I64 *r = malloc(sizeof(I64)); *r = v; return r; }
 I32 til_setenv(const I8 *name, const I8 *value, I32 overwrite)
 {
 #ifdef _WIN32
-    // setenv is not portable to Windows; use Win32 environment APIs.
-    if (!overwrite) {
-        // If the variable exists, do nothing.
-        DWORD len = GetEnvironmentVariableA((const char *)name, NULL, 0);
-        if (len > 0) return 0;
-    }
-    if (SetEnvironmentVariableA((const char *)name, (const char *)value)) return 0;
-    return 1;
+    // The C runtime has no setenv. A Windows process holds two environments:
+    // the OS's (SetEnvironmentVariableA, inherited by child processes) and
+    // the C runtime's copy taken at startup, which getenv reads -- and so
+    // get_env and every C library til calls. _putenv_s updates both;
+    // SetEnvironmentVariableA alone left getenv answering the old value.
+    // An empty value removes the variable, which get_env reads as "" too.
+    // Python's os.environ does the same; Rust, Go and Odin use the Win32
+    // calls for both directions instead (#514).
+    if (!overwrite && getenv((const char *)name)) return 0;
+    return _putenv_s((const char *)name, (const char *)value) == 0 ? 0 : 1;
 #else
     return (I32)setenv((const char *)name, (const char *)value, overwrite);
 #endif

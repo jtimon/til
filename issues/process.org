@@ -2,7 +2,8 @@
 2. Create a new file in issues/open/ with that number, e.g. issues/open/189.org
 3. First line: "# priority: high", "# priority: medium", or "# priority: low"
 4. Second line: "# category: <cat>" where <cat> is one of bugs, cleanups,
-   features, optimizations, backends, experiments, examples, deferred (use
+   features, optimizations, backends, experiments, examples, deferred,
+   reconsider (use
    "unknown" if none clearly fit). summary.org groups by category first,
    then by priority.
 5. Then: "** OPEN #189 Title" followed by the issue body
@@ -25,3 +26,5 @@ Categories (topical, orthogonal to priority):
   - experiments exploratory or speculative directions
   - examples    example programs / apps shipped under examples/
   - deferred    cross-platform / OS / arch targets parked for later
+  - reconsider  a decision already made, kept open in case it should be
+                revisited (the alternative, with its pros and cons)
