@@ -72,15 +72,15 @@ INSTALL_PATH := array(Str,
 )
 
 install_for := func(fw: Str) returns Str {
-    for i in 0..INSTALL_FW.len() {
-        if INSTALL_FW[i] == fw { return INSTALL_PATH[i].clone() }
+    for i, candidate in INSTALL_FW {
+        if candidate == fw { return INSTALL_PATH[i].clone() }
     }
     return ""
 }
 
 fw_for_symbol := func(sym: Str) returns Str {
-    for i in 0..STUB_PREFIXES.len() {
-        if sym.starts_with(STUB_PREFIXES[i]) { return STUB_PREFIX_FW[i].clone() }
+    for i, stub_prefix in STUB_PREFIXES {
+        if sym.starts_with(stub_prefix) { return STUB_PREFIX_FW[i].clone() }
     }
     return ""
 }
@@ -150,16 +150,15 @@ main := proc(args: ..Str) {
     if run_cmd(mkdir_log, "mkdir", "-p", outdir) != 0 { panic("mkdir -p ", outdir, " failed") }
 
     mut report := ""
-    for fi in 0..fws.keys.len() {
-        ref fw : Str = fws.keys[fi]
+    for fi, fw in fws.keys {
         install := install_for(fw)
         if install.is_empty() { panic("no install-name for framework ", fw) }
         mut syms := ""
         mut n := 0
-        for i in 0..ext_sym.len() {
+        for i, symbol in ext_sym {
             if ext_fw[i] == fw {
                 if n > 0 { syms = syms.format(", ") }
-                syms = syms.format(ext_sym[i])
+                syms = syms.format(symbol)
                 n++
             }
         }

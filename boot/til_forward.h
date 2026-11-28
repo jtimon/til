@@ -794,6 +794,7 @@ typedef struct ForInData {
     Type til_type;
     Str name2;
     Bool is_mut2;
+    Type til_type2;
 } ForInData;
 
 

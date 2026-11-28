@@ -1490,8 +1490,7 @@ priv fdef_sig_mismatch := func(got: FunctionDef, want: FunctionDef, scope: TypeS
         return format("takes ", got.sig.params.len().to_str(), " params, expected ",
             want.sig.params.len().to_str())
     }
-    for i in 0..want.sig.params.len() {
-        ref wp : Declaration = want.sig.params[i]
+    for i, wp in want.sig.params {
         ref gp : Declaration = got.sig.params[i]
         ref wt : Str = resolve_type_alias(scope, decl_type_name_ref(wp, symbols), symbols)
         ref gt : Str = resolve_type_alias(scope, decl_type_name_ref(gp, symbols), symbols)
@@ -1557,8 +1556,8 @@ dyn_fn_signature_matches := func(got: FunctionDef, want: FunctionDef, scope: Typ
     if erased {
         if got.sig.func_type.is_proc().and(want.sig.func_type.is_proc().not()) { return false }
         if got.sig.params.len() != want.sig.params.len() { return false }
-        for i in 0..want.sig.params.len() {
-            ref expected : Str = resolve_type_alias(scope, decl_type_name_ref(want.sig.params[i], symbols), symbols)
+        for i, param in want.sig.params {
+            ref expected : Str = resolve_type_alias(scope, decl_type_name_ref(param, symbols), symbols)
             if expected == "Dynamic" { continue }
             if expected != resolve_type_alias(scope, decl_type_name_ref(got.sig.params[i], symbols), symbols) { return false }
         }
@@ -1571,8 +1570,8 @@ dyn_fn_signature_matches := func(got: FunctionDef, want: FunctionDef, scope: Typ
     if got.sig.variadic_index != want.sig.variadic_index { return false }
     if got.sig.kwargs_index != want.sig.kwargs_index { return false }
     if got.sig.throw_types.len() != want.sig.throw_types.len() { return false }
-    for i in 0..got.sig.throw_types.len() {
-        if resolve_type_alias(scope, got.sig.throw_types[i], symbols) != resolve_type_alias(scope, want.sig.throw_types[i], symbols) { return false }
+    for i, throw_type in got.sig.throw_types {
+        if resolve_type_alias(scope, throw_type, symbols) != resolve_type_alias(scope, want.sig.throw_types[i], symbols) { return false }
     }
     return true
 }
@@ -2974,9 +2973,8 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
             .and(ns_fdef.sig.func_type.is_ext().or(ns_fdef.sig.func_type.is_plain()
                 .and(ns_fdef.sig.params.len().gt(0))
                 .and(decl_type_name(ns_fdef.sig.params[0], ctx.symbols) == obj3_sname))) {
-            for pi in 0..ns_fdef.sig.params.len() {
+            for pi, p in ns_fdef.sig.params {
                 if pi + 1 >= e.children.len() { break }
-                ref p : Declaration = ns_fdef.sig.params[pi]
                 if p.is_mut.not().or(decl_type_name_ref(p, ctx.symbols) != obj3_sname) { continue }
                 // A mutable interface receiver writes its concrete payload,
                 // not merely the interface box. Follow the carried borrow
@@ -3891,8 +3889,7 @@ priv generic_decompose_nested := func(gfd: FunctionDef, formal: Str, actual: Str
     aargs := actual.substr(am_u + 2, actual.len().sub(am_u) - 2).split("_")
     if fargs.len() != aargs.len() { return "" }
     mut bound := ""
-    for i in 0..fargs.len() {
-        ref fseg : Str = fargs[i]
+    for i, fseg in fargs {
         ref aseg : Str = aargs[i]
         if fseg.eq(pname) {
             if aseg.len() == 0 { return "" }
@@ -3976,8 +3973,7 @@ priv generic_value_only_fdef := func(gfd: FunctionDef, symbols: SymbolPool) retu
     mut out := FunctionDef(sig = FuncSig(func_type = gfd.sig.func_type, return_type = gfd.sig.return_type.clone()))
     mut vidx : I32 = gfd.sig.variadic_index
     mut kidx : I32 = gfd.sig.kwargs_index
-    for i in 0..gfd.sig.params.len() {
-        ref p : Declaration = gfd.sig.params[i]
+    for i, p in gfd.sig.params {
         if generic_param_is_type(p, symbols) {
             cpos : I32 = i.to_i64().to_i32()
             if vidx > cpos { vidx = vidx - 1 }
@@ -3995,8 +3991,7 @@ priv generic_value_only_fdef := func(gfd: FunctionDef, symbols: SymbolPool) retu
 // decides, exactly as in init: a real type token there means explicit
 // application, anything else means the caller omitted them.
 priv generic_call_is_explicit := func(scope: TypeScope, e: Expr, gfd: FunctionDef, symbols: SymbolPool) returns Bool {
-    for i in 0..gfd.sig.params.len() {
-        ref p : Declaration = gfd.sig.params[i]
+    for i, p in gfd.sig.params {
         if generic_param_is_type(p, symbols).not() { continue }
         argidx := i + 1
         if argidx >= e.children.len() { return false }
@@ -4016,8 +4011,7 @@ priv generic_call_is_explicit := func(scope: TypeScope, e: Expr, gfd: FunctionDe
 
 // Explicit late application: read the type tokens straight off the call.
 priv generic_explicit_subs := proc(scope: TypeScope, e: Expr, gfd: FunctionDef, mut subs: Map(Str, Expr), mut ref_params: Map(Str, Bool), display_name: Str, mut ctx: Context) returns Bool {
-    for i in 0..gfd.sig.params.len() {
-        ref p : Declaration = gfd.sig.params[i]
+    for i, p in gfd.sig.params {
         if generic_param_is_type(p, ctx.symbols).not() { continue }
         argidx := i + 1
         if argidx >= e.children.len() {
@@ -4391,11 +4385,11 @@ priv generic_rewrite_call_in_place := func(mut e: Expr, mono: Str, arg_pos: Vec(
         fcd.splat_args = 0
     case:
     }
-    for bi in 0..owned.len() {
-        if owned[bi] { set_own_arg(e, bi + 1) }
+    for bi, is_owned in owned {
+        if is_owned { set_own_arg(e, bi + 1) }
     }
-    for si in 0..splatted.len() {
-        if splatted[si] { set_splat_arg(e, si + 1) }
+    for si, is_splatted in splatted {
+        if is_splatted { set_splat_arg(e, si + 1) }
     }
 }
 
@@ -5291,8 +5285,7 @@ priv interface_contract_signature := func(fd: FunctionDef, self_name: Str, impl_
         }
     }
     returns_borrow := fdef_return_carries_borrow(normalized, scope, ctx.symbols)
-    for i in 0..normalized.sig.params.len() {
-        ref mut param : Declaration = normalized.sig.params[i]
+    for i, mut param in normalized.sig.params {
         mut name := resolve_type_alias(scope, decl_type_name_ref(param, ctx.symbols), ctx.symbols).clone()
         concrete := interface_concrete_type_name(name, self_name, impl_name, requests, ctx)
         name = resolve_type_alias(scope, concrete, ctx.symbols).clone()
@@ -5898,8 +5891,8 @@ priv infer_func_sig_expr := func(scope: TypeScope, mut expr: Expr, mut symbols: 
 // compiled while reaching the caller's own storage interpreted -- the
 // #344 divergence, one indirection removed.
 priv fdef_deposits_param := func(fdef: FunctionDef, name: Str) returns Bool {
-    for source in 0..fdef.sig.params.len() {
-        if fdef.sig.params[source].name != name { continue }
+    for source, param in fdef.sig.params {
+        if param.name != name { continue }
         for sink in 0..fdef.sig.params.len() {
             if fdef.deposit_borrow_matrix.band(deposit_bit(sink, source)) != 0 { return true }
         }
@@ -5912,8 +5905,8 @@ priv fdef_global_borrows_param := func(fdef: FunctionDef, name: Str, ctx: Contex
     key := word_bits(to_ptr(fdef)).to_uptr()
     if ctx.global_borrow_escapes.has(key).not() { return false }
     ref effect : RootBits = ctx.global_borrow_escapes[key]
-    for pi in 0..fdef.sig.params.len() {
-        if fdef.sig.params[pi].name == name {
+    for pi, param in fdef.sig.params {
+        if param.name == name {
             return effect.alias.bor(effect.into).band(summary_param_bit(pi)) != 0
         }
     }
@@ -5951,8 +5944,8 @@ priv check_ref_function_returns := proc(func_scope: TypeScope, mut expr: Expr, m
     // A consuming call cannot return a reference into its owned input's
     // storage: the caller/dispatcher releases that storage after the call.
     mut owned_params : U64 = 0
-    for pi in 0..fdef.sig.params.len() {
-        if fdef.sig.params[pi].own_type.is(OwnType.Own) { owned_params = owned_params.bor(summary_param_bit(pi)) }
+    for pi, param in fdef.sig.params {
+        if param.own_type.is(OwnType.Own) { owned_params = owned_params.bor(summary_param_bit(pi)) }
     }
     if owned_params.neq(0).and(fdef.sig.func_type.is_bodyless().not()) {
         // The pre-typing fixpoint deliberately over-approximates unresolved
@@ -5960,8 +5953,8 @@ priv check_ref_function_returns := proc(func_scope: TypeScope, mut expr: Expr, m
         // verdict, and publish that refinement for callers such as a helper
         // forwarding Option(ref T).take's borrowed result.
         mut roots := Map(Str, RootBits).new()
-        for pi in 0..fdef.sig.params.len() {
-            roots.set(fdef.sig.params[pi].name, own RootBits(alias = summary_param_bit(pi)))
+        for pi, parameter in fdef.sig.params {
+            roots.set(parameter.name, own RootBits(alias = summary_param_bit(pi)))
         }
         mut deposits := DepositAcc()
         receivers := summary_receiver_declarations(expr.children[0], fdef.sig.params, func_scope, ctx.symbols)
@@ -5970,9 +5963,9 @@ priv check_ref_function_returns := proc(func_scope: TypeScope, mut expr: Expr, m
         fdef.ref_return_params = result.alias
         fdef.ref_return_into_params = result.into
         fdef.ref_return_carried_params = result.carried
-        for pi in 0..fdef.sig.params.len() {
+        for pi, param in fdef.sig.params {
             if owned_params.band(result.alias).band(summary_param_bit(pi)) != 0 {
-                expr.type_error(format("cannot return a reference into owned parameter '", fdef.sig.params[pi].name,
+                expr.type_error(format("cannot return a reference into owned parameter '", param.name,
                     "': its storage is consumed by this call; return an owned value instead"), ctx)
             }
         }
@@ -6186,8 +6179,7 @@ priv writable_borrow_problem := func(scope: TypeScope, value: Expr, symbols: Sym
             case: return "call has no 'returns ref mut' contract"
             }
         }
-        for pi in 0..fd.sig.params.len() {
-            ref param: Declaration = fd.sig.params[pi]
+        for pi, param in fd.sig.params {
             if param.own_type.is(OwnType.Ref).and(param.is_mut.or(param.referent_mut)) {
                 argument := borrow_call_argument(value, pi, scope, symbols)
                 if argument.is_none() { return "call is missing a writable argument" }
@@ -6236,8 +6228,7 @@ priv credit_mutable_return := func(mut scope: TypeScope, value: Expr, symbols: S
                 credit_mutable_return(scope, borrow_call_argument(value, fd.sig.return_origin_param.to_usize(), scope, symbols).unwrap(), symbols)
                 return
             }
-            for pi in 0..fd.sig.params.len() {
-                ref param: Declaration = fd.sig.params[pi]
+            for pi, param in fd.sig.params {
                 if param.own_type.is(OwnType.Ref).and(param.is_mut.or(param.referent_mut)) {
                     credit_mutable_return(scope, borrow_call_argument(value, pi, scope, symbols).unwrap(), symbols)
                 }
@@ -6541,8 +6532,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
         // distance. Shallow params (scalars, auto or explicit) stay: they
         // parse straight into C stack values, no heap box.
         in_main_def := top_func_name.eq("main").and(scope.parent.is_none())
-        for i in 0..fdef.sig.params.len() {
-            ref mut param : Declaration = fdef.sig.params[i]
+        for i, mut param in fdef.sig.params {
             if param.auto_shallow.and(fdef_return_carries_borrow(fdef, scope, ctx.symbols).or(fdef_deposits_param(fdef, param.name))
                 .or(fdef_global_borrows_param(fdef, param.name, ctx))) {
                 param.own_type = OwnType.Ref
@@ -6712,8 +6702,7 @@ priv infer_func_def_expr := proc(mut scope: TypeScope, mut expr: Expr, top_func_
             // throws lookup can resolve `param.method(...)` receivers.
             func_scope.typer_func.lowering_param_types = Map(Str, Str).new()
             func_scope.typer_func.deferred_dependent_throw = false
-            for lpi in 0..fdef.sig.params.len() {
-                ref lpp : Declaration = fdef.sig.params[lpi]
+            for lpi, lpp in fdef.sig.params {
                 mut lptn := decl_type_name(lpp, ctx.symbols)
                 // #392 stage A named the CARRIER a variadic parameter travels
                 // as, and this seeding kept asking for the Array instance. A
@@ -7259,8 +7248,7 @@ priv check_writable_payload_return := proc(mut scope: TypeScope, stmt: Expr, mut
     if definition.is_none() { return }
     ref fd: FunctionDef = funcdef_of(definition.unwrap())
     if fd.is_enum_variant_ctor.not() { return }
-    for pi in 0..fd.sig.params.len() {
-        ref param: Declaration = fd.sig.params[pi]
+    for pi, param in fd.sig.params {
         if param.own_type.is(OwnType.Ref).and(param.referent_mut) {
             argument := summary_fcall_arg_for_param(value, fd, pi, scope, ctx.symbols)
             if argument.is_none() {
@@ -8202,9 +8190,9 @@ priv pre_coerce_decl_numeric_literals := proc(mut expr: Expr, target: Type, symb
     case .Literal(Literal.Num):
         expr.set_til_type(target)
     case .FieldAccess(fname):
-        for i in 0..expr.children.len() {
+        for i, mut child in expr.children {
             if i.eq(0).and(fname.field_access_name(symbols.names).starts_with("to_")) { continue }
-            pre_coerce_decl_numeric_literals(expr.children[i], target, symbols)
+            pre_coerce_decl_numeric_literals(child, target, symbols)
         }
     case:
         for mut c : Expr in expr.children {
@@ -9055,8 +9043,7 @@ priv infer_decl_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I32,
                             switch sig_expr_o.unwrap().node_type {
                             case .FuncDef(sig_fd):
                                 if sig_fd.sig.params.len() == rhs_fd.sig.params.len() {
-                                    for sig_i in 0..rhs_fd.sig.params.len() {
-                                        ref mut dst_p : Declaration = rhs_fd.sig.params[sig_i]
+                                    for sig_i, mut dst_p in rhs_fd.sig.params {
                                         ref src_p : Declaration = sig_fd.sig.params[sig_i]
                                         dst_p.til_type = src_p.til_type.clone()
                                         if src_p.own_type.is(OwnType.Shallow).not() { dst_p.own_type = src_p.own_type }
@@ -9400,8 +9387,7 @@ priv capture_private_mut_begin := func(mut scope: TypeScope, captures: Vec(Decla
 
 priv capture_private_mut_end := func(mut scope: TypeScope, captures: Vec(Declaration),
         source_muts: Vec(Bool), source_written: Vec(Bool), symbols: SymbolPool) {
-    for i in 0..captures.len() {
-        ref cap : Declaration = captures[i]
+    for i, cap in captures {
         if cap.is_mut.not().or(cap.own_type.is(OwnType.Ref)) { continue }
         b_o := scope.get_binding_name_mut(cap.name, symbols)
         if b_o.is_none() { continue }
@@ -10303,7 +10289,7 @@ priv comptime_prepare_expr := proc(mut e: Expr, mut scope: TypeScope, mut prep: 
         if e.children.len() > 0 { comptime_prepare_expr(e.children[0], scope, prep, ctx) }
         mut local := TypeScope(parent = safe_ref_mut(scope))
         local.set(loop.name, loop.til_type, loop.is_mut, ctx.path, e.line, e.col, true, OwnType.Ref, ctx.symbols)
-        if loop.name2.len() > 0 { local.set(loop.name2, Type.Unknown, loop.is_mut2, ctx.path, e.line, e.col, true, OwnType.Ref, ctx.symbols) }
+        if loop.name2.len() > 0 { local.set(loop.name2, loop.til_type2, loop.is_mut2, ctx.path, e.line, e.col, true, OwnType.Ref, ctx.symbols) }
         for i in 1..e.children.len() { comptime_prepare_expr(e.children[i], local, prep, ctx) }
         return
     case:
@@ -12441,7 +12427,7 @@ priv return_escape_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool)
                 for root: BorrowRoot in expr_borrow_roots(scope, e, symbols) { push_root_unique(out.indirect, root) }
                 return out
             }
-            for pi in 0..fd.sig.params.len() {
+            for pi, p in fd.sig.params {
                 bit := summary_param_bit(pi)
                 arg_o := fcall_arg_for_param(e, pi, scope, symbols)
                 if arg_o.is_none() { continue }
@@ -12457,7 +12443,6 @@ priv return_escape_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool)
                     }
                 }
                 if fd.ref_return_params.band(bit) != 0 {
-                    ref p : Declaration = fd.sig.params[pi]
                     mut carries := type_carries_borrow_t(scope, p.til_type, symbols)
                     if fd.sig.return_own_type.is(OwnType.Ref) {
                         // Unwrapping a borrowed enum payload forwards its
@@ -12596,9 +12581,8 @@ priv check_own_args := func(fdef: Expr, fcall: Expr, var_name: Str, symbols: Sym
     switch fdef.node_type {
     case .FuncDef(fd):
         if fd.sig.params.len() == 0 { return false }
-        for i in 0..fd.sig.params.len() {
+        for i, p in fd.sig.params {
             if i + 1 >= fcall.children.len() { return false }
-            ref p : Declaration = fd.sig.params[i]
             if p.own_type.is(OwnType.Own) {
                 ref arg : Expr = fcall.children[i + 1]
                 an_o := arg_addressed_ident(arg, symbols)
@@ -12909,9 +12893,8 @@ priv collect_own_arg_names := func(fdef: Expr, fcall: Expr, fi: FactIndex, base:
     switch fdef.node_type {
     case .FuncDef(fd):
         if fd.sig.params.len() == 0 { return }
-        for i in 0..fd.sig.params.len() {
+        for i, p in fd.sig.params {
             if i + 1 >= fcall.children.len() { return }
-            ref p : Declaration = fd.sig.params[i]
             if p.own_type.is(OwnType.Own) {
                 ref arg : Expr = fcall.children[i + 1]
                 an_o := arg_addressed_ident(arg, symbols)
@@ -13876,8 +13859,8 @@ expr_borrow_roots := func(scope: TypeScope, e: Expr, symbols: SymbolPool) return
                 // Ref payloads were handled above. Value payloads copy/move
                 // their carried borrows, not the source carrier's storage.
                 if type_carries_borrow(scope, cfd.sig.return_type, symbols).not() { return out }
-                for pi in 0..cfd.sig.params.len() {
-                    if type_carries_borrow(scope, decl_type_name(cfd.sig.params[pi], symbols), symbols).not() { continue }
+                for pi, param in cfd.sig.params {
+                    if type_carries_borrow(scope, decl_type_name(param, symbols), symbols).not() { continue }
                     arg := fcall_arg_for_param(e, pi, scope, symbols)
                     if arg.is_none() { continue }
                     for root: BorrowRoot in deposit_src_roots(scope, arg.unwrap(), symbols) { push_root_unique(out, root) }
@@ -15111,8 +15094,8 @@ priv fdef_may_deposit := func(fd: FunctionDef) returns Bool {
     if has_mut.not() { return false }
     // A DIFFERENT parameter must exist to deposit FROM, matching the
     // self-pair deposit_cross refuses to record.
-    for si in 0..fd.sig.params.len() {
-        if fd.sig.params[si].is_mut { return true }
+    for param in fd.sig.params {
+        if param.is_mut { return true }
     }
     return false
 }
@@ -15259,8 +15242,8 @@ priv summary_fcall_deposits := func(e: Expr, mut roots: Map(Str, RootBits), mut 
                 // Copying ref-qualified element slots retains the referents,
                 // not the source allocation containing those slots.
                 mut carriers : U64 = 0
-                for pi in 0..params.len() {
-                    if aggregate_borrows_type(scope, params[pi].til_type, "", ctx) {
+                for pi, param in params {
+                    if aggregate_borrows_type(scope, param.til_type, "", ctx) {
                         carriers = carriers.bor(summary_param_bit(pi))
                     }
                 }
@@ -15778,10 +15761,9 @@ priv summary_receiver_declarations := func(body: Expr, params: Vec(Declaration),
 priv summary_retain_candidates := func(fd: FunctionDef, scope: TypeScope, ctx: Context) returns U64 {
     if fd.sig.func_type.is_plain().or(fd.sig.func_type.is_lazy()).not() { return 0 }
     mut out : U64 = 0
-    for pi in 0..fd.sig.params.len() {
+    for pi, p in fd.sig.params {
         if pi >= DEPOSIT_PARAMS { break }
         if pi.to_i32().eq(fd.sig.variadic_index).or(pi.to_i32() == fd.sig.kwargs_index) { continue }
-        ref p : Declaration = fd.sig.params[pi]
         if p.is_mut { continue }
         if p.own_type.is(OwnType.Ref).or(p.auto_shallow).not() { continue }
         if fd.deposit_borrow_matrix.band(deposit_bit(pi, pi)) != 0 { continue }
@@ -15807,8 +15789,7 @@ priv update_retained_params := func(mut fd_expr: Expr, scope: TypeScope, self_ty
         candidates := summary_retain_candidates(fd, scope, ctx)
         if candidates == 0 { return }
         mut roots := Map(Str, RootBits).new()
-        for pi in 0..fd.sig.params.len() {
-            ref p : Declaration = fd.sig.params[pi]
+        for pi, p in fd.sig.params {
             if p.name.len() == 0 { continue }
             roots.set(p.name, own RootBits(alias = summary_param_bit(pi)))
         }
@@ -15842,8 +15823,7 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
             // inputs' lifetime and mutability roots, as for an interface.
             if fd.sig.func_type.is_plain().and(fd.sig.return_own_type.is(OwnType.Ref)) {
                 mut roots := fd.ref_return_params
-                for pi in 0..fd.sig.params.len() {
-                    ref p : Declaration = fd.sig.params[pi]
+                for pi, p in fd.sig.params {
                     if p.own_type.is(OwnType.Ref).and(p.name.starts_with("_err_").not()) {
                         roots = roots.bor(summary_param_bit(pi))
                     }
@@ -15860,8 +15840,7 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
             // those owners alive and retain their mutability provenance.
             if fd.sig.return_own_type.is(OwnType.Ref) {
                 mut roots := fd.ref_return_params
-                for pi in 0..fd.sig.params.len() {
-                    ref p : Declaration = fd.sig.params[pi]
+                for pi, p in fd.sig.params {
                     if p.own_type.is(OwnType.Ref).and(p.name.starts_with("_err_").not()) {
                         roots = roots.bor(summary_param_bit(pi))
                     }
@@ -15870,8 +15849,7 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
             }
             else if fdef_return_carries_borrow(fd, scope, ctx.symbols) {
                 mut inputs : U64 = 0
-                for pi in 0..fd.sig.params.len() {
-                    ref p : Declaration = fd.sig.params[pi]
+                for pi, p in fd.sig.params {
                     if p.own_type.is(OwnType.Ref).and(p.name.starts_with("_err_").not()) {
                         inputs = inputs.bor(summary_param_bit(pi))
                     }
@@ -15899,8 +15877,7 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
         wants_global := summary_global_candidate(fd_expr.children[0], scope, self_type, fd.sig.params, ctx)
         if wants_ret.or(wants_dep).or(wants_global).not() { return false }
         mut roots := Map(Str, RootBits).new()
-        for pi in 0..fd.sig.params.len() {
-            ref p : Declaration = fd.sig.params[pi]
+        for pi, p in fd.sig.params {
             if p.name.len() == 0 { continue }
             roots.set(p.name, own RootBits(alias = summary_param_bit(pi)))
         }
@@ -15928,8 +15905,8 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
         if acc.global.is_zero().not().and(init_func_is_generic(fd_expr, ctx.symbols).not()) {
             mut carrying : U64 = 0
             mut managed : U64 = 0
-            for pi in 0..fd.sig.params.len() {
-                declared := decl_type_name(fd.sig.params[pi], ctx.symbols)
+            for pi, parameter in fd.sig.params {
+                declared := decl_type_name(parameter, ctx.symbols)
                 if declared != "Dynamic" { managed = managed.bor(summary_param_bit(pi)) }
                 if type_carries_borrow(scope, declared, ctx.symbols) {
                     carrying = carrying.bor(summary_param_bit(pi))
@@ -15951,8 +15928,8 @@ priv update_ref_return_summary := func(mut fd_expr: Expr, scope: TypeScope, self
         // cannot become a destination merely because a local result carries
         // references originally copied from it.
         mut writable : U64 = 0
-        for sink in 0..fd.sig.params.len() {
-            if fd.sig.params[sink].is_mut {
+        for sink, param in fd.sig.params {
+            if param.is_mut {
                 for source in 0..DEPOSIT_PARAMS { writable = writable.bor(deposit_bit(sink, source)) }
             }
         }
@@ -16107,8 +16084,8 @@ priv expression_places := func(e: Expr, aliases: Map(Str, ParameterPlaces), para
                 // An opaque borrowed result may select any storage reachable
                 // through its borrowed inputs. Keep an explicit unknown place
                 // so a known sibling return cannot narrow this branch away.
-                for pi in 0..fd.sig.params.len() {
-                    if fd.sig.params[pi].own_type.is(OwnType.Ref).not() { continue }
+                for pi, param in fd.sig.params {
+                    if param.own_type.is(OwnType.Ref).not() { continue }
                     argument := summary_fcall_arg_for_param(e, fd, pi, scope, ctx.symbols)
                     if argument.is_none() { continue }
                     for base: ParameterPlace in expression_places(argument.unwrap(), aliases, params, scope, self_type, ctx) {
@@ -16202,8 +16179,8 @@ priv parameter_effect_walk := func(e: Expr, mut aliases: Map(Str, ParameterPlace
         callee := place_callee(e, aliases, fd.sig.params, scope, self_type, ctx)
         if callee.is_some() {
             ref called: FunctionDef = funcdef_of(callee.unwrap())
-            for pi in 0..called.sig.params.len() {
-                if called.sig.params[pi].is_mut.not() { continue }
+            for pi, param in called.sig.params {
+                if param.is_mut.not() { continue }
                 argument := summary_fcall_arg_for_param(e, called, pi, scope, ctx.symbols)
                 if argument.is_none() { continue }
                 for place: ParameterPlace in expression_places(argument.unwrap(), aliases, fd.sig.params, scope, self_type, ctx) {
@@ -16232,7 +16209,7 @@ priv update_parameter_effects := func(e: Expr, scope: TypeScope, self_type: Str,
     }
     if interesting.not() { return false }
     mut aliases := Map(Str, ParameterPlaces).new()
-    for pi in 0..fd.sig.params.len() { aliases.set(fd.sig.params[pi].name, own ParameterPlaces(values = vec(ParameterPlace, ParameterPlace(parameter = pi)))) }
+    for pi, param in fd.sig.params { aliases.set(param.name, own ParameterPlaces(values = vec(ParameterPlace, ParameterPlace(parameter = pi)))) }
     mut effects := ParameterEffects()
     parameter_effect_walk(e.children[0], aliases, effects, fd, scope, self_type, ctx)
     key := word_bits(to_ptr(fd)).to_uptr()
@@ -16513,8 +16490,7 @@ priv init_coverage_for_enum := func(mut node: CoverageNode, enum_def: Expr) {
 }
 
 priv coverage_sub_index := func(coverage: CoverageNode, variant_name: Str) returns I64 {
-    for csi in 0..coverage.sub_names.len() {
-        ref n : Str = coverage.sub_names[csi]
+    for csi, n in coverage.sub_names {
         if n == variant_name { return csi.to_i64() }
     }
     return -1
@@ -16705,8 +16681,7 @@ priv mark_pattern_coverage := func(scope: TypeScope, mut coverage: CoverageNode,
 priv collect_missing_paths := func(scope: TypeScope, coverage: CoverageNode, enum_def: Expr, prefix: Str, mut out: Vec(Str), ctx: Context) {
     switch enum_def.node_type {
     case .EnumDef(cm_edd):
-        for cmi in 0..cm_edd.variants.len() {
-            ref cm_vd : VariantDef = cm_edd.variants[cmi]
+        for cmi, cm_vd in cm_edd.variants {
             ref vn : Str = cm_vd.name
             ref sub : CoverageNode = coverage.sub_nodes[cmi]
             mut current := ""
@@ -18078,10 +18053,13 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
     if iter_inferred.not() { infer_expr(scope, iter, in_func, ctx) }
 
     mut index_name := ""
+    // #514: `for i, x : T in v` annotates the element, like `for x : T in v`.
+    mut declared_elem := ""
     switch stmt.node_type {
     case .ForIn(fid):
         if fid.name2.len() > 0 {
             index_name = fid.name.clone()
+            declared_elem = type_name_ref(fid.til_type2, ctx.symbols).clone()
             if fid.is_mut {
                 stmt.type_error("for i, value in collection: the index binding cannot be 'mut'", ctx)
             }
@@ -18143,7 +18121,7 @@ priv desugar_for_in_collection_stmt := proc(mut scope: TypeScope, mut body: Expr
         return false
     }
     ref mut get_func : Expr = get_funco.unwrap()
-    mut elem_type := ""
+    mut elem_type := declared_elem.clone()
     stmt_tname_o := expr_type_name_ref(stmt, ctx.symbols)
     if stmt_tname_o.is_some() {
         ref stmt_tname : Str = stmt_tname_o.unwrap()
@@ -18453,6 +18431,9 @@ priv desugar_for_in_kv_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_i
     mut var_name2 := ""
     mut forin_is_mut := false
     mut forin_is_mut2 := false
+    // #514: optional `for k : K, v : V in map` annotations.
+    mut declared_key := ""
+    mut declared_val := ""
     switch stmt.node_type {
     case .ForIn(fid):
         if fid.name2.len() == 0 { return false }
@@ -18460,6 +18441,8 @@ priv desugar_for_in_kv_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_i
         var_name2 = fid.name2.clone()
         forin_is_mut = fid.is_mut
         forin_is_mut2 = fid.is_mut2
+        declared_key = type_name_ref(fid.til_type, ctx.symbols).clone()
+        declared_val = type_name_ref(fid.til_type2, ctx.symbols).clone()
     case:
         UNREACHABLE("expected ForIn, got ", stmt.node_type.head_str(ctx.symbols.names))
         return false
@@ -18539,6 +18522,8 @@ priv desugar_for_in_kv_stmt := proc(mut scope: TypeScope, mut body: Expr, stmt_i
         stmt.type_error(format("cannot resolve key/value element types for two-variable for-in over '", type_name, "'"), ctx)
         return false
     }
+    if declared_key.len() > 0 { key_elem = declared_key.clone() }
+    if declared_val.len() > 0 { val_elem = declared_val.clone() }
 
     mut block := Expr.new(own NodeType.Body, line, col)
 

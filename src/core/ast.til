@@ -440,8 +440,7 @@ namespace:
     eq := func(a: FuncSig, b: FuncSig) returns Bool {
         if a.func_type != b.func_type { return false }
         if a.params.len() != b.params.len() { return false }
-        for i in 0..a.params.len() {
-            ref ap : Declaration = a.params[i]
+        for i, ap in a.params {
             ref bp : Declaration = b.params[i]
             if ap.til_type != bp.til_type { return false }
             if ap.own_type != bp.own_type { return false }
@@ -454,8 +453,8 @@ namespace:
         if a.variadic_index != b.variadic_index { return false }
         if a.kwargs_index != b.kwargs_index { return false }
         if a.throw_types.len() != b.throw_types.len() { return false }
-        for i in 0..a.throw_types.len() {
-            if a.throw_types[i] != b.throw_types[i] { return false }
+        for i, throw_type in a.throw_types {
+            if throw_type != b.throw_types[i] { return false }
         }
         return true
     }
@@ -996,14 +995,17 @@ namespace:
 }
 
 /// Payload for ~for name in range~ loop nodes. The two-variable
-/// key/value form ~for k, v in map~ fills name2/is_mut2; name2 is
-/// empty for the ordinary single-variable form.
+/// key/value form ~for k, v in map~ (or ~for i, x in v~) fills
+/// name2/is_mut2/til_type2; name2 is empty for the ordinary
+/// single-variable form. til_type annotates the first binding,
+/// til_type2 the second (#514).
 ForInData := struct {
     name := ""
     is_mut := false
     til_type := Type.Unknown
     name2 := ""
     is_mut2 := false
+    til_type2 := Type.Unknown
 namespace:
     eq := func(a: ForInData, b: ForInData) returns Bool { return a.name == b.name }
     to_str := func(self: ForInData) returns Str { return self.name }

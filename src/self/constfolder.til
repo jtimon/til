@@ -201,8 +201,8 @@ priv collect_mut_targets := proc(e: Expr, mut names: Set(Str), mut introduced: V
                 ref fdef : Expr = fdef_o.unwrap()
                 switch fdef.node_type {
                 case .FuncDef(fd):
-                    for pi in 0..fd.sig.params.len() {
-                        mutates_arg := fd.sig.params[pi].is_mut.and(fd.sig.params[pi].own_type.is(OwnType.Ref))
+                    for pi, param in fd.sig.params {
+                        mutates_arg := param.is_mut.and(param.own_type.is(OwnType.Ref))
                         mut aggregate_arg := pi + 1 < e.children.len()
                         if aggregate_arg { aggregate_arg = constfolder_type_is_aggregate(e.children[pi + 1].til_type(), ctx) }
                         if mutates_arg.and(aggregate_arg) {

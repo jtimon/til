@@ -394,7 +394,7 @@ main := proc(args: ..Str) {
     next_tick()
     // The same lines as the build that wrote them, and nothing rewritten.
     check_command(Cmd.new(compiler, "build", "liba/same.til"), first_lib.out())
-    for i in 0..lib_files.len() { expect_same(lib_files[i], lib_times[i], "unchanged library rebuilt") }
+    for i, lib_file in lib_files { expect_same(lib_file, lib_times[i], "unchanged library rebuilt") }
     check_command(Cmd.new(compiler, "build", "libb/same.til"), first_lib.out().replace("liba/", "libb/"))
     check_command(Cmd.new(compiler, "build", "liba/same.til"), first_lib.out())
     header := File.readfile(format(WORK, "/gen/til/same.h"))

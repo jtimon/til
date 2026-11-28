@@ -1,0 +1,39 @@
+# priority: low
+# category: features
+** WIP #514 for-in: require the value type; allow it on the second binding
+
+  ~for x : T in v~ can annotate its element, but the two-binding forms
+  cannot annotate their second binding: ~for i, x : T in v~ and
+  ~for k, v : V in m~ fail to parse ("expected 'in', found ':'"). The
+  annotation was mandatory when for-in had a single binding, and the
+  index/key binding added later took over the only slot. Consequences:
+
+  - an indexed loop over Vec(Dynamic) cannot be written, because the
+    element type cannot be inferred from get() and cannot be declared
+    either (two ~0..items.len()~ loops in src/self/codegen/c_codegen.til
+    stay index loops for that reason);
+  - ~for k : K, v in m~ parses but the typer ignores the ~K~.
+
+  Accept ~for [mut] a [: A], [mut] b [: B] in xs~, using ~B~ as the
+  element/value type and ~A~ as the index/key type.
+
+  Then make the VALUE annotation mandatory for every collection and map
+  for-in, the way it was before the two-binding forms existed: the
+  index of a vec-like loop is implicitly USize and the map key stays
+  optional, but the element/value binding must say its type. Range
+  loops (~for i in a..b~) are not collection loops and are unaffected.
+  The rule unifies with the existing "cannot infer element type, use
+  explicit type" error, which today fires only for a Dynamic get().
+
+  Staged (doc/self.org, preparation + use): the compiler sources cannot
+  spell ~for i, x : T in v~ until the parser change is in boot/.
+
+*** Progress
+  - [X] Parse ~: Type~ after the second binding; the indexed lowering
+    uses it as the element type, the map lowering uses both annotations,
+    the comptime scope binds it, and the initer renames/substitutes it
+    like the first annotation (priv types, generics). Tests:
+    test_for_index_value_typed
+    (test/loops.til), test_hashmap_for_in_kv_typed (test/hashmaps.til).
+  - [ ] Require the value annotation (one typer rule) and annotate every
+    collection/map for-in the rule flags.

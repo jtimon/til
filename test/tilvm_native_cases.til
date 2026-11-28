@@ -214,11 +214,11 @@ native_config_test := proc(root: Str) {
         "taken := proc() { native_config_take(own \"taken literal\") }\n"))
     methods := vec(Str, "literal", "borrowed", "view", "empty", "record", "taken")
     expected := vec(Str, "literal title", "borrowed literal", "slice 48", "", "record literal", "taken literal")
-    for i in 0..methods.len() {
+    for i, method in methods {
         native.native_config_reset()
         mut strings_vm := TilVm.new(root)
         strings_vm.load_file("config_strings.til")!
-        mut set_title := strings_vm.lookup(methods[i])!
+        mut set_title := strings_vm.lookup(method)!
         set_title.call()!
         assert_eq(Str, config.title, expected[i])
         own set_title.delete()

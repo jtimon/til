@@ -320,6 +320,7 @@ priv put_for_in := func(mut line: Vec(Str), loop: ForInData, names: Vec(Str)) {
     put(line, "til_type", type_text(loop.til_type, names))
     put_text(line, "name2", loop.name2)
     put_bool(line, "is_mut2", loop.is_mut2)
+    put(line, "til_type2", type_text(loop.til_type2, names))
 }
 
 priv put_capture_block := func(mut line: Vec(Str), block: CaptureBlockData) {

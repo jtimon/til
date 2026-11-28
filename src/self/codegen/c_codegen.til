@@ -254,8 +254,7 @@ priv inline_subst := proc(mut e: Expr, fd: FunctionDef, call: Expr, mut ctx: Con
         switch e.children[ci].node_type {
         case .Ident(id):
             ref nm : Str = id.ident_name(ctx.symbols.names)
-            for pi in 0..fd.sig.params.len() {
-                ref param : Declaration = fd.sig.params[pi]
+            for pi, param in fd.sig.params {
                 if param.name.eq(nm) {
                     ref arg : Expr = call.children[pi + 1]
                     formal_type := declaration_resolved_type(param, ctx.scope, ctx.symbols)
@@ -504,8 +503,8 @@ priv is_value_param := func(sym: Sym, ctx: Context) returns Bool {
     switch cf.node_type {
     case .FuncDef(fd):
         ref name : Str = ctx.symbols.resolve(sym)
-        for i in 0..fd.sig.params.len() {
-            if fd.sig.params[i].name == name {
+        for i, param in fd.sig.params {
+            if param.name == name {
                 return func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
             }
         }
@@ -565,10 +564,10 @@ priv is_slot_own_param := func(sym: Sym, ctx: Context) returns Bool {
             if fd.sig.params[1].name == "call_free" { return false }
         }
         ref name : Str = ctx.symbols.resolve(sym)
-        for i in 0..fd.sig.params.len() {
-            if fd.sig.params[i].name == name {
-                if fd.sig.params[i].own_type.is(OwnType.Own).not() { return false }
-                return type_name_travels_by_slot(decl_type_name_ref(fd.sig.params[i], ctx.symbols))
+        for param in fd.sig.params {
+            if param.name == name {
+                if param.own_type.is(OwnType.Own).not() { return false }
+                return type_name_travels_by_slot(decl_type_name_ref(param, ctx.symbols))
             }
         }
         return false
@@ -590,8 +589,8 @@ priv is_stack_outer_param := func(sym: Sym, ctx: Context) returns Bool {
     switch cf.node_type {
     case .FuncDef(fd):
         ref name : Str = ctx.symbols.resolve(sym)
-        for i in 0..fd.sig.params.len() {
-            if fd.sig.params[i].name == name {
+        for i, param in fd.sig.params {
+            if param.name == name {
                 return func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
             }
         }
@@ -612,8 +611,7 @@ priv is_own_heap_param := func(sym: Sym, ctx: Context) returns Bool {
     switch cf.node_type {
     case .FuncDef(fd):
         ref name : Str = ctx.symbols.resolve(sym)
-        for i in 0..fd.sig.params.len() {
-            ref p : Declaration = fd.sig.params[i]
+        for i, p in fd.sig.params {
             if p.name == name {
                 return p.own_type.is(OwnType.Own).and(
                     func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
@@ -1107,7 +1105,7 @@ priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl
     if fd.sig.params.len() == 0 {
         f.write("void")
     } else {
-        for i in 0..fd.sig.params.len() {
+        for i, param in fd.sig.params {
             if i > 0 { f.write(", ") }
             ii := i.to_i32()
             // Issue #176 bullet 1: emit `const` for non-mut Ref pointer
@@ -1117,7 +1115,7 @@ priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl
             // wrong). `mut` stays as the escape hatch.
             mut const_prefix := false
             if for_ext_decl.and(ii.neq(fd.sig.variadic_index)).and(ii.neq(fd.sig.kwargs_index)) {
-                ref pp : Declaration = fd.sig.params[i]
+                ref pp : Declaration = param
                 if pp.own_type.is(OwnType.Ref).and(pp.is_mut.not()) {
                     const_prefix = true
                 }
@@ -1127,7 +1125,7 @@ priv emit_param_list := proc(f: File, fdef: Expr, with_names: Bool, for_ext_decl
                 if const_prefix { f.write("const ") }
                 f.write(ptype)
                 f.write(" ")
-                f.write(c_ident(fd.sig.params[i].name))
+                f.write(c_ident(param.name))
             } else {
                 if const_prefix { f.write("const ") }
                 f.write(ptype)
@@ -1959,8 +1957,8 @@ priv builder_emit_cptr_lit_init := proc(f: File, pool: Str, init: Str, members: 
     f.write("static void ").write(init).write("(void) __attribute__((constructor));\n")
     f.write("static void ").write(init).write("(void) {\n")
     f.write("    static const struct { size_t offset; const char *text; USize count; } entries[] = {\n")
-    for i in 0..members.len() {
-        f.write("        {offsetof(__typeof__(*").write(pool).write("), ").write(members[i]).write("), \"")
+    for i, member in members {
+        f.write("        {offsetof(__typeof__(*").write(pool).write("), ").write(member).write("), \"")
         f.write(str_lit_escape(contents[i])).write("\", ")
         emit_usize(f, contents[i].len())
         f.write("ULL},\n")
@@ -2117,8 +2115,7 @@ priv builder_register_dyn_type_to_str_lits := func(mut lp: LoadedProgram) {
     mut variant_names := Vec(Str).new()
     mut variant_types := Vec(Str).new()
     if find_loaded_enum_variants("Type", variant_names, variant_types, lp).not() { return }
-    for j in 0..variant_names.len() {
-        ref vn : Str = variant_names[j]
+    for j, vn in variant_names {
         ref vt : Str = variant_types[j]
         if vt.len().eq(0) {
             display := dyn_type_str_display(vn)
@@ -3720,8 +3717,7 @@ priv scalar_capture_borrows_storage := func(name: Str, ctx: Context) returns Boo
     case .Some(def):
         switch def.node_type {
         case .FuncDef(fd):
-            for i in 0..fd.sig.params.len() {
-                ref parameter: Declaration = fd.sig.params[i]
+            for i, parameter in fd.sig.params {
                 if parameter.name == name {
                     return parameter.own_type.is(OwnType.Ref)
                         .and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols).not())
@@ -4056,8 +4052,7 @@ priv expr_has_c_initializer := func(e: Expr, allow_sequences: Bool, mut ctx: Con
             ref sdef : Expr = sdef_o.unwrap()
             ref sd : StructDef = structdef_of(sdef)
             if e.children.len() != sd.fields.len() + 1 { return false }
-            for i in 0..sd.fields.len() {
-                ref field : Declaration = sd.fields[i]
+            for i, field in sd.fields {
                 if field.own_type.is(OwnType.Shallow).not() { return false }
                 if expr_has_c_initializer(e.children[i + 1], allow_sequences, ctx).not() { return false }
             }
@@ -4211,8 +4206,7 @@ priv emit_precomputed_sequence_templates_expr := proc(f: File, e: Expr, owner: S
     }
     if e.node_type.is(NodeType.StructDef).or(e.node_type.is(NodeType.EnumDef)) {
         ref ns : Vec(Declaration) = def_ns_decls(e)
-        for i in 0..ns.len() {
-            ref d : Declaration = ns[i]
+        for i, d in ns {
             if d.default_value.is_none() { continue }
             full_name := owner.concat3("_", def_ns_name_at(e, i))
             if ctx.builder_core_c_names.has(full_name) { continue }
@@ -4243,9 +4237,9 @@ priv emit_precomputed_sequence_templates_expr := proc(f: File, e: Expr, owner: S
             emit_usize(f, data.capacity)
             f.write("] = {")
             if e.children.len() == 0 { f.write("0") }
-            for i in 0..e.children.len() {
+            for i, item in e.children {
                 if i > 0 { f.write(", ") }
-                emit_c_static_initializer(f, e.children[i], ctx)
+                emit_c_static_initializer(f, item, ctx)
             }
             f.write("};\n")
         }
@@ -4275,12 +4269,12 @@ priv emit_cptr_sequence_template := proc(f: File, e: Expr, data: PrecomputedSequ
         f.write("        ").write(elem_c).write(" *a = calloc(")
         emit_usize(f, data.capacity)
         f.write("ULL, sizeof(").write(elem_c).write("));\n")
-        for i in 0..e.children.len() {
+        for i, child in e.children {
             f.write("        a[")
             emit_usize(f, i)
             f.write("] = (").write(elem_c).write(")")
             if is_aggregate.not() { f.write("(") }
-            emit_c_static_initializer(f, e.children[i], ctx)
+            emit_c_static_initializer(f, child, ctx)
             if is_aggregate.not() { f.write(")") }
             f.write(";\n")
         }
@@ -6822,9 +6816,9 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
                 .write(concrete.len().to_str()).write(" && memcmp(TIL_OWN_GET(I8, ").write(receiver)
                 .write("->iface_type_name.c_str), \"").write(concrete).write("\", ")
                 .write(concrete.len().to_str()).write(") == 0) {\n")
-            for i in 0..fd.sig.params.len() {
-                if decl_type_name_ref(fd.sig.params[i], lp.ctx.symbols).eq("Str")
-                    .and(fd.sig.params[i].own_type.is(OwnType.Own))
+            for i, parameter in fd.sig.params {
+                if decl_type_name_ref(parameter, lp.ctx.symbols).eq("Str")
+                    .and(parameter.own_type.is(OwnType.Own))
                     .and(func_param_passes_c_value(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
                         .or(func_param_has_stack_outer(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)).not())
                     .and(func_param_passes_c_value(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
@@ -6834,22 +6828,22 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
                     // Record its storage before an owned mutable callee can
                     // replace the value; only heap wrappers need freeing here.
                     f.write("        Bool _t_iface_free_argument_").write(i.to_str()).write(" = ")
-                        .write(fd.sig.params[i].name).write("->cap != TIL_CAP_LIT;\n")
+                        .write(parameter.name).write("->cap != TIL_CAP_LIT;\n")
                 }
-                if decl_type_name_ref(fd.sig.params[i], lp.ctx.symbols) == name {
-                    emit_interface_receiver(f, name, concrete, fd.sig.params[i], i)
+                if decl_type_name_ref(parameter, lp.ctx.symbols) == name {
+                    emit_interface_receiver(f, name, concrete, parameter, i)
                 } else if func_param_has_stack_outer(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
                     .and(func_param_has_stack_outer(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols).not())
                     .and(func_param_passes_c_value(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols).not()) {
                     // An external override may own a heap outer where an
                     // ordinary default's ABI only lends caller-frame storage.
-                    mut atype := decl_type_name(fd.sig.params[i], lp.ctx.symbols)
+                    mut atype := decl_type_name(parameter, lp.ctx.symbols)
                     if i.to_i32() == fd.sig.variadic_index { atype = builder_variadic_array_type_name(lp.ctx, atype) }
                     if i.to_i32() == fd.sig.kwargs_index { atype = "KwargsMap" }
                     ctype := type_name_to_c_value(atype, lp.ctx)
                     f.write("        ").write(ctype).write(" *_t_iface_argument_").write(i.to_str())
                         .write(" = malloc(TIL_BOX(").write(ctype).write("));\n        *_t_iface_argument_")
-                        .write(i.to_str()).write(" = *").write(fd.sig.params[i].name).write(";\n")
+                        .write(i.to_str()).write(" = *").write(parameter.name).write(";\n")
                 }
             }
             has_return := fd.sig.return_type.len() > 0
@@ -6857,10 +6851,10 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
                 f.write("        ").write(func_return_ctype(target, lp.ctx)).write(" _t_iface_result = ")
             } else { f.write("        ") }
             f.write(concrete).write("_").write(method).write("(")
-            for i in 0..fd.sig.params.len() {
+            for i, parameter in fd.sig.params {
                 if i > 0 { f.write(", ") }
                 target_value := func_param_passes_c_value(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
-                if decl_type_name_ref(fd.sig.params[i], lp.ctx.symbols) == name {
+                if decl_type_name_ref(parameter, lp.ctx.symbols) == name {
                     if target_value { f.write("*") }
                     f.write("_t_iface_receiver_").write(i.to_str())
                 } else {
@@ -6871,31 +6865,31 @@ priv emit_interface_dispatch := proc(f: File, name: Str, method: Str, fdef: Expr
                     } else {
                         if target_value.and(source_value.not()) { f.write("*") }
                         if source_value.and(target_value.not()) { f.write("&") }
-                        f.write(fd.sig.params[i].name)
+                        f.write(parameter.name)
                     }
                 }
             }
             f.write(");\n")
-            for i in 0..fd.sig.params.len() {
-                if fd.sig.params[i].own_type.is(OwnType.Own).not() { continue }
+            for i, param in fd.sig.params {
+                if param.own_type.is(OwnType.Own).not() { continue }
                 if func_param_passes_c_value(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)
                     .or(func_param_has_stack_outer(target, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols)) {
-                    if decl_type_name_ref(fd.sig.params[i], lp.ctx.symbols) == name {
+                    if decl_type_name_ref(param, lp.ctx.symbols) == name {
                         f.write("        free(_t_iface_receiver_").write(i.to_str()).write(");\n")
                     }
                     else if func_param_passes_c_value(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols).not()
                         .and(func_param_has_stack_outer(fd, i, lp.ctx.param_value_abi_ok, lp.ctx.scope, lp.ctx.symbols).not())
-                        .and(is_aggregate(declaration_resolved_type(fd.sig.params[i], lp.ctx.scope, lp.ctx.symbols))
+                        .and(is_aggregate(declaration_resolved_type(param, lp.ctx.scope, lp.ctx.symbols))
                             .or(i.to_i32() == fd.sig.variadic_index).or(i.to_i32() == fd.sig.kwargs_index)) {
                         // Owned primitives still arrive in caller-frame
                         // slots at the abstract boundary; only aggregate/
                         // variadic outer allocations belong to this bridge.
                         f.write("        ")
-                        if decl_type_name_ref(fd.sig.params[i], lp.ctx.symbols).eq("Str")
+                        if decl_type_name_ref(param, lp.ctx.symbols).eq("Str")
                             .and(i.to_i32().neq(fd.sig.variadic_index)).and(i.to_i32().neq(fd.sig.kwargs_index)) {
                             f.write("if (_t_iface_free_argument_").write(i.to_str()).write(") ")
                         }
-                        f.write("free(").write(fd.sig.params[i].name).write(");\n")
+                        f.write("free(").write(param.name).write(");\n")
                     }
                 }
             }
@@ -7030,8 +7024,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, mut l
     } else if enum_is_niche(enum_def) {
         // #320 niche: the ctors ARE the pointer. None writes null,
         // Some stores the borrowed pointer.
-        for i in 0..edd.variants.len() {
-            ref vd : VariantDef = edd.variants[i]
+        for i, vd in edd.variants {
             ref vn : Str = vd.name
             if builder_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
             vt := enum_variant_type(enum_def, i.to_i32())
@@ -7048,8 +7041,7 @@ priv emit_enum_def := proc(f: File, name: Str, enum_def: Expr, mode: Mode, mut l
         }
     } else {
         // Payload enum
-        for i in 0..edd.variants.len() {
-            ref vd : VariantDef = edd.variants[i]
+        for i, vd in edd.variants {
             ref vn : Str = vd.name
             if builder_variant_ctor_kept(name, enum_def, vn, lp.ctx).not() { continue }
             vt := enum_variant_type(enum_def, i.to_i32())
@@ -7252,8 +7244,7 @@ priv emit_enum_struct_body := proc(f: File, ename: Str, enum_def: Expr, mut ctx:
     if enum_has_payloads(enum_def) {
         f.write("    union {\n")
         ref edd : EnumDef = enumdef_of(enum_def)
-        for j in 0..edd.variants.len() {
-            ref vd : VariantDef = edd.variants[j]
+        for j, vd in edd.variants {
             vt := enum_variant_type(enum_def, j.to_i32())
             if vt.len() > 0 {
                 // #320: a ref payload is stored as a bare pointer the
@@ -7856,8 +7847,7 @@ priv prepare_lib_c_namespace := proc(mut lp: LoadedProgram, fwd_path: Str, lib_n
             if is_struct_or_enum(stmt) {
                 ref definition : Expr = stmt.children[0]
                 ref members : Vec(Declaration) = def_ns_decls(definition)
-                for i in 0..members.len() {
-                    ref member : Declaration = members[i]
+                for i, member in members {
                     if member.external_symbol.len() == 0 { continue }
                     foreign_symbols.add(own member.external_symbol.clone())
                     lp.ctx.builder_external_globals.set(declaration.name.concat3("_", def_ns_name_at(definition, i)),
@@ -7985,9 +7975,9 @@ priv emit_closure_wrapper_def := proc(f: File, name: Str, fdef: Expr, mut ctx: C
     if fd.sig.return_type.len() > 0 { f.write("    return ") }
     else { f.write("    ") }
     f.write(func_to_c(name)).write("(")
-    for i in 0..fd.sig.params.len() {
+    for i, param in fd.sig.params {
         if i > 0 { f.write(", ") }
-        f.write(c_ident(fd.sig.params[i].name))
+        f.write(c_ident(param.name))
     }
     f.write(");\n")
     f.write("}\n")
@@ -8088,8 +8078,7 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                         continue
                     }
                     f.write("enum {\n")
-                    for j in 0..fwd_edd.variants.len() {
-                        ref vd : VariantDef = fwd_edd.variants[j]
+                    for j, vd in fwd_edd.variants {
                         if j > 0 { f.write(",\n") }
                         f.fwrite("    ", dd.name, "_TAG_", vd.name)
                         // Stage C (#264 follow-up): emit an explicit tag value when
@@ -8129,8 +8118,7 @@ priv emit_header_forward_decls_lp := proc(f: File, lp: LoadedProgram) {
                     continue
                 }
                 f.write("enum {\n")
-                for j in 0..fwd_edd.variants.len() {
-                    ref vd : VariantDef = fwd_edd.variants[j]
+                for j, vd in fwd_edd.variants {
                     if j > 0 { f.write(",\n") }
                     f.fwrite("    ", dd.name, "_TAG_", vd.name)
                     if vd.tag_value != j.to_i64() { f.write(" = ").write(vd.tag_value.to_str()) }
@@ -8568,8 +8556,7 @@ priv emit_binding_param := proc(f: File, param: Declaration, fd: FunctionDef, in
 
 priv emit_binding_params := proc(f: File, fd: FunctionDef, wrapper: Bool, ctx: Context, owner: Str = "") {
     mut emitted : USize = 0
-    for p in 0..fd.sig.params.len() {
-        ref param : Declaration = fd.sig.params[p]
+    for p, param in fd.sig.params {
         if binding_param_is_throw_abi(param, fd) { continue }
         if emitted > 0 { f.write(", ") }
         emit_binding_param(f, param, fd, p, wrapper, ctx, owner)
@@ -8580,9 +8567,9 @@ priv emit_binding_params := proc(f: File, fd: FunctionDef, wrapper: Bool, ctx: C
 priv emit_binding_throws := proc(f: File, fd: FunctionDef, ctx: Context) {
     if fd.sig.throw_types.len() == 0 { return }
     f.write(" throws ")
-    for i in 0..fd.sig.throw_types.len() {
+    for i, throw_type in fd.sig.throw_types {
         if i > 0 { f.write(", ") }
-        f.write(binding_type_name(fd.sig.throw_types[i], ctx))
+        f.write(binding_type_name(throw_type, ctx))
     }
 }
 
@@ -8634,8 +8621,7 @@ priv emit_binding_wrapper := proc(f: File, indent: Str, name: Str, actual: Str,
     if fd.sig.return_type.len() > 0 { f.write("return ") }
     f.write(actual).write("(")
     mut emitted : USize = 0
-    for a in 0..fd.sig.params.len() {
-        ref arg : Declaration = fd.sig.params[a]
+    for a, arg in fd.sig.params {
         if binding_param_is_throw_abi(arg, fd) { continue }
         if emitted > 0 { f.write(", ") }
         if arg.own_type.is(OwnType.Own) { f.write("own ") }
@@ -8668,8 +8654,8 @@ priv emit_binding_layout_helper := proc(f: File, owner: Str, def: Expr, lib_name
         .write(" := func(self: ").write(owner).write(") {\n")
     switch def.node_type {
     case .StructDef(sdd):
-        for i in 0..sdd.fields.len() {
-            if sdd.fields[i].is_priv.not() { continue }
+        for i, field in sdd.fields {
+            if field.is_priv.not() { continue }
             f.write("        to_ptr(self.").write(sdd.field_name_at(i)).write(")\n")
         }
     case:
@@ -9217,8 +9203,7 @@ priv jni_err_slot := func(type_name: Str, var: Str, ctx: Context) returns JniErr
     switch def.node_type {
     case .StructDef(sdd):
         slot.c_type = lib_c_resolved_name(type_name, ctx)
-        for fi in 0..sdd.fields.len() {
-            ref fdd : Declaration = sdd.fields[fi]
+        for fi, fdd in sdd.fields {
             if sdd.field_name_at(fi) != "msg" { continue }
             if decl_type_name_ref(fdd, ctx.symbols) != "Str" { continue }
             // Shallow fields are inline in the C struct (see
@@ -9472,8 +9457,7 @@ priv jni_unbound_reason := func(fd: FunctionDef, types: JniTypes, ctx: Context) 
     }
     if fd.sig.variadic_index >= 0 { return "variadic parameter" }
     if fd.sig.kwargs_index >= 0 { return "keyword-arguments parameter" }
-    for i in 0..fd.sig.params.len() {
-        ref p : Declaration = fd.sig.params[i]
+    for p : Declaration in fd.sig.params {
         if jni_param_is_err_slot(p) { continue }
         tn := jni_decl_type(p, ctx)
         kind := jni_kind(tn, types, ctx)
@@ -9557,8 +9541,7 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
         native_params = "long tilClosure"
         java_args = "tilPtr()"
     }
-    for i in 0..fd.sig.params.len() {
-        ref p : Declaration = fd.sig.params[i]
+    for i, p in fd.sig.params {
         if jni_param_is_err_slot(p) { continue }
         tn := jni_decl_type(p, ctx)
         kind := jni_kind(tn, types, ctx)
@@ -9688,8 +9671,7 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
     if cm { head_params = ", jlong clo" }
     // The closure's C function type, as til calls through it.
     mut fp_params := ""
-    for i in 0..fd.sig.params.len() {
-        ref fpp : Declaration = fd.sig.params[i]
+    for i, fpp in fd.sig.params {
         if fpp.name == "_err_kind" { fp_params = format(fp_params, ", I64 *") }
         else if jni_param_is_err_slot(fpp) {
             fp_params = format(fp_params, ", ", jni_err_slot(jni_decl_type(fpp, ctx), "e", ctx).c_type, " *")
@@ -9704,8 +9686,7 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
             } else { fp_params = format(fp_params, ", ", fp_ctv, " *") }
         }
     }
-    for i in 0..fd.sig.params.len() {
-        ref p : Declaration = fd.sig.params[i]
+    for i, p in fd.sig.params {
         if jni_param_is_err_slot(p) { continue }
         tn := jni_decl_type(p, ctx)
         kind := jni_kind(tn, types, ctx)
@@ -9721,8 +9702,7 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
     // call on every path: write-backs, then releases.
     mut call_args := ""
     mut after := ""
-    for i in 0..fd.sig.params.len() {
-        ref p : Declaration = fd.sig.params[i]
+    for i, p in fd.sig.params {
         if i > 0 { call_args = format(call_args, ", ") }
         a := format("a", i.to_str())
         t := format("t", i.to_str())
@@ -9873,8 +9853,7 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
 
     // Payload slot deletes, run on both paths.
     mut slot_deletes := ""
-    for i in 0..fd.sig.params.len() {
-        ref p : Declaration = fd.sig.params[i]
+    for i, p in fd.sig.params {
         if p.name == "_err_kind" { continue }
         if jni_param_is_err_slot(p).not() { continue }
         slot := jni_err_slot(jni_decl_type(p, ctx), format("err_", i.to_str()), ctx)
@@ -9886,8 +9865,8 @@ priv emit_jni_function := proc(jf: File, cf: File, fd: FunctionDef, api_name: St
         mut first := true
         for tt : Str in fd.sig.throw_types {
             mut msg := "NULL"
-            for i in 0..fd.sig.params.len() {
-                if fd.sig.params[i].name == format("_err_", tt) {
+            for i, param in fd.sig.params {
+                if param.name == format("_err_", tt) {
                     slot := jni_err_slot(tt, format("err_", i.to_str()), ctx)
                     if slot.msg.len() > 0 { msg = slot.msg.clone() }
                 }
@@ -10013,9 +9992,8 @@ priv jni_init_value := proc(place: Str, tn: Str, e: Expr, types: JniTypes, ctx: 
 // box from the runtime's allocator.
 priv jni_init_fields := proc(sdd: StructDef, place: Str, call: Expr, has_call: Bool, types: JniTypes,
         ctx: Context, mut seq: I64, mut out: JniInit) {
-    for fi in 0..sdd.fields.len() {
+    for fi, fdd in sdd.fields {
         if out.reason.len() > 0 { return }
-        ref fdd : Declaration = sdd.fields[fi]
         ref fname : Str = sdd.field_name_at(fi)
         ftn := jni_decl_type(fdd, ctx)
         // The argument for this field: named, or in its positional slot.
@@ -10206,8 +10184,7 @@ priv emit_jni_handle_class := proc(jf: File, cf: File, name: Str, def: Expr, typ
             cf.write("    memset(p, 0, sizeof *p);\n").write(init.code)
             cf.write("    return (jlong)(intptr_t)p;\n}\n\n")
         }
-        for fi in 0..sdd.fields.len() {
-            ref fdd : Declaration = sdd.fields[fi]
+        for fi, fdd in sdd.fields {
             if fdd.is_priv { continue }
             ref fname : Str = sdd.field_name_at(fi)
             ftn := jni_decl_type(fdd, ctx)
@@ -10262,8 +10239,7 @@ priv emit_jni_handle_class := proc(jf: File, cf: File, name: Str, def: Expr, typ
             some_i := enum_niche_some_index(def)
             mut none_tag := ""
             mut some_tag := ""
-            for vi in 0..edd.variants.len() {
-                ref nvd : VariantDef = edd.variants[vi]
+            for vi, nvd in edd.variants {
                 if vi.to_i32() == some_i { some_tag = nvd.tag_value.to_str() } else { none_tag = nvd.tag_value.to_str() }
             }
             // The bridge spells library types by their qualified C names.
@@ -10277,8 +10253,7 @@ priv emit_jni_handle_class := proc(jf: File, cf: File, name: Str, def: Expr, typ
         } else {
             cf.write("    return (j").write(tag_java).write(")").write(tag_place).write("->tag;\n}\n\n")
         }
-        for vi in 0..edd.variants.len() {
-            ref pvd : VariantDef = edd.variants[vi]
+        for vi, pvd in edd.variants {
             if pvd.payload_type.len() == 0 { continue }
             vtn := jni_resolve(enum_variant_type(def, vi.to_i32()), ctx)
             kind := jni_kind(vtn, types, ctx)
@@ -10340,8 +10315,7 @@ priv jni_cb_err := proc(tt: Str, place: Str, types: JniTypes, ctx: Context) retu
             return out
         }
         out.code = init.code.clone()
-        for fi in 0..sdd.fields.len() {
-            ref fdd : Declaration = sdd.fields[fi]
+        for fi, fdd in sdd.fields {
             if sdd.field_name_at(fi) != "msg" { continue }
             if jni_decl_type(fdd, ctx) != "Str" { continue }
             // jni_init_fields accepted the field: inline, or an own box.
@@ -10358,8 +10332,8 @@ priv jni_cb_err := proc(tt: Str, place: Str, types: JniTypes, ctx: Context) retu
 // The index of a FuncSig's payload slot for throw type `tt`, or -1 when the
 // type has none.
 priv jni_cb_err_index := func(sfd: FunctionDef, tt: Str) returns I64 {
-    for i in 0..sfd.sig.params.len() {
-        if sfd.sig.params[i].name == format("_err_", tt) { return i.to_i64() }
+    for i, param in sfd.sig.params {
+        if param.name == format("_err_", tt) { return i.to_i64() }
     }
     return -1
 }
@@ -10430,8 +10404,7 @@ priv emit_jni_callback := proc(jf: File, cf: File, name: Str, sfd: FunctionDef, 
     mut c_post := ""
     mut err_kind := ""
     mut nargs : USize = 1
-    for i in 0..sfd.sig.params.len() {
-        ref p : Declaration = sfd.sig.params[i]
+    for i, p in sfd.sig.params {
         x := format("x", i.to_str())
         if p.name == "_err_kind" {
             c_params = format(c_params, ", I64 *", x)
@@ -11863,9 +11836,9 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
             ref core_vec : StructDef = structdef_of(core_stmt.children[0])
             f.write("\nclass Vec__Str(ctypes.Structure):\n")
             f.write("    _fields_ = [\n")
-            for fi in 0..core_vec.fields.len() {
+            for fi, field in core_vec.fields {
                 f.write("        ('").write(core_vec.field_name_at(fi)).write("', ")
-                    .write(struct_field_to_ctypes(core_vec, core_vec.fields[fi], lp.ctx)).write("),\n")
+                    .write(struct_field_to_ctypes(core_vec, field, lp.ctx)).write("),\n")
             }
             f.write("    ]\n")
         }
@@ -11897,10 +11870,9 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
     mut py_type_unit := Vec(USize).new()
     mut py_type_stmt := Vec(USize).new()
     mut py_type_index := Map(Str, USize).new()
-    for ui in 0..lp.units.len() {
-        ref iu : ImportUnit = lp.ctx.imported[lp.units[ui].path]
-        for si in 0..iu.ast.children.len() {
-            ref stmt : Expr = iu.ast.children[si]
+    for ui, unit in lp.units {
+        ref iu : ImportUnit = lp.ctx.imported[unit.path]
+        for si, stmt in iu.ast.children {
             if stmt.node_type.is(NodeType.Decl).not() { continue }
             if stmt.children.len() == 0 { continue }
             if stmt.children[0].node_type.is(NodeType.StructDef).or(stmt.children[0].node_type.is(NodeType.EnumDef)).not() { continue }
@@ -11912,8 +11884,8 @@ priv build_python_binding := proc(lp: LoadedProgram, py_path: Str, lib_name: Str
     }
     mut py_emitted := Set(Str).new()
     mut py_visiting := Set(Str).new()
-    for pi in 0..py_type_names.len() {
-        emit_python_type_fields(f, py_type_names[pi], py_type_index, py_type_unit, py_type_stmt, py_emitted, py_visiting, lp)
+    for py_type_name in py_type_names {
+        emit_python_type_fields(f, py_type_name, py_type_index, py_type_unit, py_type_stmt, py_emitted, py_visiting, lp)
     }
     f.write("\n")
 
@@ -12724,8 +12696,8 @@ priv emit_typed_dyn_fn_wrapper := proc(f: File, name: Str, wrapper: Str, got: Fu
         f.write(", ").write(param_ctype(want, i, ctx)).write(" a").write(i.to_str())
     }
     f.write(") {\n    (void)env;\n")
-    for i in 0..want.sig.params.len() {
-        if want.sig.params[i].own_type.is(OwnType.Own).not() { continue }
+    for i, parameter in want.sig.params {
+        if parameter.own_type.is(OwnType.Own).not() { continue }
         source_value := func_param_passes_c_value(want, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
         source_stack := func_param_has_stack_outer(want, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
         target_value := func_param_passes_c_value(got, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
@@ -12734,7 +12706,7 @@ priv emit_typed_dyn_fn_wrapper := proc(f: File, name: Str, wrapper: Str, got: Fu
             f.write("    __typeof__(a").write(i.to_str()).write(") owned").write(i.to_str()).write(" = malloc(sizeof(*a").write(i.to_str()).write("));\n    *owned").write(i.to_str()).write(" = *a").write(i.to_str()).write(";\n")
         }
         if source_value.or(source_stack).not().and(target_value.or(target_stack))
-            .and(decl_type_name_ref(want.sig.params[i], ctx.symbols).eq("Str"))
+            .and(decl_type_name_ref(parameter, ctx.symbols).eq("Str"))
             .and(i.to_i32().neq(want.sig.variadic_index)).and(i.to_i32().neq(want.sig.kwargs_index)) {
             f.write("    Bool free").write(i.to_str()).write(" = a").write(i.to_str()).write("->cap != TIL_CAP_LIT;\n")
         }
@@ -12756,16 +12728,16 @@ priv emit_typed_dyn_fn_wrapper := proc(f: File, name: Str, wrapper: Str, got: Fu
         }
     }
     f.write(");\n")
-    for i in 0..want.sig.params.len() {
-        if want.sig.params[i].own_type.is(OwnType.Own).not() { continue }
+    for i, param in want.sig.params {
+        if param.own_type.is(OwnType.Own).not() { continue }
         if func_param_passes_c_value(want, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
             .or(func_param_has_stack_outer(want, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)) { continue }
         if func_param_passes_c_value(got, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)
             .or(func_param_has_stack_outer(got, i, ctx.param_value_abi_ok, ctx.scope, ctx.symbols)) {
-            if is_aggregate(declaration_resolved_type(want.sig.params[i], ctx.scope, ctx.symbols))
+            if is_aggregate(declaration_resolved_type(param, ctx.scope, ctx.symbols))
                 .or(i.to_i32().eq(want.sig.variadic_index)).or(i.to_i32().eq(want.sig.kwargs_index)) {
                 f.write("    ")
-                if decl_type_name_ref(want.sig.params[i], ctx.symbols).eq("Str")
+                if decl_type_name_ref(param, ctx.symbols).eq("Str")
                     .and(i.to_i32().neq(want.sig.variadic_index)).and(i.to_i32().neq(want.sig.kwargs_index)) {
                     f.write("if (free").write(i.to_str()).write(") ")
                 }
@@ -12816,8 +12788,7 @@ priv emit_typed_dyn_fn_lookups := proc(f: File, mut lp: LoadedProgram) {
                 ref def : Expr = stmt.children[0]
                 ref type_name : Str = decl_of(stmt).name
                 ref members : Vec(Declaration) = def_ns_decls(def)
-                for i in 0..members.len() {
-                    ref nsd : Declaration = members[i]
+                for i, nsd in members {
                     ref method_name : Str = def_ns_name_at(def, i)
                     if nsd.default_value.is_none() { continue }
                     if nsd.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
@@ -13384,8 +13355,7 @@ priv emit_enum_variant_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, m
             f.write(";\n")
         } else {
             emit_reflect_found_mark(f)
-            for i in 0..ed.variants.len() {
-                ref vd : VariantDef = ed.variants[i]
+            for i, vd in ed.variants {
                 has_pl := vd.payload_type.len() > 0
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
                 if kind == 1 {
@@ -13563,9 +13533,9 @@ priv emit_funcsig_branch_for_stmt := proc(f: File, stmt: Expr, kind: I32, mut ct
             }
         } else if kind == 5 {
             emit_reflect_found_mark(f)
-            for i in 0..fd.sig.throw_types.len() {
+            for i, throw_type in fd.sig.throw_types {
                 f.write("        if (*index == "); emit_usize(f, i); f.write("LL) return ")
-                emit_str_lit_expr(f, fd.sig.throw_types[i], ctx)
+                emit_str_lit_expr(f, throw_type, ctx)
                 f.write(";\n")
             }
         } else {
@@ -13726,8 +13696,7 @@ priv emit_dyn_type_to_str_body := proc(f: File, mut lp: LoadedProgram) {
         panic("emit_dyn_type_to_str_body: cannot find Type enum in loaded program")
     }
     f.write("    switch (type->tag) {\n")
-    for j in 0..variant_names.len() {
-        ref vn : Str = variant_names[j]
+    for j, vn in variant_names {
         ref vt : Str = variant_types[j]
         if vt.len() == 0 {
             display := dyn_type_str_display(vn)

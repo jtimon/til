@@ -56,6 +56,32 @@ test_for_index_value := test() {
     assert_eq(I64, total, 63)
 }
 
+// #514: the second binding of the indexed form takes a type annotation,
+// like the single-binding form.
+test_for_index_value_typed := test() {
+    values := vec(I64, 10, 20, 30)
+    mut total := 0
+    for i, value : I64 in values { total = total + i.to_i64() + value }
+    assert_eq(I64, total, 63)
+
+    mut scaled := vec(I64, 1, 2)
+    for i : USize, mut value : I64 in scaled { value = value * 10 + i.to_i64() }
+    assert_eq(I64, scaled[0], 10)
+    assert_eq(I64, scaled[1], 21)
+
+    // A priv type is renamed by the initer; the second annotation follows.
+    mut points := Vec(LoopPoint).new()
+    points.push(own LoopPoint(x = 3))
+    points.push(own LoopPoint(x = 4))
+    mut weighted := 0
+    for i, point : LoopPoint in points { weighted = weighted + point.x * (i.to_i64() + 1) }
+    assert_eq(I64, weighted, 11)
+}
+
+priv LoopPoint := struct {
+    x : I64 = 0
+}
+
 test_for_index_mut_value := test() {
     mut values := vec(I64, 10, 20, 30)
     for i, mut value in values { value = value + i.to_i64() }

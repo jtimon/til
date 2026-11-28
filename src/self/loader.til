@@ -292,8 +292,7 @@ priv unit_is_native_api := func(path: Str, unit: ImportUnit, ctx: Context) retur
             if ctx.type_gen_synths.has(declaration.name) { continue }
             mut native_lifecycle := false
             ref members : Vec(Declaration) = def_ns_decls(value)
-            for i in 0..members.len() {
-                ref member : Declaration = members[i]
+            for i, member in members {
                 if member.external_symbol.len() > 0 { continue }
                 if member.default_value.is_none() { return false }
                 ref member_value : Expr = member.default_expr()
@@ -1583,9 +1582,8 @@ priv doc_throw_abi_param := func(param: Declaration, fd: FunctionDef) returns Bo
 
 priv append_doc_captures := func(mut out: Str, captures: Vec(Declaration)) {
     out.doc_push_str("[")
-    for i in 0..captures.len() {
+    for i, capture in captures {
         if i > 0 { out.doc_push_str(", ") }
-        ref capture : Declaration = captures[i]
         append_qualifier_prefix(out, capture, OwnType.Ref)
         out.doc_push_str(capture.name)
     }
@@ -1733,8 +1731,7 @@ priv append_doc_default := func(mut out: Str, e: Expr, scope: TypeScope, symbols
 priv append_fn_signature := func(mut out: Str, fd: FunctionDef, scope: TypeScope, symbols: SymbolPool) {
     out.doc_push_str("(")
     mut emitted : USize = 0
-    for i in 0..fd.sig.params.len() {
-        ref p : Declaration = fd.sig.params[i]
+    for i, p in fd.sig.params {
         if doc_throw_abi_param(p, fd) { continue }
         if emitted > 0 { out.doc_push_str(", ") }
         emitted++
@@ -1775,9 +1772,9 @@ priv append_fn_signature := func(mut out: Str, fd: FunctionDef, scope: TypeScope
     }
     if fd.sig.throw_types.len() > 0 {
         out.doc_push_str(" throws ")
-        for i in 0..fd.sig.throw_types.len() {
+        for i, throw_type in fd.sig.throw_types {
             if i > 0 { out.doc_push_str(", ") }
-            out.doc_push_str(fd.sig.throw_types[i])
+            out.doc_push_str(throw_type)
         }
     }
 }
@@ -1962,15 +1959,13 @@ priv format_struct_info := func(name: Str, sdef: StructDef, scope: TypeScope, sy
     out.doc_push_str("struct ")
     out.doc_push_str(name)
     out.doc_push_str(" {")
-    for i in 0..sdef.fields.len() {
-        ref f2 : Declaration = sdef.fields[i]
+    for i, f2 in sdef.fields {
         if doc_member_hidden(f2) { continue }
         out.doc_push_str("\n")
         append_field_indented(out, sdef.field_name_at(i), f2, symbols)
     }
     mut namespace_started := false
-    for i in 0..sdef.ns_decls.len() {
-        ref d2 : Declaration = sdef.ns_decls[i]
+    for i, d2 in sdef.ns_decls {
         if doc_member_hidden(d2) { continue }
         if namespace_started.not() { out.doc_push_str("\nnamespace:"); namespace_started = true }
         out.doc_push_str("\n")
@@ -2006,8 +2001,7 @@ priv format_enum_info := func(name: Str, edef: EnumDef, scope: TypeScope, symbol
         }
     }
     mut namespace_started := false
-    for i in 0..edef.ns_decls.len() {
-        ref d2 : Declaration = edef.ns_decls[i]
+    for i, d2 in edef.ns_decls {
         if doc_member_hidden(d2) { continue }
         if namespace_started.not() { out.doc_push_str("\nnamespace:"); namespace_started = true }
         out.doc_push_str("\n")
@@ -2254,8 +2248,8 @@ priv collect_import_names := proc(call: Expr, alias: Str, dep: Str, path: Str,
             continue
         }
         ref def : StructDef = structdef_of(stmt.children[0])
-        for j in 0..def.ns_decls.len() {
-            if def.ns_decls[j].is_priv { continue }
+        for j, ns_decl in def.ns_decls {
+            if ns_decl.is_priv { continue }
             ref member : Str = def.member_name_at(j)
             if names.visible.has(member).or(names.owners.has(member)) {
                 type_error_at(path, call.line, call.col, format("wildcard import conflicts with declaration '", member, "'"), ctx)
@@ -2397,17 +2391,17 @@ priv rewrite_import_children := proc(mut e: Expr, names: ImportNames, path: Str,
         for cap : Declaration in fdd.captures {
             fn_shadow.add(own cap.name.clone())
         }
-        for fi in 0..e.children.len() {
-            rewrite_ns_alias_uses(e.children[fi], names, path, fn_shadow, ctx)
+        for mut child in e.children {
+            rewrite_ns_alias_uses(child, names, path, fn_shadow, ctx)
         }
         return
     case .Body:
         // Locals shadow from their decl point onward, so extend the set
         // AFTER each Decl child is walked (its RHS still sees the alias).
         mut body_shadow := shadowed.clone()
-        for bi in 0..e.children.len() {
-            rewrite_ns_alias_uses(e.children[bi], names, path, body_shadow, ctx)
-            switch e.children[bi].node_type {
+        for mut stmt in e.children {
+            rewrite_ns_alias_uses(stmt, names, path, body_shadow, ctx)
+            switch stmt.node_type {
             case .Decl(bd):
                 body_shadow.add(own bd.name.clone())
             case:
@@ -2450,8 +2444,8 @@ priv rewrite_import_children := proc(mut e: Expr, names: ImportNames, path: Str,
         }
     case:
     }
-    for i in 0..e.children.len() {
-        rewrite_ns_alias_uses(e.children[i], names, path, shadowed, ctx)
+    for mut child in e.children {
+        rewrite_ns_alias_uses(child, names, path, shadowed, ctx)
     }
 }
 
@@ -2645,8 +2639,7 @@ priv inline_lazy_call := func(mut parent: Expr, call_idx: USize, fdef: Expr, sym
             mut nargs := call.children.len() - 1
             if is_method_call { nargs = call.children.len() }
             if nargs == fd.sig.params.len() {
-                for j in 0..fd.sig.params.len() {
-                    ref param : Declaration = fd.sig.params[j]
+                for j, param in fd.sig.params {
                     if is_method_call.and(j.eq(0)) {
                         subs.set(param.name, own call_callee.children[0].clone())
                     } else {
@@ -3243,8 +3236,7 @@ priv lazy_build_subs := func(call: Expr, fdef: Expr) returns Map(Str, Expr) {
     }
     switch fdef.node_type {
     case .FuncDef(fd):
-        for j in 0..fd.sig.params.len() {
-            ref param : Declaration = fd.sig.params[j]
+        for j, param in fd.sig.params {
             if is_method.and(j.eq(0)) {
                 subs.set(param.name, own callee.children[0].clone())
             } else {
@@ -4194,8 +4186,7 @@ priv lazy_build_thunk_call := func(call: Expr, fdef: Expr, name: Str, is_method:
     nc.add_child(own Expr.new(own ident_node(symbols.intern(name)), line, col))
     switch fdef.node_type {
     case .FuncDef(fd):
-        for j in 0..fd.sig.params.len() {
-            ref param : Declaration = fd.sig.params[j]
+        for j, param in fd.sig.params {
             ref param_type : Str = decl_type_name_ref(param, symbols)
             ret_type := param_type.strip_prefix("_Fn_ret_")
             nc.add_child(own lazy_make_thunk(own lazy_eff_arg_clone(call, is_method, j), ret_type, scope, symbols))
@@ -4217,8 +4208,7 @@ priv lazy_build_field_thunk_call := func(call: Expr, sig_fdef: Expr, scope: Type
     nc.add_child(own call.children[0].clone())
     switch sig_fdef.node_type {
     case .FuncDef(fd):
-        for j in 0..fd.sig.params.len() {
-            ref param : Declaration = fd.sig.params[j]
+        for j, param in fd.sig.params {
             ref param_type : Str = decl_type_name_ref(param, symbols)
             ret_type := param_type.strip_prefix("_Fn_ret_")
             nc.add_child(own lazy_make_thunk(own call.children[j + 1].clone(), ret_type, scope, symbols))

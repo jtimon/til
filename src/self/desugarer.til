@@ -1813,8 +1813,7 @@ priv validate_one_fcall_consolidated := proc(
         if callee_is_throwing {
             ref tts2 : Vec(Str) = ctx.throws_global[key]
             mut tlist := ""
-            for jj in 0..tts2.len() {
-                ref tn2 : Str = tts2[jj]
+            for jj, tn2 in tts2 {
                 if jj > 0 { tlist = format(tlist, ", ") }
                 tlist = format(tlist, tn2)
             }
@@ -1916,9 +1915,8 @@ priv validate_and_inject_expr_consolidated := proc(
         // flag the surviving '!' as "function does not throw". The body is a
         // Body (handled elsewhere); the pattern carries no calls.
         guard_bang := e.children.len().eq(3).and(subtree_has_bang(e.children[1]))
-        for sci in 0..e.children.len() {
+        for sci, mut sub in e.children {
             if guard_bang.and(sci.eq(1)) { continue }
-            ref mut sub : Expr = e.children[sci]
             validate_and_inject_expr_consolidated(scope, ctx, sub, body, pending, seen, types_to_declare, path)
         }
         return
@@ -2773,8 +2771,7 @@ priv process_throw_catch_in_body := proc(
         // Different stmt kinds expose their expressions in different
         // positions; recurse only into the expression slots and not
         // into nested bodies (which step 2 already covered).
-        for spi2 in 0..store_pre.len() {
-            ref mut hoisted_call_decl : Expr = store_pre[spi2]
+        for mut hoisted_call_decl : Expr in store_pre {
             validate_and_inject_expr_consolidated(scope, ctx, hoisted_call_decl, root_body, pending, seen, types_to_declare, path)
         }
         switch stmt.node_type {
@@ -2808,9 +2805,8 @@ priv process_throw_catch_in_body := proc(
                     // doesn't flag the surviving '!'.
                     guard_idx := case_pattern_count(cn)
                     guard_bang := case_has_guard(cn).and(subtree_has_bang(cn.children[guard_idx]))
-                    for cci in 0..cn.children.len() {
+                    for cci, mut ccn in cn.children {
                         if guard_bang.and(cci.eq(guard_idx)) { continue }
-                        ref mut ccn : Expr = cn.children[cci]
                         if ccn.node_type.is(NodeType.Body).not() {
                             validate_and_inject_expr_consolidated(scope, ctx, ccn, root_body, pending, seen, types_to_declare, path)
                         }
@@ -4264,8 +4260,7 @@ priv sync_own_args_from_callee := func(mut call: Expr, scope: TypeScope, symbols
     ref ns_func : Expr = nfo.unwrap()
     switch ns_func.node_type {
     case .FuncDef(fd):
-        for i in 0..fd.sig.params.len() {
-            ref p : Declaration = fd.sig.params[i]
+        for i, p in fd.sig.params {
             if p.own_type.is(OwnType.Own) {
                 set_own_arg(call, i + 1)
             }
@@ -6288,14 +6283,14 @@ priv build_splat_folded_array := func(mut ctx: Context, e: Expr, mut new_ch: Vec
 
     // Fold the pieces with concat.
     mut combined := Expr.new(own NodeType.Literal(Literal.Null), e.line, e.col)
-    for pi in 0..pieces.len() {
+    for pi, piece in pieces {
         if pi == 0 {
             combined = pieces[0].clone()
             continue
         }
         mut cc := make_ns_call(array_type, "concat", Type.StructSym(ctx.symbols.intern(array_type)), e, ctx.symbols)
         cc.add_child(own combined.clone())
-        cc.add_child(own pieces[pi].clone())
+        cc.add_child(own piece.clone())
         combined = cc.clone()
     }
     return combined

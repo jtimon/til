@@ -294,9 +294,9 @@ priv verify_case := proc(c: LayerCase) {
     mut expected := c.initial.clone()
     for _ in 0..3 {
         layer_scalar4(c.inputs, c.weights, expected, c.rows)
-        for k in 0..variants.len() {
+        for k, variant in variants {
             ref mut result : Array(F32) = outputs.unsafe_get(k)
-            variants[k].run(c.inputs, c.weights, result, c.rows)
+            variant.run(c.inputs, c.weights, result, c.rows)
             same_bits(result, expected)
             assert_eq(F32, result[c.rows], c.initial[c.rows])
             assert_eq(F32, result[c.rows + 1], c.initial[c.rows + 1])
@@ -366,13 +366,13 @@ priv measure := proc(n: USize, rows: USize) {
     mut times := Array(F64).new(variants.len() * 5)
     // Warm up and calibrate before collecting samples. The existing monotonic
     // millisecond clock is adequate for >=100 ms batches, not individual calls.
-    for k in 0..variants.len() {
+    for k, variant in variants {
         repetitions.set(k, own 1)!
-        variants[k].run(c.inputs, c.weights, results, rows)
+        variant.run(c.inputs, c.weights, results, rows)
         mut elapsed : I64 = 0
         while elapsed < 100 {
             reset_results(c, results)
-            elapsed = run_batch(variants[k].run, c, results, repetitions[k])
+            elapsed = run_batch(variant.run, c, results, repetitions[k])
             if elapsed < 100 { repetitions.set(k, own (repetitions[k] * 2))! }
         }
     }
