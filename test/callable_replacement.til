@@ -2,7 +2,7 @@ mode test
 
 DropCounts := struct { drops: I64 = 0 }
 OwnedCapture := struct {
-    ref counts: DropCounts
+    ref mut counts: DropCounts
     value: I64 = 0
 namespace:
     delete := func(own self: OwnedCapture, call_free: Bool = true) {

@@ -324,7 +324,7 @@ HeapBinding := struct {
     // No default (#321): the one ctor site always passes ptr and ctx.
     // ptr is still NULLed at move-out/teardown -- that runtime state is
     // step-2 material (Option or the moved_out flag alone).
-    ref ptr : U8
+    ref mut ptr : U8
     // Borrowed canonical type, read via hb_type(). Points at a
     // Context-interned Type block (interp_intern_type), an ast.til TYPE_*
     // const, or another binding's (itself canonical) type -- NEVER at a
@@ -336,7 +336,7 @@ HeapBinding := struct {
     // and hb_type() can go away.
     ref til_type_p : U8
     own_type := OwnType.Shallow
-    ref ctx : Context
+    ref mut ctx : Context
     is_local := false
     is_borrowed := false
     is_erased_dynamic := false
@@ -3793,7 +3793,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, e: Expr, func_def: Exp
     c.eval.return_value = 0
     c.eval.return_source_type_p = 0
     saved_ret_is_ref := c.eval.interp_ret_is_ref
-    ref saved_ret_dest : Dynamic = c.eval.interp_ret_dest
+    const ref mut saved_ret_dest : Dynamic = c.eval.interp_ret_dest
     saved_ret_type := c.eval.interp_ret_type
     saved_ret_own_type := c.eval.interp_ret_own_type
     mut callee_ret_is_ref := false
@@ -7197,7 +7197,7 @@ NativeCallableThunk := struct {
 }
 
 priv NativeGuestCallable := struct {
-    ref context: Context
+    ref mut context: Context
     signature := FuncSig()
     own callable: U8
     borrowed_callable := false
@@ -7220,7 +7220,7 @@ priv NativeFfiHandler := proc(mut Dynamic, mut Dynamic, Dynamic)
 priv NativeImportedCallable := struct {
     magic: U64 = 0
     ref func_def: Expr
-    ref context: Context
+    ref mut context: Context
     name := ""
     signature := FuncSig()
     ref native: Dynamic
@@ -8703,7 +8703,7 @@ priv interpret_units := proc(mut lp: LoadedProgram, user_argv: Vec(Str), fwd_pat
             // either return nothing or are only ever compiled.
             ref mut mc : Context = lp.ctx
             saved_ret_is_ref := mc.eval.interp_ret_is_ref
-            ref saved_ret_dest : Dynamic = mc.eval.interp_ret_dest
+            const ref mut saved_ret_dest : Dynamic = mc.eval.interp_ret_dest
             saved_ret_type := mc.eval.interp_ret_type
             saved_ret_own_type := mc.eval.interp_ret_own_type
             mc.eval.interp_ret_type = safe_ref(fd.sig.return_type)

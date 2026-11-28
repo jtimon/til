@@ -1,7 +1,7 @@
 mode cli
 Cell := struct { number: I64 = 0 }
 borrow := func(cell: Cell) returns ref Cell { return cell }
-CounterRef := struct { ref value: I64 }
+CounterRef := struct { ref mut value: I64 }
 increment := func(counter: CounterRef) {
     ref mut value: I64 = counter.value
     value++

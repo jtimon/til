@@ -1581,7 +1581,7 @@ EvalState := struct {
     // the caller's ref from the real payload and lose writes.
     interp_ret_is_ref := false
     // Non-owning destination supplied by the current function's caller.
-    ref interp_ret_dest : Dynamic = 0
+    ref mut interp_ret_dest : Dynamic = 0
     // #321: the current function's declared return type, borrowed from
     // its FuncDef. None outside a call (saved/restored around each one).
     interp_ret_type := Option(ref Str).None

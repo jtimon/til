@@ -148,7 +148,7 @@ priv Parser := struct {
     // the whole parse; storing a CAP_VIEW (not an owned clone) avoids both a
     // per-file allocation and any double-free of the caller's buffer.
     source := ""
-    ref symbols : SymbolPool
+    ref mut symbols : SymbolPool
 }
 
 priv peek := func(p: Parser) returns ref Token {

@@ -2985,7 +2985,10 @@ priv infer_field_access_fcall := proc(mut scope: TypeScope, mut e: Expr, in_func
                 payload.add_child(own e.children[pi + 1].clone())
                 payload.set_til_type(Type.Dynamic)
                 mark_written_through(scope, payload, ctx.symbols, safe_ref(ctx.parameter_effects))
-                check_write_roots_mut(scope, e, payload, "mutate the interface payload", ctx)
+                // The generated Dynamic payload slot describes layout. The
+                // receiver check above covers its grant; here check the
+                // concrete storage the interface actually borrows.
+                check_writable_root_set(scope, e, lvalue_write_roots(scope, payload, ctx.symbols, safe_ref(ctx.parameter_effects)), "mutate the interface payload", ctx)
             }
             if ns_fdef.sig.params.len() == 0 {
                 e.type_error("abstract interface dispatch requires a receiver", ctx)
@@ -6101,7 +6104,9 @@ priv is_checked_view := func(scope: TypeScope, value: Expr, symbols: SymbolPool)
         b := scope.get_binding_sym(id.ident_sym())
         return b.is_some().and(b.unwrap().checked_view)
     case .FieldAccess:
-        if fa_is_ns(value, scope, symbols).or(fieldaccess_crosses_borrow(scope, value, symbols)) { return false }
+        field := fieldaccess_field_decl(scope, value, symbols)
+        if field.is_some() && field.unwrap().own_type.is(OwnType.Ref) { return true }
+        if fa_is_ns(value, scope, symbols) { return false }
         return is_checked_view(scope, value.children[0], symbols)
     case .FCall:
         definition := borrow_call_contract(value, scope, symbols)
@@ -7717,6 +7722,11 @@ priv infer_field_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_fu
                         stmt.type_error(format("cannot assign to const field '", fname, "'; remove the 'const' keyword from its declaration to make it mutable"), ctx)
                     }
                     if fld.own_type.is(OwnType.Ref) {
+                        if fld.referent_mut && fld.is_mut && field_borrow {
+                            problem := writable_borrow_problem(scope, rhs, ctx.symbols)
+                            if problem.is_empty().not() { stmt.type_error(format("cannot bind writable field '", fname, "': ", problem), ctx) }
+                            else { credit_mutable_return(scope, rhs, ctx.symbols) }
+                        }
                         check_ref_assign_owned_rhs(stmt, fname, rhs, scope, ctx)
                     }
                     // Resolve the declared type from til_type when
@@ -8880,7 +8890,7 @@ priv finalize_decl_binding := proc(mut scope: TypeScope, mut stmt: Expr, in_type
                 problem := writable_borrow_problem(scope, rhs, ctx.symbols)
                 decl_b.referent_mut = decl_b.referent_mut.and(problem.is_empty())
                 decl_b.ref_permission_problem = problem.clone()
-                decl_b.checked_view = is_checked_view(scope, rhs, ctx.symbols)
+                decl_b.checked_view = sdecl.ref_slot_explicit.or(is_checked_view(scope, rhs, ctx.symbols))
                 if decl_b.checked_view && sdecl.referent_mut && problem.is_empty().not() {
                     stmt.type_error(format("cannot take a writable borrow: ", problem), ctx)
                 }
@@ -10901,7 +10911,7 @@ priv infer_assign_stmt := proc(mut scope: TypeScope, mut stmt: Expr, in_func: I3
     }
     if existing.is(Type.Unknown) {
         stmt.type_error(format("undefined symbol '", aname, "'"), ctx)
-    } else if scope.is_mut_name(aname, ctx.symbols).not() {
+    } else if scope.is_mut_name(aname, ctx.symbols).not() && (ub_o.is_none() || ub_o.unwrap().referent_mut.not() || reference_assignment_rebinds(stmt, scope, ctx.symbols)) {
         stmt.type_error(format("cannot assign to immutable variable '", aname, "'"), ctx)
         sf := scope.find_name(aname, ctx.symbols)
         switch sf {

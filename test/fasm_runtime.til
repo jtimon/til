@@ -101,7 +101,7 @@ check_allocations := proc(compiler: Str, work: Str, name: Str, source: Str, allo
 check_unboxed := proc(compiler: Str, work: Str) {
     check(compiler,work,"unboxed_lifecycle",format(
         "mode cli\nCounts := struct { drops:I64=0; flags:I64=0 }\n",
-        "Value := struct { ref counts:Counts; text:Str=\"\"\nnamespace:\n",
+        "Value := struct { ref mut counts:Counts; text:Str=\"\"\nnamespace:\n",
         "delete := func(own self:Value,call_free:Bool=true) { self.counts.drops++; if call_free { self.counts.flags++ }; Str.delete(own self.text,false); if call_free { free(own self) } }\n}\n",
         "Drop := func(own value:Value,call_free:Bool)\n",
         "drop_value := func(own value:Value,call_free:Bool) { Value.delete(own value,call_free) }\n",
@@ -149,7 +149,7 @@ check_closure_allocations := proc(compiler: Str, work: Str) {
         "assert(original.action()==2); assert(copy.action()==3); assert(original.action()==4); assert(value==4) }\n"),2,2)
     check_allocations(compiler,work,"closure_resource",format(
         "mode cli\nCounts := struct { drops:I64=0; clones:I64=0; flags:I64=0 }\nAction := func() returns I64\nHolder := struct { action:Action }\n",
-        "Tracked := struct { ref counts:Counts; number:I64=0\nnamespace:\n",
+        "Tracked := struct { ref mut counts:Counts; number:I64=0\nnamespace:\n",
         "delete := func(own self:Tracked,call_free:Bool=true) { self.counts.drops++; if call_free { self.counts.flags++; free(own self) } }\n",
         "clone := func(self:Tracked) returns Tracked { self.counts.clones++; return Tracked(counts=self.counts,number=self.number) }\n}\n",
         "make := func(counts:Counts,start:I64) returns Action { value:=Tracked(counts=counts,number=start);\n",

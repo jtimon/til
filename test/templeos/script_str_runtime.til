@@ -244,7 +244,7 @@ LanguageError := struct { msg := "" }
 LanguageCounts := struct { closed := 0; entered := 0 }
 LanguageGuard := struct {
     label := ""
-    ref closes : LanguageCounts
+    ref mut closes : LanguageCounts
 namespace:
     delete := func(own self: LanguageGuard, call_free: Bool = true) {
         self.closes.closed = self.closes.closed + 1

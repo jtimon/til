@@ -122,6 +122,10 @@ fixed ~const ref mut~ alias uses its referent grant, not slot replacement, to
 permit writes. Opaque, raw and recursively widened origins retain conservative
 provenance rather than treating a partially known return as the only origin.
 
+Replacing a reference field writes the carrier's slot; writing through the
+field changes its referent. A mutable carrier permits slot replacement but
+cannot grant write access through a read-only reference field.
+
 For owned Vec and Array elements and owned Map values, subscripting borrows through
 the receiver: ~ref mut item := items[i]~ can change the stored element if
 ~items~ supplies writable access. The same expression through a read-only

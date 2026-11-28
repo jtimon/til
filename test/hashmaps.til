@@ -408,7 +408,7 @@ Callback := func(I64) returns I64
 DropCount := struct { closed : I64 = 0; created : I64 = 0 }
 Resource := struct {
     text: Str
-    ref count: DropCount
+    ref mut count: DropCount
 namespace:
     delete := func(own self: Resource, call_free: Bool = true) {
         self.count.closed++

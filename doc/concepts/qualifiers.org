@@ -34,6 +34,12 @@ in every context; ~mut~ after ~ref~ grants write access. A leading ~const~ or
 | ~mut ref value: T~ | ~ref value: T~ | replaceable | read-only |
 | ~mut ref mut value: T~ | ~ref mut value: T~ | replaceable | writable |
 
+Rebinding a reference field does not change its grant. For example, if
+~view~ is declared ~ref view: Item~, assigning ~node.view = node.history[i]~
+is allowed on a writable node, but ~node.view.n = 9~ is rejected. A field
+declared ~ref mut fold: Item~ can rebind to a writable history entry and
+write through it; it cannot rebind to the read-only ~node.view~.
+
 Fields already default to replaceable slots, so their shorter spellings are
 ~ref value: T~ and ~ref mut value: T~. Locals default to fixed bindings in the
 new contract, but unprefixed local ~ref mut~ still has legacy mutable-slot

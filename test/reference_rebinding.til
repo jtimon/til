@@ -1,15 +1,15 @@
 mode cli
 
 Cell := struct { number: I64 = 0; text: Str = "" }
-Holder := struct { cell: Cell = Cell(); ref link: Cell }
+Holder := struct { cell: Cell = Cell(); ref mut link: Cell }
 
 make_cell := func(number: I64, text: Str) returns Cell {
     return Cell(number=number, text=text.clone())
 }
-borrow_cell := func(cell: Cell) returns ref Cell { return cell }
+borrow_cell := func(ref[a] cell: Cell) returns ref[a] Cell { return cell }
 borrow_number := func(number: I64) returns ref I64 { return number }
 borrow_size := func(size: USize) returns ref USize { return size }
-choose_cell := func(mut calls: I64, first: Cell, second: Cell, choice: Bool) returns ref Cell {
+choose_cell := func(mut calls: I64, mut first: Cell, mut second: Cell, choice: Bool) returns ref mut Cell {
     calls++
     if choice { return first }
     return second
@@ -20,7 +20,7 @@ assign_parameter := func(mut target: I64, value: I64) { target = value }
 // referenced enum slot's value; it must not retarget the reference.
 Drops := struct { count: I64 = 0 }
 Tracked := struct {
-    ref drops: Drops
+    ref mut drops: Drops
     active := false
     text := ""
 namespace:

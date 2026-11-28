@@ -4,6 +4,11 @@
 
 *** Bootstrap plan and progress
 
+The ~mutable_views~ fixture exercises independent history-view and fold
+fields: both slots rebind, only the writable fold can write, and rebinding
+the fold to the read-only view is rejected. Explicit local slot qualifiers
+also retain their referent contract on writes and rebinding.
+
 Element insertion into a ~ref mut T~ specialization requires a writable
 argument. Typed collection getters preserve their result contract through
 local aliases; a mutable slot cannot upgrade a stored read-only borrow.

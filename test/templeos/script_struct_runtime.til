@@ -237,7 +237,7 @@ own payload_source.delete()
 
 StructBorrowed := struct {
     ref point : StructPoint
-    ref count : I64
+    ref mut count : I64
     ref label : Str
 }
 borrowed_point := func(holder: StructBorrowed) returns ref StructPoint { return holder.point }
@@ -688,7 +688,7 @@ println(callable_text_getter())
 CallableCounts := struct { closed := 0; entered := 0 }
 CallableGuard := struct {
     name := "guard"
-    ref counts : CallableCounts
+    ref mut counts : CallableCounts
 namespace:
     delete := func(own self: CallableGuard, call_free: Bool = true) {
         self.counts.closed = self.counts.closed + 1

@@ -9,7 +9,7 @@ mode cli
 
 Drops := struct { count: I64 = 0 }
 Tracked := struct {
-    ref drops: Drops
+    ref mut drops: Drops
     active := false
 namespace:
     delete := func(own self: Tracked, call_free: Bool = true) {
@@ -37,7 +37,7 @@ via_ufcs := func(drops: Drops) {
     t = Tracked(drops=drops)
     assert(t.active.not())
 }
-via_store := func(drops: Drops, other: Drops) {
+via_store := func(mut drops: Drops, other: Drops) {
     mut t := Tracked(drops=other)
     t.drops = drops
     t.active = true
@@ -61,7 +61,7 @@ main := proc() {
     method := Drops()
     via_ufcs(method)
     assert(method.count == 1)
-    stored := Drops()
+    mut stored := Drops()
     untouched := Drops()
     via_store(stored, untouched)
     assert(stored.count == 1)

@@ -11,7 +11,7 @@ namespace:
 }
 Counts := struct { drops: I64 = 0 }
 Tracked := struct {
-    ref counts: Counts
+    ref mut counts: Counts
     active := false
     text := ""
 namespace:

@@ -193,7 +193,7 @@ shared_cell_callback_tests := proc(root: Str) returns TransformError {
 }
 
 SharedRecordData := struct { text := ""; marker: I32 = 0 }
-SharedRecord := struct { label := ""; byte: U8 = 0; ref first: I64; data := SharedRecordData(); ref second: I64; count: I32 = 0 }
+SharedRecord := struct { label := ""; byte: U8 = 0; ref mut first: I64; data := SharedRecordData(); ref second: I64; count: I32 = 0 }
 SharedRecordError := struct { message := "" }
 SharedRecordRetain := proc(SharedRecord)
 SharedRecordBorrow := proc(mut SharedRecord, I64) returns I64 throws SharedRecordError
@@ -213,7 +213,7 @@ retain_shared_record := proc(mut callback: TilVmCallback, mut vm: TilVm) {
 }
 
 shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
-    schema := "SharedRecordData := struct { text := \"\"; marker: I32 = 0 }\nSharedRecord := struct { label := \"\"; byte: U8 = 0; ref first: I64; data := SharedRecordData(); ref second: I64; count: I32 = 0 }\n"
+    schema := "SharedRecordData := struct { text := \"\"; marker: I32 = 0 }\nSharedRecord := struct { label := \"\"; byte: U8 = 0; ref mut first: I64; data := SharedRecordData(); ref second: I64; count: I32 = 0 }\n"
     File.writefile("guest.til", format("mode lib\n", schema,
         "SharedRecordError := struct { message := \"\" }\nother := vec(I64, 123)\nmut calls := 0\n",
         "mut saved := SharedRecord(first = other.unsafe_get(0), second = other.unsafe_get(0))\n",
@@ -361,8 +361,8 @@ shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
     assert(owned_text == "owned label")
     // Each schema mismatch must be caught before the guest is invoked.
     for fields: Str in array(Str,
-        schema.replace("ref first: I64", "ref first: U64"),
-        schema.replace("ref first: I64", "first: I64 = 0")) {
+        schema.replace("ref mut first: I64", "ref mut first: U64"),
+        schema.replace("ref mut first: I64", "first: I64 = 0")) {
         File.writefile("guest.til", format("mode lib\n", fields,
             "retain_record := proc(value: SharedRecord) { noop_proc(); assert(value.count == 0) }\n"))
         mut bad_schema := TilVm.new(root)
@@ -375,7 +375,7 @@ shared_record_callback_tests := proc(root: Str) returns SharedRecordError {
 BorrowedData := struct { message := ""; count: I32 = 0 }
 BorrowedTextView := enum { None, Some: ref Str }
 BorrowedDataView := enum { None, Some: ref BorrowedData }
-BorrowedBundle := struct { label := ""; ref number: U64; ref text: Str; ref data: BorrowedData; view := BorrowedTextView.None }
+BorrowedBundle := struct { label := ""; ref mut number: U64; ref mut text: Str; ref mut data: BorrowedData; view := BorrowedTextView.None }
 TouchBorrowed := proc(own mut BorrowedBundle, I64) returns BorrowedBundle throws BorrowedBundle
 ReadBorrowed := func() returns BorrowedBundle
 InspectBorrowed := proc(values: ..Dynamic, options: ...) returns Str
@@ -388,7 +388,7 @@ ordinary_borrow_callback_tests := proc(root: Str) {
         "BorrowedTextView := enum { None, Some: ref Str }\n",
         "BorrowedDataView := enum { None, Some: ref BorrowedData }\n",
         "SharedScalar := enum { None, Some: ref I64 }\n",
-        "BorrowedBundle := struct { label := \"\"; ref number: U64; ref text: Str; ref data: BorrowedData; view := BorrowedTextView.None }\n",
+        "BorrowedBundle := struct { label := \"\"; ref mut number: U64; ref mut text: Str; ref mut data: BorrowedData; view := BorrowedTextView.None }\n",
         "mut saved := Option(BorrowedBundle).None\n",
         "touch_borrowed := proc(own mut value: BorrowedBundle, action: I64) returns BorrowedBundle throws BorrowedBundle {\n",
         "noop_proc(); ref mut number: U64 = value.number; ref mut text: Str = value.text; ref mut data: BorrowedData = value.data;\n",

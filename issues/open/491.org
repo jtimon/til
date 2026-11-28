@@ -4,6 +4,10 @@
 
 *** Existing preparation
 
+A getter result used to replace a typed writable reference field must grant
+write access; the field does not upgrade a read-only result. The compiler
+checks subsequent field writes against the stored grant.
+
 Collection migration complete: use indexing or ~get~ (and ~unsafe_get~ for
 unchecked access). The separate ~get_mut~/~unsafe_get_mut~ methods described
 in earlier checkpoints below are removed. The generics fixture exercises the

@@ -336,7 +336,7 @@ test_local_shadowing_global_is_not_an_escape := test() {
 }
 
 CaptureCloneCounts := struct { clones:I64=0; drops:I64=0; heap_drops:I64=0; order:I64=0 }
-CaptureCloneValue := struct { ref counts:CaptureCloneCounts; key:I64=0; number:I64=0; text:Str=""
+CaptureCloneValue := struct { ref mut counts:CaptureCloneCounts; key:I64=0; number:I64=0; text:Str=""
 namespace:
     clone := func(self:CaptureCloneValue) returns CaptureCloneValue {
         self.counts.clones++

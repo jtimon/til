@@ -1,0 +1,17 @@
+# priority: low
+# category: experiments
+** OPEN #513 Consider postfix ! for Option values
+
+Today ~items.get(i)!~ panics if the call throws, while ~maybe.unwrap()~
+extracts the payload of ~Some~ and panics on ~None~. Would ~maybe!~ make
+the common intent clearer than the explicit method name?
+
+Consider a throwing ~lookup()~ that returns ~Option(T)~: today ~lookup()!~
+still returns the Option, and ~lookup()!.unwrap()~ checks for absence too.
+Could a reader tell which failure a bang handles without looking up the
+signature? Any shorthand should preserve the payload's ownership and borrow
+permissions just as ~unwrap()~ does.
+
+Compare keeping ~unwrap()~, giving Option a built-in exception, and allowing
+types to overload postfix ~!~. Would the shorter spelling justify a special
+case? Would overloading make it harder to know what ~!~ does at a glance?

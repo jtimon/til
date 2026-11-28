@@ -2,9 +2,9 @@ mode test
 
 # --- ref returns with I64 ---
 
-RefFieldSteps := struct { ref byte:I8;ref half:I16;ref word:I32;ref wide:I64;ref unsigned_value:U64;ref float_value:F32;ref raw:Dynamic=0 }
-RefFieldNumber := struct { ref value:I64 }
-RefFieldRaw := struct { ref value:Dynamic=0 }
+RefFieldSteps := struct { ref mut byte:I8;ref mut half:I16;ref mut word:I32;ref mut wide:I64;ref mut unsigned_value:U64;ref float_value:F32;ref raw:Dynamic=0 }
+RefFieldNumber := struct { ref mut value:I64 }
+RefFieldRaw := struct { ref mut value:Dynamic=0 }
 increment_ref_number := func(counter: RefFieldNumber) {
     ref mut value: I64 = counter.value
     value++
@@ -19,7 +19,7 @@ increment_ref_getter := func(counter: RefFieldNumber) {
     ref mut value: I64 = ref_number_value(counter)
     value++
 }
-RefFieldPair := struct { ref first: I64; ref second: I64 }
+RefFieldPair := struct { ref mut first: I64; ref second: I64 }
 increment_first_ref := func(pair: RefFieldPair) { pair.first.inc() }
 RefFieldNested := struct { counter: RefFieldNumber }
 increment_nested_ref := func(value: RefFieldNested) { forward_ref_number(value.counter) }
@@ -452,7 +452,7 @@ test_borrow_root_through_payload := test() {
 
 Bp351Held := struct { n := 0 }
 Bp351Src := struct { held := Bp351Held() }
-Bp351Holder := struct { ref r : Bp351Held }
+Bp351Holder := struct { ref mut r : Bp351Held }
 
 bp351_held_of := func(s: Bp351Src) returns ref Bp351Held {
     return s.held
@@ -556,7 +556,7 @@ test_borrow_root_through_clone := test() {
 # both backends agree on which storage changed.
 
 Bp355Two := struct {
-    ref p : Bp351Held
+    ref mut p : Bp351Held
     ref q : Bp351Held
 }
 
