@@ -153,7 +153,7 @@ puzzle_clue_keys := func(root: USize, quality: PuzzleQuality, janko: Bool) retur
 
 test_puzzle_clue_voicing := test() {
     for root in 0..NUM_KEYS {
-        for q, quality in PUZZLE_QUALITIES {
+        for q, quality : PuzzleQuality in PUZZLE_QUALITIES {
             for janko : Bool in array(Bool, false, true) {
                 notes := puzzle_clue_keys(root, quality, janko)
                 mut held := Array(I32).new(NUM_KEYS)
@@ -161,7 +161,7 @@ test_puzzle_clue_voicing := test() {
                     if janko { assert(i.gte(PIANO_C4_KEY_OFFSET).and(i.lte(janko_note(9)))) }
                     held[i] = 1
                 }
-                for other, puzzle_quality in PUZZLE_QUALITIES {
+                for other, puzzle_quality : PuzzleQuality in PUZZLE_QUALITIES {
                     assert_eq(Bool, puzzle_matches(held, root, puzzle_quality), q.eq(other))
                 }
             }

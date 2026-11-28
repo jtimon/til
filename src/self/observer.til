@@ -219,7 +219,7 @@ priv put_funcsig := func(mut line: Vec(Str), sig: FuncSig) {
     put(line, "params", sig.params.len().to_str())
     put_text(line, "return_type", sig.return_type)
     mut thrown_types := ""
-    for i, thrown in sig.throw_types {
+    for i, thrown : Str in sig.throw_types {
         if i > 0 { thrown_types = format(thrown_types, ",") }
         thrown_types = format(thrown_types, thrown)
     }
@@ -467,10 +467,10 @@ observe_expr := proc(e: Expr, depth: USize, role: Str, names: Vec(Str), sized: B
         for parameter : Declaration in function.sig.params { observe_declaration(parameter, "param", "", depth + 1, names, sized) }
         for capture : Declaration in function.captures { observe_declaration(capture, "capture", "", depth + 1, names, sized) }
     case .StructDef(definition):
-        for i, field in definition.fields {
+        for i, field : Declaration in definition.fields {
             observe_declaration(field, "field", member_name(definition.fields_index, i), depth + 1, names, sized)
         }
-        for i, member in definition.ns_decls {
+        for i, member : Declaration in definition.ns_decls {
             observe_declaration(member, "member", member_name(definition.ns_index, i), depth + 1, names, sized)
         }
     case .EnumDef(definition):
@@ -479,7 +479,7 @@ observe_expr := proc(e: Expr, depth: USize, role: Str, names: Vec(Str), sized: B
             put_variant(variant_line, variant)
             print_record(variant_line)
         }
-        for i, member in definition.ns_decls {
+        for i, member : Declaration in definition.ns_decls {
             observe_declaration(member, "member", member_name(definition.ns_index, i), depth + 1, names, sized)
         }
     case .CaptureBlock(block):
@@ -568,13 +568,13 @@ priv observe_side_state := proc(lp: LoadedProgram) {
             println("type ", quoted(name), " size=", size.to_str(), " align=", align.to_str())
         }
     }
-    for name, kind in lp.ctx.constfolder_foldables {
+    for name, kind : FuncType in lp.ctx.constfolder_foldables {
         println("foldable ", quoted(name), " ", kind.variant_name())
     }
-    for i, thrown in lp.ctx.throw_type_registry {
+    for i, thrown : Str in lp.ctx.throw_type_registry {
         println("throw_type ", i.to_str(), " ", quoted(thrown))
     }
-    for name, thrown in lp.ctx.throws_global {
+    for name, thrown : Vec(Str) in lp.ctx.throws_global {
         mut line := format("throws ", quoted(name))
         for one : Str in thrown { line = format(line, " ", quoted(one)) }
         println(line)

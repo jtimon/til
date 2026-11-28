@@ -65,7 +65,6 @@
 *** [[./open/489.org][#489]] Reconsider whether a NaN's text should show its sign bit
 *** [[./open/495.org][#495]] Multiple return values (as in Go, Odin and Jai)
 *** [[./open/496.org][#496]] Nested type applications over a type parameter (Vec(Vec(T)) in a generic)
-*** [[./open/514.org][#514]] for-in: require the value type; allow it on the second binding
 * Backends
 ** Medium
 *** [[./open/383.org][#383]] Coordinate alternative backend runtimes and conformance tests

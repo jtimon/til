@@ -144,7 +144,7 @@ namespace:
 
     delete := func(own self: Tuple, call_free: Bool = true) {
         mut offset : USize = 0
-        for i, tn in self.type_names {
+        for i, tn : Str in self.type_names {
             ref ts : USize = self.type_sizes[i]
             dyn_call(tn, "delete", 2, ptr_add(self.data, offset), false)
             offset = offset + ts
@@ -162,7 +162,7 @@ namespace:
         if new_cap == 0 { new_cap = 8 }
         mut new_data : U8 = malloc(new_cap)
         mut offset : USize = 0
-        for i, tn in self.type_names {
+        for i, tn : Str in self.type_names {
             ref ts : USize = self.type_sizes[i]
             cloned : Dynamic = dyn_call_ret(tn, "clone", 1, ptr_add(self.data, offset))
             memcpy(ptr_add(new_data, offset), cloned, ts)

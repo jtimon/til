@@ -655,7 +655,7 @@ test_interface_collection_lifetimes := test() {
     assert_eq(Str, values[0].draw(), "named 5")
     assert_eq(Str, values[1].draw(), "enum 5")
     mut count := 0
-    for value in values {
+    for value : Drawable in values {
         assert_eq(Str, value.label(), "shape")
         count++
     }
@@ -1411,7 +1411,7 @@ angle_suffix := func<T: Type implements Drawable>(value: T, own suffix: Str) ret
 angle_append := func<T: Type implements Drawable>(mut values: Vec(T), own value: T) { values.push(own value) }
 angle_parts := func<T: Type implements Drawable>(value: T, parts: ..Str) returns Str {
     mut result := value.draw()
-    for part in parts { result = format(result, part) }
+    for part : Str in parts { result = format(result, part) }
     return result
 }
 priv hidden_angle := func<T: Type implements Drawable>(value: T) returns Str { return value.draw() }

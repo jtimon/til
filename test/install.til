@@ -380,7 +380,7 @@ main := proc(args: ..Str) returns I64 {
     core_name := binding_dependency(binding, "_core_name")
     expect(runtime_name.starts_with("libtilrt-").and(runtime_name.ends_with(shared_ext)), runtime_name)
     expect(core_name.starts_with("libtilcore-").and(core_name.ends_with(shared_ext)), core_name)
-    for name in vec(Str, runtime_name, core_name) {
+    for name : Str in vec(Str, runtime_name, core_name) {
         installed_path := format(PREFIX, "/lib/", name)
         require(installed_path)
         if File.readfile(installed_path) != File.readfile(format(WORK, "/gen/lib/", name)) {

@@ -238,11 +238,11 @@ test_variadic_short_circuits := test() {
 #     (benchmarked indistinguishable). ---
 
 vand_iter := lazy_func(xs: ..Bool) returns Bool {
-    for x in xs { if x.not() { return false } }
+    for x : Bool in xs { if x.not() { return false } }
     return true
 }
 vor_iter := lazy_func(xs: ..Bool) returns Bool {
-    for x in xs { if x { return true } }
+    for x : Bool in xs { if x { return true } }
     return false
 }
 

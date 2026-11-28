@@ -396,7 +396,7 @@ ref mut changed_record : Record = records[0]
 changed_record.text = "array replacement"
 assert(records_copy[0].text.eq("alpha"))
 mut sum := 0
-for value in records_copy { sum = sum + value.number }
+for value : Record in records_copy { sum = sum + value.number }
 assert(sum == 25)
 check_bounds(records_copy, records_copy.len())
 mut folded := constants()

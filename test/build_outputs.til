@@ -394,7 +394,7 @@ main := proc(args: ..Str) {
     next_tick()
     // The same lines as the build that wrote them, and nothing rewritten.
     check_command(Cmd.new(compiler, "build", "liba/same.til"), first_lib.out())
-    for i, lib_file in lib_files { expect_same(lib_file, lib_times[i], "unchanged library rebuilt") }
+    for i, lib_file : Str in lib_files { expect_same(lib_file, lib_times[i], "unchanged library rebuilt") }
     check_command(Cmd.new(compiler, "build", "libb/same.til"), first_lib.out().replace("liba/", "libb/"))
     check_command(Cmd.new(compiler, "build", "liba/same.til"), first_lib.out())
     header := File.readfile(format(WORK, "/gen/til/same.h"))
@@ -431,10 +431,10 @@ main := proc(args: ..Str) {
         File.writefile(format(WORK, "/bar/backend.til"), "mode cli\nmain := proc() { println(\"second backend\") }\n")
         // Translation needs neither the assembler nor LLVM tools. Every
         // backend must retain the source hierarchy and its exact reporting.
-        for backend in array(Str, "fasm", "mlir") {
+        for backend : Str in array(Str, "fasm", "mlir") {
             mut suffix := ".fasm"
             if backend == "mlir" { suffix = ".mlir" }
-            for directory in array(Str, "foo", "bar") {
+            for directory : Str in array(Str, "foo", "bar") {
                 source := format(directory, "/backend.til")
                 generated := format("gen/", backend, "/", directory, "/backend", suffix)
                 check_command(Cmd.new(compiler, "translate", format("--backend=", backend), source),

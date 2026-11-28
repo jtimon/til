@@ -38,7 +38,7 @@ table := func(source: Str, name: Str, properties: Vec(Str), field: USize = 1) re
         if parts.len() <= field { continue }
         if field == 2 { if parts[1].trim() != "InCB" { continue } }
         property := parts[field].trim()
-        for index, listed in properties {
+        for index, listed : Str in properties {
             if property != listed { continue }
             range := parts[0].trim().split("..")
             first := hex(range[0]); mut last := first

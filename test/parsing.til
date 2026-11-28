@@ -405,7 +405,7 @@ test_repeat_parse := test() {
     // reuses its first name.
     assert_eq(I64, counter1, 2)
     assert_eq(USize, symbols1.names.len(), symbols2.names.len())
-    for i, name in symbols1.names {
+    for i, name : Str in symbols1.names {
         assert_eq(Str, name, symbols2.names[i])
     }
     // Symbols are numbered by first reference in source order (lifted
@@ -420,12 +420,12 @@ test_repeat_parse := test() {
     order.push(own "Green")
     order.push(own "alpha")
     assert_eq(USize, symbols1.names.len(), order.len())
-    for i, expected in order {
+    for i, expected : Str in order {
         assert_eq(Str, symbols1.names[i], expected)
     }
     assert_eq(Str, ast1.to_str_with_symbols(symbols1.names), ast2.to_str_with_symbols(symbols2.names))
     assert_eq(USize, ast1.children.len(), ast2.children.len())
-    for i, c1 in ast1.children {
+    for i, c1 : Expr in ast1.children {
         ref c2 : Expr = ast2.children[i]
         assert_eq(U32, c1.line, c2.line)
         assert_eq(U32, c1.col, c2.col)

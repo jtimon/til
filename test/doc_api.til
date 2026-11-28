@@ -66,7 +66,7 @@ check_visible := func(output: Str) {
     expect(output.contains(" = func(value: I64) returns I64 throws FirstError { ... }"), output)
     expect(output.contains(format("text: Str = \"", long_default(), "\") returns I64")), output)
     expect(output.contains("ApiRecord.read"), output)
-    for hidden in vec(Str, "_err_kind", "_err_FirstError", "_err_SecondError",
+    for hidden : Str in vec(Str, "_err_kind", "_err_FirstError", "_err_SecondError",
         "PRIVATE_FIELD_DOC", "PRIVATE_METHOD_DOC", "PRIVATE_ENUM_DOC",
         "MASKED_FIELD_DOC", "MASKED_METHOD_DOC") {
         expect(output.contains(hidden).not(), "hidden documentation leaked: ", hidden, "\n", output)
@@ -85,14 +85,14 @@ main := proc(compiler_path: Str) {
     expect(doc_status == 0, "doc failed: ", doc.out(), doc.err())
     page := File.readfile(format(WORK, "/doc/gen/api.org"))
     check_visible(page)
-    for hidden in vec(Str, "secret_field", "secret_method", "secret_enum", "masked_field", "masked_method") {
+    for hidden : Str in vec(Str, "secret_field", "secret_method", "secret_enum", "masked_field", "masked_method") {
         expect(page.contains(hidden).not(), "private member in page: ", hidden, "\n", page)
     }
     index := File.readfile(format(WORK, "/doc/gen/index.org"))
     check_visible(index)
     html := File.readfile(format(WORK, "/doc/gen/api.html"))
     search := File.readfile(format(WORK, "/doc/gen/search.js"))
-    for hidden in vec(Str, "secret_field", "secret_method", "secret_enum", "masked_field", "masked_method", "_err_kind") {
+    for hidden : Str in vec(Str, "secret_field", "secret_method", "secret_enum", "masked_field", "masked_method", "_err_kind") {
         expect(html.contains(hidden).or(search.contains(hidden)).not(), "private/lowered member in HTML/search: ", hidden)
     }
 
@@ -106,7 +106,7 @@ main := proc(compiler_path: Str) {
     repl_status := repl.run()
     expect(repl_status == 0, "REPL failed: ", repl.out(), repl.err())
     check_visible(repl.out())
-    for hidden in vec(Str, "ApiRecord.secret_field", "ApiRecord.secret_method", "ApiRecord.masked_field", "ApiRecord.masked_method", "ApiChoice.secret_enum") {
+    for hidden : Str in vec(Str, "ApiRecord.secret_field", "ApiRecord.secret_method", "ApiRecord.masked_field", "ApiRecord.masked_method", "ApiChoice.secret_enum") {
         expect(repl.out().contains(format("undefined symbol: ", hidden)), "private help entry: ", hidden, "\n", repl.out())
     }
     println("doc API PASS")

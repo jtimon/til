@@ -246,7 +246,7 @@ priv reference_output := proc(compiler : Str, width : Str, wrapper : Str) return
     expect(interpreted_status == 0, "interpreter reference", interpreted.out(), interpreted.err())
     interpreter_timing := interpreted.err()
     println("  interpreter cold prepare/run: ", clock_ms() - start, " ms; ", interpreter_timing.trim())
-    for backend in array(Str, "c", "fasm") {
+    for backend : Str in array(Str, "c", "fasm") {
         binary := format("tmp/fasm_jit/reference-", backend, "-", width)
         mut input := wrapper.clone()
         if backend == "c" { input = timed_wrapper.clone() }
@@ -353,7 +353,7 @@ priv rejection_checks := proc(image : Str, assembly : Str, object : Str) {
     sizes := array(U64, 1, 1, 2, 2, 8, 8, 2, 2)
     messages := array(Str, "little-endian ELF64", "little-endian ELF64", "relocatable object", "x86-64 ELF machine",
         "process entry", "outside object", "header sizes", "section table")
-    for i, offset in offsets {
+    for i, offset : U64 in offsets {
         mut changed := image.clone()
         patch_word(changed, offset, values[i], sizes[i])
         reject_object(changed, messages[i])
@@ -368,7 +368,7 @@ priv rejection_checks := proc(image : Str, assembly : Str, object : Str) {
     more_sizes := array(U64, 8, 8, 8, 8, 8, 4, 2, 8)
     more_messages := array(Str, "outside object", "outside object", "allocatable section", "text alignment", "symbol entry size",
         "string table link", "unresolved ELF symbol", "entry outside text")
-    for i, more_offset in more_offsets {
+    for i, more_offset : U64 in more_offsets {
         mut changed := image.clone()
         patch_word(changed, more_offset, more_values[i], more_sizes[i])
         reject_object(changed, more_messages[i])
@@ -426,7 +426,7 @@ priv abi_checks := proc(assembly : Str, object : Str) {
     expect(aligned.call(0, 0) == 8, "SysV entry stack is not aligned")
     // Corrupt each preserved register in a child, so a broken ABI cannot
     // corrupt the test runner. The bridge must identify the actual failure.
-    for reg in array(Str, "rbp", "rbx", "r12", "r13", "r14", "r15") {
+    for reg : Str in array(Str, "rbp", "rbx", "r12", "r13", "r14", "r15") {
         File.writefile(assembly, format("format ELF64\nsection '.text' executable\npublic til_jit_entry\ntil_jit_entry:\n xor ", reg, ",", reg, "\n xor eax,eax\n ret\n"))
         assemble(assembly, object)!
         child := Cmd.new("timeout", "10s", get_exe_path(), object)
@@ -462,7 +462,7 @@ main := proc(compiler_arg : Str) {
         "for b : I64 in array(I64, I64.MIN, -4294967297, -257, -1, 0, 1, 255, 4294967297, I64.MAX) {\n",
         "mut input := runtime(a); println(calculate(input, runtime(b))); println(mutating(input, runtime(b))) } };\n",
         "mut checksum : I64 = 0; mut i : I64 = 0; while i < 100000 { checksum = checksum + calculate(i, 50000 - i); i++ }; println(checksum) }\n"))
-    for width in array(Str, "32", "64") {
+    for width : Str in array(Str, "32", "64") {
         println("JIT target USize", width, " (host USize", USize.size() * 8, ")")
         cold_start := clock_ms()
         emission := emit_module(source, "calculate", width.to_i32(), assembly)

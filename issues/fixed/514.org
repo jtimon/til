@@ -1,6 +1,27 @@
 # priority: low
+# post-mortem: The for-in annotation slot predates the two-binding forms.
+# When for-in had one binding its type was mandatory and the parser read
+# `: Type` after that name only. The map form (#287) and the indexed form
+# then gave the slot to the key/index, so the second binding could not be
+# annotated: an indexed loop over Vec(Dynamic) was unwritable and the map
+# form silently ignored even the key annotation. Preparation commit:
+# ForInData.til_type2, parsed after the second name, used by the indexed
+# and map lowerings, the comptime scope and the initer's priv rename and
+# generic substitution. This commit restores the mandatory value type as
+# ONE rule shared by the collection and map lowerings (it absorbs the old
+# Dynamic-only "cannot infer element type" error): "for-in value 'x' needs
+# a type annotation: 'x : T'", T spelled as the source writes it
+# (source_type_spelling: Set(Str), not Set__Str; a priv type's own name).
+# The index stays implicitly USize and a map key may stay bare; `_` binds
+# nothing and is exempt. Annotating ~580 loops the rule flagged exposed a
+# latent bug: in a generic body `for x : T` with T substituted by a
+# primitive read as unannotated (expr_type_name_ref has no primitive arm),
+# so the annotation was silently replaced by inference; the lowering now
+# reads annotations with type_to_name_ref. Regression tests:
+# test_for_index_value_typed (test/loops.til), test_hashmap_for_in_kv_typed
+# (test/hashmaps.til), the terr514_* fixtures in test/typer_errors.til.
 # category: features
-** WIP #514 for-in: require the value type; allow it on the second binding
+** FIXED #514 for-in: require the value type; allow it on the second binding
 
   ~for x : T in v~ can annotate its element, but the two-binding forms
   cannot annotate their second binding: ~for i, x : T in v~ and
@@ -35,5 +56,5 @@
     like the first annotation (priv types, generics). Tests:
     test_for_index_value_typed
     (test/loops.til), test_hashmap_for_in_kv_typed (test/hashmaps.til).
-  - [ ] Require the value annotation (one typer rule) and annotate every
+  - [X] Require the value annotation (one typer rule) and annotate every
     collection/map for-in the rule flags.

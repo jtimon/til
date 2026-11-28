@@ -41,7 +41,7 @@ folded_diagnostics := func() returns Vec(SourceDiagnostic) {
 
 collected_text := func(result: InterpRunResult, stream: InterpOutputStream) returns Str {
     mut out := ""
-    for event in result.output {
+    for event : InterpOutputEvent in result.output {
         if event.stream == stream { out = format(out, event.text) }
     }
     return out

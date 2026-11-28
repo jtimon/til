@@ -22,7 +22,7 @@ count_matches := func(text: Str, needle: Str) returns USize {
 generated_page := func(output: Str, source: Str, extension: Str) returns Str {
     suffix := format("/", source.strip_suffix(".til"), ".", extension)
     mut page := ""
-    for line in output.split("\n") {
+    for line : Str in output.split("\n") {
         if line.starts_with("Generated: ").and(line.ends_with(suffix)) {
             expect(page.is_empty(), "duplicate page for ", source, "\n", output)
             page = line.strip_prefix("Generated: ").clone()
@@ -34,7 +34,7 @@ generated_page := func(output: Str, source: Str, extension: Str) returns Str {
 
 check_std_pages := proc(directory: Str, output: Str) returns USize {
     mut count : USize = 0
-    for name in Dir.list(directory) {
+    for name : Str in Dir.list(directory) {
         path := format(directory, "/", name)
         if File.is_dir(path) { count = count + check_std_pages(path, output) }
         else if path.ends_with(".til") {
@@ -79,7 +79,7 @@ main := proc(compiler_path: Str) {
 
     index := File.readfile(format(WORK, "/doc/gen/index.org"))
     search := File.readfile(format(WORK, "/doc/gen/search.js"))
-    for name in vec(Str, "TilVm", "grapheme_next", "sha256", "DynVec", "File") {
+    for name : Str in vec(Str, "TilVm", "grapheme_next", "sha256", "DynVec", "File") {
         expect(count_matches(index, format("][", name, "]]\n")) == 1, "missing/duplicate index entry: ", name)
         expect(count_matches(search, format("{name:\"", name, "\",")) == 1, "missing/duplicate search entry: ", name)
     }

@@ -126,7 +126,7 @@ print_test_result := proc(t: Test) {
 }
 
 check_test_prerequisites := func(tests: Vec(Test)) {
-    for i, t in tests {
+    for i, t : Test in tests {
         switch t.prerequisite {
         case .Some(parent):
             if parent >= i { panic("test prerequisite must be registered earlier: ", t.label) }
@@ -138,7 +138,7 @@ check_test_prerequisites := func(tests: Vec(Test)) {
 // Keep registration order among ready rows. A waiting dependent consumes no
 // slot, so unrelated work can proceed while its build is running.
 next_ready_test := proc(mut tests: Vec(Test), mut fail: I64) returns Option(USize) {
-    for i, mut t in tests {
+    for i, mut t : Test in tests {
         if t.pid.neq(0).or(t.finished) { continue }
         switch t.prerequisite {
         case .Some(parent):

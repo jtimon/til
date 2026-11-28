@@ -112,7 +112,7 @@ main := proc(args: ..Str) {
     // "liblayoutold.dll: The specified module could not be found").
     if host_os() == "windows" { extension = ".dll" }
     File.writefile(format(WORK, "/old.c"), "long til_layoutold__value(void) { return 7; }\nlong plain_value(void) { return 9; }\n")
-    for name in vec(Str, "layoutold", "layoutplain") {
+    for name : Str in vec(Str, "layoutold", "layoutplain") {
         Cmd.new("cc", shared_flag, "-fPIC", "-o", format("gen/lib/lib", name, extension), format(WORK, "/old.c")).run_checked()
     }
     File.writefile(format(WORK, "/old_consumer.til"), format(

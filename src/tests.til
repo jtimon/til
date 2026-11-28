@@ -249,7 +249,7 @@ write_tutorial_file_blocks := proc(path: Str, source: Str, mut run_files: Vec(St
             if mkdir_p(parent) != 0 { panic("could not create tutorial doctest directory ", parent) }
             File.appendfile(output_path, block)
             if is_run {
-                for existing in run_files {
+                for existing : Str in run_files {
                     if existing == output_path { panic("duplicate doctest-run for ", output_path) }
                 }
                 run_files.push(own output_path.clone())
@@ -507,7 +507,7 @@ priv collect_default_c_sources := func(cmd: Str, mut out: Vec(Str)) {
     mut overridden := false
     mut retargeted := false
     mut skip_next := false
-    for ti, quoted in toks {
+    for ti, quoted : Str in toks {
         tok := unquoted(quoted)
         if skip_next {
             skip_next = false
@@ -587,7 +587,7 @@ priv check_gen_c_collisions := proc(tests: Vec(Test)) returns I64 {
         }
         for src : Str in mine {
             mut seen := -1
-            for i, source in sources {
+            for i, source : Str in sources {
                 if source == src { seen = i.to_i64() }
             }
             if seen >= 0 {
@@ -626,7 +626,7 @@ priv check_result_file_collisions := proc(tests: Vec(Test)) returns I64 {
     mut clashes := 0
     for t : Test in tests {
         mut seen := -1
-        for i, file in files {
+        for i, file : Str in files {
             if file == t.outfile { seen = i.to_i64() }
         }
         if seen >= 0 {
@@ -1254,7 +1254,7 @@ main := proc(args: ..Str) returns I64 {
     add_count(tests, "dynamic_widths", "build", "dynamic width options passed", 1,
         format(til_bin, " run", asan_flag,
             " -o bin/c/dynamic_widths -c gen/c/dynamic_widths.c test/dynamic_widths.til ", til_bin))
-    for width in array(Str, "32", "64") {
+    for width : Str in array(Str, "32", "64") {
         add_count(tests, format("borrow_width_", width, "_interp"), "build", "borrowed scalar widths PASS", 1,
             format(til_bin, " interpret --usize=", width, " test/bug487.til"))
         add_count(tests, format("borrow_width_", width, "_run"), "build", "borrowed scalar widths PASS", 1,
@@ -2511,7 +2511,7 @@ main := proc(args: ..Str) returns I64 {
     // also gives each doctest its own timing and its own captured output when
     // it fails, which the chain could not.
     tutorial_run_files := write_tutorial_file_doctests()
-    for tutorial_file in tutorial_run_files {
+    for tutorial_file : Str in tutorial_run_files {
         // The label keys the result file, so a bare basename would collide
         // with the test/ file of the same name (test/namespaces.til).
         tutorial_label := format("tutorial_", test_basename(tutorial_file))
@@ -2744,7 +2744,8 @@ main := proc(args: ..Str) returns I64 {
     // Both backends used to accept it and then free the slot twice.
     add_counts(tests, "typer_errors_interp", "typer",
         format(til_bin, " interpret test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 336),
+        CountCheck(needle = "error:", expected_count = 339),
+        CountCheck(needle = "for-in value 'terr514_", expected_count = 3),
         CountCheck(needle = "cannot take a writable borrow:", expected_count = 2),
         CountCheck(needle = "cannot return a reference into owned parameter", expected_count = 1),
         CountCheck(needle = "func cannot call proc 'TErrProcDispatch.announce'", expected_count = 1),
@@ -2789,7 +2790,8 @@ main := proc(args: ..Str) returns I64 {
         CountCheck(needle = "cannot pass capture", expected_count = 3))
     add_counts(tests, "typer_errors_build", "typer",
         format(til_bin, " build", asan_flag, " test/typer_errors.til"),
-        CountCheck(needle = "error:", expected_count = 336),
+        CountCheck(needle = "error:", expected_count = 339),
+        CountCheck(needle = "for-in value 'terr514_", expected_count = 3),
         CountCheck(needle = "cannot take a writable borrow:", expected_count = 2),
         CountCheck(needle = "cannot return a reference into owned parameter", expected_count = 1),
         CountCheck(needle = "func cannot call proc 'TErrProcDispatch.announce'", expected_count = 1),
@@ -3232,22 +3234,22 @@ main := proc(args: ..Str) returns I64 {
     add_count(tests, "import_ns_unknown_symbol_build", "typer",
         "no public symbol", 1,
         format(til_bin, " build", asan_flag, " test/import_ns_unknown_symbol.til"))
-    for action in "interpret build".split(" ") {
+    for action : Str in "interpret build".split(" ") {
         mut cmd := format(til_bin, " ", action)
         if action == "build" { cmd = format(cmd, asan_flag) }
-        for form in "qualified wildcard".split(" ") {
+        for form : Str in "qualified wildcard".split(" ") {
             base := format("test/imports/palette_", form)
             mut check := format(cmd, " ", base, ".til")
             if action == "build" { check = format(check, " '&&' bin/", base) }
             add_single(tests, format("palette_", form, "_", action), "typer", 0, "", check)
         }
-        for form in "wildcard_first qualified_first".split(" ") {
+        for form : Str in "wildcard_first qualified_first".split(" ") {
             add_counts(tests, format("palette_", form, "_", action), "typer",
                 format(cmd, " test/imports/palette_", form, ".til"),
                 CountCheck(needle = "palette_selective_hidden.til:4:9: error: undefined symbol 'BLACK'", expected_count = 1),
                 CountCheck(needle = ": error:", expected_count = 1))
         }
-        for form in "collision private hidden selective_hidden alias_hidden unselected".split(" ") {
+        for form : Str in "collision private hidden selective_hidden alias_hidden unselected".split(" ") {
             mut expected := "'UNRELATED' is not imported"
             if form == "collision" { expected = ":2:1: error: wildcard import conflicts with declaration 'BLACK'" }
             if form == "private" { expected = "undefined symbol 'SECRET'" }

@@ -145,7 +145,7 @@ produce_frontend := proc(compiler: Str, source: Str, phase: Str, mut lines: Vec(
         name = rest.substr(5, line_end.to_usize() - 5).clone()
     }
     hashes := sha256_of(paths)
-    for i, hash in hashes {
+    for i, hash : Str in hashes {
         lines.push(own format(hash, " frontend linux-x64 c 32 ", source, " ", phase, ":", names[i]))
     }
 }
@@ -189,7 +189,7 @@ produce_source := proc(compiler: Str, source: Str, target: Str, width: Str, mut 
         paths.push(own stripped)
     }
     hashes := sha256_of(paths)
-    for i, hash in hashes { lines.push(own format(hash, key, names[i])) }
+    for i, hash : Str in hashes { lines.push(own format(hash, key, names[i])) }
 }
 
 // The first line of what `tool` prints for --version, or of `--help` style
@@ -372,7 +372,7 @@ list_sections := proc(target: Str, level: Str, binary: Str, label: Str, scratch:
         section_paths.push(own dumped)
     }
     section_hashes := sha256_of(section_paths)
-    for i, hash in section_hashes { lines.push(own format(hash, " ", level, " ", target, " c ", width, " ", label, ":", section_names[i])) }
+    for i, hash : Str in section_hashes { lines.push(own format(hash, " ", level, " ", target, " c ", width, " ", label, ":", section_names[i])) }
 }
 
 // A Mach-O executable's debug map: the source and object paths the linker
@@ -430,7 +430,7 @@ list_members := proc(target: Str, level: Str, archive: Str, label: Str, scratch:
         names.push(own name.clone())
     }
     hashes := sha256_of(paths)
-    for i, hash in hashes { lines.push(own format(hash, " ", level, " ", target, " c ", width, " ", label, ":", names[i])) }
+    for i, hash : Str in hashes { lines.push(own format(hash, " ", level, " ", target, " c ", width, " ", label, ":", names[i])) }
 }
 
 // Android is a cross-only program/library target (#473), not a til host.
@@ -529,7 +529,7 @@ produce_android_binary := proc(compiler: Str, target: Str, mut lines: Vec(Str), 
             apk_paths := vec(Str, format(stage, "/aligned.apk"), format(stage, "/lib/", abi, "/libhello_gui.so"))
             apk_items := array(Str, "aligned.apk", "libhello_gui.so")
             apk_hashes := sha256_of(apk_paths)
-            for i, hash in apk_hashes {
+            for i, hash : Str in apk_hashes {
                 lines.push(own format(hash, " ", apk_level, " ", target, " c ", width, " examples/hello_gui.til ", apk_items[i]))
             }
             if target == "android-x64" {
@@ -539,7 +539,7 @@ produce_android_binary := proc(compiler: Str, target: Str, mut lines: Vec(Str), 
             }
         }
         hashes := sha256_of(paths)
-        for i, hash in hashes {
+        for i, hash : Str in hashes {
             mut item_level := level.clone()
             if i == 0 { item_level = "binary-trial" }
             lines.push(own format(hash, " ", item_level, " ", target, " c ", width, " ", items[i]))
@@ -640,7 +640,7 @@ produce_wasm_binary := proc(compiler: Str, mut lines: Vec(Str)) {
             items.push(own format(source, " ", stem, ".js"))
         }
         hashes := sha256_of(paths)
-        for i, hash in hashes { lines.push(own format(hash, " binary-trial wasm32 c ", width, " ", items[i])) }
+        for i, hash : Str in hashes { lines.push(own format(hash, " binary-trial wasm32 c ", width, " ", items[i])) }
     }
 }
 
@@ -825,7 +825,7 @@ produce_binary := proc(producer: Str, list: Str, compiler: Str, targets: Vec(Str
         }
 
         hashes := sha256_of(paths)
-        for i, hash in hashes { lines.push(own format(hash, " ", levels[i], " ", target, " c 32 ", items[i])) }
+        for i, hash : Str in hashes { lines.push(own format(hash, " ", levels[i], " ", target, " c 32 ", items[i])) }
 
         if builds_til { list_til_build(compiler, target, target_level, directory, extension, lines) }
         list_sections(target, target_level, format(directory, "/hello_script", extension), "examples/hello_script.til hello_script",
@@ -951,11 +951,11 @@ collect := proc(directory: Str, report_only: Bool) {
     mut missing : USize = 0
     mut alone : USize = 0
     mut trial_different : USize = 0
-    for group, producers in group_producers {
+    for group, producers : Set(Str) in group_producers {
         mut group_equal : USize = 0
         mut group_alone : USize = 0
         prefix := format(group, " ")
-        for key, by_producer in item_hashes {
+        for key, by_producer : Map(Str, Str) in item_hashes {
             if key.starts_with(prefix).not() { continue }
             item := key.substr(prefix.len(), key.len() - prefix.len())
             ref on_trial : Set(Str) = item_trial[key]
@@ -982,7 +982,7 @@ collect := proc(directory: Str, report_only: Bool) {
             mut same := true
             mut strict_first := ""
             mut strict_same := true
-            for producer, hash in by_producer {
+            for producer, hash : Str in by_producer {
                 if first.len() == 0 { first = hash.clone() }
                 else if hash != first { same = false }
                 if on_trial.has(producer) { continue }
@@ -1000,7 +1000,7 @@ collect := proc(directory: Str, report_only: Bool) {
                 different++
                 println("DIFFERENT ", group, ": ", item)
             }
-            for producer, hash in by_producer { println("    ", producer, " ", hash) }
+            for producer, hash : Str in by_producer { println("    ", producer, " ", hash) }
         }
         equal = equal + group_equal
         alone = alone + group_alone

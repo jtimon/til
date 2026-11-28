@@ -121,7 +121,7 @@ test_map_for_in_kv := test() {
     mut order := Str.with_capacity(8)
     mut sum := 0
     mut pairs_ok := true
-    for k, v in m {
+    for k, v : I64 in m {
         order.push_str(k)
         sum = sum.add(v)
         if k.eq("a").and(v.eq(1).not()) { pairs_ok = false }
@@ -138,7 +138,7 @@ test_map_for_in_kv_mut := test() {
     mut m := Map(Str, I64).new()
     m.set("x", own 10)
     m.set("y", own 20)
-    for k, mut v in m {
+    for k, mut v : I64 in m {
         assert(k.len().gt(0))
         v = v.mul(2)
     }
@@ -155,7 +155,7 @@ test_map_for_in_kv_mut_uses_key := test() {
     mut m := Map(Str, I64).new()
     m.set("a", own 1)
     m.set("b", own 2)
-    for k, mut v in m {
+    for k, mut v : I64 in m {
         if k.eq("a") { v = v.mul(100) }
         else { v = v.mul(10) }
     }
@@ -172,7 +172,7 @@ test_map_for_in_kv_ignore_key := test() {
     m.set(2, own 200)
     m.set(3, own 300)
     mut sum := 0
-    for _, v in m {
+    for _, v : I64 in m {
         sum = sum.add(v)
     }
     assert_eq(I64, sum, 600)

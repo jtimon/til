@@ -214,7 +214,7 @@ native_config_test := proc(root: Str) {
         "taken := proc() { native_config_take(own \"taken literal\") }\n"))
     methods := vec(Str, "literal", "borrowed", "view", "empty", "record", "taken")
     expected := vec(Str, "literal title", "borrowed literal", "slice 48", "", "record literal", "taken literal")
-    for i, method in methods {
+    for i, method : Str in methods {
         native.native_config_reset()
         mut strings_vm := TilVm.new(root)
         strings_vm.load_file("config_strings.til")!
@@ -302,7 +302,7 @@ host_prelude_test := proc(root: Str) {
         source, "host-api", base)
     assert(graph.load_errors == 0)
     assert(graph.ctx.imported[path].prelude_import == "host-api")
-    for helper in vec(Str, "first", "second") {
+    for helper : Str in vec(Str, "first", "second") {
         identity := display_path(format(config_dir, "/helpers/", helper, ".til"), cwd)
         assert(graph.ctx.imported[identity].prelude_import == "host-api")
     }

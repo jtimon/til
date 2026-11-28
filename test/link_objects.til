@@ -14,7 +14,7 @@ main := proc(compiler: Str) {
     if windows { exe = ".exe" }
     dir := "tmp/link_objects"
     if mkdir_p(dir) != 0 { panic("cannot create link regression directory") }
-    for item in array(Str, "first", "second") {
+    for item : Str in array(Str, "first", "second") {
         mut value := "11"
         if item == "second" { value = "22" }
         File.writefile(format(dir, "/", item, "_bridge.c"), format(
@@ -46,7 +46,7 @@ main := proc(compiler: Str) {
         "    mut cc := \"cc\"\n",
         "    if host_os() == \"windows\" { cc = \"gcc\" }\n",
         "    command := Cmd.new(cc)\n",
-        "    for arg in args { command.arg(arg) }\n",
+        "    for arg : Str in args { command.arg(arg) }\n",
         "    exit(command.run())\n}\n"))
     Cmd.new(compiler, "build", "--force-rebuild", "-o", wrapper,
         "-c", format(dir, "/cc.c"), wrapper_source).run_checked()
@@ -84,7 +84,7 @@ main := proc(compiler: Str) {
         "    check(nng_close(socket), \"direct close\")\n",
         "    nng_fini()\n",
         "    println(\"nng link_c instance PASS\")\n}\n"))
-    for action in array(Str, "run", "interpret") {
+    for action : Str in array(Str, "run", "interpret") {
         command := Cmd.new(compiler, action)
         if action == "run" {
             command.args("--force-rebuild", "-o", first_bin, "-c", format(dir, "/first.c"))

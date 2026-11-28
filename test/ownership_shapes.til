@@ -802,7 +802,7 @@ str415_loop := proc() {
 own415_reassign_after_consume_str := test() {
     str415_rhs()
     str415_earlier()
-    for flag in array(Bool, true, false) {
+    for flag : Bool in array(Bool, true, false) {
         str415_mixed(flag)
         str415_nested_rhs(flag)
         str415_nested_consume(flag)
@@ -908,7 +908,7 @@ own415_reassign_after_consume_counted := test() {
     Counted415.deletes = 0
     counted415_earlier()
     assert_eq(I64, Counted415.deletes, 2)
-    for flag in array(Bool, true, false) {
+    for flag : Bool in array(Bool, true, false) {
         Counted415.deletes = 0
         counted415_mixed(flag)
         assert_eq(I64, Counted415.deletes, 2)
@@ -1120,7 +1120,7 @@ throw415_str := proc(fail: Bool) returns USize throws Boom415 {
 }
 
 own415_throwing_callee := test() {
-    for fail in array(Bool, false, true) {
+    for fail : Bool in array(Bool, false, true) {
         mut caught := false
         Counted415.deletes = 0
         throw415_propagate(fail)?

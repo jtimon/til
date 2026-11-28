@@ -266,7 +266,7 @@ priv gc_audit_destructor_line := func(e: Expr, mut names: Map(Str, Str), mut cou
 // appended to them. Both views are wanted -- the second is where the
 // enclosing body's exit deletes land.
 priv gc_audit_sites := proc(body: Expr, prefix: Str, mut names: Map(Str, Str), mut counts: Map(Str, I64), symbols: SymbolPool) {
-    for i, s in body.children {
+    for i, s : Expr in body.children {
         line := gc_audit_destructor_line(s, names, counts, symbols)
         if line.len() > 0 {
             println("GC-AUDIT site ", prefix, i.to_str(), " ", line)
@@ -525,9 +525,9 @@ priv cfg_build := func(mut blocks: Vec(GcCfgBlock), body: Expr) {
 priv gc_cfg_dump := proc(ctx: Context, body: Expr, blocks: Vec(GcCfgBlock)) {
     println("GC-CFG body ", ctx.path, ":", body.line.to_str(), ":", body.col.to_str(),
         " blocks=", blocks.len().to_str())
-    for i, b in blocks {
+    for i, b : GcCfgBlock in blocks {
         mut ss := ""
-        for j, succ in b.succs {
+        for j, succ : I32 in b.succs {
             if j > 0 { ss = format(ss, ",") }
             ss = format(ss, succ.to_str())
         }
@@ -627,7 +627,7 @@ priv gc_flow_collect_fact_row := func(selected: Expr, scope: TypeScope, fi: Fact
 // condition/subject evaluates at a tail; its branch bodies are other blocks.
 priv gc_flow_cfg_facts := func(blocks: Vec(GcCfgBlock), root_facts: BodyFacts, scope: TypeScope, fi: FactIndex, symbols: SymbolPool, mut offsets: Array(USize)) returns BodyFacts {
     mut facts := BodyFacts(words = root_facts.words)
-    for bi, b in blocks {
+    for bi, b : GcCfgBlock in blocks {
         offsets[bi] = facts.n_stmts
         facts.n_stmts = facts.n_stmts.add(b.end.sub(b.start).to_usize())
     }
@@ -636,7 +636,7 @@ priv gc_flow_cfg_facts := func(blocks: Vec(GcCfgBlock), root_facts: BodyFacts, s
     facts.decls = zeroed_words(total)
     facts.reassigns = zeroed_words(total)
     facts.transfers = zeroed_words(total)
-    for bi, b in blocks {
+    for bi, b : GcCfgBlock in blocks {
         switch b.body {
         case .Some(bbody):
             for j in b.start.to_usize()..b.end.to_usize() {
@@ -811,7 +811,7 @@ priv gc_flow_block_effects := func(blocks: Vec(GcCfgBlock), facts: BodyFacts, of
     total := blocks.len().mul(facts.words)
     kills.owned = zeroed_words(total)
     kills.moved = zeroed_words(total)
-    for bi, b in blocks {
+    for bi, b : GcCfgBlock in blocks {
         block_base := bi.mul(facts.words)
         // The synthetic exit has an empty span, so its masks stay zero.
         for j in 0..b.end.sub(b.start).to_usize() {
@@ -899,7 +899,7 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
         if probe.has_transfer { any_transfer = true; break }
     }
     if any_transfer.not() {
-        for li, local in locals {
+        for li, local : LocalInfo in locals {
             for column in 0..columns {
                 ref s : USize = table.columns[column]
                 if entry_state.eq(FLOW_UNINIT).and(local.decl_index.gte(0))
@@ -947,7 +947,7 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
             if first_exit.gte(0).and(s.to_i32().gt(first_exit)) { break }
             ref position : I64 = table.positions[s]
             if position >= 0 {
-                for li, local in locals {
+                for li, local : LocalInfo in locals {
                     mut state := FLOW_UNINIT
                     if local.has_transfer.not() {
                         if entry_state == FLOW_OWNED || local.decl_index < 0 || s.to_i64() > local.decl_index { state = FLOW_OWNED }
@@ -999,7 +999,7 @@ priv gc_flow_stmt_table := func(body: Expr, locals: Vec(LocalInfo), entry_state:
         }
     }
     kills := gc_flow_block_effects(blocks, cfg_facts, offsets)
-    for li, local in locals {
+    for li, local : LocalInfo in locals {
         mut entry := entry_state
         if local.decl_index < 0 { entry = FLOW_OWNED }
         if local.has_transfer.not() {
@@ -1164,7 +1164,7 @@ priv gc_subtree_has_key := func(e: Expr, key: UPtr) returns Bool {
 // loop belongs to another iteration than any grafted path).
 priv gc_mixing_transfer_index := func(body: Expr, local: LocalInfo, key: UPtr, scope: TypeScope, ctx: Context) returns I64 {
     mut site : I64 = -1
-    for r, child in body.children {
+    for r, child : Expr in body.children {
         if gc_subtree_has_key(child, key) { site = r.to_i64(); break }
     }
     if site < 0 { return -1 }
@@ -1217,7 +1217,7 @@ priv gc_flow_exit_is_mixed := func(body: Expr, local: LocalInfo, scope: TypeScop
     gc_flow_solve(blocks, entry, fact_bit_req(fi, local.name), cfg_facts, offsets, ins, outs)
     mut may_owned := false
     mut may_moved := false
-    for p, pb in blocks {
+    for p, pb : GcCfgBlock in blocks {
         mut feeds_exit := false
         for sc : I32 in pb.succs {
             if sc == 0 { feeds_exit = true }
@@ -1249,7 +1249,7 @@ priv gc_flow_owned_at_stmt := func(body: Expr, local: LocalInfo, scope: TypeScop
     mut offsets := Array(USize).new(blocks.len())
     cfg_facts := gc_flow_cfg_facts(blocks, facts, scope, fi, ctx.symbols, offsets)
     gc_flow_solve(blocks, entry, bit, cfg_facts, offsets, ins, outs)
-    for bi, b in blocks {
+    for bi, b : GcCfgBlock in blocks {
         if b.is_root.not() { continue }
         if b.start.lte(stmt_idx).and(stmt_idx.lt(b.end)) {
             mut st : U8 = FLOW_UNREACHED
@@ -1719,7 +1719,7 @@ priv BodyFacts := struct {
 // that keeps rows narrow. Bit values are insertion positions.
 priv fact_universe := func(body: Expr, scope: TypeScope) returns FactIndex {
     mut fi := FactIndex()
-    for b in scope.bindings.values {
+    for b : TypeBinding in scope.bindings.values {
         if fi.idx.has(b.name).not() {
             fi.idx.set(b.name, own fi.idx.len())
             fi.filt = fi.filt.bor(name_fingerprint(b.name))
@@ -1873,7 +1873,7 @@ priv collect_scope_locals := func(ctx: Context, body: Expr, scope: TypeScope, is
         bbit := fact_bit_req(fi, b.name)
 
         mut decl_idx : I64 = -1
-        for j, s in body.children {
+        for j, s : Expr in body.children {
             switch s.node_type {
             case .Decl(dd):
                 if dd.name == b.name {
@@ -2441,14 +2441,14 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
     if facts.has_reference_decls {
         mut reference_names := Map(Str, Str).new()
         mut reference_loans := ReferenceLoans()
-        for i, child in body.children {
+        for i, child : Expr in body.children {
             collect_reference_loans(child, scope, true, i.to_i64(), reference_names, reference_loans, edges, symbols)
         }
     }
     body_last := body.children.len().sub(1).to_i64()
     // Rule 1: FieldAssign into a Ref field. Rule 4: enum ref payloads
     // anywhere in the statement subtree.
-    for si, stmt in body.children {
+    for si, stmt : Expr in body.children {
         collect_enum_ref_payload_edges(stmt, body_last, edges, scope, symbols)
         mut deposits := Vec(GcDeposit).new()
         gc_collect_deposits(stmt, scope, deposits, symbols)
@@ -2507,7 +2507,7 @@ priv collect_borrow_edges := func(body: Expr, scope: TypeScope, facts: BodyFacts
         case:
         }
     }
-    for i, stmt in body.children {
+    for i, stmt : Expr in body.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         mut dd_name := ""
         mut dd_is_ref := false
@@ -2601,7 +2601,7 @@ priv extend_ref_local_lifetimes := proc(body: Expr, mut locals: Vec(LocalInfo), 
     edges := collect_borrow_edges(body, scope, facts, fi, ctx.symbols, ctx)
     if edges.len() == 0 { return }
     propagate_borrow_edges(edges, locals)
-    for i, stmt in body.children {
+    for i, stmt : Expr in body.children {
         switch stmt.node_type {
         case .Assign(ad):
             mut destroys_storage := false
@@ -3176,7 +3176,7 @@ priv insert_exit_deletes := proc(mut body: Expr, mut live: Vec(LocalInfo), retur
             }
         }
         if stmt.node_type.is(NodeType.Return).or(return_only.not().and(stmt.node_type.is(NodeType.Break).or(stmt.node_type.is(NodeType.Continue)))) {
-            for li, local in live {
+            for li, local : LocalInfo in live {
                 mut operand_uses := false
                 mut operand_moves := false
                 if stmt.children.len() > 0 {
@@ -3249,7 +3249,7 @@ priv insert_nested_exit_deletes := proc(mut stmt: Expr, locals: Vec(LocalInfo), 
         }
     }
     mut live_vec := Vec(LocalInfo).new()
-    for li, local in locals {
+    for li, local : LocalInfo in locals {
         if local.skip_scope_delete { continue }
         // An own param whose transfer is its own destructor call (a
         // delete method's `if call_free { free(own self) }`) stands
@@ -3330,7 +3330,7 @@ priv insert_exit_deletes_into_stmt := func(stmt: Expr, locals: Vec(LocalInfo), s
             if stmt.node_type.is(NodeType.Continue).not() { return }
         }
     }
-    for li, local in locals {
+    for li, local : LocalInfo in locals {
         if stmt.children.len() > 0 {
             ref retval : Expr = stmt.children[0]
             if expr_uses_var(retval, local.name, symbols) {
@@ -4278,7 +4278,7 @@ priv temp_check_expr := proc(e: Expr, consumed: Bool, ctx: Context, scope: TypeS
                     " type=", tn, " -- the typer's hoist pass missed an owned aggregate temp; the asap pass cannot track it")
             }
         }
-        for ai, child in e.children {
+        for ai, child : Expr in e.children {
             if ai == 0 {
                 temp_check_expr(child, false, ctx, scope)
             } else if is_ctor.or(is_mac) {
@@ -4975,7 +4975,7 @@ priv garbager_record_carried_assignment := func(mut scope: TypeScope, name: Str,
 }
 
 priv garbager_register_params := func(mut ctx: Context, fd: FunctionDef, mut scope: TypeScope, line: U32, col: U32) {
-    for i, param in fd.sig.params {
+    for i, param : Declaration in fd.sig.params {
         if i.to_i32() == fd.sig.variadic_index {
             va_type := Type.StructSym(ctx.symbols.intern(variadic_carrier_type_name(scope, decl_type_name_ref(param, ctx.symbols), ctx.symbols)))
             scope.set(param.name, va_type, param.is_mut, ctx.path, line, col,
@@ -5045,7 +5045,7 @@ priv garbager_walk_type_def := proc(mut ctx: Context, mut type_def: Expr, type_n
         mut field_scope := TypeScope(
             bindings = SymMap(TypeBinding).with_capacity(binding_capacity),
             parent = safe_ref_mut(type_scope), current_type_name = type_name.clone())
-        for field_idx, mut field in sd.fields {
+        for field_idx, mut field : Declaration in sd.fields {
             ref field_name : Str = sd.field_name_at(field_idx)
             if field.default_value.is_some() {
                 garbager_walk_expr(ctx, field.default_expr(), field_scope, insert)
@@ -5059,7 +5059,7 @@ priv garbager_walk_type_def := proc(mut ctx: Context, mut type_def: Expr, type_n
         return
     }
     ref mut ns_decls : Vec(Declaration) = def_ns_decls_mut(type_def)
-    for ns_i, mut ns_decl in ns_decls {
+    for ns_i, mut ns_decl : Declaration in ns_decls {
         if ns_decl.default_value.is_some() {
             // Members carry no name of their own (push_member): the index does.
             garbager_walk_expr(ctx, ns_decl.default_expr(), type_scope, insert,
@@ -5153,7 +5153,7 @@ priv garbager_walk_body := proc(mut ctx: Context, mut body: Expr, mut scope: Typ
     switch fdef_o {
     case .Some(fd):
         if fd.auto_generated { takes_param_fields = true }
-        for i, param in fd.sig.params {
+        for i, param : Declaration in fd.sig.params {
             if param.own_type.is(OwnType.Own)
             .and(func_param_passes_c_value(fd, i, ctx.param_value_abi_ok, scope, ctx.symbols)
                 .or(func_param_has_stack_outer(fd, i, ctx.param_value_abi_ok, scope, ctx.symbols))) {
@@ -5198,7 +5198,7 @@ garbager_destroy_globals := proc(mut ctx: Context, mut body: Expr, mut scope: Ty
 // run the ownership checks without inserting cleanup into their partial AST.
 priv garbager_walk := proc(mut ctx: Context, insert: Bool) {
     saved_path := ctx.path.clone()
-    for path, mut iu in ctx.imported {
+    for path, mut iu : ImportUnit in ctx.imported {
         ctx.path = path.clone()
         garbager_walk_body(ctx, iu.ast, ctx.scope, false,
             Option(ref FunctionDef).None, Vec(Declaration).new(), insert)

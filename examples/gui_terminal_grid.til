@@ -43,7 +43,7 @@ main := proc() {
                 DrawRectangle((40 + column * 20).to_i32(), (40 + row.to_i64() * 24).to_i32(), 20, 24, paper)
             }
         }
-        for row, text in rows {
+        for row, text : Str in rows {
             for column in 0..text.len() {
                 glyph := text.get_char(column).clone()
                 DrawText(glyph.c_str, (42 + column.to_i64() * 20).to_i32(), (44 + row.to_i64() * 24).to_i32(), 16, WHITE)

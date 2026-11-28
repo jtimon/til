@@ -78,7 +78,7 @@ desugar_fcall_args_for_fdef := proc(mut e: Expr, display_name: Str, fdef_data: F
     mut pos_idx : USize = 0
     mut seen_named := false
     mut named_error_slots := false
-    for arg in e.children {
+    for arg : Expr in e.children {
         switch arg.node_type {
         case .NamedArg(aname):
             if aname == "_err_kind" { named_error_slots = true }
@@ -1813,7 +1813,7 @@ priv validate_one_fcall_consolidated := proc(
         if callee_is_throwing {
             ref tts2 : Vec(Str) = ctx.throws_global[key]
             mut tlist := ""
-            for jj, tn2 in tts2 {
+            for jj, tn2 : Str in tts2 {
                 if jj > 0 { tlist = format(tlist, ", ") }
                 tlist = format(tlist, tn2)
             }
@@ -1915,7 +1915,7 @@ priv validate_and_inject_expr_consolidated := proc(
         // flag the surviving '!' as "function does not throw". The body is a
         // Body (handled elsewhere); the pattern carries no calls.
         guard_bang := e.children.len().eq(3).and(subtree_has_bang(e.children[1]))
-        for sci, mut sub in e.children {
+        for sci, mut sub : Expr in e.children {
             if guard_bang.and(sci.eq(1)) { continue }
             validate_and_inject_expr_consolidated(scope, ctx, sub, body, pending, seen, types_to_declare, path)
         }
@@ -2805,7 +2805,7 @@ priv process_throw_catch_in_body := proc(
                     // doesn't flag the surviving '!'.
                     guard_idx := case_pattern_count(cn)
                     guard_bang := case_has_guard(cn).and(subtree_has_bang(cn.children[guard_idx]))
-                    for cci, mut ccn in cn.children {
+                    for cci, mut ccn : Expr in cn.children {
                         if guard_bang.and(cci.eq(guard_idx)) { continue }
                         if ccn.node_type.is(NodeType.Body).not() {
                             validate_and_inject_expr_consolidated(scope, ctx, ccn, root_body, pending, seen, types_to_declare, path)
@@ -4260,7 +4260,7 @@ priv sync_own_args_from_callee := func(mut call: Expr, scope: TypeScope, symbols
     ref ns_func : Expr = nfo.unwrap()
     switch ns_func.node_type {
     case .FuncDef(fd):
-        for i, p in fd.sig.params {
+        for i, p : Declaration in fd.sig.params {
             if p.own_type.is(OwnType.Own) {
                 set_own_arg(call, i + 1)
             }
@@ -6283,7 +6283,7 @@ priv build_splat_folded_array := func(mut ctx: Context, e: Expr, mut new_ch: Vec
 
     // Fold the pieces with concat.
     mut combined := Expr.new(own NodeType.Literal(Literal.Null), e.line, e.col)
-    for pi, piece in pieces {
+    for pi, piece : Expr in pieces {
         if pi == 0 {
             combined = pieces[0].clone()
             continue

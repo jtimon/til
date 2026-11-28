@@ -51,25 +51,25 @@ for n : I64 in numbers {
 }
 #+end_src
 
-The element type is usually inferred, so ~for n in numbers~ is equivalent.
-~break~ and ~continue~ work as they do in range loops.
+The element's type is required: ~for n in numbers~ is an error that names the
+type to write. ~break~ and ~continue~ work as they do in range loops.
 
 Two bindings give the zero-based index followed by the element:
 
 #+begin_src til :doctest
 mut values := vec(I64, 10, 20, 30)
-for i, mut value in values {
+for i, mut value : I64 in values {
     value = value + i.to_i64()
 }
 assert_eq(I64, values[2], 32)
 #+end_src
 
-The index is immutable and uses the collection's ~len()~/~get()~ index type
-(~USize~ for arrays, vectors, and strings). The value has the same borrowing
-and ~mut~ behavior as single-binding iteration. Either binding takes an
-optional type, as in ~for i : USize, value : I64 in values~ (map loops too).
-Use ~_~ to ignore either binding. The collection expression is evaluated once. String iteration binds
-a byte index and an ~I8~ byte, not a Unicode character index.
+The index is immutable and implicitly the collection's ~len()~/~get()~ index
+type (~USize~ for arrays, vectors, and strings); annotating it is optional. The
+value has the same borrowing, ~mut~ behavior and required type as
+single-binding iteration. Use ~_~ to ignore either binding. The collection
+expression is evaluated once. String iteration binds a byte index and an ~I8~
+byte, not a Unicode character index.
 
 ** Maps
 
@@ -93,7 +93,7 @@ assert_eq(USize, scores.len(), 2)
 Map iteration can bind both key and value:
 
 #+begin_src til
-for name, score in scores {
+for name, score : I64 in scores {
     println(name, ": ", score.to_str())
 }
 #+end_src

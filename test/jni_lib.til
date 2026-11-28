@@ -136,7 +136,7 @@ jni_range := func(n: I64) returns Vec(I64) {
 }
 
 jni_scale := func(mut xs: Vec(F64), k: F64) {
-    for mut x in xs { x = x * k }
+    for mut x : F64 in xs { x = x * k }
     xs.push(own k)
 }
 
@@ -148,7 +148,7 @@ jni_flags := func(xs: Vec(Bool)) returns I64 {
 
 jni_people := func(names: Vec(Str)) returns Vec(JniPerson) {
     mut out := Vec(JniPerson).new()
-    for i, name in names { out.push(own JniPerson(name = name.clone(), age = i.to_i64())) }
+    for i, name : Str in names { out.push(own JniPerson(name = name.clone(), age = i.to_i64())) }
     return out
 }
 
@@ -174,7 +174,7 @@ JniTeam := struct {
 
 jni_team := func(names: Vec(Str)) returns JniTeam {
     mut t := JniTeam()
-    for i, name in names {
+    for i, name : Str in names {
         t.people.push(own JniPerson(name = name.clone(), age = 20))
         t.scores.push(own i.to_i64())
     }
@@ -327,7 +327,7 @@ JniGroup := enum {
 
 jni_group := func(names: Vec(Str)) returns JniGroup {
     mut crew := Vec(JniPerson).new()
-    for name in names { crew.push(own JniPerson(name = name.clone(), age = 50)) }
+    for name : Str in names { crew.push(own JniPerson(name = name.clone(), age = 50)) }
     return JniGroup.Crew(own crew)
 }
 

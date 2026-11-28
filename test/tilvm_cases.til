@@ -646,7 +646,7 @@ call_checked := proc(mut session: InterpSession, mut program: LoadedProgram,
     name: Str, signature: Type, mut arguments: Tuple) returns Tuple {
     result := interp_session_call_function(session, program, name, lookup_contract(signature), arguments)
     if result.is_none() {
-        for diagnostic in program.ctx.diagnostics { diagnostic.print() }
+        for diagnostic : SourceDiagnostic in program.ctx.diagnostics { diagnostic.print() }
         panic("guest call failed: ", name)
     }
     assert(program.ctx.eval.eval_aborted.not())
@@ -694,7 +694,7 @@ checked_lookup := proc(root: Str) {
         Vec(Str).new(), "", true)
     assert(lp.load_errors == 0)
     if init_and_type_program_errors(lp, false) != 0 {
-        for diagnostic in lp.ctx.diagnostics { diagnostic.print() }
+        for diagnostic : SourceDiagnostic in lp.ctx.diagnostics { diagnostic.print() }
         panic("lookup guest should typecheck")
     }
     mut raw : Dynamic = interp_program_to_heap(own lp)
@@ -738,7 +738,7 @@ checked_lookup := proc(root: Str) {
     // use it as an exported guest symbol. Exported aliases remain callable.
     ref entry : ImportUnit = program.ctx.imported[program.units[program.units.len() - 1].path]
     mut private_checked := false
-    for statement in entry.ast.children {
+    for statement : Expr in entry.ast.children {
         switch statement.node_type {
         case .Decl(d):
             if d.is_priv {

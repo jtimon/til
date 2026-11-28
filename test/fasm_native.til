@@ -8,12 +8,12 @@ realpath_str := ext_proc(path: Str) returns Str {}
 // bin/til run test/fasm_native.til bin/til
 check_shared := proc(compiler: Str, work: Str, source: Str, expected_exit: I64 = 0, timeout: Str = "30s") {
     input := realpath_str(source)
-    for width in array(Str, "32", "64") {
+    for width : Str in array(Str, "32", "64") {
         interpreted := Cmd.new("timeout", timeout, compiler, "interpret", format("--usize=", width), input)
         interpreted.cwd(work).capture()
         interpreted_status := interpreted.run()
         expect(interpreted_status == expected_exit, source, width, interpreted_status, interpreted.out(), interpreted.err())
-        for backend in array(Str, "c", "fasm") {
+        for backend : Str in array(Str, "c", "fasm") {
             output := format("bin/shared-", backend, "-", width)
             build := Cmd.new(compiler, "build", format("--backend=", backend), format("--usize=", width), "-o", output, input)
             build.cwd(work).capture()
@@ -54,7 +54,7 @@ check_floating_point := proc(compiler: Str, work: Str) {
         "runtime(9223372036854775808.0)","runtime(18446744073709551616.0)",
         "runtime(0.0)/runtime(0.0)","runtime(1.0)/runtime(0.0)","runtime(18446744073709551616.0)")
     targets:=array(Str,"I8","I8","U8","U8","I64","U64","U64","I32","UPtr")
-    for i, expression in expressions {
+    for i, expression : Str in expressions {
         path:=format(work,"/float_invalid_",i.to_str(),".til")
         File.writefile(path,format("mode cli\nruntime:=proc(value:F64) returns F64 { noop_proc(); return value }\n",
             "main:=proc() { value:=",expression,"; value.cast(",targets[i],") }\n"))
@@ -135,7 +135,7 @@ check_simd_narrow := proc(compiler : Str, work : Str) {
 }
 
 check_checked_bool_bounds := proc(compiler:Str,work:Str) {
-    for operation in array(Str,"and","or") {
+    for operation : Str in array(Str,"and","or") {
         mut first:="true"
         mut syntax:="&&"
         if operation=="or" { first="false"; syntax="||" }
@@ -165,9 +165,9 @@ check_test_command := proc(compiler: Str, work: Str) {
         "after:=test() { panic(\"must not run\",loc=\"native-test\") }\n"))
     report := format("  pass: imported\n  pass: Library.member\n  pass: root\n",
         "  pass: Local.member\n  pass: Choice.member\n  pass: last\n6/6 tests passed\n")
-    for width in array(Str,"32","64") {
-        for backend in array(Str,"c","fasm") {
-            for name in array(Str,"tests","cli_tests","library_tests") {
+    for width : Str in array(Str,"32","64") {
+        for backend : Str in array(Str,"c","fasm") {
+            for name : Str in array(Str,"tests","cli_tests","library_tests") {
                 mut expected := report.clone()
                 if name=="cli_tests" { expected="  pass: inline_test\n1/1 tests passed\n" }
                 if name=="library_tests" { expected="  pass: library_test\n1/1 tests passed\n" }
@@ -239,7 +239,7 @@ main := proc(compiler_arg: Str) {
     // Mutable input prevents compile-time evaluation of the arithmetic/calls.
     File.writefile(format(work, "/main.til"), "mode cli\ncalc := func(a: I64, b: I64) returns I64 { return (a + b) * (a - b) }\nchoose := func(a: I64, b: I64) returns I64 { if a < b { return calc(a,b) } else { return calc(b,a) } }\nmain := proc() { mut x : I64 = 8; x = x + 1; exit(choose(x,5) + choose(2,x-1)) }\n")
     // Independent execution paths must agree on the actual process result.
-    for execution in array(Str, "interpret", "c", "fasm") {
+    for execution : Str in array(Str, "interpret", "c", "fasm") {
         command := Cmd.new(compiler)
         if execution == "interpret" { command.args("interpret", "main.til") }
         else { command.args("run", format("--backend=", execution), "main.til") }
@@ -251,7 +251,7 @@ main := proc(compiler_arg: Str) {
     expect(assembly.contains("imul rax, rcx") && assembly.contains("setl al"), "test arithmetic was folded away", assembly)
     // Signed comparison, equality, Bool negation, and wrapping I64 arithmetic.
     File.writefile(format(work, "/wrap.til"), "mode cli\ncheck := func(a: I64, b: I64) returns I64 { if (a + b < 0).not() { return 1 } if a + b == -9223372036854775808 { return 37 } return 2 }\nmain := proc() { mut x : I64 = 0; x = x + 1; exit(check(9223372036854775807,x)) }\n")
-    for execution in array(Str, "interpret", "c", "fasm") {
+    for execution : Str in array(Str, "interpret", "c", "fasm") {
         command := Cmd.new(compiler)
         if execution == "interpret" { command.args("interpret", "wrap.til") }
         else { command.args("run", format("--backend=", execution), "wrap.til") }
@@ -261,7 +261,7 @@ main := proc(compiler_arg: Str) {
     }
     File.writefile(format(work, "/empty.til"), "mode cli\nmain := proc() {}\n")
     File.writefile(format(work, "/arguments.til"), "mode cli\nsum := func(a: I64,b: I64,c: I64,d: I64,e: I64,f: I64) returns I64 { return a+b+c+d+e+f }\nchoose := func(flag: Bool, x: I64) returns I64 { if flag { return x } return 1 }\nmain := proc() { mut x : I64 = 0; x = x + 1; exit(choose(sum(x,2,3,4,5,6) > 20, sum(6,5,4,3,2,x))) }\n")
-    for execution in array(Str, "interpret", "c", "fasm") {
+    for execution : Str in array(Str, "interpret", "c", "fasm") {
         command := Cmd.new(compiler)
         if execution == "interpret" { command.args("interpret", "arguments.til") }
         else { command.args("run", format("--backend=", execution), "arguments.til") }
@@ -275,7 +275,7 @@ main := proc(compiler_arg: Str) {
     expect(build_status == 0, build.out(), build.err())
     run := Cmd.new(format(work, "/bin/custom output"))
     expect(run.run() == 0, "empty main failed")
-    for source in array(Str, "test/templeos/holyc_continue.til", "examples/fizzbuzz.til", "examples/templeos_scalars.til", "test/scalar_control.til", "examples/templeos_calls.til", "test/aggregate_control.til", "test/reference_rebinding.til", "test/interfaces.til", "test/test_in_namespace.til", "test/float_literals.til", "test/strings.til", "test/closures.til", "test/match.til") {
+    for source : Str in array(Str, "test/templeos/holyc_continue.til", "examples/fizzbuzz.til", "examples/templeos_scalars.til", "test/scalar_control.til", "examples/templeos_calls.til", "test/aggregate_control.til", "test/reference_rebinding.til", "test/interfaces.til", "test/test_in_namespace.til", "test/float_literals.til", "test/strings.til", "test/closures.til", "test/match.til") {
         check_shared(compiler, work, source)
     }
     check_shared(compiler, work, "test/script_bang_panic_msg.til", 1)

@@ -16,7 +16,7 @@ main := proc(compiler_arg: Str) {
         expect(good_status == 0, good.out(), good.err())
         assembly := File.readfile(format(work, "/gen/fasm/main.fasm"))
         expect(assembly.contains("format ELF64 executable 3"), assembly)
-        for command_name in array(Str, "translate", "build", "run", "test") {
+        for command_name : Str in array(Str, "translate", "build", "run", "test") {
             arguments := Cmd.new(compiler, command_name, "--backend=fasm", "main.til", "unexpected")
             arguments.cwd(work).capture()
             expect(arguments.run() != 0, "FASM entry arguments accepted: ", command_name)
@@ -47,7 +47,7 @@ main := proc(compiler_arg: Str) {
         expect(native_failure.run()!=0,"compiled test silently used C")
         expect(native_failure.out().contains("FASM backend:") && native_failure.out().contains("bad_native_test.til:"),native_failure.out(),native_failure.err())
         expect(native_failure.err().contains("=== interpret ===\n  pass: vector_test\n1/1 tests passed\n=== compile + run ===\n"),native_failure.err())
-        for flag in array(Str, "--asan", "--prof", "--cpu=baseline", "--opt=0", "--cc=cc") {
+        for flag : Str in array(Str, "--asan", "--prof", "--cpu=baseline", "--opt=0", "--cc=cc") {
             rejected := Cmd.new(compiler, "build", "--backend=fasm", flag, "main.til")
             rejected.cwd(work).capture()
             expect(rejected.run() != 0, flag)
@@ -82,7 +82,7 @@ main := proc(compiler_arg: Str) {
         File.writefile(format(work,"/simd.til"),format("mode cli\nimport(\"",realpath_str("test/simd.til").strip_suffix(".til").clone(),"\")\nmain:=proc() { simd_baseline_checks(2); simd_baseline_integer_checks() }\n"))
         File.writefile(format(work,"/wide_simd.til"),format("mode cli\nimport(\"",realpath_str("test/simd.til").strip_suffix(".til").clone(),"\")\nmain:=proc() { simd_wide_checks() }\n"))
         File.writefile(format(work, "/narrow_simd.til"), format("mode cli\nimport(\"", realpath_str("test/simd.til").strip_suffix(".til").clone(), "\")\nmain := proc() { simd_narrow_checks() }\n"))
-        for width in array(Str, "32", "64") {
+        for width : Str in array(Str, "32", "64") {
             aggregates := Cmd.new(compiler, "translate", "--backend=fasm", format("--usize=", width), "aggregates.til")
             aggregates.cwd(work).capture()
             aggregate_status := aggregates.run()
@@ -120,7 +120,7 @@ main := proc(compiler_arg: Str) {
             simd_status:=simd.run()
             expect(simd_status==0,simd.out(),simd.err())
             simd_source:=File.readfile(format(work,"/gen/fasm/simd.fasm"))
-            for instruction in array(Str,"addps xmm0","subps xmm0","mulps xmm0","divps xmm0","addpd xmm0","subpd xmm0","mulpd xmm0","divpd xmm0","cmpps xmm0","cmppd xmm0","pandn xmm2","movups","paddd xmm0","psubd xmm0","pmuludq xmm0","punpckldq xmm0","pcmpgtd xmm0","pcmpeqd xmm0","pslld xmm2, 31") {
+            for instruction : Str in array(Str,"addps xmm0","subps xmm0","mulps xmm0","divps xmm0","addpd xmm0","subpd xmm0","mulpd xmm0","divpd xmm0","cmpps xmm0","cmppd xmm0","pandn xmm2","movups","paddd xmm0","psubd xmm0","pmuludq xmm0","punpckldq xmm0","pcmpgtd xmm0","pcmpeqd xmm0","pslld xmm2, 31") {
                 expect(simd_source.contains(instruction),instruction,simd_source)
             }
             expect(simd_source.contains("pmulld").not(),"SSE4.1 multiplication in baseline SIMD",simd_source)
@@ -137,7 +137,7 @@ main := proc(compiler_arg: Str) {
             narrow_status := narrow.run()
             expect(narrow_status == 0, narrow.out(), narrow.err())
             narrow_source := File.readfile(format(work, "/gen/fasm/narrow_simd.fasm"))
-            for instruction in array(Str, "paddb xmm0", "psubb xmm0", "paddw xmm0", "psubw xmm0", "pmullw xmm0", "punpcklbw xmm0", "punpckhbw xmm2", "packuswb xmm0", "pcmpgtb", "pcmpgtw", "pcmpeqb", "pcmpeqw", "pmovmskb eax") {
+            for instruction : Str in array(Str, "paddb xmm0", "psubb xmm0", "paddw xmm0", "psubw xmm0", "pmullw xmm0", "punpcklbw xmm0", "punpckhbw xmm2", "packuswb xmm0", "pcmpgtb", "pcmpgtw", "pcmpeqb", "pcmpeqw", "pmovmskb eax") {
                 expect(narrow_source.contains(instruction), instruction, narrow_source)
             }
             expect(narrow_source.contains("pmulld").or(narrow_source.contains("ymm")).or(narrow_source.contains("zmm")).not(), "non-baseline narrow SIMD", narrow_source)

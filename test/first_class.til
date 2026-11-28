@@ -1724,7 +1724,7 @@ test_reflected_stored_permissions := test() {
     fields := reflect_fields490("ReflectFields490")
     cloned_fields := fields.clone()
     assert(fields.fields.len() == 4)
-    for i, field in fields.fields {
+    for i, field : Declaration in fields.fields {
         assert(field.own_type.is(OwnType.Ref))
         assert(field.is_mut == (i < 2))
         assert(field.referent_mut == (i == 1 || i == 3))
@@ -2091,7 +2091,7 @@ test_generic_func_canonical_name := test() {
 // kwargs block markers with it, so the value arguments still align.
 gsum328 := func(T: Type, base: T, rest: ..I64) returns T {
     mut acc := base
-    for value in rest {
+    for value : I64 in rest {
         acc = acc.add(value)
     }
     return acc

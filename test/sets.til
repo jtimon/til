@@ -122,12 +122,12 @@ test_set_for_in_sorted := test() {
     s.add(own 20)
     s.add(own 10)
     mut seen := Vec(I64).new()
-    for x in s { seen.push(own x.clone()) }
+    for x : I64 in s { seen.push(own x.clone()) }
     assert_eq(USize, seen.len(), 3)
     assert_eq(I64, seen[0], 10)
     assert_eq(I64, seen[1], 20)
     assert_eq(I64, seen[2], 30)
-    for i, x in s { assert_eq(I64, x, seen[i]) }
+    for i, x : I64 in s { assert_eq(I64, x, seen[i]) }
 }
 
 test_set_for_in_str := test() {
@@ -135,7 +135,7 @@ test_set_for_in_str := test() {
     s.add(own "beta")
     s.add(own "alpha")
     mut joined := ""
-    for name in s { joined = format(joined, name, ";") }
+    for name : Str in s { joined = format(joined, name, ";") }
     assert_eq(Str, joined, "alpha;beta;")
     mut empty := Set(Str).new()
     for _ in empty { panic("an empty Set yields nothing") }

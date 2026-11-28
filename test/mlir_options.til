@@ -11,10 +11,10 @@ main := proc(compiler_arg: Str) {
     // Shared cast failures are tested without the optional LLVM toolchain.
     targets := array(Str,"I8","U8","I16","U16","I32","U32","I64","U64")
     upper := array(Str,"128","256","32768","65536","2147483648","4294967296","9223372036854775808","18446744073709551616")
-    for i, target in targets {
+    for i, target : Str in targets {
         File.writefile(format(work,"/invalid_numeric.til"),format("mode cli\nmain:=proc(arg:Str){value:=arg.to_f64();println(value.cast(",target,").to_str())}\n"))
         mut expected := ""
-        for command in array(Str,"interpret","run") {
+        for command : Str in array(Str,"interpret","run") {
             invalid := Cmd.new(compiler,command,"invalid_numeric.til",upper[i])
             invalid.cwd(work).capture()
             invalid_status := invalid.run()
@@ -40,7 +40,7 @@ main := proc(compiler_arg: Str) {
         expect(ir.contains("arith.addf"), ir)
         expect(ir.contains("vector<4xf32>"), ir)
         expect(ir.contains("llvm.insertvalue"), ir)
-        for lanes in array(Str, "1", "2", "8", "16", "32", "1024") {
+        for lanes : Str in array(Str, "1", "2", "8", "16", "32", "1024") {
             File.writefile(format(work, "/width.til"), format("mode pure\nF := Simd(F32,", lanes, ")\nM := Simd(Bool,", lanes, ")\nadd := func(a:F,b:F) returns F{return a+b}\ncompare := func(a:F,b:F) returns M{return a<b}\n"))
             wide := Cmd.new(compiler, "translate", "--backend=mlir", "width.til")
             wide.cwd(work).capture()
@@ -69,7 +69,7 @@ main := proc(compiler_arg: Str) {
         File.writefile(format(work, "/casts.til"), "mode pure\nS4:=Simd(I32,4)\nU4:=Simd(U32,4)\nF4:=Simd(F32,4)\nsigned_float:=func(v:S4) returns F4 {return v.cast(F32)}\nunsigned_float:=func(v:U4) returns F4 {return v.cast(F32)}\nfloat_signed:=func(v:F4) returns S4 {return v.cast(I32)}\nfloat_unsigned:=func(v:F4) returns U4 {return v.cast(U32)}\n")
         // MLIR has the native layout only (one layout flag, doc/self.org):
         // --usize=64, its default; --usize=32 is refused below.
-        for width in array(Str, "64") {
+        for width : Str in array(Str, "64") {
             casts := Cmd.new(compiler, "translate", "--backend=mlir", "casts.til")
             casts.cwd(work).capture()
             casts_status := casts.run()
@@ -174,7 +174,7 @@ main := proc(compiler_arg: Str) {
             "mode pure\nWide:=Simd(F32,8)\nCallback:=func(shallow x:Wide) returns F32\ninvoke:=func(callback:Callback,shallow x:Wide) returns F32{return callback(x)}\n",
             "mode pure\nLarge:=struct{a:I64=0;b:I64=0;c:I64=0}\nCallback:=func() returns Large\ninvoke:=func(callback:Callback) returns Large{return callback()}\n")
         callback_errors := array(Str, "indirect narrow scalar arguments", "indirect aggregate stack arguments", "indirect result requires unsupported call-site ABI attributes")
-        for i, rejected_callback in rejected_callbacks {
+        for i, rejected_callback : Str in rejected_callbacks {
             File.writefile(format(work, "/callback_rejected.til"), rejected_callback)
             rejected := Cmd.new(compiler, "translate", "--backend=mlir", "callback_rejected.til")
             rejected.cwd(work).capture()
@@ -227,9 +227,9 @@ main := proc(compiler_arg: Str) {
         integer_status:=integer_options.run()
         expect(integer_status==0,integer_options.out(),integer_options.err())
         integer_ir:=File.readfile(format(work,"/gen/mlir/integer_ops.mlir"))
-        for operation in array(Str,"arith.divsi","arith.divui","arith.remsi","arith.remui","arith.shli","arith.shrsi","arith.shrui","arith.cmpi uge") {expect(integer_ir.contains(operation),integer_ir)}
+        for operation : Str in array(Str,"arith.divsi","arith.divui","arith.remsi","arith.remui","arith.shli","arith.shrsi","arith.shrui","arith.cmpi uge") {expect(integer_ir.contains(operation),integer_ir)}
         mut array_source:="mode lib\nByte:=I8\n"
-        for t in array(Str,"I8","U8","I16","U16","I32","U32","I64","U64","F32","F64","Bool","USize","UPtr","Byte") {
+        for t : Str in array(Str,"I8","U8","I16","U16","I32","U32","I64","U64","F32","F64","Bool","USize","UPtr","Byte") {
             array_source=format(array_source,"read_",t,":=func(a:Array(",t,"),i:USize) returns ",t," throws OutOfBounds{ref v:",t,"=a.get(i)?;return v.clone()}\nwrite_",t,":=func(mut a:Array(",t,"),i:USize,v:",t,") throws OutOfBounds{a.set(i,own v.clone())?}\n")
         }
         File.writefile(format(work,"/scalar_arrays.til"),array_source)
@@ -260,7 +260,7 @@ main := proc(compiler_arg: Str) {
         str_status:=str_bodies.run()
         expect(str_status==0,str_bodies.out(),str_bodies.err())
         str_ir:=File.readfile(format(work,"/gen/mlir/str_bodies.mlir"))
-        for method in array(Str,"len","unsafe_get","cmp","eq") {
+        for method : Str in array(Str,"len","unsafe_get","cmp","eq") {
             expect(str_ir.contains(format("llvm.func internal @\"til.mlir.core.Str.",method,"\"")),str_ir)
             expect(str_ir.contains(format("llvm.call @\"til.mlir.core.Str.",method,"\"")),str_ir)
             expect(str_ir.contains(format("__Str_",method,"\"")).not(),str_ir)
@@ -275,7 +275,7 @@ main := proc(compiler_arg: Str) {
         bridge_ir:=File.readfile(format(work,"/gen/mlir/str_bridge.mlir"))
         expect(bridge_ir.contains("__F64_to_str\"") && bridge_ir.contains("til.mlir.core.F64.to_str\"").not(),bridge_ir)
         mut formatting_source:="mode lib\nswap_raw:=func(mut a:Dynamic,mut b:Dynamic,n:UPtr){swap_bytes(a,b,n)}\n"
-        for t in array(Str,"I8","U8","I16","U16","I32","U32","I64","U64") {
+        for t : Str in array(Str,"I8","U8","I16","U16","I32","U32","I64","U64") {
             formatting_source=format(formatting_source,"render_",t,":=func(n:",t,") returns Str{return n.to_str()}\n")
         }
         File.writefile(format(work,"/integer_formatting.til"),formatting_source)
@@ -284,12 +284,12 @@ main := proc(compiler_arg: Str) {
         formatting_status:=formatting.run()
         expect(formatting_status==0,formatting.out(),formatting.err())
         formatting_ir:=File.readfile(format(work,"/gen/mlir/integer_formatting.mlir"))
-        for t in array(Str,"I8","U8","I16","U16","I32","U32","I64","U64") {
+        for t : Str in array(Str,"I8","U8","I16","U16","I32","U32","I64","U64") {
             expect(formatting_ir.contains(format("llvm.func internal @\"til.mlir.core.",t,".to_str\"")),formatting_ir)
             expect(formatting_ir.contains(format("__",t,"_to_str\"")).not(),formatting_ir)
         }
         expect(formatting_ir.contains("llvm.func internal @\"til.mlir.core.swap_bytes\"") && formatting_ir.contains("__U64_to_str_ext\""),formatting_ir)
-        for target in array(Str,"Str","Array(Str)") {
+        for target : Str in array(Str,"Str","Array(Str)") {
             File.writefile(format(work,"/saved_cleanup.til"),format("mode lib\nreplace:=func(a:",target,",flag:Bool) returns ",target,"{mut out:=a.clone();if flag{out=a.clone()};return out}\n"))
             cleanup:=Cmd.new(compiler,"translate","--backend=mlir","saved_cleanup.til")
             cleanup.cwd(work).capture()
@@ -310,7 +310,7 @@ main := proc(compiler_arg: Str) {
         more_status:=str_more.run()
         expect(more_status==0,str_more.out(),str_more.err())
         more_ir:=File.readfile(format(work,"/gen/mlir/str_more.mlir"))
-        for method in array(Str,"get","is_empty","starts_with","ends_with","find","rfind","contains","read_utf8","is_valid_utf8","borrowed_view","substr","trim_start","trim","with_capacity","push_str","clone","delete") {
+        for method : Str in array(Str,"get","is_empty","starts_with","ends_with","find","rfind","contains","read_utf8","is_valid_utf8","borrowed_view","substr","trim_start","trim","with_capacity","push_str","clone","delete") {
             expect(more_ir.contains(format("llvm.func internal @\"til.mlir.core.Str.",method,"\"")),more_ir)
             expect(more_ir.contains(format("__Str_",method,"\"")).not(),more_ir)
         }
@@ -331,10 +331,10 @@ main := proc(compiler_arg: Str) {
         compose_status:=compose.run()
         expect(compose_status==0,compose.out(),compose.err())
         compose_ir:=File.readfile(format(work,"/gen/mlir/str_compose.mlir"))
-        for method in array(Str,"from_byte","from_codepoint","get_char","strip_prefix","strip_suffix","replace") {
+        for method : Str in array(Str,"from_byte","from_codepoint","get_char","strip_prefix","strip_suffix","replace") {
             expect(compose_ir.contains(format("llvm.func internal @\"til.mlir.core.Str.",method,"\"")),compose_ir)
         }
-        for method in array(Str,"format","concat3","Array__Str.new","Array__Str.len","Array__Str.unsafe_get","Array__Str.set","Array__Str.delete","Array__Str.concat") {
+        for method : Str in array(Str,"format","concat3","Array__Str.new","Array__Str.len","Array__Str.unsafe_get","Array__Str.set","Array__Str.delete","Array__Str.concat") {
             expect(compose_ir.contains(format("llvm.func internal @\"til.mlir.core.",method,"\"")),compose_ir)
         }
         expect(compose_ir.contains("llvm.func @\"parts\"(%result: !llvm.ptr {llvm.sret") && compose_ir.contains("__format\"").not(),compose_ir)
@@ -345,7 +345,7 @@ main := proc(compiler_arg: Str) {
         diagnostics_status:=diagnostics.run()
         expect(diagnostics_status==0,diagnostics.out(),diagnostics.err())
         diagnostics_ir:=File.readfile(format(work,"/gen/mlir/diagnostics.mlir"))
-        for helper in array(Str,"print","println","panic","assert","expect","TODO","UNREACHABLE") {
+        for helper : Str in array(Str,"print","println","panic","assert","expect","TODO","UNREACHABLE") {
             expect(diagnostics_ir.contains(format("llvm.func internal @\"til.mlir.core.",helper,"\"")),diagnostics_ir)
             expect(diagnostics_ir.contains(format("__",helper,"\"")).not(),diagnostics_ir)
         }
@@ -389,7 +389,7 @@ main := proc(compiler_arg: Str) {
         expect(simd_field_ir.contains("!llvm.struct<(f32, f32, f32, f32)>") && simd_field_ir.contains("!llvm.struct<(i8, i8, i8, i8)>"),simd_field_ir)
         expect(simd_field_ir.contains("@\"copy_cross\"(%p0c0: i64, %p0c1: i64)"),simd_field_ir)
         File.writefile(format(work,"/simd_field_importer.til"),"mode cli\nimport(\"simd_fields\")\nmain:=proc(){mut first:F32=1;first=first+1;v:=F4.new(first,2,3,4);p:=make(v,M4.splat(first>0));assert_eq(F32,read_field(p)[0],2);assert(p.m.all());println(\"SIMD imported fields PASS\")}\n")
-        for execution_mode in array(Str,"interpret","run") {
+        for execution_mode : Str in array(Str,"interpret","run") {
             imported_fields:=Cmd.new(compiler,execution_mode,"simd_field_importer.til")
             imported_fields.cwd(work).capture()
             imported_status:=imported_fields.run()
@@ -437,13 +437,13 @@ main := proc(compiler_arg: Str) {
         collision_status:=collision.run()
         expect(collision_status!=0 && collision.out().contains("callable symbol collision: Tools_one"),collision.out(),collision.err())
     }
-    for command_name in array(Str, "interpret", "test", "ast", "doc", "install", "bindings") {
+    for command_name : Str in array(Str, "interpret", "test", "ast", "doc", "install", "bindings") {
         bad := Cmd.new(compiler, command_name, "--backend=mlir", "add.til")
         bad.cwd(work).capture()
         expect(bad.run() != 0, command_name)
         expect(bad.out().contains("--backend requires translate, build or run"), bad.out(), bad.err())
     }
-    for option in array(Str, "--backend=unknown", "--backend") {
+    for option : Str in array(Str, "--backend=unknown", "--backend") {
         bad := Cmd.new(compiler, "translate", option, "add.til")
         bad.cwd(work).capture()
         expect(bad.run() != 0, option)

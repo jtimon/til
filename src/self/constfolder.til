@@ -201,7 +201,7 @@ priv collect_mut_targets := proc(e: Expr, mut names: Set(Str), mut introduced: V
                 ref fdef : Expr = fdef_o.unwrap()
                 switch fdef.node_type {
                 case .FuncDef(fd):
-                    for pi, param in fd.sig.params {
+                    for pi, param : Declaration in fd.sig.params {
                         mutates_arg := param.is_mut.and(param.own_type.is(OwnType.Ref))
                         mut aggregate_arg := pi + 1 < e.children.len()
                         if aggregate_arg { aggregate_arg = constfolder_type_is_aggregate(e.children[pi + 1].til_type(), ctx) }
@@ -427,7 +427,7 @@ priv raw_to_expr := func(raw: Dynamic, shallow t: Type, src: Expr, mut ctx: Cont
             // sl.fields is positionally parallel to sfd.fields, so each
             // field's layout row comes from its position -- no name probe.
             ref rte_sl : StructLayout = ctx.struct_layouts[sname]
-            for fi, fd in sfd.fields {
+            for fi, fd : Declaration in sfd.fields {
                 if fd.own_type.is(OwnType.Own).or(fd.own_type.is(OwnType.Ref)).or(is_funcptr(fd.til_type)) { return Option(Expr).None }
                 ref fl : FieldLayout = rte_sl.fields.unsafe_get(fi)
                 ref field_addr : Dynamic = ptr_add(raw, fl.offset)

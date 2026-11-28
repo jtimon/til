@@ -369,7 +369,7 @@ spacing_frame := proc(mut s: Spacing, fnt: Font, active: Color, inactive: Color,
 test_fret_layout := test() {
     spacing := Spacing()
     assert_eq(Str, mm_label(fret_fraction(spacing_ratio(spacing.tet), 12) * spacing.length_mm.value().unwrap()), "323.85")
-    for decimal in array(Str, "648.5", "648,5") {
+    for decimal : Str in array(Str, "648.5", "648,5") {
         input := NumericInput(text = decimal.clone())
         assert_eq(Str, mm_label(fret_fraction(spacing_ratio(12), 12) * input.value().unwrap()), "324.25")
     }

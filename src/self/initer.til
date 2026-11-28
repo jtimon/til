@@ -320,7 +320,7 @@ priv generate_struct_to_str_method := func(mut struct_def: Expr, sname: Str, lin
 
     ref sdd : StructDef = structdef_of(struct_def)
     field_count = sdd.fields.len()
-    for idx, fd in sdd.fields {
+    for idx, fd : Declaration in sdd.fields {
         ref ts_fname : Str = sdd.field_name_at(idx)
         if idx > 0 {
             mut sep := Expr.new(own NodeType.Literal(Literal.Str(", ")), line, col)
@@ -691,14 +691,14 @@ collect_enum_variants := func(enum_def: Expr, mut variant_names: Vec(Str), mut v
 priv generate_enum_variant_constructors := func(mut enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope, mut symbols: SymbolPool) {
     ref mut evc_edd : EnumDef = enumdef_of_mut(enum_def)
     if has_payloads.not() {
-        for j, variant_name in variant_names {
+        for j, variant_name : Str in variant_names {
             lit := Expr.new(own literal_num_node(j.to_str()), line, col)
             evc_edd.push_member(own Declaration(name = variant_name.clone(), default_value = Option(Expr).Some(own lit)))
         }
         return
     }
 
-    for j, variant_name in variant_names {
+    for j, variant_name : Str in variant_names {
         mut func_decl := FunctionDef(auto_generated = true, is_enum_variant_ctor = true)
         func_decl.sig.func_type = FuncType.ExtFunc
         ref vtype : Str = variant_types[j]
@@ -804,7 +804,7 @@ priv generate_enum_eq_method := func(mut enum_def: Expr, ename: Str, line: U32, 
 
 // The general per-variant eq chain for enums with payload-carrying variants.
 priv generate_enum_eq_chain := func(mut enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), scope: TypeScope, own func_body: Expr, mut symbols: SymbolPool) {
-    for j, vn in variant_names {
+    for j, vn : Str in variant_names {
         mut is_call := make_is_tag_check_fcall("self", ename, vn, enum_tag_size(enum_def), line, col, symbols)
 
         mut then_body := Expr.new(own NodeType.Body, line, col)
@@ -898,7 +898,7 @@ priv finish_enum_eq_method := func(mut enum_def: Expr, ename: Str, line: U32, co
 // leaves the enum unordered and says so at the use site.
 priv generate_enum_cmp_method := func(mut enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), scope: TypeScope, mut symbols: SymbolPool) {
     mut func_body := Expr.new(own NodeType.Body, line, col)
-    for j, vn in variant_names {
+    for j, vn : Str in variant_names {
         ref vtype : Str = variant_types[j]
 
         // if a.is(E.V) { ... }
@@ -989,7 +989,7 @@ priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U
     // the ENUM, so it is settled once rather than rebuilt per variant.
     mut nfl_payload_less := 0
     mut nfl_boxed := 0
-    for nk, nvt in variant_types {
+    for nk, nvt : Str in variant_types {
         if nvt.len() == 0 { nfl_payload_less = nfl_payload_less + 1; continue }
         if enum_variant_payload_ref(enum_def, nk.to_i32()) { continue }
         if enum_variant_payload_funcsig(enum_def, nk.to_i32()) { continue }
@@ -1005,7 +1005,7 @@ priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U
     del_sw.add_child(own Expr.new(own ident_node(symbols.intern("self")), line, col))
     mut del_arms : USize = 0
     if has_payloads {
-        for j, variant_name in variant_names {
+        for j, variant_name : Str in variant_names {
             ref vtype : Str = variant_types[j]
             if vtype.len() == 0 { continue }
             if vtype == "Dynamic" { continue }
@@ -1105,7 +1105,7 @@ priv generate_enum_delete_method := func(mut enum_def: Expr, ename: Str, line: U
 
 priv generate_enum_to_str_method := func(mut enum_def: Expr, ename: Str, line: U32, col: U32, variant_names: Vec(Str), variant_types: Vec(Str), has_payloads: Bool, scope: TypeScope, mut symbols: SymbolPool) {
     mut func_body := Expr.new(own NodeType.Body, line, col)
-    for j, vn in variant_names {
+    for j, vn : Str in variant_names {
         ref vtype : Str = variant_types[j]
 
         if has_payloads {
@@ -1267,7 +1267,7 @@ priv generate_enum_clone_method := func(mut enum_def: Expr, ename: Str, line: U3
     // an exhaustive switch whose arms all return needs no trailing return.
     mut sw := Expr.new(own NodeType.Switch, line, col)
     sw.add_child(own Expr.new(own ident_node(symbols.intern("self")), line, col))
-    for j, vname in variant_names {
+    for j, vname : Str in variant_names {
         mut ename_id := Expr.new(own ident_node(symbols.intern(ename)), line, col)
         mut ctor_acc := Expr.new(own field_access_node(symbols.intern(vname)), line, col)
         ctor_acc.add_child(own ename_id)
@@ -1657,7 +1657,7 @@ register_function_def_for_stmt := func(mut ctx: Context, mut stmt: Expr, mut sco
                     }
                 }
                 fdef.sig.func_type = sigdef.sig.func_type
-                for j, sp in sigdef.sig.params {
+                for j, sp : Declaration in sigdef.sig.params {
                     ref mut dp : Declaration = fdef.sig.params[j]
                     dp.til_type = sp.til_type.clone()
                     dp.is_mut = sp.is_mut
@@ -2647,7 +2647,7 @@ init_lift_in_body := proc(mut body: Expr, parent_prefix: Str, mut top_level: Vec
     mut renamings := Map(Str, Str).new()
     mut lifted_indices := Vec(USize).new()
 
-    for i, mut child in body.children {
+    for i, mut child : Expr in body.children {
         if init_is_lift_target(child).not() { continue }
         switch child.node_type {
         case .Decl(child_dd):
@@ -2784,7 +2784,7 @@ priv init_subst_ident_name := func(subs: Map(Str, Expr), ref_params: Map(Str, Bo
     args := name.substr(marker_u + 2, name.len().sub(marker_u) - 2).split("_")
     mut changed := false
     mut out := prefix.clone()
-    for i, arg in args {
+    for i, arg : Str in args {
         if i > 0 { out = format(out, "_") }
         if subs.has(arg) {
             // #320: a ref-qualified type param keeps the instantiation's
@@ -3632,7 +3632,7 @@ priv init_macro_inst_name_in_scope := func(e: Expr, macros: Map(Str, Expr), scop
 priv init_check_interface_type_args := proc(call: Expr, macro_fdef: Expr, scope: TypeScope, mut ctx: Context) {
     ref sig : FuncSig = funcdef_of(macro_fdef).sig
     if sig.return_type.eq("StructDef").or(sig.return_type.eq("EnumDef")).not() { return }
-    for i, param in sig.params {
+    for i, param : Declaration in sig.params {
         arg_index := i + 1
         if arg_index >= call.children.len() { break }
         if decl_type_name_ref(param, ctx.symbols).eq("Type").not() { continue }
@@ -4072,7 +4072,7 @@ priv init_generic_source_mentions_type_name := func(program: Expr, name: Str, sy
 // erasing registry state by name.
 priv init_dedup_direct_type_gen_decls := proc(mut program: Expr, macros: Map(Str, Expr), mut scope: TypeScope, mut ctx: Context) {
     mut last_direct := Map(Str, I64).new()
-    for i, stmt0 in program.children {
+    for i, stmt0 : Expr in program.children {
         if init_is_direct_macro_inst_decl(stmt0, macros, scope, ctx).not() { continue }
         ref rhs0 : Expr = stmt0.children[0]
         genname0 := init_macro_inst_name_in_scope(rhs0, macros, scope, ctx)
@@ -4293,7 +4293,7 @@ priv init_canonicalize_local_type_args := func(mut e: Expr, macros: Map(Str, Exp
                 if macro_o.is_some() {
                     switch macro_o.unwrap().node_type {
                     case .FuncDef(mfd):
-                        for i, param in mfd.sig.params {
+                        for i, param : Declaration in mfd.sig.params {
                             if i + 1 >= e.children.len() { break }
                             if decl_type_name_ref(param, ctx.symbols).eq("Type").not() { continue }
                             ref mut arg : Expr = e.children[i + 1]
@@ -4438,7 +4438,7 @@ priv generic_summary_bit := func(i: USize) returns U64 {
 
 priv generic_remap_summary_bits := func(bits: U64, arg_pos: Vec(I64)) returns U64 {
     mut out : U64 = 0
-    for old_idx, new_idx in arg_pos {
+    for old_idx, new_idx : I64 in arg_pos {
         if bits.band(generic_summary_bit(old_idx)) == 0 { continue }
         if new_idx < 0 { continue }
         out = out.bor(generic_summary_bit(new_idx.to_usize()))
@@ -4448,7 +4448,7 @@ priv generic_remap_summary_bits := func(bits: U64, arg_pos: Vec(I64)) returns U6
 
 priv generic_materialize_type_deps := func(src: GenericFuncSource, concrete_func: Expr, subs: Map(Str, Expr), ref_params: Map(Str, Bool), mut destination: Expr, scope: TypeScope, mut ctx: Context) {
     prefix := format(src.path, "#")
-    for dep_key, dep_template in ctx.generic_type_deps {
+    for dep_key, dep_template : Expr in ctx.generic_type_deps {
         if dep_key.starts_with(prefix).not() { continue }
         placeholder := dep_key.substr(prefix.len(), dep_key.len() - prefix.len())
         concrete_name := init_subst_ident_name(subs, ref_params, placeholder, ctx.symbols)
@@ -4595,7 +4595,7 @@ generic_instantiate := func(src: GenericFuncSource, gfd_expr: Expr, subs: Map(St
                     mut vidx : I32 = cfd.sig.variadic_index
                     source_origin := cfd.sig.return_origin_param
                     mut kidx : I32 = cfd.sig.kwargs_index
-                    for ci, kp in cfd.sig.params {
+                    for ci, kp : Declaration in cfd.sig.params {
                         if generic_param_is_type(kp, ctx.symbols) {
                             // Removing a param shifts every later block
                             // marker down by one.
@@ -4713,7 +4713,7 @@ priv init_generic_expand_call := func(mut parent: Expr, call_idx: USize, gname: 
         // a later invalid or missing slot stays on the explicit-error path;
         // `f(I64, 1, true)` is never re-read as fully omitted application.
         mut explicit := false
-        for i, p in gfd.sig.params {
+        for i, p : Declaration in gfd.sig.params {
             if generic_param_is_type(p, ctx.symbols).not() {
                 // #320: a ref bit on a VALUE-arg position would be
                 // silently lost by the rewrite below -- reject it loudly.
@@ -4850,7 +4850,7 @@ priv init_expand_generic_funcs := func(mut program: Expr, scope: TypeScope, mut 
     // (recorded at seed time). A call here to a generic defined elsewhere
     // (e.g. core `assert_eq`) is monomorphized against the imported decl.
     // A local decl of the same name already in `gs.defs` wins.
-    for gname, gdef in ctx.generic_funcs {
+    for gname, gdef : Expr in ctx.generic_funcs {
         if gs.defs.has(gname) { continue }
         mut gcell2 : UPtr = malloc(UPtr.size().to_uptr())
         write_ptr(gcell2, gdef)
@@ -4970,7 +4970,7 @@ init_scan_unresolved_generic_calls := proc(program: Expr, scope: TypeScope, mut 
 // removes obsolete ones), then drop the declarations.
 init_retire_generic_sources := func(mut program: Expr, mut scope: TypeScope, symbols: SymbolPool) returns Bool {
     mut drop_idxs := Vec(I64).new()
-    for i, stmt in program.children {
+    for i, stmt : Expr in program.children {
         if init_stmt_is_generic_source(stmt, symbols).not() { continue }
         switch stmt.node_type {
         case .Decl(dd):
@@ -5436,7 +5436,7 @@ priv init_expand_type_gen_decl := proc(mut stmt: Expr, macro_fdef: Expr, macros:
     mut ref_params := Map(Str, Bool).new()
     switch macro_fdef.node_type {
     case .FuncDef(mfd):
-        for j, param in mfd.sig.params {
+        for j, param : Declaration in mfd.sig.params {
             if j + 1 >= rhs.children.len() { break }
             ref arg : Expr = rhs.children[j + 1]
             if decl_type_name_ref(param, ctx.symbols).eq("Type").and(get_ref_arg(rhs, j + 1)) {
@@ -5582,7 +5582,7 @@ priv init_expand_type_gen_macros := proc(mut program: Expr, mut scope: TypeScope
 
     // A public template may need private helpers only for some instantiations.
     // Record those source dependencies even when this unit selects another arm.
-    for name, source in macros { init_macro_reference_edges(source, name, macros, ctx) }
+    for name, source : Expr in macros { init_macro_reference_edges(source, name, macros, ctx) }
     mut local_types := init_seed_local_type_tokens(program, scope, ctx)
     // Aggregate aliases name their canonical generated type even before the
     // definition is expanded. Otherwise a sibling factory sees Alias as a
@@ -5713,7 +5713,7 @@ priv init_private_names := proc(path: Str, mut program: Expr, mut symbols: Symbo
         for mut stmt : Expr in program.children {
             switch stmt.node_type {
             case .Decl(dd):
-                for old, renamed in renamings {
+                for old, renamed : Str in renamings {
                     prefix := format(old, "__")
                     if dd.name.starts_with(prefix) {
                         replacement := format(renamed, dd.name.substr(old.len(), dd.name.len() - old.len()))
@@ -5725,7 +5725,7 @@ priv init_private_names := proc(path: Str, mut program: Expr, mut symbols: Symbo
             case:
             }
         }
-        for old, renamed in applications { renamings.set(old, own renamed.clone()) }
+        for old, renamed : Str in applications { renamings.set(old, own renamed.clone()) }
         for mut stmt : Expr in program.children { init_rewrite_refs(stmt, renamings, symbols) }
     }
 }
@@ -5990,7 +5990,7 @@ priv init_declarations_unit := proc(path: Str, mut program: Expr, mut scope: Typ
     // for diagnostics.
     init_private_names(path, program, ctx.symbols)
 
-    for i, mut stmt in program.children {
+    for i, mut stmt : Expr in program.children {
         if stmt.node_type.is(NodeType.Decl).not() { continue }
         ref rhs : Expr = stmt.children[0]
         if rhs.node_type.is(NodeType.StructDef) {
@@ -6330,7 +6330,7 @@ priv interface_type_contains := func(name: Str, iface: Str, ctx: Context) return
 }
 
 priv interface_application_contains := func(e: Expr, iface: Str, ctx: Context) returns Bool {
-    for i, child in e.children {
+    for i, child : Expr in e.children {
         // Qualified arguments describe interface handles, not a dependent Self
         // type. Their representation is shared by every implementation.
         if e.node_type.is(NodeType.FCall) {
@@ -6408,7 +6408,7 @@ priv interface_substitute_application := func(mut e: Expr, from_name: Str, to_na
         }
     case:
     }
-    for i, mut child in e.children {
+    for i, mut child : Expr in e.children {
         if e.node_type.is(NodeType.FCall) {
             if get_own_arg(e, i).or(get_ref_arg(e, i)) { continue }
         }

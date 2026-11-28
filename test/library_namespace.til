@@ -113,7 +113,7 @@ check_binding_composition := proc(compiler: Str) {
     // Relocate the existing binding assets together. Imports must follow the
     // packaged modules rather than an absolute compiler-checkout pathname.
     mkdir_p("tmp/library_namespace_package")
-    for name in vec(Str, "library_namespace_a", "library_namespace_layer", "library_namespace_outer") {
+    for name : Str in vec(Str, "library_namespace_a", "library_namespace_layer", "library_namespace_outer") {
         assert(copy_file(format("gen/til/", name, ".til"),
             format("tmp/library_namespace_package/", name, ".til")) == 0)
     }
@@ -122,7 +122,7 @@ check_binding_composition := proc(compiler: Str) {
         "point := layer_alias(); assert(point.point.scalar == 91)\n",
         "other := outer_point(); assert(other.point.scalar == 91)\n",
         "before := library_namespace_a_state; layer_bump(); outer_bump(); assert(library_namespace_a_state == before + 2)\n"))
-    for action in vec(Str, "run", "interpret") {
+    for action : Str in vec(Str, "run", "interpret") {
         consumer := Cmd.new(compiler, action, "tmp/library_namespace_package/consumer.til")
         consumer.env("LIBRARY_PATH", "gen/lib")
         library_search_in(consumer, "gen/lib")

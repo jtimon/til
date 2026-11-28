@@ -690,9 +690,9 @@ not Boolean negation.
 
 ## Loops
 
-Iterate collections with ~for x in v~, or ~for i, x in v~ when the index is
-needed, not ~for i in 0..v.len()~ plus ~v[i]~: it is shorter and skips the
-per-element bounds check. Keep the range only when the body changes ~v~'s
+Iterate collections with ~for x : T in v~, or ~for i, x : T in v~ when the
+index is needed (the value's type is mandatory), not ~for i in 0..v.len()~
+plus ~v[i]~: it is shorter and skips the per-element bounds check. Keep the range only when the body changes ~v~'s
 length or stores an owned value into ~v[i]~.
 
 ## Commits

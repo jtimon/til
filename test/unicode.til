@@ -70,7 +70,7 @@ main := proc() {
     hangul_codes := array(USize, 0xabff, 0xac00, 0xac01, 0xac1b, 0xac1c, 0xac1d,
         0xb098, 0xd787, 0xd788, 0xd789, 0xd7a3, 0xd7a4)
     hangul_properties := array(USize, 0, 12, 13, 13, 12, 13, 12, 13, 12, 13, 13, 0)
-    for i, hangul_code in hangul_codes {
+    for i, hangul_code : USize in hangul_codes {
         assert(unicode_grapheme_property(hangul_code.to_i64()) == hangul_properties[i].to_i64())
     }
 

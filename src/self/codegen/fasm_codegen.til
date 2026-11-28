@@ -389,7 +389,7 @@ priv fasm_collect_closures := func(mut e: Expr, path: Str, declaration: USize, m
         program.definitions.set(name, own FasmDefinition(path=path.clone(), declaration=declaration,
             member=member, nested=nested.clone()))
     }
-    for i, mut child in e.children {
+    for i, mut child : Expr in e.children {
         nested.push(own i.clone())
         fasm_collect_closures(child, path, declaration, member, nested, program)
         nested.remove_at(nested.len() - 1)!
@@ -397,7 +397,7 @@ priv fasm_collect_closures := func(mut e: Expr, path: Str, declaration: USize, m
 }
 
 priv fasm_collect := func(mut e: Expr, path: Str, mut program: FasmProgram) {
-    for position, mut stmt in e.children {
+    for position, mut stmt : Expr in e.children {
         if stmt.node_type.is(NodeType.Decl) && stmt.children.len() == 1 {
             ref dd : Declaration = decl_of(stmt)
             ref mut value : Expr = stmt.children[0]
@@ -405,7 +405,7 @@ priv fasm_collect := func(mut e: Expr, path: Str, mut program: FasmProgram) {
                 program.definitions.set(dd.name, own FasmDefinition(path=path.clone(), declaration=position))
             } else if value.node_type.is(NodeType.StructDef).or(value.node_type.is(NodeType.EnumDef)) {
                 ref members : Vec(Declaration) = def_ns_decls(value)
-                for i, member in members {
+                for i, member : Declaration in members {
                     if member.default_value.is_some() && member.default_expr().node_type.is(NodeType.FuncDef) {
                         name := format(dd.name, "_", def_ns_name_at(value, i))
                         program.definitions.set(name, own FasmDefinition(path=path.clone(), declaration=position, member=i.to_i64()))
@@ -415,7 +415,7 @@ priv fasm_collect := func(mut e: Expr, path: Str, mut program: FasmProgram) {
             fasm_collect_closures(value, path, position, -1, Vec(USize).new(), program)
             if value.node_type.is(NodeType.StructDef).or(value.node_type.is(NodeType.EnumDef)) {
                 ref mut members : Vec(Declaration) = def_ns_decls_mut(value)
-                for i, mut member in members {
+                for i, mut member : Declaration in members {
                     if member.default_value.is_some() {
                         fasm_collect_closures(member.default_expr(), path, position, i.to_i64(), Vec(USize).new(), program)
                     }
@@ -574,7 +574,7 @@ priv fasm_closure_value := proc(e: Expr, name: Str, mut state: FasmState, mut lp
     environment := fasm_slot(state)
     fasm_emit(state, format("mov rdi, ", (layout[captures.len()] + 32).to_str(), "\n    call rt_malloc\n    mov ", descriptor,
         ", rax\n    add rax, 32\n    mov ", environment, ", rax"))
-    for i, cap in captures {
+    for i, cap : Declaration in captures {
         mut source := Expr.new(own ident_node(lp.ctx.symbols.intern(cap.name)), e.line, e.col)
         source.set_til_type(cap.til_type.clone())
         if type_is_callable_storage(cap.til_type) {
@@ -624,7 +624,7 @@ priv fasm_environment_function := func(name: Str, clone: Bool, mut program: Fasm
             ", rax\n    mov rdi, rax\n    mov rsi, ", source, "\n    sub rsi, 32\n    mov edx, 32\n    call rt_memcpy\n    mov rax, ", destination,
             "\n    lea rdx, [rax+32]\n    mov [rax+8], rdx\n    mov ", environment, ", rdx"))
     }
-    for i, cap in captures {
+    for i, cap : Declaration in captures {
         if clone.not().and(cap.own_type.is(OwnType.Ref)) { continue }
         fasm_emit(state, format("mov rax, ", source, "\n    mov rax, [rax+", (i * 8).to_str(), "]"))
         if clone {
@@ -715,7 +715,7 @@ priv fasm_indirect_call := proc(e: Expr, mut state: FasmState, mut lp: LoadedPro
         fasm_emit(state, format("mov ", slot, ", rax"))
         arguments.push(own slot)
     }
-    for i, argument in arguments { fasm_emit(state, format("mov ", fasm_register(i), ", ", argument)) }
+    for i, argument : Str in arguments { fasm_emit(state, format("mov ", fasm_register(i), ", ", argument)) }
     // R10 carries the private environment without reducing the existing six
     // integer argument slots. The callee saves it before making any calls.
     code := fasm_slot(state)
@@ -1198,7 +1198,7 @@ priv fasm_interface_dispatch := proc(name: Str, expr: Expr, mut state: FasmState
             mut call := Expr.new(own NodeType.FCall(FCallData()), expr.line, expr.col)
             call.add_child(own Expr.new(own ident_node(lp.ctx.symbols.intern(target_name)), expr.line, expr.col))
             call.set_til_type(type_from_name_init_name(target.sig.return_type, lp.ctx.scope, lp.ctx.symbols))
-            for i, param in fd.sig.params {
+            for i, param : Declaration in fd.sig.params {
                 if handles[i].len() > 0 {
                     if i > 0 {
                         matched := format(".interface_same",state.labels.to_str())
@@ -1226,7 +1226,7 @@ priv fasm_interface_dispatch := proc(name: Str, expr: Expr, mut state: FasmState
             fasm_user_call(call,target_name,state,lp,as_pointer=state.return_ref,result_pointer=result_pointer)
             result := fasm_slot(state)
             fasm_emit(state,format("mov ",result,", rax"))
-            for i, param in fd.sig.params {
+            for i, param : Declaration in fd.sig.params {
                 if handles[i].len().gt(0).and(param.own_type.is(OwnType.Own)) {
                     fasm_emit(state,format("mov rdi, ",handles[i]))
                     fasm_destroy(state.value_types[param.name],false,state,lp)
@@ -1326,7 +1326,7 @@ priv fasm_user_call := proc(e: Expr, name: Str, mut state: FasmState, mut lp: Lo
         fasm_emit(state, format("mov ", slot, ", rax"))
         arguments.push(own slot)
     }
-    for i, argument in arguments { fasm_emit(state, format("mov ", fasm_register(i), ", ", argument)) }
+    for i, argument : Str in arguments { fasm_emit(state, format("mov ", fasm_register(i), ", ", argument)) }
     fasm_call_outer(e, fd, state, lp)
     if result_pointer.len() > 0 { fasm_emit(state,format("mov rax, ",result_pointer)) }
     else {
@@ -1931,7 +1931,7 @@ priv fasm_simd_core := proc(e: Expr, shallow owner: Type, op: Str, mut state: Fa
         result_stride:=fasm_type_size(e.til_type(),lp)/sd.simd_width
         for chunk in 0..(sd.simd_width/lanes) {
             mut inputs:=Vec(Str).new()
-            for input in arguments { inputs.push(own fasm_simd_address(input,chunk*16)) }
+            for input : Str in arguments { inputs.push(own fasm_simd_address(input,chunk*16)) }
             output:=fasm_simd_address(result,chunk*lanes*result_stride)
             if integer { fasm_simd_integer_binary(inputs,output,lane,op,bytes,state) }
             else { fasm_simd_float_binary(inputs,output,lane,op,lanes,state) }
@@ -2100,7 +2100,7 @@ priv fasm_runtime_call := proc(e: Expr, name: Str, mut state: FasmState, mut lp:
         fasm_emit(state, format("mov ", slot, ", rax"))
         args.push(own slot)
     }
-    for i, arg in args { fasm_emit(state, format("mov ", fasm_register(i), ", ", arg)) }
+    for i, arg : Str in args { fasm_emit(state, format("mov ", fasm_register(i), ", ", arg)) }
     fasm_call_outer(e, fd, state, lp)
     result := fasm_call_result(fd, state, lp)
     if result.len() > 0 { fasm_emit(state, format("lea rax, ", result.strip_prefix("qword "))) }
@@ -2807,7 +2807,7 @@ priv fasm_function := proc(name: Str, mut program: FasmProgram, mut lp: LoadedPr
         fasm_emit(state, format("mov ", slot, ", ", fasm_register(i)))
         incoming.push(own slot)
     }
-    for i, p in fd.sig.params {
+    for i, p : Declaration in fd.sig.params {
         t := fasm_parameter_type(fd, i, lp)
         aggregate := fasm_aggregate(t, lp)
         if aggregate.or(fasm_scalar(t)).not() {
@@ -2833,7 +2833,7 @@ priv fasm_function := proc(name: Str, mut program: FasmProgram, mut lp: LoadedPr
             state.no_free.add(own p.name.clone())
         }
     }
-    for i, cap in fd.captures {
+    for i, cap : Declaration in fd.captures {
         slot := fasm_slot(state)
         fasm_emit(state, format("mov rax, ", environment, "\n    mov rax, [rax+", (i * 8).to_str(), "]\n    mov ", slot, ", rax"))
         fasm_bind(cap.name, cap.til_type, own slot, false, fasm_scalar(cap.til_type).and(cap.til_type.is(Type.Dynamic).not()), false, false, state)
@@ -2857,7 +2857,7 @@ priv fasm_function := proc(name: Str, mut program: FasmProgram, mut lp: LoadedPr
         mut call := Expr.new(own NodeType.FCall(FCallData()), expr.line, expr.col)
         call.add_child(own callee)
         call.set_til_type(ret.clone())
-        for i, param in fd.sig.params {
+        for i, param : Declaration in fd.sig.params {
             mut arg := Expr.new(own ident_node(lp.ctx.symbols.intern(param.name)), expr.line, expr.col)
             arg.set_til_type(fasm_parameter_type(fd, i, lp))
             call.add_child(own arg)
@@ -2907,7 +2907,7 @@ priv fasm_test_entry := proc(mut program: FasmProgram, mut lp: LoadedProgram) re
                 count++
             } else if value.node_type.is(NodeType.StructDef).or(value.node_type.is(NodeType.EnumDef)) {
                 ref members:Vec(Declaration)=def_ns_decls(value)
-                for i, member in members {
+                for i, member : Declaration in members {
                     if member.default_value.is_none() { continue }
                     ref body:Expr=member.default_expr()
                     if body.node_type.is(NodeType.FuncDef).not() { continue }
@@ -3039,7 +3039,7 @@ fasm_codegen_translate := proc(mut lp: LoadedProgram, path: Str, source_names: S
         }
     }
     if lp.ctx.errors > 0 { return 1 }
-    for i, body in bodies {
+    for i, body : Expr in bodies {
         if body.children.len() == 0 && script.and(i == bodies.len() - 1).not() { continue }
         context_enter_file(lp.ctx, paths[i.mod(paths.len())])
         mut state := FasmState(program=program)

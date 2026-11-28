@@ -1160,7 +1160,7 @@ priv holyc_collection_init := func(type_name: Str, dest: Str, e: Expr,
             } else {
                 out = format(prefix, type_name, "_New(&", dest, ", ", cap, ");\n")
             }
-            for i, child in e.children {
+            for i, child : Expr in e.children {
                 value := holyc_expr(child, ctx, state, locals, error)
                 if error.len() > 0 { return "" }
                 if state.vec_names.has(type_name) {
@@ -1748,7 +1748,7 @@ priv holyc_prepare_state := func(program: Expr, ctx: Context,
                         state.str_return_functions.add(own decl.name.clone())
                     }
                     mut ref_params := Set(USize).new()
-                    for i, param in fdef.sig.params {
+                    for i, param : Declaration in fdef.sig.params {
                         if fdef.sig.variadic_index.eq(i.to_i32()).or(holyc_param_is_pointer(param, state, ctx.symbols)) {
                             ref_params.add(own i.clone())
                         }
@@ -1851,7 +1851,7 @@ priv holyc_callable_sig_name := func(e: Expr, ctx: Context, state: HolyCEmitStat
 
 priv holyc_sig_expr := func(sig: FuncSig) returns Expr {
     mut normalized := sig.clone()
-    for i, mut param in normalized.params {
+    for i, mut param : Declaration in normalized.params {
         param.name = format("arg", i.to_str())
     }
     return Expr.new(own NodeType.FuncDef(FunctionDef(sig=normalized)), 0, 0)
@@ -1951,7 +1951,7 @@ priv holyc_prepare_dyn_methods := func(ctx: Context, mut state: HolyCEmitState, 
             if def_o.is_none() { continue }
             ref definition : Expr = def_o.unwrap()
             ref members : Vec(Declaration) = def_ns_decls(definition)
-            for i, member in members {
+            for i, member : Declaration in members {
                 if member.default_value.is_none() { continue }
                 if member.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
                 ref fd : FunctionDef = funcdef_of(member.default_expr())
@@ -1966,7 +1966,7 @@ priv holyc_prepare_dyn_methods := func(ctx: Context, mut state: HolyCEmitState, 
     }
     targets := state.dyn_targets.clone()
     names := holyc_reflection_names(state)
-    for method, types in targets {
+    for method, types : Set(Str) in targets {
         for owner : Str in names {
             if types.has(owner).or(types.has("*")).not() { continue }
             method_o := holyc_dyn_method(owner, method, ctx)
@@ -2012,7 +2012,7 @@ priv holyc_dyn_typed_adapter := func(name: Str, owner: Str, method: Str, want: F
     callee.add_child(own Expr.new(own ident_node(ctx.symbols.intern(owner)), 0, 0))
     call.add_child(own callee)
     mark_fcall_direct(call)
-    for i, param in want.sig.params {
+    for i, param : Declaration in want.sig.params {
         mut arg := Expr.new(own ident_node(ctx.symbols.intern(format("arg", i.to_str()))), 0, 0)
         arg.set_til_type(param.til_type.clone())
         if param.own_type.is(OwnType.Own) { set_own_arg(call, i + 1) }
@@ -2038,7 +2038,7 @@ priv holyc_dyn_lookup_definitions := func(mut ctx: Context, mut state: HolyCEmit
     mut error: Str) returns Str {
     mut dispatch := "U8 *TilDynFn(TilStr *type_name,TilStr *method)\n{\n"
     names := holyc_reflection_names(state)
-    for method, types in state.dyn_targets {
+    for method, types : Set(Str) in state.dyn_targets {
         for owner : Str in names {
             if types.has(owner).or(types.has("*")).not() { continue }
             method_o := holyc_dyn_method(owner, method, ctx)
@@ -2052,7 +2052,7 @@ priv holyc_dyn_lookup_definitions := func(mut ctx: Context, mut state: HolyCEmit
             ctype := holyc_reflect_type_ctype(owner, state)
             mut parameters := "U8 *environment"
             mut arguments := ""
-            for i, p in fd.sig.params {
+            for i, p : Declaration in fd.sig.params {
                 call_free := method.eq("delete").and(i > 0)
                 if call_free { parameters = format(parameters, ", Bool arg", i.to_str()) }
                 else { parameters = format(parameters, ", U8 *arg", i.to_str()) }
@@ -2117,7 +2117,7 @@ priv holyc_dyn_lookup_definitions := func(mut ctx: Context, mut state: HolyCEmit
         if dyn_fn_uses_typed_abi(Type.FuncPtrSig(sig_name.clone()), ctx.scope, ctx.symbols).not() { continue }
         ref want : FunctionDef = funcdef_of(ctx.scope.lookup_func_name(sig_name, ctx.symbols).unwrap())
         dispatch = format(dispatch, "TilClosure *TilDynFn_", sig_name, "(TilStr *type_name,TilStr *method)\n{\n")
-        for method, types in state.dyn_targets {
+        for method, types : Set(Str) in state.dyn_targets {
             for owner : Str in names {
                 if types.has(owner).or(types.has("*")).not() { continue }
                 method_o := holyc_dyn_method(owner, method, ctx)
@@ -2234,7 +2234,7 @@ priv holyc_basic_reflection := func(ctx: Context, state: HolyCEmitState) returns
             if def_o.is_none() { continue }
             ref def : Expr = def_o.unwrap()
             ref members : Vec(Declaration) = def_ns_decls(def)
-            for i, member in members {
+            for i, member : Declaration in members {
                 if member.default_value.is_none() { continue }
                 if member.default_expr().node_type.is(NodeType.FuncDef).not() { continue }
                 out = format(out, "  if (TilStrNameEq(name,\"", name, "\") && TilStrNameEq(method,\"", def_ns_name_at(def, i),
@@ -2289,7 +2289,7 @@ priv holyc_metadata_reflection := func(ctx: Context, state: HolyCEmitState) retu
                     // Reflection exposes source parameters, excluding the
                     // error slots appended by shared throw lowering.
                     mut source_param_count := sig.params.len()
-                    for i, param in sig.params {
+                    for i, param : Declaration in sig.params {
                         if param.name == "_err_kind" { source_param_count = i; break }
                     }
                     switch who {
@@ -2371,7 +2371,7 @@ priv holyc_metadata_reflection := func(ctx: Context, state: HolyCEmitState) retu
             }
             if applicable {
                 out = format(out, "  if (TilStrNameEq(name,\"", name, "\")) {\n")
-                for i, value in values {
+                for i, value : Str in values {
                     mut condition := ""
                     mut close := ""
                     if indexed { condition = format("if (index==", i.to_str(), ") { "); close = " }" }
@@ -2398,7 +2398,7 @@ priv holyc_callable_args := func(e: Expr, sig: FuncSig, ctx: Context,
     mut state: HolyCEmitState, locals: HolyCLocalState, mut error: Str) returns Str {
     if e.children.len() != sig.params.len() + 1 { error = "invalid indirect call arity"; return "" }
     mut out := ""
-    for i, param in sig.params {
+    for i, param : Declaration in sig.params {
         ref arg : Expr = e.children[i + 1]
         mut value := ""
         mut name := holyc_storage_type_name(decl_type_name_ref(param, ctx.symbols), state)
@@ -2451,7 +2451,7 @@ priv holyc_inline_target := func(name: Str, sig: FuncSig, e: Expr, indirect: Boo
     mut state: HolyCEmitState) returns Str {
     mut cleanup := Set(USize).new()
     mut mask := ""
-    for i, param in sig.params {
+    for i, param : Declaration in sig.params {
         if param.own_type.is(OwnType.Own) { continue }
         switch e.children[i + 1].node_type {
         case .FuncDef(fd):
@@ -2508,7 +2508,7 @@ priv holyc_callable_adapters := func(ctx: Context, state: HolyCEmitState,
         if ret != "U0 " { out = format(out, "return ") }
         out = format(out, "target(value->env", args, ");\n}\n\n")
     }
-    for key, name in state.inline_call_sigs {
+    for key, name : Str in state.inline_call_sigs {
         ref sig : FuncSig = state.callable_sigs[name]
         signature_expr := holyc_sig_expr(sig)
         signature := holyc_function_signature("call_target", signature_expr, state, error, ctx.symbols)
@@ -2626,7 +2626,7 @@ priv holyc_register_method := func(owner: Str, method: Str, ctx: Context,
             state.str_return_functions.add(own name.clone())
         }
         mut ref_params := Set(USize).new()
-        for i, parameter in fd.sig.params {
+        for i, parameter : Declaration in fd.sig.params {
             if fd.sig.variadic_index.eq(i.to_i32()).or(holyc_param_is_pointer(parameter, state, ctx.symbols)) {
                 ref_params.add(own i.clone())
             }
@@ -2683,7 +2683,7 @@ priv holyc_scan_method_calls := func(e: Expr, ctx: Context,
                             state.str_return_functions.add(own name.clone())
                         }
                         mut refs := Set(USize).new()
-                        for i, param in fd.sig.params {
+                        for i, param : Declaration in fd.sig.params {
                             if fd.sig.variadic_index.eq(i.to_i32()).or(holyc_param_is_pointer(param, state, ctx.symbols)) {
                                 refs.add(own i.clone())
                             }
@@ -2832,7 +2832,7 @@ priv holyc_function_signature := func(name: Str, func_expr: Expr,
         if aggregate_return_type.len() > 0 {
             params = format(aggregate_return_type, " *return_out")
         }
-        for i, param in fdef.sig.params {
+        for i, param : Declaration in fdef.sig.params {
             mut param_type := holyc_storage_type_name(decl_type_name_ref(param, symbols), state)
             if fdef.sig.variadic_index == i.to_i32() {
                 param_type = format("Array__", param_type)
@@ -5579,7 +5579,7 @@ priv holyc_append_struct_outputs := func(lp: LoadedProgram, mut state: HolyCEmit
                 switch def.node_type {
                 case .EnumDef(ed):
                     mut deps_ready := true
-                    for vi, variant in ed.variants {
+                    for vi, variant : VariantDef in ed.variants {
                         // Tagged ref fields still need a HolyC type name; a
                         // boxed niche uses an opaque pointer until its helpers.
                         if c_enum_payload_is_inline(def, vi.to_i32()).or(variant.payload_ref).not() { continue }
@@ -5862,7 +5862,7 @@ priv holyc_emit_function := func(name: Str, func_expr: Expr, ctx: Context,
             .or(holyc_aggregate_type(return_type, state)) {
             aggregate_return_type = return_type
         }
-        for i, param in fdef.sig.params {
+        for i, param : Declaration in fdef.sig.params {
             holyc_bind_name(param.name, param.name, locals)
             mut param_type := holyc_storage_type_name(decl_type_name_ref(param, ctx.symbols), state)
             if param.own_type.is(OwnType.Own)
@@ -5963,7 +5963,7 @@ priv holyc_emit_closures := func(e: Expr, ctx: Context, mut state: HolyCEmitStat
                 mut create := ""
                 mut clone := ""
                 mut drop := ""
-                for i, cap in fd.captures {
+                for i, cap : Declaration in fd.captures {
                     ref type_name : Str = decl_type_name_ref(cap, ctx.symbols)
                     ctype := holyc_value_ctype(type_name, state)
                     fields = format(fields, "  ", ctype, " *", cap.name, ";\n")
@@ -6082,7 +6082,7 @@ priv holyc_test_body := func(lp: LoadedProgram, mut state: HolyCEmitState, mut e
                 count++
             } else if value.node_type.is(NodeType.StructDef).or(value.node_type.is(NodeType.EnumDef)) {
                 ref members : Vec(Declaration) = def_ns_decls(value)
-                for i, member in members {
+                for i, member : Declaration in members {
                     if member.default_value.is_none() { continue }
                     ref body : Expr = member.default_expr()
                     if body.node_type.is(NodeType.FuncDef).not() { continue }
@@ -6368,7 +6368,7 @@ holyc_codegen_translate := proc(mut lp: LoadedProgram, output_path: Str) returns
         f.write(signature).write("\n{\n    ")
         if main_def.sig.return_type.len() > 0 { f.write("return ") }
         f.write("main(")
-        for i, param in main_def.sig.params {
+        for i, param : Declaration in main_def.sig.params {
             if i > 0 { f.write(", ") }
             f.write(param.name)
         }

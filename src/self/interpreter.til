@@ -1926,7 +1926,7 @@ priv ffi_borrow_place_walk := proc(type_name: Str, data: Dynamic, root: UPtr, mu
             ffi_borrow_place_walk(variant.payload_type, deref(slot), root, visited, ctx)
         } else { ffi_borrow_place_walk(variant.payload_type, slot, root, visited, ctx) }
     case .StructDef(sd):
-        for i, fd in sd.fields {
+        for i, fd : Declaration in sd.fields {
             fl := place_field_layout(type_name, sd.field_name_at(i), data, ctx)
             ref slot : Dynamic = ptr_add(data, fl.offset)
             if fl.is_funcptr { ffi_remember_place(decl_type_name_ref(fd, ctx.symbols), slot, root, ctx); continue }
@@ -2267,7 +2267,7 @@ priv eval_precomputed_sequence := proc(mut scope: Scope, e: Expr, data: Precompu
         else { write_u64(ptr_add(result, count_fl.offset), e.children.len().to_u64()) }
     }
 
-    for i, element in e.children {
+    for i, element : Expr in e.children {
         if type_eq(element.til_type(), data.element_type, ctx.symbols).not() { panic("precomputed sequence element type mismatch") }
         mut element_info := raw_result_info_new()
         ref mut slot : Dynamic = ptr_add(elements, i.mul(elem_size))
@@ -2305,7 +2305,7 @@ priv eval_expr_raw_info := proc(mut scope: Scope, e: Expr, mut ctx: Context, mut
         memset(ptr_add(buf, j), 0, 1)
         mut pooled_i : USize = 0
         mut found_literal := false
-        for lit_i, pooled in ctx.builder_str_lit_values {
+        for lit_i, pooled : Str in ctx.builder_str_lit_values {
             if pooled.count == j {
                 if j == 0 { found_literal = true }
                 else if memcmp(pooled.c_str, buf, j) == 0 { found_literal = true }
@@ -3542,7 +3542,7 @@ priv eval_user_func_call := proc(mut caller_scope: Scope, e: Expr, func_def: Exp
     call_scope.is_call_scope = true
     dynamic_type_w : Dynamic = interp_intern_type(Type.Dynamic, ctx)
     ref fdef_params : FunctionDef = funcdef_of(func_def)
-    for pi, param in fdef_params.sig.params {
+    for pi, param : Declaration in fdef_params.sig.params {
         ref arg_expr : Expr = e.children[pi + 1]
         // The call-site OWN BIT decides the transfer here, deliberately, and
         // NOT the callee's `own` parameter -- the two answer different
@@ -3957,7 +3957,7 @@ priv eval_callable_call := proc(mut caller_scope: Scope, e: Expr, mut callable: 
                     // can move during constant folding. Resolve against the
                     // live type's member Exprs instead of that stale address.
                     ref members : Vec(Declaration) = def_ns_decls(iface)
-                    for mi, member in members {
+                    for mi, member : Declaration in members {
                         if member.default_value.is_none() { continue }
                         if member.default_expr().ptr_eq(func_def) {
                             method := def_ns_name_at(iface, mi).clone()
@@ -4794,7 +4794,7 @@ priv free_tuple_data := func(mut data: Dynamic, ctx: Context) {
     ref type_names : Vec(Str) = ptr_add(data, type_names_fl.offset)
     ref type_sizes : Vec(USize) = ptr_add(data, type_sizes_fl.offset)
     mut offset : USize = 0
-    for i, elem_type in type_names {
+    for i, elem_type : Str in type_names {
         ref elem_size : USize = type_sizes[i]
         container_elem_deep_free(elem_type, ptr_add(hdr.p, offset), ctx)
         offset = offset + elem_size
@@ -4824,7 +4824,7 @@ priv clone_tuple_buffer := func(src_tuple: Dynamic, mut dst_tuple: Dynamic, ctx:
     if alloc_cap == 0 { alloc_cap = 8 }
     mut new_buf : U8 = malloc(alloc_cap)
     mut off : USize = 0
-    for i, tn in names {
+    for i, tn : Str in names {
         ref ts : USize = sizes[i]
         container_elem_clone_into(tn, ptr_add(new_buf, off), ptr_add(src_hdr.p, off), ts.clone(), ctx)
         off = off + ts
@@ -5450,7 +5450,7 @@ priv namespace_func_qname := func(func_def: Expr, member: Str, ctx: Context) ret
     if ctx.eval.ns_fields.is_none() { return "" }
     mut suffix := ""
     if member.len() > 0 { suffix = concat3(".", member, "") }
-    for qn, hb in ns_scope(ctx).heap_bindings {
+    for qn, hb : HeapBinding in ns_scope(ctx).heap_bindings {
         if member.len() > 0 {
             if qn.ends_with(suffix).not() { continue }
         }
@@ -5972,7 +5972,7 @@ priv scope_root_ref := func(s: Scope) returns ref Scope {
 // clone entry below evaluates capture clone methods instead of using this path.
 priv closure_env_clone := func(env: Scope) returns Scope {
     mut cloned := scope_new_owned(env.parent)
-    for name, hb in env.heap_bindings {
+    for name, hb : HeapBinding in env.heap_bindings {
         if hb.moved_out { panic("closure clone from moved binding: ", name) }
         ref src : Dynamic = to_ptr(hb.ptr)
         if src.is_null() { panic("closure clone from null binding: ", name) }
@@ -6164,7 +6164,7 @@ priv eval_callable_capture_delete := proc(mut value: Dynamic, site: Expr, mut ct
     if callable_box_is(value).not() { return } // Static function values own no environment.
     ref mut box : InterpCallableBox = to_ptr(value)
     ref mut env : Scope = callable_env_mut(box)
-    for name in env.heap_bindings.keys {
+    for name : Str in env.heap_bindings.keys {
         ref mut hb : HeapBinding = env.heap_bindings[name]
         if hb.is_borrowed.or(hb.moved_out).or(hb.payload_released) { continue }
         ref mut data : Dynamic = to_ptr(hb.ptr)
@@ -7015,7 +7015,7 @@ priv interp_lookup_signature := func(fd: FunctionDef, ctx: Context) returns Opti
         if param.name.starts_with("_err_") { continue }
         out.params.push(own param.clone())
     }
-    for i, mut p in out.params {
+    for i, mut p : Declaration in out.params {
         mut name := interp_lookup_type(decl_type_name(p, ctx.symbols), ctx, true)
         if i.to_i32() == sig.variadic_index && decl_type_name(p, ctx.symbols) == "Dynamic" {
             name = "Dynamic"
@@ -7093,7 +7093,7 @@ priv interp_session_lookup_callable := proc(mut session: InterpSession, mut lp: 
     }
     ref declaration : TypeBinding = decl_o.unwrap()
     mut user_unit := false
-    for unit in lp.units { if unit.path == declaration.path { user_unit = true } }
+    for unit : ProgramUnit in lp.units { if unit.path == declaration.path { user_unit = true } }
     if declaration.is_priv.or(user_unit.not()) {
         context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error,
             root, 0, 0, format("guest function is not exported: ", name))
@@ -7149,7 +7149,7 @@ interp_session_lookup_function := proc(mut session: InterpSession, mut lp: Loade
             return Option(ref HeapBinding).None
         }
     }
-    for i, param in expected.params {
+    for i, param : Declaration in expected.params {
         // A Dynamic tail validates each concrete Tuple element at invocation.
         // Kwargs likewise validate each concrete entry at invocation.
         if i.to_i32() == expected.kwargs_index { continue }
@@ -7313,7 +7313,7 @@ priv native_callable_import_invoke := proc(box: NativeImportedCallable, mut call
     mut env_arg := Expr.new(own ident_node(ctx.symbols.intern("TilVm.native_environment")), e.line, e.col)
     env_arg.set_til_type(Type.Dynamic)
     call.add_child(own env_arg)
-    for i, param in guest.sig.params {
+    for i, param : Declaration in guest.sig.params {
         if param.name.starts_with("_err_") { continue }
         call.add_child(own e.children[i + 1].clone())
         if get_own_arg(e, i + 1) { set_own_arg(call, call.children.len() - 1) }
@@ -7328,7 +7328,7 @@ priv native_callable_import_invoke := proc(box: NativeImportedCallable, mut call
                 failure_arg.set_til_type(Type.Dynamic)
                 call.add_child(own failure_arg)
             } else if throw_type_has_payload(ctx, error) {
-                for i, param in guest.sig.params {
+                for i, param : Declaration in guest.sig.params {
                     if param.name == format("_err_", error) { call.add_child(own e.children[i + 1].clone()) }
                 }
             }
@@ -7350,7 +7350,7 @@ priv native_callable_import_invoke := proc(box: NativeImportedCallable, mut call
             for diagnostic: SourceDiagnostic in failure.diagnostics { ctx.diagnostics.push(own diagnostic.clone()) }
         }
     } else if kind != 0 {
-        for i, param in guest.sig.params {
+        for i, param : Declaration in guest.sig.params {
             if param.name == "_err_kind" {
                 mut info := raw_result_info_new()
                 mut slot: Dynamic = eval_expr_raw_info(caller, e.children[i + 1], ctx, info)
@@ -7544,7 +7544,7 @@ priv native_callable_invoke := proc(mut state: NativeGuestCallable, mut native_r
     mut call := Expr.new(own NodeType.FCall(FCallData()), def.line, def.col)
     call.add_child(own Expr.new(own ident_node(ctx.symbols.intern("TilVm.native_callable")), def.line, def.col))
     mut source_index: USize = 0
-    for i, parameter in fd.sig.params {
+    for i, parameter : Declaration in fd.sig.params {
         mut type := declaration_resolved_type(parameter, ctx.scope, ctx.symbols)
         if i.to_i32() == fd.sig.variadic_index {
             type = type_from_name_init_name(variadic_carrier_type_name(ctx.scope, decl_type_name(parameter, ctx.symbols), ctx.symbols), ctx.scope, ctx.symbols)
@@ -7649,7 +7649,7 @@ priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut 
         ref guest : EnumDef = enumdef_of(def)
         host := enum_def_of(name)
         if host.tag_type != enum_tag_type(def) || host.variants.len() != guest.variants.len() { return false }
-        for i, gv in guest.variants {
+        for i, gv : VariantDef in guest.variants {
             ref hv : VariantDef = host.variants[i]
             if gv.name != hv.name || gv.tag_value != hv.tag_value || gv.payload_type != hv.payload_type { return false }
             if gv.payload_const != hv.payload_const { return false }
@@ -7697,7 +7697,7 @@ priv interp_callback_schema_visit := proc(name: Str, mut visited: Set(Str), mut 
     ref guest : StructDef = structdef_of(guest_o.unwrap())
     host := struct_def_of(name)
     if host.fields.len() != guest.fields.len() { return false }
-    for i, hf in host.fields {
+    for i, hf : Declaration in host.fields {
         ref gf : Declaration = guest.fields[i]
         gn := interp_lookup_type(decl_type_name(gf, ctx.symbols), ctx, true)
         if gn.len() == 0 { return false }
@@ -7780,7 +7780,7 @@ priv interp_callback_error_copy := proc(name: Str, source: Dynamic, mut ctx: Con
     ref sd : StructDef = structdef_of(def)
     ref layout : FFITypePtrBox = ffi_struct_layout(name, ctx, true)
     mut out : Dynamic = calloc(1, allocation_size)
-    for i, field in sd.fields {
+    for i, field : Declaration in sd.fields {
         ref offset : U64 = ptr_add(layout.offsets, i.mul(8))
         if field.own_type.is(OwnType.Ref) {
             // Ordinary Til clone semantics: copy the borrow, not its pointee.
@@ -7842,7 +7842,7 @@ priv interp_callback_param_count := func(fd: FunctionDef) returns USize {
 
 priv interp_callback_param_index := func(fd: FunctionDef, index: USize) returns USize {
     mut source_index : USize = 0
-    for i, param in fd.sig.params {
+    for i, param : Declaration in fd.sig.params {
         if param.name.starts_with("_err_") { continue }
         if source_index == index { return i }
         source_index = source_index + 1
@@ -7915,7 +7915,7 @@ priv interp_callback_pack_variadic := proc(elem: Str, arguments: Tuple, start: U
 
 priv interp_callback_pack_keywords := proc(keywords: KwargsMap, mut ctx: Context) returns Dynamic {
     mut packed := KwargsMap.new()
-    for key, value in keywords.items {
+    for key, value : Tuple in keywords.items {
         name := value.type_at(0).clone()
         copied : Dynamic = interp_callback_error_copy(name, value.get(0), ctx, true)
         // A map key can itself be a view into a short-lived host string.
@@ -7975,7 +7975,7 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     mut callable: Dynamic, expected: FuncSig, mut arguments: Tuple, mut error_value: Tuple = Tuple.new(), keywords: KwargsMap = KwargsMap.new()) returns Option(Tuple) {
     if lp.ctx.eval.embedded.not() { panic("guest invocation requires embedded evaluation policy") }
     mut retained := false
-    for program in session.retained_programs { if program.p.ptr_eq(lp) { retained = true } }
+    for program : DynPtrBox in session.retained_programs { if program.p.ptr_eq(lp) { retained = true } }
     if retained.not() { panic("guest invocation program is not owned by this session") }
     interp_call_reset(lp.ctx)
     ref mut def : Expr = callable_raw_func_def(callable)
@@ -8014,7 +8014,7 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
             return Option(Tuple).None
         }
     }
-    for key, value in keywords.items {
+    for key, value : Tuple in keywords.items {
         if value.len() != 1 {
             context_diagnostic(lp.ctx, DiagnosticPhase.Runtime, DiagnosticSeverity.Error, path, def.line, def.col,
                 format("keyword '", key, "' must contain exactly one typed value"))
@@ -8046,7 +8046,7 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
     }
     call.set_til_type(ret_type)
     mut temps := scope_new(safe_ref(session_global(session)))
-    for i, parameter in expected.params {
+    for i, parameter : Declaration in expected.params {
         ref param : Declaration = fd.sig.params[interp_callback_param_index(fd, i)]
         arg_name := format("TilVm.argument.", i.to_str())
         mut name := parameter.type_name()
@@ -8075,7 +8075,7 @@ priv interp_call_callable := proc(mut session: InterpSession, mut lp: LoadedProg
         scope_set_raw_owned(temps, arg_name, copy, interp_intern_type(t, lp.ctx), OwnType.Own, lp.ctx)
     }
     mut source_index : USize = 0
-    for pi, param in fd.sig.params {
+    for pi, param : Declaration in fd.sig.params {
         mut t := declaration_resolved_type(param, lp.ctx.scope, lp.ctx.symbols)
         if pi.to_i32() == fd.sig.variadic_index {
             t = type_from_name_init_name(variadic_carrier_type_name(lp.ctx.scope, decl_type_name(param, lp.ctx.symbols), lp.ctx.symbols), lp.ctx.scope, lp.ctx.symbols)
@@ -8297,7 +8297,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
     // retained snapshot. Rebuild liveness from the session's actual bindings,
     // rather than keeping the clone's counts for addresses no longer borrowed.
     if session.is_repl {
-        for place in lp.ctx.eval.foreign_places.values { ffi_place_reset_borrows(place) }
+        for place : ForeignPlace in lp.ctx.eval.foreign_places.values { ffi_place_reset_borrows(place) }
         if lp.ctx.eval.foreign_places.len() > 0 { ffi_mark_cleanup_dirty(lp.ctx) }
     }
     // A full REPL reload starts a new Context while the session bindings keep
@@ -8305,7 +8305,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
     for hb : HeapBinding in session_global(session).heap_bindings.values {
         if hb.foreign_root == 0 { continue }
         if ptr_eq(hb.ctx, lp.ctx).not() {
-            for address, place in hb.ctx.eval.foreign_places {
+            for address, place : ForeignPlace in hb.ctx.eval.foreign_places {
                 if ffi_place_is_foreign(bits_word(address.to_u64()), hb.ctx) {
                     for name : Str in place.names {
                         if place.roots.len() == 0 {
@@ -8323,7 +8323,7 @@ interp_session_prepare_context := proc(mut session: InterpSession, mut lp: Loade
         ffi_place_add_borrow(current)
     }
     // Rebuild layouts against this turn's AST after ffi_reset.
-    for address, place in lp.ctx.eval.foreign_places {
+    for address, place : ForeignPlace in lp.ctx.eval.foreign_places {
         if ffi_place_is_foreign(bits_word(address.to_u64()), lp.ctx).not() { continue }
         for name : Str in place.names {
             build_struct_ffi_type(name, lp.ctx, false)
@@ -9016,7 +9016,7 @@ til_built_with_clang := ext_proc() returns shallow Bool {}
 priv ffi_failed_links_note := func(ctx: Context) returns Str {
     if ctx.ffi.failed_links.len() == 0 { return "" }
     mut note := "; these linked libraries did not load:"
-    for soname, why in ctx.ffi.failed_links {
+    for soname, why : Str in ctx.ffi.failed_links {
         note = format(note, "\n  ", soname, ": ", why)
     }
     return note
@@ -11791,7 +11791,7 @@ priv ffi_copy_struct_into := func(type_name: Str, src: Dynamic, src_host: Bool,
             panic("libffi cannot compute destination layout for ", type_name)
         }
         ref dst_offsets : U64 = dst_layout.offsets
-        for i, fd in sd.fields {
+        for i, fd : Declaration in sd.fields {
             ref src_offset : U64 = ptr_add(src_offsets, i.mul(8))
             ref dst_offset : U64 = ptr_add(dst_offsets, i.mul(8))
             ref src_field : Dynamic = ptr_add(src, src_offset.to_usize())
@@ -11904,7 +11904,7 @@ priv ffi_release_conversion_storage := func(type_name: Str, mut data: Dynamic, h
         }
     case .StructDef(sd):
         ref layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, host_layout)
-        for i, field in sd.fields {
+        for i, field : Declaration in sd.fields {
             if is_aggregate(declaration_resolved_type(field, ctx.scope, ctx.symbols)).not() { continue }
             ref offset : U64 = ptr_add(layout.offsets, i.mul(8))
             if field.own_type.is(OwnType.Shallow) {
@@ -11981,7 +11981,7 @@ priv ffi_contains_reference := func(type_name: Str, data: Dynamic, borrowed: Dyn
         if enum_is_niche(def) { return ffi_contains_reference(variant.payload_type, own_slot_load(slot, host_niche_slot_size(def)), borrowed, host_layout, ctx) }
         return ffi_contains_reference(variant.payload_type, slot, borrowed, host_layout, ctx)
     case .StructDef(sd):
-        for i, field in sd.fields {
+        for i, field : Declaration in sd.fields {
             if field.own_type.is(OwnType.Shallow)
                 .and(is_aggregate(declaration_resolved_type(field, ctx.scope, ctx.symbols))) {
                 ref offset : U64 = ptr_add(layout.offsets, i.mul(8))
@@ -12041,7 +12041,7 @@ priv ffi_rebase_reference := func(type_name: Str, converted: Dynamic, original: 
         return bits_word(word_bits(into_payload) + within)
     }
     ref sd : StructDef = structdef_of(def)
-    for i, member in sd.fields {
+    for i, member : Declaration in sd.fields {
         ref from_offset : U64 = ptr_add(from.offsets, i.mul(8))
         ref into_offset : U64 = ptr_add(into.offsets, i.mul(8))
         ref ft : ffi_type = deref(ptr_add(from.ptr.elements, i.mul(8)))
@@ -12098,7 +12098,7 @@ priv ffi_clear_struct_ownership := proc(type_name: Str, mut data: Dynamic, mut c
             ffi_clear_struct_ownership(variant.payload_type, ptr_add(data, offset.to_uptr()), ctx)
         }
     case .StructDef(sd):
-        for i, fd in sd.fields {
+        for i, fd : Declaration in sd.fields {
             fl := place_field_layout(type_name, sd.field_name_at(i), data, ctx)
             if fd.own_type.is(OwnType.Own) {
                 own_slot_store(ptr_add(data, fl.offset), bits_word(0), fl.size)
@@ -13237,7 +13237,7 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool,
     entry.return_is_ref = fd.sig.return_own_type.is(OwnType.Ref)
     entry.host_layout = host_layout
     if fd.sig.throw_types.len() > 0 {
-        for i, param in fd.sig.params {
+        for i, param : Declaration in fd.sig.params {
             if param.name == "_err_kind" { entry.throw_kind_index = i.to_i64() }
         }
     }

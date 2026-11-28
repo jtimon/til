@@ -289,7 +289,7 @@ board_view := func(image: Image) returns BoardView {
 }
 
 same_board := func(first: Vec(I64), second: Vec(I64)) returns Bool {
-    for i, value in first { if value != second[i] { return false } }
+    for i, value : I64 in first { if value != second[i] { return false } }
     return true
 }
 
@@ -297,7 +297,7 @@ starting_pieces := func(pieces: Vec(I64), opening: Bool) returns Bool {
     mut red : I64 = 0
     mut black : I64 = 0
     mut red_advanced : I64 = 0
-    for i, value in pieces {
+    for i, value : I64 in pieces {
         if value == RED_PIECE {
             red = red + 1
             if i < 40 { red_advanced = red_advanced + 1 }

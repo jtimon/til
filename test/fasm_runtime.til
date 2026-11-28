@@ -8,7 +8,7 @@ realpath_str := ext_proc(path: Str) returns Str {}
 check := proc(compiler: Str, work: Str, name: Str, source: Str,
     output: Str, errors: Str = "", result: I64 = 0, interpret_source: Bool = true, cage_allocation_failure: Bool = false) {
     File.writefile(format(work, "/", name, ".til"), source)
-    for width in array(Str, "32", "64") {
+    for width : Str in array(Str, "32", "64") {
         if interpret_source {
             interpreted := Cmd.new(compiler, "interpret", format("--usize=", width), format(name, ".til"))
             interpreted.cwd(work).capture()
@@ -17,7 +17,7 @@ check := proc(compiler: Str, work: Str, name: Str, source: Str,
             expect(interpreted.out() == output, name, " interpreter stdout mismatch", interpreted.out())
             expect(interpreted.err() == errors, name, " interpreter stderr mismatch", interpreted.err())
         }
-        for backend in array(Str, "c", "fasm") {
+        for backend : Str in array(Str, "c", "fasm") {
             artifact := format("bin/", name, "-", backend, "-", width)
             build := Cmd.new(compiler, "build", format("--backend=", backend), format("--usize=", width), "-o", artifact, format(name, ".til"))
             build.cwd(work).capture()
@@ -41,8 +41,8 @@ check := proc(compiler: Str, work: Str, name: Str, source: Str,
 
 failure := proc(compiler: Str, work: Str, name: Str, source: Str) {
     File.writefile(format(work, "/", name, ".til"), source)
-    for width in array(Str, "32", "64") {
-        for backend in array(Str, "c", "fasm") {
+    for width : Str in array(Str, "32", "64") {
+        for backend : Str in array(Str, "c", "fasm") {
             artifact := format("bin/", name, "-", backend, "-", width)
             build := Cmd.new(compiler, "build", format("--backend=", backend), format("--usize=", width), "-o", artifact, format(name, ".til"))
             build.cwd(work).capture()
@@ -72,7 +72,7 @@ check_allocations := proc(compiler: Str, work: Str, name: Str, source: Str, allo
             "    mov rax,[fasm_test_frees]\n    cmp rax,[fasm_test_expected_frees]\n    je .count_done\n",
             "    lea rdi,[rax+160]\n.count_done:\n"))
     File.writefile(counted_path,runtime)
-    for width in array(Str,"32","64") {
+    for width : Str in array(Str,"32","64") {
         translate := Cmd.new(compiler,"translate","--backend=fasm",format("--usize=",width),format(name,".til"))
         translate.cwd(work).capture()
         status := translate.run()

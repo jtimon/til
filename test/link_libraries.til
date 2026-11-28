@@ -54,7 +54,7 @@ main := proc(compiler: Str) {
     build.args("-o", library, native_source)
     build.run_checked()
 
-    for variant in vec(Str, "relative", "absolute", "versioned", "no_suffix") {
+    for variant : Str in vec(Str, "relative", "absolute", "versioned", "no_suffix") {
         // LoadLibrary appends .dll to extensionless names; the other explicit
         // path cases exercise it without depending on that platform rule.
         if host_os().eq("windows").and(variant == "no_suffix") { continue }
@@ -107,7 +107,7 @@ main := proc(compiler: Str) {
     expect(future.out().contains(format(realpath_str("vendor/raylib"),
         "/build-android-x64/link_path_probe_missing.a")), future.out(), future.err())
 
-    for kind in vec(Str, "missing", "invalid") {
+    for kind : Str in vec(Str, "missing", "invalid") {
         bad_library := format(kind, extension)
         if kind == "missing" { File.remove(format(dir, "/", bad_library)) }
         if kind == "invalid" { File.writefile(format(dir, "/", bad_library), "not a native library\n") }

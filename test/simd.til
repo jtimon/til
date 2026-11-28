@@ -125,9 +125,9 @@ simd_baseline_float := proc(T:Type,V:Type,M:Type,shape:V,mask_shape:M) {
 simd_baseline_bounds := proc(T:Type,V:Type,value:T,sentinel:T,shape:V) {
     noop_proc()
     width:=shape.len()
-    for count in array(USize,0,1,width-1,width,width+1) {
+    for count : USize in array(USize,0,1,width-1,width,width+1) {
         mut values:=Array(T).new(count)
-        for start in array(USize,0,1,count,USize.MAX) {
+        for start : USize in array(USize,0,1,count,USize.MAX) {
             for i in 0..count { values.set(i,own sentinel.clone())! }
             mut valid:=start<=count
             if valid { valid=count-start>=width }
@@ -876,9 +876,9 @@ test_simd_memory_lane_sizes := test() {
 }
 
 test_simd_memory_bounds_matrix := test() {
-    for count in array(USize, 0, 1, 3, 4, 5, 17) {
+    for count : USize in array(USize, 0, 1, 3, 4, 5, 17) {
         mut values := Array(I32).new(count)
-        for start in array(USize, 0, 1, count, USize.MAX) {
+        for start : USize in array(USize, 0, 1, count, USize.MAX) {
             for i in 0..count { values.set(i, own 7)! }
             mut valid := start <= count
             if valid { valid = count - start >= 4 }
@@ -1015,7 +1015,7 @@ test_simd_memory_c_temporary_names := test() {
     assert(I32x32.load(til_simd_values, 2)!.eq(til_simd_value).all())
     assert_eq(I32, til_simd_values[0], 0)
     assert_eq(I32, til_simd_values[33], 32)
-    for start in array(USize, 3, 34, USize.MAX) {
+    for start : USize in array(USize, 3, 34, USize.MAX) {
         mut load_failed := false
         _invalid := I32x32.load(til_simd_values, start)?
         catch (err: OutOfBounds) { load_failed = true }

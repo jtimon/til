@@ -605,7 +605,7 @@ owned_collection_checks := proc(identity: Str, bits: Str) {
         "test/hashsets.til", "test/test_in_namespace.til", "test/option.til")
     names := array(Str, "owned_primitives", "maps", "hashmaps", "hashsets", "namespace_tests", "options")
     mut cases := Vec(GuestCase).new()
-    for i, source in sources {
+    for i, source : Str in sources {
         expected := test_reference_output(source, bits)
         Cmd.new("bin/til", "translate", "--target=templeos", format("--usize=", bits),
             "-c", format(WORK, "/TILTEST.HC"), source).run_checked()
@@ -656,7 +656,7 @@ main := proc() {
         "test/templeos/script_str_runtime.expected", "test/templeos/script_struct_runtime.expected", "", "", "", "", "")
     for bits : Str in array(Str, "32", "64") {
         mut cases := Vec(GuestCase).new()
-        for i, source in sources {
+        for i, source : Str in sources {
             host := Cmd.new("timeout", "120", "bin/til", "interpret", format("--usize=", bits), source)
             mut expected := captured(host)
             if goldens[i].len() > 0 {

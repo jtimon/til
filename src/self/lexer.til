@@ -249,7 +249,7 @@ lexer_cleanup := func() {
 // is a fixed punctuation/literal name.
 
 tok_name := func(type: TokenType) returns Str {
-    for k, v in KEYWORDS {
+    for k, v : TokenType in KEYWORDS {
         if v.is(type) { return k.clone() }
     }
     switch type {
