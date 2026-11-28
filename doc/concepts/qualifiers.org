@@ -36,6 +36,20 @@ in every context; ~mut~ after ~ref~ grants write access. A leading ~const~ or
 
 A local ~mut ref cursor: T~ can start at a read-only argument. The leading
 ~mut~ permits replacing the cursor; it does not require write access to ~T~.
+Use ~mut ref mut~ instead if the traversal also needs to edit its target.
+A lookup returning ~Option(ref mut T)~ may expose a read-only view by
+borrowing its present payload as ~ref T~ and preserving ~None~ on a miss.
+
+For a C pointer parameter, the binder checks the immediately referenced
+object. With ~const int **slot~, C can replace ~*slot~; with
+~int *const *slot~, it cannot. Both use Til's erased ~Dynamic~ boundary,
+so that slot permission is not a typed grant to write an ~int~.
+For typed single-pointer returns, ~int *~ and ~int *const~ both lend
+~ref mut I32~. A ~const int *~ lends ~ref I32~, including when the const
+base type is named by a typedef.
+For a nullable C pointer field, the two qualifiers live in different places:
+~int *const p~ gives a ~const~ field containing ~Option(ref mut I32)~;
+~const int *p~ gives a replaceable field containing ~Option(ref I32)~.
 
 Rebinding a reference field does not change its grant. For example, if
 ~view~ is declared ~ref view: Item~, assigning ~node.view = node.history[i]~
@@ -129,6 +143,8 @@ meanings. See [[../../issues/open/491.org::*Origin-linked borrows][#491]] for th
   grants access to its original referent, including through a read-only
   clone. An inline interface handle needs a writable slot as well as a
   writable element grant. Bounds, key misses and ownership are unchanged.
+- A ~TilVmCallback~ stores a writable session borrow for invocation. Copying
+  the handle preserves that grant and the borrow of the original session.
 - Implemented: ~TilVm.shared_i64()~ explicitly returns ~ref mut I64~. The scalar
   remains VM-owned. Denied writable-return paths retain their source explanation
   across aliases/temporaries, naming getters instead of compiler temporary slots.

@@ -4,6 +4,27 @@
 
 *** Bootstrap plan and progress
 
+Interpreter field assignment borrows writable binding storage. Field reads
+restrict that grant before returning it; the nullable lookup still reports a
+missing binding. Native callback error slots also declare their write grant.
+
+Explicit C pointer fields now distinguish the field's top-level const from
+the pointee's const, independently for comma-separated declarators. The
+~bindgen_pointer_qualifiers~ fixture covers all four slot/pointee pairs.
+
+~bindgen_pointer_qualifiers~ checks explicit C pointer parameters. For
+multiple stars, the innermost object's constness no longer decides whether
+the caller's pointer slot is writable. Typedef and field handling are
+separate from this parameter case.
+The binder now tracks top-level const through ordinary typedefs when an
+explicit star is applied to the alias at a parameter or return site.
+
+The retained-program accessor uses a fixed writable local, while the
+callback stores ~Option(ref mut InterpSession)~ for subsequent calls.
+
+Read-only interpreter scope searches now use that cursor form with read-only
+scope arguments, including lookup of namespace members during folding.
+
 The ~read_cursor~ case in ~mutable_views~ starts a replaceable read-only
 local at a read-only parameter, rebinds to another, and reads its value.
 The interpreter now distinguishes a writable scope-chain cursor that returns

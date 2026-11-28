@@ -866,7 +866,7 @@ priv extract_trivial_literal_return := func(fdef: Expr, symbols: SymbolPool) ret
 // pair via ns_func_def. Returns the first match's FuncDef, or None.
 // Lets the fast path resolve a typer/builder-flattened namespace
 // callee like "Str_size" back to ns_func_def("Str", "size", ctx).
-priv ns_lookup_flat := func(name: Str, mut ctx: Context) returns Option(ref Expr) {
+priv ns_lookup_flat := func(name: Str, ctx: Context) returns Option(ref Expr) {
     n := name.len()
     for i in 1..n {
         ref b : I8 = name.unsafe_get(i)
@@ -889,7 +889,7 @@ priv ns_lookup_flat := func(name: Str, mut ctx: Context) returns Option(ref Expr
 // Borrowed: every caller only tests the name and passes it on, so the
 // clone this used to return (48K per first_class translate) bought
 // nothing. The ref points into the pool or the receiver's stamp.
-priv fa_recv_type_name := func(callee: Expr, mut ctx: Context) returns ref Str {
+priv fa_recv_type_name := func(callee: Expr, ctx: Context) returns ref Str {
     if callee.children.len() == 0 { return NO_TYPE_NAME }
     ref recv : Expr = callee.children[0]
     switch recv.node_type {
@@ -932,7 +932,7 @@ priv constfolder_virtual_interface_member := func(callee: Expr, ctx: Context) re
 
 // Fast path: if the callee is a nullary function whose body trivially
 // returns a literal, return a heap-allocated clone of that literal.
-priv try_fast_fold_call := func(mut scope: Scope, fcall: Expr, mut ctx: Context) returns Option(Expr) {
+priv try_fast_fold_call := func(mut scope: Scope, fcall: Expr, ctx: Context) returns Option(Expr) {
     if fcall_is_direct(fcall).not() { return Option(Expr).None }
     if fcall.children.len().eq(1).not() { return Option(Expr).None }
     ref fc_callee : Expr = fcall.children[0]
@@ -1310,7 +1310,7 @@ priv track_literal_known_only := proc(mut scope: Scope, name: Str, rhs: Expr, mu
     }
 }
 
-is_macro_call := func(e: Expr, mut ctx: Context) returns Bool {
+is_macro_call := func(e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if fcall_is_direct(e).not() { return false }
     if e.children.len() == 0 { return false }
@@ -1327,7 +1327,7 @@ is_macro_call := func(e: Expr, mut ctx: Context) returns Bool {
     }
 }
 
-priv is_func_call := func(e: Expr, mut ctx: Context) returns Bool {
+priv is_func_call := func(e: Expr, ctx: Context) returns Bool {
     if e.node_type.is(NodeType.FCall).not() { return false }
     if fcall_is_direct(e).not() { return false }
     if e.children.len() == 0 { return false }

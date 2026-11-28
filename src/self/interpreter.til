@@ -460,7 +460,7 @@ TilVmCallback := struct {
     // Throw lowering returns a default value on its error path. None is that
     // absence, never a fabricated null reference to a VM. Successful lookup
     // always returns Some; invoking an absent result reports an error.
-    priv session := Option(ref InterpSession).None
+    priv session := Option(ref mut InterpSession).None
     priv own callable: U8 = calloc(1, Dynamic.size())
 namespace:
     // Implementation factory; applications obtain handles through TilVm.lookup.
@@ -510,7 +510,7 @@ namespace:
         }
         mut slot : U8 = malloc(Dynamic.size())
         write_ptr(slot, callable_storage_clone(deref(to_ptr(hb.ptr))))
-        return TilVmCallback(session = safe_ref(InterpSession, session), callable = slot)
+        return TilVmCallback(session = safe_ref_mut(InterpSession, session), callable = slot)
     }
 
     /// Ref parameters borrow the host Tuple element directly. Own parameters
@@ -618,8 +618,8 @@ call_throwing := macro(E: Type) returns FuncDef {
     }
 }
 
-priv interp_callback_program := func(session: InterpSession) returns ref LoadedProgram {
-    ref box : DynPtrBox = session.retained_programs[0]
+priv interp_callback_program := func(mut session: InterpSession) returns ref mut LoadedProgram {
+    const ref mut box : DynPtrBox = session.retained_programs[0]
     return to_ptr(box.p)
 }
 
@@ -1950,7 +1950,9 @@ priv field_access_base := proc(mut scope: Scope, obj: Expr, mut ctx: Context) re
             ref mut hb : HeapBinding = hb_o.unwrap()
             ffi_refresh_external_place(hb, ctx)
         }
-        return resolve_field_assign_base(scope, obj, ctx.symbols)
+        base := resolve_field_assign_base(scope, obj, ctx.symbols)
+        if base.is_none() { return Option(ref Dynamic).None }
+        return safe_ref(Dynamic, base.unwrap())
     case .FieldAccess(fa):
         // Aggregate namespace data is stable storage in ns_fields, so a
         // chained read such as `Point.origin.x` can borrow that value as its
@@ -2460,21 +2462,21 @@ priv lookup_type_def_helper := func(type_name: Str, mut scope: Scope, ctx: Conte
     return fd_o
 }
 
-priv resolve_field_assign_base := func(mut scope: Scope, obj_expr: Expr, symbols: SymbolPool) returns Option(ref Dynamic) {
+priv resolve_field_assign_base := func(mut scope: Scope, obj_expr: Expr, symbols: SymbolPool) returns Option(ref mut Dynamic) {
     switch obj_expr.node_type {
     case .Ident(ident):
         hb_o := scope_lookup_heap_binding(scope, ident.ident_name(symbols.names))
-        if hb_o.is_none() { return Option(ref Dynamic).None }
+        if hb_o.is_none() { return Option(ref mut Dynamic).None }
         ref hb : HeapBinding = hb_o.unwrap()
         switch hb_type(hb) {
         case .Struct, .StructSym:
             if hb.moved_out { panic("field assign on moved binding: ", ident.ident_name(symbols.names)) }
-            ref base : Dynamic = to_ptr(hb.ptr)
-            return safe_ref(Dynamic, base)
-        case: return Option(ref Dynamic).None
+            const ref mut base : Dynamic = to_ptr(hb.ptr)
+            return safe_ref_mut(Dynamic, base)
+        case: return Option(ref mut Dynamic).None
         }
     case:
-        return Option(ref Dynamic).None
+        return Option(ref mut Dynamic).None
     }
 }
 
@@ -5179,13 +5181,13 @@ priv interp_ret_type_name := func(ctx: Context) returns ref Str {
 }
 
 // Resolve `name` to its raw value block, walking inner to outer.
-scope_get := func(mut s: Scope, name: Str) returns ref Dynamic throws KeyNotFound {
+scope_get := func(s: Scope, name: Str) returns ref Dynamic throws KeyNotFound {
     // REM: the SCOPE ARGUMENT is still nullable (callers pass tables that
     // may not be built yet, e.g. ctx.eval.ns_fields before interpreter_init_ns)
     // -- that is a nullable ref PARAM, #321 step 2 material, distinct from
     // the parent chain's own None terminator below.
     if to_ptr(s).is_null() { throw KeyNotFound() }
-    mut ref mut cur : Scope = s
+    mut ref cur : Scope = s
     mut walking := true
     while walking {
         ref hb : HeapBinding = cur.heap_bindings.get(name)?
@@ -5201,9 +5203,9 @@ scope_get := func(mut s: Scope, name: Str) returns ref Dynamic throws KeyNotFoun
     throw KeyNotFound()
 }
 
-priv scope_return_move_is_local := func(mut s: Scope, name: Str) returns Bool {
+priv scope_return_move_is_local := func(s: Scope, name: Str) returns Bool {
     if to_ptr(s).is_null() { return false }   // REM: nullable scope ARG, see scope_get
-    mut ref mut cur : Scope = s
+    mut ref cur : Scope = s
     mut walking := true
     while walking {
         ref hb : HeapBinding = cur.heap_bindings.get(name)?
@@ -5400,10 +5402,9 @@ priv static_ns_func_def_sym := func(sname: Sym, fname: Str, ctx: Context) return
 
 // The FuncDef behind a namespace member (`Str.size`), or None when the
 // member holds a value. Same slot-is-not-an-Expr reasoning as hb_func_def.
-ns_func_def := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref Expr) {
-    ref mut c : Context = ctx
-    if c.eval.ns_fields.is_some() {
-        hb_o := scope_lookup_ns_binding(ns_scope(c), sname, fname)
+ns_func_def := func(sname: Str, fname: Str, ctx: Context) returns Option(ref Expr) {
+    if ctx.eval.ns_fields.is_some() {
+        hb_o := scope_lookup_ns_binding(ns_scope(ctx), sname, fname)
         if hb_o.is_some() { return hb_func_def(hb_o.unwrap()) }
     }
     return static_ns_func_def(sname, fname, ctx)
@@ -5413,10 +5414,9 @@ ns_func_def := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref
 // for a caller that already holds the receiver's symbol. The dynamic
 // ns_fields probe still needs the spelling, so it resolves -- one
 // resolve (a vector index) beats one hash of the whole name.
-ns_func_def_sym := func(sname: Sym, fname: Str, mut ctx: Context) returns Option(ref Expr) {
-    ref mut c : Context = ctx
-    if c.eval.ns_fields.is_some() {
-        hb_o := scope_lookup_ns_binding(ns_scope(c), c.symbols.resolve(sname), fname)
+ns_func_def_sym := func(sname: Sym, fname: Str, ctx: Context) returns Option(ref Expr) {
+    if ctx.eval.ns_fields.is_some() {
+        hb_o := scope_lookup_ns_binding(ns_scope(ctx), ctx.symbols.resolve(sname), fname)
         if hb_o.is_some() { return hb_func_def(hb_o.unwrap()) }
     }
     return static_ns_func_def_sym(sname, fname, ctx)
@@ -6489,9 +6489,9 @@ priv ns_scope := func(ctx: Context) returns ref Scope {
 // it: the ns tables are the interpreter's hottest joined-key probe
 // (29.7K per first_class translate), and the join was allocated and
 // dropped on every one.
-priv scope_lookup_ns_binding := func(mut s: Scope, sname: Str, fname: Str) returns Option(ref HeapBinding) {
+priv scope_lookup_ns_binding := func(s: Scope, sname: Str, fname: Str) returns Option(ref HeapBinding) {
     if to_ptr(s).is_null() { return Option(ref HeapBinding).None }   // REM: nullable scope ARG, see scope_get
-    mut ref mut cur : Scope = s
+    mut ref cur : Scope = s
     mut walking := true
     while walking {
         at := qname_keys_index(cur.heap_bindings.keys, sname, ".", fname)
@@ -6536,12 +6536,11 @@ priv ns_note_size_dependent_read := func(sname: Str, fname: Str, mut ctx: Contex
     if ctx.eval.ns_size_dependent.has(ns_qname(sname, fname)) { ctx.eval.size_observed = true }
 }
 
-ns_get := func(sname: Str, fname: Str, mut ctx: Context) returns Option(ref Dynamic) {
-    ref mut c : Context = ctx
+ns_get := func(sname: Str, fname: Str, ctx: Context) returns Option(ref Dynamic) {
     // An un-built table and a miss answer the same here: absence is a real
     // state for lookups, so no ns_scope panic.
-    if c.eval.ns_fields.is_none() { return Option(ref Dynamic).None }
-    hb_o := scope_lookup_ns_binding(ns_scope(c), sname, fname)
+    if ctx.eval.ns_fields.is_none() { return Option(ref Dynamic).None }
+    hb_o := scope_lookup_ns_binding(ns_scope(ctx), sname, fname)
     if hb_o.is_none() { return Option(ref Dynamic).None }
     ref hb : HeapBinding = hb_o.unwrap()
     ref slot : Dynamic = to_ptr(hb.ptr)
@@ -7500,7 +7499,7 @@ priv native_callable_export := func(name: Str, source: Dynamic, signature: FuncS
     return to_ptr(native)
 }
 
-priv native_callable_error_slot := func(signature: FuncSig, name: Str, arguments: Dynamic, ctx: Context) returns Dynamic {
+priv native_callable_error_slot := func(signature: FuncSig, name: Str, mut arguments: Dynamic, ctx: Context) returns ref mut Dynamic {
     mut index := signature.params.len() + 1
     if name != "_err_kind" {
         index++
@@ -7514,7 +7513,7 @@ priv native_callable_error_slot := func(signature: FuncSig, name: Str, arguments
     return deref(deref(ptr_add(arguments, index.mul(Dynamic.size()))))
 }
 
-priv native_callable_invoke := proc(mut state: NativeGuestCallable, mut native_result: Dynamic, arguments: Dynamic) {
+priv native_callable_invoke := proc(mut state: NativeGuestCallable, mut native_result: Dynamic, mut arguments: Dynamic) {
     ref mut ctx: Context = state.context
     // A native function may invoke a guest callback before its own guest call
     // returns. Only this nested invocation's failure crosses its native error
@@ -10742,12 +10741,16 @@ priv ffi_enum_payload_type := proc(variant: VariantDef, mut ctx: Context, host_l
     return known_ffi_type(variant.payload_type, ctx, host_layout).unwrap()
 }
 
-priv ffi_enum_payload_slot := func(type_name: Str, data: Dynamic, host_layout: Bool, ctx: Context) returns ref Dynamic {
+priv ffi_enum_payload_offset := func(type_name: Str, host_layout: Bool, ctx: Context) returns UPtr {
     ref def : Expr = ctx.ffi.struct_defs[type_name].ptr
-    if enum_is_niche(def) { return to_ptr(data) }
+    if enum_is_niche(def) { return 0 }
     ref layout : FFITypePtrBox = ffi_cached_layout(type_name, ctx, host_layout)
     ref offset : U64 = ptr_add(layout.offsets, 8)
-    return ptr_add(data, offset.to_uptr())
+    return offset.to_uptr()
+}
+
+priv ffi_enum_payload_slot := func(type_name: Str, data: Dynamic, host_layout: Bool, ctx: Context) returns ref Dynamic {
+    return ptr_add(data, ffi_enum_payload_offset(type_name, host_layout, ctx))
 }
 
 // Error-only return storage is zeroed even when zero is not a declared tag.
@@ -11886,7 +11889,7 @@ priv ffi_release_conversion_storage := func(type_name: Str, mut data: Dynamic, h
         ref variant : VariantDef = ed.variants[index.to_usize()]
         if variant.payload_type.len().eq(0).or(variant.payload_ref) { return }
         if variant.payload_funcsig {
-            ref mut slot: Dynamic = ffi_enum_payload_slot(type_name, data, host_layout, ctx)
+            const ref mut slot: Dynamic = ptr_add(data, ffi_enum_payload_offset(type_name, host_layout, ctx))
             ref stored: Dynamic = deref(slot)
             if host_layout { mut released: Dynamic = stored; callable_storage_free(released) }
             else { til_closure_delete(to_ptr(stored)) }
@@ -12219,7 +12222,7 @@ priv ext_dispatch_ffi := proc(name: Str, mut scope: Scope, e: Expr, mut result: 
     // the deep path below. No ext callee takes `own` scalars (the C side
     // only borrows these boxes), so they must be freed after ffi_call --
     // skipping that leaked one box per non-shallow scalar arg per call.
-    boxed_flags : U8 = calloc(alloc_n, 1)
+    mut boxed_flags : U8 = calloc(alloc_n, 1)
     // Keep each raw result alive until ffi_call finishes because arg_ptrs may
     // point directly into aggregate storage.
     mut arg_raws : UPtr = malloc(alloc_n.mul(UPtr.size()).mul(2))
@@ -13186,9 +13189,9 @@ priv ffi_register := proc(name: Str, fn: Dynamic, fdef: Expr, host_layout: Bool,
     if alloc_np == 0 { alloc_np = 1 }
     // Build ffi_type* array (each element is a pointer = 8 bytes)
     mut atypes : Dynamic = malloc(alloc_np.mul(8))
-    pdynamics : Dynamic = calloc(alloc_np, 1)
+    mut pdynamics : Dynamic = calloc(alloc_np, 1)
     mut pmutables : Dynamic = calloc(alloc_np, 1)
-    powns : Dynamic = calloc(alloc_np, 1)
+    mut powns : Dynamic = calloc(alloc_np, 1)
     mut ptypes := Vec(Str).new()
     mut pshallows : Dynamic = 0
     mut has_shallow := false

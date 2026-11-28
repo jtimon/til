@@ -534,7 +534,8 @@ typedef struct FFIEntryBox FFIEntryBox;
 typedef struct ExprPtrBox ExprPtrBox;
 typedef struct FFITypePtrBox FFITypePtrBox;
 typedef struct Option__priv___src_self_interpreter_til__InterpSharedI64 Option__priv___src_self_interpreter_til__InterpSharedI64;
-typedef struct Option__ref_InterpSession Option__ref_InterpSession;
+typedef struct Option__ref_mut_InterpSession Option__ref_mut_InterpSession;
+typedef struct Option__ref_mut_Dynamic Option__ref_mut_Dynamic;
 typedef struct Option__ref_U8 Option__ref_U8;
 typedef struct Vec__priv___src_self_interpreter_til__InterfaceCallBox Vec__priv___src_self_interpreter_til__InterfaceCallBox;
 typedef struct Option__ref_TypeInstanceArg Option__ref_TypeInstanceArg;
@@ -2103,8 +2104,12 @@ struct Option__priv___src_self_interpreter_til__InterpSharedI64 {
     TIL_OWN_PTR(priv___src_self_interpreter_til__InterpSharedI64) data;
 };
 
-struct Option__ref_InterpSession {
+struct Option__ref_mut_InterpSession {
     InterpSession *data;
+};
+
+struct Option__ref_mut_Dynamic {
+    void *data;
 };
 
 struct Option__ref_U8 {
@@ -2211,6 +2216,7 @@ typedef struct Vec__DocEntry {
 typedef struct priv___src_self_binder_til__BinderState {
     Str alias_to_primitive;
     Str alias_to_dynamic;
+    Set__Str const_aliases;
 } priv___src_self_binder_til__BinderState;
 
 
@@ -2843,7 +2849,7 @@ typedef struct InterpSession {
 
 
 typedef struct TilVmCallback {
-    Option__ref_InterpSession session;
+    Option__ref_mut_InterpSession session;
     TIL_OWN_PTR(U8) callable;
 } TilVmCallback;
 

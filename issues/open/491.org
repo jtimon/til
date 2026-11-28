@@ -4,6 +4,25 @@
 
 *** Existing preparation
 
+Native callback error outputs are writable borrowed slots. The fixed-local
+bootstrap trial after this migration still reports 20 diagnostics in AST
+definition lookups and libffi result descriptor selection.
+
+C pointer field generation preserves the nullable Option and sets its
+payload grant separately from the containing field's replaceability.
+
+Binder parameter coverage distinguishes ~const int **~ from ~int *const *~.
+~bindgen_pointer_qualifiers~ also checks typed single-pointer returns,
+including a top-level const pointer and a chain of const base aliases.
+
+The private TilVm callback session slot retains the writable grant from
+lookup, and the retained-program accessor returns writable storage to the
+interpreter. The installed TilVm tests exercise invocation and teardown.
+
+Throw propagation lowering returns ~Option(ref mut Expr)~ for the success
+body where the caller appends subsequent statements. Its recursive helper
+borrows writable AST storage from the statement being rewritten.
+
 Interpreter scope parents lend writable scope storage to evaluation. Heap
 binding lookup can therefore refresh the binding it returns, while exported
 callable validation returns a restricted ~Option(ref HeapBinding)~.

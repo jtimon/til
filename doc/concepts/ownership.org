@@ -128,6 +128,17 @@ cannot grant write access through a read-only reference field.
 Likewise, a local ~mut ref cursor~ can traverse read-only inputs: rebinding
 the cursor does not write either input.
 
+Similarly, C can replace a pointer through ~const T **slot~ without owning
+or gaining write access to the ~T~ it points to.
+A writable typed pointer returned by C is a writable borrow in generated
+bindings. Its release policy and lifetime still come from the C API.
+Nullable pointer fields likewise keep their Option representation: a writable
+payload borrows the C pointee and does not transfer it to the containing struct.
+The same distinction applies to native callback error outputs: the callee
+writes into caller-provided storage without taking ownership of the slot.
+The interpreter's name lookup uses this pattern to walk parent scopes
+without asking for write access to the scope it starts from.
+
 For owned Vec and Array elements and owned Map values, subscripting borrows through
 the receiver: ~ref mut item := items[i]~ can change the stored element if
 ~items~ supplies writable access. The same expression through a read-only
@@ -304,7 +315,8 @@ true. Test both implicit destruction and explicit deletion under ASAN.
 *** Owning handles can borrow their resource owner
 
 ~TilVmCallback~, obtained with ~vm.lookup("on_key")?~, owns its guest
-callable and captured values but borrows the VM's session/code. Calling
+callable and captured values but borrows the VM's session/code. Its private
+session borrow is writable: a guest call can change session state. Calling
 ~callback.call()?~ does not transfer either owner. ASAP keeps the VM alive
 through the handle's last use and destroys the handle first. Returning a
 handle borrowed from a local VM, destroying that VM before a later handle

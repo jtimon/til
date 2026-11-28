@@ -204,6 +204,9 @@ priv push_til_base := func(mut out: Str, c: Str) returns Bool {
 priv BinderState := struct {
     alias_to_primitive := "|"
     alias_to_dynamic := "|"
+    // Top-level const survives a typedef. When that alias precedes a
+    // star it qualifies the object reached through that star.
+    const_aliases := Set(Str).new()
 }
 
 priv register_alias := func(mut bs: BinderState, name: Str) {
@@ -269,18 +272,20 @@ priv push_til_default := func(bs: BinderState, mut out: Str, c: Str) {
 //
 // `void *` and multi-level pointers keep Dynamic as the pointee: that is the
 // quarantined raw layer, where null is a legitimate value, not an absent one.
-priv push_nullable_ptr_field := func(mut out: Str, fname: Str, base_view: Str) {
+priv push_nullable_ptr_field := func(mut out: Str, fname: Str, base_view: Str, writable: Bool) {
     out.push_str(fname)
     out.push_str(" : Option(ref ")
+    if writable { out.push_str("mut ") }
     if base_view == "void" { out.push_str("Dynamic") } else { push_til_base(out, base_view) }
     out.push_str(") = Option(ref ")
+    if writable { out.push_str("mut ") }
     if base_view == "void" { out.push_str("Dynamic") } else { push_til_base(out, base_view) }
     out.push_str(").None")
 }
 
 priv bind_push_field := func(bs: BinderState, mut out: Str, line: Str,
     base_off: USize, base_end: USize, name_start: USize, name_end: USize,
-    ptrs: I32, comment: Str) {
+    ptrs: I32, slot_const: Bool, pointee_const: Bool, comment: Str) {
     base_view := line.substr(base_off, base_end - base_off)
     word_len := name_end - name_start
     // No `mut` on any of these: struct fields are mutable by default, and the
@@ -289,10 +294,11 @@ priv bind_push_field := func(bs: BinderState, mut out: Str, line: Str,
     // produced bindings that no longer typecheck -- which is why the committed
     // vendor/bindings/*.til have the `mut`s stripped by hand.
     out.push_str("    ")
+    if slot_const.or(ptrs.eq(0).and(bs.const_aliases.has(base_view))) { out.push_str("const ") }
     if ptrs.eq(0).and(is_alias_to_dynamic(bs, base_view)) {
         // Field is typed as a previously-emitted Dynamic alias (typedef'd
         // pointer or function pointer). Treat it like a pointer field.
-        push_nullable_ptr_field(out, line.substr(name_start, word_len), base_view)
+        push_nullable_ptr_field(out, line.substr(name_start, word_len), base_view, false)
     } else if ptrs == 0 {
         out.push_str(line.substr(name_start, word_len))
         out.push_str(" : ")
@@ -300,11 +306,11 @@ priv bind_push_field := func(bs: BinderState, mut out: Str, line: Str,
         out.push_str(" = ")
         push_til_default(bs, out, base_view)
     } else if ptrs.eq(1).and(range_eq_lit(line, base_off, base_end, "void")) {
-        push_nullable_ptr_field(out, line.substr(name_start, word_len), "void")
+        push_nullable_ptr_field(out, line.substr(name_start, word_len), "void", pointee_const.not())
     } else if ptrs == 1 {
-        push_nullable_ptr_field(out, line.substr(name_start, word_len), base_view)
+        push_nullable_ptr_field(out, line.substr(name_start, word_len), base_view, pointee_const.or(bs.const_aliases.has(base_view)).not())
     } else {
-        push_nullable_ptr_field(out, line.substr(name_start, word_len), "void")
+        push_nullable_ptr_field(out, line.substr(name_start, word_len), "void", pointee_const.not())
     }
     if comment.is_empty().not() {
         out.push_str("  // ")
@@ -353,9 +359,14 @@ priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: 
     mut prev_end : USize = 0
     mut base_first : USize = 0
     mut base_set := false
+    mut base_const := false
+    mut slot_const := false
+    mut pointee_const := false
     p = skip_ws(line, 0)
     while p < first_comma {
         if line.unsafe_get(p) == '*' {
+            pointee_const = slot_const
+            slot_const = false
             ptrs++
             p++
             p = skip_ws(line, p)
@@ -363,8 +374,13 @@ priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: 
         }
         ws := skip_word(line, p)
         if ws == p { return false }
-        if or(range_eq_lit(line, p, ws, "const"),
-              range_eq_lit(line, p, ws, "volatile"),
+        if range_eq_lit(line, p, ws, "const") {
+            slot_const = true
+            if ptrs == 0 { base_const = true }
+            p = skip_ws(line, ws)
+            continue
+        }
+        if or(range_eq_lit(line, p, ws, "volatile"),
               range_eq_lit(line, p, ws, "restrict"),
               range_eq_lit(line, p, ws, "__restrict"),
               range_eq_lit(line, p, ws, "__restrict__"),
@@ -411,7 +427,7 @@ priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: 
     if ptrs.eq(0).and(c_base_unsupported(line.substr(base_off, prev_end - base_off))) {
         return false
     }
-    bind_push_field(bs, out, line, base_off, prev_end, name_start, name_end, ptrs, comment)
+    bind_push_field(bs, out, line, base_off, prev_end, name_start, name_end, ptrs, slot_const, pointee_const, comment)
 
     // Remaining declarators: `, m4, m8, m12`. Each contributes its own stars
     // and name to the base type parsed above.
@@ -420,11 +436,20 @@ priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: 
         q++
         q = skip_ws(line, q)
         mut dptrs : I32 = 0
+        slot_const = base_const
+        pointee_const = false
         while q < n {
-            if line.unsafe_get(q) != '*' { break }
-            dptrs++
-            q++
-            q = skip_ws(line, q)
+            if line.unsafe_get(q) == '*' {
+                pointee_const = slot_const
+                slot_const = false
+                dptrs++
+                q = skip_ws(line, q + 1)
+            } else {
+                end := skip_word(line, q)
+                if range_eq_lit(line, q, end, "const") { slot_const = true }
+                else if range_eq_lit(line, q, end, "volatile").or(range_eq_lit(line, q, end, "restrict")).not() { break }
+                q = skip_ws(line, end)
+            }
         }
         // A declarator with no name is not a shape this emitter understands
         // (a stray trailing comma, or something the pre-filter let through);
@@ -436,7 +461,7 @@ priv bind_emit_field := func(bs: BinderState, mut out: Str, line: Str, comment: 
         if dptrs.eq(0).and(c_base_unsupported(line.substr(base_off, prev_end - base_off))) {
             return false
         }
-        bind_push_field(bs, out, line, base_off, prev_end, q, dws, dptrs, "")
+        bind_push_field(bs, out, line, base_off, prev_end, q, dws, dptrs, slot_const, pointee_const, "")
         q = skip_ws(line, dws)
         if q < n {
             if line.unsafe_get(q) != ',' { return false }
@@ -822,15 +847,17 @@ priv emit_typedef_alias := func(mut bs: BinderState, mut out: Str, line: Str) re
     mut base_first : USize = 0
     mut base_set := false
     mut p := body_start
+    mut alias_const := false
     while p < body_end {
         ref c : I8 = line.unsafe_get(p)
         if c.eq('(').or(c.eq('[')) { return false }
         if bind_is_ws(c) { p = p + 1; continue }
-        if c == '*' { ptrs = ptrs + 1; p = p + 1; continue }
+        if c == '*' { ptrs = ptrs + 1; alias_const = false; p = p + 1; continue }
         word_end := skip_word(line, p)
         if word_end == p { return false }
         if range_eq_lit(line, p, word_end, "const")
         .or(range_eq_lit(line, p, word_end, "volatile")) {
+            if range_eq_lit(line, p, word_end, "const") { alias_const = true }
             p = word_end
             continue
         }
@@ -854,6 +881,9 @@ priv emit_typedef_alias := func(mut bs: BinderState, mut out: Str, line: Str) re
         base_off = base_off + 5
     }
     base_len := prev_end - base_off
+    if alias_const.or(ptrs.eq(0).and(bs.const_aliases.has(line.substr(base_off, base_len)))) {
+        bs.const_aliases.add(own line.substr(name_start, name_end - name_start).clone())
+    }
     out.push_str(line.substr(name_start, name_end - name_start))
     out.push_str(" := ")
     if ptrs > 0 {
@@ -1063,6 +1093,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
     }
     // Walk [0, ret_end) of sig for the return-type's base + pointer depth.
     mut ret_ptrs : I32 = 0
+    mut ret_pointee_const := false
     mut ret_base_start : USize = 0
     mut ret_base_end : USize = 0
     mut ret_base_set := false
@@ -1075,6 +1106,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
         if rw == rt { return false }
         if range_eq_lit(sig, rt, rw, "const")
         .or(range_eq_lit(sig, rt, rw, "volatile")) {
+            if ret_ptrs == 0 && range_eq_lit(sig, rt, rw, "const") { ret_pointee_const = true }
             rt = rw
             continue
         }
@@ -1146,17 +1178,25 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
                     // (`T *p`) lets the callee modify the pointee, so it maps
                     // to a `mut` ref. A const pointee (`const T *p`) stays the
                     // default read-only borrow. We flag a const that appears
-                    // before the first `*` (p_ptrs == 0): that const qualifies
-                    // the pointee. A const after the `*` is top-level (the
-                    // pointer itself), which til args are already immutable
-                    // about, so it does not affect the `mut` decision.
+                    // on the immediately referenced object. In `const T **p`
+                    // the pointer slot can be replaced; in `T *const *p` it
+                    // cannot. Top-level const qualifies only the callee's copy.
                     mut p_pointee_const := false
+                    mut p_top_const := false
                     mut t := a
                     while t < b {
                         ref c : I8 = params_view.unsafe_get(t)
                         if bind_is_ws(c) { t = t + 1; continue }
-                        if c == '*' { p_ptrs = p_ptrs + 1; t = t + 1; continue }
+                        if c == '*' {
+                            p_pointee_const = p_top_const
+                            p_top_const = false
+                            p_ptrs++
+                            t++
+                            continue
+                        }
                         if c == '[' {
+                            p_pointee_const = p_top_const
+                            p_top_const = false
                             p_ptrs++
                             while t.lt(b).and(params_view.unsafe_get(t).neq(']')) { t = t + 1 }
                             if t < b { t = t + 1 }
@@ -1165,7 +1205,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
                         word_end := skip_word(params_view, t)
                         if word_end == t { failed = true; break }
                         if range_eq_lit(params_view, t, word_end, "const") {
-                            if p_ptrs == 0 { p_pointee_const = true }
+                            p_top_const = true
                             t = word_end
                             continue
                         }
@@ -1206,6 +1246,7 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
                         p_base_off = p_base_off + 5
                     }
                     p_base_len := p_prev_end - p_base_off
+                    if p_ptrs == 1 && bs.const_aliases.has(params_view.substr(p_base_off, p_base_len)) { p_pointee_const = true }
                     p_is_void := range_eq_lit(params_view, p_base_off, p_prev_end, "void")
 
                     if p_ptrs == 0 {
@@ -1272,7 +1313,9 @@ priv emit_function := func(bs: BinderState, mut out: Str, lines: Vec(Str), start
         } else if ret_ptrs.eq(1).and(ret_is_void) {
             out.push_str(" returns Dynamic")
         } else if ret_ptrs == 1 {
-            out.push_str(" returns ref ")
+            if ret_pointee_const.or(bs.const_aliases.has(sig.substr(ret_base_start, ret_base_len))) {
+                out.push_str(" returns ref ")
+            } else { out.push_str(" returns ref mut ") }
             push_til_base(out, sig.substr(ret_base_start, ret_base_len))
         } else {
             out.push_str(" returns Dynamic")

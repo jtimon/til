@@ -5116,8 +5116,8 @@ priv process_call_desugars := func(mut ctx: Context, mut e: Expr, mut new_ch: Ve
 // Compile directives (link / link_c / import) flow through untouched:
 // the call-desugar walk is a no-op on them, the hoist switch's default
 // case skips them, and field_delete is FieldAssign-only.
-priv propagation_success_body := func(stmt: Expr, depth: USize) returns ref Expr {
-    ref body : Expr = stmt.children[1]
+priv propagation_success_body := func(mut stmt: Expr, depth: USize) returns ref mut Expr {
+    const ref mut body : Expr = stmt.children[1]
     if depth == 1 { return body }
     return propagation_success_body(body.children[body.children.len() - 1], depth - 1)
 }
@@ -5410,7 +5410,7 @@ priv apply_hoist_to_stmt := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: V
 
 // Include argument-pack setters in the continuation as well as the final
 // call: they may consume a failed operand or evaluate a later one (#443).
-priv guard_hoisted_statement := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Expr), mut new_ch: Vec(Expr), mut scope: TypeScope) returns Option(ref Expr) {
+priv guard_hoisted_statement := proc(mut ctx: Context, mut stmt: Expr, mut hoisted: Vec(Expr), mut new_ch: Vec(Expr), mut scope: TypeScope) returns Option(ref mut Expr) {
     mut guards : USize = 0
     for step : Expr in hoisted {
         if hoisted_call_can_propagate(step) { guards++ }
@@ -5457,7 +5457,7 @@ priv guard_hoisted_statement := proc(mut ctx: Context, mut stmt: Expr, mut hoist
                 source.add_child(own slot_id)
                 mark_fcall_direct(source)
                 stmt.children[0] = source
-                return safe_ref(propagation_success_body(new_ch[new_ch.len() - 1], guards))
+                return safe_ref_mut(propagation_success_body(new_ch[new_ch.len() - 1], guards))
             }
             mut initial := stmt.clone()
             ref mut initial_dd : Declaration = decl_of_mut(initial)
@@ -5484,11 +5484,11 @@ priv guard_hoisted_statement := proc(mut ctx: Context, mut stmt: Expr, mut hoist
         last := sequence.children.len() - 1
         for i in 0..last { new_ch.push(own sequence.children[i].clone()) }
         stmt = sequence.children[last].clone()
-        return safe_ref(propagation_success_body(stmt, guards))
+        return safe_ref_mut(propagation_success_body(stmt, guards))
     } else {
         new_ch.append(own hoisted.take())
     }
-    return Option(ref Expr).None
+    return Option(ref mut Expr).None
 }
 
 // Per-stmt pipeline: call-desugar, hoist, field-delete. Each step
@@ -5501,8 +5501,8 @@ priv guard_hoisted_statement := proc(mut ctx: Context, mut stmt: Expr, mut hoist
 // must be hoisted into a temp Decl so the builder takes its address).
 // To match the original two-pass flow, every desugar-emitted stmt is
 // routed through hoist before being pushed.
-priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool, do_hoist: Bool, needs_delete: Bool, returns_ref: I32) returns Option(ref Expr) {
-    if is_compile_directive(stmt, ctx.symbols) { return Option(ref Expr).None }
+priv apply_call_hoist_delete := proc(mut ctx: Context, mut stmt: Expr, mut new_ch: Vec(Expr), mut scope: TypeScope, has_array_vec: Bool, has_variadic: Bool, has_kwargs: Bool, do_hoist: Bool, needs_delete: Bool, returns_ref: I32) returns Option(ref mut Expr) {
+    if is_compile_directive(stmt, ctx.symbols) { return Option(ref mut Expr).None }
     mut prefix := Vec(Expr).new()
     if has_array_vec.or(has_variadic).or(has_kwargs) {
         mut emitted := Vec(Expr).new()

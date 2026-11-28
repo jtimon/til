@@ -2618,6 +2618,25 @@ main := proc(args: ..Str) returns I64 {
     add_single(tests, "bindgen_typechecks", "build", 0, "",
         format(til_bin, " bindings -o tmp/bindgen_raylib.til vendor/raylib/src/raylib.h",
             " '&&' ", til_bin, " translate tmp/bindgen_raylib.til"))
+    add_counts(tests, "bindgen_pointer_qualifiers", "build",
+        format("rm -f tmp/bind_pointer_qualifiers.til '&&' ", til_bin,
+            " bindings -o tmp/bind_pointer_qualifiers.til test/bind_pointer_qualifiers.h",
+            " '&&' cat tmp/bind_pointer_qualifiers.til"),
+        CountCheck(needle = "inspect := ext_func(data : I32)", expected_count = 1),
+        CountCheck(needle = "replace := ext_func(mut slot : Dynamic)", expected_count = 1),
+        CountCheck(needle = "inspect_slot := ext_func(slot : Dynamic)", expected_count = 1),
+        CountCheck(needle = "write_bytes := ext_func(mut data : I8)", expected_count = 1),
+        CountCheck(needle = "replace_opaque := ext_func(mut slot : Dynamic)", expected_count = 1),
+        CountCheck(needle = "write_result := ext_func() returns ref mut I32", expected_count = 1),
+        CountCheck(needle = "write_result_fixed := ext_func() returns ref mut I32", expected_count = 1),
+        CountCheck(needle = "read_result := ext_func() returns ref I32", expected_count = 1),
+        CountCheck(needle = "read_alias := ext_func() returns ref StillReadInt", expected_count = 1),
+        CountCheck(needle = "inspect_alias := ext_func(data : StillReadInt)", expected_count = 1),
+        CountCheck(needle = "    change : Option(ref mut I32)", expected_count = 1),
+        CountCheck(needle = "    const fixed_change : Option(ref mut I32)", expected_count = 1),
+        CountCheck(needle = "    look : Option(ref I32)", expected_count = 1),
+        CountCheck(needle = "    const fixed_look : Option(ref I32)", expected_count = 1),
+        CountCheck(needle = "    look_alias : Option(ref StillReadInt)", expected_count = 1))
     // Issue #326: an ext decl is an IMPORT -- it names a symbol some other
     // object file defines -- so it is not part of a library's ABI and no
     // consumer of one needs the prototype; only a call in the emitted .c
