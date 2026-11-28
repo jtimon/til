@@ -315,28 +315,14 @@ mm_label := func(mm: F32) returns Str {
 }
 
 Spacing := struct {
-    length_mm := ""
+    length_mm := NumericInput(text = "647.7", step = "0.25")
     tet : I32 = 12
     partial : Bool = false
 }
 
 spacing_frame := proc(mut s: Spacing, fnt: Font, active: Color, inactive: Color, text: Color) {
-    // This view has one numeric field: accept mm with either decimal separator.
-    mut ch := GetCharPressed()
-    while ch.gt(0) {
-        if s.length_mm.len().lt(9) {
-            if ch.gte(48).and(ch.lte(57)) { s.length_mm = format(s.length_mm, (ch - 48).to_str()) }
-            if ch.eq(46).or(ch.eq(44)) {
-                if s.length_mm.contains(".").not() {
-                    if s.length_mm.is_empty() { s.length_mm = "0" }
-                    s.length_mm = format(s.length_mm, ".")
-                }
-            }
-        }
-        ch = GetCharPressed()
-    }
-    if IsKeyPressed(259).and(s.length_mm.is_empty().not()) { s.length_mm = s.length_mm.substr(0, s.length_mm.len() - 1) }
-    spacing_text(fnt, format("Scale length (mm): ", s.length_mm, "_    Type a length; Backspace to edit."), MARGIN, TOP_Y, text)
+    if IsKeyPressed(KEY_TAB) { s.length_mm.focused = s.length_mm.focused.not() }
+    s.length_mm.draw("Scale length (mm):", MARGIN, TOP_Y, BTN_W, BTN_H, FONT.cast(I32), 9)
     spacing_text(fnt, "Use nominal scale length. On a standard guitar, double the nut-to-12th-fret distance. Measure from the nut's string contact edge to fret centers.", MARGIN, TOP_Y + BTN_H, text)
     row := TOP_Y + BTN_H * 2
     click := IsMouseButtonPressed(0).and(GetMouseY().gte(row)).and(GetMouseY().lt(row + BTN_H))
@@ -353,8 +339,10 @@ spacing_frame := proc(mut s: Spacing, fnt: Font, active: Color, inactive: Color,
         if s.partial { label = "Partial 24-TET" }
         draw_toggle(fnt, x, row, label, s.partial, active, inactive, text)
     }
-    if s.length_mm.is_empty() { return }
-    length := s.length_mm.to_f32()
+    if s.length_mm.text.is_empty() { return }
+    number := s.length_mm.value()
+    if number.is_none() { spacing_text(fnt, "Enter a number in millimeters.", MARGIN, BOARD_Y, text); return }
+    length := number.unwrap().clone()
     if length.lte(0) { spacing_text(fnt, "Enter a positive length in millimeters.", MARGIN, BOARD_Y, text); return }
     spacing_text(fnt, "Two octaves | Nut = 0.00 mm | Gap measured from previous installed fret (from nut for first fret). Ideal, uncompensated positions.", MARGIN, BOARD_Y - 24, text)
     mut slot : I32 = 0
@@ -379,6 +367,12 @@ spacing_frame := proc(mut s: Spacing, fnt: Font, active: Color, inactive: Color,
 }
 
 test_fret_layout := test() {
+    spacing := Spacing()
+    assert_eq(Str, mm_label(fret_fraction(spacing_ratio(spacing.tet), 12) * spacing.length_mm.value().unwrap()), "323.85")
+    for decimal in array(Str, "648.5", "648,5") {
+        input := NumericInput(text = decimal.clone())
+        assert_eq(Str, mm_label(fret_fraction(spacing_ratio(12), 12) * input.value().unwrap()), "324.25")
+    }
     for n : I32 in SPACING_TETS {
         ratio := spacing_ratio(n)
         assert_eq(Str, mm_label(fret_fraction(ratio, n) * 648), "324.00")
@@ -428,6 +422,7 @@ main := proc() {
 
         if IsMouseButtonPressed(0).and(GetMouseX().gte(SPACING_X)).and(GetMouseX().lt(SPACING_X + BTN_W)).and(GetMouseY().gte(TOP_Y)).and(GetMouseY().lt(TOP_Y + BTN_H)) {
             show_spacing = show_spacing.not()
+            spacing.length_mm.focused = false
             if show_spacing {
                 spacing.tet = active_step_max(use_nathex, use_microtones) / 2
                 spacing.partial = use_microtones.and(use_nathex.not())

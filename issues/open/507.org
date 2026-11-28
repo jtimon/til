@@ -1,6 +1,13 @@
 # priority: medium
 # category: features
-** OPEN #507 Reusable interactive controls for mode gui
+** WIP #507 Reusable interactive controls for mode gui
+
+First control: ~NumericInput~ keeps editable decimal text separate from
+its optional numeric value. Guitar's Scale length uses it. The vendored
+~GuiValueBoxFloat~ parses on each change and accepts a dot but not a comma;
+this field uses raylib input and drawing directly. ~test/gui_numeric_input.til~
+exercises it in a native window, and guitar's ~test_fret_layout~ checks
+both decimal spellings against the octave fret distance.
 
 The goal is to write one ~mode gui~ program and run it on every supported
 target, including the browser. [[file:../fixed/228.org][#228]] introduced the browser WASM target;

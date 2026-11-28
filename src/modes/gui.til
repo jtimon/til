@@ -110,6 +110,141 @@ Colors := namespace {
     NOTE_TEAL_4 := Color(r = 0, g = 210, b = 215, a = 255)
 }
 
+/// A decimal editor. Keep the spelling (including a trailing dot or comma)
+/// until the caller asks for its value. The caller owns Tab traversal.
+NumericInput := struct {
+    text := ""
+    // Positive decimal increment, kept exact just like the editable text.
+    step := "1"
+    focused := false
+    priv cursor : USize = 0
+namespace:
+    value := func(self: NumericInput) returns Option(F32) {
+        mut digits := false
+        mut separator := false
+        for i in 0..self.text.len() {
+            c := self.text.substr(i, 1)
+            if "0123456789".contains(c) { digits = true }
+            else if c == "." || c == "," {
+                if separator { return Option(F32).None }
+                separator = true
+            } else if i != 0 || c != "-" { return Option(F32).None }
+        }
+        if !digits { return Option(F32).None }
+        return Option(F32).Some(self.text.replace(",", ".").to_f32())
+    }
+
+    priv erase := func(mut self: NumericInput, at: USize) {
+        self.text = format(self.text.substr(0, at), self.text.substr(at + 1, self.text.len() - at - 1))
+    }
+
+    // Add in decimal columns: converting through F32 would lose digits in
+    // a long input and could turn an editable decimal into exponent notation.
+    priv nudge := func(mut self: NumericInput, down: Bool, max_chars: USize) {
+        increment := NumericInput(text = self.step.clone())
+        if increment.value().is_none() || self.step.starts_with("-") || self.step.replace("0", "").replace(".", "").replace(",", "").is_empty() {
+            panic("NumericInput.step must be a positive decimal")
+        }
+        mut a := self.text.replace(",", ".").strip_prefix("-").clone()
+        mut b := self.step.replace(",", ".")
+        mut negative := self.text.starts_with("-")
+        if self.value().is_none() { a = "0"; negative = false }
+        if !a.contains(".") { a = format(a, ".") }
+        if !b.contains(".") { b = format(b, ".") }
+        while a.find(".") < b.find(".") { a = format("0", a) }
+        while b.find(".") < a.find(".") { b = format("0", b) }
+        while a.len() < b.len() { a = format(a, "0") }
+        while b.len() < a.len() { b = format(b, "0") }
+        subtract := negative != down
+        if subtract && Str.cmp(a, b) < 0 { tmp := a.clone(); a = b.clone(); b = tmp; negative = down }
+        mut out := ""
+        mut carry := 0
+        for j in 0..a.len() {
+            i := a.len() - 1 - j
+            c := a.substr(i, 1)
+            if c == "." { out = format(".", out); continue }
+            mut digit := c.to_i64() + carry
+            d := b.substr(i, 1).to_i64()
+            if subtract { digit = digit - d } else { digit = digit + d }
+            carry = 0
+            if digit < 0 { digit = digit + 10; carry = -1 }
+            if digit >= 10 { digit = digit - 10; carry = 1 }
+            out = format(digit.to_str(), out)
+        }
+        if carry == 1 { out = format("1", out) }
+        while out.starts_with("0") && !out.starts_with("0.") { out = out.strip_prefix("0").clone() }
+        if out.starts_with(".") { out = format("0", out) }
+        while out.ends_with("0") { out = out.strip_suffix("0").clone() }
+        out = out.strip_suffix(".").clone()
+        if negative && out != "0" { out = format("-", out) }
+        if self.text.contains(",") { out = out.replace(".", ",") }
+        if out.len() <= max_chars { self.text = out; self.cursor = self.text.len() }
+    }
+
+    /// Draw a labeled field at (x,y), with width reserved for the editable
+    /// box after the label. Handle keyboard input only while focused.
+    draw := proc(mut self: NumericInput, label: Str, x: I32, y: I32, width: I32, height: I32, size: I32, max_chars: USize) {
+        left := x + MeasureText(label.c_str, size) + 8
+        arrows := left + width - height / 2
+        mid := y + height / 2
+        if IsMouseButtonPressed(0) {
+            self.focused = GetMouseX() >= x && GetMouseX() < left + width && GetMouseY() >= y && GetMouseY() < y + height
+            if self.focused {
+                self.cursor = self.text.len()
+                if GetMouseX() >= arrows { self.nudge(GetMouseY() >= mid, max_chars) }
+            }
+        }
+        mut border := Colors.HINT_GRAY
+        if self.focused {
+            border = Colors.TEAL
+            if IsKeyPressed(KEY_UP) { self.nudge(false, max_chars) }
+            if IsKeyPressed(KEY_DOWN) { self.nudge(true, max_chars) }
+            if IsKeyPressed(KEY_LEFT) && self.cursor > 0 { self.cursor = self.cursor - 1 }
+            if IsKeyPressed(KEY_RIGHT) && self.cursor < self.text.len() { self.cursor++ }
+            if IsKeyPressed(KEY_HOME) { self.cursor = 0 }
+            if IsKeyPressed(KEY_END) { self.cursor = self.text.len() }
+            if IsKeyPressed(KEY_BACKSPACE) && self.cursor > 0 {
+                self.cursor = self.cursor - 1
+                self.erase(self.cursor)
+            }
+            if IsKeyPressed(KEY_DELETE) && self.cursor < self.text.len() { self.erase(self.cursor) }
+            mut ch := GetCharPressed()
+            while ch > 0 {
+                mut insert := ""
+                if ch >= 48 && ch <= 57 { insert = (ch - 48).to_str() }
+                if (ch == 46 || ch == 44) && self.text.contains(".").or(self.text.contains(",")).not() {
+                    insert = "."
+                    if ch == 44 { insert = "," }
+                }
+                if ch == 45 && self.cursor == 0 && !self.text.starts_with("-") { insert = "-" }
+                if insert.len() > 0 && self.text.len() < max_chars && !(self.cursor == 0 && self.text.starts_with("-")) {
+                    self.text = format(self.text.substr(0, self.cursor), insert, self.text.substr(self.cursor, self.text.len() - self.cursor))
+                    self.cursor++
+                }
+                ch = GetCharPressed()
+            }
+        }
+        top := y + (height - size) / 2
+        DrawText(label.c_str, x, top, size, Colors.WHITE)
+        DrawRectangle(left, y, width, height, Colors.GRAY_40)
+        DrawRectangleLines(left, y, width, height, border)
+        DrawLine(arrows, y, arrows, y + height - 1, border)
+        DrawLine(arrows, mid, left + width - 1, mid, border)
+        center := arrows + height / 4
+        upper := y + height / 4
+        lower := mid + height / 4
+        DrawLine(center - 4, upper + 2, center, upper - 2, border)
+        DrawLine(center, upper - 2, center + 4, upper + 2, border)
+        DrawLine(center - 4, lower - 2, center, lower + 2, border)
+        DrawLine(center, lower + 2, center + 4, lower - 2, border)
+        DrawText(self.text.c_str, left + 5, top, size, Colors.WHITE)
+        if self.focused {
+            before := self.text.substr(0, self.cursor).clone()
+            DrawRectangle(left + 5 + MeasureText(before.c_str, size), top, 2, size, border)
+        }
+    }
+}
+
 // Math FFI (from libm)
 sinf := ext_func(shallow x: F32) returns shallow F32 {}
 

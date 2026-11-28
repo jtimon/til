@@ -2233,6 +2233,8 @@ main := proc(args: ..Str) returns I64 {
             format(til_bin, " run -o bin/c/gui_scissor -c gen/c/gui_scissor.c examples/gui_scissor.til"))
         add_count(tests, "gui_keyboard_input", "build", "GUI keyboard acceptance passed", 1,
             format(til_bin, " run -o bin/c/gui_keyboard_test -c gen/c/gui_keyboard_test.c test/templeos/gui_keyboard.til"))
+        add_count(tests, "gui_numeric_input", "build", "Numeric input acceptance passed", 1,
+            format(til_bin, " run test/gui_numeric_input.til"))
         add_count(tests, "gui_mouse_input", "build", "GUI mouse acceptance passed", 1,
             format(til_bin, " run -o bin/c/gui_mouse_test -c gen/c/gui_mouse_test.c test/templeos/gui_mouse.til"))
         add_count(tests, "gui_shapes_pixels", "build", "GUI shapes passed", 1,

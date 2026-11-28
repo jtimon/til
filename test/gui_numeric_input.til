@@ -1,0 +1,70 @@
+mode gui
+
+link_c("templeos/gui_keyboard.c")
+link_c("templeos/gui_mouse.c")
+gui_keyboard_key := ext_proc(shallow key: I32, shallow action: I32) {}
+gui_keyboard_char := ext_proc(shallow ch: I32) {}
+gui_mouse_move := ext_proc(shallow x: I32, shallow y: I32) {}
+gui_mouse_button := ext_proc(shallow button: I32, shallow action: I32) {}
+
+priv frame := proc(mut field: NumericInput) {
+    BeginDrawing()
+    if IsKeyPressed(KEY_TAB) { field.focused = field.focused.not() }
+    field.draw("Scale length (mm):", 60, 60, 190, 38, 20, 9)
+    EndDrawing()
+}
+
+priv press := proc(mut spacing: NumericInput, key: I32) {
+    gui_keyboard_key(key, 1)
+    frame(spacing)
+    gui_keyboard_key(key, 0)
+    frame(spacing)
+}
+
+priv enter_length := proc(mut spacing: NumericInput, separator: I32) {
+    gui_keyboard_char(54); gui_keyboard_char(52); gui_keyboard_char(56)
+    gui_keyboard_char(separator); frame(spacing)
+    assert_eq(USize, spacing.text.len(), 4)
+    gui_keyboard_char(53); frame(spacing)
+    assert_eq(F32, spacing.value().unwrap(), 648.5)
+}
+
+main := proc() {
+    InitWindow(800, 480, "Numeric input acceptance".c_str)
+    mut spacing := NumericInput()
+    frame(spacing)
+    gui_mouse_move(300, 80); gui_mouse_button(0, 1); frame(spacing)
+    gui_mouse_button(0, 0); frame(spacing)
+    assert(spacing.focused)
+    enter_length(spacing, 46)
+    for _ in 0..5 { press(spacing, KEY_BACKSPACE) }
+    assert(spacing.value().is_none())
+    enter_length(spacing, 44)
+    assert_eq(Str, spacing.text, "648,5")
+    press(spacing, KEY_TAB)
+    gui_keyboard_char(48); frame(spacing)
+    assert_eq(Str, spacing.text, "648,5")
+    press(spacing, KEY_TAB)
+    press(spacing, KEY_HOME); press(spacing, KEY_DELETE)
+    assert_eq(Str, spacing.text, "48,5")
+    press(spacing, KEY_UP)
+    assert_eq(Str, spacing.text, "49,5")
+    spacing.step = "0.25"
+    arrow_x := MeasureText("Scale length (mm):".c_str, 20) + 60 + 8 + 190 - 8
+    gui_mouse_move(arrow_x, 68); gui_mouse_button(0, 1); frame(spacing)
+    gui_mouse_button(0, 0); frame(spacing)
+    assert_eq(Str, spacing.text, "49,75")
+    gui_mouse_move(arrow_x, 89); gui_mouse_button(0, 1); frame(spacing)
+    gui_mouse_button(0, 0); frame(spacing)
+    assert_eq(Str, spacing.text, "49,5")
+    spacing.text = "0.1"
+    press(spacing, KEY_DOWN)
+    assert_eq(Str, spacing.text, "-0.15")
+    spacing.text = "647.7"
+    press(spacing, KEY_UP)
+    assert_eq(Str, spacing.text, "647.95")
+    press(spacing, KEY_DOWN); press(spacing, KEY_DOWN)
+    assert_eq(Str, spacing.text, "647.45")
+    CloseWindow()
+    println("Numeric input acceptance passed")
+}
