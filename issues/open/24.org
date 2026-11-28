@@ -58,8 +58,23 @@ Recent progress:
 - The regular micro guitar retains 24 conventional frets and inserts 15
   quarter-tone frets (odd steps through 29): 39 physical frets, not an exact
   copy of the reported 36-fret Khn guitar. Nathex uses 32 half-step frets
-  across two octaves, i.e. a 16-TET grid. The physical microtonal guitar is
-  going ahead; physical comfort and tuning will need practical evaluation.
+  across two octaves, i.e. a 16-TET grid.
+- Fret spacing input (#507): the user's adjustable microtonal Stratocaster
+  has a [[https://www.microtonalguitar.org/product-page/complete-adjustable-microtonal-electric-guitar-okoume-stratocaster][manufacturer-listed scale length of 25.5 inches]], or exactly
+  647.7 mm. In ~examples/guitar.til~, prefill the editable /Scale length
+  (mm)/ field with ~NumericInput(text = "647.7")~. The guitar supplies the
+  initial value; a generic numeric input can start empty.
+- The spinner increment is independent of the initial value. With a 0.25 mm
+  increment based at 647.7, one click up gives 647.95 and one click down
+  from the initial value gives 647.45. Preserve direct decimal entry, e.g.
+  648.5 mm. On the web, an HTML number input with value="647.7" and
+  step="0.25" uses the initial value as the step base if min is omitted;
+  step="any" permits unrestricted decimals without defining a step grid.
+- Check the 12-TET octave fret (distance from nut to fret center): 647.7 mm
+  gives 323.85 mm; the earlier 648.5 mm test case gives 324.25 mm. A common
+  classical scale of 650 mm gives 325 mm. Each input is a full scale length,
+  not the nut-to-octave measurement; length alone does not identify the type
+  of guitar.
 - The macro bug found while building the nathex table is fixed in
   [[../fixed/285.org][#285]]: foldable calls such as `2.to_f32()` are accepted as
   macro arguments. Its post-mortem names ~test_macro_to_f32_arg~ and
